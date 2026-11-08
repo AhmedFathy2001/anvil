@@ -13,6 +13,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { useClanHref } from '@/lib/useClanPath';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import { useLeaveGuard } from '@/components/UnsavedChanges';
 
 // The clan's task catalogue, as an editable list. Boards draw from this, so it's worth curating:
 // the tasks here decide what a generated board feels like.
@@ -90,6 +91,8 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
   const [draft, setDraft] = useState<TileConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const { confirm } = useDialog();
+  // Opening another task or closing the editor throws away an open task's unsaved edits: ask first.
+  const leaveGuard = useLeaveGuard();
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -377,7 +380,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={openNew}
+            onClick={() => leaveGuard(openNew)}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold text-brown-dark hover:bg-gold-light transition-colors"
           >
             ＋ New task
@@ -478,7 +481,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
                           </span>
                           <button
                             type="button"
-                            onClick={() => openTask(t)}
+                            onClick={() => leaveGuard(() => void openTask(t))}
                             className="flex-1 min-w-0 text-left hover:text-gold transition-colors"
                           >
                             <span className="block truncate">{t.label}</span>
@@ -492,7 +495,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
                             {t.points}p
                           </span>
                           <span className="shrink-0 flex items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                            <RowAction label={`Edit ${t.label}`} onClick={() => openTask(t)} mark="✎" />
+                            <RowAction label={`Edit ${t.label}`} onClick={() => leaveGuard(() => void openTask(t))} mark="✎" />
                             <RowAction
                               label={`Duplicate ${t.label}`}
                               onClick={() => duplicate(t)}
@@ -573,7 +576,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
           aria-label={editing === 'new' ? 'New task' : `Edit ${editing.label}`}
           className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
         >
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={closeEditor} />
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => leaveGuard(closeEditor)} />
           <div className="relative w-full max-w-2xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
             <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
               <div className="flex items-center gap-2 min-w-0">
@@ -583,7 +586,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
                 </h2>
               </div>
               <button
-                onClick={closeEditor}
+                onClick={() => leaveGuard(closeEditor)}
                 aria-label="Close"
                 className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light transition-colors"
               >

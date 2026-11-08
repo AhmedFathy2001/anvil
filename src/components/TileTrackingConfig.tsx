@@ -1,5 +1,7 @@
 "use client";
 
+import { useUnsavedChanges, UnsavedIndicator } from "@/components/UnsavedChanges";
+import { stableKey } from "@/lib/unsavedChanges";
 import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react";
 import LapCounterTip from "@/components/LapCounterTip";
 import TileBeforeYouStart from "@/components/TileBeforeYouStart";
@@ -1597,6 +1599,235 @@ function TileTrackingEditor({
     return null;
   }
 
+  // The payload a save would send, built from the live form. Also the unsaved-changes snapshot: the tile is
+  // dirty while this differs from the one taken once the editor settled (see below).
+  function buildPayload(): Record<string, unknown> {
+    // Build a payload that sets exactly this kind's fields and explicitly NULLs the rest,
+    // so the row is always internally consistent.
+    const payload: Record<string, unknown> = {
+      tileId,
+      baseUpdatedAt: baseStamp,
+      // Signals the server to unlock label/kind/required-amount on a live board (admin-only,
+      // recorded as a live override). Ignored before start and for non-admins.
+      liveOverride: canOverride && liveOverride,
+      label: label || undefined,
+      description: description || null,
+      optional,
+      lottery,
+      autoTrackDisabled,
+      points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
+      effortConfig: {
+        ...(effortSkillRating ? { skillRating: Number(effortSkillRating) } : {}),
+        ...(effortExpectedHours ? { expectedHours: Number(effortExpectedHours) } : {}),
+        ...(effortLockPoints ? { lockPoints: true } : {}),
+        ...(effortRaidMode ? {
+          raid: {
+            mode: effortRaidMode,
+            ...(effortUniqueDenominator ? { uniqueDenominator: Number(effortUniqueDenominator) } : {}),
+            ...(effortCompletionMinutes ? { completionMinutes: Number(effortCompletionMinutes) } : {}),
+            ...(effortRaidLevel ? { raidLevel: Number(effortRaidLevel) } : {}),
+          },
+        } : {}),
+      },
+      category: category.trim() || null,
+      // A counter's cap rides only a plugin kills tile (lib/tileCaps); cleared on every other kind.
+      capBy: isKill && capBy.length > 0 ? capBy : null,
+      // A combo's rule and parts (lib/combo) — the parts saved with it, each its own tile row.
+      comboRule: isCombo ? comboRule : null,
+      ...(isCombo ? { parts: comboParts.map((p) => partPayload(p, comboRule.mode)) } : {}),
+      // Mission flag + per-mission scoring (assembled below; null-rules on a normal tile).
+      mission,
+      missionRules: buildMissionRules(),
+      // defaults — overridden per kind below
+      tileType: isCombo ? 'combo' : isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : isClog ? 'clog' : 'standard',
+      trackedStat: null,
+      statType: null,
+      statGoal: null,
+      statBasis: 'gain',
+      trackingMode: 'team',
+      requiredAmount: null,
+      trackedItemIds: null,
+      itemRequirements: null,
+      // Cleared by default so switching a collection to another kind doesn't leave a stale
+      // set mode behind; the collection branch sets it.
+      groupMode: null,
+      setsRequired: null,
+      countMode: null,
+      // Same: only drop-shaped tiles carry a per-kill cap, only kill tiles carry shared-kill rules.
+      perKillCap: null,
+      coopCredit: null,
+      coopMinMembers: null,
+      sourceNpcs: null,
+      targetNpcs: null,
+      timedActivity: null,
+      timeThresholdSeconds: null,
+      partySize: null,
+      minRaidLevel: null,
+      partyTeamOnly: null,
+      // Cleared by default so switching away from PvP drops any stale floor; the pvp branch sets it.
+      pvpMinLootValue: null,
+    };
+
+    if (isStat) {
+      // A skill tile, or a kills tile whose monsters are all on the hiscores (statType 'boss').
+      const killsOnHiscores = kind === 'kills' && killChoice.ok && killChoice.source === 'hiscores';
+      payload.statType = kind === 'skill' ? 'skill' : 'boss';
+      payload.trackedStat = killsOnHiscores ? killChoice.trackedStat : trackedStat;
+      payload.statGoal = parseInt(killsOnHiscores ? killAmount : statGoal, 10);
+      payload.statBasis = statBasis;
+      // A milestone is settled per member — a team's lifetime totals summed together are
+      // meaningless — so persist the mode the server will actually use rather than leaving a
+      // 'team' behind that the editor no longer shows.
+      payload.trackingMode = statBasis === 'milestone' ? 'individual' : trackingMode;
+    } else if (kind === 'collection') {
+      payload.perKillCap = oncePerKill ? 1 : null;
+      payload.itemRequirements = trackedItems.map((i) => {
+        const g = i.group?.trim() || null;
+        const key = g?.toLowerCase();
+        const require = key ? groupRequires[key] : undefined;
+        return {
+          itemId: i.id,
+          name: i.name,
+          requiredAmount: i.perItemAmount,
+          group: g,
+          // Written on every row of the set (the reader takes the strictest); null = the whole set.
+          groupRequire: g && require && require >= 1 ? require : null,
+        };
+      });
+      payload.groupMode = groupMode;
+      // Only 'any' mode counts sets, and only once there are sets to count.
+      payload.setsRequired = groupMode === 'any' && collectionGroups.length > 0 && setsRequired > 1 ? setsRequired : null;
+    } else if (kind === 'drop') {
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+      payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+      payload.countMode = countMode === 'distinct' && trackedItems.length > 1 ? 'distinct' : null;
+      payload.perKillCap = oncePerKill ? 1 : null;
+    } else if (isKill && killChoice.ok && killChoice.source === 'plugin') {
+      payload.requiredAmount = killAmount ? parseInt(killAmount, 10) : null;
+      payload.targetNpcs = killChoice.targetNpcs;
+      payload.trackingMode = trackingMode;
+      payload.coopCredit = coopPerKill ? 'per-kill' : null;
+      payload.coopMinMembers = coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
+    } else if (kind === 'lap') {
+      // Course names ride the targetNpcs column (the lap tileType reinterprets it), matched
+      // verbatim against the game's lap-counter line — so canonicalise anything hand-typed.
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+      payload.targetNpcs = lapCourses.map(canonicalAgilityCourse);
+      payload.trackingMode = trackingMode;
+    } else if (kind === 'pvp') {
+      // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
+      // 'rsn:<name>' entries.
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+      payload.targetNpcs =
+        pvpTargetMode === 'rsn'
+          ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
+          : pvpTargetMode === 'anyone'
+            ? ['any']
+            : ['team:other'];
+      payload.trackingMode = trackingMode;
+      // Optional min-loot floor (gp) — parseGp accepts 5m/500k shorthand; blank/invalid = 0 (none).
+      payload.pvpMinLootValue = pvpMinLootText.trim() ? parseGp(pvpMinLootText) : null;
+    } else if (kind === 'diary') {
+      // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+      payload.targetNpcs = diarySelectors;
+      payload.trackingMode = trackingMode;
+    } else if (kind === 'clog') {
+      // Collection log (lib/clogTiles): the chosen items ARE the pool; pages are kept as labels.
+      payload.countMode = clogMode;
+      payload.targetNpcs = clogPages.length > 0 ? clogPages : null;
+      payload.trackedItemIds = clogItemIds.length > 0 ? clogItemIds : null;
+      payload.requiredAmount = requiredAmount.trim() ? parseInt(requiredAmount, 10) : null;
+      payload.trackingMode = trackingMode;
+    } else if (kind === 'ca') {
+      // CA selectors (task names / "Any <Tier>") likewise ride in targetNpcs.
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+      payload.targetNpcs = caSelectors;
+      payload.trackingMode = trackingMode;
+    } else if (kind === 'gain') {
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
+      payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+      payload.trackingMode = trackingMode;
+    } else if (kind === 'timed' && parseTrialRankTile(timedActivity)) {
+      // Barracuda Trials rank tile: gated on the exact rank (no cap); requiredAmount = runs needed.
+      payload.timedActivity = timedActivity.trim();
+      payload.timeThresholdSeconds = null;
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+      payload.trackingMode = trackingMode;
+      payload.partySize = null;
+      payload.minRaidLevel = null;
+    } else if (kind === 'timed') {
+      payload.timedActivity = timedActivity.trim();
+      payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
+      // Party gate only makes sense where the plugin can see a party — the raids.
+      payload.partySize = activityIsRaid(timedActivity) && timedPartySize.trim()
+        ? parseInt(timedPartySize, 10)
+        : null;
+      payload.minRaidLevel = activityIsToa(timedActivity) && minRaidLevel.trim() ? parseInt(minRaidLevel, 10) : null;
+    } else if (kind === 'deathless') {
+      // The raid rides the timedActivity column; requiredAmount = deathless runs needed;
+      // an exact party size (optional) rides timeThresholdSeconds, like the LMS cap.
+      payload.timedActivity = timedActivity.trim();
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+      payload.timeThresholdSeconds = deathlessPartySize.trim() ? parseInt(deathlessPartySize, 10) : null;
+      payload.minRaidLevel = activityIsToa(timedActivity) && minRaidLevel.trim() ? parseInt(minRaidLevel, 10) : null;
+      // Who may be in the run, and what a run several teammates finished together is worth — the
+      // same shared-kill rules as a kill tile (lib/coopRuns), judged on deathless runs.
+      payload.partyTeamOnly = teamPlay && deathlessTeam === 'all';
+      payload.coopMinMembers = teamPlay && deathlessTeam === 'min' && coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
+      payload.coopCredit = teamPlay && coopPerKill ? 'per-kill' : null;
+    } else if (kind === 'lms') {
+      // The placement cap rides the timeThresholdSeconds column; requiredAmount = games.
+      payload.timeThresholdSeconds = parseInt(lmsPlacementCap, 10);
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+    } else if (kind === 'value') {
+      // The gp threshold rides the requiredAmount column; sources ride sourceNpcs.
+      payload.requiredAmount = parseGp(valueGpText);
+    }
+
+    if (isDrop || isValue) {
+      const npcs = sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean);
+      payload.sourceNpcs = npcs.length > 0 ? npcs : null;
+    }
+    if (isDrop) {
+      // Optional raid party-size gate ("solo Cursed phalanx") — rides timeThresholdSeconds.
+      // Only persisted while a raid source backs it; without one the plugin could never
+      // know the party size and the tile would silently stop counting.
+      payload.timeThresholdSeconds = sourcesIncludeRaid(sourceNpcsText) && dropPartySize.trim()
+        ? parseInt(dropPartySize, 10)
+        : null;
+    }
+    return payload;
+  }
+
+  // Unsaved-changes guard, per tile (the editor is keyed per tile, so every tile opened starts fresh).
+  // Several fields hydrate asynchronously after open (tracked-item names, CA tasks, kill-count lookups), so the
+  // baseline is NOT the first render: it follows the form until the first user interaction, then freezes.
+  // Dirty = the save payload now differs from that baseline; changing a value back is clean again.
+  const touched = useRef(false);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  let payloadKey: string | null = null;
+  try {
+    const { baseUpdatedAt: _stamp, ...rest } = buildPayload();
+    void _stamp;
+    payloadKey = stableKey(rest);
+  } catch {
+    payloadKey = null; // a half-typed value the payload can't express yet: not comparable, never flagged
+  }
+  useEffect(() => {
+    if (!touched.current && payloadKey !== null) setBaseline(payloadKey);
+  }, [payloadKey]);
+  const tileDirty = !asPart && baseline !== null && payloadKey !== null && payloadKey !== baseline;
+  useUnsavedChanges(tileDirty);
+  const markTouched = () => {
+    touched.current = true;
+  };
+  // After a successful save the saved form is the baseline; anything the server hands back re-settles it.
+  function markTileSaved() {
+    touched.current = false;
+    setBaseline(payloadKey);
+  }
+
   async function handleSave() {
     const err = validate();
     if (err) {
@@ -1606,207 +1837,14 @@ function TileTrackingEditor({
     setError(null);
     setSaving(true);
     try {
-      // Build a payload that sets exactly this kind's fields and explicitly NULLs the rest,
-      // so the row is always internally consistent.
-      const payload: Record<string, unknown> = {
-        tileId,
-        baseUpdatedAt: baseStamp,
-        // Signals the server to unlock label/kind/required-amount on a live board (admin-only,
-        // recorded as a live override). Ignored before start and for non-admins.
-        liveOverride: canOverride && liveOverride,
-        label: label || undefined,
-        description: description || null,
-        optional,
-        lottery,
-        autoTrackDisabled,
-        points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
-        effortConfig: {
-          ...(effortSkillRating ? { skillRating: Number(effortSkillRating) } : {}),
-          ...(effortExpectedHours ? { expectedHours: Number(effortExpectedHours) } : {}),
-          ...(effortLockPoints ? { lockPoints: true } : {}),
-          ...(effortRaidMode ? {
-            raid: {
-              mode: effortRaidMode,
-              ...(effortUniqueDenominator ? { uniqueDenominator: Number(effortUniqueDenominator) } : {}),
-              ...(effortCompletionMinutes ? { completionMinutes: Number(effortCompletionMinutes) } : {}),
-              ...(effortRaidLevel ? { raidLevel: Number(effortRaidLevel) } : {}),
-            },
-          } : {}),
-        },
-        category: category.trim() || null,
-        // A counter's cap rides only a plugin kills tile (lib/tileCaps); cleared on every other kind.
-        capBy: isKill && capBy.length > 0 ? capBy : null,
-        // A combo's rule and parts (lib/combo) — the parts saved with it, each its own tile row.
-        comboRule: isCombo ? comboRule : null,
-        ...(isCombo ? { parts: comboParts.map((p) => partPayload(p, comboRule.mode)) } : {}),
-        // Mission flag + per-mission scoring (assembled below; null-rules on a normal tile).
-        mission,
-        missionRules: buildMissionRules(),
-        // defaults — overridden per kind below
-        tileType: isCombo ? 'combo' : isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : isClog ? 'clog' : 'standard',
-        trackedStat: null,
-        statType: null,
-        statGoal: null,
-        statBasis: 'gain',
-        trackingMode: 'team',
-        requiredAmount: null,
-        trackedItemIds: null,
-        itemRequirements: null,
-        // Cleared by default so switching a collection to another kind doesn't leave a stale
-        // set mode behind; the collection branch sets it.
-        groupMode: null,
-        setsRequired: null,
-        countMode: null,
-        // Same: only drop-shaped tiles carry a per-kill cap, only kill tiles carry shared-kill rules.
-        perKillCap: null,
-        coopCredit: null,
-        coopMinMembers: null,
-        sourceNpcs: null,
-        targetNpcs: null,
-        timedActivity: null,
-        timeThresholdSeconds: null,
-        partySize: null,
-        minRaidLevel: null,
-        partyTeamOnly: null,
-        // Cleared by default so switching away from PvP drops any stale floor; the pvp branch sets it.
-        pvpMinLootValue: null,
-      };
-
-      if (isStat) {
-        // A skill tile, or a kills tile whose monsters are all on the hiscores (statType 'boss').
-        const killsOnHiscores = kind === 'kills' && killChoice.ok && killChoice.source === 'hiscores';
-        payload.statType = kind === 'skill' ? 'skill' : 'boss';
-        payload.trackedStat = killsOnHiscores ? killChoice.trackedStat : trackedStat;
-        payload.statGoal = parseInt(killsOnHiscores ? killAmount : statGoal, 10);
-        payload.statBasis = statBasis;
-        // A milestone is settled per member — a team's lifetime totals summed together are
-        // meaningless — so persist the mode the server will actually use rather than leaving a
-        // 'team' behind that the editor no longer shows.
-        payload.trackingMode = statBasis === 'milestone' ? 'individual' : trackingMode;
-      } else if (kind === 'collection') {
-        payload.perKillCap = oncePerKill ? 1 : null;
-        payload.itemRequirements = trackedItems.map((i) => {
-          const g = i.group?.trim() || null;
-          const key = g?.toLowerCase();
-          const require = key ? groupRequires[key] : undefined;
-          return {
-            itemId: i.id,
-            name: i.name,
-            requiredAmount: i.perItemAmount,
-            group: g,
-            // Written on every row of the set (the reader takes the strictest); null = the whole set.
-            groupRequire: g && require && require >= 1 ? require : null,
-          };
-        });
-        payload.groupMode = groupMode;
-        // Only 'any' mode counts sets, and only once there are sets to count.
-        payload.setsRequired = groupMode === 'any' && collectionGroups.length > 0 && setsRequired > 1 ? setsRequired : null;
-      } else if (kind === 'drop') {
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
-        payload.countMode = countMode === 'distinct' && trackedItems.length > 1 ? 'distinct' : null;
-        payload.perKillCap = oncePerKill ? 1 : null;
-      } else if (isKill && killChoice.ok && killChoice.source === 'plugin') {
-        payload.requiredAmount = killAmount ? parseInt(killAmount, 10) : null;
-        payload.targetNpcs = killChoice.targetNpcs;
-        payload.trackingMode = trackingMode;
-        payload.coopCredit = coopPerKill ? 'per-kill' : null;
-        payload.coopMinMembers = coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
-      } else if (kind === 'lap') {
-        // Course names ride the targetNpcs column (the lap tileType reinterprets it), matched
-        // verbatim against the game's lap-counter line — so canonicalise anything hand-typed.
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs = lapCourses.map(canonicalAgilityCourse);
-        payload.trackingMode = trackingMode;
-      } else if (kind === 'pvp') {
-        // PvP selectors ride the targetNpcs column — 'any' (any player), 'team:other', or
-        // 'rsn:<name>' entries.
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs =
-          pvpTargetMode === 'rsn'
-            ? pvpRsnsText.split(',').map((s) => s.trim()).filter(Boolean).map((n) => `rsn:${n}`)
-            : pvpTargetMode === 'anyone'
-              ? ['any']
-              : ['team:other'];
-        payload.trackingMode = trackingMode;
-        // Optional min-loot floor (gp) — parseGp accepts 5m/500k shorthand; blank/invalid = 0 (none).
-        payload.pvpMinLootValue = pvpMinLootText.trim() ? parseGp(pvpMinLootText) : null;
-      } else if (kind === 'diary') {
-        // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs = diarySelectors;
-        payload.trackingMode = trackingMode;
-      } else if (kind === 'clog') {
-        // Collection log (lib/clogTiles): the chosen items ARE the pool; pages are kept as labels.
-        payload.countMode = clogMode;
-        payload.targetNpcs = clogPages.length > 0 ? clogPages : null;
-        payload.trackedItemIds = clogItemIds.length > 0 ? clogItemIds : null;
-        payload.requiredAmount = requiredAmount.trim() ? parseInt(requiredAmount, 10) : null;
-        payload.trackingMode = trackingMode;
-      } else if (kind === 'ca') {
-        // CA selectors (task names / "Any <Tier>") likewise ride in targetNpcs.
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs = caSelectors;
-        payload.trackingMode = trackingMode;
-      } else if (kind === 'gain') {
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
-        payload.trackingMode = trackingMode;
-      } else if (kind === 'timed' && parseTrialRankTile(timedActivity)) {
-        // Barracuda Trials rank tile: gated on the exact rank (no cap); requiredAmount = runs needed.
-        payload.timedActivity = timedActivity.trim();
-        payload.timeThresholdSeconds = null;
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
-        payload.trackingMode = trackingMode;
-        payload.partySize = null;
-        payload.minRaidLevel = null;
-      } else if (kind === 'timed') {
-        payload.timedActivity = timedActivity.trim();
-        payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
-        // Party gate only makes sense where the plugin can see a party — the raids.
-        payload.partySize = activityIsRaid(timedActivity) && timedPartySize.trim()
-          ? parseInt(timedPartySize, 10)
-          : null;
-        payload.minRaidLevel = activityIsToa(timedActivity) && minRaidLevel.trim() ? parseInt(minRaidLevel, 10) : null;
-      } else if (kind === 'deathless') {
-        // The raid rides the timedActivity column; requiredAmount = deathless runs needed;
-        // an exact party size (optional) rides timeThresholdSeconds, like the LMS cap.
-        payload.timedActivity = timedActivity.trim();
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
-        payload.timeThresholdSeconds = deathlessPartySize.trim() ? parseInt(deathlessPartySize, 10) : null;
-        payload.minRaidLevel = activityIsToa(timedActivity) && minRaidLevel.trim() ? parseInt(minRaidLevel, 10) : null;
-        // Who may be in the run, and what a run several teammates finished together is worth — the
-        // same shared-kill rules as a kill tile (lib/coopRuns), judged on deathless runs.
-        payload.partyTeamOnly = teamPlay && deathlessTeam === 'all';
-        payload.coopMinMembers = teamPlay && deathlessTeam === 'min' && coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
-        payload.coopCredit = teamPlay && coopPerKill ? 'per-kill' : null;
-      } else if (kind === 'lms') {
-        // The placement cap rides the timeThresholdSeconds column; requiredAmount = games.
-        payload.timeThresholdSeconds = parseInt(lmsPlacementCap, 10);
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
-      } else if (kind === 'value') {
-        // The gp threshold rides the requiredAmount column; sources ride sourceNpcs.
-        payload.requiredAmount = parseGp(valueGpText);
-      }
-
-      if (isDrop || isValue) {
-        const npcs = sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean);
-        payload.sourceNpcs = npcs.length > 0 ? npcs : null;
-      }
-      if (isDrop) {
-        // Optional raid party-size gate ("solo Cursed phalanx") — rides timeThresholdSeconds.
-        // Only persisted while a raid source backs it; without one the plugin could never
-        // know the party size and the tile would silently stop counting.
-        payload.timeThresholdSeconds = sourcesIncludeRaid(sourceNpcsText) && dropPartySize.trim()
-          ? parseInt(dropPartySize, 10)
-          : null;
-      }
+      const payload = buildPayload();
 
       // Detached mode: the caller owns the write (library tasks have no event or tile row).
       if (onSave) {
         const saved = await onSave(payload);
         if (saved) {
           setBaseStamp(saved.updatedAt ?? null);
+          markTileSaved();
           onSaved(saved);
         } else {
           setError('Could not save — try again.');
@@ -1822,6 +1860,7 @@ function TileTrackingEditor({
       if (res.ok) {
         const updated = await res.json();
         setBaseStamp(updated.updatedAt ?? null);
+        markTileSaved();
         onSaved({
           label: updated.label,
           description: updated.description,
@@ -1887,7 +1926,13 @@ function TileTrackingEditor({
   }, [kind, label, description, requiredAmount, statGoal, killAmount, valueGpText]);
 
   return (
-    <div className="space-y-3">
+    <div
+      className="space-y-3"
+      onInputCapture={markTouched}
+      onChangeCapture={markTouched}
+      onKeyDownCapture={markTouched}
+      onPointerDownCapture={markTouched}
+    >
       {/* Admin live-event override — unlocks the normally-frozen fields on a running board. Only
           rendered to admins after the event has started. */}
       {canOverride && (
@@ -4105,6 +4150,7 @@ function TileTrackingEditor({
       >
         {saving ? "Saving..." : asPart ? "Done with this part" : "Save Configuration"}
       </button>
+      <UnsavedIndicator dirty={tileDirty && !saving} className="justify-center w-full" />
     </div>
   );
 }

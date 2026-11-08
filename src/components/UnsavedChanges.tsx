@@ -13,7 +13,15 @@ import { createDirtyTracker, stableKey } from '@/lib/unsavedChanges';
  * covers leaving the site.
  */
 
-const Ctx = createContext<{ set: (id: string, dirty: boolean) => void } | null>(null);
+const Ctx = createContext<{ set: (id: string, dirty: boolean) => void; guard: (action: () => void) => void } | null>(null);
+
+const LEAVE_PROMPT = {
+  title: 'Leave without saving?',
+  body: 'You have unsaved changes on this page. Leaving now will lose them.',
+  confirmLabel: 'Leave',
+  cancelLabel: 'Stay',
+  tone: 'gold',
+} as const;
 
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const ids = useRef(new Set<string>());
@@ -27,7 +35,25 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     else ids.current.delete(id);
     setAny(ids.current.size > 0);
   }, []);
-  const value = useMemo(() => ({ set }), [set]);
+  // For in-page actions that throw an open form away (closing a panel, opening another item): runs
+  // `action` at once when nothing is dirty, otherwise asks first.
+  const guard = useCallback(
+    (action: () => void) => {
+      if (ids.current.size === 0) return action();
+      if (asking.current) return;
+      asking.current = true;
+      void confirm(LEAVE_PROMPT).then((leave) => {
+        asking.current = false;
+        if (leave) {
+          ids.current.clear();
+          setAny(false);
+          action();
+        }
+      });
+    },
+    [confirm],
+  );
+  const value = useMemo(() => ({ set, guard }), [set, guard]);
 
   useEffect(() => {
     if (!any) return;
@@ -46,13 +72,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       e.stopPropagation();
       if (asking.current) return;
       asking.current = true;
-      void confirm({
-        title: 'Leave without saving?',
-        body: 'You have unsaved changes on this page. Leaving now will lose them.',
-        confirmLabel: 'Leave',
-        cancelLabel: 'Stay',
-        tone: 'gold',
-      }).then((leave) => {
+      void confirm(LEAVE_PROMPT).then((leave) => {
         asking.current = false;
         if (leave) {
           ids.current.clear();
@@ -113,4 +133,10 @@ export function UnsavedIndicator({ dirty, className = '' }: { dirty: boolean; cl
       You have unsaved changes
     </span>
   );
+}
+
+/** Wrap an in-page action that discards an open form; asks "Leave without saving?" only while one is dirty. */
+export function useLeaveGuard(): (action: () => void) => void {
+  const ctx = useContext(Ctx);
+  return ctx ? ctx.guard : (action) => action();
 }

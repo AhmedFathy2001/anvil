@@ -1,5 +1,6 @@
 'use client';
 
+import { useLeaveGuard } from '@/components/UnsavedChanges';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
 import DateTimePicker from '@/components/DateTimePicker';
 import type { Event, Tile, ItemRequirement } from '@/lib/types';
@@ -145,6 +146,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const boardRef = useRef<HTMLDivElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
+  // Opening another tile or closing the editor throws away an open tile's unsaved edits: ask first.
+  const leaveGuard = useLeaveGuard();
+  const openTileGuarded = (id: number | null) => leaveGuard(() => setEditingTileId(id));
   const [importing, setImporting] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   // Which generator dialog the Add tiles menu has open, if any.
@@ -1005,9 +1009,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         />
       ) : null
     }
-    onClose={() => setEditingTileId(null)}
+    onClose={() => openTileGuarded(null)}
     onCreated={handleCreatorSaved}
-    onOpenBulk={canAddTiles ? () => { setEditingTileId(null); setBulkOpen(true); } : undefined}
+    onOpenBulk={canAddTiles ? () => leaveGuard(() => { setEditingTileId(null); setBulkOpen(true); }) : undefined}
     canAddAnother={(dynamicBoard && !eventStarted) || localTiles.filter((t) => isPlaceholderTile(t) && !t.mission).length > 1}
     onDelete={() => handleDeleteTile(editingTile.id, true)}
     onSaved={(updated) => {
@@ -1216,7 +1220,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             model={model}
             eventStartDate={event.startDate}
             editingTileId={editingTileId}
-            onPick={(id) => setEditingTileId(id)}
+            onPick={(id) => openTileGuarded(id)}
             onRevealAtSaved={handleRevealAtSaved}
             onScheduled={(schedule) => {
               const byId = new Map(schedule.map((s) => [s.tileId, s.revealAt]));
@@ -1236,7 +1240,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             eventStarted={eventStarted}
             reordering={reordering}
             editingTileId={editingTileId}
-            onPick={(id) => setEditingTileId(id)}
+            onPick={(id) => openTileGuarded(id)}
             onReorder={(ids, describe) => {
               setLocalTiles((prev) => {
                 const byId = new Map(prev.map((t) => [t.id, t]));
@@ -1268,7 +1272,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               router.refresh();
             }}
             onRaceBankChanged={() => router.refresh()}
-            onOpenTile={(id) => setEditingTileId(id)}
+            onOpenTile={(id) => openTileGuarded(id)}
           />
         ) : viewMode === 'board' ? (
           <div className="min-w-0">
@@ -1284,7 +1288,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               completions={[]}
               teams={[]}
               pointsMode={pointsMode}
-              onTileClick={(tileId) => setEditingTileId(tileId)}
+              onTileClick={(tileId) => openTileGuarded(tileId)}
               showStatusFilter={false}
               staffOnlyTileIds={hiddenTileIds}
             />
@@ -1362,7 +1366,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       className={`${isDragging ? 'opacity-40' : ''} ${isDragOver ? 'border-t-2 border-t-gold' : ''}`}
                     >
                       <button
-                        onClick={() => setEditingTileId(t.id)}
+                        onClick={() => openTileGuarded(t.id)}
                         className={`w-full text-left px-2.5 py-2 flex items-center gap-2 border-b border-card-border/40 transition-colors ${sel ? 'bg-gold/10' : 'hover:bg-card-bg-hover'}`}
                       >
                         {draggable && (
@@ -1861,7 +1865,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   return (
                     <button
                       key={tile.id}
-                      onClick={() => setEditingTileId(isEditing ? null : tile.id)}
+                      onClick={() => openTileGuarded(isEditing ? null : tile.id)}
                       className={`text-left rounded-xl border p-3 transition-colors ${
                         isEditing
                           ? 'border-purple-400/60 bg-purple-500/10'
