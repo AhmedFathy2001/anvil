@@ -5022,10 +5022,12 @@ export const blockedWebhooks = pgTable('blocked_webhooks', {
 export interface SharedWebhookUse {
   clanId: number;
   where: string;
+  /** false = the same id with another (possibly made-up) token: not the shared webhook. */
+  tokenMatches?: boolean;
 }
 
 /**
- * The same Discord webhook id configured by more than one clan (lib/sharedWebhooks), for staff.
+ * The same Discord webhook (id AND token) configured by more than one clan (lib/sharedWebhooks), for staff.
  * status: 'open' | 'dismissed' (a legitimate shared setup) | 'blocked'. An open finding that stops
  * being shared is deleted by the next scan.
  */
@@ -5034,6 +5036,8 @@ export const sharedWebhooks = pgTable('shared_webhooks', {
   clanIds: jsonb('clan_ids').$type<number[]>().notNull().default([]),
   uses: jsonb('uses').$type<SharedWebhookUse[]>().notNull().default([]),
   status: text('status').notNull().default('open'),
+  /** Discord confirmed the shared id + token is a real webhook; Block is only offered when true. */
+  verified: boolean('verified').notNull().default(false),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),

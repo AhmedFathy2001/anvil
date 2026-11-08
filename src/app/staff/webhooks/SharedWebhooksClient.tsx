@@ -12,7 +12,8 @@ interface Finding {
   masked: string;
   status: string;
   clans: { id: number; name: string; slug: string | null }[];
-  uses: { clanId: number; where: string }[];
+  uses: { clanId: number; where: string; tokenMatches: boolean }[];
+  verified: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
   blocked: boolean;
@@ -47,7 +48,7 @@ export default function SharedWebhooksClient({ canWrite }: { canWrite: boolean }
     if (action === 'block') {
       reason = await ask({
         title: `Block webhook ${w.masked}?`,
-        body: `Anvil stops posting through it for ${w.clans.map((c) => c.name).join(', ')}, and refuses it if anyone saves it again. Their admins are told to add a new one.`,
+        body: `This blocks webhook id ${w.masked} for EVERY clan on Anvil, not just these: nothing posts through it and nobody can save it again. ${w.clans.map((c) => c.name).join(', ')} share it; their admins are told to add a new one.`,
         label: 'Note (for the audit log)',
         multiline: true,
         confirmLabel: 'Block webhook',
@@ -107,6 +108,11 @@ export default function SharedWebhooksClient({ canWrite }: { canWrite: boolean }
               <div className="flex flex-wrap items-center gap-2">
                 <code className="font-semibold">Webhook {w.masked}</code>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLS[w.status] ?? ''}`}>{w.status}</span>
+                {w.verified ? (
+                  <span className="rounded-full bg-accent-green/15 px-2 py-0.5 text-[10px] font-medium text-accent-green-light">confirmed real by Discord</span>
+                ) : (
+                  <span className="rounded-full bg-brown-light px-2 py-0.5 text-[10px] font-medium text-text-muted">not confirmed</span>
+                )}
                 <span className="text-xs text-text-muted">
                   {w.clans.length} clans · first seen <LocalTime date={w.firstSeenAt} />
                 </span>
@@ -119,11 +125,28 @@ export default function SharedWebhooksClient({ canWrite }: { canWrite: boolean }
                     </ClanLink>
                     <span className="text-text-muted">
                       {' '}
-                      · {w.uses.filter((u) => u.clanId === c.id).map((u) => u.where).join(', ') || 'no longer set up'}
+                      · {w.uses.filter((u) => u.clanId === c.id && u.tokenMatches).map((u) => u.where).join(', ') || 'no longer set up'}
                     </span>
                   </li>
                 ))}
               </ul>
+              {w.uses.some((u) => !u.tokenMatches) && (
+                <div className="mt-2 rounded-lg border border-card-border bg-bg/40 p-2.5 text-xs text-text-muted">
+                  <p className="font-medium text-foreground">Same id, different token</p>
+                  <p className="mb-1">
+                    These don&apos;t hold the shared webhook: a wrong or made-up token, or a deleted webhook. They prove nothing about the clans above.
+                  </p>
+                  <ul className="space-y-0.5">
+                    {w.uses
+                      .filter((u) => !u.tokenMatches)
+                      .map((u) => (
+                        <li key={`${u.clanId}-${u.where}`}>
+                          Clan #{u.clanId} · {u.where}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
               {canWrite && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {w.blocked ? (
@@ -136,11 +159,12 @@ export default function SharedWebhooksClient({ canWrite }: { canWrite: boolean }
                     </button>
                   ) : (
                     <button
-                      disabled={busy === w.webhookId}
+                      disabled={busy === w.webhookId || !w.verified}
+                      title={w.verified ? 'Blocks this webhook id for every clan' : 'Only a webhook Discord confirmed is real can be blocked'}
                       onClick={() => act(w, 'block')}
                       className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                     >
-                      Block this webhook
+                      Block this webhook (all clans)
                     </button>
                   )}
                   {w.status === 'open' && (

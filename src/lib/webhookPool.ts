@@ -23,6 +23,8 @@
 
 import { createHash } from 'node:crypto';
 
+import { parseDiscordWebhook } from './discordWebhookUrl.ts';
+
 /** Where a post goes: one or more webhook URLs for one channel, and the key its round-robin turns on. */
 export interface WebhookDestination {
   urls: string[];
@@ -31,21 +33,28 @@ export interface WebhookDestination {
   preferFirst?: boolean;
 }
 
+// Redaction only (it must catch anything that looks like a token, even a malformed URL). Which webhook
+// a URL IS comes from the one canonical parser, lib/discordWebhookUrl parseDiscordWebhook.
 const WEBHOOK_PATH = /\/api\/(?:v\d+\/)?webhooks\/(\d+)\/([\w-]+)/;
 
-/** The webhook's id (a snowflake, not a secret), or null for a URL that isn't a webhook. */
+/** The webhook's canonical id (a snowflake, not a secret), or null for a URL that isn't a webhook. */
 export function webhookIdOf(url: string): string | null {
-  return WEBHOOK_PATH.exec(url)?.[1] ?? null;
+  return parseDiscordWebhook(url, { target: true })?.id ?? null;
+}
+
+/** sha256 of a token, shortened: enough to tell tokens apart, never enough to post with. */
+export function tokenHash(token: string): string {
+  return createHash('sha256').update(token).digest('hex').slice(0, 24);
 }
 
 /**
- * The state key for one webhook: its id plus a short hash of its token. Same id with another token is
- * another identity. Never the raw token, so nothing secret sits in a map key or a log line.
+ * The state key for one webhook: its canonical id plus a short hash of its token. Same id with another
+ * token is another identity. Never the raw token, so nothing secret sits in a map key or a log line.
  */
 export function webhookIdentity(url: string): string {
-  const m = WEBHOOK_PATH.exec(url);
-  if (!m) return `url:${createHash('sha256').update(url).digest('hex').slice(0, 24)}`;
-  return `${m[1]}:${createHash('sha256').update(m[2]).digest('hex').slice(0, 24)}`;
+  const p = parseDiscordWebhook(url, { target: true });
+  if (!p) return `url:${tokenHash(url)}`;
+  return `${p.id}:${tokenHash(p.token)}`;
 }
 
 /** A URL safe to log or show: the token replaced. Never log a webhook URL without this. */

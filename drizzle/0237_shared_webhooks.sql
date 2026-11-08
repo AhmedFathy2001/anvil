@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS "shared_webhooks" (
 	"clan_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"uses" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"status" text DEFAULT 'open' NOT NULL,
+	"verified" boolean DEFAULT false NOT NULL,
 	"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"decided_by_user_id" integer,

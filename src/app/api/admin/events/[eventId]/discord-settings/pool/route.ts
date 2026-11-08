@@ -6,7 +6,7 @@ import { eventChannelUrls } from '@/lib/discord';
 import { getBotCredentials } from '@/lib/discord-roles';
 import { createMoreAnvilWebhooks, lookupWebhookChannel } from '@/lib/discord-webhooks';
 import { MAX_EXTRA_EVENT_WEBHOOKS } from '@/lib/discordPostPolicy';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { channelChoices } from '@/lib/eventDiscordChannel';
 import { readEventDiscordPrefs, saveEventDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { eventInClan } from '@/lib/eventScope';
@@ -84,8 +84,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   }
 
   if (body.action === 'add') {
-    const url = typeof body.webhookUrl === 'string' ? body.webhookUrl.trim() : '';
-    if (!isDiscordWebhookUrl(url)) {
+    const url = normalizeDiscordWebhookUrl(typeof body.webhookUrl === 'string' ? body.webhookUrl : '') ?? '';
+    if (!url) {
       return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
     }
     if (urls.includes(url)) return reply(urls, 'That webhook is already in the list.');

@@ -11,6 +11,12 @@ import { setSetting, getSettingMap } from '@/lib/settings';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 import { WEBHOOK_PAGE_SETTING_KEYS } from '@/lib/webhookFields';
+import { WEBHOOK_URL_KEYS } from '@/lib/webhookFields';
+import { WEBHOOK_SETTING_KEYS } from '@/lib/pluginConfig';
+import { normalizeWebhookList } from '@/lib/discordWebhookUrl';
+
+/** Every setting that holds Discord webhook URLs (the page's fields and the plugin's channels). */
+const WEBHOOK_KEYS = new Set<string>([...WEBHOOK_URL_KEYS, ...WEBHOOK_SETTING_KEYS]);
 import { fetchGuildRoles } from '@/lib/discord-roles';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 import { forgetLinkCards } from '@/lib/ogKit';
@@ -172,6 +178,16 @@ export async function PUT(request: Request) {
     const checked = checkSettingUrl(key, raw);
     if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
     body[key] = checked.value;
+  }
+
+  // Webhook settings are stored in their ONE normalized form (lib/discordWebhookUrl), and a URL whose
+  // raw form doesn't normalize cleanly is refused, so every reader agrees on which webhook it is.
+  for (const key of WEBHOOK_KEYS) {
+    const raw = body[key as ExposedKey];
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+    const list = normalizeWebhookList(raw);
+    if (list === null) return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
+    body[key as ExposedKey] = list;
   }
 
   // A webhook platform staff blocked (lib/sharedWebhooks) can't be saved back in.

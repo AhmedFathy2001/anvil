@@ -7,7 +7,7 @@ import { listBotChannels } from '@/lib/discord-broadcast';
 import { botCanManageChannels } from '@/lib/discord-permissions';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
 import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { isDiscordWebhookUrl, normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { eventChannelSlug, freeChannelName } from '@/lib/eventChannelName';
 import { log } from '@/lib/logger';
 import { getSetting } from '@/lib/settings';
@@ -75,7 +75,8 @@ export async function resolveChannelInput(clanId: number, input: ChannelInput, c
   }
   const blocked = await refuseBlockedWebhooks([url]);
   if (blocked) return { ok: false, error: blocked };
-  return { ok: true, keep: false, webhookUrl: url, channelId: null };
+  // Stored normalized (lib/discordWebhookUrl), so every reader agrees on which webhook it is.
+  return { ok: true, keep: false, webhookUrl: normalizeDiscordWebhookUrl(url)!, channelId: null };
 }
 
 const CHANNEL_TEXT = 0;

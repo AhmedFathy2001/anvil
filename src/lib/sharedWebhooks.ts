@@ -11,7 +11,7 @@
 // Ids only. A webhook id is a snowflake, not a secret; no token is compared or stored here. Every
 // staff action writes a `platform_*` row per affected clan so it shows in /staff/audit.
 
-import { and, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, like, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -27,6 +27,7 @@ import {
   sharedWebhooks,
   userNotices,
 } from '@/db/schema';
+import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
 import {
   BLOCKED_NOTICE,
@@ -34,6 +35,7 @@ import {
   groupSharedWebhooks,
   nextFindingStatus,
   webhookIdsIn,
+  webhookUsesIn,
   type WebhookUse,
 } from '@/lib/sharedWebhookRules';
 
@@ -81,10 +83,13 @@ export async function refuseBlockedWebhooks(values: unknown[]): Promise<string |
 
 // ── Detection ────────────────────────────────────────────────────────────────────────────────────
 
-/** A `like` filter for text naming any of these ids (or any webhook at all when ids is absent). */
-function mentions(column: SQL | Parameters<typeof like>[0], ids?: string[]): SQL {
-  if (!ids) return like(column as never, '%/webhooks/%');
-  return or(...ids.map((id) => like(column as never, `%/webhooks/${id}/%`)))!;
+/**
+ * A coarse `like` prefilter: anything that mentions a webhook at all. Deliberately NOT per id: a raw
+ * stored URL may spell the id differently (leading zeros), so which webhook it is gets decided only by
+ * the canonical parser (lib/discordWebhookUrl), in code, never by SQL text matching.
+ */
+function mentions(column: SQL | Parameters<typeof like>[0]): SQL {
+  return like(column as never, '%webhooks/%');
 }
 
 /** Every configured webhook use, from every place a clan can put one. `ids` narrows to those. */
@@ -93,7 +98,7 @@ export async function collectWebhookUses(ids?: string[]): Promise<WebhookUse[]> 
   const uses: WebhookUse[] = [];
   const push = (clanId: number | null, text: string | null, where: string) => {
     if (clanId == null) return;
-    for (const webhookId of webhookIdsIn(text)) if (!ids || ids.includes(webhookId)) uses.push({ webhookId, clanId, where });
+    for (const u of webhookUsesIn(text, clanId, where)) if (!ids || ids.includes(u.webhookId)) uses.push(u);
   };
   const prefsText = (col: typeof events.discordPrefs | typeof eventCohosts.discordPrefs) => sql<string>`${col}::text`;
 
@@ -102,28 +107,28 @@ export async function collectWebhookUses(ids?: string[]): Promise<WebhookUse[]> 
     db
       .select({ clanId: settings.clanId, key: settings.key, value: settings.value })
       .from(settings)
-      .where(mentions(settings.value, ids))
+      .where(mentions(settings.value))
       .limit(SCAN_LIMIT),
     db
       .select({ id: events.id, clanId: events.clanId, prefs: prefsText(events.discordPrefs) })
       .from(events)
-      .where(mentions(sql`${events.discordPrefs}::text`, ids))
+      .where(mentions(sql`${events.discordPrefs}::text`))
       .limit(SCAN_LIMIT),
     db
       .select({ eventId: eventCohosts.eventId, clanId: eventCohosts.clanId, prefs: prefsText(eventCohosts.discordPrefs) })
       .from(eventCohosts)
-      .where(mentions(sql`${eventCohosts.discordPrefs}::text`, ids))
+      .where(mentions(sql`${eventCohosts.discordPrefs}::text`))
       .limit(SCAN_LIMIT),
     db
       .select({ eventId: eventWebhooks.eventId, clanId: events.clanId, url: eventWebhooks.url })
       .from(eventWebhooks)
       .innerJoin(events, eq(eventWebhooks.eventId, events.id))
-      .where(mentions(eventWebhooks.url, ids))
+      .where(mentions(eventWebhooks.url))
       .limit(SCAN_LIMIT),
     db
       .select({ id: clanEvents.id, clanId: clanEvents.clanId, url: clanEvents.postWebhookUrl })
       .from(clanEvents)
-      .where(mentions(clanEvents.postWebhookUrl, ids))
+      .where(mentions(clanEvents.postWebhookUrl))
       .limit(SCAN_LIMIT),
   ]);
   for (const r of settingRows) push(r.clanId, r.value, `Setting ${r.key}`);
@@ -134,37 +139,66 @@ export async function collectWebhookUses(ids?: string[]): Promise<WebhookUse[]> 
   return uses;
 }
 
+type Verdict = 'real' | 'invalid' | 'unknown';
+
+/**
+ * Is this webhook real? Asked of Discord with its own token through the guarded fetch: 2xx = real,
+ * 401/404 = not (a made-up token, a deleted webhook), anything else (Discord down) = unknown.
+ */
+async function verifyWebhook(url: string): Promise<Verdict> {
+  try {
+    const pending = fetchDiscordWebhook(url, { method: 'GET', signal: AbortSignal.timeout(8_000) });
+    if (!pending) return 'invalid';
+    const res = await pending;
+    if (res.ok) return 'real';
+    return res.status === 401 || res.status === 404 ? 'invalid' : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /**
  * Scan for shared webhooks and bring the findings up to date. With `ids`, only those (the save-time
- * check); without, everything (the lifecycle tick). An OPEN finding that is no longer shared is
- * deleted; dismissed and blocked ones are kept as staff's record.
+ * check); without, everything (the lifecycle tick).
+ *
+ * A finding needs the SAME webhook (id and token) in two clans, and Discord saying it is real: a junk
+ * token pasted beside another clan's id never raises the real owner's webhook. An open finding that is
+ * no longer shared, or that Discord says is not real, is deleted; dismissed and blocked ones are kept
+ * as staff's record. When Discord can't be asked, nothing is created or dropped until the next scan.
  */
 export async function scanSharedWebhooks(ids?: string[]): Promise<{ shared: number; opened: number }> {
   const groups = groupSharedWebhooks(await collectWebhookUses(ids));
-  const scopeIds = ids ?? null;
   const existing = await db
     .select()
     .from(sharedWebhooks)
-    .where(scopeIds ? inArray(sharedWebhooks.webhookId, scopeIds.length ? scopeIds : ['-']) : undefined);
+    .where(ids ? inArray(sharedWebhooks.webhookId, ids.length ? ids : ['-']) : undefined);
   const byId = new Map(existing.map((r) => [r.webhookId, r]));
   let opened = 0;
+  const keep = new Set<string>();
   for (const g of groups) {
     const prior = byId.get(g.webhookId) ?? null;
+    const verdict = await verifyWebhook(g.sampleUrl);
+    if (verdict === 'unknown') {
+      if (prior) keep.add(g.webhookId);
+      continue;
+    }
+    if (verdict === 'invalid' && (!prior || prior.status === 'open')) continue;
+    keep.add(g.webhookId);
     const status = nextFindingStatus(prior, g.clanIds);
     if (status === 'open' && prior?.status !== 'open') opened++;
+    const verified = verdict === 'real';
     await db
       .insert(sharedWebhooks)
-      .values({ webhookId: g.webhookId, clanIds: g.clanIds, uses: g.uses, status })
+      .values({ webhookId: g.webhookId, clanIds: g.clanIds, uses: g.uses, status, verified })
       .onConflictDoUpdate({
         target: sharedWebhooks.webhookId,
-        set: { clanIds: g.clanIds, uses: g.uses, status, lastSeenAt: new Date() },
+        set: { clanIds: g.clanIds, uses: g.uses, status, verified, lastSeenAt: new Date() },
       });
   }
-  const still = new Set(groups.map((g) => g.webhookId));
-  const gone = existing.filter((r) => r.status === 'open' && !still.has(r.webhookId)).map((r) => r.webhookId);
+  const gone = existing.filter((r) => r.status === 'open' && !keep.has(r.webhookId)).map((r) => r.webhookId);
   if (gone.length) await db.delete(sharedWebhooks).where(inArray(sharedWebhooks.webhookId, gone));
   if (opened) log.info('shared-webhooks.opened', { opened, shared: groups.length });
-  return { shared: groups.length, opened };
+  return { shared: keep.size, opened };
 }
 
 /** After a save: check the ids it touched, in the background. Never throws, never delays the save. */
@@ -190,7 +224,10 @@ export interface SharedWebhookView {
   masked: string;
   status: string;
   clans: { id: number; name: string; slug: string | null }[];
-  uses: { clanId: number; where: string }[];
+  /** `tokenMatches` false: the same id with another (possibly made-up) token. Shown apart. */
+  uses: { clanId: number; where: string; tokenMatches: boolean }[];
+  /** Discord confirmed the shared webhook is real. Block is only offered when it is. */
+  verified: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
   blocked: boolean;
@@ -223,7 +260,8 @@ export async function listSharedWebhooks(status: 'open' | 'all'): Promise<Shared
     masked: maskId(r.webhookId),
     status: r.status,
     clans: r.clanIds.map((id) => byId.get(id) ?? { id, name: `Clan #${id}`, slug: null }),
-    uses: r.uses,
+    uses: r.uses.map((u) => ({ clanId: u.clanId, where: u.where, tokenMatches: u.tokenMatches !== false })),
+    verified: r.verified,
     firstSeenAt: r.firstSeenAt.toISOString(),
     lastSeenAt: r.lastSeenAt.toISOString(),
     blocked: blocked.has(r.webhookId),
@@ -238,11 +276,10 @@ async function auditEach(clanIds: number[], eventType: string, actorUserId: numb
     .catch((err) => log.warn('shared-webhooks.audit-fail', { err: String(err) }));
 }
 
-/** The clans using a webhook right now, from the live configuration (not just the finding). */
-async function clansUsing(webhookId: string): Promise<number[]> {
-  const uses = await collectWebhookUses([webhookId]);
-  const finding = await db.select({ clanIds: sharedWebhooks.clanIds }).from(sharedWebhooks).where(eq(sharedWebhooks.webhookId, webhookId));
-  return [...new Set([...uses.map((u) => u.clanId), ...(finding[0]?.clanIds ?? [])])];
+/** The finding's clans: the ones holding the real, shared webhook (id AND token), not junk pastes. */
+async function findingOf(webhookId: string) {
+  const [row] = await db.select().from(sharedWebhooks).where(eq(sharedWebhooks.webhookId, webhookId));
+  return row ?? null;
 }
 
 /** Tell each affected clan's owner and admins, on the site. */
@@ -271,18 +308,25 @@ export async function actOnSharedWebhook(input: {
 }): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const { webhookId, action, actorUserId } = input;
   if (!/^\d{5,25}$/.test(webhookId)) return { ok: false, error: 'Not a webhook id.', status: 400 };
-  const clanIds = await clansUsing(webhookId);
+  const finding = await findingOf(webhookId);
+  if (!finding) return { ok: false, error: 'No such finding.', status: 404 };
+  const clanIds = finding.clanIds;
   const now = new Date();
 
   if (action === 'block') {
+    // Block is platform-wide for the id. Only on a webhook Discord confirmed is real and shared, so a
+    // made-up token pasted beside another clan's id can never get the real owner's webhook blocked.
+    if (!finding.verified) {
+      return { ok: false, error: 'Discord has not confirmed this is one real webhook shared by these clans, so it can’t be blocked.', status: 409 };
+    }
     await db
       .insert(blockedWebhooks)
       .values({ webhookId, reason: input.reason?.trim() || null, blockedByUserId: actorUserId })
       .onConflictDoNothing();
     await db
-      .insert(sharedWebhooks)
-      .values({ webhookId, clanIds, status: 'blocked', decidedByUserId: actorUserId, decidedAt: now })
-      .onConflictDoUpdate({ target: sharedWebhooks.webhookId, set: { status: 'blocked', decidedByUserId: actorUserId, decidedAt: now } });
+      .update(sharedWebhooks)
+      .set({ status: 'blocked', decidedByUserId: actorUserId, decidedAt: now })
+      .where(eq(sharedWebhooks.webhookId, webhookId));
     forgetBlocklist();
     await auditEach(clanIds, 'platform_webhook_blocked', actorUserId, webhookId, input.reason?.trim() || 'Shared with another clan');
     await noticeClanAdmins(clanIds);
