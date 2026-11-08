@@ -5,10 +5,12 @@ import { db } from '@/db';
 import { userWebhooks } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { filterMode, filterNumber } from '@/lib/webhookFilters';
+import { HOOK_KINDS } from '@/lib/webhookKinds';
 
 export const dynamic = 'force-dynamic';
 
-const KINDS = ['rareDrops', 'deaths', 'combatAchievements', 'pvpKills'] as const;
+// The same list as creating one (it used to be four channels, so editing a hook dropped the rest).
+const KINDS = HOOK_KINDS;
 
 /** DELETE /api/profile/webhooks/[id] — remove one of the caller's own destinations. */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {

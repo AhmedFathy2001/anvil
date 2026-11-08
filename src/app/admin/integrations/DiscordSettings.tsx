@@ -20,6 +20,7 @@ import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings'
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
 import DropModeToggle from '@/components/DropModeToggle';
+import ClanKindDefaults from '@/components/ClanKindDefaults';
 import LineListSetting from '@/components/LineListSetting';
 import LevelMilestonesSetting from '@/components/LevelMilestonesSetting';
 import PlainSetting from '@/components/PlainSetting';
@@ -146,6 +147,7 @@ export default function DiscordSettings({
           key={panelKey}
           creator={creator}
           filters={{
+            milestones: <ClanKindDefaults />,
             drops: (
               <>
                 <PlainSetting

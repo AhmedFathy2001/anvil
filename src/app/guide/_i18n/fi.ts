@@ -4214,6 +4214,18 @@ const fi: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in** ja **Level posts in clan channels**: **Clan rules**, **Only 99s & max** tai **Off**. **Per character** listaa jokaisen hahmon linkillä **Clans →**, jolla julkaisun voi kytkeä pois yhdeltä klaanilta.',
         },
         {
+          term: 'Kuvakaappaukset tyypeittäin',
+          body: 'valitse kullekin tyypille (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**), sisältyykö julkaisuun kuvakaappaus. Kaikki ovat alussa päällä. Klaanisi voi asettaa oletuksen jäsenilleen; kunnes muutat jonkin, seuraat sitä, ja **Reset** palauttaa siihen. Bingo-todisteet otetaan aina, mitä valitsetkin: ne ovat todisteesi.',
+        },
+        {
+          term: 'Lisää ilmoitettavaa',
+          body: '**Slayer** (joka N. tehtävä), **Clue scrolls** (valitsemastasi tasosta alkaen), **Speedruns** (vain henkilökohtaiset ennätykset tai joka kerta), **Kill count** (joka N. tappo), **BA gambles** (joka N. uhkapeli) ja **Custom chat messages** (pelin viestit, jotka vastaavat omia kaavojasi, missä `*` on mikä tahansa teksti ja `#` mikä tahansa luku; enintään 10). Kaikki ovat alussa pois. Klaanisi voi kytkeä ne oletuksena päälle jäsenilleen, ja voit kytkeä minkä tahansa niistä päälle tai pois itsellesi; **Reset to clan default** palauttaa klaanin oletuksen seuraamisen. Ne julkaistaan klaanisi kanavalle **Milestones & more** ja omiin webhookeihisi, jotka ne ottavat vastaan; omat kaavasi julkaistaan vain omiin webhookeihisi.',
+        },
+        {
+          term: 'Yksityinen: Grand Exchange, kaupat, ryhmävarasto, muut lisäosat',
+          body: '**Grand Exchange** (päättyneet tarjoukset, jotka ovat vähintään asettamasi summan arvoisia), **Player trades** (mitä annoit ja sait), **Group storage** (mitä laitoit varastoon tai otit sieltä) ja **Other plugins** (nimeämäsi RuneLite-lisäosat voivat julkaista Anvilin kautta). Ne ovat alussa pois, vain sinä voit kytkeä ne päälle, klaanisi ei koskaan voi kytkeä niitä puolestasi, ja ne julkaistaan vain omiin webhookeihisi: rastita tyyppi siinä webhookissa, johon haluat ne.',
+        },
+        {
           term: 'Kuvakaappausten yksityisyys',
           body: 'rastita chat, joka jätetään pois jokaisesta lisäosan ottamasta kuvakaappauksesta, todisteista ja Discord-julkaisuista: **Private messages** (alussa rastitettuna), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** ja **Group chat**. Pelin viestit ja Anvilin omat rivit pysyvät aina mukana.',
         },

@@ -4212,6 +4212,18 @@ const ko: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, 그리고 클랜 채널의 **Level posts in clan channels**: **Clan rules**, **Only 99s & max** 또는 **Off**. **Per character**에는 캐릭터마다 목록이 있고, **Clans →** 링크로 한 클랜에 대해서만 게시를 끌 수 있습니다.',
         },
         {
+          term: '종류별 스크린샷',
+          body: '각 종류(**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**)마다 게시물에 스크린샷을 넣을지 고를 수 있습니다. 모두 처음에는 켜져 있습니다. 클랜은 멤버를 위한 기본값을 설정할 수 있으며, 직접 바꾸기 전까지는 그 기본값을 따르고, **Reset**을 누르면 다시 기본값으로 돌아갑니다. 빙고 증거는 어떤 선택과 관계없이 항상 캡처됩니다. 그것이 여러분의 증거이기 때문입니다.',
+        },
+        {
+          term: '추가로 알릴 항목',
+          body: '**Slayer** (N번째 과제마다), **Clue scrolls** (선택한 티어부터), **Speedruns** (개인 최고 기록만, 또는 매번), **Kill count** (N킬마다), **BA gambles** (N번마다), **Custom chat messages** (내 패턴과 일치하는 게임 메시지, `*`는 임의의 텍스트, `#`는 임의의 숫자; 최대 10개). 모두 처음에는 꺼져 있습니다. 클랜은 멤버를 위한 기본값으로 켤 수 있고, 각 항목을 개인적으로 켜거나 끌 수 있습니다. **Reset to clan default**를 누르면 다시 클랜 설정을 따릅니다. 이 항목들은 클랜의 **Milestones & more** 채널과 이를 받는 내 웹훅으로 게시되며, 내 패턴은 내 웹훅으로만 게시됩니다.',
+        },
+        {
+          term: '비공개: Grand Exchange, 거래, 그룹 보관함, 다른 플러그인',
+          body: '**Grand Exchange** (설정한 금액 이상 가치의 완료된 거래), **Player trades** (내가 준 것과 받은 것), **Group storage** (넣거나 뺀 것), **Other plugins** (지정한 RuneLite 플러그인이 Anvil을 통해 게시할 수 있음). 모두 처음에는 꺼져 있고 나만 켤 수 있으며, 클랜은 나를 대신해 켤 수 없습니다. 게시는 내 웹훅으로만 이뤄지므로, 받고 싶은 웹훅에서 해당 항목을 체크하세요.',
+        },
+        {
           term: '스크린샷 개인정보 보호',
           body: '모든 스크린샷에서 제외할 채팅을 체크하세요. 플러그인이 찍는 것, 증명 사진, Discord 게시물 모두 해당됩니다: **Private messages**(기본 체크), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel**, **Group chat**. 게임 메시지와 Anvil 자체 줄은 항상 포함됩니다.',
         },

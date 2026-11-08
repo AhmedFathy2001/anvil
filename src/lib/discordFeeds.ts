@@ -39,7 +39,7 @@ export interface DiscordFeed {
    */
   off: 'feeds' | 'cohost' | 'perPost';
   /** Where its filters live on the page, if anywhere. */
-  filters?: 'drops' | 'levels' | 'deaths';
+  filters?: 'drops' | 'levels' | 'deaths' | 'milestones';
 }
 
 export const DISCORD_FEEDS: readonly DiscordFeed[] = [
@@ -54,6 +54,7 @@ export const DISCORD_FEEDS: readonly DiscordFeed[] = [
   { id: 'combatAchievements', tab: 'game', label: 'Combat achievements', help: 'Tier clears and high-tier tasks.', key: 'webhook_combat_achievements', fallback: [GAME_CATCH_ALL], off: 'feeds' },
   { id: 'quests', tab: 'game', label: 'Quests', help: 'Quest completions.', key: 'webhook_quests', fallback: [GAME_CATCH_ALL, 'webhook_combat_achievements'], off: 'feeds' },
   { id: 'diaries', tab: 'game', label: 'Achievement diaries', help: 'Diary tier completions.', key: 'webhook_diaries', fallback: [GAME_CATCH_ALL, 'webhook_combat_achievements'], off: 'feeds' },
+  { id: 'milestones', tab: 'game', label: 'Milestones & more', help: 'Slayer tasks, clue scrolls, speedruns, kill counts, BA gambles and your chat patterns, for members who turn them on. Also sets screenshots per kind.', key: 'webhook_milestones', fallback: [GAME_CATCH_ALL, 'webhook_combat_achievements'], off: 'feeds', filters: 'milestones' },
   { id: 'deaths', tab: 'game', label: 'Deaths', help: 'Deaths, with your fun lines.', key: 'webhook_deaths', fallback: [GAME_CATCH_ALL], off: 'feeds', filters: 'deaths' },
   { id: 'pvpKills', tab: 'game', label: 'PvP kills', help: 'Player kills, with a screenshot.', key: 'webhook_pvp_kills', fallback: [GAME_CATCH_ALL], off: 'feeds' },
   { id: 'roster', tab: 'staff', label: 'Roster changes', help: 'Joins, leaves and rank changes from the in-game roster sync.', key: 'discord_webhook_roster', fallback: [SITE_CATCH_ALL], off: 'feeds' },

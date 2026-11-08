@@ -4,7 +4,8 @@ import { db } from '@/db';
 import { clanMemberships, userWebhooks } from '@/db/schema';
 import { parseKinds } from '@/lib/emissionRouting';
 import { isDropMode, NO_CLAN_DROPS, PLATFORM_DROP_DEFAULTS, type ClanDropSettings, type HookDropFilter } from '@/lib/notifyPrefs';
-import { getClanDropDefaults } from '@/lib/pluginConfig';
+import { getClanDropDefaults, getClanKindDefaults } from '@/lib/pluginConfig';
+import { NO_CLAN_KINDS, type ClanKinds } from '@/lib/notifyKinds';
 
 /**
  * The drop settings in force for ONE character. The default comes from the clan that character is a
@@ -18,17 +19,26 @@ export async function characterClanDrops(
   addressedClanId: number,
   hardFloor: number | null,
 ): Promise<ClanDropSettings> {
-  let clanId: number | null = addressedClanId;
-  if (accountId != null) {
-    const [seat] = await db
-      .select({ clanId: clanMemberships.clanId })
-      .from(clanMemberships)
-      .where(and(eq(clanMemberships.accountId, accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)))
-      .limit(1);
-    clanId = seat?.clanId ?? null;
-  }
+  const clanId = await characterClanId(accountId, addressedClanId);
   const defaults = clanId != null ? await getClanDropDefaults(clanId) : NO_CLAN_DROPS;
   return { ...defaults, hardFloor: hardFloor != null && hardFloor > 0 ? hardFloor : null };
+}
+
+/** The clan a character is a MEMBER of (null = none); an unresolved character counts as the addressed clan's. */
+export async function characterClanId(accountId: number | null, addressedClanId: number): Promise<number | null> {
+  if (accountId == null) return addressedClanId;
+  const [seat] = await db
+    .select({ clanId: clanMemberships.clanId })
+    .from(clanMemberships)
+    .where(and(eq(clanMemberships.accountId, accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)))
+    .limit(1);
+  return seat?.clanId ?? null;
+}
+
+/** The newer kinds' defaults in force for ONE character: its member clan's, else none (Anvil's apply). */
+export async function characterClanKinds(accountId: number | null, addressedClanId: number): Promise<ClanKinds> {
+  const clanId = await characterClanId(accountId, addressedClanId);
+  return clanId != null ? getClanKindDefaults(clanId) : NO_CLAN_KINDS;
 }
 
 /** The person's own webhooks that take rare drops, with their own filters (null = follow the person). */

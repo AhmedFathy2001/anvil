@@ -4195,6 +4195,18 @@ const pl: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, oraz **Level posts in clan channels**: **Clan rules**, **Only 99s & max** albo **Off**. **Per character** wypisuje każdą postać z linkiem **Clans →**, by wyłączyć publikowanie dla jednego klanu.',
         },
         {
+          term: 'Pokazuj zrzuty ekranu według typu',
+          body: 'wybierz dla każdego typu (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**), czy jego wpis ma zawierać zrzut ekranu. Wszystkie są domyślnie włączone. Twój klan może ustawić domyślną wartość dla swoich członków; dopóki jej nie zmienisz, będziesz się do niej stosować, a **Reset** ją przywraca. Dowody z bingo są zawsze zapisywane, niezależnie od wyboru: to Twoje dowody.',
+        },
+        {
+          term: 'Więcej do ogłoszenia',
+          body: '**Slayer** (co N zadań), **Clue scrolls** (od wybranego poziomu), **Speedruns** (tylko rekordy osobiste lub za każdym razem), **Kill count** (co N zabójstw), **BA gambles** (co N gambli) oraz **Custom chat messages** (wiadomości z gry pasujące do Twoich własnych wzorców, gdzie `*` oznacza dowolny tekst, a `#` dowolną liczbę; do 10). Wszystkie są domyślnie wyłączone. Twój klan może je włączyć jako domyślne dla członków, a Ty możesz włączyć lub wyłączyć każdą z nich dla siebie; **Reset to clan default** przywraca podążanie za klanem. Wpisy trafiają na kanał klanu **Milestones & more** oraz do Twoich własnych webhooków, które je przyjmują; Twoje własne wzorce wysyłane są tylko do Twoich własnych webhooków.',
+        },
+        {
+          term: 'Prywatne: Grand Exchange, wymiany, magazyn grupy, inne wtyczki',
+          body: '**Grand Exchange** (zakończone oferty warte co najmniej ustaloną kwotę), **Player trades** (co oddałeś i co dostałeś), **Group storage** (co włożyłeś lub wyjąłeś) oraz **Other plugins** (wtyczki RuneLite, które wskażesz, mogą publikować przez Anvil). Są domyślnie wyłączone, tylko Ty możesz je włączyć, klan nigdy nie może włączyć ich za Ciebie, i trafiają wyłącznie do Twoich własnych webhooków: zaznacz dany typ przy webhooku, w którym chcesz je widzieć.',
+        },
+        {
           term: 'Prywatność zrzutów ekranu',
           body: 'zaznacz czat, który zostaje pominięty na każdym zrzucie ekranu zrobionym przez plugin, zarówno dowodach, jak i postach na Discordzie: **Private messages** (zaznaczone na start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** i **Group chat**. Wiadomości z gry i linie samego Anvil zawsze zostają.',
         },

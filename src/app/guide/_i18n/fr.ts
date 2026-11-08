@@ -4216,6 +4216,18 @@ const fr: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, et **Level posts in clan channels** : **Clan rules**, **Only 99s & max** ou **Off**. **Per character** liste chaque personnage avec un lien **Clans →** pour désactiver les publications pour un seul clan.',
         },
         {
+          term: 'Captures d’écran par type',
+          body: 'choisissez pour chaque type (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**) si sa publication contient une capture. Tous sont activés au départ. Votre clan peut définir une valeur par défaut pour ses membres ; tant que vous n’en modifiez pas une, vous la suivez, et **Reset** revient à celle-ci. Les preuves de bingo sont toujours capturées, quel que soit votre choix : ce sont vos preuves.',
+        },
+        {
+          term: 'Plus à annoncer',
+          body: '**Slayer** (toutes les N tâches), **Clue scrolls** (à partir du palier choisi), **Speedruns** (meilleurs temps personnels uniquement, ou à chaque fois), **Kill count** (toutes les N victoires), **BA gambles** (toutes les N tentatives) et **Custom chat messages** (messages de jeu correspondant à vos propres motifs, où `*` représente n’importe quel texte et `#` n’importe quel nombre ; jusqu’à 10). Tous sont désactivés au départ. Votre clan peut les activer par défaut pour ses membres, et vous pouvez en activer ou désactiver chacun pour vous-même ; **Reset to clan default** revient à suivre votre clan. Ils sont publiés dans le canal **Milestones & more** de votre clan et dans vos propres webhooks qui les acceptent ; vos motifs personnels ne sont publiés que dans vos propres webhooks.',
+        },
+        {
+          term: 'Privé : Grand Exchange, échanges, stockage de groupe, autres plugins',
+          body: '**Grand Exchange** (offres terminées d’une valeur au moins égale au montant que vous avez défini), **Player trades** (ce que vous avez donné et reçu), **Group storage** (ce que vous avez déposé ou retiré) et **Other plugins** (les plugins RuneLite que vous nommez peuvent publier via Anvil). Ils sont désactivés au départ, vous seul pouvez les activer, votre clan ne peut jamais les activer pour vous, et ils ne publient que dans vos propres webhooks : cochez le type sur le webhook où vous voulez le recevoir.',
+        },
+        {
           term: 'Confidentialité des captures d’écran',
           body: 'coche le chat qui est retiré de chaque capture d’écran prise par le plugin, preuves et publications Discord comprises : **Private messages** (coché au départ), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** et **Group chat**. Les messages du jeu et les lignes d’Anvil restent toujours.',
         },

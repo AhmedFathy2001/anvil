@@ -1669,5 +1669,77 @@
     }
    }
   ]
+ },
+ {
+  "name": "announce-slayer",
+  "description": "Slayer task done: the streak line the Slayer announcement watches",
+  "params": {
+   "streak": "50"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You've completed ${streak} tasks and received 15 points, giving you a total of 1,234; return to a Slayer master."
+    }
+   }
+  ]
+ },
+ {
+  "name": "announce-clue",
+  "description": "A clue scroll completion line for the clue announcement",
+  "params": {
+   "tier": "hard",
+   "count": "100"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You have completed <col=ff0000>${count}</col> ${tier} Treasure Trails."
+    }
+   }
+  ]
+ },
+ {
+  "name": "announce-kc",
+  "description": "A kill count line on a round number for the kill count announcement",
+  "params": {
+   "boss": "Zulrah",
+   "kc": "500"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: <col=ff0000>${kc}</col>."
+    }
+   }
+  ]
+ },
+ {
+  "name": "announce-pb",
+  "description": "A new personal best time for the speedrun announcement",
+  "params": {
+   "time": "1:23.40"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Fight duration: <col=ff0000>${time}</col> (new personal best)"
+    }
+   }
+  ]
+ },
+ {
+  "name": "announce-ba",
+  "description": "A Barbarian Assault gamble count line for the BA announcement",
+  "params": {
+   "n": "100"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "High level gamble count: <col=ff0000>${n}</col>."
+    }
+   }
+  ]
  }
 ]

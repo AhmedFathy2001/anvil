@@ -4218,6 +4218,18 @@ export const en = {
           body: '**Keep my announcements out of clans I only guest in**, and **Level posts in clan channels**: **Clan rules**, **Only 99s & max** or **Off**. **Per character** lists each character with a **Clans →** link to switch posting off for one clan.',
         },
         {
+          term: 'Screenshots per kind',
+          body: 'choose for each kind (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**) whether its post carries a screenshot. All start on. Your clan can set a default for its members; until you change one you follow it, and **Reset** goes back to it. Bingo proofs are always captured, whatever you choose: they are your evidence.',
+        },
+        {
+          term: 'More to announce',
+          body: '**Slayer** (every Nth task), **Clue scrolls** (from the tier you pick), **Speedruns** (personal bests only, or every time), **Kill count** (every N kills), **BA gambles** (every N gambles) and **Custom chat messages** (game messages that match your own patterns, where `*` is any text and `#` any number; up to 10). All start off. Your clan can turn them on as a default for its members, and you can turn any of them on or off for yourself; **Reset to clan default** goes back to following your clan. They post to your clan\'s **Milestones & more** channel and to your own webhooks that take them; your own patterns only post to your own webhooks.',
+        },
+        {
+          term: 'Private: Grand Exchange, trades, group storage, other plugins',
+          body: '**Grand Exchange** (finished offers worth at least the amount you set), **Player trades** (what you gave and got), **Group storage** (what you put in or took out) and **Other plugins** (RuneLite plugins you name may post through Anvil). They start off, only you can turn them on, your clan can never turn them on for you, and they only post to your own webhooks: tick the kind on the webhook you want them in.',
+        },
+        {
           term: 'Screenshot privacy',
           body: 'tick the chat that is left out of every screenshot the plugin takes, proofs and Discord posts alike: **Private messages** (ticked to start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** and **Group chat**. Game messages and Anvil’s own lines always stay in.',
         },
