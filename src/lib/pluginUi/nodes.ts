@@ -129,7 +129,8 @@ export type Node =
       skill?: string;
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star';
+      /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'up' | 'down';
       color?: Color;
       w?: number;
       h?: number;

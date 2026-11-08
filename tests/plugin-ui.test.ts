@@ -354,12 +354,13 @@ test('board rows: fifteen a page, every page and detail carried as a pane, and t
   assert.deepEqual(Object.keys(panes).length, 2 + 20, 'two pages and a detail per tile');
   const next = walk(first).find((x) => x.t === 'button' && x.label === 'Next ›') as Extract<Node, { t: 'button' }>;
   assert.deepEqual(next.on, { a: 'pane', into: 'tile', pane: 'p1' });
-  const back = (id: number) => (walk(panes[`t:${id}`]).find((x) => x.t === 'button' && x.label === 'Back to tiles') as Extract<Node, { t: 'button' }>).on;
+  const back = (id: number) => (walk(panes[`t:${id}`]).find((x) => x.tip === 'Return to the searchable tile list') as { on: unknown }).on;
   assert.deepEqual(back(17), { a: 'pane', into: 'tile', pane: 'p1' }, 'a tile goes back to its own page');
   const opened = boardRowsUi(boardOf(tiles), state, ctxOf(), tiles[16]);
   const shown = walk((opened as Extract<Node, { t: 'slot' }>).c);
-  assert.ok(shown.some((x) => x.t === 'button' && x.label === 'Back to tiles'), 'opened on a tile, the detail shows first');
-  assert.deepEqual(back(17), (shown.find((x) => x.t === 'button' && x.label === 'Back to tiles') as Extract<Node, { t: 'button' }>).on);
+  const backRow = shown.find((x) => x.tip === 'Return to the searchable tile list') as { on: unknown } | undefined;
+  assert.ok(backRow, 'opened on a tile, the detail shows first');
+  assert.deepEqual(back(17), backRow.on);
   assert.deepEqual(rows[0].menu!.map((m) => m.label), ['I’m going for this', 'I’m going for this, with a note…', 'Track on screen']);
   const prev = walk(first).find((x) => x.t === 'button' && x.label === '‹ Previous') as Extract<Node, { t: 'button' }>;
   assert.equal(prev.off, true);

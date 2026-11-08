@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 
 import { NO_MODULES } from '../src/lib/clanEventModules';
 import type { ActivityEntry } from '../src/lib/pluginActivity';
@@ -77,11 +78,11 @@ test('the list: the board, a weekly and a scheduled bingo each drill in', () => 
   );
   const all = texts(ui);
   assert.ok(all.includes('Summer Bingo'));
-  assert.ok(all.includes('3 / 25 tiles · 12%'));
+  assert.ok(all.includes('3 / 25 tiles'));
   assert.ok(all.includes('Skill of the Week'));
   assert.ok(all.includes('You: #4 · +1.2M xp'));
   assert.ok(all.includes('Winter Bingo'));
-  assert.ok(all.includes('5×5 · 25 tiles'));
+  assert.ok(all.includes('Bingo · 5×5 · 25 tiles'));
   const opens = walk(ui).flatMap((x) => (x.on && (x.on as { a: string }).a === 'load' ? [(x.on as { args?: { open?: string } }).args?.open] : []));
   assert.deepEqual(opens, ['board', 'weekly:9', 'event:12']);
 });
@@ -101,16 +102,16 @@ test('the board page: standings, pins with a way to drop them, active now, neare
     'board',
   )!;
   const all = texts(ui);
-  assert.ok(all.includes('4. Mine'), 'your team shows even below the cut');
+  assert.ok(all.includes('4  Mine · you'), 'your team shows even below the cut');
   // Compact: the top three and yours; the rest open in place on "View all 5".
   assert.ok(all.includes('View all 5'));
   const tog = walk(ui).find((x) => x.t === 'toggle') as unknown as { off: Node; lit: Node };
-  assert.ok(!texts(tog.off).includes('5. Last') && texts(tog.lit).includes('5. Last'));
+  assert.ok(!texts(tog.off).includes('5  Last') && texts(tog.lit).includes('5  Last'));
   assert.ok(all.includes('Tracked on screen'));
   assert.ok(walk(ui).some((x) => x.on && (x.on as { a: string; tile?: number; on?: boolean }).a === 'pin' && (x.on as { tile: number }).tile === 2));
   assert.ok(all.includes('You 30 · Mate 10'));
-  // Nearest: tile 1 (80%) before tile 2 (1%); the done tile isn't there.
-  const nearest = all.slice(all.indexOf('Nearest tiles'));
+  // Do this next: tile 1 (80%) before tile 2 (1%); the done tile isn't there.
+  const nearest = all.slice(all.indexOf('Do this next'), all.indexOf('Feed'));
   assert.ok(nearest.indexOf('Tile 1') < nearest.indexOf('Tile 2'));
   assert.ok(!nearest.includes('Tile 3'));
   assert.ok(all.includes('View all 25 tiles'));
@@ -118,7 +119,7 @@ test('the board page: standings, pins with a way to drop them, active now, neare
   const warm = walk(ui).find((x) => x.t === 'warm') as { on: { a: string; v: string; args: Record<string, string> } } | undefined;
   assert.deepEqual(warm?.on.args, { event: '0', back: 'board', backLabel: 'Summer Bingo' }, 'the tiles page every row opens is fetched ahead');
   const live = walk(ui).filter((x) => x.live && (x.live as { tile: number }).tile === 1).map((x) => [x.t, (x.live as { fmt?: string }).fmt ?? '']);
-  assert.deepEqual(live, [['text', 'of'], ['bar', ''], ['text', 'near'], ['bar', '']], 'its tracked row and its nearest row move in the plugin');
+  assert.deepEqual(live, [['text', 'raw'], ['bar', ''], ['text', 'of'], ['bar', '']], 'its gold-card row and its active-now row move in the plugin');
   assert.ok(!walk(ui).some((x) => x.live && (x.live as { tile: number }).tile === 3), 'a done tile has nothing to move');
 });
 
@@ -135,10 +136,10 @@ test('a ladder: the countdown ticks in the plugin, and missions show their value
     event: { id: 5, name: 'Ladder', format: 'ladder', nextRevealAt: '2026-10-26T12:30:00Z', decay: { hours: 10, targetPct: 50 }, missions: [{ tileId: 1, label: 'Kill 5', points: 100, revealedAt: '2026-10-26T07:00:00Z', expiresAt: '2026-10-26T14:00:00Z' }], monthlyStandings: { yourRank: 2, yourPoints: 340 } },
   })), 'board')!;
   const countdowns = walk(ui).filter((x) => x.t === 'countdown');
-  assert.deepEqual(countdowns.map((c) => c.prefix), ['Next mission in ', 'Expires in ']);
-  assert.ok(texts(ui).includes('100 -> 75'), 'half way down a 50% decay over 10h');
+  assert.deepEqual(countdowns.map((c) => c.prefix), ['Expires in ', 'Next in ', 'Live · 40/50 · ends in ']);
+  assert.ok(texts(ui).includes('100 → 75'), 'half way down a 50% decay over 10h');
   assert.equal(liveValue(100, '2026-10-26T12:00:00Z', null, NOW), 100);
-  assert.ok(texts(ui).some((s) => s.startsWith('You: #2 this month · 340 pts')));
+  assert.ok(texts(ui).includes('#2 this month') && texts(ui).includes('340 pts'));
 });
 
 test('the weekly page: you below the cut still show, gains in the comp’s unit', () => {
@@ -147,7 +148,11 @@ test('the weekly page: you below the cut still show, gains in the comp’s unit'
     weekly: new Map([[3, { total: 12, top, you: top[11] }]]),
   }), 'weekly:3')!;
   const all = texts(ui);
-  assert.ok(all.includes('P10') && !all.includes('P11') && all.includes('P12'));
+  // Compact: the top three, · · ·, and you; the rest open in place.
+  const tog = walk(ui).find((x) => x.t === 'toggle') as unknown as { off: Node; lit: Node };
+  const off = texts(tog.off);
+  assert.ok(off.includes('P3') && !off.includes('P10') && off.includes('P12') && off.includes('· · ·'));
+  assert.ok(texts(tog.lit).includes('P11'));
   assert.ok(all.includes('+5.00 hrs'), 'efficiency comps travel in milli-hours');
   assert.equal(weeklyKind('efficiency'), 'Efficiency of the Week');
 });
@@ -160,7 +165,7 @@ test('the weekly page: past the 50 the route sends, your own row still closes th
   const all = texts(ui);
   assert.ok(all.includes('Drenvox'), 'your row, though you rank 87th');
   assert.ok(!all.some((t) => t.includes('not on the board')));
-  assert.ok(all.some((t) => t.startsWith('You: +0') && t.endsWith('so far')), 'no rank among a tie on +0');
+  assert.ok(all.some((t) => t.startsWith('+0') && t.endsWith('so far')), 'no rank among a tie on +0');
 });
 
 test('sizes: a list is never a grid, a grid keeps its shape, an old site is judged on geometry', () => {
@@ -211,8 +216,10 @@ test('a clan event: a card under Events, and its page says "I\'m going" for the 
   };
   const d = base(liveCfg(), { clanEvents: [ce] });
   const list = homeUi(d);
-  assert.ok(texts(list).includes('Clan event · weekly'));
-  assert.ok(texts(list).includes('Ancient Prison · W330'));
+  assert.ok(texts(list).includes('Ancient Prison · W330 · 2 going'));
+  // Its CTA right on the list row: the same act, answering with the list.
+  const tap = walk(list).find((x) => x.t === 'text' && x.s === 'I’m going') as { on: { act: string; args: Record<string, string> } };
+  assert.deepEqual(tap.on.args, { id: '4', going: '1', open: '', clan: 'afk' });
   assert.ok(walk(list).some((x) => (x.on as { args?: { open?: string } } | undefined)?.args?.open === 'clan-event:4'));
   const page = eventUi(d, 'clan-event:4')!;
   assert.ok(texts(page).includes('Hosted by Drenvox'));
@@ -308,14 +315,14 @@ test('a solo board: the cut standings, your lines picked out, and a way to every
   )!;
   const all = texts(ui);
   assert.ok(all.includes('170 players'));
-  assert.ok(all.includes('50.') && all.includes('P50'), 'your line, ranked');
+  assert.ok(all.includes('50') && all.includes('P50') && all.includes('50th of 170'), 'your line, ranked');
   assert.ok(all.includes('· · ·'));
   assert.ok(!all.includes('P4') && !all.includes('P49'), 'compact: the top three and you, no neighbours');
   assert.ok(all.includes('+1 more of your accounts'));
   assert.ok(all.includes('View all 170 players'));
   assert.ok(!all.some((s) => /teams/i.test(s)), 'no "teams" copy on a players board');
   assert.ok(!all.includes('P6'), 'the default view never ships the whole field');
-  const view = walk(ui).find((x) => x.t === 'button' && x.label === 'View all 170 players') as { on: { v: string } };
+  const view = walk(ui).find((x) => x.t === 'text' && x.s === 'View all 170 players') as { on: { v: string } };
   assert.equal(view.on.v, 'teams', 'opens the paged, searchable list');
   // A ladder keeps its own standings line.
   const ladder = eventUi(base(liveCfg({ event: { id: 5, name: 'L', format: 'ladder' } }), { soloStandings: { total: 3, complete: true, mineMore: 0, parts: [{ kind: 'rows', rows: [p(1)] }] } }), 'board')!;
@@ -342,7 +349,7 @@ test('a board of many teams: the cut list worded as teams, your team picked out'
   )!;
   const all = texts(ui);
   assert.ok(all.includes('30 teams'));
-  assert.ok(all.includes('3 members · your team'));
+  assert.ok(all.includes('18  Team 18 · 3 members'));
   assert.ok(all.includes('View all 30 teams'));
   assert.ok(!all.includes('All teams & members'));
   assert.ok(!all.some((s) => /players/.test(s)));
@@ -364,3 +371,82 @@ test('two live boards with one name: each card says its #id and opens by id, wit
   assert.ok(texts(eventUi(d, 'board')!).includes('Summer Bingo #5'), 'the live board’s own page says which one it is');
   assert.ok(!texts(homeUi(base(liveCfg()))).some((t) => t.includes('#')), 'no tag while names differ');
 });
+
+test('rank moves: a green ▲ or coral ▼ by a rank that changed today, nothing by one that didn’t', () => {
+  const team = (teamId: number, rank: number, move: number | null, yours = false) => ({ teamId, name: `T${teamId}`, color: '#ff0000', rank, score: `${10 - rank} tiles`, members: 2, yours, move });
+  const ui = eventUi(base(liveCfg(), { standings: [team(1, 1, 2), team(2, 2, -1, true), team(3, 3, null)] }), 'board')!;
+  const marks = walk(ui).filter((x) => x.t === 'text' && (x.icon as { glyph?: string } | undefined)?.glyph && ['up', 'down'].includes((x.icon as { glyph: string }).glyph));
+  // Standings rows (T1 ▲2, T2 ▼1) and your top card's place (▼1); T3 unchanged shows nothing.
+  assert.deepEqual(marks.map((m) => [m.s, (m.icon as { glyph: string }).glyph, m.color]), [['1', 'down', '#ff7a6b'], ['2', 'up', '#5fd35f'], ['1', 'down', '#ff7a6b']]);
+  const none = eventUi(base(liveCfg(), { standings: [team(1, 1, null), team(2, 2, null, true)] }), 'board')!;
+  assert.ok(!walk(none).some((x) => (x.icon as { glyph?: string } | undefined)?.glyph === 'up' || (x.icon as { glyph?: string } | undefined)?.glyph === 'down'), 'no baseline: no marks');
+});
+
+// RACE_FIXTURES=<dir> also writes the Clan tab's pages as views for the plugin's offscreen render test.
+if (process.env.RACE_FIXTURES) {
+  const dir = process.env.RACE_FIXTURES;
+  const write = (name: string, ui: Node | null) => writeFileSync(`${dir}/${name}.json`, JSON.stringify({ ui }));
+  // Relative to when the render runs: the plugin's countdowns tick against its own clock.
+  const at0 = Date.now();
+  const iso = (mins: number) => new Date(at0 + mins * 60_000).toISOString();
+  const ce = (id: number, title: string, mins: number, extra: Record<string, unknown> = {}) => ({
+    id, title, description: 'Bring warm clothing and a tinderbox. Crates split by the host at the end.', location: 'Wintertodt', world: 309, icon: 'wintertodt', imageUrl: null, channels: null, postChannel: null, host: 'Lab~Field146',
+    repeat: 'weekly' as const, timezone: 'UTC', durationMin: 60, startsAt: iso(mins), repeatUntil: null, ping: false,
+    occurrence: { start: iso(mins), end: iso(mins + 60) }, phase: 'upcoming' as const, going: 9, goingNames: ['Lab~Field4', 'Lab~Field7', 'Lab~Field9', 'Lab~Field10', 'Lab~Field17'], mine: false,
+    modules: NO_MODULES, signup: null, surveyOpen: false, ...extra,
+  });
+  const signups = { ...NO_MODULES, signups: { ...NO_MODULES.signups, on: true, cap: 10 }, fee: { on: true, amount: 50_000 } };
+  const events = [
+    ce(1, 'Wintertodt mass', 320, { mine: true }),
+    ce(2, 'GE drop party', 1620, { location: 'Grand Exchange', world: 302, going: 14 }),
+    ce(3, 'Barrows boat trip', 2940, { location: 'Barrows', world: 416, going: 6, modules: signups, signup: { open: true, reason: null, cap: 10, hasForm: false, myStatus: null, myFee: null } }),
+  ];
+  const team = (teamId: number, name: string, color: string, rank: number, score: number, move: number | null, yours = false) => ({ teamId, name, color, rank, score: `${score} tiles`, members: 5, yours, move });
+  const tiles25 = Array.from({ length: 25 }, (_, i) => ({ ...tile(i + 1, i < 14 ? 1 : 0, 1), label: ['Kill 5 bosses', 'Raid or Zulrah unique ×3', 'Log 10 Wintertodt crates', 'Vorkath under 2:00', 'Hard Ardougne diary'][i % 5] + (i >= 5 ? ` ${i}` : '') }));
+  tiles25[14] = { ...tiles25[14], label: 'Kill 5 bosses', current: 4, goal: 5, complete: false };
+  tiles25[15] = { ...tiles25[15], label: 'Raid or Zulrah unique ×3', current: 1, goal: 3, complete: false };
+  tiles25[16] = { ...tiles25[16], label: 'Log 10 Wintertodt crates', current: 6, goal: 10, complete: false };
+  const bingoCfg = liveCfg({
+    clanName: 'Iron Forge',
+    activeClan: { slug: 'iron-forge', name: 'Iron Forge' },
+    event: { id: 5, name: 'Autumn Bingo', format: 'bingo', scoringMode: 'tiles', endDate: iso(3120) },
+    board: { tilesComplete: 14, tilesTotal: 25, pointsScored: false },
+    panel: {
+      tiles: tiles25,
+      activeNow: [{ tileId: 17, workers: ['Lab~Field4', 'You'], self: false, gains: { 'Lab~Field4': 4, You: 2 } }],
+      scheduled: [{ id: 12, title: 'Spooky Leagues', startDate: iso(4440), endDate: null, status: 'upcoming', boardSize: 60, tileCount: 60, format: 'bingo', scoringMode: 'points', yourEntry: 'entered' }],
+      weeklies: [{ id: 9, title: 'Skill of the Week', type: 'skill', metric: 'runecraft', metricLabel: 'Runecraft', status: 'active', startDate: iso(-7000), endDate: iso(3120) }],
+    },
+  });
+  const weekTop = [
+    { rank: 1, rsn: 'Lab~Field146', gained: 1_200_000, self: false, move: null },
+    { rank: 2, rsn: 'Lab~Field4', gained: 904_000, self: false, move: 1 },
+    { rank: 3, rsn: 'Lab~Field88', gained: 611_000, self: false, move: -1 },
+    ...Array.from({ length: 5 }, (_, i) => ({ rank: i + 4, rsn: `Lab~Field${20 + i}`, gained: 500_000 - i * 50_000, self: false, move: null })),
+    { rank: 9, rsn: 'Drenvox', gained: 182_000, self: true, move: 3 },
+  ];
+  const data = base(bingoCfg, {
+    now: at0,
+    standings: [team(1, 'Iron Lads', '#4aa3ff', 1, 16, null), team(2, 'Jade', '#5fd35f', 2, 15, 1), team(3, 'Ruby', '#e05a5a', 3, 14, -1, true), team(4, 'Amethyst', '#b38cff', 4, 11, null)],
+    feed: [
+      { id: 'c1', ts: iso(-5), player: 'Lab~Field4', tileId: 3, tileLabel: 'Barrows set', kind: 'complete', amount: 0, isSelf: false },
+      { id: 's1', ts: iso(-10), player: 'Drenvox', tileId: 16, tileLabel: 'Raid or Zulrah unique ×3', kind: 'progress', amount: 1, isSelf: true },
+      { id: 's2', ts: iso(-20), player: 'Lab~Field7', tileId: 15, tileLabel: 'Kill 5 bosses', kind: 'progress', amount: 2, isSelf: false },
+    ] as ActivityEntry[],
+    weekly: new Map([[9, { total: 37, top: weekTop, you: weekTop[8] }]]),
+    clanEvents: events,
+    boardPath: '/c/iron-forge/events/5',
+    clanPath: '/c/iron-forge',
+    chatOn: true,
+    supportCta: true,
+  });
+  write('clan-list', homeUi(data));
+  write('clan-bingo', eventUi(data, 'board'));
+  write('clan-weekly', eventUi(data, 'weekly:9'));
+  write('clan-event', eventUi({ ...data, clanEvents: [events[2], events[0]] }, 'clan-event:3'));
+  write('clan-event-going', eventUi(data, 'clan-event:1'));
+  const registered = { ...events[2], mine: true, going: 7, signup: { open: true, reason: null, cap: 10, hasForm: false, myStatus: 'pending', myFee: 'pending' } };
+  write('clan-event-registered', eventUi({ ...data, clanEvents: [registered] }, 'clan-event:3'));
+  const quiet = base({ clanName: 'Iron Forge', activeClan: { slug: 'iron-forge', name: 'Iron Forge' }, panel: { tiles: [], scheduled: [], weeklies: [] } }, { live: false, now: at0, clanEvents: events, clanPath: '/c/iron-forge', supportCta: true });
+  write('clan-home', homeUi(quiet));
+}

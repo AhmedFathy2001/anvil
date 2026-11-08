@@ -1240,6 +1240,13 @@
       "when": 1794360159469,
       "tag": "0238_participants_team_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1794360219469,
+      "tag": "0239_weekly_day_ranks",
+      "breakpoints": true
     }
   ]
 }

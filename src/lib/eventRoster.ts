@@ -66,6 +66,8 @@ export interface RosterTeamOut {
   score: string | null;
   members: number;
   yours: boolean;
+  /** Places climbed since the day began (lib/rankMoves); absent or null = unchanged or unknown. */
+  move?: number | null;
 }
 
 export interface RosterPersonOut {
@@ -77,6 +79,8 @@ export interface RosterPersonOut {
   score: string | null;
   captain: boolean;
   you: boolean;
+  /** Places climbed since the day began (lib/rankMoves); absent or null = unchanged or unknown. */
+  move?: number | null;
 }
 
 interface Paged {

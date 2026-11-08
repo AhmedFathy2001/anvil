@@ -27,6 +27,9 @@ import { pluginClaimCaller } from '@/lib/pluginClaimCaller';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
 import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
+import type { RosterPersonOut, RosterTeamOut } from '@/lib/eventRoster';
+import { rankMove, teamBaselineRanks } from '@/lib/rankMoves';
+import type { StandingsWindow } from '@/lib/standingsWindow';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
@@ -528,7 +531,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
 
   const auth = live ? await verifyPluginToken(request) : null;
   const liveWeeklies = (cfg.panel?.weeklies ?? []).filter((w) => w.status === 'active');
-  const [feed, roster, boards, ownClan, clanEvents, myBoards] = await Promise.all([
+  const [feed, roster, boards, ownClan, clanEvents, myBoards, dayRanks] = await Promise.all([
     auth
       ? buildActivity({ teamId: auth.teamId, eventId: auth.eventId, selfPlayerId: auth.playerId, selfRsn: auth.rsn, since: { sub: 0, comp: 0, rev: 0 } }).then((p) => p.activity)
       : Promise.resolve([]),
@@ -538,7 +541,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
         const url = new URL(request.url);
         url.search = `?id=${w.id}${me ? `&rsn=${encodeURIComponent(me.rsn)}` : ''}`;
         const r = await weeklyRoute(new Request(url, { headers: request.headers }));
-        type Row = { rank: number; rsn: string; gained: number };
+        type Row = { rank: number; rsn: string; gained: number; move?: number | null };
         return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null }) : null] as const;
       }),
     ),
@@ -546,7 +549,10 @@ async function homeView(request: Request, a: Args): Promise<View> {
     // A creator space has no in-game clan events (lib/creatorSpaces).
     slug && cfg.activeClan?.kind !== 'creator' ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
     !open ? otherLiveBoards(request, cfg.event?.id ?? cfg.homeBoard?.eventId ?? null) : Promise.resolve([] as BoardSummary[]),
+    // Ranks as the event day began (lib/rankMoves), for "▲2" by the standings; a race ranks its own way.
+    live && cfg.event && !cfg.event.race ? teamBaselineRanks(cfg.event.id).catch(() => null) : Promise.resolve(null),
   ]);
+  if (roster && roster.mode !== 'members' && dayRanks) withMoves(roster, dayRanks);
   // Hidden standings: the roster above came back unranked; say why where the table would be.
   // clan-scope: global -- the board this caller's own config just named.
   const curtainEvent = live && cfg.event ? await db.query.events.findFirst({ where: eq(events.id, cfg.event.id) }) : null;
@@ -594,6 +600,17 @@ async function homeView(request: Request, a: Args): Promise<View> {
     raceBoard: open === 'board' && live && cfg.event?.race ? await raceBoardFor(request, a, cfg.event ? `${clanPath}/events/${cfg.event.id}` : null) : null,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
+}
+
+/** Each ranked team (or one-person team's player) gets its places climbed since the day began. */
+function withMoves(roster: { teams?: RosterTeamOut[]; players?: RosterPersonOut[]; window?: StandingsWindow<RosterTeamOut | RosterPersonOut> | null }, before: Map<number, number>) {
+  const mark = (r: RosterTeamOut | RosterPersonOut) => {
+    const id = 'teamId' in r ? r.teamId : null;
+    if (id != null) r.move = rankMove(before.get(id), r.rank);
+  };
+  roster.teams?.forEach(mark);
+  roster.players?.forEach(mark);
+  for (const p of roster.window?.parts ?? []) if (p.kind === 'rows') p.rows.forEach(mark);
 }
 
 /**

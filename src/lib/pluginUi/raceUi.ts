@@ -1,4 +1,7 @@
-import { type Action, type Color, type Node, card, col, count, gap, icon, muted, row, text } from './nodes';
+import { type Action, type Color, type Node, col, count, gap, icon, muted, row, text } from './nodes';
+import { CARD_W, FAINT, GOLD, GREEN, LATER, PROGRESS, SOFT, clip, compactStandings, section, stop, title } from './sections';
+
+export { compactStandings, STANDINGS_INLINE_MAX } from './sections';
 import { type Board, type BoardContext, type BoardState, type BoardTile, pinAction, raceModel, racePayload, trackingLines } from './boardUi';
 import { roadOf, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
 import { ordinal, raceLines } from '@/lib/raceSummary';
@@ -17,17 +20,8 @@ const ROADS: [Color, Color][] = [
   ['#2f7046', '#c4f0cc'],
   ['#7a3434', '#ffc4c4'],
 ];
-const GREEN: Color = '#5fd35f';
-const GOLD: Color = '#ff981f';
-const LATER: Color = '#4a4a4a';
-const FAINT: Color = '#a0a0a0';
-const SOFT: Color = '#c8c8c8';
-const PROGRESS: Color = '#ffd27a';
-/** Wrap widths (pt): text straight in a card, and beside a track's dots. */
-const CARD_W = 185;
+/** Wrap width (pt) beside a track's dots. */
 const TRACK_W = 178;
-/** "View all" opens in place up to this many entrants; more page through the Teams view. */
-export const STANDINGS_INLINE_MAX = 100;
 export const NAMES_SHOWN = 5;
 
 const roadInk = (letter: string): [Color, Color] => ROADS[Math.max(0, letter.charCodeAt(0) - 65) % ROADS.length];
@@ -37,9 +31,6 @@ export const roadBadge = (letter: string): Node => text(letter, roadInk(letter)[
 export const roadChip = (letter: string): Node => text(`Road ${letter}`, roadInk(letter)[1], { chip: roadInk(letter)[0] });
 
 const pane = (name: string): Action => ({ a: 'pane', into: 'race', pane: name });
-const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1).trim()}…`);
-const title = (s: string, color: Color = 'white'): Node => text(s, color, { font: 'bold' });
-const section = (c: (Node | null | false | undefined)[], extra: Partial<Extract<Node, { t: 'col' }>> = {}): Node => card(c, { inset: 10, gap: 6, ...extra });
 const hasRoads = (g: RaceGraph, id: number) => (g.steps[g.byId.get(id)?.step ?? -1]?.length ?? 0) > 1;
 
 export interface RacePageOpts {
@@ -157,12 +148,6 @@ function nextCard(x: Ctx, route: TeamRoute): Node {
   return section([head, tileRow(x, id, false, prog, true), muted('Only this one counts now. Drops for later tiles don’t count yet.', { wrap: CARD_W, color: FAINT })], { edge: GOLD });
 }
 
-/** One stop on the track. */
-function stop(dot: 'done' | 'now' | 'todo' | 'end', head: Node, sub: Node, on?: Action, last = false): Node {
-  const line: Color | undefined = last ? undefined : dot === 'done' ? GREEN : LATER;
-  return { t: 'step', dot, ...(line ? { line } : {}), c: col([head, sub]), ...(on ? { on, tip: 'Open this tile' } : {}) };
-}
-
 /**
  * The road ahead. Past a fork the team hasn't taken yet the road isn't known: those steps say so
  * ("Depends on your road", or "Roads cross here" where a tile has several ways in). Once the team is
@@ -232,23 +217,6 @@ function standingsCard(x: Ctx): Node {
     return row(text(`${s.rank}  ${mine ? 'You' : clip(names.get(s.teamId) ?? 'Team', 20)}`, ink), undefined, text(placeWord(s), s.finished && !mine ? GREEN : ink), { gap: 6 });
   };
   return section([title('Standings'), ...compactStandings(st, (s) => s.teamId === you, line, x.o.teams, `race:${x.o.ctx.eventId}`)], { gap: 5 });
-}
-
-/**
- * Any board's standings, compact: the top three and your own line(s) with "· · ·" between, then
- * "View all N" — the rest open in place (a toggle) when there are few enough, else `all` (the paged
- * Teams view). Shared by every competition the panel shows.
- */
-export function compactStandings<T>(rows: T[], mine: (r: T) => boolean, line: (r: T) => Node, all: Action | null, key: string, total = rows.length): Node[] {
-  const top = rows.slice(0, 3);
-  const yours = rows.filter((r, i) => i >= 3 && mine(r)).slice(0, 3);
-  const dots = row(undefined, muted('· · ·', { align: 'c' }), undefined);
-  const compact: Node[] = [...top.map(line), ...(yours.length ? [dots, ...yours.map(line)] : [])];
-  if (total <= top.length + yours.length && rows.length === total) return compact;
-  const link = (s: string, on: Action) => text(s, GOLD, { on, font: 'small' });
-  if (rows.length < total || rows.length > STANDINGS_INLINE_MAX) return [...compact, ...(all ? [link(`View all ${total.toLocaleString('en-US')}`, all)] : [])];
-  const flip: Action = { a: 'flip', key: `standings:${key}` };
-  return [{ t: 'toggle', key: `standings:${key}`, off: col([...compact, link(`View all ${total.toLocaleString('en-US')}`, flip)], { gap: 5 }), lit: col([...rows.map(line), link('Show less', flip)], { gap: 5 }) }];
 }
 
 // ---- One tile ------------------------------------------------------------------------------------

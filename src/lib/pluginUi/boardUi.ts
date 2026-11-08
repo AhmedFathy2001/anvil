@@ -2,6 +2,7 @@ import type { buildBoard } from '@/app/api/plugin/board/route';
 
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
+import { BLUE, CARD_W, GREEN, PROGRESS, SOFT, chip, clip, goldCard, more, section, small, title } from './sections';
 import { raceGraph, raceTileInfo, roadChoiceLine, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
 import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
@@ -535,8 +536,6 @@ export function pinAction(t: BoardTile, s: BoardState, ctx: BoardContext, then?:
 
 // ---- One tile ------------------------------------------------------------------------------------
 
-const heading = (s: string, above = 9): Node[] => [...(above ? [gap(above)] : []), text(s, 'brand'), gap(2)];
-const note = (s: string, color: Color = 'muted'): Node => text(s, color, { wrap: true });
 
 /** "Kurrozive · 312 KC" — a finisher and their share, in the tile's unit. */
 export function finisherLine(t: BoardTile, f: { name: string; amount: number }): string {
@@ -600,63 +599,28 @@ function setTimes(reqs: { requiredAmount: number; currentAmount: number }[], nee
 
 export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardContext, error: string | null = null): Node {
   const name = t.label?.trim() || `Tile ${t.tileId}`;
-  const parts: Node[] = [text(name, 'text', { font: 'bold' }), gap(4)];
-  if (error) parts.push(text(error, 'error', { wrap: true }), gap(4));
-  parts.push(...raceDetailUi(board, t, s, ctx));
+  const out: Node[] = [row(undefined, text('Back to tiles', '#e6e6e6', { icon: { t: 'icon', glyph: 'chevron-left', w: 9, h: 9, color: '#e6e6e6' } }), undefined, { bg: 'raised', pad: 8, on: pane(`p${s.page}`), tip: 'Return to the searchable tile list' })];
   const p = ctx.progress.get(t.tileId);
-  if (p && !t.complete && p.current < p.goal && p.goal > 1) {
-    const live = { tile: t.tileId, cur: p.current, goal: p.goal };
-    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`, 'text', { live: { ...live, fmt: 'pct' } }), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel', live }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted', { tip: exact(p.current, p.goal), live })), ...(p.sets ? [muted(p.sets, { wrap: true })] : []), gap(9));
-  }
-  const facts = [
-    !s.pre ? `Status: ${stateText(t, false)}` : isManual(t) ? 'Completion: manual' : null,
-    t.points > 0 ? `Points: ${t.points}` : null,
-    t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null,
-    t.category?.trim() ? `Category: ${t.category.trim().replace(/,/g, ' ·')}` : null,
-  ].filter((f): f is string => !!f);
-  if (facts.length) parts.push(...heading('Details', 0), ...facts.map((f) => note(f)));
-  const who = (title: string, list: { name: string; amount: number }[] | undefined, more: number | undefined, color: Color) => {
-    if (!list?.length) return;
-    parts.push(...heading(title), ...list.map((f) => note(finisherLine(t, f), color)), ...(more ? [note(`+${more} more`, 'muted')] : []));
-  };
-  if (t.complete) who('Finished by', t.finishedBy, t.finishedByMore, 'done');
-  const teamsDone = board.teams.filter((tm) => tm.completedTileIds.includes(t.tileId));
-  if (teamsDone.length) parts.push(...heading('Teams done'), ...teamsDone.map((tm) => note(tm.name ?? 'Team', /^#[0-9a-f]{6}$/i.test(tm.color ?? '') ? (tm.color as Color) : 'done')));
-  if (!t.complete) who('On it', t.contributors, t.contributorsMore, IN_PROGRESS);
-  if (t.description?.trim()) parts.push(...heading('Objective'), note(t.description.trim()));
-  const lines = trackingLines(t);
-  if (isManual(t)) {
-    parts.push(
-      ...heading('Manual completion'),
-      note('manualOnly' in t && t.manualOnly
-        ? 'The plugin can’t see this item arrive — it isn’t a drop (it’s bought, made or handed over), so it isn’t tracked. Screenshot it and submit it on the site.'
-        : 'This task is not completed automatically. A captain or admin marks it done.'),
-    );
-  } else if (lines.length) {
-    if (t.howItCounts?.trim()) parts.push(...heading('How it counts'), note(t.howItCounts.trim(), 'brand'));
-    parts.push(...heading('Tracked automatically'));
-    let headers = 0;
-    lines.forEach((line, i) => {
-      const header = line.endsWith(':');
-      const ticked = line.trim().startsWith('✓');
-      const s2 = ticked ? line.trim().slice(1).trim() : line.trim();
-      const color: Color = header ? SET_COLORS[headers++ % SET_COLORS.length] : ticked ? DONE_LINE : 'muted';
-      parts.push(
-        ...(header && i > 0 ? [gap(6)] : []),
-        row(undefined, text(s2, color, { wrap: true, ...(ticked ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: DONE_LINE } } : {}) }), undefined, { inset: line.startsWith('  ') ? 8 : 0 }),
-      );
-    });
-  }
-  const req = t.requirement?.trim();
-  if (req && req !== (t.description ?? '').trim() && !lines.includes(req)) parts.push(...heading('Requirements'), note(req));
-  const planning = claimWho(t.claims);
-  if (planning) parts.push(gap(7), note(planning, mine(t.claims) ? 'brand' : 'claim'));
+  const moving = !!p && !t.complete && p.current < p.goal && p.goal > 1;
+  const live = moving ? { tile: t.tileId, cur: p!.current, goal: p!.goal } : undefined;
+  const meta = [t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null, t.category?.trim() ? t.category.trim().replace(/,/g, ' ·') : null].filter(Boolean).join(' · ');
+  const state = s.pre ? (isManual(t) ? chip('Manual', 'blue') : null) : t.complete ? chip('Done', 'green') : closedUndone(t) ? chip('Closed', 'grey') : moving && p!.current > 0 ? chip('In progress', 'gold') : chip(stateText(t, false) ?? 'Open', 'grey');
+  out.push(col([
+    ...(meta ? [muted(clip(meta, 40))] : []),
+    text(name, 'white', { font: 'bold', wrap: 205 }),
+    row(state ?? undefined, moving ? text(`${count(p!.current)} of ${count(p!.goal)}`, PROGRESS, { tip: exact(p!.current, p!.goal), live: { ...live!, fmt: 'raw' } }) : undefined, t.points > 1 ? chip(`${t.points} pts`, 'blue') : undefined, { gap: 6 }),
+  ], { gap: 4 }));
+  if (error) out.push(text(error, 'error', { wrap: true }));
+  const race = raceDetailUi(board, t, s, ctx);
+  if (race.length) out.push(section(race));
 
-  if (ctx.claimBlock == null && !t.complete) {
-    // The right-click menu's two choices, as buttons: claimed → change note / drop; not → claim / with a note.
+  // Your claim: the gold card. Not yours: the claim buttons sit with who's planning it.
+  const claimed = mine(t.claims);
+  const canClaim = ctx.claimBlock == null && !t.complete;
+  const claimButtons = (): Node | null => {
+    if (!canClaim) return null;
     const [first, second] = claimMenu(t, s, ctx);
-    const claimed = mine(t.claims);
-    parts.push(gap(8), {
+    return {
       t: 'grid',
       cols: 2,
       gap: 4,
@@ -664,16 +628,73 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
         button(claimed ? 'Change note…' : 'Claim tile', first.on!, claimed ? 'Edit the note your team sees' : 'Tell your team you’re going for this'),
         button(claimed ? 'Drop claim' : 'Add note…', second.on!, claimed ? 'Stop planning this tile' : 'Claim it with a note for your team'),
       ],
-    });
-  }
+    };
+  };
   const pin = pinAction(t, s, ctx, list(s, { tile: String(t.tileId) }));
-  if (pin) parts.push(gap(5), pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true }));
-  if (ctx.boardPath) parts.push(gap(5), text('Open on Anvil', 'brand', { tip: 'Open this tile on the Anvil site', on: { a: 'site', path: `${ctx.boardPath}?tile=${t.tileId}` }, icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' }, iconAfter: true }));
+  const pinNode = pin ? (pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true })) : null;
+  if (claimed && !t.complete) {
+    const note = (t.claims ?? []).find((c) => c.mine)?.note?.trim();
+    out.push(goldCard('You’re going for this', [
+      ...(moving ? [{ t: 'bar', pct: percent(p!.current, p!.goal), color: 'brand', h: 5, bg: 'panel', live } as Node] : []),
+      ...(note ? [muted(`Your note: “${note}”`, { wrap: CARD_W })] : []),
+      claimButtons(),
+      pinNode,
+    ]));
+  }
+
+  // What counts: the objective, then exactly what the plugin watches; a long list folds to "+N more".
+  const lines = trackingLines(t);
+  const what: Node[] = [title('What counts')];
+  if (t.description?.trim()) what.push(text(t.description.trim(), SOFT, { wrap: CARD_W }));
+  if (isManual(t)) {
+    what.push(muted('manualOnly' in t && t.manualOnly
+      ? 'The plugin can’t see this item arrive — it isn’t a drop (it’s bought, made or handed over), so it isn’t tracked. Screenshot it and submit it on the site.'
+      : 'This task is not completed automatically. A captain or admin marks it done.', { wrap: CARD_W }));
+  } else if (lines.length) {
+    if (t.howItCounts?.trim()) what.push(text(t.howItCounts.trim(), 'brand', { wrap: CARD_W }));
+    let headers = 0;
+    const tracked = lines.map((line) => {
+      const header = line.endsWith(':');
+      const ticked = line.trim().startsWith('✓');
+      const s2 = ticked ? line.trim().slice(1).trim() : line.trim();
+      const color: Color = header ? SET_COLORS[headers++ % SET_COLORS.length] : ticked ? DONE_LINE : 'muted';
+      return row(undefined, text(s2, color, { wrap: CARD_W - 10, ...(ticked ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: DONE_LINE } } : {}) }), undefined, { inset: line.startsWith('  ') ? 8 : 0 });
+    });
+    what.push(...more(tracked, 6, `tile-what:${t.tileId}`, 2), small('Tracked automatically.', BLUE));
+  }
+  const req = t.requirement?.trim();
+  if (req && req !== (t.description ?? '').trim() && !lines.includes(req)) what.push(muted(req, { wrap: CARD_W }));
+  if (p?.sets) what.push(muted(p.sets, { wrap: CARD_W }));
+  if (what.length > 1) out.push(section(what));
+
+  // Who: on it (and who's planning it), finished by, teams done.
+  const who = (head: string, list: { name: string; amount: number }[] | undefined, extra: number | undefined, color: Color, foot: Node[] = []): Node | null => {
+    if (!list?.length && !foot.length) return null;
+    const names = (list ?? []).map((f) => text(finisherLine(t, f), color, { wrap: CARD_W }));
+    const n = (list?.length ?? 0) + (extra ?? 0);
+    return section([row(undefined, title(head), n ? muted(`${n} player${n === 1 ? '' : 's'}`) : undefined), ...more(names, 3, `tile-who:${head}:${t.tileId}`, 3), ...(extra ? [muted(`+${extra} more on the site`)] : []), ...foot]);
+  };
+  const planning = claimWho(t.claims);
+  const planNode = planning && !claimed ? [muted(planning, { wrap: CARD_W })] : [];
+  const notMine = !claimed && canClaim ? [claimButtons()!] : [];
+  if (t.complete) {
+    const c = who('Finished by', t.finishedBy, t.finishedByMore, GREEN);
+    if (c) out.push(c);
+  } else {
+    const c = who('On it', t.contributors, t.contributorsMore, PROGRESS, [...planNode, ...notMine]);
+    if (c) out.push(c);
+    else if (notMine.length) out.push(col(notMine));
+  }
+  const teamsDone = board.teams.filter((tm) => tm.completedTileIds.includes(t.tileId));
+  if (teamsDone.length) {
+    out.push(section([title('Teams done'), text('', SOFT, { wrap: CARD_W, runs: teamsDone.flatMap((tm, i) => [...(i ? [{ s: ', ' }] : []), { s: `${tm.name ?? 'Team'} ✓`, color: (/^#[0-9a-f]{6}$/i.test(tm.color ?? '') ? tm.color : GREEN) as Color }]) })]));
+  }
+  if (!claimed && pinNode) out.push(pinNode);
   // The team's proofs, fetched when this tile is opened (one tile's, not every pane's): lib/pluginUi proofsUi.
   if (!s.pre && ctx.eventId > 0) {
     const load: Action = { a: 'load', v: 'proofs', args: { ...args(s), ev: String(ctx.eventId), tile: String(t.tileId) } };
-    parts.push(gap(9), { t: 'slot', id: 'proofs', c: muted('Loading proofs…'), load });
+    out.push(section([{ t: 'slot', id: 'proofs', c: muted('Loading proofs…'), load }]));
   }
-
-  return col([button('Back to tiles', pane(`p${s.page}`), 'Return to the searchable tile list'), gap(7), card(parts, { inset: 9 })]);
+  if (ctx.boardPath) out.push(text('Open on Anvil', 'brand', { font: 'small', tip: 'Open this tile on the Anvil site', on: { a: 'site', path: `${ctx.boardPath}?tile=${t.tileId}` }, icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' }, iconAfter: true }));
+  return col(out, { gap: 10 });
 }

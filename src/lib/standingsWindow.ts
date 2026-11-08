@@ -151,3 +151,19 @@ export function standingsPage<T>(
   const page = Math.min(Math.max(1, Math.floor(opts.page ?? 1) || 1), pages);
   return { rows: hits.slice((page - 1) * size, page * size), page, pages, matched: hits.length };
 }
+
+// ---- Rank movement since the day began (lib/rankMoves reads the baselines) ----------------------
+
+/** Places climbed since the baseline (positive up, negative down); null when unchanged or unknown. */
+export function rankMove(before: number | null | undefined, now: number | null | undefined): number | null {
+  if (before == null || now == null || before <= 0 || now <= 0 || before === now) return null;
+  return before - now;
+}
+
+/** A day snapshot's teams ranked as the standings rank them (ties share a rank). */
+export function teamRanksFromDay(data: unknown): Map<number, number> {
+  const teams = (data as { teams?: Record<string, { score?: number }> } | null)?.teams ?? {};
+  const rows = Object.entries(teams).map(([id, t]) => ({ id: Number(id), score: Number(t?.score ?? 0) }));
+  const ranked = competitionRanks(rows, (r) => r.score);
+  return new Map(rows.map((r) => [r.id, ranked.get(r) ?? 0]));
+}

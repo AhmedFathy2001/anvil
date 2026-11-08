@@ -1928,6 +1928,19 @@ export const eventDaySnapshots = pgTable('event_day_snapshots', {
   uniqueIndex('event_day_snapshots_event_day_unique').on(table.eventId, table.dayIndex),
 ]);
 
+// One row per weekly competition per UTC day (lib/rankMoves): every entrant's rank as the day began,
+// written once by the lifecycle tick, so the standings can say "▲3 today". `ranks` is JSON
+// { rsnKey: rank } (lib/weeklyRsn), ranked the way the weekly board ranks (gain, then name).
+export const weeklyDayRanks = pgTable('weekly_day_ranks', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),
+  takenAt: text('taken_at').notNull(),
+  ranks: text('ranks').notNull(),
+}, (table) => [
+  uniqueIndex('weekly_day_ranks_comp_day_unique').on(table.competitionId, table.day),
+]);
+
 // One row per event per HOUR (lib/eventHourly): each player's gains-so-far as five numbers plus each
 // team's score, so the stats page can draw progress through the day. Kept tiny on purpose — see
 // lib/eventDay HourSnapshotData. Hour 0 (the start) is all zeroes and never stored.
