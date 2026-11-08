@@ -66,7 +66,8 @@ function proofRow(p: ProofRow, o: ProofsOpts): Node {
 
 /** The section: its heading, the rows, and "Show more" while there are older ones. */
 export function proofsUi(rows: ProofRow[], o: ProofsOpts, empty: string): Node {
-  const parts: Node[] = [text('Proofs', 'brand'), gap(2)];
+  // `head`: the race page's own card title ("Your proofs"), white and bold like its other cards.
+  const parts: Node[] = [o.args.head ? text(o.args.head, 'white', { font: 'bold' }) : text('Proofs', 'brand'), gap(2)];
   if (!rows.length) return col([...parts, muted(empty, { wrap: true })]);
   rows.forEach((p, i) => parts.push(...(i ? [gap(4)] : []), proofRow(p, o)));
   if (o.more && o.n < PROOFS_MAX) {

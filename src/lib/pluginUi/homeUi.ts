@@ -12,6 +12,8 @@ import type { BoardSummary } from '@/lib/pluginBoards';
 import { type Action, type Color, type Node, backRow, button, card, col, count, eventName, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
 import { missionTileState } from '@/lib/tileState';
 import { boardFeedLinks } from './feedUi';
+import type { Board as RaceBoard, BoardContext } from './boardUi';
+import { compactStandings, racePageUi } from './raceUi';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
 // AnvilSidebarDataSource/ConnectionView): the clan's events as cards, and one event's page — the
@@ -19,7 +21,6 @@ import { boardFeedLinks } from './feedUi';
 // tiles nearest done; a weekly's standings; an upcoming bingo. Pure: views.ts gathers the data.
 
 const NEAREST = 10;
-const STANDINGS_SHOWN = 3;
 const ACTIVITY_SHOWN = 12;
 const WEEKLY_SHOWN = 10;
 const EFFICIENCY_SCALE = 1000;
@@ -127,6 +128,8 @@ export interface HomeData {
   clanEvents?: ClanEventView[];
   /** Every OTHER live board this character is on, any clan (lib/pluginBoards). Absent = not looked up. */
   myBoards?: BoardSummary[];
+  /** A tile race's whole board, for its page (lib/pluginUi/raceUi); only gathered when it's opened. */
+  raceBoard?: { board: RaceBoard; ctx: BoardContext } | null;
 }
 
 // ---- Small words ----------------------------------------------------------------------------------
@@ -449,7 +452,12 @@ export function eventUi(d: HomeData, open: string): Node | null {
   const all = listed(d);
   if (open === 'board') {
     const b = boardOf(d);
-    return b ? col([back, gap(8), ...boardPage(d, { ...b, title: eventName(all, { id: b.id, name: b.title }) })]) : null;
+    if (!b) return null;
+    const titled = { ...b, title: eventName(all, { id: b.id, name: b.title }) };
+    const race = d.live && d.raceBoard && !b.spectating
+      ? racePageUi(d.raceBoard.board, { title: titled.title, back: home(), rest: boardPage(d, titled, true), ctx: d.raceBoard.ctx, teams: teams(titled.title), reload: home('board'), pick: { event: '0', home: 'board' } })
+      : null;
+    return race ?? col([back, gap(8), ...boardPage(d, titled)]);
   }
   const weekly = /^weekly:(\d+)$/.exec(open);
   if (weekly) {
@@ -561,7 +569,8 @@ function raceCard(d: HomeData, b: Board): Node | null {
   return card(lines);
 }
 
-function boardPage(d: HomeData, b: Board): Node[] {
+/** `raceRest`: only what goes under a race's own page (raceUi draws the top and the standings). */
+function boardPage(d: HomeData, b: Board, raceRest = false): Node[] {
   const parts: Node[] = [];
   const tiles = new Map((d.cfg.panel?.tiles ?? []).map((t) => [t.tileId, t]));
   const event = d.cfg.event;
@@ -571,12 +580,21 @@ function boardPage(d: HomeData, b: Board): Node[] {
     return [text(b.title, 'brand'), muted(b.note ?? '', { wrap: true }), gap(8), button('View the board', { a: 'load', v: 'board', args: { event: String(eventId), back: 'board', backLabel: b.title } })];
   }
 
-  parts.push(summary(d, b), gap(8));
-  const race = d.live ? raceCard(d, b) : null;
+  if (!raceRest) parts.push(summary(d, b), gap(8));
+  const race = d.live && !raceRest ? raceCard(d, b) : null;
   if (race) parts.push(race, gap(8));
   // Straight to this board's feed or chat, with a way back here.
   if (event?.id) parts.push(boardFeedLinks(event.id, { open: 'board', label: b.title }, d.feedTab, d.chatOn ?? true), gap(12));
   else parts.push(gap(4));
+  if (raceRest) return [...parts, ...boardTail(d, b, tiles, event, true)];
+  parts.push(...standingsPart(d, b));
+  parts.push(...boardTail(d, b, tiles, event, false));
+  return parts;
+}
+
+/** The standings, compact on every board: the top three and your own, the rest one click away. */
+function standingsPart(d: HomeData, b: Board): Node[] {
+  const parts: Node[] = [];
   if (d.live && d.standingsNotice) {
     parts.push(...heading('Standings'), muted(d.standingsNotice, { wrap: true }), gap(8));
   }
@@ -591,21 +609,20 @@ function boardPage(d: HomeData, b: Board): Node[] {
     parts.push(button(many.complete ? 'All teams & members' : `View all ${many.total.toLocaleString('en-US')} teams`, teams(b.title), 'Every team, a page at a time, with a search by team or player name'), gap(12));
   } else if (d.live && d.standings.length) {
     parts.push(...heading('Standings'));
-    let shown = 0;
-    for (const t of d.standings) {
-      if (shown < STANDINGS_SHOWN || t.yours) {
-        if (shown) parts.push(gap(3));
-        parts.push(row(undefined, text(`${t.rank}. ${clip(t.name, 22)}`, t.yours ? 'brand' : 'text', { icon: icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 }) }), text(t.score ?? '', t.yours ? 'brand' : 'muted'), {
-          tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`,
-          on: teams(b.title),
-        }));
-        shown++;
-      }
-    }
-    if (d.standings.length > shown) parts.push(gap(3), muted(`+${d.standings.length - shown} more teams`));
-    parts.push(gap(8));
+    const line = (t: RosterTeamOut) =>
+      row(undefined, text(`${t.rank}. ${clip(t.name, 22)}`, t.yours ? 'brand' : 'text', { icon: icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 }) }), text(t.score ?? '', t.yours ? 'brand' : 'muted'), {
+        tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`,
+        on: teams(b.title),
+      });
+    parts.push(col(compactStandings(d.standings, (t) => !!t.yours, line, teams(b.title), `board:${b.id}`), { gap: 3 }), gap(8));
   }
   if (d.live && !solo && !many) parts.push(button(d.standings.length ? 'All teams & members' : 'Teams', teams(b.title), 'Who’s on which team'), gap(12));
+  return parts;
+}
+
+/** Under the standings: the starting shot, pins, who's active, missions, the feed and the nearest tiles. */
+function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: HomeConfig['event'], race: boolean): Node[] {
+  const parts: Node[] = [];
 
   // The starting shot is this client's own: where it stands, its checks, its capture button.
   if (d.live && d.cfg.startProof) parts.push({ t: 'native', name: 'start-proof' }, gap(12));
@@ -625,7 +642,7 @@ function boardPage(d: HomeData, b: Board): Node[] {
   }
 
   const active = (d.cfg.panel?.activeNow ?? []).filter((a) => tiles.has(a.tileId) && !tiles.get(a.tileId)!.complete && a.workers.length);
-  if (d.live && active.length) {
+  if (d.live && active.length && !race) {
     parts.push(...heading('Active now'));
     active.forEach((a, i) => parts.push(...(i ? [gap(8)] : []), progressRow(tiles.get(a.tileId)!.label, tiles.get(a.tileId)!, a, a.self ? 'brand' : IN_PROGRESS, b.title)));
     parts.push(gap(12));
@@ -641,7 +658,8 @@ function boardPage(d: HomeData, b: Board): Node[] {
   const missionStrip = !!ladder && (b.ladder || !!ladder.missions?.length);
   if (d.live && reveals.length && !missionStrip) parts.push(...heading('Just opened'), feedList(reveals, tiles, b.title), gap(12));
 
-  if (d.live && b.total > 0) {
+  if (d.live && b.total > 0 && race) parts.push(button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
+  else if (d.live && b.total > 0) {
     const nearest = [...tiles.values()]
       .filter((t) => !t.complete)
       .sort((x, y) => frac(y) - frac(x) || x.position - y.position)
@@ -655,29 +673,23 @@ function boardPage(d: HomeData, b: Board): Node[] {
 }
 
 const frac = (t: PanelTile) => (t.goal > 0 ? Math.min(1, t.current / t.goal) : 0);
+/** The rows a standings window drew, best first (its gaps dropped). */
+const windowRows = <T,>(w: StandingsWindow<T>): T[] => w.parts.flatMap((p) => (p.kind === 'rows' ? p.rows : []));
+
 /**
  * A players board's standings: the top, a "· · ·" over each stretch left out, and the caller's own
  * line(s) with their neighbours. A row looks the player up.
  */
 export function soloStandingRows(w: StandingsWindow<RosterPersonOut>): Node[] {
   const out: Node[] = [...heading('Standings'), muted(`${w.total.toLocaleString('en-US')} players`), gap(4)];
-  let first = true;
-  for (const part of w.parts) {
-    if (!first) out.push(gap(3));
-    first = false;
-    if (part.kind === 'gap') {
-      out.push(muted(`· · ·  ${part.skipped.toLocaleString('en-US')} more`, { align: 'c' }));
-      continue;
-    }
-    part.rows.forEach((p, i) => {
-      if (i) out.push(gap(3));
-      const ink: Color = p.you ? 'brand' : 'text';
-      out.push(row(text(p.rank == null ? '–' : `${p.rank}.`, ink, { w: 30 }), nameText(p.name, ink), text(p.score ?? '', p.you ? 'brand' : 'muted'), {
-        tip: `Look up ${p.name}`,
-        on: { a: 'lookup', rsn: p.name },
-      }));
+  const line = (p: RosterPersonOut) => {
+    const ink: Color = p.you ? 'brand' : 'text';
+    return row(text(p.rank == null ? '–' : `${p.rank}.`, ink, { w: 30 }), nameText(p.name, ink), text(p.score ?? '', p.you ? 'brand' : 'muted'), {
+      tip: `Look up ${p.name}`,
+      on: { a: 'lookup', rsn: p.name },
     });
-  }
+  };
+  out.push(col(compactStandings(windowRows(w), (p) => !!p.you, line, null, 'players', w.total), { gap: 3 }));
   if (w.mineMore > 0) out.push(gap(3), muted(`+${w.mineMore} more of your accounts`));
   return out;
 }
@@ -685,26 +697,17 @@ export function soloStandingRows(w: StandingsWindow<RosterPersonOut>): Node[] {
 /** A many-teams board's standings: like the players cut, each row a team with its colour and size. */
 export function teamStandingRows(w: StandingsWindow<RosterTeamOut>, title: string): Node[] {
   const out: Node[] = [...heading('Standings'), muted(`${w.total.toLocaleString('en-US')} teams`), gap(4)];
-  let first = true;
-  for (const part of w.parts) {
-    if (!first) out.push(gap(3));
-    first = false;
-    if (part.kind === 'gap') {
-      out.push(muted(`· · ·  ${part.skipped.toLocaleString('en-US')} more`, { align: 'c' }));
-      continue;
-    }
-    part.rows.forEach((t, i) => {
-      if (i) out.push(gap(3));
-      const ink: Color = t.yours ? 'brand' : 'text';
-      const swatch = icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 });
-      out.push(row(
-        text(t.rank == null ? '–' : `${t.rank}.`, ink, { w: 30 }),
-        col([text(clip(t.name, 22), ink, { icon: swatch }), muted(`${t.members} member${t.members === 1 ? '' : 's'}${t.yours ? ' · your team' : ''}`)]),
-        text(t.score ?? '', t.yours ? 'brand' : 'muted'),
-        { tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`, on: { a: 'load', v: 'teams', args: { event: '0', team: String(t.teamId), back: 'board', backLabel: title } } },
-      ));
-    });
-  }
+  const line = (t: RosterTeamOut) => {
+    const ink: Color = t.yours ? 'brand' : 'text';
+    const swatch = icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 });
+    return row(
+      text(t.rank == null ? '–' : `${t.rank}.`, ink, { w: 30 }),
+      col([text(clip(t.name, 22), ink, { icon: swatch }), muted(`${t.members} member${t.members === 1 ? '' : 's'}${t.yours ? ' · your team' : ''}`)]),
+      text(t.score ?? '', t.yours ? 'brand' : 'muted'),
+      { tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`, on: { a: 'load', v: 'teams', args: { event: '0', team: String(t.teamId), back: 'board', backLabel: title } } },
+    );
+  };
+  out.push(col(compactStandings(windowRows(w), (t) => !!t.yours, line, null, `teams:${title}`, w.total), { gap: 3 }));
   if (w.mineMore > 0) out.push(gap(3), muted(`+${w.mineMore} more of your teams`));
   return out;
 }

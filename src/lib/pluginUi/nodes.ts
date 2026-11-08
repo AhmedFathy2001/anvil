@@ -7,6 +7,9 @@
 // thumbnail, named by a PATH on this site the plugin fetches itself (lib/proofImage). A click is one of a fixed set of actions (Action below); the ones that
 // reach the site go to this same route and nowhere else.
 
+/** A row's or column's ground: the card's, the panel's, or a raised row's. */
+export type Ground = 'card' | 'panel' | 'raised';
+
 /** A colour by role, or "#rrggbb". */
 export type Color = 'white' | 'text' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | 'progress' | `#${string}`;
 
@@ -72,14 +75,19 @@ export interface Live {
 }
 
 export type Node =
-  | (Common & { t: 'col'; c: Node[]; gap?: number; card?: boolean; inset?: number; bg?: 'card' | 'panel' })
+  /**
+   * `card`: the darker rounded card. `bg` 'raised': a lighter rounded row that lights up under the
+   * mouse (a tile to open). `edge`: a 1px rounded outline in that colour (the "Do this next" card).
+   */
+  | (Common & { t: 'col'; c: Node[]; gap?: number; card?: boolean; inset?: number; bg?: Ground; edge?: Color })
   | (Common & {
       t: 'row';
       l?: Node;
       c?: Node;
       r?: Node;
       gap?: number;
-      bg?: 'card' | 'panel';
+      bg?: Ground;
+      edge?: Color;
       /** Space above and below, and on the right. */
       pad?: number;
       /** Space on the left. */
@@ -91,8 +99,12 @@ export type Node =
       s?: string;
       color?: Color;
       font?: 'small' | 'regular' | 'bold';
-      /** Wrap to the panel instead of clipping. */
-      wrap?: boolean;
+      /** Wrap to the panel instead of clipping; a number wraps at that width in pt (deeper in than a card). */
+      wrap?: boolean | number;
+      /** Runs in their own colours, drawn wrapped in place of `s` (names in team colours, comma-separated). */
+      runs?: { s: string; color?: Color }[];
+      /** A rounded chip of this colour behind the text; with `w`, a w×w badge (a road letter). */
+      chip?: Color;
       align?: 'r' | 'c';
       /** A timestamp: the text is "3d ago", worked out when drawn. */
       at?: string;
@@ -150,7 +162,18 @@ export type Node =
       /** The searched rows are the children of these (a grid's cells, a column's rows). */
       c: Node[];
     })
-  | (Common & { t: 'slot'; id: string; c: Node; panes?: Record<string, Node>; load?: Action })
+  /**
+   * `nav`: a pane replaces the page (a race tile's detail) — `open` names the pane shown first, and
+   * going back to a pane restores its scroll with the row clicked to leave it outlined.
+   */
+  | (Common & { t: 'slot'; id: string; c: Node; panes?: Record<string, Node>; load?: Action; nav?: boolean; open?: string })
+  /** A bar in segments, one colour each (a race's steps: done, here, to come). */
+  | (Common & { t: 'segs'; c: Color[]; h?: number })
+  /**
+   * One stop on a vertical track: its dot (`done` ticked, `now` glowing gold, `end` a gold ring, `todo`
+   * hollow), a `line` down to the next stop in that colour (none on the last), and the content beside it.
+   */
+  | (Common & { t: 'step'; dot: 'done' | 'now' | 'todo' | 'end'; line?: Color; c: Node })
   | (Common & { t: 'toggle'; key: string; off: Node; lit: Node })
   /** Draws nothing: fetches `on` (a load) ahead of the click that will want it, so the click is instant. */
   | (Common & { t: 'warm'; on: Action })

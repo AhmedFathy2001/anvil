@@ -9,7 +9,7 @@ import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/race
 // search, a status filter, fifteen rows a page, and a tile's detail with claiming and pinning. Pure;
 // the board comes from buildBoard, the team's counts from the config builder.
 
-type Board = Awaited<ReturnType<typeof buildBoard>>;
+export type Board = Awaited<ReturnType<typeof buildBoard>>;
 export type BoardTile = Board['tiles'][number] & {
   claims?: { name: string; note: string | null; mine: boolean }[];
   finishedBy?: { name: string; amount: number }[];
@@ -286,15 +286,15 @@ export function joinToClaimLine(gate: string | null): string {
   return gate ? `Join this event to claim tiles · ${gate}` : 'Join this event to claim tiles.';
 }
 
-type RacePayload = {
+export type RacePayload = {
   steps: number; mode: 'achieve' | 'choose'; path: number[]; open: number[]; pickFrom: number[]; finished: boolean;
   rank: number | null; entrants: number; leaderSteps: number; field: number[];
   standings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[];
 };
-const racePayload = (board: Board): RacePayload | null => ('race' in board && board.race ? (board.race as RacePayload) : null);
+export const racePayload = (board: Board): RacePayload | null => ('race' in board && board.race ? (board.race as RacePayload) : null);
 
 /** The route rebuilt from the board payload (steps and links), plus the caller's route as the site sent it. */
-function raceModel(board: Board): { graph: RaceGraph; route: TeamRoute | null } | null {
+export function raceModel(board: Board): { graph: RaceGraph; route: TeamRoute | null } | null {
   const race = racePayload(board);
   if (!race) return null;
   const tiles = board.tiles as BoardTile[];
@@ -522,7 +522,7 @@ function pinMenu(t: BoardTile, s: BoardState, ctx: BoardContext): { label: strin
 }
 
 /** "Track on screen" / "Stop tracking"; null where the tile can't be pinned. */
-function pinAction(t: BoardTile, s: BoardState, ctx: BoardContext, then?: Action): { label: string; on?: Action; tip: string } | null {
+export function pinAction(t: BoardTile, s: BoardState, ctx: BoardContext, then?: Action): { label: string; on?: Action; tip: string } | null {
   if (t.complete || !ctx.pins || ctx.eventId <= 0) return null;
   const pinned = ctx.pins.includes(t.tileId);
   if (!pinned && ctx.pins.length >= MAX_PINS) return { label: 'Track on screen', tip: `You're already tracking ${MAX_PINS} tiles — stop one first` };

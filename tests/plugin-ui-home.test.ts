@@ -102,7 +102,10 @@ test('the board page: standings, pins with a way to drop them, active now, neare
   )!;
   const all = texts(ui);
   assert.ok(all.includes('4. Mine'), 'your team shows even below the cut');
-  assert.ok(all.includes('+1 more teams'));
+  // Compact: the top three and yours; the rest open in place on "View all 5".
+  assert.ok(all.includes('View all 5'));
+  const tog = walk(ui).find((x) => x.t === 'toggle') as unknown as { off: Node; lit: Node };
+  assert.ok(!texts(tog.off).includes('5. Last') && texts(tog.lit).includes('5. Last'));
   assert.ok(all.includes('Tracked on screen'));
   assert.ok(walk(ui).some((x) => x.on && (x.on as { a: string; tile?: number; on?: boolean }).a === 'pin' && (x.on as { tile: number }).tile === 2));
   assert.ok(all.includes('You 30 · Mate 10'));
@@ -306,7 +309,8 @@ test('a solo board: the cut standings, your lines picked out, and a way to every
   const all = texts(ui);
   assert.ok(all.includes('170 players'));
   assert.ok(all.includes('50.') && all.includes('P50'), 'your line, ranked');
-  assert.ok(all.includes('· · ·  42 more'));
+  assert.ok(all.includes('· · ·'));
+  assert.ok(!all.includes('P4') && !all.includes('P49'), 'compact: the top three and you, no neighbours');
   assert.ok(all.includes('+1 more of your accounts'));
   assert.ok(all.includes('View all 170 players'));
   assert.ok(!all.some((s) => /teams/i.test(s)), 'no "teams" copy on a players board');
