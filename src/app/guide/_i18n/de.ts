@@ -4222,6 +4222,18 @@ const de: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, und **Level posts in clan channels**: **Clan rules**, **Only 99s & max** oder **Off**. **Per character** listet jeden Charakter mit einem Link **Clans →**, um das Posten für einen einzelnen Clan abzuschalten.',
         },
         {
+          term: 'Screenshots pro Art',
+          body: 'wähle für jede Art (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**), ob ihr Post einen Screenshot enthält. Alle sind zu Beginn an. Dein Clan kann einen Standard für seine Mitglieder festlegen; bis du eine Einstellung änderst, folgst du ihm, und **Reset** setzt auf ihn zurück. Bingo-Beweise werden immer aufgenommen, egal was du wählst: sie sind dein Nachweis.',
+        },
+        {
+          term: 'Mehr zum Ankündigen',
+          body: '**Slayer** (jede N. Aufgabe), **Clue scrolls** (ab der gewählten Stufe), **Speedruns** (nur persönliche Bestzeiten oder jedes Mal), **Kill count** (alle N Kills), **BA gambles** (alle N Gambles) und **Custom chat messages** (Spielnachrichten, die deinen eigenen Mustern entsprechen, wobei `*` für beliebigen Text und `#` für eine beliebige Zahl steht; bis zu 10). Alle sind zu Beginn aus. Dein Clan kann sie als Standard für seine Mitglieder einschalten, und du kannst jede davon für dich ein- oder ausschalten; **Reset to clan default** setzt dich zurück auf die Einstellung deines Clans. Sie werden in den Kanal **Milestones & more** deines Clans und in deine eigenen Webhooks gepostet, die sie annehmen; deine eigenen Muster werden nur in deine eigenen Webhooks gepostet.',
+        },
+        {
+          term: 'Privat: Grand Exchange, Trades, Gruppenlager, andere Plugins',
+          body: '**Grand Exchange** (abgeschlossene Angebote im Wert von mindestens dem Betrag, den du festlegst), **Player trades** (was du gegeben und bekommen hast), **Group storage** (was du eingelagert oder entnommen hast) und **Other plugins** (RuneLite-Plugins, die du benennst, dürfen über Anvil posten). Sie sind zu Beginn aus, nur du kannst sie einschalten, dein Clan kann sie nie für dich einschalten, und sie posten nur in deine eigenen Webhooks: setze den Haken bei der Art auf dem Webhook, in den sie sollen.',
+        },
+        {
           term: 'Screenshot-Datenschutz',
           body: 'hake den Chat an, der aus jedem Screenshot herausgelassen wird, den das Plugin macht, Beweise und Discord-Posts gleichermaßen: **Private messages** (zu Beginn angehakt), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** und **Group chat**. Spielnachrichten und Anvils eigene Zeilen bleiben immer drin.',
         },

@@ -4222,6 +4222,18 @@ const nl: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, en **Level posts in clan channels**: **Clan rules**, **Only 99s & max** of **Off**. **Per character** toont elk character met een link **Clans →** om het posten voor één clan uit te zetten.',
         },
         {
+          term: 'Screenshots per soort',
+          body: 'kies per soort (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**) of de post een screenshot bevat. Alles staat standaard aan. Je clan kan een standaard instellen voor zijn leden; totdat je er zelf een wijzigt, volg je die, en **Reset** zet je terug op die standaard. Bingobewijzen worden altijd vastgelegd, wat je ook kiest: het zijn je bewijzen.',
+        },
+        {
+          term: 'Meer om aan te kondigen',
+          body: '**Slayer** (elke N taken), **Clue scrolls** (vanaf de gekozen tier), **Speedruns** (alleen persoonlijke records, of elke keer), **Kill count** (elke N kills), **BA gambles** (elke N gambles) en **Custom chat messages** (spelberichten die passen bij je eigen patronen, waarbij `*` elke tekst is en `#` elk getal; tot 10). Alles staat standaard uit. Je clan kan ze als standaard aanzetten voor zijn leden, en je kunt er zelf elk aan- of uitzetten; **Reset to clan default** zet je terug op het volgen van je clan. Ze worden geplaatst in het **Milestones & more**-kanaal van je clan en in je eigen webhooks die ze accepteren; je eigen patronen worden alleen in je eigen webhooks geplaatst.',
+        },
+        {
+          term: 'Privé: Grand Exchange, handel, groepsopslag, andere plugins',
+          body: '**Grand Exchange** (afgeronde aanbiedingen ter waarde van ten minste het bedrag dat je instelt), **Player trades** (wat je gaf en kreeg), **Group storage** (wat je erin stopte of eruit haalde) en **Other plugins** (RuneLite-plugins die je noemt, mogen via Anvil plaatsen). Ze staan standaard uit, alleen jij kunt ze aanzetten, je clan kan ze nooit namens jou aanzetten, en ze plaatsen alleen in je eigen webhooks: vink het soort aan op de webhook waarin je ze wilt.',
+        },
+        {
           term: 'Privacy van screenshots',
           body: 'vink de chat aan die wordt weggelaten uit elke screenshot die de plugin maakt, zowel bewijzen als Discord-berichten: **Private messages** (standaard aangevinkt), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** en **Group chat**. Spelberichten en de eigen regels van Anvil blijven altijd erin.',
         },

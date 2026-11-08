@@ -4222,6 +4222,18 @@ const sv: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, och **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** listar varje karaktär med en länk **Clans →** för att stänga av inlägg för en klan.',
         },
         {
+          term: 'Skärmbilder per typ',
+          body: 'välj för varje typ (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**) om dess inlägg ska ha en skärmbild. Alla är på från start. Din klan kan sätta en standard för sina medlemmar; tills du ändrar en följer du den, och **Reset** går tillbaka till den. Bingobevis tas alltid, oavsett val: de är ditt bevis.',
+        },
+        {
+          term: 'Mer att meddela',
+          body: '**Slayer** (var N:e uppgift), **Clue scrolls** (från den nivå du väljer), **Speedruns** (bara personliga rekord, eller varje gång), **Kill count** (var N:e dödande), **BA gambles** (var N:e gamble) och **Custom chat messages** (spelmeddelanden som matchar dina egna mönster, där `*` är valfri text och `#` valfri siffra; upp till 10). Alla är avstängda från start. Din klan kan slå på dem som standard för sina medlemmar, och du kan slå på eller av var och en för dig själv; **Reset to clan default** går tillbaka till att följa klanen. De postas i klanens kanal **Milestones & more** och till dina egna webhooks som tar emot dem; dina egna mönster postas bara till dina egna webhooks.',
+        },
+        {
+          term: 'Privat: Grand Exchange, handel, gruppförråd, andra plugins',
+          body: '**Grand Exchange** (avslutade erbjudanden värda minst det belopp du anger), **Player trades** (vad du gav och fick), **Group storage** (vad du lade in eller tog ut) och **Other plugins** (RuneLite-plugins du namnger kan posta via Anvil). De är avstängda från start, bara du kan slå på dem, din klan kan aldrig slå på dem åt dig, och de postas bara till dina egna webhooks: bocka för typen på den webhook du vill ha dem i.',
+        },
+        {
           term: 'Skärmbildsintegritet',
           body: 'bocka i den chatt som lämnas bort från varje skärmbild pluginet tar, bevis och Discord-inlägg likaså: **Private messages** (ibockad från start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** och **Group chat**. Spelmeddelanden och Anvils egna rader finns alltid kvar.',
         },

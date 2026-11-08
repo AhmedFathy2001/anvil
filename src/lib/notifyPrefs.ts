@@ -7,6 +7,19 @@
  * Pure: no database. The store is lib/notifyPrefsStore.
  */
 
+import {
+  hookKindsOn,
+  NO_CLAN_KINDS,
+  NO_PERSONAL_KINDS,
+  noShotList,
+  normalizePersonalKinds,
+  pluginWatches,
+  watchesFor,
+  type ClanKinds,
+  type PersonalKinds,
+  type Watch,
+} from '@/lib/notifyKinds';
+
 export type DropMode = 'or' | 'and';
 export const isDropMode = (v: unknown): v is DropMode => v === 'or' || v === 'and';
 
@@ -44,6 +57,8 @@ export interface NotifyPrefs {
   quests: QuestTier;
   /** Screenshot privacy: chat kinds blanked out of every screenshot the plugin takes (proofs and posts). */
   hide: ShotHide;
+  /** The newer kinds, per-kind screenshots, chat patterns (lib/notifyKinds). Absent fields inherit. */
+  announce: PersonalKinds;
 }
 
 /**
@@ -94,6 +109,7 @@ export const NOTIFY_DEFAULTS: NotifyPrefs = {
   ca: 'MASTER',
   quests: 'MASTER',
   hide: SHOT_HIDE_DEFAULTS,
+  announce: NO_PERSONAL_KINDS,
 };
 
 const MAX_GP = 2_147_483_647;
@@ -130,6 +146,7 @@ export function normalizeNotifyPrefs(raw: unknown): NotifyPrefs {
     ca: oneOf(o.ca, [...CA_TIERS, 'OFF'] as const, d.ca),
     quests: oneOf(o.quests, [...QUEST_TIERS, 'OFF'] as const, d.quests),
     hide: normalizeShotHide(o.hide),
+    announce: normalizePersonalKinds(o.announce),
   };
 }
 
@@ -290,6 +307,12 @@ export interface PluginMe {
   quests: string[];
   /** Screenshot privacy (every screenshot, not gated by any clan switch). */
   hide: ShotHide;
+  /** Game lines that post (lib/notifyKinds watchesFor). */
+  watch: Watch[];
+  /** Post kinds whose announcement goes without a screenshot. Tile proofs are never affected. */
+  noShot: string[];
+  /** Private hook kinds that are on, with their floor (GE gp). */
+  on: Record<string, number>;
 }
 
 export function pluginMe(
@@ -298,6 +321,7 @@ export function pluginMe(
   clan: ClanDropSettings,
   mode: { dropMinValue: number | null; dropRarityFloor: number | null } | null | undefined,
   hooks: HookDropFilter[] = [],
+  clanKinds: ClanKinds = NO_CLAN_KINDS,
 ): PluginMe {
   const gates = dropGates(prefs, clan);
   // The screenshot gate is the loosest of the person's gates and their drop webhooks' own filters; the
@@ -325,5 +349,8 @@ export function pluginMe(
     // "ALL" is rank 0: every quest, including one the difficulty list doesn't know.
     quests: !f.quests || questFrom < 0 ? [] : questFrom === 0 ? ['*'] : QUEST_TIERS.slice(questFrom),
     hide: { ...prefs.hide },
+    watch: pluginWatches(watchesFor(prefs.announce, clanKinds)),
+    noShot: noShotList(prefs.announce, clanKinds),
+    on: hookKindsOn(prefs.announce),
   };
 }

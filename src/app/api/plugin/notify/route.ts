@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
-import { clanMainRarity } from '@/lib/notifyDefaults';
+import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
+import { isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
+import { recordMilestoneMoment } from '@/lib/momentsStore';
+import { emitMomentRows } from '@/lib/panelRows';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getDeathTaunts,
@@ -225,6 +228,26 @@ export async function POST(request: Request) {
     dropVerdict = judged;
   }
   if (kind === 'pet') facts = await withPetRarity(facts);
+  // The newer kinds (lib/notifyKinds): re-checked against the person's settings in force, so a client
+  // can't post a line nobody turned on. Private kinds and own patterns go to own webhooks only.
+  let newPost: NewKindPost | null = null;
+  if (isNewPostKind(kind)) {
+    const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id)]);
+    newPost = vetNewKindPost(kind, facts, prefs.announce, clanKinds);
+    if (channel !== 'milestones') return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
+    if (!newPost) return NextResponse.json({ ok: true, declined: 1 });
+    // A shared line kind also makes a clan feed row, in the member's clan (lib/milestoneMoments). Never a
+    // private kind or a player's own pattern: those stay on their own webhooks.
+    const milestone = member ? milestoneForFeed(kind, facts, prefs.announce, clanKinds) : null;
+    if (milestone && member) {
+      try {
+        const stored = await recordMilestoneMoment(member, milestone);
+        if (stored.length) await emitMomentRows(member.clanId, 'member', stored);
+      } catch (e) {
+        log.warn('plugin-notify.milestone-moment-failed', { error: String(e) });
+      }
+    }
+  }
   // A death is facts only (what killed them); the words are the person's and the clan's, read here.
   let death: DeathWording | null = null;
   if (kind === 'death' && facts && typeof facts === 'object' && !Array.isArray(facts)) {
@@ -249,7 +272,10 @@ export async function POST(request: Request) {
   // plugin-hub's schedule; on a client that already strips them this is a no-op.
   let finalEmbed: Record<string, unknown> | null = embed ? stripChatTagsDeep(embed) : null;
   let finalContent = stripChatTags(content);
-  if (kind !== undefined) {
+  if (newPost) {
+    finalEmbed = stripChatTagsDeep(newPost.embed as unknown as Record<string, unknown>);
+    if (image) finalEmbed.image = { url: `attachment://${image.filename}` };
+  } else if (kind !== undefined) {
     const built = buildPluginEmbed(kind, facts, { imageFilename: image?.filename ?? null, death });
     if (!built.ok) {
       return NextResponse.json({ error: built.error }, { status: 400 });
@@ -301,14 +327,14 @@ export async function POST(request: Request) {
   // whatever clan's site the plugin happens to point at. This is the in-the-wild half of the
   // multi-clan product, and it needs no plugin release because the plugin already posts once and the
   // server owns the webhooks. See lib/emissionRouting for the model (and its privacy gate).
-  const emissionClans = member && dropVerdict?.clan !== false ? await socialEmissionClans(member.accountId) : [];
+  const emissionClans = member && dropVerdict?.clan !== false && !newPost?.personalOnly ? await socialEmissionClans(member.accountId) : [];
 
   // LEVEL POSTS ARE RE-CHECKED PER DESTINATION (lib/levelRules). The plugin sends a level-up when it
   // matches EITHER the member's clan rules or their personal rules, so each destination asks its own
   // question: a clan channel takes it under that clan's rules after the member's choice, a personal
   // webhook under the member's own rules. A destination that declines is skipped, never an error.
   // Released plugins' `level99` / `totalLevel` posts go through the same check.
-  const levelPost = kind !== undefined ? levelPostOf(kind, facts) : null;
+  const levelPost = kind !== undefined && !newPost ? levelPostOf(kind, facts) : null;
   const levelPrefs = levelPost ? await getMemberLevelPrefs(auth.userId) : null;
   let declined = 0;
 
@@ -371,7 +397,8 @@ export async function POST(request: Request) {
   // addressed one anyway, straight past the gate.
 
   // The person's own destinations, independent of every clan.
-  const personalTargets = await personalWebhookTargets(auth.userId, channel, dropVerdict ? { only: new Set(dropVerdict.hooks) } : undefined);
+  // A newer kind is subscribed to by its own name on a webhook (the per-webhook override).
+  const personalTargets = await personalWebhookTargets(auth.userId, newPost?.kind ?? channel, dropVerdict ? { only: new Set(dropVerdict.hooks) } : undefined);
   if (levelPost && levelPrefs && personalTargets.length > 0 && !levelPostMatches(levelPost, levelPrefs.personal)) {
     declined += personalTargets.length;
   } else {

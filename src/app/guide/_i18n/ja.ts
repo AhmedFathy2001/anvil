@@ -4220,6 +4220,18 @@ const ja: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**、そして **Level posts in clan channels**：**Clan rules**、**Only 99s & max**、または **Off**。**Per character** には各キャラクターが並び、**Clans →** リンクで、1 つのクランへの投稿をオフにできます。',
         },
         {
+          term: '種類ごとのスクリーンショット',
+          body: '種類ごと（**Rare drops**、**Pets**、**Deaths**、**Collection log**、**Combat tasks**、**Achievement diaries**、**Levels**、**Player kills**）に、その投稿にスクリーンショットを付けるかを選べます。すべて最初はオンです。クランはメンバー向けの初期値を設定でき、変更するまではそれに従い、**Reset** で初期値に戻ります。ビンゴの証拠は、どの設定でも常に撮影されます。それはあなたの証拠だからです。',
+        },
+        {
+          term: '追加で通知するもの',
+          body: '**Slayer**（N タスクごと）、**Clue scrolls**（選んだティアから）、**Speedruns**（個人ベストのみ、または毎回）、**Kill count**（N 回ごと）、**BA gambles**（N 回ごと）、**Custom chat messages**（自分のパターンに一致するゲームメッセージ。`*` は任意のテキスト、`#` は任意の数字を表し、最大 10 件）。すべて最初はオフです。クランはメンバー向けの初期値としてオンにでき、個別にオン・オフもできます。**Reset to clan default** でクランの設定に戻ります。投稿先はクランの **Milestones & more** チャンネルと、それを受け取る自分の webhook です。自分のパターンは自分の webhook にのみ投稿されます。',
+        },
+        {
+          term: '非公開：Grand Exchange、取引、グループストレージ、他のプラグイン',
+          body: '**Grand Exchange**（設定した金額以上の価値がある完了したオファー）、**Player trades**（渡したものと受け取ったもの）、**Group storage**（入れたものと取り出したもの）、**Other plugins**（指定した RuneLite プラグインは Anvil 経由で投稿できます）。すべて最初はオフで、オンにできるのは本人だけです。クランが代わりにオンにすることはできません。投稿先は自分の webhook のみなので、受け取りたい webhook でその種類にチェックを入れてください。',
+        },
+        {
           term: 'スクリーンショットのプライバシー',
           body: 'プラグインが撮影するすべてのスクリーンショット（証明と Discord 投稿の両方）から除外するチャットにチェックを入れます：**Private messages**（最初からチェック）、**Public chat**、**Clan chat: others’ messages**、**Clan chat: your own messages**、**Chat channel**、**Group chat**。ゲームのメッセージと Anvil 自身の行は、常に含まれます。',
         },

@@ -4219,6 +4219,18 @@ const zhHans: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**，以及 **Level posts in clan channels**：**Clan rules**、**Only 99s & max** 或 **Off**。**Per character** 会列出每个角色，并附带 **Clans →** 链接，以便为某个氏族单独关闭发布。',
         },
         {
+          term: '按类型设置截图',
+          body: '为每种类型（**Rare drops**、**Pets**、**Deaths**、**Collection log**、**Combat tasks**、**Achievement diaries**、**Levels**、**Player kills**）选择其帖子是否附带截图。默认全部开启。你的氏族可以为成员设置默认值；在你更改之前，将跟随该默认值，**Reset** 可恢复为默认值。Bingo 证明无论如何选择都会截取，它们是你的证据。',
+        },
+        {
+          term: '更多可公告的内容',
+          body: '**Slayer**（每 N 次任务）、**Clue scrolls**（从你选择的等级起）、**Speedruns**（仅个人最佳，或每次都发）、**Kill count**（每 N 次击杀）、**BA gambles**（每 N 次赌博）以及 **Custom chat messages**（符合你自定义模式的游戏消息，其中 `*` 代表任意文本，`#` 代表任意数字；最多 10 条）。全部默认关闭。你的氏族可以将它们设为成员的默认值，你也可以为自己单独开启或关闭；**Reset to clan default** 可恢复为跟随氏族。它们会发布到你氏族的 **Milestones & more** 频道以及你自己接收这些内容的 webhook；你自定义的模式只会发布到你自己的 webhook。',
+        },
+        {
+          term: '私密：Grand Exchange、交易、群组存储、其他插件',
+          body: '**Grand Exchange**（已完成且价值不低于你设定金额的交易）、**Player trades**（你给出和获得的物品）、**Group storage**（你存入或取出的物品）以及 **Other plugins**（你指定的 RuneLite 插件可通过 Anvil 发布）。这些默认关闭，只有你自己能开启，你的氏族永远无法替你开启，并且它们只会发布到你自己的 webhook：在你希望它们出现的 webhook 上勾选该类型即可。',
+        },
+        {
           term: '截图隐私',
           body: '勾选在插件拍摄的每张截图中（包括证明截图和 Discord 帖子）都会被遮掉的聊天：**Private messages**（默认勾选）、**Public chat**、**Clan chat: others’ messages**、**Clan chat: your own messages**、**Chat channel** 和 **Group chat**。游戏消息和 Anvil 自己的行始终保留。',
         },

@@ -4222,6 +4222,18 @@ const ar: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**، و**Level posts in clan channels**: **Clan rules** أو **Only 99s & max** أو **Off**. **Per character** يعرض كل شخصية مع رابط **Clans →** لإيقاف النشر لعشيرة واحدة.',
         },
         {
+          term: 'لقطات الشاشة لكل نوع',
+          body: 'اختر لكل نوع (**Rare drops**، **Pets**، **Deaths**، **Collection log**، **Combat tasks**، **Achievement diaries**، **Levels**، **Player kills**) إن كان منشوره يحمل لقطة شاشة. كلها تبدأ مفعّلة. يمكن لعشيرتك تحديد افتراضي لأعضائها؛ وإلى أن تغيّر أحد الخيارات تتبعه، و**Reset** يعيدك إليه. إثباتات Bingo تُلتقط دائمًا مهما اخترت، فهي دليلك.',
+        },
+        {
+          term: 'المزيد للإعلان',
+          body: '**Slayer** (كل N مهمة)، **Clue scrolls** (من المستوى الذي تختاره)، **Speedruns** (أفضل الأوقات الشخصية فقط، أو في كل مرة)، **Kill count** (كل N قتلة)، **BA gambles** (كل N مقامرة) و**Custom chat messages** (رسائل اللعبة التي تطابق أنماطك الخاصة، حيث `*` أي نص و`#` أي رقم؛ حتى 10). كلها تبدأ متوقفة. يمكن لعشيرتك تفعيلها كافتراضي لأعضائها، ويمكنك أنت تفعيل أو إيقاف أي منها لنفسك؛ و**Reset to clan default** يعيدك إلى متابعة عشيرتك. تُنشر في قناة **Milestones & more** الخاصة بعشيرتك وفي webhooks الخاصة بك التي تقبلها؛ أنماطك الخاصة تُنشر فقط في webhooks الخاصة بك.',
+        },
+        {
+          term: 'خاص: Grand Exchange والتبادلات وتخزين المجموعة وإضافات أخرى',
+          body: '**Grand Exchange** (العروض المنتهية التي تساوي على الأقل المبلغ الذي تحدده)، **Player trades** (ما أعطيته وما أخذته)، **Group storage** (ما وضعته أو أخذته) و**Other plugins** (إضافات RuneLite التي تسميها قد تنشر عبر Anvil). كلها تبدأ متوقفة، ولا يمكن تفعيلها إلا من قبلك، ولا يمكن لعشيرتك تفعيلها لك أبدًا، وتُنشر فقط في webhooks الخاصة بك: فعّل النوع على الـwebhook الذي تريده.',
+        },
+        {
           term: 'خصوصية لقطات الشاشة',
           body: 'ضع علامة على الدردشة التي تُحذف من كل لقطة تلتقطها الإضافة، من الإثباتات ومنشورات Discord على حد سواء: **Private messages** (معلّمة في البداية)، و**Public chat**، و**Clan chat: others’ messages**، و**Clan chat: your own messages**، و**Chat channel** و**Group chat**. رسائل اللعبة وأسطر Anvil الخاصة تبقى دائمًا.',
         },

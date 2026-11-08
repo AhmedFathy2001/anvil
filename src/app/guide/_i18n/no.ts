@@ -4225,6 +4225,18 @@ const no: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, og **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** lister hver karakter med en **Clans →**-lenke for å slå av innlegg for én klan.',
         },
         {
+          term: 'Skjermbilder per type',
+          body: 'velg for hver type (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**) om innlegget skal ha et skjermbilde. Alle er på fra start. Klanen din kan sette en standard for medlemmene; til du endrer én, følger du den, og **Reset** går tilbake til den. Bingo-bevis tas alltid, uansett valg: de er beviset ditt.',
+        },
+        {
+          term: 'Mer å kunngjøre',
+          body: '**Slayer** (hver N-te oppgave), **Clue scrolls** (fra nivået du velger), **Speedruns** (bare personlige rekorder, eller hver gang), **Kill count** (hver N-te drap), **BA gambles** (hver N-te gamble) og **Custom chat messages** (spillmeldinger som passer dine egne mønstre, der `*` er en hvilken som helst tekst og `#` et hvilket som helst tall; opptil 10). Alle er av fra start. Klanen din kan slå dem på som standard for medlemmene, og du kan slå hver enkelt av eller på for deg selv; **Tilbakestill til klanstandard** går tilbake til å følge klanen. De legges ut i klanens **Milestones & more**-kanal og i dine egne webhooks som tar dem; dine egne mønstre legges bare ut i dine egne webhooks.',
+        },
+        {
+          term: 'Privat: Grand Exchange, handler, gruppelager, andre plugins',
+          body: '**Grand Exchange** (fullførte tilbud verdt minst beløpet du setter), **Player trades** (det du ga og fikk), **Group storage** (det du la inn eller tok ut) og **Other plugins** (RuneLite-plugins du navngir kan legge ut via Anvil). De er av fra start, bare du kan slå dem på, klanen din kan aldri slå dem på for deg, og de legges bare ut i dine egne webhooks: kryss av typen på webhooken du vil ha dem i.',
+        },
+        {
           term: 'Personvern for skjermbilder',
           body: 'kryss av for chatten som utelates fra hvert skjermbilde plugin-en tar, både bevis og Discord-innlegg: **Private messages** (krysset av til å begynne med), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** og **Group chat**. Spillmeldinger og Anvils egne linjer blir alltid med.',
         },

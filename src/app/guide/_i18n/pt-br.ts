@@ -4205,6 +4205,18 @@ const ptBr: PartialGuideDict = {
           body: '**Keep my announcements out of clans I only guest in**, e **Level posts in clan channels**: **Clan rules**, **Only 99s & max** ou **Off**. **Per character** lista cada personagem com um link **Clans →** para desligar as postagens em um só clã.',
         },
         {
+          term: 'Capturas por tipo',
+          body: 'escolha, para cada tipo (**Rare drops**, **Pets**, **Deaths**, **Collection log**, **Combat tasks**, **Achievement diaries**, **Levels**, **Player kills**), se a sua postagem leva uma captura de tela. Todas começam ativadas. Seu clã pode definir um padrão para os membros; até você mudar algum, você segue o padrão, e **Reset** volta a ele. Provas de bingo são sempre capturadas, seja qual for a sua escolha: elas são a sua evidência.',
+        },
+        {
+          term: 'Mais para anunciar',
+          body: '**Slayer** (a cada N tarefas), **Clue scrolls** (a partir do nível que você escolher), **Speedruns** (apenas recordes pessoais, ou todas as vezes), **Kill count** (a cada N abates), **BA gambles** (a cada N gambles) e **Custom chat messages** (mensagens do jogo que correspondem aos seus próprios padrões, em que `*` é qualquer texto e `#` qualquer número; até 10). Todas começam desativadas. Seu clã pode ativá-las como padrão para os membros, e você pode ativar ou desativar qualquer uma delas para si; **Reset to clan default** volta a seguir o clã. Elas são postadas no canal **Milestones & more** do clã e nos seus próprios webhooks que as aceitam; os seus padrões próprios são postados apenas nos seus webhooks.',
+        },
+        {
+          term: 'Privado: Grand Exchange, trocas, armazenamento de grupo, outros plugins',
+          body: '**Grand Exchange** (ofertas concluídas valendo pelo menos o valor que você definir), **Player trades** (o que você deu e recebeu), **Group storage** (o que você colocou ou retirou) e **Other plugins** (plugins do RuneLite que você indicar podem postar pela Anvil). Começam desativados, só você pode ativá-los, seu clã nunca pode ativá-los por você, e eles só são postados nos seus próprios webhooks: marque o tipo no webhook onde os quer.',
+        },
+        {
           term: 'Privacidade de screenshots',
           body: 'marque o chat que fica de fora de toda screenshot que o plugin tira, provas e posts do Discord incluídos: **Private messages** (marcado para começar), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** e **Group chat**. Mensagens do jogo e as linhas do próprio Anvil sempre continuam.',
         },

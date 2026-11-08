@@ -13,6 +13,7 @@ import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { DROP_MINIMUMS, type ClanDropSettings } from '@/lib/notifyPrefs';
+import { parseClanKinds, type ClanKinds } from '@/lib/notifyKinds';
 import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 import { clanSeat } from '@/lib/seatScope';
 import { streamedEvent } from '@/lib/creatorSpaces';
@@ -501,6 +502,8 @@ export interface PluginWebhooks {
   diaries: string | null;
   collectionLog: string | null;
   pvpKills: string | null;
+  /** Slayer, clues, speedruns, kill counts, BA gambles, the clan's chat patterns (lib/notifyKinds). */
+  milestones: string | null;
   clips: string | null;
   /** Seasonal (Leagues) worlds: every notification from one routes here instead of the above. */
   leagues: string | null;
@@ -517,6 +520,7 @@ export const NOTIFY_CHANNELS = [
   'diaries',
   'collectionLog',
   'pvpKills',
+  'milestones',
   'clips',
 ] as const;
 export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number];
@@ -532,6 +536,7 @@ const SETTING_KEY: Record<NotifyChannel | 'leagues', string> = {
   diaries: 'webhook_diaries',
   collectionLog: 'webhook_collection_log',
   pvpKills: 'webhook_pvp_kills',
+  milestones: 'webhook_milestones',
   clips: 'webhook_clips',
   leagues: 'webhook_leagues',
 };
@@ -554,6 +559,7 @@ const INHERITS_FROM: Partial<Record<NotifyChannel, NotifyChannel>> = {
   quests: 'combatAchievements',
   diaries: 'combatAchievements',
   collectionLog: 'combatAchievements',
+  milestones: 'combatAchievements',
 };
 
 export const WEBHOOK_SETTING_KEYS = [
@@ -730,6 +736,13 @@ export async function getDropRarityFloor(clanId: number): Promise<number> {
 }
 
 /** The clan's default thresholds for its members, plus its hard floor. */
+/** A clan's defaults for the newer kinds, screenshots and its chat patterns (lib/notifyKinds), as JSON. */
+export const NOTIFY_KIND_DEFAULTS_SETTING_KEY = 'notify_kind_defaults';
+
+export async function getClanKindDefaults(clanId: number): Promise<ClanKinds> {
+  return parseClanKinds(await getSetting(clanId, NOTIFY_KIND_DEFAULTS_SETTING_KEY));
+}
+
 export async function getClanDropDefaults(clanId: number): Promise<ClanDropSettings> {
   const [value, rarity, floor, mode] = await Promise.all([
     getSetting(clanId, DROP_DEFAULT_VALUE_SETTING_KEY),

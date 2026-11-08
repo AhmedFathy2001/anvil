@@ -11,6 +11,7 @@ import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
+import { MILESTONE_KIND, type MilestoneFacts } from '@/lib/milestoneMoments';
 import {
   ACHIEVEMENT_KINDS,
   DEFAULT_CLAN_SCOPE,
@@ -423,6 +424,35 @@ export async function recordModeLineMoments(
 }
 
 /**
+ * A shared line kind's row in the clan feed (lib/milestoneMoments), for a MEMBER seat only: Slayer,
+ * clues, speedruns, kill counts, BA gambles, the clan's patterns. The notify route records it only
+ * after vetting the line against the player's own settings in force, so an off kind makes no row.
+ * Deduped within the minute (the outbox may resend a post).
+ */
+export async function recordMilestoneMoment(member: { clanMemberId: number; rsn: string }, f: MilestoneFacts): Promise<StoredMoment[]> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
+  const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
+  if (seat?.kind !== 'member') return [];
+  const occurredAt = new Date().toISOString();
+  const key = f.itemName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
+  const [row] = await db
+    .insert(moments)
+    .values({
+      clanMemberId: member.clanMemberId, rsn: member.rsn, kind: MILESTONE_KIND, weeklyCompetitionId: null, eventId: null, teamId: null,
+      itemId: null, itemName: f.itemName, quantity: f.quantity, valueGp: null, source: null, sourceKind: f.sub, kc: null,
+      rarityDenominator: null, tier: f.tier, occurredAt,
+      dedupKey: `milestone:${f.sub}:${key}:${f.quantity}:${Math.floor(Date.now() / 60_000)}`,
+    })
+    .onConflictDoNothing()
+    .returning({ id: moments.id });
+  if (!row) return [];
+  return [{
+    id: row.id, rsn: member.rsn, kind: MILESTONE_KIND, itemId: null, itemName: f.itemName, quantity: f.quantity, valueGp: null,
+    source: null, sourceKind: f.sub, teamId: null, eventId: null, tier: f.tier, worldMode: null, worldModeLabel: null, kc: null, occurredAt,
+  }];
+}
+
+/**
  * What the plugin's moments route stores for one seat's push.
  *
  * With a board or week running, everything goes through {@link recordMoments} as it always has. With
@@ -497,7 +527,7 @@ export async function sweepClanAchievements(now: Date = new Date()): Promise<num
             and(
               isNull(moments.eventId),
               isNull(moments.weeklyCompetitionId),
-              or(inArray(moments.kind, [...ACHIEVEMENT_KINDS]), isNotNull(moments.worldMode)),
+              or(inArray(moments.kind, [...ACHIEVEMENT_KINDS, MILESTONE_KIND]), isNotNull(moments.worldMode)),
               lt(moments.occurredAt, cutoff),
             ),
           )

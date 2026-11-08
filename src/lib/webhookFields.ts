@@ -214,6 +214,12 @@ export const WEBHOOK_SECTIONS = [
         label: 'PvP kills channel',
         help: "When 'Notify on PvP kill' is enabled in the plugin, a screenshot of the kill is posted here.",
       },
+      {
+        kind: 'webhook',
+        key: 'webhook_milestones',
+        label: 'Milestones & more channel',
+        help: 'Slayer tasks, clue scrolls, speedruns, kill counts, BA gambles and your chat patterns, for members who turn them on. Blank keeps them with combat achievements.',
+      },
       // Clips (webhook_clips) are hidden while the feature is off; the setting itself is kept.
       {
         kind: 'webhook',

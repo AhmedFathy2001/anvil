@@ -4,7 +4,8 @@ import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, clans, userWebhooks, users } from '@/db/schema';
 import { clanSeat } from '@/lib/seatScope';
 import { dropGates, isDropMode, NO_CLAN_DROPS, parseNotifyPrefs, type NotifyPrefs } from '@/lib/notifyPrefs';
-import { getClanDropDefaults } from '@/lib/pluginConfig';
+import { getClanDropDefaults, getClanKindDefaults } from '@/lib/pluginConfig';
+import { NO_CLAN_KINDS, type ClanKinds } from '@/lib/notifyKinds';
 import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type MilestoneRules } from '@/lib/levelRules';
 
 /**
@@ -73,6 +74,8 @@ export interface EmissionSettingsView {
   notifyPrefs: NotifyPrefs;
   /** Per character: the clan default it inherits (Anvil's default when it has no clan). */
   dropDefaults: DropDefaultRow[];
+  /** The newer kinds' default from the person's (first) member clan; none = Anvil's (lib/notifyKinds). */
+  clanKinds: ClanKinds;
 }
 
 export async function emissionSettingsView(userId: number, playerId: number): Promise<EmissionSettingsView> {
@@ -188,6 +191,10 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
     levelPostsClan: isLevelPostsChoice(user?.levelPostsClan) ? user.levelPostsClan : 'clan',
     personalLevelRules: parseMilestoneRules(user?.levelRules),
     notifyPrefs: parseNotifyPrefs(user?.notifyPrefs),
+    clanKinds: await (async () => {
+      const c = accountRows.find((a) => a.memberClan)?.memberClan;
+      return c ? getClanKindDefaults(c.clanId) : NO_CLAN_KINDS;
+    })(),
     dropDefaults: await Promise.all(
       accountRows
         .slice()

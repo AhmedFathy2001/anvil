@@ -9,18 +9,11 @@ import LevelRulesEditor from '@/components/LevelRulesEditor';
 import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings';
 import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, DROP_MINIMUMS, PLATFORM_DROP_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
 import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
+import { HOOK_KIND_LABELS } from '@/lib/webhookKinds';
+import AnnounceKindsEditor from '@/components/AnnounceKindsEditor';
+import type { PersonalKinds } from '@/lib/notifyKinds';
 
-const KIND_LABELS: Record<string, string> = {
-  rareDrops: 'Rare drops',
-  pets: 'Pets',
-  deaths: 'Deaths',
-  combatAchievements: 'Combat achievements',
-  levels: 'Levels & milestones',
-  quests: 'Quests',
-  diaries: 'Achievement diaries',
-  collectionLog: 'Collection log',
-  pvpKills: 'PvP kills',
-};
+const KIND_LABELS: Record<string, string> = HOOK_KIND_LABELS;
 const KINDS = Object.keys(KIND_LABELS);
 
 const LEVEL_POSTS_OPTIONS: { value: LevelPostsChoice; label: string }[] = [
@@ -733,6 +726,8 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
           />
         </PrefRow>
       </PrefGroup>
+
+      <AnnounceKindsEditor mode="personal" value={p.announce} inherited={view.clanKinds} busy={busy} onSave={(a) => save({ announce: a as PersonalKinds })} />
 
       <PrefGroup title="Screenshot privacy" id="screenshot-privacy">
         <p className="max-w-[70ch] text-[12.5px] text-text-muted">

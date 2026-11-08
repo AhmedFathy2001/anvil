@@ -6,6 +6,7 @@ import { BOSSES, metricKeys } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { shownKiller } from '@/lib/deathSource';
 import { FALLEN_MODE, fallenSentence, isFallenDeath } from '@/lib/hardcoreFall';
+import { milestoneSentence } from '@/lib/milestoneMoments';
 import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules } from '@/lib/levelRules';
 
 /**
@@ -32,7 +33,7 @@ import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules 
  * claims them; they ride the same columns — `itemName` is the item / diary area / quest, `tier` the
  * diary tier, `sourceKind` 'cape' on the quest that finished the quest cape.
  */
-export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca' | 'level' | 'clog' | 'diary' | 'quest';
+export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca' | 'level' | 'clog' | 'diary' | 'quest' | 'milestone';
 
 /**
  * A player's own milestones, kept for their clan whether or not anything is running: combat tasks
@@ -46,7 +47,8 @@ export function isAchievementKind(kind: string): boolean {
 }
 
 /** The achievement kinds no board or competition week claims: the clan scope is their only home. */
-const CLAN_ONLY_KINDS = new Set<string>(['clog', 'diary', 'quest']);
+// 'milestone': Slayer, clues, speedruns, kill counts, BA gambles, clan patterns (lib/milestoneMoments).
+const CLAN_ONLY_KINDS = new Set<string>(['clog', 'diary', 'quest', 'milestone']);
 
 /** Achievement diary tiers, as the completion line names them. */
 export const DIARY_TIERS = ['Easy', 'Medium', 'Hard', 'Elite'] as const;
@@ -963,6 +965,8 @@ function oneSentence(m: Parameters<typeof momentSentence>[0]): string {
       return `completed the ${m.tier ? `${m.tier} ` : ''}${item} Diary`;
     case 'quest':
       return m.sourceKind === 'cape' ? `completed every quest (${item})` : `completed ${item}`;
+    case 'milestone':
+      return milestoneSentence(m);
     default:
       return m.source ? `looted ${qty}${item} from ${m.source}` : `looted ${qty}${item}`;
   }
@@ -978,4 +982,5 @@ export const MOMENT_EMOJI: Record<string, string> = {
   clog: '📖',
   diary: '📜',
   quest: '🗺️',
+  milestone: '🏅',
 };
