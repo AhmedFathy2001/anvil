@@ -1,5 +1,6 @@
 'use client';
 
+import DropOdds from '@/components/DropOdds';
 import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
 import { TileStateBanner } from '@/components/board/TileState';
 import { missionTileState } from '@/lib/tileState';
@@ -667,6 +668,12 @@ export default function TileDetailModal({
               <h2 id={titleId} className="text-lg font-bold text-foreground truncate">{tile.label}</h2>
               {tile.description && (
                 <p className="text-sm text-text-muted mt-0.5">{tile.description}</p>
+              )}
+              {isDrop && (
+                <DropOdds
+                  itemIds={isCollection ? itemReqs.map((r) => r.itemId) : parseJsonArray<number>(tile.trackedItemIds)}
+                  names={isCollection ? new Map(itemReqs.map((r) => [r.itemId, r.name])) : undefined}
+                />
               )}
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
