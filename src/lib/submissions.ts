@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { queueTileHighlight } from '@/lib/highlights/store';
 import { submissions, tiles, completions, teams, events, eventParticipants } from '@/db/schema';
-import { eq, and, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { evaluateCompletionGate } from '@/lib/completionGate';
@@ -310,7 +310,10 @@ export async function syncDropTileCompletion(
       .where(and(
         eq(submissions.tileId, tileId),
         eq(submissions.teamId, teamId),
-        isNotNull(submissions.imageUrl),
+        // A credit whose screenshot is on its way (lib/proofAfter: proofDueAt set) counts as having one:
+        // it completes now, held from announcing, and a missing picture reverses it within the minute.
+        // Without this the tile never completed — the attach doesn't re-run the check.
+        or(isNotNull(submissions.imageUrl), isNotNull(submissions.proofDueAt)),
         isNull(submissions.goal),
       ))
       .limit(1);
