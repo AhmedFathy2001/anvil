@@ -3,6 +3,11 @@ import { logoFetchUrl } from '@/lib/crestImage';
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 /** A 220×73/48×48 panel asset should stay tiny even when animated. */
 const MAX_PANEL_BYTES = 512 * 1024;
+/** A panel picture that could not be served: say why in the server log (the plugin just hides it). */
+function missing(reason: string, url: string): Response {
+  console.warn(`[panel-media] not served (${reason}): ${url.split('?')[0]}`);
+  return new Response('Not found', { status: 404 });
+}
 const CACHE = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400';
 
 /** Our uploads, plus the one external image host a profile may legitimately inherit from OAuth. */
@@ -41,18 +46,19 @@ export function coverCrop(W: number, H: number, w: number, h: number, position: 
  */
 export async function pluginPanelImage(url: string, width: number, height: number, motion: boolean, position: number | null = null): Promise<Response> {
   const target = panelImageUrl(url);
-  if (!target) return new Response('Not found', { status: 404 });
+  if (!target) return missing('source is not under S3_PUBLIC_BASE_URL or the site origin', url);
   try {
     const upstream = await fetch(target, { signal: AbortSignal.timeout(8_000), redirect: 'error' });
     const declared = Number(upstream.headers.get('content-length') ?? 0);
-    if (!upstream.ok || declared > MAX_SOURCE_BYTES) return new Response('Not found', { status: 404 });
+    if (!upstream.ok) return missing(`source fetch answered ${upstream.status}`, url);
+    if (declared > MAX_SOURCE_BYTES) return missing(`source is ${declared} bytes, over the ${MAX_SOURCE_BYTES} cap`, url);
     const input = Buffer.from(await upstream.arrayBuffer());
-    if (input.length > MAX_SOURCE_BYTES) return new Response('Not found', { status: 404 });
+    if (input.length > MAX_SOURCE_BYTES) return missing(`source is ${input.length} bytes, over the ${MAX_SOURCE_BYTES} cap`, url);
     const { default: sharp } = await import('sharp');
     const meta = await sharp(input, { animated: false, limitInputPixels: 4096 * 4096 }).metadata();
     const W = meta.width ?? 0;
     const H = meta.pageHeight ?? meta.height ?? 0;
-    if (W <= 0 || H <= 0) return new Response('Not found', { status: 404 });
+    if (W <= 0 || H <= 0) return missing('source has no readable size', url);
     const crop = coverCrop(W, H, width, height, position);
     const cut = { left: crop.left, top: crop.top, width, height };
     const still = () => sharp(input, { animated: false, limitInputPixels: 4096 * 4096 })
@@ -77,7 +83,7 @@ export async function pluginPanelImage(url: string, width: number, height: numbe
     }
     const image = await still();
     return new Response(new Uint8Array(image), { headers: { 'Content-Type': 'image/png', 'Cache-Control': CACHE } });
-  } catch {
-    return new Response('Not found', { status: 404 });
+  } catch (e) {
+    return missing(`decode failed: ${e instanceof Error ? e.message : String(e)}`, url);
   }
 }

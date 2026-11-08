@@ -58,3 +58,19 @@ test('the clan card carries the banner and the logo as panel media paths, unboos
   }
   assert.ok(!JSON.stringify(clanCardUi(card(0), false, true, true, false)).includes('"t":"img"'), 'no images for a plugin that cannot draw them');
 });
+
+test('a source that cannot be served answers 404 and logs why', async () => {
+  const warn = console.warn;
+  const lines: string[] = [];
+  console.warn = (m: string) => void lines.push(String(m));
+  try {
+    const { r } = await served(Buffer.from('not an image'), 36, 36, false);
+    assert.equal(r.status, 404);
+    const foreign = await pluginPanelImage('https://elsewhere.example.org/x.webp', 36, 36, false);
+    assert.equal(foreign.status, 404);
+  } finally {
+    console.warn = warn;
+  }
+  assert.ok(lines.some((l) => l.includes('decode failed')));
+  assert.ok(lines.some((l) => l.includes('S3_PUBLIC_BASE_URL')));
+});
