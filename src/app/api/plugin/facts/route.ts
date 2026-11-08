@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 
 const MAX_SUBMISSIONS = 40;
 
-// POST /api/plugin/facts — what a `rules` plugin saw (loot, hauls, kills), for the site to credit.
+// POST /api/plugin/facts — what a `rules` plugin saw (loot, hauls, kills, and `tile` facts for the
+// tiles it judges itself: timed, deathless, LMS, PvP, diary, combat task, clog, gain), for the site to credit.
 // The plugin no longer picks tiles: lib/pluginFacts/match decides, and every credit goes through the
 // submissions route exactly as the plugin's own POST used to, so caps, completions, the live push and
 // staff review are unchanged. The reply carries each touched tile's corrected count, which the
@@ -62,8 +63,12 @@ export async function POST(request: Request) {
       error: had?.error ?? r.error,
     });
   }
+  // A proof the plugin filed for one tile used to end on "Submitted: <tile>"; it is said from here now.
+  const notes = [...matched.notes];
+  for (const c of credits) if (c.kind === 'tile' && img && byTile.get(c.tileId)?.ok) notes.push(`Submitted: ${c.label}`);
   return Response.json({
-    credits: credits.map((c) => ({
+    // A replayed older proof on a drop/kill/value tile has no count of the plugin's rule to correct.
+    credits: credits.filter((c) => !(c.kind === 'tile' && (c.tileKind === 'drop' || c.tileKind === 'kill' || c.tileKind === 'value'))).map((c) => ({
       t: c.tileId,
       kind: c.kind,
       label: c.label,
@@ -73,6 +78,6 @@ export async function POST(request: Request) {
       ...(c.quiet ? { quiet: true } : {}),
       ...byTile.get(c.tileId),
     })),
-    notes: matched.notes,
+    notes,
   });
 }

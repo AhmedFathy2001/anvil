@@ -20,31 +20,14 @@ import { clansRunningEvents } from '@/lib/coHost';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 import { teamBoardScore } from '@/lib/pluginHomeBoard';
 import { visibleClan } from '@/lib/pluginUi/load';
+import { appendBoardTiles } from '@/lib/pluginBoardTiles';
+
+export { appendBoardTiles, TRACKED_TILE_LISTS } from '@/lib/pluginBoardTiles';
 
 /** The request header a multi-board plugin sends; without it /config is exactly what it always was. */
 export const MULTI_BOARD_HEADER = 'x-anvil-boards';
 
 export const wantsAllBoards = (request: Request) => request.headers.get(MULTI_BOARD_HEADER)?.trim() === '1';
-
-/**
- * The tracked lists another board's entries are appended to. Only lists of TILE entries: the name
- * lists (trackedKcNames, trackedSkillNames, trackedActivityKeys) and trackedStats feed the stat push,
- * which the server credits per board from hiscores on its own.
- */
-export const TRACKED_TILE_LISTS = [
-  'trackedDrops',
-  'trackedKills',
-  'trackedClog',
-  'trackedTimed',
-  'trackedValues',
-  'trackedGains',
-  'trackedPvp',
-  'trackedLms',
-  'trackedDeathless',
-  'trackedDiaries',
-  'trackedCombatTasks',
-  'trackedCombos',
-] as const;
 
 export interface LiveBoard {
   eventId: number;
@@ -211,20 +194,6 @@ export function summaryOf(
     tilesTotal: tally?.tilesTotal ?? 0,
     pointsScored: tally?.pointsScored ?? false,
   };
-}
-
-/**
- * Append another board's tracked tiles to `body`'s lists, each tagged with the board it credits.
- * The active board's own entries stay untagged — that is how an older reading of them stays right.
- */
-export function appendBoardTiles(body: Record<string, unknown>, extra: Record<string, unknown>, board: LiveBoard): void {
-  const tag = { eventId: board.eventId, teamId: board.teamId, playerId: board.playerId, clan: board.clan, name: board.name };
-  for (const key of TRACKED_TILE_LISTS) {
-    const more = extra[key];
-    if (!Array.isArray(more) || more.length === 0) continue;
-    const mine = Array.isArray(body[key]) ? (body[key] as unknown[]) : [];
-    body[key] = [...mine, ...more.map((e) => ({ ...(e as object), board: tag }))];
-  }
 }
 
 /**

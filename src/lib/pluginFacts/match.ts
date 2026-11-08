@@ -70,10 +70,45 @@ export interface ValueTile extends TrackedBase {
   completed?: boolean;
 }
 
+/** A tile the plugin judges itself (timed, deathless, LMS, PvP, diary, combat task, clog, gain), as the config lists it. */
+export interface PlainTile extends TrackedBase {
+  currentAmount?: number | null;
+  requiredAmount?: number | null;
+  activity?: string | null;
+  thresholdSeconds?: number | null;
+  placementCap?: number | null;
+  partySize?: number | null;
+  coopCredit?: string | null;
+  coopMinMembers?: number | null;
+}
+
+/** Config list → the tile kind a `tile` fact credits there. */
+export const TILE_LISTS = {
+  trackedGains: 'gain',
+  trackedTimed: 'timed',
+  trackedDeathless: 'deathless',
+  trackedLms: 'lms',
+  trackedPvp: 'pvp',
+  trackedDiaries: 'diary',
+  trackedCombatTasks: 'ca',
+  trackedClog: 'clog',
+} as const;
+
+export type TileKind = (typeof TILE_LISTS)[keyof typeof TILE_LISTS];
+
 export interface Tracked {
   trackedDrops?: DropTile[] | null;
   trackedKills?: KillTile[] | null;
   trackedValues?: ValueTile[] | null;
+  trackedGains?: PlainTile[] | null;
+  trackedTimed?: PlainTile[] | null;
+  trackedDeathless?: PlainTile[] | null;
+  trackedLms?: PlainTile[] | null;
+  trackedPvp?: PlainTile[] | null;
+  trackedDiaries?: PlainTile[] | null;
+  trackedCombatTasks?: PlainTile[] | null;
+  trackedClog?: PlainTile[] | null;
+  trackedCombos?: { tileId: number; label: string }[] | null;
   /** Team-level completions; a per-item collection tile is gated on this, not on its count. */
   completedTiles?: { tileId: number }[] | null;
 }
@@ -113,9 +148,39 @@ export interface KillFact {
   inf?: string | null;
 }
 
-export type Fact = LootFact | ValueFact | KillFact;
+/**
+ * A tile the plugin decided on itself — its gates (party, deaths, raid level, roster, placement,
+ * selectors) and its instant chat line stay in game; the site checks the tile is the caller's, files
+ * it on the right board and writes the banner. `n` is the amount (1 but for gains), `sec` a timed
+ * clear's seconds; `what` names the item / page / diary / task / victim; `tier` a combat task's
+ * tier; `pg` a finished clog page; `tr` a Barracuda Trials rank run; `lvl` the ToA raid level;
+ * `party` the party seen; `place`/`kills` an LMS finish.
+ *
+ * `note` marks a proof saved by an older plugin build, replayed from disk: its note and banner are
+ * kept as written, `item`/`inf` are its itemId/inferred flag, and it may name any tracked tile, as
+ * that build's submission could.
+ */
+export interface TileFact {
+  k: 'tile';
+  t: number;
+  n: number;
+  sec?: number;
+  what?: string;
+  tier?: string;
+  pg?: true;
+  tr?: true;
+  lvl?: number;
+  party?: number;
+  place?: number;
+  kills?: number;
+  item?: number;
+  inf?: string;
+  note?: string;
+}
 
-export type CreditKind = 'drop' | 'value' | 'kill';
+export type Fact = LootFact | ValueFact | KillFact | TileFact;
+
+export type CreditKind = 'drop' | 'value' | 'kill' | 'tile';
 
 export interface Credit {
   kind: CreditKind;
@@ -138,6 +203,10 @@ export interface Credit {
   /** Kill tiles that need the client's view of its company. */
   coop?: boolean;
   pingMax?: number;
+  /** Tile credits: the fact as reported, the tile's kind and its config row. */
+  fact?: TileFact;
+  tileKind?: TileKind | 'drop' | 'kill' | 'value';
+  row?: PlainTile;
 }
 
 export interface MatchResult {
@@ -398,6 +467,30 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
   }
 }
 
+/**
+ * A tile the plugin judged itself: credited when it is one of the caller's tiles of a kind the plugin
+ * may file this way (a replayed older proof may name any tracked tile). The submissions route still
+ * does every check it always did.
+ */
+export function matchTile(fact: TileFact, t: Tracked, out: MatchResult): void {
+  const lists: [string, PlainTile[] | null | undefined][] = Object.keys(TILE_LISTS).map((k) => [k, t[k as keyof typeof TILE_LISTS]]);
+  if (fact.note != null) {
+    lists.push(['drop', t.trackedDrops], ['kill', t.trackedKills], ['value', t.trackedValues as PlainTile[] | null | undefined]);
+  }
+  for (const [key, rows] of lists) {
+    const row = rows?.find((r) => r?.tileId === fact.t);
+    if (!row) continue;
+    const kind = (TILE_LISTS as Record<string, TileKind>)[key] ?? (key as 'drop' | 'kill' | 'value');
+    if (kind === 'timed' && !fact.sec) return;
+    const combo = row.partOf ? t.trackedCombos?.find((c) => c.tileId === row.partOf) : undefined;
+    const label = combo && (kind === 'gain' || kind === 'clog') ? `${combo.label.trim()} — ${row.label.trim()}` : row.label;
+    const of = Math.max(1, row.requiredAmount ?? 1);
+    row.currentAmount = Math.min(of, (row.currentAmount ?? 0) + fact.n);
+    out.credits.push({ kind: 'tile', tileId: fact.t, label, amount: fact.n, have: row.currentAmount, of, board: row.board, inferred: fact.inf ?? null, fact, tileKind: kind, row });
+    return;
+  }
+}
+
 /** The inferred flag the plugin used for counters nobody has checked in game yet. */
 export const UNVERIFIED_COUNTER = 'unverified_counter';
 
@@ -409,6 +502,7 @@ export function matchFacts(facts: Fact[], t: Tracked): MatchResult {
     if (f.k === 'loot') matchLoot(f, t, out);
     else if (f.k === 'value') matchValue(f, t, out);
     else if (f.k === 'kill') matchKill(f, t, out, index);
+    else if (f.k === 'tile') matchTile(f, t, out);
   }
   return out;
 }
@@ -460,7 +554,7 @@ export function coalesce(credits: Credit[]): Credit[] {
   for (const c of credits) {
     const key = `${c.kind}:${c.tileId}:${c.itemId ?? '-'}`;
     const had = byKey.get(key);
-    if (!had || c.kind === 'value') {
+    if (!had || c.kind === 'value' || c.kind === 'tile') {
       const copy = { ...c, parts: c.parts ? [...c.parts] : undefined };
       if (!had) byKey.set(key, copy);
       out.push(copy);

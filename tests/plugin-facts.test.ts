@@ -18,7 +18,8 @@ import {
   type ValueTile,
 } from '@/lib/pluginFacts/match';
 import { buildRuleTable, statStep } from '@/lib/pluginFacts/rules';
-import { planSubmissions } from '@/lib/pluginFacts/plan';
+import { planSubmissions, tileText } from '@/lib/pluginFacts/plan';
+import { appendBoardTiles } from '@/lib/pluginBoardTiles';
 import { parseFacts } from '@/lib/pluginFacts/parse';
 import { pluginTileCounts, withTileCounts } from '@/lib/pluginTileCounts';
 
@@ -438,4 +439,146 @@ test('pluginTileCounts: one row per tile, highest count, first goal, sets marked
   const body: Record<string, unknown> = { trackedGains: [{ tileId: 9, currentAmount: 1, requiredAmount: 2 }] };
   assert.equal(withTileCounts(body), body);
   assert.deepEqual(body.tiles, [{ t: 9, have: 1, of: 2 }]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// `tile` facts: the kinds the plugin judges itself
+
+const proofMeta = { tz: 'UTC', capturedAt: 1, tick: 2, chat: [] };
+
+test('parseFacts tile: keeps a well-formed tile fact with its extras, drops a bad id, amount or seconds', () => {
+  const out = parseFacts([
+    { k: 'tile', t: 7, n: 1, sec: 95, lvl: 500, tr: true, what: 'x'.repeat(10) },
+    { k: 'tile', t: -41, n: 2, note: 'old', item: 4151, inf: 'inferred_duplicate_pet' },
+    { k: 'tile', t: 0, n: 1 },
+    { k: 'tile', t: 7, n: 0 },
+    { k: 'tile', t: 7, n: 10_001 },
+    { k: 'tile', t: 1.5, n: 1 },
+    { k: 'tile', t: 7, n: 1, sec: 99_999, pg: 'yes' },
+    { k: 'tile', t: 8, n: 5_000_000, note: '[Auto] loot worth 5.0M gp' },
+  ]);
+  assert.equal(out.length, 4);
+  assert.ok(out[3].k === 'tile' && out[3].n === 5_000_000, 'a replayed older value proof keeps its gp');
+  assert.deepEqual(out[0], { k: 'tile', t: 7, n: 1, sec: 95, what: 'xxxxxxxxxx', tier: undefined, pg: undefined, tr: true, lvl: 500, party: undefined, place: undefined, kills: undefined, item: undefined, inf: undefined, note: undefined });
+  assert.ok(out[1].k === 'tile' && out[1].t === -41 && out[1].note === 'old' && out[1].item === 4151);
+  assert.ok(out[2].k === 'tile' && out[2].sec === undefined && out[2].pg === undefined, 'an out-of-range sec and a non-boolean pg are dropped');
+});
+
+test('matchTile: credits only the caller\'s tiles of a plugin-judged kind; timed needs its seconds', () => {
+  const tracked: Tracked = {
+    trackedDrops: [drop({ tileId: 1, itemIds: [5] })],
+    trackedTimed: [{ tileId: 2, label: 'Inferno', activity: 'Inferno', thresholdSeconds: 3600, currentAmount: 0, requiredAmount: 1, board }],
+    trackedDiaries: [{ tileId: 3, label: 'Diaries', currentAmount: 1, requiredAmount: 3, board }],
+  };
+  const r = run(tracked, [
+    { k: 'tile', t: 1, n: 1 },
+    { k: 'tile', t: 99, n: 1 },
+    { k: 'tile', t: 2, n: 1 },
+    { k: 'tile', t: 2, n: 1, sec: 3000 },
+    { k: 'tile', t: 3, n: 1, what: 'Ardougne Elite' },
+  ]);
+  assert.deepEqual(r.credits.map((c) => [c.tileId, c.tileKind, c.have, c.of]), [[2, 'timed', 1, 1], [3, 'diary', 2, 3]]);
+  assert.equal(r.credits[1].board, board);
+});
+
+test('matchTile: a replayed older proof may name a drop tile; a combo part speaks with its combo name for gains and clog', () => {
+  const tracked: Tracked = {
+    trackedDrops: [drop({ tileId: 1, itemIds: [5] })],
+    trackedGains: [{ tileId: 4, label: 'Sharks', partOf: 9, currentAmount: 10, requiredAmount: 12 }],
+    trackedPvp: [{ tileId: 5, label: 'PKs', partOf: 9, currentAmount: 0, requiredAmount: 2 }],
+    trackedCombos: [{ tileId: 9, label: 'Sea' }],
+  };
+  const r = run(tracked, [
+    { k: 'tile', t: 1, n: 1, note: '[Auto] Tile 1 detected by RuneLite plugin', item: 5 },
+    { k: 'tile', t: 4, n: 5 },
+    { k: 'tile', t: 5, n: 1, what: 'Zezima' },
+  ]);
+  assert.deepEqual(r.credits.map((c) => [c.tileId, c.tileKind, c.label, c.have]), [
+    [1, 'drop', 'Tile 1', 1],
+    [4, 'gain', 'Sea — Sharks', 12],
+    [5, 'pvp', 'PKs', 1],
+  ]);
+});
+
+test('coalesce leaves tile credits alone: two runs of one tile stay two submissions', () => {
+  const tracked: Tracked = { trackedTimed: [{ tileId: 2, label: 'Trials', activity: 'Gwenith Glide Marlin', currentAmount: 0, requiredAmount: 3, board }] };
+  const r = run(tracked, [{ k: 'tile', t: 2, n: 1, sec: 100, tr: true }, { k: 'tile', t: 2, n: 1, sec: 90, tr: true }]);
+  const out = coalesce(r.credits);
+  assert.equal(out.length, 2);
+  const plans = planSubmissions(out, (c) => c.board ?? null, 'https://m/x.jpg', proofMeta, null);
+  assert.deepEqual(plans.map((p) => p.body.durationSeconds), [100, 90]);
+  assert.deepEqual(plans.map((p) => (p.body.proof as { detail: string }).detail), ['Gwenith Glide Marlin  1:40', 'Gwenith Glide Marlin  1:30']);
+});
+
+test('planSubmissions tile: each kind gets the banner and note the plugin used to write', () => {
+  const tracked: Tracked = {
+    trackedTimed: [{ tileId: 1, label: 'ToA', activity: 'Tombs of Amascut', thresholdSeconds: 1800, board }],
+    trackedDeathless: [{ tileId: 2, label: 'ToB', activity: 'Theatre of Blood', partySize: 4, currentAmount: 0, requiredAmount: 2, coopCredit: 'per-kill', board }],
+    trackedLms: [{ tileId: 3, label: 'LMS', placementCap: 3, currentAmount: 0, requiredAmount: 5, board }],
+    trackedPvp: [{ tileId: 4, label: 'PK', currentAmount: 0, requiredAmount: 3, board }],
+    trackedDiaries: [{ tileId: 5, label: 'Diary', currentAmount: 0, requiredAmount: 1, board }],
+    trackedCombatTasks: [{ tileId: 6, label: 'CA', currentAmount: 0, requiredAmount: 1, board }],
+    trackedClog: [{ tileId: 7, label: 'Clog', currentAmount: 0, requiredAmount: 5, board }],
+  };
+  const r = run(tracked, [
+    { k: 'tile', t: 1, n: 1, sec: 1500, lvl: 400 },
+    { k: 'tile', t: 2, n: 1, party: 4 },
+    { k: 'tile', t: 3, n: 1, place: 2, kills: 1 },
+    { k: 'tile', t: 4, n: 1, what: 'Zezima' },
+    { k: 'tile', t: 5, n: 1, what: 'Ardougne Elite' },
+    { k: 'tile', t: 6, n: 1, what: 'Whack-a-Mole', tier: 'Master' },
+    { k: 'tile', t: 7, n: 1, what: 'Abyssal whip' },
+    { k: 'tile', t: 7, n: 1, what: 'Vorkath', pg: true },
+  ]);
+  const plans = planSubmissions(r.credits, (c) => c.board ?? null, 'https://m/x.jpg', proofMeta, { teammates: ['a', 'b'], partySize: 4 });
+  const banner = plans.map((p) => { const pr = p.body.proof as { title: string; detail: string }; return [pr.title, pr.detail, p.body.note]; });
+  assert.deepEqual(banner, [
+    ['BINGO TIMED', 'Tombs of Amascut  25:00  (cap 30:00)  level 400', '[Auto] Tombs of Amascut cleared in 25:00 by RuneLite plugin'],
+    ['BINGO DEATHLESS', 'Theatre of Blood  deathless  party 4  (1/2)', '[Auto] Theatre of Blood deathless run detected by RuneLite plugin'],
+    ['BINGO LMS', 'Placed 2nd — 1 kill  (needs top 3)', '[Auto] LMS 2nd place, 1 kill — detected by RuneLite plugin'],
+    ['BINGO PVP KILL', 'Killed Zezima  (1/3)', '[Auto] PvP kill on Zezima — detected by RuneLite plugin'],
+    ['DIARY COMPLETE', 'Ardougne Elite Diary', '[Auto] Ardougne Elite diary completed — detected by RuneLite plugin'],
+    ['COMBAT TASK', 'Master: Whack-a-Mole', '[Auto] Master combat task "Whack-a-Mole" completed — detected by RuneLite plugin'],
+    ['COLLECTION LOG', 'Abyssal whip', '[Auto] New collection log slot: Abyssal whip — detected by RuneLite plugin'],
+    ['COLLECTION LOG PAGE', 'Vorkath', '[Auto] Finished collection log page: Vorkath'],
+  ]);
+  assert.equal(plans[0].body.durationSeconds, 1500);
+  assert.deepEqual([plans[1].body.coopGroup, plans[1].body.coopPartySize], [['a', 'b'], 4], 'a shared-run deathless tile carries who was there');
+  assert.equal(plans[0].body.coopGroup, undefined, 'nothing else does');
+  assert.ok(plans.every((p) => p.body.imageUrl === 'https://m/x.jpg' && p.body.teamId === 2 && p.body.creditPlayerId === 3 && p.body.amount === 1));
+  assert.equal((plans[0].body.proof as { tz: string }).tz, 'UTC', 'the client\'s proof metadata rides along');
+});
+
+test('planSubmissions tile: a gain batch without a screenshot is a count-only ping, the completing one a proof', () => {
+  const tracked: Tracked = { trackedGains: [{ tileId: 1, label: 'Sharks', currentAmount: 0, requiredAmount: 20, board }] };
+  const ping = planSubmissions(run(tracked, [{ k: 'tile', t: 1, n: 12 }]).credits, (c) => c.board ?? null, null, null, null);
+  assert.deepEqual(ping[0].body, { tileId: 1, teamId: 2, creditPlayerId: 3, amount: 12, note: '[Auto] Sharks gain(s) counted by RuneLite plugin', imageUrl: null });
+  const proof = planSubmissions(run(tracked, [{ k: 'tile', t: 1, n: 8 }]).credits, (c) => c.board ?? null, 'https://m/y.jpg', proofMeta, null);
+  assert.equal(proof[0].body.note, '[Auto] Sharks gain(s) detected by RuneLite plugin');
+  assert.equal((proof[0].body.proof as { detail: string }).detail, 'Sharks  ×8  (20/20)');
+});
+
+test('planSubmissions tile: a replayed older proof keeps its note, banner, item, flag and company', () => {
+  const tracked: Tracked = { trackedDrops: [drop({ tileId: 1, itemIds: [5] })] };
+  const old = { tz: 'UTC', title: 'BINGO DROP', detail: 'Tile 1' };
+  const r = run(tracked, [{ k: 'tile', t: 1, n: 1, note: 'old note', item: 5, inf: 'inferred_duplicate_pet' }]);
+  const [p] = planSubmissions(r.credits, (c) => c.board ?? null, 'https://m/z.jpg', old, { teammates: ['a'], partySize: 2 });
+  assert.deepEqual(p.body, {
+    tileId: 1, teamId: 2, creditPlayerId: 3, amount: 1, note: 'old note', imageUrl: 'https://m/z.jpg',
+    itemId: 5, inferred: 'inferred_duplicate_pet', coopGroup: ['a'], coopPartySize: 2, proof: old,
+  });
+});
+
+test('tileText: a Barracuda Trials rank tile shows no cap', () => {
+  const tracked: Tracked = { trackedTimed: [{ tileId: 1, label: 'T', activity: 'Gwenith Glide — Marlin', thresholdSeconds: 0, board }] };
+  const [c] = run(tracked, [{ k: 'tile', t: 1, n: 1, sec: 61 }]).credits;
+  assert.equal(tileText(c, true).detail, 'Gwenith Glide — Marlin  1:01');
+});
+
+test('appendBoardTiles: another board\'s plugin-judged tiles say which board in their label, once; drops do not', () => {
+  const body: Record<string, unknown> = {};
+  const lb = { eventId: 5, name: 'Spring', clan: 'c', clanId: 1, clanName: 'C', teamId: 6, teamName: 'T', playerId: 7, rsn: 'r' };
+  appendBoardTiles(body, { trackedGains: [{ tileId: 1, label: 'Sharks' }, { tileId: 2, label: 'Logs · Spring' }], trackedDrops: [{ tileId: 3, label: 'Whip' }] }, lb);
+  assert.deepEqual((body.trackedGains as { label: string }[]).map((g) => g.label), ['Sharks · Spring', 'Logs · Spring']);
+  assert.deepEqual((body.trackedDrops as { label: string }[]).map((g) => g.label), ['Whip']);
 });

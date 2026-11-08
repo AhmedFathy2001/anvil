@@ -73,6 +73,7 @@ before(async () => {
     }
     ids[`${key}Drop`] = (await db.insert(s.tiles).values({ eventId, position: 1, label: `${key} drop`, tileType: 'drop', trackedItemIds: '[4151]', requiredAmount: 1 }).returning())[0].id;
     ids[`${key}Kill`] = (await db.insert(s.tiles).values({ eventId, position: 2, label: `${key} kills`, tileType: 'kill', targetNpcs: '["Zulrah"]', requiredAmount: 50 }).returning())[0].id;
+    ids[`${key}Gain`] = (await db.insert(s.tiles).values({ eventId, position: 3, label: `${key} sharks`, tileType: 'gain', trackedItemIds: '[383]', requiredAmount: 100 }).returning())[0].id;
   };
   await board('a', ids.alpha, -2); // the active board when addressing alpha
   await board('b', ids.bravo, -1); // another clan's live board the character is on
@@ -108,7 +109,7 @@ test('with X-Anvil-Boards, another clan’s board is folded in and tagged; a sus
   const boards = cfg.boards as Record<string, unknown>[];
   assert.deepEqual(boards.map((b) => b.eventId), [ids.aEvent, ids.bEvent, ids.cEvent]);
   assert.equal(boards[2].clan, 'alpha', 'a board the addressed clan co-hosts is reported through it');
-  assert.deepEqual(boards[1], { eventId: ids.bEvent, name: 'Board b', clan: 'bravo', clanName: 'Bravo', teamId: ids.bTeam, teamName: 'Team b', tilesComplete: 0, tilesTotal: 2, pointsScored: false });
+  assert.deepEqual(boards[1], { eventId: ids.bEvent, name: 'Board b', clan: 'bravo', clanName: 'Bravo', teamId: ids.bTeam, teamName: 'Team b', tilesComplete: 0, tilesTotal: 3, pointsScored: false });
   assert.equal(boards[0].clan, 'alpha');
 });
 
@@ -137,4 +138,41 @@ test('a submission to another live board credits the character’s seat there', 
 test('a board the character is not on still refuses it', async () => {
   const res = await submit('alpha', ids.xEvent, { tileId: ids.xKill, teamId: ids.xTeam, amount: 1 });
   assert.equal(res.status, 403, await res.clone().text());
+});
+
+async function facts(facts: object[]) {
+  const { POST } = await import('../src/app/api/plugin/facts/route.ts');
+  const res = await POST(
+    new Request('https://example.test/api/plugin/facts', {
+      method: 'POST',
+      headers: { ...headers('alpha', { 'X-Anvil-Boards': '1' }), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facts }),
+    }),
+  );
+  assert.equal(res.status, 200, await res.clone().text());
+  return (await res.json()) as { credits: { t: number; kind: string; label: string; have: number; of: number; ok?: boolean }[]; notes: string[] };
+}
+
+test('another board’s plugin-judged tiles say which board in their label', async () => {
+  const cfg = (await config({ 'X-Anvil-Boards': '1' })) as unknown as { trackedGains: { tileId: number; label: string }[] };
+  const label = (id: number) => cfg.trackedGains.find((g) => g.tileId === id)?.label;
+  assert.equal(label(ids.aGain), 'a sharks');
+  assert.equal(label(ids.bGain), 'b sharks · Board b');
+});
+
+// The co-hosted board, so the submissions route needs no request scope (see above).
+test('a tile fact files the plugin’s own credit on the tile’s board, as its submission used to', async () => {
+  const reply = await facts([
+    { k: 'tile', t: ids.cGain, n: 12 },
+    { k: 'tile', t: ids.xKill, n: 1 }, // a board the character is not on: not in its config
+    { k: 'tile', t: ids.aDrop, n: 1 }, // a drop tile is the site's to match, not the plugin's to name
+  ]);
+  assert.deepEqual(reply.credits.map((c) => [c.t, c.kind, c.label, c.have, c.of, c.ok]), [[ids.cGain, 'tile', 'c sharks · Board c', 12, 100, true]]);
+  assert.deepEqual(reply.notes, [], 'a count-only ping says nothing');
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const rows = await db.select().from(s.submissions).where(eq(s.submissions.tileId, ids.cGain));
+  assert.deepEqual(rows.map((r) => [r.teamId, r.playerId, r.amount, r.imageUrl, r.note]), [[ids.cTeam, ids.cPlayer, 12, null, '[Auto] c sharks · Board c gain(s) counted by RuneLite plugin']]);
+  const drops = await db.select().from(s.submissions).where(eq(s.submissions.tileId, ids.aDrop));
+  assert.equal(drops.length, 0);
 });

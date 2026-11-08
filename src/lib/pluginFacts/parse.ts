@@ -5,6 +5,7 @@ const MAX_FACTS = 50;
 const MAX_ITEMS = 100;
 const str = (v: unknown, max = 96) => (typeof v === 'string' && v.length <= max ? v : null);
 const int = (v: unknown, max = 2_147_483_647) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : null);
+const opt = <T>(v: T | null): T | undefined => (v == null ? undefined : v);
 
 /** Only well-formed facts survive; anything else is dropped, never trusted. */
 export function parseFacts(raw: unknown): Fact[] {
@@ -29,6 +30,25 @@ export function parseFacts(raw: unknown): Fact[] {
       }
       const unv = Array.isArray(o.unv) ? (o.unv as unknown[]).map((x) => str(x)).filter((x): x is string => !!x) : undefined;
       if (Object.keys(n).length) out.push({ k: 'kill', n, unv, inf: str(o.inf, 48) });
+    } else if (o.k === 'tile' && Number.isInteger(o.t) && o.t !== 0 && Math.abs(o.t as number) <= 2_147_483_647 && int(o.n, typeof o.note === 'string' ? undefined : 10_000)) {
+      // A replayed older proof (`note`) may carry a value tile's gp as its amount.
+      out.push({
+        k: 'tile',
+        t: o.t as number,
+        n: o.n as number,
+        sec: opt(int(o.sec, 86_400)),
+        what: opt(str(o.what, 160)),
+        tier: opt(str(o.tier, 32)),
+        pg: o.pg === true || undefined,
+        tr: o.tr === true || undefined,
+        lvl: opt(int(o.lvl, 1_000)),
+        party: opt(int(o.party, 255)),
+        place: opt(int(o.place, 1_000)),
+        kills: opt(int(o.kills, 1_000)),
+        item: opt(int(o.item, 1_000_000)),
+        inf: opt(str(o.inf, 48)),
+        note: opt(str(o.note, 500)),
+      });
     }
   }
   return out;
