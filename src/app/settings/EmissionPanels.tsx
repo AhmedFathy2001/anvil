@@ -7,7 +7,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import LevelRulesEditor from '@/components/LevelRulesEditor';
 import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings';
-import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
+import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, DROP_MINIMUMS, PLATFORM_DROP_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
 import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
 
 const KIND_LABELS: Record<string, string> = {
@@ -197,7 +197,8 @@ function WebhookSection({
 }) {
   const [url, setUrl] = useState('');
   const [kinds, setKinds] = useState<Set<string>>(new Set(KINDS));
-  const [minRarity, setMinRarity] = useState('');
+  const [minValue, setMinValue] = useState('');
+  const [minDropRarity, setMinDropRarity] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -211,7 +212,7 @@ function WebhookSection({
       const res = await fetch('/api/profile/webhooks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, kinds: [...kinds], minRarity: minRarity || null }),
+        body: JSON.stringify({ url, kinds: [...kinds], minValue: minValue || null, minDropRarity: minDropRarity || null }),
       });
       const data = await res.json();
       if (!res.ok) setError(data.error || 'Could not add that.');
@@ -219,7 +220,8 @@ function WebhookSection({
         setHooks((h) => [...h, data.webhook]);
         onChange({ ...view, webhooks: [...hooks, data.webhook] });
         setUrl('');
-        setMinRarity('');
+        setMinValue('');
+        setMinDropRarity('');
       }
     } catch {
       setError('Network error.');
@@ -241,7 +243,8 @@ function WebhookSection({
     <div>
             <p className="mb-3 mt-0.5 max-w-[70ch] text-[12.5px] text-text-muted">
         Send copies of your notifications to your own Discord channels, independent of any clan. Paste a
-        webhook from a channel&rsquo;s Integrations → Webhooks.
+        webhook from a channel&rsquo;s Integrations → Webhooks. Pick which kinds post to each one; a drop
+        filter you leave blank follows your own drop settings.
       </p>
 
       {hooks.length > 0 && (
@@ -252,8 +255,18 @@ function WebhookSection({
                 <span className="block truncate text-[13px]">{h.label ?? maskUrl(h.url)}</span>
                 <span className="block text-[11px] text-text-muted">
                   {h.kinds.map((k) => KIND_LABELS[k] ?? k).join(', ')}
-                  {h.minRarity != null ? ` · ≥ ${h.minRarity.toLocaleString()} gp` : ''}
+                  {h.minValue != null ? ` · drops ≥ ${h.minValue.toLocaleString()} gp` : ''}
+                  {h.minDropRarity != null ? ` · rarer than 1/${h.minDropRarity.toLocaleString()}` : ''}
+                  {h.minDropMode ? ` · ${h.minDropMode === 'and' ? 'both' : 'either'}` : ''}
                 </span>
+                <HookFilters
+                  hook={h}
+                  onSaved={(next) => {
+                    const list = hooks.map((x) => (x.id === h.id ? next : x));
+                    setHooks(list);
+                    onChange({ ...view, webhooks: list });
+                  }}
+                />
               </span>
               <button
                 type="button"
@@ -293,15 +306,22 @@ function WebhookSection({
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12px] text-text-muted">Only drops worth at least</span>
+          <span className="text-[12px] text-text-muted">Drops worth at least</span>
           <Input
-            value={minRarity}
-            onChange={(e) => setMinRarity(e.target.value)}
+            value={minValue}
+            onChange={(e) => setMinValue(e.target.value)}
             inputMode="numeric"
-            placeholder="any"
+            placeholder="your setting"
             className="w-28 text-xs"
           />
-          <span className="text-[12px] text-text-muted">gp (optional)</span>
+          <span className="text-[12px] text-text-muted">gp, or rarer than 1 in</span>
+          <Input
+            value={minDropRarity}
+            onChange={(e) => setMinDropRarity(e.target.value)}
+            inputMode="numeric"
+            placeholder="your setting"
+            className="w-28 text-xs"
+          />
           <button
             type="button"
             onClick={add}
@@ -314,6 +334,53 @@ function WebhookSection({
         {error && <p className="text-[12px] text-red-400">{error}</p>}
       </div>
     </div>
+  );
+}
+
+/** One webhook's own drop filters. Blank = follow your drop settings above; saved on blur. */
+function HookFilters({ hook, onSaved }: { hook: EmissionSettingsView['webhooks'][number]; onSaved: (h: EmissionSettingsView['webhooks'][number]) => void }) {
+  const [value, setValue] = useState(hook.minValue != null ? String(hook.minValue) : '');
+  const [rarity, setRarity] = useState(hook.minDropRarity != null ? String(hook.minDropRarity) : '');
+  const [mode, setMode] = useState<'or' | 'and' | null>(hook.minDropMode);
+  const [error, setError] = useState<string | null>(null);
+  const clean = (v: string) => v.replace(/[^0-9]/g, '');
+  async function save(nextMode: 'or' | 'and' | null = mode) {
+    const next = nextMode;
+    const minValue = clean(value) || null;
+    const minDropRarity = clean(rarity) || null;
+    if ((minValue ? Number(minValue) : null) === hook.minValue && (minDropRarity ? Number(minDropRarity) : null) === hook.minDropRarity && next === hook.minDropMode) return;
+    const res = await fetch(`/api/profile/webhooks/${hook.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minValue, minDropRarity, minDropMode: next }),
+    });
+    if (!res.ok) return setError('Could not save that.');
+    setError(null);
+    onSaved({ ...hook, minValue: minValue ? Number(minValue) : null, minDropRarity: minDropRarity ? Number(minDropRarity) : null, minDropMode: next });
+  }
+  return (
+    <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-text-muted">
+      Drops worth at least
+      <Input value={value} onChange={(e) => setValue(e.target.value)} onBlur={() => save()} inputMode="numeric" placeholder="your setting" aria-label="Webhook min drop value" className="w-24 px-2 py-1 text-[11px]" />
+      gp · rarer than 1 in
+      <Input value={rarity} onChange={(e) => setRarity(e.target.value)} onBlur={() => save()} inputMode="numeric" placeholder="your setting" aria-label="Webhook min drop rarity" className="w-24 px-2 py-1 text-[11px]" />
+      <Select
+        value={mode ?? 'inherit'}
+        onChange={(v) => {
+          const m = v === 'and' || v === 'or' ? v : null;
+          setMode(m);
+          void save(m);
+        }}
+        options={[
+          { value: 'inherit', label: 'Value or rarity: my setting' },
+          { value: 'or', label: 'Value or rarity: either' },
+          { value: 'and', label: 'Value and rarity: both' },
+        ]}
+        ariaLabel="Webhook value and rarity"
+        className="w-52 shrink-0"
+      />
+      {error && <span className="text-red-400">{error}</span>}
+    </span>
   );
 }
 
@@ -416,6 +483,118 @@ function CommitNumber({
   );
 }
 
+const formatGp = (n: number) => (n >= 1_000_000 && n % 1_000_000 === 0 ? `${n / 1_000_000}m` : n.toLocaleString('en-US'));
+
+/**
+ * A drop threshold that follows the clan's default until the person sets their own. Inheriting is stored
+ * as null, so a later change to the clan default still reaches them; "Reset" goes back to it.
+ */
+function DropThresholdRow({
+  title,
+  hint,
+  custom,
+  defaults,
+  fallback,
+  format,
+  min,
+  disabled,
+  ariaLabel,
+  onCommit,
+}: {
+  title: string;
+  hint: string;
+  custom: number | null;
+  defaults: { rsn: string; clanName: string | null; shown: number }[];
+  fallback: number;
+  format: (n: number) => string;
+  min: number;
+  disabled: boolean;
+  ariaLabel: string;
+  onCommit: (n: number | null) => void;
+}) {
+  const inGroups = defaults.filter((d) => d.clanName);
+  const hasClan = inGroups.length > 0;
+  const inherited = defaults[0]?.shown ?? fallback;
+  const distinct = new Set(defaults.map((d) => d.shown)).size > 1;
+  const resetLabel = hasClan ? 'Reset to clan default' : 'Reset to Anvil default';
+  let status: string;
+  if (custom != null) status = 'Custom';
+  else if (!hasClan) status = `Using Anvil's default: ${format(inherited)}`;
+  else if (distinct) status = `Using your clan's default: ${defaults.map((d) => `${d.rsn} ${format(d.shown)}`).join(' · ')}`;
+  else status = `Using your clan's default: ${format(inherited)}`;
+  return (
+    <PrefRow title={title} hint={hint}>
+      <div className="flex flex-col items-end gap-1">
+        <CommitNumber value={custom ?? inherited} min={min} disabled={disabled} ariaLabel={ariaLabel} onCommit={onCommit} />
+        <span className="flex items-center gap-2 text-[11.5px] text-text-muted">
+          {status}
+          {custom != null && (
+            <button type="button" disabled={disabled} onClick={() => onCommit(null)} className="text-gold hover:underline disabled:opacity-50">
+              {resetLabel}
+            </button>
+          )}
+        </span>
+      </div>
+    </PrefRow>
+  );
+}
+
+/**
+ * "Post a drop when it's worth at least X or rarer than 1/Y", with a switch for "and". Follows the clan's
+ * choice until the person picks; no clan means "or". Null = inherit, stored as absent.
+ */
+function DropModeRow({
+  custom,
+  defaults,
+  value,
+  rarity,
+  disabled,
+  onChange,
+}: {
+  custom: 'or' | 'and' | null;
+  defaults: { rsn: string; clanName: string | null; value: number; rarity: number; mode: 'or' | 'and' }[];
+  value: number | null;
+  rarity: number | null;
+  disabled: boolean;
+  onChange: (m: 'or' | 'and' | null) => void;
+}) {
+  const hasClan = defaults.some((d) => d.clanName);
+  const inherited = defaults[0]?.mode ?? PLATFORM_DROP_DEFAULTS.mode;
+  const mode = custom ?? inherited;
+  const v = value ?? defaults[0]?.value ?? PLATFORM_DROP_DEFAULTS.value;
+  const r = rarity ?? defaults[0]?.rarity ?? PLATFORM_DROP_DEFAULTS.rarity;
+  const gp = v <= 0 ? 'any value (off)' : `worth at least ${formatGp(v)}`;
+  const rare = r <= 0 ? 'any rarity (off)' : `rarer than 1/${r.toLocaleString('en-US')}`;
+  return (
+    <PrefRow
+      title="Value and rarity together"
+      hint={`Post a drop when it's ${gp} ${mode === 'and' ? 'and' : 'or'} ${rare}.`}
+    >
+      <div className="flex flex-col items-end gap-1">
+        <Checkbox
+          checked={mode === 'and'}
+          onChange={(on) => onChange(on ? 'and' : 'or')}
+          disabled={disabled}
+          label="Require both (and)"
+          labelClassName="text-xs"
+        />
+        <span className="flex items-center gap-2 text-[11.5px] text-text-muted">
+          {custom != null
+            ? 'Custom'
+            : hasClan
+              ? `Using your clan's choice: ${inherited === 'and' ? 'both' : 'either'}`
+              : "Using Anvil's choice: either"}
+          {custom != null && (
+            <button type="button" disabled={disabled} onClick={() => onChange(null)} className="text-gold hover:underline disabled:opacity-50">
+              {hasClan ? 'Reset to clan default' : 'Reset to Anvil default'}
+            </button>
+          )}
+        </span>
+      </div>
+    </PrefRow>
+  );
+}
+
 function PrefRow({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -474,12 +653,38 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
 
       <PrefGroup title="Drops & pets" id="posts-drops">
         {toggle('drops', 'Rare drops', 'Post valuable or very rare drops to the clan drops channel.')}
-        <PrefRow title="Min drop value" hint="Post drops worth at least this, in gp (min 1,000,000; 0 = off).">
-          <CommitNumber value={p.dropMin} min={1_000_000} disabled={busy} ariaLabel="Min drop value" onCommit={(n) => save({ dropMin: n })} />
-        </PrefRow>
-        <PrefRow title="Min drop rarity (1 in N)" hint="Also post drops rarer than 1 in N whatever their value (min 1000; 0 = off).">
-          <CommitNumber value={p.rarity} min={1000} disabled={busy} ariaLabel="Min drop rarity" onCommit={(n) => save({ rarity: n })} />
-        </PrefRow>
+        <DropThresholdRow
+          title="Min drop value"
+          hint="Post drops worth at least this, in gp (min 1,000,000; 0 = off)."
+          custom={p.dropMin}
+          defaults={view.dropDefaults.map((d) => ({ ...d, shown: d.value }))}
+          fallback={PLATFORM_DROP_DEFAULTS.value}
+          format={formatGp}
+          min={DROP_MINIMUMS.value}
+          disabled={busy}
+          ariaLabel="Min drop value"
+          onCommit={(n) => save({ dropMin: n })}
+        />
+        <DropThresholdRow
+          title="Min drop rarity (1 in N)"
+          hint="Also post drops rarer than 1 in N whatever their value (min 1000; 0 = off)."
+          custom={p.rarity}
+          defaults={view.dropDefaults.map((d) => ({ ...d, shown: d.rarity }))}
+          fallback={PLATFORM_DROP_DEFAULTS.rarity}
+          format={(n) => `1/${n.toLocaleString('en-US')}`}
+          min={DROP_MINIMUMS.rarity}
+          disabled={busy}
+          ariaLabel="Min drop rarity"
+          onCommit={(n) => save({ rarity: n })}
+        />
+        <DropModeRow
+          custom={p.dropMode}
+          defaults={view.dropDefaults}
+          value={p.dropMin}
+          rarity={p.rarity}
+          disabled={busy}
+          onChange={(m) => save({ dropMode: m })}
+        />
         <PrefRow title="Loot key value" hint="Post a loot key whose contents total at least this, in gp (0 = off).">
           <CommitNumber value={p.keyMin} min={1} disabled={busy} ariaLabel="Loot key value" onCommit={(n) => save({ keyMin: n })} />
         </PrefRow>

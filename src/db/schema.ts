@@ -3457,8 +3457,14 @@ export const userWebhooks = pgTable('user_webhooks', {
   label: text('label'),
   /** JSON array of channel keys this destination wants, e.g. ["rareDrops","deaths"]. */
   kinds: text('kinds').default('[]').notNull(),
-  /** Optional gp floor for the drop-shaped kinds. Null = no floor. */
+  /** LEGACY gp floor (0073), superseded by min_value; no longer read. */
   minRarity: integer('min_rarity'),
+  /** Own filter for drops: worth at least this many gp. Null = follow the person's effective value gate. */
+  minValue: integer('min_value'),
+  /** Own filter for drops: rarer than 1 in N. Null = follow the person's effective rarity gate. */
+  minDropRarity: integer('min_drop_rarity'),
+  /** Own filter: 'or' | 'and' (both thresholds needed). Null = follow the person's effective choice. */
+  minDropMode: text('min_drop_mode'),
   createdAt: text('created_at')
     .default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`)
     .notNull(),

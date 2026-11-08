@@ -37,6 +37,7 @@ import { panelSchedule } from '@/lib/pluginPanel';
 import { foldOtherBoards, summaryOf, wantsAllBoards } from '@/lib/pluginBoards';
 import { buildEnrolledConfig, clanPluginSettings, notifyFlags, pluginRollTables } from '@/lib/pluginConfigEnrolled';
 import { normalizeNotifyPrefs, pluginMe } from '@/lib/notifyPrefs';
+import { characterClanDrops, dropHookFilters } from '@/lib/notifyDefaults';
 import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
 
 /**
@@ -226,12 +227,14 @@ export async function GET(request: Request) {
       };
       // What this person's posts do (lib/notifyPrefs): their /settings choices AND the clan's channel
       // switches, floors applied. Capability 'notify-prefs'; the plugin reads only this.
-      body.me = pluginMe(await getNotifyPrefs(userOnly.userId), notifyFlags(webhooks), dropRarityFloor, body.modeThresholds as never);
+      const played = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
+      const clanDrops = await characterClanDrops(played?.accountId ?? null, clan.id, dropRarityFloor);
+      body.me = pluginMe(await getNotifyPrefs(userOnly.userId), notifyFlags(webhooks), clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId));
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
       // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
       // login screen beyond what the launcher hint already names.
       if (wantsAllBoards(request)) {
-        const member = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
+        const member = played;
         if (member) await foldOtherBoards(request, body, { accountId: member.accountId, userId: userOnly.userId, addressedClanId: clan.id, active: null });
         else body.boards = [];
       }
@@ -267,7 +270,8 @@ export async function GET(request: Request) {
   {
     const b = built.body as unknown as Record<string, unknown>;
     const prefs = auth.userId != null ? await getNotifyPrefs(auth.userId) : normalizeNotifyPrefs(null);
-    b.me = pluginMe(prefs, b.notify as never, b.dropRarityFloor as never, b.modeThresholds as never);
+    const clanDrops = await characterClanDrops(auth.accountId, clan.id, (b.dropRarityFloor as number | undefined) ?? null);
+    b.me = pluginMe(prefs, b.notify as never, clanDrops, b.modeThresholds as never, auth.userId != null ? await dropHookFilters(auth.userId) : []);
   }
   // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
   // an older one would file board B's tiles against board A, so it keeps exactly today's answer.

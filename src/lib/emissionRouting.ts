@@ -189,23 +189,27 @@ export async function socialEmissionClans(accountId: number): Promise<EmissionCl
 }
 
 export interface PersonalTarget {
+  id: number;
   url: string;
   label: string | null;
 }
 
-/** A person's own destinations that want `channel` — independent of any clan, gated by min_rarity. */
+/**
+ * A person's own destinations that want `channel`, independent of any clan. `only` narrows to the ids a
+ * judged drop already chose (lib/notifyDrops judgeDropFor: each webhook's own value / rarity filters,
+ * falling back to the person's); every other kind passes on its subscription alone.
+ */
 export async function personalWebhookTargets(
   userId: number,
   channel: string,
-  gpValue?: number | null,
+  opts?: { only?: ReadonlySet<number> },
 ): Promise<PersonalTarget[]> {
   const hooks = await db.select().from(userWebhooks).where(eq(userWebhooks.userId, userId));
   const out: PersonalTarget[] = [];
   for (const h of hooks) {
     if (!parseKinds(h.kinds).includes(channel)) continue;
-    // A gp floor only bites when we actually know the value — an unpriced kind (a death) passes.
-    if (h.minRarity != null && gpValue != null && gpValue < h.minRarity) continue;
-    out.push({ url: h.url, label: h.label });
+    if (opts?.only && !opts.only.has(h.id)) continue;
+    out.push({ id: h.id, url: h.url, label: h.label });
   }
   return out;
 }

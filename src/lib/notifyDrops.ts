@@ -1,6 +1,6 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import type { GuaranteedDrops } from '@/lib/dropFacts';
-import { mainRarityGate, mainValueGate, modeGate, type NotifyPrefs } from '@/lib/notifyPrefs';
+import { dropGates, hookGates, modeGate, type ClanDropSettings, type DropGates, type HookDropFilter, type NotifyPrefs } from '@/lib/notifyPrefs';
 
 /**
  * Which drops post to the clan, decided here instead of in the plugin. The plugin screenshots in the
@@ -179,8 +179,8 @@ export interface DropCandidate {
 
 export interface JudgeContext {
   prefs: NotifyPrefs;
-  /** The addressed clan's rarity floor (clan settings dropRarityFloor). */
-  clanFloor: number | null | undefined;
+  /** The character's clan defaults + the addressed clan's hard rarity floor (lib/notifyPrefs dropGates). */
+  clan: ClanDropSettings;
   /** This world's mode thresholds (lib/worldModeStore pluginModeThresholds), null on the main game. */
   mode: { dropMinValue: number | null; dropRarityFloor: number | null } | null | undefined;
   guaranteed: GuaranteedDrops | null | undefined;
@@ -191,11 +191,12 @@ export interface JudgeContext {
  * The drop post's facts (lib/pluginEmbeds DropFacts), or null when nothing in the candidate posts.
  * The same decisions, in the same order, as the plugin's maybeNotifyRareDrop / postRare.
  */
-export function judgeDrop(c: DropCandidate, ctx: JudgeContext): Record<string, unknown> | null {
+export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: DropGates): Record<string, unknown> | null {
   const { prefs } = ctx;
   if (!prefs.drops || !c.items.length) return null;
   const base = { rsn: c.rsn ?? null, source: c.source ?? null, sourceKind: c.sourceKind ?? null, kc: c.kc ?? null };
-  const mainRarity = mainRarityGate(prefs, ctx.clanFloor);
+  const gates = gatesOverride ?? dropGates(prefs, ctx.clan);
+  const mainRarity = gates.rarity;
 
   const post = (items: (CandidateItem & { rate: number | null })[], modeOnly: boolean): Record<string, unknown> | null => {
     if (items.length === 0) return null;
@@ -242,7 +243,7 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext): Record<string, u
     return post(c.items.map((it) => ({ ...it, rate: null })), false);
   }
 
-  const mainValue = mainValueGate(prefs);
+  const mainValue = gates.value;
   const valueGate = ctx.mode ? modeGate(mainValue, ctx.mode.dropMinValue) : mainValue;
   const rarityGate = ctx.mode ? modeGate(mainRarity, ctx.mode.dropRarityFloor) : mainRarity;
   let modeOnly = true;
@@ -254,9 +255,66 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext): Record<string, u
       const p = dropRarity(c.sourceKind, c.source, it, ctx.nameOf);
       if (p != null && p > 0 && lte(p, 1 / rarityGate)) rate = p;
     }
-    if (!valueOk && rate == null) continue;
+    if (!dropPasses(gates.mode, valueGate, rarityGate, valueOk, rate != null)) continue;
     qualifying.push({ ...it, rate });
-    modeOnly &&= !((mainValue > 0 && it.value >= mainValue) || (rate != null && mainRarity > 0 && lte(rate, 1 / mainRarity)));
+    modeOnly &&= !dropPasses(
+      gates.mode,
+      mainValue,
+      mainRarity,
+      mainValue > 0 && it.value >= mainValue,
+      rate != null && mainRarity > 0 && lte(rate, 1 / mainRarity),
+    );
   }
   return post(qualifying, !!ctx.mode && modeOnly);
+}
+
+/**
+ * Whether an item clears the thresholds. 'or': value OR rarity. 'and': both, where a threshold that is
+ * off isn't required (so one off leaves the other to decide, and both off posts nothing).
+ */
+export function dropPasses(mode: 'or' | 'and', valueGate: number, rarityGate: number, valueOk: boolean, rarityOk: boolean): boolean {
+  if (mode !== 'and') return valueOk || rarityOk;
+  if (valueGate <= 0 && rarityGate <= 0) return false;
+  return (valueGate <= 0 || valueOk) && (rarityGate <= 0 || rarityOk);
+}
+
+/** Where a judged drop goes: the person's clan channels and/or these of their own webhooks (by id). */
+export interface DropVerdict {
+  facts: Record<string, unknown>;
+  clan: boolean;
+  hooks: number[];
+}
+
+/**
+ * judgeDrop for every destination the person has. The clan channels judge by the person's effective
+ * gates (custom, else clan default, else Anvil's). Each personal webhook with its own filters judges by
+ * them, falling back per filter to those same gates; one with none follows the person. Null = nothing
+ * posts anywhere.
+ */
+export function judgeDropFor(c: DropCandidate, ctx: JudgeContext, hooks: HookDropFilter[]): DropVerdict | null {
+  const person = judgeDrop(c, ctx);
+  const base = dropGates(ctx.prefs, ctx.clan);
+  const ids: number[] = [];
+  let facts = person;
+  for (const h of hooks) {
+    if (h.minValue == null && h.minRarity == null && h.mode == null) {
+      if (person) ids.push(h.id);
+      continue;
+    }
+    const own = judgeDrop(c, ctx, hookGates(base, h));
+    if (!own) continue;
+    ids.push(h.id);
+    facts ??= own;
+  }
+  return facts ? { facts, clan: !!person, hooks: ids } : null;
+}
+
+/**
+ * The last gate before sending a judged drop: every clan destination (a url mapped to a clan id) is
+ * dropped when the person's own gates declined it (verdict.clan false), whatever put it in the map. Only
+ * their own webhooks (no clan id) that the verdict named stay. Unjudged posts (no verdict) pass untouched.
+ */
+export function keepDropDestinations(urls: Map<string, number | undefined>, verdict: DropVerdict | null): Map<string, number | undefined> {
+  if (!verdict || verdict.clan) return urls;
+  return new Map([...urls].filter(([, clanId]) => clanId == null));
 }

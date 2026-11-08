@@ -3,7 +3,8 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, clans, userWebhooks, users } from '@/db/schema';
 import { clanSeat } from '@/lib/seatScope';
-import { parseNotifyPrefs, type NotifyPrefs } from '@/lib/notifyPrefs';
+import { dropGates, isDropMode, NO_CLAN_DROPS, parseNotifyPrefs, type NotifyPrefs } from '@/lib/notifyPrefs';
+import { getClanDropDefaults } from '@/lib/pluginConfig';
 import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type MilestoneRules } from '@/lib/levelRules';
 
 /**
@@ -41,7 +42,21 @@ export interface UserWebhookView {
   url: string;
   label: string | null;
   kinds: string[];
-  minRarity: number | null;
+  /** Own filter: drops worth at least this many gp. Null = follows your drop settings. */
+  minValue: number | null;
+  /** Own filter: drops rarer than 1 in N. Null = follows your drop settings. */
+  minDropRarity: number | null;
+  /** Own 'or' / 'and' choice. Null = follows your drop settings. */
+  minDropMode: 'or' | 'and' | null;
+}
+
+/** What a character inherits for drop posts when the person set no number of their own. */
+export interface DropDefaultRow {
+  rsn: string;
+  clanName: string | null;
+  value: number;
+  rarity: number;
+  mode: 'or' | 'and';
 }
 
 export interface EmissionSettingsView {
@@ -56,6 +71,8 @@ export interface EmissionSettingsView {
   personalLevelRules: MilestoneRules;
   /** What this person's plugin posts (lib/notifyPrefs) — once RuneLite settings. */
   notifyPrefs: NotifyPrefs;
+  /** Per character: the clan default it inherits (Anvil's default when it has no clan). */
+  dropDefaults: DropDefaultRow[];
 }
 
 export async function emissionSettingsView(userId: number, playerId: number): Promise<EmissionSettingsView> {
@@ -164,11 +181,25 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
       url: h.url,
       label: h.label,
       kinds: safeKinds(h.kinds),
-      minRarity: h.minRarity,
+      minValue: h.minValue,
+      minDropRarity: h.minDropRarity,
+      minDropMode: isDropMode(h.minDropMode) ? h.minDropMode : null,
     })),
     levelPostsClan: isLevelPostsChoice(user?.levelPostsClan) ? user.levelPostsClan : 'clan',
     personalLevelRules: parseMilestoneRules(user?.levelRules),
     notifyPrefs: parseNotifyPrefs(user?.notifyPrefs),
+    dropDefaults: await Promise.all(
+      accountRows
+        .slice()
+        .sort((a, b) => a.rsn.localeCompare(b.rsn))
+        .map(async (a) => {
+          const g = dropGates(
+            { dropMin: null, rarity: null },
+            a.memberClan ? { ...(await getClanDropDefaults(a.memberClan.clanId)), hardFloor: null } : NO_CLAN_DROPS,
+          );
+          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode };
+        }),
+    ),
   };
 }
 

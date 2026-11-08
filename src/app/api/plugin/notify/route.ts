@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
+import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
+import { clanMainRarity } from '@/lib/notifyDefaults';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getDeathTaunts,
-  getDropRarityFloor,
   getFunDeathMessages,
   getNotificationWebhooks,
   NOTIFY_CHANNELS,
@@ -215,10 +216,13 @@ export async function POST(request: Request) {
 
   // A drop the plugin's screenshot gate let through (capability 'notify-prefs'): whether it posts, and
   // what the post says about it, is decided here (lib/notifyDrops) — the person's floors live on the site.
+  // Who takes it: the clan channels and/or some of the person's own webhooks (each judged by its own filters).
+  let dropVerdict: DropVerdict | null = null;
   if (kind === 'drop' && facts && typeof facts === 'object' && (facts as { judge?: unknown }).judge === true) {
     const judged = await judgeDropRequest(request, clan.id, auth.userId, member?.accountId ?? null, facts);
     if (!judged) return NextResponse.json({ ok: true, declined: 1 });
-    facts = judged;
+    facts = judged.facts;
+    dropVerdict = judged;
   }
   if (kind === 'pet') facts = await withPetRarity(facts);
   // A death is facts only (what killed them); the words are the person's and the clan's, read here.
@@ -297,7 +301,7 @@ export async function POST(request: Request) {
   // whatever clan's site the plugin happens to point at. This is the in-the-wild half of the
   // multi-clan product, and it needs no plugin release because the plugin already posts once and the
   // server owns the webhooks. See lib/emissionRouting for the model (and its privacy gate).
-  const emissionClans = member ? await socialEmissionClans(member.accountId) : [];
+  const emissionClans = member && dropVerdict?.clan !== false ? await socialEmissionClans(member.accountId) : [];
 
   // LEVEL POSTS ARE RE-CHECKED PER DESTINATION (lib/levelRules). The plugin sends a level-up when it
   // matches EITHER the member's clan rules or their personal rules, so each destination asks its own
@@ -309,7 +313,7 @@ export async function POST(request: Request) {
   let declined = 0;
 
   // Destination → the clan it belongs to (for that clan's bot name and icon); personal webhooks have none.
-  const urls = new Map<string, number | undefined>();
+  let urls = new Map<string, number | undefined>();
   // Destinations where this account only GUESTS and the clan asked for guests' posts to be marked.
   const markAsGuest = new Set<string>();
   for (const ec of emissionClans) {
@@ -328,7 +332,7 @@ export async function POST(request: Request) {
       const filters = await getModeFilters(ec.clanId, mode.key);
       // An unset rarity half is judged against the clan's main-game floor — read only when needed.
       const mainRarityFloor =
-        kind === 'drop' && filters.dropFloor == null && filters.dropMinValue != null ? await getDropRarityFloor(ec.clanId) : 0;
+        kind === 'drop' && filters.dropFloor == null && filters.dropMinValue != null ? await clanMainRarity(ec.clanId) : 0;
       if (!modeFilterAllows(kind, facts, filters, { mainRarityFloor, levelChoice: levelPrefs?.clanChoice ?? 'clan' })) {
         declined++;
         continue;
@@ -367,12 +371,14 @@ export async function POST(request: Request) {
   // addressed one anyway, straight past the gate.
 
   // The person's own destinations, independent of every clan.
-  const personalTargets = await personalWebhookTargets(auth.userId, channel);
+  const personalTargets = await personalWebhookTargets(auth.userId, channel, dropVerdict ? { only: new Set(dropVerdict.hooks) } : undefined);
   if (levelPost && levelPrefs && personalTargets.length > 0 && !levelPostMatches(levelPost, levelPrefs.personal)) {
     declined += personalTargets.length;
   } else {
     for (const t of personalTargets) if (!urls.has(t.url)) urls.set(t.url, undefined);
   }
+  // A drop the clan's gate declined goes only to the personal webhooks that took it, never a clan channel.
+  urls = keepDropDestinations(urls, dropVerdict);
 
   if (urls.size === 0 && declined > 0) {
     // Every destination's rules said no. That is the rules working, not a failure.

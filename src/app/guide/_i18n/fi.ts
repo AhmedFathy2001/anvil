@@ -952,7 +952,11 @@ const fi: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'droppi-julkaisujen pääkytkin.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'kaksi toisistaan riippumatonta reittiä julkaisuun: arvoltaan vähintään näin paljon (GE tai high alch, kumpi on korkeampi), tai harvinaisempi kuin 1/N (oletuksena 1/10 000 — löysemmät asetukset täyttävät kanavan yrttiheitoilla). Klaanisi voi asettaa harvinaisuusrajan joka koskee kaikkia; omasi pätee silti kun se on tiukempi. Aseta jompikumpi nollaan sulkeaksesi sen reitin.',
+            body: 'pudotus julkaistaan, kun sen arvo on vähintään tämä (GE tai high alch, kumpi on korkeampi) tai se on harvinaisempi kuin 1/N. Anvil alkaa arvosta 1m ja 1/1,000. Klaanisi voi asettaa omat oletuksensa jäsenilleen, ja kunnes asetat oman numeron, seuraat klaanisi numeroa; **Palauta klaanin oletus** (tai **Palauta Anvilin oletus**, jos sinulla ei ole klaania) palauttaa seuraamisen. Klaani voi myös asettaa kovan harvinaisuusrajan omille kanavilleen, jonka alle oma numerosi ei voi mennä. Aseta jompikumpi numero nollaan kytkeäksesi sen pois.',
+          },
+          {
+            label: 'Arvo ja harvinaisuus yhdessä',
+            body: 'oletuksena pudotus julkaistaan, kun se täyttää arvoehdon **tai** harvinaisuusehdon. Kytke päälle **Vaadi molemmat**, jolloin sen on täytettävä arvoehto **ja** harvinaisuusehto. Klaanisi voi valita tämän oletuksen jäsenilleen; kunnes valitset itse, seuraat sitä, ja ilman klaania se on jompikumpi. Jokainen omista webhookeistasi voi myös asettaa oman vähimmäisarvonsa, harvinaisuutensa ja joko/molemmat-valintansa; kaikki mitä se jättää tyhjäksi, seuraa asetuksiasi.',
           },
           {
             label: 'Loot key value',
@@ -4211,7 +4215,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Luvut',
-          body: '**Min drop value** (alussa 5m, vähintään 1m, 0 kytkee pois), **Min drop rarity (1 in N)** (alussa 1 / 10 000), **Loot key value** (1m), **Death message** enintään 200 merkkiä, jossa `{name}` muuttuu nimeksesi, sekä alin **Combat task tier** ja **Quest tier**, jotka julkaistaan (alussa Master).',
+          body: '**Min drop value** (alussa 1m, vähintään 1m, 0 kytkee pois), **Min drop rarity (1 in N)** (alussa 1 / 1 000), **Arvo ja harvinaisuus yhdessä** (alussa jompikumpi, tai **Vaadi molemmat**), **Loot key value** (1m), **Death message** enintään 200 merkkiä, jossa `{name}` muuttuu nimeksesi, sekä alin **Combat task tier** ja **Quest tier**, jotka julkaistaan (alussa Master). Arvo, harvinaisuus ja joko/molemmat-valinta seuraavat klaanisi oletuksia, kunnes asetat omat; **Palauta klaanin oletus** palauttaa seuraamisen.',
         },
         {
           term: 'Minne julkaisusi menevät',

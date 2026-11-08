@@ -293,13 +293,20 @@ test('a personal webhook receives only the kinds it asked for', async () => {
   assert.deepEqual(await R.personalWebhookTargets(login, 'pvpKills'), []);
 });
 
-test('min_rarity gates the drop-shaped kinds, and only when a value is known', async () => {
+test('a judged drop narrows the personal webhooks to the ids it chose', async () => {
   const { db, schema: s } = await loadDb();
   await db.delete(s.userWebhooks).where(eq(s.userWebhooks.userId, login));
-  await db.insert(s.userWebhooks).values({ userId: login, url: 'https://d.example/big', kinds: '["rareDrops"]', minRarity: 1_000_000 });
-  assert.deepEqual((await R.personalWebhookTargets(login, 'rareDrops', 5_000_000)).map((t) => t.url), ['https://d.example/big']);
-  assert.deepEqual(await R.personalWebhookTargets(login, 'rareDrops', 50_000), []);
-  assert.deepEqual((await R.personalWebhookTargets(login, 'rareDrops')).map((t) => t.url), ['https://d.example/big']);
+  const [a, b] = await db
+    .insert(s.userWebhooks)
+    .values([
+      { userId: login, url: 'https://d.example/a', kinds: '["rareDrops"]' },
+      { userId: login, url: 'https://d.example/b', kinds: '["rareDrops"]' },
+    ])
+    .returning();
+  assert.deepEqual((await R.personalWebhookTargets(login, 'rareDrops', { only: new Set([b.id]) })).map((t) => t.url), ['https://d.example/b']);
+  assert.deepEqual(await R.personalWebhookTargets(login, 'rareDrops', { only: new Set() }), []);
+  assert.equal((await R.personalWebhookTargets(login, 'rareDrops')).length, 2);
+  void a;
 });
 
 test('a corrupt kinds column is read as "wants nothing", not a crash', () => {

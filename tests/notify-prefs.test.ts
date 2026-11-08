@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   NOTIFY_DEFAULTS,
-  mainRarityGate,
+  NO_CLAN_DROPS,
+  dropGates,
   normalizeNotifyPrefs,
   parseNotifyPrefs,
   pluginMe,
@@ -19,7 +20,7 @@ const ALL_ON = {
 };
 const noNames = () => undefined;
 const ctx = (over: Partial<JudgeContext> = {}): JudgeContext => ({
-  prefs: NOTIFY_DEFAULTS, clanFloor: 0, mode: null, guaranteed: {}, nameOf: noNames, ...over,
+  prefs: NOTIFY_DEFAULTS, clan: NO_CLAN_DROPS, mode: null, guaranteed: {}, nameOf: noNames, ...over,
 });
 
 test('defaults are the plugin config defaults; junk normalises back to them', () => {
@@ -40,7 +41,7 @@ test('RuneLite upload maps the old keys, including the 1/5000 → 1/10000 bump',
   });
   assert.equal(p.drops, false);
   assert.equal(p.dropMin, 2_000_000);
-  assert.equal(p.rarity, 10_000); // never migrated: still the old shipped default
+  assert.equal(p.rarity, null); // never migrated: the old shipped default, so it inherits
   assert.equal(p.pvp, true);
   assert.equal(p.ca, 'ELITE');
   assert.equal(p.quests, 'ALL');
@@ -50,27 +51,28 @@ test('RuneLite upload maps the old keys, including the 1/5000 → 1/10000 bump',
 });
 
 test('me: person AND clan channel, floors enforced, tiers expanded', () => {
-  const me = pluginMe({ ...NOTIFY_DEFAULTS, dropMin: 10, rarity: 200, ca: 'ELITE', quests: 'ALL' }, { ...ALL_ON, deaths: false }, 0, null);
+  const me = pluginMe({ ...NOTIFY_DEFAULTS, dropMin: 10, rarity: 200, ca: 'ELITE', quests: 'ALL' }, { ...ALL_ON, deaths: false }, NO_CLAN_DROPS, null);
   assert.equal(me.dropMin, 1_000_000); // never below 1m
   assert.equal(me.floor, 1000); // never looser than 1/1000
   assert.equal(me.deaths, false); // the clan switched deaths off
   assert.equal(me.pets, true); // pets ride the person's switch only
   assert.deepEqual(me.ca, ['ELITE', 'MASTER', 'GRANDMASTER']);
   assert.deepEqual(me.quests, ['*']);
-  assert.deepEqual(pluginMe({ ...NOTIFY_DEFAULTS, quests: 'EXPERIENCED' }, ALL_ON, 0, null).quests, ['EXPERIENCED', 'MASTER', 'GRANDMASTER']);
-  assert.deepEqual(pluginMe({ ...NOTIFY_DEFAULTS, ca: 'OFF' }, ALL_ON, 0, null).ca, []);
-  assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, { ...ALL_ON, combatAchievements: false }, 0, null).ca, []);
-  assert.equal(pluginMe(NOTIFY_DEFAULTS, null, 0, null).drops, false);
+  assert.deepEqual(pluginMe({ ...NOTIFY_DEFAULTS, quests: 'EXPERIENCED' }, ALL_ON, NO_CLAN_DROPS, null).quests, ['EXPERIENCED', 'MASTER', 'GRANDMASTER']);
+  assert.deepEqual(pluginMe({ ...NOTIFY_DEFAULTS, ca: 'OFF' }, ALL_ON, NO_CLAN_DROPS, null).ca, []);
+  assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, { ...ALL_ON, combatAchievements: false }, NO_CLAN_DROPS, null).ca, []);
+  assert.equal(pluginMe(NOTIFY_DEFAULTS, null, NO_CLAN_DROPS, null).drops, false);
 });
 
 test('rarity floor: the clan can tighten, never loosen, and off stays off', () => {
-  assert.equal(mainRarityGate({ ...NOTIFY_DEFAULTS, rarity: 2000 }, 50_000), 50_000);
-  assert.equal(mainRarityGate({ ...NOTIFY_DEFAULTS, rarity: 20_000 }, 5_000), 20_000);
-  assert.equal(mainRarityGate({ ...NOTIFY_DEFAULTS, rarity: 0 }, 5_000), 0);
+  const hard = (n: number) => ({ ...NO_CLAN_DROPS, hardFloor: n });
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, rarity: 2000 }, hard(50_000)).rarity, 50_000);
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, rarity: 20_000 }, hard(5_000)).rarity, 20_000);
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, rarity: 0 }, hard(5_000)).rarity, 0);
   // A mode's own looser thresholds open the gate further.
-  const me = pluginMe(NOTIFY_DEFAULTS, ALL_ON, 0, { dropMinValue: 500_000, dropRarityFloor: 2000 });
+  const me = pluginMe(NOTIFY_DEFAULTS, ALL_ON, NO_CLAN_DROPS, { dropMinValue: 500_000, dropRarityFloor: 500 });
   assert.equal(me.dropMin, 500_000);
-  assert.equal(me.floor, 2000);
+  assert.equal(me.floor, 500);
 });
 
 test('value gate: a valuable drop posts alone with its spoon line; a cheap one does not post', () => {
@@ -127,11 +129,11 @@ test('guaranteed drops get no spoon or troll line; modeOnly marks a post only a 
   assert.equal(post.guaranteed, true);
   assert.equal(post.spoon, false);
   const modeOnly = judgeDrop(
-    { source: 'X', sourceKind: 'npc', items: [{ id: 1, name: 'A', qty: 1, value: 2_000_000 }] },
-    ctx({ mode: { dropMinValue: 1_000_000, dropRarityFloor: null } }),
+    { source: 'X', sourceKind: 'npc', items: [{ id: 1, name: 'A', qty: 1, value: 500_000 }] },
+    ctx({ mode: { dropMinValue: 400_000, dropRarityFloor: null } }),
   );
   assert.equal(modeOnly?.modeOnly, true);
-  assert.equal(judgeDrop({ source: 'X', sourceKind: 'npc', items: [{ id: 1, name: 'A', qty: 1, value: 2_000_000 }] }, ctx()), null);
+  assert.equal(judgeDrop({ source: 'X', sourceKind: 'npc', items: [{ id: 1, name: 'A', qty: 1, value: 500_000 }] }, ctx()), null);
 });
 
 test('lucky-drop rules match the plugin DropLuck', () => {
@@ -179,8 +181,8 @@ test('screenshot privacy: PMs hidden by default, old rows and junk keys get the 
 
 test('pluginMe sends screenshot privacy whatever the clan switches', () => {
   const prefs = normalizeNotifyPrefs({ hide: { public: true, channel: true } });
-  const me = pluginMe(prefs, null, 0, null);
+  const me = pluginMe(prefs, null, NO_CLAN_DROPS, null);
   assert.deepEqual(me.hide, { pm: true, public: true, clanOthers: false, clanSelf: false, channel: true, group: false });
   assert.notEqual(me.hide, prefs.hide);
-  assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, ALL_ON, 0, null).hide, NOTIFY_DEFAULTS.hide);
+  assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, ALL_ON, NO_CLAN_DROPS, null).hide, NOTIFY_DEFAULTS.hide);
 });

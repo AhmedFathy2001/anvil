@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { userWebhooks } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { filterMode, filterNumber } from '@/lib/webhookFilters';
 import { refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 
 export const dynamic = 'force-dynamic';
@@ -57,10 +58,9 @@ export async function POST(request: Request) {
   }
 
   const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 60) : null;
-  const minRarity =
-    body.minRarity == null || body.minRarity === ''
-      ? null
-      : Math.max(0, Math.floor(Number(body.minRarity) || 0));
+  const minValue = filterNumber(body.minValue);
+  const minDropRarity = filterNumber(body.minDropRarity);
+  const minDropMode = filterMode(body.minDropMode);
 
   const existing = await db
     .select({ id: userWebhooks.id })
@@ -72,11 +72,11 @@ export async function POST(request: Request) {
 
   const [row] = await db
     .insert(userWebhooks)
-    .values({ userId: session.userId, url, label, kinds: JSON.stringify(kinds), minRarity })
+    .values({ userId: session.userId, url, label, kinds: JSON.stringify(kinds), minValue, minDropRarity, minDropMode })
     .returning();
 
   return NextResponse.json({
     ok: true,
-    webhook: { id: row.id, url: row.url, label: row.label, kinds, minRarity: row.minRarity },
+    webhook: { id: row.id, url: row.url, label: row.label, kinds, minValue: row.minValue, minDropRarity: row.minDropRarity, minDropMode: filterMode(row.minDropMode) },
   });
 }

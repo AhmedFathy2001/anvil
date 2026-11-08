@@ -12,6 +12,7 @@ import { getItemPrices } from '@/lib/itemPrices';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { DROP_MINIMUMS, type ClanDropSettings } from '@/lib/notifyPrefs';
 import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 import { clanSeat } from '@/lib/seatScope';
 import { streamedEvent } from '@/lib/creatorSpaces';
@@ -705,18 +706,38 @@ export async function getShowKillCount(clanId: number): Promise<boolean> {
   return (await getSetting(clanId, SHOW_KILL_COUNT_SETTING_KEY)) !== 'off';
 }
 
-// Clan-wide floor on rarity-triggered drop posts, as 1-in-N. Members set their own threshold in the
-// plugin, but a single member on a loose setting is enough to fill the channel with herb rolls off
-// an ordinary slayer task — so the clan's floor wins where it's stricter (the plugin takes the max).
-// Unset means "no clan floor"; the plugin's own default (1/10,000) then applies.
+// What a clan says about drop posts (lib/notifyPrefs ClanDropSettings). Two kinds of control:
+//  - DEFAULT for its members: a minimum value (gp) and a rarity (1-in-N) that every member who has not
+//    set their own number follows. Unset = Anvil's default (1m, 1/1,000). A member can override.
+//  - HARD FLOOR (the older `drop_rarity_floor`): a rarity the clan's channels never go looser than,
+//    whatever a member chose. Unset = none.
 export const DROP_RARITY_FLOOR_SETTING_KEY = 'drop_rarity_floor';
-export const DEFAULT_DROP_RARITY_FLOOR = 10_000;
+export const DROP_DEFAULT_VALUE_SETTING_KEY = 'drop_default_value';
+export const DROP_DEFAULT_RARITY_SETTING_KEY = 'drop_default_rarity';
+/** 'and' = members' drops need the value AND the rarity; anything else = either (the default). */
+export const DROP_DEFAULT_MODE_SETTING_KEY = 'drop_default_mode';
 
+/** A stored number as a clamped integer, or null when unset / not positive. */
+export const settingNumber = (raw: string | null | undefined, min: number): number | null => {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.max(min, Math.round(n)) : null;
+};
+
+/** The clan's hard rarity floor, 0 when it has none. */
 export async function getDropRarityFloor(clanId: number): Promise<number> {
-  const parsed = Number(await getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY));
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_DROP_RARITY_FLOOR;
-  // Never below the plugin's own hard minimum — a "floor" that loosens the gate would be a trap.
-  return Math.max(1000, Math.round(parsed));
+  // Never below the platform minimum — a "floor" that loosens the gate would be a trap.
+  return settingNumber(await getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY), DROP_MINIMUMS.rarity) ?? 0;
+}
+
+/** The clan's default thresholds for its members, plus its hard floor. */
+export async function getClanDropDefaults(clanId: number): Promise<ClanDropSettings> {
+  const [value, rarity, floor, mode] = await Promise.all([
+    getSetting(clanId, DROP_DEFAULT_VALUE_SETTING_KEY),
+    getSetting(clanId, DROP_DEFAULT_RARITY_SETTING_KEY),
+    getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY),
+    getSetting(clanId, DROP_DEFAULT_MODE_SETTING_KEY),
+  ]);
+  return { value: settingNumber(value, DROP_MINIMUMS.value), rarity: settingNumber(rarity, DROP_MINIMUMS.rarity), mode: mode === 'and' ? 'and' : null, hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity) };
 }
 
 // --- Clan naming ----------------------------------------------------------------------------

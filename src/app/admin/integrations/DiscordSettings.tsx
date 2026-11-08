@@ -19,6 +19,7 @@ import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
 import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
+import DropModeToggle from '@/components/DropModeToggle';
 import LineListSetting from '@/components/LineListSetting';
 import LevelMilestonesSetting from '@/components/LevelMilestonesSetting';
 import PlainSetting from '@/components/PlainSetting';
@@ -148,10 +149,23 @@ export default function DiscordSettings({
             drops: (
               <>
                 <PlainSetting
+                  settingKey="drop_default_value"
+                  label="Default minimum drop value (gp)"
+                  placeholder="1000000"
+                  helpText="The default for your members: drops worth at least this post. Each member can set their own number in /settings; until they do, they follow this one. Blank = Anvil's default, 1,000,000 (and never below it)."
+                />
+                <PlainSetting
+                  settingKey="drop_default_rarity"
+                  label="Default: post drops rarer than 1 in…"
+                  placeholder="1000"
+                  helpText="The default for your members, on rarity alone. Members can override it for themselves. Blank = Anvil's default, 1 in 1,000 (never looser)."
+                />
+                <DropModeToggle />
+                <PlainSetting
                   settingKey="drop_rarity_floor"
-                  label="Post drops rarer than 1 in…"
-                  placeholder="10000"
-                  helpText="Only drops rarer than this post on rarity alone. Members' plugins can be stricter, never looser. Blank = 10,000; a lower number means a lot more posts."
+                  label="Hard floor: never post drops more common than 1 in… (optional)"
+                  placeholder="none"
+                  helpText="Optional. A limit for your clan's own channels that a member's own number can't loosen, to keep spam out. Blank = no hard floor; members can go as loose as 1 in 1,000."
                 />
                 <Field title="Always post these items">Prestige items that post whatever their value.</Field>
                 <AlwaysNotifyItems />

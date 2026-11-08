@@ -1,4 +1,5 @@
-import { dropRarity, judgeDrop, type CandidateItem, type DropCandidate } from '@/lib/notifyDrops';
+import { dropRarity, judgeDropFor, type CandidateItem, type DropCandidate, type DropVerdict } from '@/lib/notifyDrops';
+import { characterClanDrops, dropHookFilters } from '@/lib/notifyDefaults';
 import { itemNameIndex } from '@/lib/notifyDropItems';
 import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
 import { clanPluginSettings } from '@/lib/pluginConfigEnrolled';
@@ -34,8 +35,8 @@ export function parseCandidate(raw: unknown): DropCandidate | null {
 }
 
 /**
- * Judge a drop the plugin's screenshot gate let through (facts.judge): the post's facts, or null when
- * nothing in it posts. The addressed clan's floor and guaranteed list, the person's prefs, and this
+ * Judge a drop the plugin's screenshot gate let through (facts.judge): the post's facts and which of the
+ * person's destinations take it, or null when nothing in it posts. The addressed clan's floor and guaranteed list, the person's prefs, and this
  * world's mode thresholds — what the plugin used to read off its own config to decide the same thing.
  */
 export async function judgeDropRequest(
@@ -44,22 +45,24 @@ export async function judgeDropRequest(
   userId: number,
   accountId: number | null,
   facts: unknown,
-): Promise<Record<string, unknown> | null> {
+): Promise<DropVerdict | null> {
   const candidate = parseCandidate(facts);
   if (!candidate) return null;
-  const [prefs, settings, mode, names] = await Promise.all([
+  const [prefs, settings, mode, names, hooks] = await Promise.all([
     getNotifyPrefs(userId),
     clanPluginSettings(clanId),
     pluginModeThresholds(request, { userId, addressedClanId: clanId, accountId: async () => accountId }),
     itemNameIndex(),
+    dropHookFilters(userId),
   ]);
-  return judgeDrop(candidate, {
+  const clan = await characterClanDrops(accountId, clanId, settings.dropRarityFloor);
+  return judgeDropFor(candidate, {
     prefs,
-    clanFloor: settings.dropRarityFloor,
+    clan,
     mode,
     guaranteed: settings.facts?.guaranteed,
     nameOf: names.nameOf,
-  });
+  }, hooks);
 }
 
 /**
