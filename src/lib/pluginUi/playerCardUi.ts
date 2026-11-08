@@ -11,7 +11,6 @@ import {
   count,
   fmt,
   gap,
-  header,
   icon,
   muted,
   nameText,
@@ -21,6 +20,7 @@ import {
   text,
 } from './nodes';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
+import { GOLD, GREEN, PURPLE, big, section, small, title } from './sections';
 
 // A player card as the plugin's Lookup and You tabs draw it (was PlayerCardView.java). Pure: the
 // route loads the card, this decides every line.
@@ -57,15 +57,6 @@ const CLUE_ITEMS: Record<string, number> = {
 const HISCORE_NAMES: Record<string, string> = {
   bhHunter: 'Bounty Hunter - Hunter', bhHunterLegacy: 'Bounty Hunter - Hunter',
   bhRogue: 'Bounty Hunter - Rogue', bhRogueLegacy: 'Bounty Hunter - Rogue',
-};
-
-/** A picture per log category — the thing people think of when they think of that shelf. */
-const CATEGORY_ITEMS: Record<string, number> = {
-  Bosses: 11832, // Bandos chestplate
-  Raids: 20997, // Twisted bow
-  Clues: 19835, // Clue scroll (master)
-  Minigames: 6570, // Fire cape
-  Skilling: 13320, // Heron
 };
 
 const ACCOUNT_TYPES: Record<string, string> = {
@@ -132,6 +123,12 @@ export interface CardOptions {
   me?: string | null;
   /** This plugin advertises panel image support. */
   images?: boolean;
+  /** Your own card: the log's progress sits in the top card. */
+  own?: boolean;
+  /** Display case slots the owner's Supporter tier allows ("4 of 4 slots"); omitted, no count. */
+  slots?: number;
+  /** Cards that go right under the top card (You: a challenge to answer, running head-to-heads). */
+  afterTop?: Node[];
 }
 
 export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
@@ -144,20 +141,24 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
       w: 220,
       h: 73,
       ...(c.panelMedia.bannerAnimated ? { motion: true } : {}),
-    }, gap(4));
+    });
   }
-  parts.push(identity(c, anvil, !!opts.images));
-  if (anvil && c.displayCase?.length) parts.push(gap(6), displayCase(c));
-  const kills = pageKills(c);
-  if (anvil && c.clog && c.clog.total > 0) parts.push(gap(6), clogSummary(c, kills));
-  if (anvil && c.latest.length) parts.push(gap(6), latest(c));
+  parts.push(identity(c, anvil, !!opts.images, !!opts.own));
+  // "Compare with me" is the one action, right under who this is. Between Anvil profiles only.
+  if (anvil && opts.me && opts.me.trim().toLowerCase() !== c.rsn.trim().toLowerCase()) {
+    parts.push(button('Compare with me', { a: 'load', v: 'compare', args: { rsn: c.rsn } }, 'Side by side: levels, bosses and the log'));
+  }
+  parts.push(...(opts.afterTop ?? []));
+  if (anvil && c.displayCase?.length) parts.push(displayCase(c, opts.slots));
 
+  // Stats | Bosses | Log (the collection log; the full words don't fit a third of 220px), the rest (Clues, Times, CAs) folded under them.
+  const kills = pageKills(c);
   const sections: { label: string; c: Node }[] = [];
   const pages = new Set(anvil ? c.clogPages.map((p) => p.name.toLowerCase()) : []);
   const opens = (page: string | null | undefined, kc?: number): Action | undefined =>
     page && pages.has(page.toLowerCase()) ? openPage(c.rsn, page, 'root', kc) : undefined;
 
-  if (c.skills.length) sections.push({ label: 'Skills', c: skills(c) });
+  if (c.skills.length) sections.push({ label: 'Stats', c: skills(c) });
   const bosses = c.bosses.length ? c.bosses : c.topBosses;
   if (bosses.length) {
     const killed = new Set(bosses.map((b) => b.key));
@@ -173,30 +174,37 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
     }
     sections.push({ label: 'Bosses', c: searchable('bosses', bosses.length, { t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }) });
   }
+  if (anvil && c.clog && c.clog.total > 0) sections.push({ label: 'Log', c: logTab(c, kills) });
+  else if (anvil) sections.push({ label: 'Log', c: card([muted('No collection log synced yet. Sync profile (⚙) sends it.', { wrap: true })]) });
+
+  const more: { label: string; c: Node }[] = [];
   if (c.activities.length) {
     const cells = c.activities.map((a) => {
       const name = a.shortLabel || a.label;
       const pic = CLUE_ITEMS[a.key] ? icon({ item: CLUE_ITEMS[a.key] }) : icon({ boss: HISCORE_NAMES[a.key] ?? a.key });
       return countCell(pic, name, a.score, `${a.label} — ${fmt(a.score)}`, opens(cluePage(a.key)));
     });
-    sections.push({ label: 'Clues', c: card([{ t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }]) });
+    more.push({ label: 'Clues', c: card([{ t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }]) });
   }
-  if (anvil && c.times.length) sections.push({ label: 'Times', c: times(c) });
+  if (anvil && c.times.length) more.push({ label: 'Times', c: times(c) });
   if (anvil && opts.cas) {
-    sections.push({
+    more.push({
       label: 'CAs',
       c: card([
         { t: 'slot', id: 'cas', c: muted('Loading combat achievements…'), load: { a: 'load', v: 'cas', args: { rsn: c.rsn }, into: 'cas' } },
       ]),
     });
   }
-  if (sections.length) parts.push(gap(6), { t: 'tabs', key: opts.sectionKey, tabs: sections });
-
-  // The comparison (and its page on the site) is between Anvil profiles.
-  if (anvil && opts.me && opts.me.trim().toLowerCase() !== c.rsn.trim().toLowerCase()) {
-    parts.push(gap(6), button('Compare with me', { a: 'load', v: 'compare', args: { rsn: c.rsn } }, 'Side by side: levels, bosses and the log'));
+  if (sections.length) parts.push({ t: 'tabs', key: opts.sectionKey, tabs: sections });
+  if (more.length) {
+    parts.push({
+      t: 'fold',
+      head: muted(`${more.map((m) => m.label).join(' · ')} ▾`, { font: 'small', align: 'r' }),
+      c: { t: 'tabs', key: `${opts.sectionKey}:more`, tabs: more },
+    });
   }
-  return col(parts);
+  if (anvil && c.latest.length) parts.push(latest(c));
+  return col(parts, { gap: 8 });
 }
 
 /** "Not on Anvil" — the same words whether the name is unknown or simply not shared. */
@@ -204,12 +212,7 @@ export function notFoundUi(rsn: string): Node {
   return card([text(rsn, 'white', { font: 'bold' }), gap(4), muted('Not on Anvil yet — or they haven’t shared their profile.', { wrap: true })]);
 }
 
-function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
-  const line = [
-    c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null,
-    c.combatLevel != null ? `cb ${c.combatLevel}` : null,
-    c.accountType ? accountTypeLabel(c.accountType) : null,
-  ].filter(Boolean);
+function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean): Node {
   const details: Node[] = [
     row(
       anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' }),
@@ -217,81 +220,90 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
       anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined,
     ),
   ];
-  if (!anvil) details.push(gap(2), row(undefined, muted('From the hiscores — not on Anvil'), c.fetchedAt ? muted('', { at: c.fetchedAt }) : undefined));
+  // "Iron Forge · Ironman": the clan opens in clan lookup.
+  const who = [c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? null : 'from the hiscores'].filter(Boolean).join(' · ');
   if (c.clan?.name) {
     const clanMediaRev = mediaRevision(c.clan.logoUrl);
-    details.push(gap(2), row(
+    details.push(row(
       images && c.clan.logoUrl
-        ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, clanMediaRev), w: 18, h: 18, motion: true, round: true }
+        ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, clanMediaRev), w: 16, h: 16, motion: true, round: true }
         : undefined,
-      text(c.clan.name, 'brand', { font: 'small' }),
+      row(text(c.clan.name, 'brand', { font: 'small', tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan', slug: c.clan.slug } }), who ? muted(`· ${who}`, { font: 'small' }) : undefined, undefined, { gap: 4 }),
       undefined,
-      { tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan', slug: c.clan.slug } },
+      { gap: 4 },
     ));
-  }
-  if (line.length) details.push(gap(2), muted(line.join(' · ')));
+  } else if (who) details.push(muted(who, { font: 'small' }));
+  if (!anvil && c.fetchedAt) details.push(muted('', { at: c.fetchedAt, font: 'small' }));
+  const totals = [c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null, c.combatLevel != null ? `cb ${c.combatLevel}` : null].filter(Boolean);
   const avatar = anvil && images && c.panelMedia?.avatar
-    ? { t: 'img' as const, src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, c.panelMedia.revision), w: 48, h: 48, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
+    ? { t: 'img' as const, src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, c.panelMedia.revision), w: 40, h: 40, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
     : undefined;
-  const parts: Node[] = [row(avatar, col(details), undefined, { gap: 7 })];
+  const parts: Node[] = [row(avatar, col(details, { gap: 2 }), undefined, { gap: 7 })];
+  if (totals.length) parts.push(text(totals.join(' · '), 'white'));
+  if (own && anvil && c.clog && c.clog.total > 0) {
+    const pct = percent(c.clog.obtained, c.clog.total);
+    parts.push(row(undefined, muted('Collection log', { font: 'small' }), muted(`${fmt(c.clog.obtained)} / ${fmt(c.clog.total)} · ${pct}%`, { font: 'small' })), { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' });
+  }
   const empty =
     c.totalLevel <= 0 && (!c.clog || c.clog.total <= 0) && !c.latest.length && !c.skills.length && !c.bosses.length && !c.topBosses.length;
-  if (empty) parts.push(gap(6), muted('No stats tracked yet.'));
-  return card(parts);
+  if (empty) parts.push(muted('No stats tracked yet.'));
+  return section(parts);
 }
 
-/** This character's pins, compact enough to remain useful in the 220px panel. */
-function displayCase(c: PlayerCard): Node {
+/**
+ * This character's pins, two to a row: the number on top (gold: a KC, a time) or the item's name in
+ * purple (a drop, a log slot), what it is small and muted under it. Hidden when there are none.
+ */
+function displayCase(c: PlayerCard, slots?: number): Node {
   const pins = c.displayCase ?? [];
   const picture = (p: NonNullable<PlayerCard['displayCase']>[number]): Node => {
-    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 30, h: 28 });
+    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 22, h: 20 });
     const key = p.kind === 'pb' ? (p.statKey?.replace(/^\d+:/, '') ?? '') : (p.statKey ?? '');
-    return icon({ boss: key, w: 28, h: 28, or: icon({ glyph: 'star', color: 'brand', w: 14, h: 14 }) });
+    return icon({ boss: key, w: 20, h: 20, or: icon({ glyph: 'star', color: 'brand', w: 12, h: 12 }) });
   };
-  return card([
-    header('Display case'),
-    gap(4),
+  return section([
+    row(undefined, title('Display case'), slots ? muted(`${Math.min(pins.length, slots)} of ${slots} slots`, { font: 'small' }) : undefined),
     {
       t: 'grid',
       cols: 2,
       gap: 4,
       vgap: 4,
-      c: pins.map((p) => col([
+      c: pins.map((p) => row(
         picture(p),
-        text(p.headline ?? p.name, p.headline ? 'brand' : 'white', { font: 'small', align: 'c', tip: p.name }),
-        ...(p.headline ? [muted(p.name, { font: 'small', align: 'c' })] : []),
-      ], { bg: 'panel', inset: 4, tip: [p.name, p.source].filter(Boolean).join(' · ') })),
+        p.headline
+          ? col([small(p.headline, GOLD, { tip: p.name }), muted(p.name, { font: 'small' })])
+          : small(p.name, PURPLE, { wrap: true }),
+        undefined,
+        { bg: 'panel', pad: 4, gap: 4, tip: [p.name, p.source].filter(Boolean).join(' · ') },
+      )),
     },
   ]);
 }
 
-function clogSummary(c: PlayerCard, kills: Map<string, number>): Node {
+/**
+ * The Collection log tab: the total and its share, the latest slot, then a bar per category — each
+ * opens its pages, and a page opens its items.
+ */
+function logTab(c: PlayerCard, kills: Map<string, number>): Node {
   const clog = c.clog!;
-  const parts: Node[] = [
-    header('Collection log', `${fmt(clog.obtained)} / ${fmt(clog.total)}`),
-    gap(4),
-    { t: 'bar', pct: percent(clog.obtained, clog.total), color: 'brand', h: 14, label: `${percent(clog.obtained, clog.total)}%`, bg: 'panel' },
-  ];
-  if (c.clogPages.length) {
-    parts.push(gap(6), logSlot(c, kills));
-  } else if (clog.groups.length) {
-    parts.push(gap(6), {
-      t: 'grid',
-      cols: 2,
-      gap: 8,
-      vgap: 4,
-      c: clog.groups.map((g) => miniBar(g.name, g.obtained, g.total)),
-    });
-  }
-  return card(parts);
+  const pct = percent(clog.obtained, clog.total);
+  const slot = c.latest.find((l) => l.kind === 'item');
+  const head = section([
+    row(undefined, big(`${fmt(clog.obtained)} / ${fmt(clog.total)}`), small(`${pct}%`, GREEN, { font: 'bold' })),
+    { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' },
+    ...(slot ? [row(undefined, small(`Latest: ${slot.label}`, PURPLE), muted('', { at: slot.at, font: 'small' }))] : []),
+  ]);
+  if (c.clogPages.length) return col([head, logSlot(c, kills)], { gap: 8 });
+  return col([head, ...clog.groups.map((g) => categoryRow(g.name, g.obtained, g.total))], { gap: 5 });
 }
 
-/** "Bosses  62%" over a 3px bar — a share of the log at a glance. */
-function miniBar(name: string, obtained: number, total: number): Node {
-  const pct = percent(obtained, total);
-  return col([row(muted(name), undefined, text(`${pct}%`), { gap: 0 }), gap(2), { t: 'bar', pct, h: 3, bg: 'panel' }], {
-    tip: `${name}: ${fmt(obtained)} / ${fmt(total)}`,
-  });
+/** "Bosses ....... 412/664 · 62%" over a green bar, in a raised row (that opens, when `on`). */
+function categoryRow(name: string, got: number, of: number, on?: Action): Node {
+  const pct = percent(got, of);
+  return col([
+    row(undefined, text(name, got >= of ? 'done' : 'white'), row(muted(`${fmt(got)}/${fmt(of)} · ${pct}%`, { font: 'small' }), undefined, on ? icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }) : undefined, { gap: 5 })),
+    { t: 'bar', pct, color: 'done', h: 5, bg: 'panel' },
+  ], { bg: 'raised', inset: 8, gap: 4, ...(on ? { on, tip: `${name}: its pages` } : {}) });
 }
 
 /**
@@ -310,23 +322,14 @@ function logSlot(c: PlayerCard, kills: Map<string, number>): Node {
     const got = pages.reduce((s, p) => s + p.obtained, 0);
     const of = pages.reduce((s, p) => s + p.total, 0);
     const pane = `cat:${group}`;
-    tiles.push(
-      col(
-        [
-          row(icon({ item: CATEGORY_ITEMS[group] ?? 995, w: 28, h: 26 }), col([text(`${group}  ›`), muted(`${got}/${of} · ${percent(got, of)}%`)]), undefined),
-          gap(3),
-          { t: 'bar', pct: percent(got, of), h: 3, bg: 'card' },
-        ],
-        { inset: 6, bg: 'panel', on: { a: 'pane', into: 'log', pane } },
-      ),
-    );
+    tiles.push(categoryRow(group, got, of, { a: 'pane', into: 'log', pane }));
     panes[pane] = col([
       backHeader(group, `${got}/${of}`, got >= of, { a: 'pane', into: 'log', pane: 'root' }),
       gap(6),
       ...pages.flatMap((p) => [pageRow(c.rsn, p, kills.get(p.name.toLowerCase()), pane), gap(2)]),
     ]);
   }
-  const root: Node = { t: 'grid', cols: 2, gap: 6, vgap: 6, c: tiles };
+  const root: Node = col(tiles, { gap: 5 });
   panes.root = root;
   return { t: 'slot', id: 'log', c: root, panes };
 }
@@ -361,8 +364,8 @@ export function backHeader(name: string, countText: string, complete: boolean, b
 }
 
 function latest(c: PlayerCard): Node {
-  return card([
-    row(text('Latest', 'brand'), undefined, muted('See all ›', {
+  return section([
+    row(undefined, title('Latest'), small('See all ›', GOLD, {
       tip: 'Everything they’ve done lately, on the Anvil website',
       on: { a: 'site', path: `${profilePath(c.rsn)}?tab=records` },
     })),
@@ -396,7 +399,7 @@ function skills(c: PlayerCard): Node {
       return {
         t: 'text',
         s: String(level),
-        color: level >= 99 ? 'brand' : 'white',
+        color: level >= 99 ? GREEN : 'white',
         cell: true,
         icon: { t: 'icon', skill: key, alt: cap(key).slice(0, 3) },
         tip: s ? `${cap(key)} — ${fmt(s.xp)} XP` : cap(key),

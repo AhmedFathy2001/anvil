@@ -1,7 +1,8 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
-import efficiencyRates from '@/data/efficiencyRates.json'; // third-party EHB rates, kills per hour (THIRD_PARTY_NOTICES.md)
+import hourRates from '@/data/hourRates.json'; // our wiki-built kill rates; regenerate with `npm run data:rates`
 import clogTabs from '@/data/clogTabs.json'; // the game's own log tabs; regenerate with `npm run data:clog`
 import { BOSSES } from '@/lib/constants';
+import { expectedKillsForItem, itemChance, killLuck, type KillLuckRead } from '@/lib/dropOdds';
 import { clogItemNames, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
 
 // How rare is a collection log slot, and where did it come from.
@@ -23,13 +24,14 @@ export interface ItemRarity {
   denominator: number;
   /** The source those odds belong to — "1 in 5,000 from Zulrah" is the sentence. */
   source: string;
+  /** Rolls of that table per kill. */
+  rolls: number;
   /**
-   * EFFICIENT hours to see one: the rate over the third-party kills-per-hour table for that content. Null
+   * EFFICIENT hours to see one: the rate over our kills-per-hour table (src/data/hourRates.json, from the wiki's money-making guides) for that content. Null
    * where we have no rate for the source.
    *
-   * Efficient, not expected. Those rates are the theoretical maximum — 3.7 Tombs of Amascut an hour
-   * is a max-efficiency eight-man, not anybody's Tuesday — so this is a yardstick for COMPARING two
-   * drops, not a promise about somebody's evening. It's the right yardstick precisely because it's
+   * A yardstick for COMPARING two drops, not a promise about somebody's evening: the guide rates
+   * assume a prepared player with a decent setup. It's the right yardstick precisely because it's
    * consistent: the same optimism applies to every piece of content, so the ordering survives it.
    *
    * And it's the ordering that was wrong before: 1 in 2,160 at a boss killed 39 times an hour is a
@@ -39,10 +41,10 @@ export interface ItemRarity {
   hours: number | null;
 }
 
-/** Kills per hour by hiscores boss key, from the same table the site's EHB already uses. */
+/** Kills per hour by hiscores boss key, from the same table efficient hours bossed uses. */
 function killsPerHour(): Record<string, number> {
-  return (efficiencyRates as { algorithms?: { main?: { bosses?: Record<string, number> } } })
-    .algorithms?.main?.bosses ?? {};
+  const bosses = (hourRates as { bosses?: { main?: Record<string, { killsPerHour: number }> } }).bosses?.main ?? {};
+  return Object.fromEntries(Object.entries(bosses).map(([k, v]) => [k, v.killsPerHour]));
 }
 
 /**
@@ -98,10 +100,12 @@ export function clogItemRarity(): Map<number, ItemRarity> {
       if (!Number.isFinite(drop.d) || drop.d < RARITY_THRESHOLDS.notable) continue;
       const held = out.get(drop.i);
       if (!held || drop.d > held.denominator) {
+        const rolls = drop.r && drop.r > 0 ? drop.r : 1;
         out.set(drop.i, {
           denominator: drop.d,
           source: page,
-          hours: kph && kph > 0 ? drop.d / kph : null,
+          rolls,
+          hours: kph && kph > 0 ? expectedKillsForItem({ denominator: drop.d, rolls }) / kph : null,
         });
       }
     }
@@ -165,6 +169,8 @@ export interface ShowcaseItem {
   source: string;
   page: string;
   kcAtUnlock: number | null;
+  /** Kills it took against the kills the rate expects (lib/dropOdds), where the KC is known. */
+  luck: KillLuckRead | null;
   firstSeenAt: string | null;
 }
 
@@ -199,6 +205,7 @@ export function buildShowcase(
         source: rate.source,
         page: pages.get(item.itemId) ?? rate.source,
         kcAtUnlock: item.kcAtUnlock,
+        luck: unlockLuck(item.itemId, item.kcAtUnlock),
         firstSeenAt: item.firstSeenAt,
       };
     })
@@ -246,3 +253,22 @@ export function groupOf(page: string, bossLabels: Set<string>): PageGroup {
 
 /** The game's tab order. */
 export const GROUP_ORDER: PageGroup[] = ['Bosses', 'Raids', 'Clues', 'Minigames', 'Other'];
+
+/**
+ * Expected vs actual kills for an unlock: the KC the item arrived at against 1/p (rolls included)
+ * for the content its log page is for. Null when the item is common, unrated, or the KC unknown.
+ */
+export function unlockLuck(itemId: number, kcAtUnlock: number | null | undefined): KillLuckRead | null {
+  if (kcAtUnlock == null || !(kcAtUnlock > 0)) return null;
+  const r = clogItemRarity().get(itemId);
+  if (!r) return null;
+  return killLuck(itemChance({ denominator: r.denominator, rolls: r.rolls }), kcAtUnlock, true);
+}
+
+/** "2.4× faster than the rate", "1.8× past the rate", "on rate". */
+export function formatKillLuck(l: KillLuckRead): string {
+  if (l.verdict === 'on-rate') return `on rate (1 in ${Math.round(l.expected).toLocaleString('en-US')})`;
+  const ratio = l.ratio < 1 ? 1 / l.ratio : l.ratio;
+  const times = ratio >= 10 ? Math.round(ratio).toString() : ratio.toFixed(1);
+  return l.verdict === 'spooned' ? `spooned, ${times}× under the rate` : `dry, ${times}× the rate`;
+}

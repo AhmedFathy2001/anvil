@@ -216,7 +216,7 @@ export default function StatsBrowser({
           <span>{kind === 'skills' ? 'Skill' : kind === 'bosses' ? 'Boss' : kind === 'clues' ? 'Tier' : 'Activity'}</span>
           <span className="hidden sm:block">{kind === 'skills' || kind === 'bosses' ? 'Hours' : ''}</span>
           <span className="text-right">{kind === 'skills' ? 'Level' : kind === 'bosses' ? 'Kills' : 'Score'}</span>
-          <span className="hidden sm:block text-right">{kind === 'skills' ? 'XP' : kind === 'clues' || kind === 'minigames' ? 'World' : 'EHB'}</span>
+          <span className="hidden sm:block text-right">{kind === 'skills' ? 'XP' : kind === 'clues' || kind === 'minigames' ? 'World' : 'Hours bossed'}</span>
           <span className="text-right">{hasTrendColumn ? 'This week' : kind === 'clues' || kind === 'minigames' ? 'In clan' : ''}</span>
         </div>
 
@@ -311,7 +311,7 @@ export default function StatsBrowser({
       </div>
       {kind === 'skills' && (
         <p className="mt-2 text-xs text-text-muted">
-          Hours are efficient hours (EHP). Attack and Strength can read zero with millions of XP — they arrive as bonus
+          Hours are efficient hours played. Attack and Strength can read zero with millions of XP — they arrive as bonus
           XP from Slayer, so they cost no time of their own.
         </p>
       )}

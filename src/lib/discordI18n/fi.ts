@@ -226,7 +226,7 @@ const fi: PartialDiscordDict = {
   commands: {
     sotw: 'Skill of the Week — livetilanne',
     botw: 'Boss of the Week — livetilanne',
-    eff: 'Tehokkuus (EHP/EHB) — tulostaulu ja oma sijoituksesi',
+    eff: 'Tehokkuus (pelatut tunnit/bossitunnit) — tulostaulu ja oma sijoituksesi',
     coffer: 'Klaanikirstu — saldo, lahjoittajat ja staffin lisäys/poisto',
     clog: 'Collection log — jäsenen määrä ja klaanin parhaat keräilijät',
     luck: 'Droppionni — klaanin kuivin ja onnekkain, tai jäsenen',

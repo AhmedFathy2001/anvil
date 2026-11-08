@@ -38,8 +38,8 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'screenshot', 'pet', 'gotr', 'energy', 'slayer', 'lap counter', 'party size', 'raid level',
   ],
   switching: [
-    'dink', 'wom', 'wise old man', 'migrate', 'migrating', 'switch', 'switching', 'move', 'moving',
-    'competition', 'competitions', 'sotw', 'botw', 'clan list', 'wom group',
+    'other plugins', 'migrate', 'migrating', 'switch', 'switching', 'move', 'moving',
+    'competition', 'competitions', 'sotw', 'botw', 'clan list',
   ],
   clan: [
     'clan', 'create', 'start', 'new', 'make', 'register', 'setup', 'set up', 'owner',
@@ -51,7 +51,7 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'nickname', 'nick', 'rank', 'ping', 'mention', 'announce', 'announcement', 'notification',
     'notify', 'slash', 'command', 'commands', 'embed', 'post', 'posting', 'silent', 'quiet',
     'not posting', 'permissions', 'leagues', 'deadman', 'game mode', 'game modes', 'hardcore', 'seasonal',
-    'threshold', 'rarity', 'dink', 'old webhooks', 'remove webhook', 'keep webhook', 'post to discord',
+    'threshold', 'rarity', 'other plugins', 'old webhooks', 'remove webhook', 'keep webhook', 'post to discord',
     'announcement post',
   ],
   plugin: [

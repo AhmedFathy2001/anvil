@@ -3,9 +3,10 @@ import { clanBoostInk } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
 
 import { FEED_STEP, dropLine } from './momentsUi';
-import { type Node, backRow, button, card, col, count, fmt, gap, header, icon, message, muted, nameText, row, seg, text } from './nodes';
+import { type Node, backRow, button, card, col, count, fmt, gap, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
+import { BLUE, chip, section, small, title } from './sections';
 
 // A clan as the plugin's panel draws it (was ClanCardView.java): who the clan is, how hard it played
 // this week and who carried it, its strongest accounts, what dropped lately and what's running. Under
@@ -13,11 +14,11 @@ import { mediaRevision, revisedMediaPath } from './mediaRevision';
 
 /** "Name ......... value" — the name opens that player's card. */
 function nameLine(label: string, value: string, rsn: string): Node {
-  return row(undefined, text(label, 'white', { who: rsn }), text(value, 'brand'), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
+  return row(undefined, text(label, 'white', { who: rsn }), muted(value), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
 }
 
 function siteHeader(label: string, note: string, path: string): Node {
-  return row(text(label, 'brand'), undefined, text(note), {
+  return row(undefined, title(label), muted(note, { font: 'small' }), {
     gap: 0,
     pad: 2,
     tip: 'Open this ranking on the clan website',
@@ -61,30 +62,29 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       tip: 'Open the clan on the Anvil website',
       on: { a: 'site', path: `/c/${seg(c.slug)}` },
     })),
-    gap(2),
-    muted(`${fmt(c.members)} members · ${fmt(c.activeThisWeek)} active this week`),
+    row(muted(`${fmt(c.members)} members ·`), small(`${fmt(c.activeThisWeek)} active this week`, BLUE), undefined, { gap: 4 }),
   ];
   if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
   if (c.competitions.length) {
     const running = c.competitions
       .map((x) => `${x.type === 'boss' ? 'BOTW ' : x.type === 'skill' ? 'SOTW ' : ''}${x.label}`)
       .join(' · ');
-    id.push(gap(2), text(`Running: ${running}`, 'brand', { wrap: true }));
+    id.push(row(text('Running:', 'white', { font: 'small' }), small(running, BLUE, { wrap: true }), undefined, { gap: 4 }));
   }
-  parts.push(card(id));
+  parts.push(section(id, { gap: 4 }));
+  // "Compare with my clan" is the one action, right under who the clan is.
+  if (compare) parts.push(button('Compare with my clan', { a: 'load', v: 'clan-compare', args: { slug: c.slug } }));
 
   if (c.topWeek.length) {
     parts.push(
-      gap(6),
-      card([
+      section([
         siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
-        gap(4),
-        ...c.topWeek.map((g, i) => nameLine(`${i + 1}.  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
-      ]),
+        ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
+      ], { gap: 4 }),
     );
   }
   if (c.topPlayers.length) {
-    parts.push(gap(6), card([siteHeader('Top accounts', 'by total XP', `/members?sort=xp`), gap(4), ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn))]));
+    parts.push(section([siteHeader('Top accounts', 'by total XP', `/members?sort=xp`), ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn))], { gap: 4 }));
   }
   if (c.highlights.length) {
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.
@@ -95,10 +95,8 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       ]),
     );
     parts.push(
-      gap(6),
-      card([
-        header('Recent drops'),
-        gap(4),
+      section([
+        title('Recent drops'),
         feedTab
           ? col([
               quick,
@@ -110,8 +108,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       ]),
     );
   }
-  if (compare) parts.push(gap(6), button('Compare with my clan', { a: 'load', v: 'clan-compare', args: { slug: c.slug } }));
-  return col(parts);
+  return col(parts, { gap: 8 });
 }
 
 /**
@@ -145,8 +142,8 @@ export function clanCompareUi(a: ClanCard, b: ClanCard): Node {
       gap(4),
       vsRow('Members', a.members, b.members, String),
       vsRow('Active this week', a.activeThisWeek, b.activeThisWeek, String),
-      vsRow('Total EHP', Math.round(a.totalEhp), Math.round(b.totalEhp), hours),
-      vsRow('Total EHB', Math.round(a.totalEhb), Math.round(b.totalEhb), hours),
+      vsRow('Total hours played', Math.round(a.totalEhp), Math.round(b.totalEhp), hours),
+      vsRow('Total hours bossed', Math.round(a.totalEhb), Math.round(b.totalEhb), hours),
       vsRow('Avg log slots', a.clog?.average ?? -1, b.clog?.average ?? -1),
       vsRow('Gained this week', Math.round(a.weekHours), Math.round(b.weekHours), hours),
     ]),
@@ -170,8 +167,8 @@ export function clanSearchUi(q: string, found: { slug: string; name: string; boo
         row(undefined, text(f.name, boost?.color ?? 'white', {
           ...(boost?.grad ? { grad: boost.grad } : {}),
           ...(boost?.move ? { move: true } : {}),
-        }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }), { bg: 'card', pad: 6, inset: 8, on: { a: 'load', v: 'clan', args: { slug: f.slug } } }),
-        gap(2),
+        }), row((f.boostLevel ?? 0) > 0 ? chip(`Boost ${f.boostLevel}`, 'purple') : undefined, undefined, icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }), { gap: 6 }), { bg: 'raised', pad: 7, inset: 8, on: { a: 'load', v: 'clan', args: { slug: f.slug } } }),
+        gap(4),
       ];
     }),
   );

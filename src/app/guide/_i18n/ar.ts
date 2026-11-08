@@ -75,7 +75,7 @@ const ar: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'الانتقال إلى Anvil',
-        title: 'الانتقال من Dink أو Wise Old Man',
+        title: 'الانتقال من أدوات وتتبعات أخرى',
         blurb:
           'يرسل Anvil دروباتك إلى Discord ويدير مسابقاتكم الأسبوعية. خمس خطوات للإدارة، وخطوتان للاعبين.',
         minutes: '~3 دقائق',
@@ -264,21 +264,21 @@ const ar: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'الانتقال من Dink أو Wise Old Man — Anvil',
+    metaTitle: 'الانتقال من أدوات وتتبعات أخرى — Anvil',
     metaDescription:
-      'انقل عشيرتك من Dink وWise Old Man إلى Anvil: أعدّ قنوات Discord، وزامن قائمة العشيرة، وابدأ Skill أو Boss of the Week، وأخبر أعضاءك.',
+      'انقل عشيرتك إلى Anvil: أعدّ قنوات Discord، وزامن قائمة العشيرة، وابدأ Skill أو Boss of the Week، وأخبر أعضاءك.',
     eyebrow: 'الانتقال إلى Anvil',
-    title: 'الانتقال من Dink أو Wise Old Man',
-    dek: 'يؤدي Anvil المهمتين معًا. فهو ينشر دروبات العشيرة وإنجازاتها في Discord. كما يُبقي قائمة العشيرة محدّثة ويدير المسابقات الأسبوعية.',
+    title: 'الانتقال من أدوات وتتبعات أخرى',
+    dek: 'يُرسل Anvil دروبات العشيرة وإنجازاتها إلى Discord. كما يُبقي قائمة العشيرة محدّثة ويدير المسابقات الأسبوعية.',
 
     staff: {
       title: 'إذا كنت تدير العشيرة',
       body: [
-        '**دع البوت يُعدّ قنواتك.** اذهب إلى Admin → Discord → **Set it up for me**. اختر قناة واحدة أو عدة قنوات. إذا كان Dink ينشر في مكان ما، فعلّم على _Use the same channels_. لن يتغير شيء عند أعضائك.',
-        '**زامن قائمة العشيرة.** في RuneLite، افتح إعدادات إضافة Anvil. فعّل **Keep the clan roster in sync**. يفعل ذلك مشرف واحد مرة واحدة داخل اللعبة. وهذا يحل محل مجموعتك في Wise Old Man.',
-        '**ابدأ Skill أو Boss of the Week.** اذهب إلى Admin → All events → **+ New event**، واختر Skill of the Week أو Boss of the Week. يشارك كل من في قائمة العشيرة تلقائيًا. وهذا يحل محل مسابقات Wise Old Man.',
+        '**دع البوت يُعدّ قنواتك.** اذهب إلى Admin → Discord → **Set it up for me**. اختر قناة واحدة أو عدة قنوات. إذا كانت أداة أخرى تنشر في مكان ما، فعلّم على _Use the same channels_. لن يتغير شيء لأعضائك.',
+        '**زامن قائمة العشيرة.** في RuneLite، افتح إعدادات إضافة Anvil. فعّل **Keep the clan roster in sync**. يفعل ذلك مشرف واحد مرة واحدة داخل اللعبة. وهذا يحل محل أي قائمة عشيرة كنت تحتفظ بها في مكان آخر.',
+        '**ابدأ Skill أو Boss of the Week.** اذهب إلى Admin → All events → **+ New event**، واختر Skill of the Week أو Boss of the Week. يشارك كل من في قائمة العشيرة تلقائيًا. وهذا يحل محل المسابقات التي كنت تديرها في مكان آخر.',
         '**أخبر أعضاءك.** اذهب إلى Admin → Discord → **Tell your members** → **Post it**. ينشر البوت خطوات اللاعبين نيابةً عنك.',
-        '**بعد أسبوع، نظّف.** اذهب إلى Admin → Discord → **Remove Dink’s old webhooks**، وعلّم على ما تريد إزالته، واضغط **Remove … webhooks** ثم **Yes, remove them**. بعد ذلك لن يُنشر شيء مرتين. واضغط **Keep** على أي واحد تريد تركه كما هو.',
+        '**بعد أسبوع، نظّف.** اذهب إلى Admin → Discord → **Remove old webhooks from other plugins**، وعلّم على ما تريد إزالته، واضغط **Remove … webhooks** ثم **Yes, remove them**. بعد ذلك لن يُنشر شيء مرتين. اضغط **Keep** على أي عنصر تريد تركه.',
       ],
     },
 
@@ -286,8 +286,8 @@ const ar: PartialGuideDict = {
       title: 'إذا كنت لاعبًا',
       body: [
         '**ثبّت Anvil.** في RuneLite، افتح Plugin Hub وابحث عن Anvil واضغط **Install**. ثم سجّل الدخول عبر Discord من اللوحة الجانبية لـ Anvil.',
-        '**أوقف إشعارات Dink.** أو احذف Dink إن كنت لا تستخدمه في شيء آخر.',
-        '**هذا كل شيء.** لا يوجد ما تفعله بخصوص Wise Old Man.',
+        '**أوقف إشعارات الأداة القديمة** حتى لا يُنشر شيء مرتين. أو أزلها إن كنت لا تستخدمها في شيء آخر.',
+        '**هذا كل شيء.** لا يوجد ما تحتاج إلى إعداده بعد ذلك.',
       ],
     },
 
@@ -296,12 +296,8 @@ const ar: PartialGuideDict = {
       intro: 'أكثر ما تسأل عنه العشائر:',
       rows: [
         {
-          term: 'هل يمكننا الإبقاء على Dink لبعض الأشياء؟',
-          body: 'نعم. لا ينشر Anvil عدد القتلات ولا مهام السلاير ولا السبيدرن. اترك هذه فقط مفعّلة في Dink.',
-        },
-        {
-          term: 'هل ما زلنا بحاجة إلى Wise Old Man؟',
-          body: 'فقط للأرقام القياسية على مر الزمن وترتيبات EHP / EHB.',
+          term: 'هل يتتبّع Anvil عدد القتلات ومهام السلاير وأفضل الأرقام الشخصية؟',
+          body: 'نعم. يتتبّع Anvil عدد القتلات ومهام السلاير وأفضل الأرقام الشخصية بنفسه، فلا يوجد شيء آخر يجب أن يبقى قيد التشغيل.',
         },
         {
           term: 'هل يلصق اللاعبون webhook في أي مكان؟',
@@ -643,11 +639,11 @@ const ar: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'ويب هوك قديمة من Dink أو بوتات أخرى',
+      title: 'ويب هوك قديمة من أدوات أخرى أو بوتات',
       body: [
-        'مع وجود البوت في خادمك، تعرض صفحة Discord كل ويب هوك فيه ليس تابعًا لـ Anvil. ويعرض **Coming from Dink?** الخيار **Use the same channels**، فينشر **Set it up for me** حيث كانت تدفقاتك القديمة تنشر، ولا يتغير شيء عند أعضائك.',
-        'حين ينتقل أعضاؤك إلى Anvil، اذهب إلى **Remove Dink’s old webhooks**، وعلّم على ما تريد إزالته واضغط **Remove … webhooks**، ثم **Yes, remove them**. هذا يحذفها من ديسكورد نهائيًا — ولا يمكن التراجع عنه.',
-        'تضم القائمة كل ويب هوك ليس تابعًا لـ Anvil، لا ويب هوك Dink وحدها. أهناك واحد تريد إبقاءه، كتدفق بوت آخر؟ اضغط **Keep** فيخرج من القائمة؛ ويعيده **Show kept** و**Put back**. والإبقاء يخفيه هنا فقط — لا يتغير شيء في ديسكورد.',
+        'مع وجود البوت في خادمك، تعرض صفحة Discord كل ويب هوك فيه ليس تابعًا لـ Anvil. ويعرض **Coming from other plugins?** الخيار **Use the same channels**، فينشر **Set it up for me** حيث كانت تدفقاتك القديمة تنشر، ولا يتغير شيء لأعضائك.',
+        'حين ينتقل أعضاؤك إلى Anvil، اذهب إلى **Remove old webhooks from other plugins**، وعلّم على ما تريد إزالته واضغط **Remove … webhooks**، ثم **Yes, remove them**. هذا يحذفها من ديسكورد نهائيًا — ولا يمكن التراجع عنه.',
+        'تضم القائمة كل ويب هوك ليس تابعًا لـ Anvil، لا ويب هوك الأدوات الأخرى وحدها. هل هناك واحد تريد إبقاءه، كتدفق بوت آخر؟ اضغط **Keep** فيخرج من القائمة؛ ويعيده **Show kept** و**Put back**. الإبقاء يخفيه هنا فقط — لا يتغير شيء في Discord.',
       ],
       note: {
         tag: 'يحتاج صلاحية Manage Webhooks',
@@ -838,7 +834,7 @@ const ar: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'من المفترض أيضًا أن تمتلئ **لوحة Anvil الجانبية** بعشائرك وفعالياتك الجارية وترتيبك وأزرار المزامنة — وأن يظهر زر **Anvil** في شريط عنوان الـ Collection Log داخل اللعبة، بجوار WikiSync وRuneProfile.',
+        'من المفترض أيضًا أن تمتلئ **لوحة Anvil الجانبية** بعشائرك وفعالياتك الجارية وترتيبك وأزرار المزامنة — وأن يظهر زر **Anvil** في شريط عنوان الـ Collection Log داخل اللعبة.',
       guestNote: {
         tag: 'ضيف أم عضو',
         body: 'إن قالت الدردشة _Tracked as a guest_، فأنت متتبَّع لكنك لست في سجل أعضاء العشيرة بعد. يصلح ذلك مسؤولٌ بمزامنة سجل الأعضاء من داخل اللعبة — اسأل {discordLink}.',
@@ -858,7 +854,7 @@ const ar: PartialGuideDict = {
         'انقر بزر الفأرة الأيمن على لاعب — بجانبك، أو على اسمه في الدردشة أو قائمة الأصدقاء أو لوحة العشيرة — واختر **Anvil** لفتح بطاقته في تبويب **Lookup** في اللوحة الجانبية. وبطاقتك أنت هي تبويب **You**.',
       lookupFigure: {
         caption: 'نقرة يمنى على اسم ← Anvil',
-        alt: 'قائمة النقر الأيمن على لاعب داخل اللعبة وفيها خيار Anvil أسفل Lookup وRuneProfile',
+        alt: 'قائمة النقر الأيمن على لاعب داخل اللعبة وفيها خيار Anvil أسفل Lookup',
       },
       lookupSettingNote:
         'اختر أين يظهر خيار **Anvil** من قسم **Player lookup** في إعدادات الإضافة. وعلى اسم في الدردشة لا يكون أبدًا خيار النقرة اليسرى، فيبقى النقر على الاسم يفعل ما تفعله اللعبة عادةً.',
@@ -2473,8 +2469,8 @@ const ar: PartialGuideDict = {
         tip: 'كل Boss of the Week نشط وترتيبه المباشر.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'لوحة كفاءة العشيرة وترتيبك فيها. EHP (ساعات اللعب الفعّالة) افتراضياً؛ واختر EHB لقتال الزعماء.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'لوحة كفاءة العشيرة وترتيبك فيها. ساعات اللعب افتراضياً؛ واختر ساعات الزعماء لقتال الزعماء.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2490,7 +2486,7 @@ const ar: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'حساب واحد بلمحة: مستوى القتال والمستوى الكلي، وEHP وEHB، وعدد خانات الـ collection log، والأرقام الشخصية.',
+        tip: 'حساب واحد بلمحة: مستوى القتال والمستوى الكلي، وساعات اللعب وساعات الزعماء، وعدد خانات الـ collection log، والأرقام الشخصية.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2498,7 +2494,7 @@ const ar: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP وEHB، ومن أي المهارات والزعماء يأتيان.',
+        tip: 'ساعات اللعب وساعات الزعماء، ومن أي المهارات والزعماء يأتيان.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4375,7 +4371,7 @@ const ar: PartialGuideDict = {
       intro: 'خمسة اختيارات، والإعدادات الافتراضية مناسبة لمعظم العشائر:',
       steps: [
         'افتح **Schedule** في قائمة الإدارة واضغط **+ Schedule event** (يستطيع المشرفون استخدام **Schedule a competition**).',
-        'اختر النوع: **Skill of the Week** (XP المكتسب)، أو **Boss of the Week** (القتلى المكتسبة)، أو **Efficiency race** (EHP أو EHB المكتسبة).',
+        'اختر النوع: **Skill of the Week** (XP المكتسب)، أو **Boss of the Week** (القتلى المكتسبة)، أو **Efficiency race** (ساعات اللعب أو ساعات الزعماء المكتسبة).',
         'تحت **What is measured**، اختر المهارة أو الزعيم. لتغييرها كل أسبوع، أضف المزيد تحت **Then rotate through**. اتركها فارغة لتكرار الواحدة نفسها.',
         'اختر متى **Runs**: **This weekend** أو **One week** أو تواريخك الخاصة. تحتاج دائمًا إلى نهاية، لأنها تحسب المكاسب بين البداية والنهاية.',
         'اترك **Repeat every week** مفعّلًا، وتبدأ التالية لحظة انتهاء هذه، بالمدة نفسها والجوائز نفسها. ضع علامة على **Guests race too** إذا كان ضيوف عشيرتك يجب أن يكونوا على اللوحة.',

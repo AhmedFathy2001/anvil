@@ -70,8 +70,8 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
   const stats = [
     profile.totalLevel > 0 ? { value: profile.totalLevel.toLocaleString('en-US'), label: 'Total', icon: totalIcon } : null,
     profile.combatLevel ? { value: String(profile.combatLevel), label: 'Combat', icon: combatIcon } : null,
-    eff && eff.ehp > 0 ? { value: compact(Math.round(eff.ehp)), label: 'EHP', icon: null } : null,
-    eff && eff.ehb > 0 ? { value: compact(Math.round(eff.ehb)), label: 'EHB', icon: null } : null,
+    eff && eff.ehp > 0 ? { value: compact(Math.round(eff.ehp)), label: 'Hours played', icon: null } : null,
+    eff && eff.ehb > 0 ? { value: compact(Math.round(eff.ehb)), label: 'Hours bossed', icon: null } : null,
   ].filter((s): s is NonNullable<typeof s> => s !== null);
 
   return memberCard({

@@ -194,8 +194,8 @@ export default function MembersDirectory({
           {sortable('rank', 'Rank', 'text-left hidden sm:block')}
           <span className="hidden sm:block">Last 7 days</span>
           {sortable('week', '7d')}
-          {sortable('ehp', 'EHP', 'text-right hidden sm:block')}
-          {sortable('ehb', 'EHB', 'text-right hidden sm:block')}
+          {sortable('ehp', 'Hours played', 'text-right hidden sm:block')}
+          {sortable('ehb', 'Hours bossed', 'text-right hidden sm:block')}
           {sortable('xp', 'XP', 'text-right')}
         </div>
 

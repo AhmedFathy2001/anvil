@@ -7,7 +7,7 @@ import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 // The plugin's player card: one character, told as a story rather than a hiscores table.
 //
-// The side panel is ~230px wide. WOM's lookup fills it with three tables of mostly `0 / --`; this is
+// The side panel is ~230px wide. a full stats table fills it with mostly `0 / --`; this is
 // the opposite bet — only what's notable about the account, newest and biggest first, and nothing
 // that's zero. The full tables stay on /p/<rsn>, one click away.
 //
@@ -175,9 +175,9 @@ export function milestoneLabel(m: { kind: string; metric: string | null; thresho
     case 'totalxp':
       return `${totalXpLabel(m.threshold)} total XP`;
     case 'ehp':
-      return `${m.threshold.toLocaleString('en-US')} EHP`;
+      return `${m.threshold.toLocaleString('en-US')} hours played`;
     case 'ehb':
-      return `${m.threshold.toLocaleString('en-US')} EHB`;
+      return `${m.threshold.toLocaleString('en-US')} hours bossed`;
     default:
       return null;
   }

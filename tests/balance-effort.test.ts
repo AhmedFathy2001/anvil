@@ -554,3 +554,21 @@ test('locked and Troll-category tiles keep their points and stay out of the redi
   assert.equal(parseTileEffortConfig({ lockPoints: true })?.lockPoints, true);
   assert.equal(parseTileEffortConfig({ lockPoints: 'yes' }), null);
 });
+
+test('skill tiles price XP at our wiki band rate for the likely level', async () => {
+  const { xpPerHourAt } = await import('../src/lib/efficiency.ts');
+  const tile: Tile = { id: 9, eventId: 1, position: 0, label: '1m Woodcutting XP', tileType: 'standard', trackedStat: 'woodcutting', statType: 'skill', statGoal: 1_000_000, points: 10 } as Tile;
+  const t = analyzeEffort([tile], { pointsMode: true }).perTile[0];
+  closeTo(t.hours![1], 1_000_000 / xpPerHourAt('woodcutting', 75)!);
+  closeTo(t.hours![0], 1_000_000 / xpPerHourAt('woodcutting', 90)!);
+  assert.ok(t.hours![2] >= t.hours![1] && t.hours![1] >= t.hours![0]);
+});
+
+test('collection-log slot tiles are priced from drop rates', () => {
+  const slots: Tile = { id: 10, eventId: 1, position: 0, label: '2 Vorkath slots', tileType: 'collection', countMode: 'slots', targetNpcs: JSON.stringify(['Vorkath']), requiredAmount: 2, points: 50 } as Tile;
+  const one: Tile = { ...slots, id: 11, requiredAmount: 1 } as Tile;
+  const [two, single] = analyzeEffort([slots, one], { pointsMode: true }).perTile;
+  assert.ok(single.hours && Number.isFinite(single.hours[1]) && single.hours[1] > 0, single.note ?? 'unpriced');
+  assert.ok(two.hours![1] > single.hours![1], 'two slots cost more than one');
+  assert.match(single.note ?? '', /fresh log/);
+});

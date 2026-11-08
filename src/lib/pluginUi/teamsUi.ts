@@ -1,6 +1,7 @@
 import type { RosterOverview, RosterPersonOut, RosterSearchPage, RosterTeamOut, RosterTeamPage } from '@/lib/eventRoster';
 
 import { type Action, type Color, type Node, button, card, col, gap, header, icon, muted, nameText, row, text } from './nodes';
+import { GOLD, SOFT, big, clip, section } from './sections';
 
 // An event's Teams page in the plugin's side panel (was TeamsView.java): the teams ranked, a team's
 // members, or players found by name — a page at a time (lib/eventRoster does the ranking and paging).
@@ -51,10 +52,16 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
       parts.push(muted(data.unplaced > 0 ? 'Teams haven’t been set yet.' : 'No teams yet.'));
       if (data.unplaced > 0) parts.push(muted(`${plural(data.unplaced, 'player')} signed up.`));
     } else {
-      const yours = data.yourTeam;
-      if (yours && !data.teams.some((t) => t.teamId === yours.teamId)) parts.push(header('Your team'), gap(3), teamRow(yours, s), gap(8));
+      // Your team first, as the page's top card; its row below is outlined gold.
+      const yours = data.yourTeam ?? data.teams.find((t) => t.yours);
+      if (yours) {
+        parts.push(section([
+          row(undefined, big(clip(yours.name, 18)), yours.rank != null ? text(`#${yours.rank} of ${data.total}`, SOFT) : undefined),
+          muted([yours.score, plural(yours.members, 'member')].filter(Boolean).join(' · ')),
+        ], { on: load({ event: s.event, team: yours.teamId, back: s.page }), tip: 'Your team’s members' }), gap(8));
+      }
       parts.push(header(plural(data.total, 'team'), data.unplaced > 0 ? `${data.unplaced} not placed` : null), gap(3));
-      data.teams.forEach((t) => parts.push(teamRow(t, s), gap(2)));
+      data.teams.forEach((t) => parts.push(teamRow(t, s), gap(4)));
     }
   } else if (data.mode === 'players') {
     if (!data.players.length) parts.push(muted('Nobody has signed up yet.'));
@@ -110,9 +117,10 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
 }
 
 function teamRow(t: RosterTeamOut, s: TeamsState): Node {
-  return row(swatch(t.color, 8), col([text(t.name, t.yours ? 'brand' : 'white'), muted(teamLine(t))]), muted('›'), {
-    pad: 5,
-    inset: 6,
+  return row(swatch(t.color, 8), col([text(t.yours ? `${clip(t.name, 16)} · your team` : t.name, t.yours ? GOLD : 'white'), muted(teamLine(t))]), muted('›'), {
+    pad: 8,
+    bg: 'raised',
+    ...(t.yours ? { edge: GOLD } : {}),
     tip: `${t.name} — see who's on it`,
     on: load({ event: s.event, team: t.teamId, back: s.team ? s.back : s.page }),
   });

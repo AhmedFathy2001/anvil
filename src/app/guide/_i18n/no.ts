@@ -76,7 +76,7 @@ const no: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Bytt til Anvil',
-        title: 'Bytt fra Dink eller Wise Old Man',
+        title: 'Bytt fra andre plugins og trackere',
         blurb:
           'Anvil poster dropene dine på Discord og kjører ukentlige konkurranser. Fem steg for staben, to for spillerne.',
         minutes: '~3 min',
@@ -265,21 +265,21 @@ const no: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Bytt fra Dink eller Wise Old Man — Anvil',
+    metaTitle: 'Bytt fra andre plugins og trackere — Anvil',
     metaDescription:
-      'Flytt klanen din fra Dink og Wise Old Man til Anvil: sett opp Discord-kanalene, synkroniser klanlisten, start Skill eller Boss of the Week og si fra til medlemmene.',
+      'Flytt klanen din til Anvil: sett opp Discord-kanalene, synkroniser klanlisten, start Skill eller Boss of the Week og si fra til medlemmene.',
     eyebrow: 'Bytt til Anvil',
-    title: 'Bytt fra Dink eller Wise Old Man',
-    dek: 'Anvil gjør begge jobbene. Den poster klanens drops og bragder på Discord. Den holder også klanlisten oppdatert og kjører ukentlige konkurranser.',
+    title: 'Bytt fra andre plugins og trackere',
+    dek: 'Anvil poster klanens drops og bragder på Discord. Den holder også klanlisten oppdatert og kjører ukentlige konkurranser.',
 
     staff: {
       title: 'Hvis du driver klanen',
       body: [
-        '**La boten sette opp kanalene dine.** Gå til Admin → Discord → **Set it up for me**. Velg én kanal eller flere. Hvis Dink postet et sted, huk av for _Use the same channels_. Ingenting endrer seg for medlemmene dine.',
-        '**Synkroniser klanlisten.** Åpne innstillingene til Anvil-pluginen i RuneLite. Slå på **Keep the clan roster in sync**. Én admin gjør dette én gang, i spillet. Det erstatter Wise Old Man-gruppen din.',
-        '**Start en Skill eller Boss of the Week.** Gå til Admin → All events → **+ New event**, og velg Skill of the Week eller Boss of the Week. Alle på klanlisten er med automatisk. Det erstatter Wise Old Man-konkurranser.',
+        '**La boten sette opp kanalene dine.** Gå til Admin → Discord → **Set it up for me**. Velg én kanal eller flere. Hvis en annen plugin postet et sted, huk av for _Use the same channels_. Ingenting endrer seg for medlemmene dine.',
+        '**Synkroniser klanlisten.** Åpne innstillingene til Anvil-pluginen i RuneLite. Slå på **Keep the clan roster in sync**. Én admin gjør dette én gang, i spillet. Dette erstatter en klanliste du har holdt andre steder.',
+        '**Start en Skill eller Boss of the Week.** Gå til Admin → All events → **+ New event**, og velg Skill of the Week eller Boss of the Week. Alle på klanlisten er med automatisk. Dette erstatter konkurranser du har kjørt andre steder.',
         '**Si fra til medlemmene.** Gå til Admin → Discord → **Tell your members** → **Post it**. Boten poster spillertrinnene for deg.',
-        '**En uke senere: rydd opp.** Gå til Admin → Discord → **Remove Dink’s old webhooks**, huk av for dem som skal bort, trykk på **Remove … webhooks** og deretter **Yes, remove them**. Etter det kan ingenting postes to ganger. Trykk **Keep** på dem du vil la være i fred.',
+        '**En uke senere: rydd opp.** Gå til Admin → Discord → **Remove old webhooks from other plugins**, huk av for dem som skal bort, trykk på **Remove … webhooks** og deretter **Yes, remove them**. Etter det kan ingenting postes to ganger. Trykk **Keep** på dem du vil la være i fred.',
       ],
     },
 
@@ -287,8 +287,8 @@ const no: PartialGuideDict = {
       title: 'Hvis du er spiller',
       body: [
         '**Installer Anvil.** Åpne Plugin Hub i RuneLite, søk etter Anvil og trykk på **Install**. Logg deretter inn med Discord fra Anvil-sidepanelet.',
-        '**Slå av Dinks varsler.** Eller avinstaller Dink, hvis du ikke bruker det til noe annet.',
-        '**Det var alt.** Du trenger ikke gjøre noe for Wise Old Man.',
+        '**Slå av varslene fra den gamle pluginen** slik at ingenting postes to ganger. Eller avinstaller den, hvis du ikke bruker den til noe annet.',
+        '**Det var alt.** Det er ikke noe mer å sette opp.',
       ],
     },
 
@@ -297,12 +297,8 @@ const no: PartialGuideDict = {
       intro: 'De klanene spør mest om:',
       rows: [
         {
-          term: 'Kan vi beholde Dink til noen ting?',
-          body: 'Ja. Anvil poster ikke kill counts, slayer-oppdrag eller speedruns. La bare de stå på i Dink.',
-        },
-        {
-          term: 'Trenger vi fortsatt Wise Old Man?',
-          body: 'Bare til rekorder gjennom tidene og EHP / EHB-rangeringer.',
+          term: 'Sporer Anvil kill counts, slayer-oppdrag og personlige rekorder?',
+          body: 'Ja. Anvil sporer kill counts, slayer-oppdrag og personlige rekorder selv, så det er ingenting annet du må holde kjørende.',
         },
         {
           term: 'Må spillerne lime inn en webhook noe sted?',
@@ -644,11 +640,11 @@ const no: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Gamle webhooks fra Dink eller andre boter',
+      title: 'Gamle webhooks fra andre plugins eller boter',
       body: [
-        'Med boten på serveren viser Discord-siden alle webhooks der som ikke er Anvils. **Coming from Dink?** tilbyr **Use the same channels**, så **Set it up for me** poster der de gamle feedene dine gjorde, og ingenting flytter seg for medlemmene.',
-        'Når medlemmene er over på Anvil, går du til **Remove Dink’s old webhooks**, huker av for dem som skal bort og trykker **Remove … webhooks**, deretter **Yes, remove them**. Det sletter dem i Discord for godt — det kan ikke angres.',
-        'Lista inneholder alle webhooks som ikke er Anvils, ikke bare Dinks. Vil du beholde en, som feeden til en annen bot? Trykk **Keep**, så forsvinner den fra lista; **Show kept** og **Put back** henter den tilbake. Å beholde skjuler den bare her — ingenting endres i Discord.',
+        'Med boten på serveren viser Discord-siden alle webhooks der som ikke er Anvils. **Coming from other plugins?** tilbyr **Use the same channels**, så **Set it up for me** poster der de gamle feedene dine gjorde, og ingenting flytter seg for medlemmene.',
+        'Når medlemmene er over på Anvil, går du til **Remove old webhooks from other plugins**, huker av for dem som skal bort og trykker **Remove … webhooks**, deretter **Yes, remove them**. Det sletter dem i Discord for godt — det kan ikke angres.',
+        'Lista inneholder alle webhooks som ikke er Anvils, ikke bare de fra andre plugins. Vil du beholde en, som feeden til en annen bot? Trykk **Keep**, så forsvinner den fra lista; **Show kept** og **Put back** henter den tilbake. Å beholde skjuler den bare her — ingenting endres i Discord.',
       ],
       note: {
         tag: 'Krever Administrer webhooks',
@@ -839,7 +835,7 @@ const no: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Du bør også se **Anvil-sidepanelet** fylles med klanene dine, pågående eventer, plasseringen din og synkroniseringsknappene — og en **Anvil**-knapp dukke opp i tittellinjen på Collection Log i spillet, ved siden av WikiSync og RuneProfile.',
+        'Du bør også se **Anvil-sidepanelet** fylles med klanene dine, pågående eventer, plasseringen din og synkroniseringsknappene — og en **Anvil**-knapp dukke opp i tittellinjen på Collection Log i spillet.',
       guestNote: {
         tag: 'Gjest eller medlem',
         body: 'Sier chatten _Tracked as a guest_, blir du sporet, men du står ikke på klanens medlemsliste ennå. Det fikser en admin ved å synkronisere medlemslista fra spillet — spør {discordLink}.',
@@ -859,7 +855,7 @@ const no: PartialGuideDict = {
         'Høyreklikk en spiller — rett ved siden av deg, eller på navnet i chatten, vennelisten eller klanpanelet — og velg **Anvil** for å åpne kortet deres i sidepanelets **Lookup**-fane. Ditt eget er **You**-fanen.',
       lookupFigure: {
         caption: 'Høyreklikk et navn → Anvil',
-        alt: 'En spillers høyreklikkmeny i spillet med et Anvil-valg under Lookup og RuneProfile',
+        alt: 'En spillers høyreklikkmeny i spillet med et Anvil-valg under Lookup',
       },
       lookupSettingNote:
         'Velg hvor **Anvil**-valget vises under **Player lookup** i pluginets innstillinger. På et navn i chatten er det aldri venstreklikk-valget, så et klikk på et navn gjør fortsatt det spillet vanligvis gjør.',
@@ -2474,8 +2470,8 @@ const no: PartialGuideDict = {
         tip: 'Hver aktive Boss of the Week og den aktuelle stillingen.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'Klanens effektivitetsliste og plasseringen din på den. EHP (efficient hours played) som standard; velg EHB for bossing.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'Klanens effektivitetsliste og plasseringen din på den. spilte timer som standard; velg bosstimer for bossing.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2491,7 +2487,7 @@ const no: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Én konto i et blikk: combat- og totalnivå, EHP og EHB, antall i collection log og personlige rekorder.',
+        tip: 'Én konto i et blikk: combat- og totalnivå, spilte timer og bosstimer, antall i collection log og personlige rekorder.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2499,7 +2495,7 @@ const no: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP og EHB, og hvilke skills og bosser de kommer fra.',
+        tip: 'Spilte timer og bosstimer, og hvilke skills og bosser de kommer fra.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4378,7 +4374,7 @@ const no: PartialGuideDict = {
       intro: 'Fem valg, og standardverdiene er fine for de fleste klaner:',
       steps: [
         'Åpne **Schedule** i adminmenyen og trykk **+ Schedule event** (moderatorer kan bruke **Schedule a competition**).',
-        'Velg typen: **Skill of the Week** (XP vunnet), **Boss of the Week** (drap vunnet) eller **Efficiency race** (EHP eller EHB vunnet).',
+        'Velg typen: **Skill of the Week** (XP vunnet), **Boss of the Week** (drap vunnet) eller **Efficiency race** (spilte timer eller bosstimer vunnet).',
         'Under **What is measured** velger du ferdigheten eller bossen. For å endre den hver uke, legg til flere under **Then rotate through**. La den stå tom for å gjenta den samme.',
         'Velg når den **Runs**: **This weekend**, **One week**, eller egne datoer. Den trenger alltid en slutt, fordi den teller gevinsten mellom start og slutt.',
         'La **Repeat every week** være på, så starter den neste i det øyeblikket denne slutter, med samme lengde og premier. Kryss av **Guests race too** hvis klanens gjester skal være på ledertavlen.',

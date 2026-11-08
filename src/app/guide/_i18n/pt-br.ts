@@ -76,7 +76,7 @@ const ptBr: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Migrando para o Anvil',
-        title: 'Migrando do Dink ou do Wise Old Man',
+        title: 'Migrando de outros plugins e rastreadores',
         blurb:
           'O Anvil publica seus drops no Discord e toca as competições semanais. Cinco passos para a equipe, dois para os jogadores.',
         minutes: '~3 min',
@@ -265,21 +265,21 @@ const ptBr: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Migrando do Dink ou do Wise Old Man — Anvil',
+    metaTitle: 'Migrando de outros plugins e rastreadores — Anvil',
     metaDescription:
-      'Leve seu clã do Dink e do Wise Old Man para o Anvil: configure os canais do Discord, sincronize a lista do clã, comece uma Skill ou Boss of the Week e avise seus membros.',
+      'Leve seu clã para o Anvil: configure os canais do Discord, sincronize a lista do clã, comece uma Skill ou Boss of the Week e avise seus membros.',
     eyebrow: 'Migrando para o Anvil',
-    title: 'Migrando do Dink ou do Wise Old Man',
-    dek: 'O Anvil faz os dois trabalhos. Ele publica os drops e as conquistas do clã no Discord. Também mantém a lista do clã e toca as competições semanais.',
+    title: 'Migrando de outros plugins e rastreadores',
+    dek: 'O Anvil publica os drops e as conquistas do clã no Discord. Também mantém a lista do clã e toca as competições semanais.',
 
     staff: {
       title: 'Se você administra o clã',
       body: [
-        '**Deixe o bot configurar seus canais.** Vá em Admin → Discord → **Set it up for me**. Escolha um canal ou vários. Se o Dink publicava em algum lugar, marque _Use the same channels_. Nada muda para seus membros.',
-        '**Sincronize a lista do clã.** No RuneLite, abra as configurações do plugin do Anvil. Ative **Keep the clan roster in sync**. Um admin faz isso uma vez, dentro do jogo. Isso substitui seu grupo do Wise Old Man.',
-        '**Comece uma Skill ou Boss of the Week.** Vá em Admin → All events → **+ New event** e escolha Skill of the Week ou Boss of the Week. Todo mundo da lista do clã entra automaticamente. Isso substitui as competições do Wise Old Man.',
+        '**Deixe o bot configurar seus canais.** Vá em Admin → Discord → **Set it up for me**. Escolha um canal ou vários. Se outro plugin publicava em algum lugar, marque _Use the same channels_. Nada muda para seus membros.',
+        '**Sincronize a lista do clã.** No RuneLite, abra as configurações do plugin do Anvil. Ative **Keep the clan roster in sync**. Um admin faz isso uma vez, dentro do jogo. Isso substitui qualquer lista do clã que você mantinha em outro lugar.',
+        '**Comece uma Skill ou Boss of the Week.** Vá em Admin → All events → **+ New event** e escolha Skill of the Week ou Boss of the Week. Todo mundo da lista do clã entra automaticamente. Isso substitui as competições que você rodava em outro lugar.',
         '**Avise seus membros.** Vá em Admin → Discord → **Tell your members** → **Post it**. O bot publica os passos dos jogadores por você.',
-        '**Uma semana depois, faça a limpeza.** Vá em Admin → Discord → **Remove Dink’s old webhooks**, marque os que devem sair, aperte **Remove … webhooks** e depois **Yes, remove them**. Depois disso, nada pode ser publicado em dobro. Aperte **Keep** em qualquer um que você queira deixar como está.',
+        '**Uma semana depois, faça a limpeza.** Vá em Admin → Discord → **Remove old webhooks from other plugins**, marque os que devem sair, aperte **Remove … webhooks** e depois **Yes, remove them**. Depois disso, nada pode ser publicado em dobro. Aperte **Keep** em qualquer um que você queira deixar como está.',
       ],
     },
 
@@ -287,8 +287,8 @@ const ptBr: PartialGuideDict = {
       title: 'Se você é jogador',
       body: [
         '**Instale o Anvil.** No RuneLite, abra o Plugin Hub, procure por Anvil e clique em **Install**. Depois entre com o Discord pelo painel lateral do Anvil.',
-        '**Desligue as notificações do Dink.** Ou desinstale o Dink, se você não o usa para mais nada.',
-        '**Pronto.** Não há nada a fazer para o Wise Old Man.',
+        '**Desligue as notificações do seu plugin antigo** para que nada seja publicado duas vezes. Ou desinstale-o, se você não o usa para mais nada.',
+        '**Pronto.** Não há mais nada para configurar.',
       ],
     },
 
@@ -297,12 +297,8 @@ const ptBr: PartialGuideDict = {
       intro: 'As que os clãs mais fazem:',
       rows: [
         {
-          term: 'Podemos manter o Dink para algumas coisas?',
-          body: 'Sim. O Anvil não publica kill counts, tarefas de slayer nem speedruns. Deixe só esses ligados no Dink.',
-        },
-        {
-          term: 'Ainda precisamos do Wise Old Man?',
-          body: 'Só para recordes de todos os tempos e rankings de EHP / EHB.',
+          term: 'O Anvil acompanha kill counts, tarefas de slayer e recordes pessoais?',
+          body: 'Sim. O Anvil acompanha kill counts, tarefas de slayer e recordes pessoais por conta própria, então não há mais nada para manter rodando.',
         },
         {
           term: 'Os jogadores colam um webhook em algum lugar?',
@@ -645,11 +641,11 @@ const ptBr: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Webhooks antigos do Dink ou de outros bots',
+      title: 'Webhooks antigos de outros plugins ou bots',
       body: [
-        'Com o bot no seu servidor, a página do Discord lista todos os webhooks do servidor que não são do Anvil. **Coming from Dink?** oferece **Use the same channels**, para que **Set it up for me** poste onde seus feeds antigos postavam e nada mude para seus membros.',
-        'Quando seus membros já estiverem no Anvil, vá em **Remove Dink’s old webhooks**, marque os que devem sair e aperte **Remove … webhooks**, depois **Yes, remove them**. Isso os apaga no Discord de vez — não dá para desfazer.',
-        'A lista mostra qualquer webhook que não seja do Anvil, não só os do Dink. Tem um que você quer manter, como o feed de outro bot? Aperte **Keep** e ele sai da lista; **Show kept** e **Put back** o trazem de volta. Manter só o esconde aqui — nada muda no Discord.',
+        'Com o bot no seu servidor, a página do Discord lista todos os webhooks do servidor que não são do Anvil. **Coming from other plugins?** oferece **Use the same channels**, para que **Set it up for me** poste onde seus feeds antigos postavam e nada mude para seus membros.',
+        'Quando seus membros já estiverem no Anvil, vá em **Remove old webhooks from other plugins**, marque os que devem sair e aperte **Remove … webhooks**, depois **Yes, remove them**. Isso os apaga no Discord de vez — não dá para desfazer.',
+        'A lista mostra qualquer webhook que não seja do Anvil, não só os de outro plugin. Tem um que você quer manter, como o feed de outro bot? Aperte **Keep** e ele sai da lista; **Show kept** e **Put back** o trazem de volta. Manter só o esconde aqui — nada muda no Discord.',
       ],
       note: {
         tag: 'Precisa da permissão Gerenciar webhooks',
@@ -838,7 +834,7 @@ const ptBr: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Você também deve ver o **painel lateral do Anvil** se preencher com seus clãs, seus eventos em andamento, sua colocação e os botões de sincronização — e um botão **Anvil** aparecer na barra de título do seu Collection Log no jogo, ao lado do WikiSync e do RuneProfile.',
+        'Você também deve ver o **painel lateral do Anvil** se preencher com seus clãs, seus eventos em andamento, sua colocação e os botões de sincronização — e um botão **Anvil** aparecer na barra de título do seu Collection Log no jogo.',
       guestNote: {
         tag: 'Convidado x membro',
         body: 'Se o chat disser _Tracked as a guest_, você está sendo rastreado mas ainda não está no quadro de membros do clã. Um admin resolve isso sincronizando a lista do clã no jogo —— peça {discordLink}.',
@@ -858,7 +854,7 @@ const ptBr: PartialGuideDict = {
         'Clique com o botão direito em um jogador —— do seu lado, ou pelo nome no chat, na lista de amigos ou no painel do clã —— e escolha **Anvil** para abrir o card dele na aba **Lookup** do painel lateral. O seu é a aba **You**.',
       lookupFigure: {
         caption: 'Botão direito em um nome → Anvil',
-        alt: 'O menu de botão direito de um jogador no jogo com uma opção Anvil abaixo de Lookup e RuneProfile',
+        alt: 'O menu de botão direito de um jogador no jogo com uma opção Anvil abaixo de Lookup',
       },
       lookupSettingNote:
         'Escolha onde a opção **Anvil** aparece em **Player lookup** nas configurações do plugin. Num nome no chat ela nunca é a opção do clique esquerdo, então clicar num nome continua fazendo o que o jogo faz.',
@@ -2456,8 +2452,8 @@ const ptBr: PartialGuideDict = {
         tip: 'Todo Boss of the Week ativo e a classificação ao vivo dele.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'O ranking de eficiência do clã e a sua posição nele. EHP (horas eficientes jogadas) por padrão; escolha EHB para chefes.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'O ranking de eficiência do clã e a sua posição nele. horas jogadas por padrão; escolha horas de chefes para chefes.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2473,7 +2469,7 @@ const ptBr: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Uma conta num relance: nível de combate e total, EHP e EHB, contagem do collection log e recordes pessoais.',
+        tip: 'Uma conta num relance: nível de combate e total, horas jogadas e horas de chefes, contagem do collection log e recordes pessoais.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2481,7 +2477,7 @@ const ptBr: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP e EHB, e de quais skills e chefes eles vêm.',
+        tip: 'Horas jogadas e horas de chefes, e de quais skills e chefes eles vêm.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4358,7 +4354,7 @@ const ptBr: PartialGuideDict = {
       intro: 'Cinco escolhas, e os padrões servem para a maioria dos clãs:',
       steps: [
         'Abra **Schedule** no menu admin e aperte **+ Schedule event** (moderadores podem usar **Schedule a competition**).',
-        'Escolha o tipo: **Skill of the Week** (XP ganho), **Boss of the Week** (kills ganhos) ou **Efficiency race** (EHP ou EHB ganhos).',
+        'Escolha o tipo: **Skill of the Week** (XP ganho), **Boss of the Week** (kills ganhos) ou **Efficiency race** (horas jogadas ou horas de chefes ganhos).',
         'Em **What is measured**, escolha a skill ou o boss. Para mudar toda semana, adicione mais em **Then rotate through**. Deixe vazio para repetir o mesmo.',
         'Escolha quando ela **Runs**: **This weekend**, **One week** ou suas próprias datas. Sempre precisa de um fim, porque pontua os ganhos entre início e fim.',
         'Deixe **Repeat every week** ligado e a próxima começa no instante em que esta termina, com a mesma duração e prêmios. Marque **Guests race too** se os convidados do seu clã devem estar no ranking.',

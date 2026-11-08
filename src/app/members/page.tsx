@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import RecordsBoard from '@/components/records/RecordsBoard';
+import { getClanRecordHolders } from '@/lib/records';
+import { RECORD_PERIODS } from '@/lib/recordsRules';
 import {
   getClanActivityAnalytics,
   getClanAnalytics,
@@ -83,6 +86,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     // only where the clan shows strangers its members' names (the Clan Hall's switch), like the wall.
     boosterMarksFor(clan.id),
   ]);
+  const recordHolders = (await Promise.all(RECORD_PERIODS.map((p) => getClanRecordHolders(clan.id, p))))
+    .flat()
+    .map((h) => ({ ...h, href: `/members/${encodeURIComponent(h.rsn)}` }));
   // GZ / Sad / Sit under each: counts for anyone, who gave them (and a press) for a clanmate.
   const session = await verifyUser();
   const reactions = await siteReactions(moments, { clanId: clan.id }, session?.userId ?? null);
@@ -108,6 +114,12 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
         luck={luck}
         supporterLooks={supporterLooks}
         boosters={boosters}
+        records={
+          <div className="border border-card-border rounded-xl bg-card-bg p-4">
+            <p className="text-sm text-text-muted mb-3">Who holds the clan's biggest day, week, month and year for each skill and boss. Counted from when Anvil started tracking records.</p>
+            <RecordsBoard rows={recordHolders} emptyText="No records yet. They fill in as members gain XP and kills." />
+          </div>
+        }
         lately={
           <MomentsFeed
             moments={moments}

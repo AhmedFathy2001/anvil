@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { normalizeRsn, resolvePluginClan } from '@/lib/auth';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { rankMove, weeklyBaselineRanks, weeklyBoard } from '@/lib/rankMoves';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import { buildGroupStandings, competitionForClan, partnerCompetitions } from '@/lib/competitionTeamsDb';
@@ -65,23 +65,8 @@ export async function GET(request: Request) {
   }
 
   // Excludes anyone whose clan_member has left the CC (unless an admin set keepIfLeft) so the
-  // headcount + standings reflect current members. See getEffectiveParticipants.
-  const participants = await getEffectiveParticipants(comp.id);
-
-  // Dedupe by RSN (case-insensitive): a rename/re-enroll can leave two participant rows for the
-  // same player, which otherwise shows them twice. Keep the row with the most progress.
-  // Normalize whitespace too - OSRS display names can carry non-breaking spaces, so
-  // "Drenvox mdps" can arrive with mismatched spacing and dodge a plain lowercase compare.
-  const byRsn = new Map<string, (typeof participants)[number]>();
-  for (const p of participants) {
-    const key = weeklyRsnKey(p.rsn);
-    const existing = byRsn.get(key);
-    if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) {
-      byRsn.set(key, p);
-    }
-  }
-
-  const board = computeLeaderboard([...byRsn.values()]);
+  // headcount + standings reflect current members; one row per name (lib/rankMoves weeklyBoard).
+  const [board, since] = await Promise.all([weeklyBoard(comp.id), comp.status === 'active' ? weeklyBaselineRanks(comp.id) : Promise.resolve(null)]);
   const row = (e: (typeof board)[number], i: number) => ({
     rank: i + 1,
     rsn: e.rsn,
@@ -89,6 +74,8 @@ export async function GET(request: Request) {
     // computeLeaderboard treats as 0, yielding a spurious negative gain (0 - baseline). You
     // can't lose KC/XP, so floor it at 0.
     gained: Math.max(0, e.gained),
+    // Places climbed since the UTC day began; null when unchanged or not yet recorded.
+    move: rankMove(since?.get(weeklyRsnKey(e.rsn)), i + 1),
   });
   const entries = board.slice(0, MAX_ENTRIES).map(row);
   const wanted = weeklyRsnKey(searchParams.get('rsn'));

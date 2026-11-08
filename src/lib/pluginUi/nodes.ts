@@ -129,7 +129,8 @@ export type Node =
       skill?: string;
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star';
+      /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'up' | 'down';
       color?: Color;
       w?: number;
       h?: number;
@@ -147,7 +148,13 @@ export type Node =
    */
   | (Common & { t: 'img'; src: string; w: number; h: number; /** Animated image; client may freeze it. */ motion?: boolean; /** Clip to a circle (avatars and clan marks). */ round?: boolean })
   | (Common & { t: 'bar'; pct: number; color?: Color; h?: number; label?: string; bg?: 'card' | 'panel' })
-  | (Common & { t: 'tabs'; key: string; tabs: { label: string; c: Node }[]; open?: string })
+  | (Common & {
+      t: 'tabs';
+      key: string;
+      /** A body per tab — or `on` with no body: a link segment (Feed | Chat), lit when `sel`. */
+      tabs: ({ label: string; c: Node } | { label: string; on: Action; sel?: boolean })[];
+      open?: string;
+    })
   | (Common & { t: 'fold'; head: Node; c: Node; open?: boolean; /** A chevron at the head's right that turns when open. */ chev?: boolean })
   | (Common & {
       t: 'filter';
@@ -212,7 +219,7 @@ export type Node =
    */
   | (Common & {
       t: 'feed';
-      /** What push messages address it by: `moments:clan:<id>`, `chat:<event>`, `chat:<event>:team:<t>`. */
+      /** What push messages address it by: `moments:clan:<id>`, `chat:<event>:all`, `chat:<event>:team:<t>`. */
       id: string;
       /** Newest first. */
       rows: FeedRow[];
@@ -226,8 +233,18 @@ export type Node =
       send?: { act: string; args?: Record<string, string>; hint?: string; max?: number };
       /** Chat: names whose lines are the viewer's own (per person), for live rows. */
       mine?: string[];
-      /** 'paused' / 'closed' grey the box out with this line instead. */
+      /** 'paused' / 'closed' / read-only: a box with this line in place of the message box. */
       locked?: string;
+      /** A second, muted line under `locked`. */
+      lockSub?: string;
+      /** The lock is the viewer's own timeout or ban: drawn coral. */
+      lockWarn?: boolean;
+      /**
+       * Chat: the channel switch over the list (My team | All teams | Announcements). Each segment loads
+       * its channel; `feed` is that channel's list id, so a push row for it while another is open adds
+       * one to its `n` (unread). `blue`: the badge in the info colour rather than gold.
+       */
+      chans?: { label: string; on: boolean; act: Action; feed: string; n?: number; blue?: boolean }[];
     });
 
 /**
@@ -246,6 +263,8 @@ export interface FeedRow {
   skill?: string;
   glyph?: 'check' | 'star' | 'chevron-right';
   glyphColor?: Color;
+  /** A tile of this colour behind the picture: purple rare, green done, coral a death (sections TINT). */
+  tint?: Color;
   /** Bold line. A chat row leaves it out and uses `who` + `text` on one line. */
   title?: string;
   who?: string;
@@ -363,7 +382,7 @@ function eachChild(n: Node, f: (c: Node) => void): void {
     if (Array.isArray(v)) v.forEach((x) => x && typeof x === 'object' && f(x as Node));
     else if (v && typeof v === 'object' && 't' in (v as object)) f(v as Node);
   }
-  if (n.t === 'tabs') n.tabs.forEach((t) => f(t.c));
+  if (n.t === 'tabs') n.tabs.forEach((t) => { if ('c' in t) f(t.c); });
   if (n.t === 'slot' && n.panes) Object.values(n.panes).forEach(f);
 }
 

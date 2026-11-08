@@ -5,6 +5,7 @@ import type { PlayerCard } from '@/lib/playerCardShape';
 
 import { type Action, type Node, backRow, button, card, col, count, fmt, gap, header, icon, muted, percent, row, seg, text } from './nodes';
 import { SKILL_GRID, backHeader, profilePath } from './playerCardUi';
+import { CORAL, FAINT, chip, progressRow, section, small, title } from './sections';
 
 // The rest of the player side of the panel: a log page's items, combat achievements, two players
 // side by side, and goals (was PlayerCardView/PlayerCardCas/CompareView/GoalsView.java). Pure.
@@ -177,8 +178,8 @@ export function compareUi(me: PlayerCard, them: PlayerCard): Node {
       vsRow('Total level', me.totalLevel, them.totalLevel),
       vsRow('Combat', nz(me.combatLevel), nz(them.combatLevel), String),
       vsRow('Total XP', nz(me.overallXp), nz(them.overallXp), count),
-      vsRow('EHP', Math.round(me.ehp ?? 0), Math.round(them.ehp ?? 0), (n) => `${n}h`),
-      vsRow('EHB', Math.round(me.ehb ?? 0), Math.round(them.ehb ?? 0), (n) => `${n}h`),
+      vsRow('Hours played', Math.round(me.ehp ?? 0), Math.round(them.ehp ?? 0), (n) => `${n}h`),
+      vsRow('Hours bossed', Math.round(me.ehb ?? 0), Math.round(them.ehb ?? 0), (n) => `${n}h`),
       vsRow('Log slots', me.clog?.obtained ?? -1, them.clog?.obtained ?? -1),
     ]),
   ];
@@ -262,32 +263,28 @@ export function compareUi(me: PlayerCard, them: PlayerCard): Node {
 
 /** The You tab's goals: "99 Slayer", "500 Vorkath", "Barrows log complete". Lives in slot `goals`. */
 export function goalsUi(goals: GoalView[], error: string | null): Node {
-  const parts: Node[] = [
-    row(text('Goals', 'brand'), undefined, text('+ Add goal', 'brand', {
-      tip: 'A skill level, a boss kill count, or a whole log page',
-      on: { a: 'load', v: 'goal-new', into: 'goals' },
-    }), { gap: 0 }),
-  ];
-  if (error) parts.push(gap(4), text(error, 'error', { wrap: true }));
-  if (!goals.length) {
-    parts.push(gap(6), muted('Nothing set yet — 99 a skill, a KC to hit, a log page to finish.', { wrap: true }));
-  }
+  // Each goal a progress row: the target, how far (coral when behind or overdue), a bar; a goal
+  // reached is a green "Done" chip. Remove is on the row's right-click menu.
+  const parts: Node[] = [title('Goals')];
+  if (error) parts.push(text(error, 'error', { wrap: true }));
+  if (!goals.length) parts.push(muted('Nothing set yet — 99 a skill, a KC to hit, a log page to finish.', { wrap: true }));
   for (const g of goals) {
     const due = g.done ? null : g.due;
-    parts.push(
-      gap(8),
-      row(
-        icon({ glyph: 'close', w: 8, h: 8, color: 'muted', tip: 'Remove this goal', on: { a: 'post', act: 'goal-remove', args: { id: String(g.id) }, into: 'goals' } }),
-        text(g.label, g.done ? 'done' : 'white'),
-        text(g.done ? 'Done' : g.text, g.done ? 'done' : 'muted'),
-      ),
-    );
-    if (due) parts.push(text(due.text, due.tone === 'overdue' ? 'error' : 'muted'));
-    if (g.current != null) {
-      parts.push(gap(3), { t: 'bar', pct: percent(Math.min(g.current, g.of), Math.max(1, g.of)), color: g.done ? 'done' : 'brand', h: 4, bg: 'panel' });
-    }
+    const right = g.done
+      ? chip('Done', 'green')
+      : small(due ? `${g.text} · ${due.text}` : g.text, due && due.tone !== 'ok' ? CORAL : FAINT);
+    const remove = { label: 'Remove this goal', on: { a: 'post' as const, act: 'goal-remove', args: { id: String(g.id) }, into: 'goals' } };
+    const name = text(g.label, g.done ? 'done' : 'white');
+    parts.push({
+      ...(g.current != null && !g.done
+        ? progressRow(name, right, percent(Math.min(g.current, g.of), Math.max(1, g.of)))
+        : row(undefined, name, right, { gap: 6 })),
+      menu: [remove],
+      tip: 'Right-click to remove',
+    } as Node);
   }
-  return { t: 'slot', id: 'goals', c: card(parts) };
+  parts.push(button('+ New goal', { a: 'load', v: 'goal-new', into: 'goals' }, 'A skill level, a boss kill count, or a whole log page'));
+  return { t: 'slot', id: 'goals', c: section(parts) };
 }
 
 const KINDS = [

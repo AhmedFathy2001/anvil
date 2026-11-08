@@ -125,7 +125,7 @@ export interface LockerCareer {
   points: number;
   totalXp: number | null;
   /** Best clan placing across the member's accounts, on whichever metric they rank highest. */
-  rank: { metric: 'EHB' | 'EHP' | 'XP'; place: number; outOf: number } | null;
+  rank: { metric: 'Hours bossed' | 'Hours played' | 'XP'; place: number; outOf: number } | null;
   /** Consecutive weeks with XP gained, counting back from this week. 0 or 1 isn't a streak. */
   weekStreak: number;
 }
@@ -714,11 +714,11 @@ export async function buildLocker(
   // Lead with whichever placing is actually good — a boss-focused member's #2 EHB says more than
   // their #40 total XP, and the rail lists all three anyway.
   const bestRank = [
-    ehbRank && { metric: 'EHB' as const, ...ehbRank },
-    ehpRank && { metric: 'EHP' as const, ...ehpRank },
+    ehbRank && { metric: 'Hours bossed' as const, ...ehbRank },
+    ehpRank && { metric: 'Hours played' as const, ...ehpRank },
     xpRank && { metric: 'XP' as const, ...xpRank },
   ]
-    .filter((r): r is { metric: 'EHB' | 'EHP' | 'XP'; place: number; outOf: number } => !!r)
+    .filter((r): r is { metric: 'Hours bossed' | 'Hours played' | 'XP'; place: number; outOf: number } => !!r)
     .sort((a, b) => a.place - b.place)[0] ?? null;
 
   const myRoster = roster.filter((r) => memberIdSet.has(r.id));

@@ -1,19 +1,16 @@
-import pluginNpcDrops from '@/data/pluginNpcDrops.json'; // the plugin's bundled npc_drops.json (Dink-derived)
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
-import thievingDrops from '@/data/thievingDrops.json'; // the plugin's bundled thieving.json (Dink-derived)
 import type { GuaranteedDrops } from '@/lib/dropFacts';
 import { mainRarityGate, mainValueGate, modeGate, type NotifyPrefs } from '@/lib/notifyPrefs';
 
 /**
- * Which drops post to the clan, decided here instead of in the plugin (it used to carry the drop
- * tables, the floors and the lucky-drop rules). The plugin still screenshots in the moment: it
- * screenshots any loot that MIGHT post — worth the value floor, or on the rare table below — and
- * sends the items; `judgeDrop` makes the call the plugin's maybeNotifyRareDrop used to, the same way.
+ * Which drops post to the clan, decided here instead of in the plugin. The plugin screenshots in the
+ * moment: any loot that MIGHT post (worth the value floor, or on the rare table below) goes up with
+ * its items, and `judgeDrop` makes the call.
  *
- * Rarity is a port of the plugin's AbstractRarityService (adapted from Dink, BSD-2-Clause): a drop
- * row is 1-in-d per roll, a multi-roll row expands into one entry per success count, and an item's
- * rate is the sum of the entries whose quantity range holds what dropped. The plugin's own tables
- * moved here with it (src/data/pluginNpcDrops.json, thievingDrops.json).
+ * Rarity comes from our own OSRS Wiki drops dataset (src/data/npcDrops.json, refreshed daily): a row
+ * is 1-in-d per roll, a multi-roll row expands into one entry per success count (binomial), and an
+ * item's rate is the sum of the entries whose quantity range holds what dropped. The wiki dataset
+ * carries no pickpocket tables, so pickpocket loot has no rarity and posts on value alone.
  */
 
 interface RawDrop {
@@ -32,12 +29,15 @@ interface RareDrop {
   p: number;
 }
 
-const EPSILON = 0.00001;
-/** MathUtils.lessThanOrEqual: the plugin's rounding slack, kept so the same drops post. */
-const lte = (a: number, b: number) => a < b || Math.abs(a - b) <= EPSILON;
+/** Float-tolerant `a <= b`: a summed rate that equals 1/floor in exact arithmetic still counts. */
+const lte = (a: number, b: number) => a <= b * (1 + 1e-9);
 
-const FACT = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
-const binomial = (p: number, n: number, k: number) => (FACT[n] / (FACT[k] * FACT[n - k])) * p ** k * (1 - p) ** (n - k);
+/** P(exactly k successes in n independent tries of chance p). */
+function binomial(p: number, n: number, k: number) {
+  let coeff = 1;
+  for (let i = 1; i <= k; i++) coeff = (coeff * (n - k + i)) / i;
+  return coeff * p ** k * (1 - p) ** (n - k);
+}
 
 function expand(raw: RawDrop): RareDrop[] {
   const rounds = raw.r ?? 1;
@@ -50,25 +50,19 @@ function expand(raw: RawDrop): RareDrop[] {
   return out;
 }
 
-/** Loot kind → the key prefix its table lives under (pickpocketing has its own table). */
-const PREFIX: Record<string, string> = { npc: '', pickpocket: 'pp:' };
+/** Loot kinds that have a drop table (pickpocketing has none in the wiki dataset). */
+const KINDS = new Set(['npc']);
 
 let tables: Map<string, RareDrop[]> | null = null;
 function dropTables(): Map<string, RareDrop[]> {
   if (tables) return tables;
   const t = new Map<string, RareDrop[]>();
-  // First table to name a source wins. The plugin's own table first, so every source it covered
-  // posts exactly as it did; the site's wiki dataset fills in the rest — a wiki "Vorkath#Post-quest"
-  // page answers for the "Vorkath" a loot event names, when nothing plainer already did.
-  const add = (prefix: string, data: Record<string, RawDrop[]>) => {
-    for (const [source, rows] of Object.entries(data)) {
-      const key = prefix + source.split('#')[0].trim().toLowerCase();
-      if (!t.has(key)) t.set(key, rows.flatMap(expand));
-    }
-  };
-  add('', pluginNpcDrops as unknown as Record<string, RawDrop[]>);
-  add('', npcDrops as unknown as Record<string, RawDrop[]>);
-  add('pp:', thievingDrops as unknown as Record<string, RawDrop[]>);
+  // A wiki "Vorkath#Post-quest" page answers for the "Vorkath" a loot event names, when nothing
+  // plainer already did: the first page to name a source wins.
+  for (const [source, rows] of Object.entries(npcDrops as unknown as Record<string, RawDrop[]>)) {
+    const key = source.split('#')[0].trim().toLowerCase();
+    if (!t.has(key)) t.set(key, rows.flatMap(expand));
+  }
   return (tables = t);
 }
 
@@ -83,9 +77,8 @@ export function dropRarity(
   item: { id?: number | null; name: string; qty: number },
   nameOf: (id: number) => string | undefined,
 ): number | null {
-  const prefix = PREFIX[sourceKind ?? ''];
-  if (prefix == null || !source) return null;
-  const rows = dropTables().get(prefix + source.toLowerCase());
+  if (!KINDS.has(sourceKind ?? '') || !source) return null;
+  const rows = dropTables().get(source.toLowerCase());
   if (!rows) return null;
   const name = item.name.toLowerCase();
   let sum = 0;
@@ -100,7 +93,7 @@ export function dropRarity(
 }
 
 /**
- * The plugin's screenshot gate for rarity: source key ("pp:" prefix for pickpocketing) → item ids that
+ * The plugin's screenshot gate for rarity: source key → item ids that
  * could be rare enough at this floor. Broad on purpose — a summed rate is only ever rarer-than-or-equal
  * a row's own, so anything that can pass `dropRarity` is here; `judgeDrop` makes the final call. Every
  * id sharing a listed item's name is included, so a variant id still screenshots.
@@ -121,7 +114,7 @@ export function rareTable(floor: number, idsByName: Map<string, number[]>, nameO
   return out;
 }
 
-// ── The lucky-drop rules (the plugin's DropLuck) ──────────────────────────────────────────────
+// ── The lucky-drop rules (the lucky-drop rules) ──────────────────────────────────────────────
 
 const EARNED_AWARDS = [
   'infernal cape',

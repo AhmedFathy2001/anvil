@@ -230,7 +230,7 @@ export default function HeroShowcase() {
                   ))}
                 </div>
                 <Foot>
-                  Skill, boss, or pure efficiency (EHP/EHB). Baselines taken Monday — nobody entered
+                  Skill, boss, or pure efficiency (hours played / hours bossed). Baselines taken Monday — nobody entered
                   anything.
                 </Foot>
               </>

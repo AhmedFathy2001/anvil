@@ -1,661 +1,593 @@
 {
-  "source": "Third-party EHB rates (MIT) for the fast band; OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band. See THIRD_PARTY_NOTICES.md.",
-  "generatedAt": "2026-08-10T20:17:32.095Z",
-  "note": "Kill-rate triplets [fast, average, slow] in seconds per kill. Layered UNDER the admin `balance_rates` override and OVER the curated defaults in balanceRates.json, which still owns accessibility floors, success rates, party sizes and the superior-slayer cost.",
-  "spread": {
-    "assumed": 2,
-    "maxSpread": 3
-  },
-  "activityCount": 62,
+  "source": "Derived from src/data/hourRates.json (OSRS Wiki money-making guides). Average = the guide rate; fast/slow = ×/÷ spread.",
+  "generatedAt": "2026-11-08T19:52:51.204Z",
+  "spread": 1.5,
+  "activityCount": 65,
   "activities": {
-    "zulrah": {
+    "abyssal sire": {
       "killSeconds": [
-        78.3,
-        118.7,
-        180
+        61.5,
+        92.3,
+        138.5
       ],
-      "source": "wom+wiki",
-      "womKph": 46,
-      "wikiKph": 20
-    },
-    "vorkath": {
-      "killSeconds": [
-        105.9,
-        149.7,
-        211.8
-      ],
-      "source": "wom",
-      "womKph": 34,
-      "wikiKph": null
+      "source": "Money making guide/Killing the Abyssal Sire",
+      "estimated": false
     },
     "alchemical hydra": {
       "killSeconds": [
-        120,
-        131.5,
-        144
+        96,
+        144,
+        216
       ],
-      "source": "wom+wiki",
-      "womKph": 30,
-      "wikiKph": 25
-    },
-    "abyssal sire": {
-      "killSeconds": [
-        72,
-        81.5,
-        92.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 50,
-      "wikiKph": 39
-    },
-    "cerberus": {
-      "killSeconds": [
-        55.4,
-        63.1,
-        72
-      ],
-      "source": "wom+wiki",
-      "womKph": 65,
-      "wikiKph": 50
-    },
-    "kraken": {
-      "killSeconds": [
-        36,
-        50.9,
-        72
-      ],
-      "source": "wom",
-      "womKph": 100,
-      "wikiKph": null
-    },
-    "thermonuclear smoke devil": {
-      "killSeconds": [
-        24,
-        32.9,
-        45
-      ],
-      "source": "wom+wiki",
-      "womKph": 150,
-      "wikiKph": 80
-    },
-    "grotesque guardians": {
-      "killSeconds": [
-        97.3,
-        120.8,
-        150
-      ],
-      "source": "wom+wiki",
-      "womKph": 37,
-      "wikiKph": 24
-    },
-    "sarachnis": {
-      "killSeconds": [
-        32.7,
-        56.7,
-        98.2
-      ],
-      "source": "wom+wiki",
-      "womKph": 110,
-      "wikiKph": 30,
-      "clamped": true
-    },
-    "scurrius": {
-      "killSeconds": [
-        51.4,
-        68,
-        90
-      ],
-      "source": "wom+wiki",
-      "womKph": 70,
-      "wikiKph": 40
-    },
-    "giant mole": {
-      "killSeconds": [
-        28.8,
-        45.5,
-        72
-      ],
-      "source": "wom+wiki",
-      "womKph": 125,
-      "wikiKph": 50
-    },
-    "kalphite queen": {
-      "killSeconds": [
-        65.5,
-        103.5,
-        163.6
-      ],
-      "source": "wom+wiki",
-      "womKph": 55,
-      "wikiKph": 22
-    },
-    "king black dragon": {
-      "killSeconds": [
-        27.7,
-        48,
-        83.1
-      ],
-      "source": "wom+wiki",
-      "womKph": 130,
-      "wikiKph": 30,
-      "clamped": true,
-      "curatedFastSeconds": 60,
-      "review": true
-    },
-    "corporeal beast": {
-      "killSeconds": [
-        60,
-        103.9,
-        180
-      ],
-      "source": "wom+wiki",
-      "womKph": 60,
-      "wikiKph": 10,
-      "clamped": true,
-      "curatedFastSeconds": 180,
-      "review": true
-    },
-    "dagannoth rex": {
-      "killSeconds": [
-        34.3,
-        48.5,
-        68.6
-      ],
-      "source": "wom",
-      "womKph": 105,
-      "wikiKph": null
-    },
-    "dagannoth prime": {
-      "killSeconds": [
-        34.3,
-        48.5,
-        68.6
-      ],
-      "source": "wom",
-      "womKph": 105,
-      "wikiKph": null
-    },
-    "dagannoth supreme": {
-      "killSeconds": [
-        34.3,
-        48.5,
-        68.6
-      ],
-      "source": "wom",
-      "womKph": 105,
-      "wikiKph": null
-    },
-    "general graardor": {
-      "killSeconds": [
-        62.1,
-        91,
-        133.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 58,
-      "wikiKph": 27
-    },
-    "commander zilyana": {
-      "killSeconds": [
-        60,
-        89.4,
-        133.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 60,
-      "wikiKph": 27
-    },
-    "kree'arra": {
-      "killSeconds": [
-        90,
-        109.5,
-        133.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 40,
-      "wikiKph": 27
-    },
-    "k'ril tsutsaroth": {
-      "killSeconds": [
-        55.4,
-        87.6,
-        138.5
-      ],
-      "source": "wom+wiki",
-      "womKph": 65,
-      "wikiKph": 26
-    },
-    "nex": {
-      "killSeconds": [
-        153.2,
-        234.8,
-        360
-      ],
-      "source": "wom+wiki",
-      "womKph": 23.5,
-      "wikiKph": 10
-    },
-    "phantom muspah": {
-      "killSeconds": [
-        120,
-        169.7,
-        240
-      ],
-      "source": "wom",
-      "womKph": 30,
-      "wikiKph": null
-    },
-    "duke sucellus": {
-      "killSeconds": [
-        92.3,
-        98.9,
-        105.9
-      ],
-      "source": "wom+wiki",
-      "womKph": 39,
-      "wikiKph": 34
-    },
-    "vardorvis": {
-      "killSeconds": [
-        92.3,
-        101.9,
-        112.5
-      ],
-      "source": "wom+wiki",
-      "womKph": 39,
-      "wikiKph": 32
-    },
-    "leviathan": {
-      "killSeconds": [
-        116.1,
-        132,
-        150
-      ],
-      "source": "wom+wiki",
-      "womKph": 31,
-      "wikiKph": 24
-    },
-    "the leviathan": {
-      "killSeconds": [
-        116.1,
-        132,
-        150
-      ],
-      "source": "wom+wiki",
-      "womKph": 31,
-      "wikiKph": 24
-    },
-    "whisperer": {
-      "killSeconds": [
-        163.6,
-        171.6,
-        180
-      ],
-      "source": "wom+wiki",
-      "womKph": 22,
-      "wikiKph": 20
-    },
-    "the whisperer": {
-      "killSeconds": [
-        163.6,
-        171.6,
-        180
-      ],
-      "source": "wom+wiki",
-      "womKph": 22,
-      "wikiKph": 20
-    },
-    "araxxor": {
-      "killSeconds": [
-        90,
-        96.2,
-        102.9
-      ],
-      "source": "wom+wiki",
-      "womKph": 40,
-      "wikiKph": 35
+      "source": "Money making guide/Killing the Alchemical Hydra",
+      "estimated": false
     },
     "amoxliatl": {
       "killSeconds": [
-        42.4,
-        61.7,
-        90
-      ],
-      "source": "wom+wiki",
-      "womKph": 85,
-      "wikiKph": 40
-    },
-    "hueycoatl": {
-      "killSeconds": [
-        180,
-        304.3,
-        514.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 20,
-      "wikiKph": 7
-    },
-    "the hueycoatl": {
-      "killSeconds": [
-        180,
-        304.3,
-        514.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 20,
-      "wikiKph": 7
-    },
-    "royal titans": {
-      "killSeconds": [
-        65.5,
-        92.6,
-        130.9
-      ],
-      "source": "wom",
-      "womKph": 55,
-      "wikiKph": null
-    },
-    "the royal titans": {
-      "killSeconds": [
-        65.5,
-        92.6,
-        130.9
-      ],
-      "source": "wom",
-      "womKph": 55,
-      "wikiKph": null
-    },
-    "yama": {
-      "killSeconds": [
-        200,
-        282.8,
-        400
-      ],
-      "source": "wom",
-      "womKph": 18,
-      "wikiKph": null
-    },
-    "doom of mokhaiotl": {
-      "killSeconds": [
-        180,
-        254.6,
-        360
-      ],
-      "source": "wom",
-      "womKph": 20,
-      "wikiKph": null,
-      "curatedFastSeconds": 450,
-      "review": true
-    },
-    "maggot king": {
-      "killSeconds": [
-        120,
-        131.5,
-        144
-      ],
-      "source": "wom+wiki",
-      "womKph": 30,
-      "wikiKph": 25
-    },
-    "brutus": {
-      "killSeconds": [
-        14.4,
-        20.4,
-        28.8
-      ],
-      "source": "wom",
-      "womKph": 250,
-      "wikiKph": null,
-      "curatedFastSeconds": 60,
-      "review": true
-    },
-    "hespori": {
-      "killSeconds": [
         60,
-        84.9,
-        120
-      ],
-      "source": "wom",
-      "womKph": 60,
-      "wikiKph": null
-    },
-    "skotizo": {
-      "killSeconds": [
-        80,
-        113.1,
-        160
-      ],
-      "source": "wom",
-      "womKph": 45,
-      "wikiKph": null
-    },
-    "bryophyta": {
-      "killSeconds": [
-        400,
-        565.7,
-        800
-      ],
-      "source": "wom",
-      "womKph": 9,
-      "wikiKph": null,
-      "curatedFastSeconds": 45,
-      "review": true
-    },
-    "obor": {
-      "killSeconds": [
-        300,
-        424.3,
-        600
-      ],
-      "source": "wom",
-      "womKph": 12,
-      "wikiKph": null,
-      "curatedFastSeconds": 45,
-      "review": true
-    },
-    "deranged archaeologist": {
-      "killSeconds": [
-        45,
-        63.6,
-        90
-      ],
-      "source": "wom",
-      "womKph": 80,
-      "wikiKph": null
-    },
-    "chaos fanatic": {
-      "killSeconds": [
-        36,
-        46.5,
-        60
-      ],
-      "source": "wom+wiki",
-      "womKph": 100,
-      "wikiKph": 60
-    },
-    "crazy archaeologist": {
-      "killSeconds": [
-        48,
-        80,
-        133.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 75,
-      "wikiKph": 27
-    },
-    "mimic": {
-      "killSeconds": [
-        60,
-        84.9,
-        120
-      ],
-      "source": "wom",
-      "womKph": 60,
-      "wikiKph": null
-    },
-    "the nightmare": {
-      "killSeconds": [
-        257.1,
-        363.7,
-        514.3
-      ],
-      "source": "wom",
-      "womKph": 14,
-      "wikiKph": null,
-      "curatedFastSeconds": 900,
-      "review": true
-    },
-    "nightmare": {
-      "killSeconds": [
-        257.1,
-        363.7,
-        514.3
-      ],
-      "source": "wom",
-      "womKph": 14,
-      "wikiKph": null,
-      "curatedFastSeconds": 900,
-      "review": true
-    },
-    "phosani's nightmare": {
-      "killSeconds": [
-        375,
-        377,
-        378.9
-      ],
-      "source": "wom+wiki",
-      "womKph": 9.6,
-      "wikiKph": 9.5
-    },
-    "callisto": {
-      "killSeconds": [
-        25.4,
-        43.9,
-        76.1
-      ],
-      "source": "wom+wiki",
-      "womKph": 142,
-      "wikiKph": 25,
-      "clamped": true,
-      "curatedFastSeconds": 80,
-      "review": true
-    },
-    "vet'ion": {
-      "killSeconds": [
-        72,
-        83.7,
-        97.3
-      ],
-      "source": "wom+wiki",
-      "womKph": 50,
-      "wikiKph": 37
-    },
-    "venenatis": {
-      "killSeconds": [
-        45,
-        77.9,
+        90,
         135
       ],
-      "source": "wom+wiki",
-      "womKph": 80,
-      "wikiKph": 26,
-      "clamped": true
+      "source": "Money making guide/Killing Amoxliatl",
+      "estimated": false
+    },
+    "araxxor": {
+      "killSeconds": [
+        61.5,
+        92.3,
+        138.5
+      ],
+      "source": "Money making guide/Killing Araxxor",
+      "estimated": false
     },
     "artio": {
       "killSeconds": [
-        60,
-        64.5,
-        69.2
+        46.2,
+        69.2,
+        103.8
       ],
-      "source": "wom+wiki",
-      "womKph": 60,
-      "wikiKph": 52
-    },
-    "calvar'ion": {
-      "killSeconds": [
-        65.5,
-        65.5,
-        65.5
-      ],
-      "source": "wom+wiki",
-      "womKph": 55,
-      "wikiKph": 55
-    },
-    "spindel": {
-      "killSeconds": [
-        65.5,
-        62.7,
-        60
-      ],
-      "source": "wom+wiki",
-      "womKph": 55,
-      "wikiKph": 60
-    },
-    "scorpia": {
-      "killSeconds": [
-        27.7,
-        37.2,
-        50
-      ],
-      "source": "wom+wiki",
-      "womKph": 130,
-      "wikiKph": 72,
-      "curatedFastSeconds": 60,
-      "review": true
-    },
-    "chaos elemental": {
-      "killSeconds": [
-        30,
-        42.4,
-        60
-      ],
-      "source": "wom+wiki",
-      "womKph": 120,
-      "wikiKph": 60,
-      "curatedFastSeconds": 70,
-      "review": true
-    },
-    "zalcano": {
-      "killSeconds": [
-        37.5,
-        53,
-        75
-      ],
-      "source": "wiki",
-      "womKph": null,
-      "wikiKph": 48,
-      "curatedFastSeconds": 180,
-      "review": true
+      "source": "Money making guide/Killing Artio",
+      "estimated": false
     },
     "barrows": {
       "killSeconds": [
-        163.6,
-        221.6,
-        300
+        200,
+        300,
+        450
       ],
-      "source": "wom+wiki",
-      "womKph": 22,
-      "wikiKph": 12
+      "source": "Money making guide/Barrows",
+      "estimated": false
     },
-    "lunar chest": {
+    "bryophyta": {
+      "killSeconds": [
+        2181.8,
+        3272.7,
+        4909.1
+      ],
+      "source": "Money making guide/Killing Bryophyta (free-to-play)",
+      "estimated": false
+    },
+    "callisto": {
+      "killSeconds": [
+        96,
+        144,
+        216
+      ],
+      "source": "Money making guide/Killing Callisto",
+      "estimated": false
+    },
+    "calvar'ion": {
+      "killSeconds": [
+        43.6,
+        65.5,
+        98.2
+      ],
+      "source": "Money making guide/Killing Calvar'ion",
+      "estimated": false
+    },
+    "cerberus": {
+      "killSeconds": [
+        48,
+        72,
+        108
+      ],
+      "source": "Money making guide/Killing Cerberus",
+      "estimated": false
+    },
+    "chambers of xeric": {
+      "killSeconds": [
+        800,
+        1200,
+        1800
+      ],
+      "source": "Money making guide/Chambers of Xeric (Normal Mode)",
+      "estimated": false
+    },
+    "chaos elemental": {
+      "killSeconds": [
+        40,
+        60,
+        90
+      ],
+      "source": "Money making guide/Killing Chaos Elemental",
+      "estimated": false
+    },
+    "chaos fanatic": {
+      "killSeconds": [
+        40,
+        60,
+        90
+      ],
+      "source": "Money making guide/Killing the Chaos Fanatic",
+      "estimated": false
+    },
+    "commander zilyana": {
+      "killSeconds": [
+        88.9,
+        133.3,
+        200
+      ],
+      "source": "Money making guide/Killing Commander Zilyana",
+      "estimated": false
+    },
+    "corporeal beast": {
+      "killSeconds": [
+        240,
+        360,
+        540
+      ],
+      "source": "Money making guide/Killing the Corporeal Beast",
+      "estimated": false
+    },
+    "corrupted gauntlet": {
+      "killSeconds": [
+        400,
+        600,
+        900
+      ],
+      "source": "Money making guide/Completing The Corrupted Gauntlet",
+      "estimated": false
+    },
+    "crazy archaeologist": {
+      "killSeconds": [
+        88.9,
+        133.3,
+        200
+      ],
+      "source": "Money making guide/Killing the Crazy archaeologist",
+      "estimated": false
+    },
+    "dagannoth rex": {
+      "killSeconds": [
+        85.7,
+        128.6,
+        192.9
+      ],
+      "source": "Money making guide/Killing Dagannoth Kings (Rex only)",
+      "estimated": false
+    },
+    "dagannoth prime": {
+      "killSeconds": [
+        96,
+        144,
+        216
+      ],
+      "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
+      "estimated": false
+    },
+    "dagannoth supreme": {
+      "killSeconds": [
+        96,
+        144,
+        216
+      ],
+      "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
+      "estimated": false
+    },
+    "doom of mokhaiotl": {
+      "killSeconds": [
+        400,
+        600,
+        900
+      ],
+      "source": "Money making guide/Killing the Doom of Mokhaiotl (Delve 1-8)",
+      "estimated": false
+    },
+    "duke sucellus": {
+      "killSeconds": [
+        70.6,
+        105.9,
+        158.8
+      ],
+      "source": "Money making guide/Killing Duke Sucellus",
+      "estimated": false
+    },
+    "the gauntlet": {
+      "killSeconds": [
+        342.9,
+        514.3,
+        771.4
+      ],
+      "source": "Money making guide/Completing The Gauntlet",
+      "estimated": false
+    },
+    "general graardor": {
+      "killSeconds": [
+        88.9,
+        133.3,
+        200
+      ],
+      "source": "Money making guide/Killing General Graardor",
+      "estimated": false
+    },
+    "giant mole": {
+      "killSeconds": [
+        28.2,
+        42.4,
+        63.5
+      ],
+      "source": "Money making guide/Killing the Giant Mole (Twisted bow)",
+      "estimated": false
+    },
+    "grotesque guardians": {
+      "killSeconds": [
+        100,
+        150,
+        225
+      ],
+      "source": "Money making guide/Killing the Grotesque Guardians",
+      "estimated": false
+    },
+    "the hueycoatl": {
+      "killSeconds": [
+        342.9,
+        514.3,
+        771.4
+      ],
+      "source": "Money making guide/Killing Hueycoatl (Solo)",
+      "estimated": false
+    },
+    "kalphite queen": {
+      "killSeconds": [
+        109.1,
+        163.6,
+        245.5
+      ],
+      "source": "Money making guide/Killing the Kalphite Queen",
+      "estimated": false
+    },
+    "king black dragon": {
+      "killSeconds": [
+        80,
+        120,
+        180
+      ],
+      "source": "Money making guide/Killing the King Black Dragon",
+      "estimated": false
+    },
+    "kraken": {
+      "killSeconds": [
+        40,
+        60,
+        90
+      ],
+      "source": "Money making guide/Killing the Kraken",
+      "estimated": false
+    },
+    "kree'arra": {
+      "killSeconds": [
+        88.9,
+        133.3,
+        200
+      ],
+      "source": "Money making guide/Killing Kree'arra",
+      "estimated": false
+    },
+    "k'ril tsutsaroth": {
+      "killSeconds": [
+        92.3,
+        138.5,
+        207.7
+      ],
+      "source": "Money making guide/Killing K'ril Tsutsaroth",
+      "estimated": false
+    },
+    "the leviathan": {
+      "killSeconds": [
+        100,
+        150,
+        225
+      ],
+      "source": "Money making guide/Killing The Leviathan",
+      "estimated": false
+    },
+    "maggot king": {
+      "killSeconds": [
+        96,
+        144,
+        216
+      ],
+      "source": "Money making guide/Killing the Maggot King",
+      "estimated": false
+    },
+    "nex": {
+      "killSeconds": [
+        240,
+        360,
+        540
+      ],
+      "source": "Money making guide/Killing Nex (Team)",
+      "estimated": false
+    },
+    "nightmare": {
       "killSeconds": [
         200,
-        282.8,
-        400
+        300,
+        450
       ],
-      "source": "wom",
-      "womKph": 18,
-      "wikiKph": null
+      "source": "Money making guide/Killing The Nightmare",
+      "estimated": false
     },
-    "moons of peril": {
+    "phantom muspah": {
       "killSeconds": [
+        96,
+        144,
+        216
+      ],
+      "source": "Money making guide/Killing Phantom Muspah (Twisted bow)",
+      "estimated": false
+    },
+    "phosani's nightmare": {
+      "killSeconds": [
+        252.6,
+        378.9,
+        568.4
+      ],
+      "source": "Money making guide/Killing Phosani's Nightmare",
+      "estimated": false
+    },
+    "sarachnis": {
+      "killSeconds": [
+        80,
+        120,
+        180
+      ],
+      "source": "Money making guide/Killing Sarachnis",
+      "estimated": false
+    },
+    "scorpia": {
+      "killSeconds": [
+        33.3,
+        50,
+        75
+      ],
+      "source": "Money making guide/Killing Scorpia",
+      "estimated": false
+    },
+    "scurrius": {
+      "killSeconds": [
+        60,
+        90,
+        135
+      ],
+      "source": "Money making guide/Killing Scurrius",
+      "estimated": false
+    },
+    "sol heredit": {
+      "killSeconds": [
+        960,
+        1440,
+        2160
+      ],
+      "source": "Money making guide/Completing the Fortis Colosseum (Wave 12)",
+      "estimated": false
+    },
+    "spindel": {
+      "killSeconds": [
+        40,
+        60,
+        90
+      ],
+      "source": "Money making guide/Killing Spindel",
+      "estimated": false
+    },
+    "theatre of blood": {
+      "killSeconds": [
+        800,
+        1200,
+        1800
+      ],
+      "source": "Money making guide/Theatre of Blood",
+      "estimated": false
+    },
+    "vardorvis": {
+      "killSeconds": [
+        75,
+        112.5,
+        168.8
+      ],
+      "source": "Money making guide/Killing Vardorvis",
+      "estimated": false
+    },
+    "venenatis": {
+      "killSeconds": [
+        92.3,
+        138.5,
+        207.7
+      ],
+      "source": "Money making guide/Killing Venenatis",
+      "estimated": false
+    },
+    "vet'ion": {
+      "killSeconds": [
+        64.9,
+        97.3,
+        145.9
+      ],
+      "source": "Money making guide/Killing Vet'ion",
+      "estimated": false
+    },
+    "vorkath": {
+      "killSeconds": [
+        80,
+        120,
+        180
+      ],
+      "source": "Money making guide/Killing Vorkath (Dragon hunter lance)",
+      "estimated": false
+    },
+    "the whisperer": {
+      "killSeconds": [
+        120,
         180,
-        254.6,
+        270
+      ],
+      "source": "Money making guide/Killing The Whisperer",
+      "estimated": false
+    },
+    "yama": {
+      "killSeconds": [
+        240,
+        360,
+        540
+      ],
+      "source": "Money making guide/Killing Yama (solo)",
+      "estimated": false
+    },
+    "zulrah": {
+      "killSeconds": [
+        120,
+        180,
+        270
+      ],
+      "source": "Money making guide/Killing Zulrah",
+      "estimated": false
+    },
+    "brutus": {
+      "killSeconds": [
+        120,
+        180,
+        270
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "deranged archaeologist": {
+      "killSeconds": [
+        60,
+        90,
+        135
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "hespori": {
+      "killSeconds": [
+        96,
+        144,
+        216
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "mimic": {
+      "killSeconds": [
+        600,
+        900,
+        1350
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "obor": {
+      "killSeconds": [
+        120,
+        180,
+        270
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "the royal titans": {
+      "killSeconds": [
+        160,
+        240,
         360
       ],
-      "source": "wiki",
-      "womKph": null,
-      "wikiKph": 10
+      "source": null,
+      "estimated": true
+    },
+    "shellbane gryphon": {
+      "killSeconds": [
+        120,
+        180,
+        270
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "skotizo": {
+      "killSeconds": [
+        160,
+        240,
+        360
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "tempoross": {
+      "killSeconds": [
+        600,
+        900,
+        1350
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "tombs of amascut": {
+      "killSeconds": [
+        960,
+        1440,
+        2160
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "tzkal-zuk": {
+      "killSeconds": [
+        4800,
+        7200,
+        10800
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "tztok-jad": {
+      "killSeconds": [
+        2400,
+        3600,
+        5400
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "wintertodt": {
+      "killSeconds": [
+        480,
+        720,
+        1080
+      ],
+      "source": null,
+      "estimated": true
+    },
+    "zalcano": {
+      "killSeconds": [
+        200,
+        300,
+        450
+      ],
+      "source": null,
+      "estimated": true
     }
   }
 }

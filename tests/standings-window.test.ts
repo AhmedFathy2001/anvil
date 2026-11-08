@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 
 import {
   competitionRanks,
+  rankMove,
+  teamRanksFromDay,
   isManyTeams,
   isSoloLike,
   SOLO_MIN_TEAMS,
@@ -146,4 +148,16 @@ test('search by team name or any member name', () => {
   assert.deepEqual(by('lynx titan'), [2]);
   assert.deepEqual(by('moon'), [2]);
   assert.deepEqual(by('nobody'), []);
+});
+
+test('rank moves: places climbed since the day began; nothing unchanged or without a baseline', () => {
+  assert.equal(rankMove(5, 2), 3);
+  assert.equal(rankMove(1, 4), -3);
+  assert.equal(rankMove(3, 3), null);
+  assert.equal(rankMove(undefined, 2), null, 'no baseline yet');
+  assert.equal(rankMove(2, null), null, 'unranked now');
+  // A day snapshot ranked with the standings' own tie rule: equal scores share a rank.
+  const day = teamRanksFromDay({ teams: { '1': { score: 9, rank: 1 }, '2': { score: 9, rank: 2 }, '3': { score: 4, rank: 3 } } });
+  assert.deepEqual([...day.entries()].sort((a, b) => a[0] - b[0]), [[1, 1], [2, 1], [3, 3]]);
+  assert.equal(teamRanksFromDay(null).size, 0);
 });

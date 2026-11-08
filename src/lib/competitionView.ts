@@ -167,9 +167,9 @@ function milestoneText(
     case 'totalxp':
       return { emoji: '📈', action: 'passed', highlight: `${totalXpLabel(threshold)} total XP` };
     case 'ehp':
-      return { emoji: '⏱️', action: 'passed', highlight: `${threshold.toLocaleString()} EHP` };
+      return { emoji: '⏱️', action: 'passed', highlight: `${threshold.toLocaleString()} hours played` };
     case 'ehb':
-      return { emoji: '⚔️', action: 'passed', highlight: `${threshold.toLocaleString()} EHB` };
+      return { emoji: '⚔️', action: 'passed', highlight: `${threshold.toLocaleString()} hours bossed` };
     default:
       return { emoji: '⭐', action: 'crossed', highlight: threshold.toLocaleString() };
   }

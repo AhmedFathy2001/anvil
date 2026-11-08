@@ -5,7 +5,7 @@ import { getDict } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
 import { items, rows, rt } from '../_i18n/rich';
 
-// For a clan arriving from Dink (drop posts) and Wise Old Man (roster + competitions). Kept as plain
+// For a clan arriving from other plugins and trackers (drop posts, roster, competitions). Kept as plain
 // as a guide can be: a handful of numbered steps per reader and four questions, no tables, no jargon.
 // Whoever lands here is mid-move and wants the checklist, not the reasoning.
 

@@ -11,7 +11,7 @@ import {
   webhookIdsInText,
 } from '../src/lib/discordQuickSetup.ts';
 
-const hook = (channelId: string, channelName: string, name = 'Dink') => ({ channelId, channelName, name });
+const hook = (channelId: string, channelName: string, name = 'OtherPlugin') => ({ channelId, channelName, name });
 
 test('keysForChannelName: whole words, not substrings', () => {
   assert.deepEqual(keysForChannelName('💰│drops-and-pets'), ['webhook_rare_drops', 'webhook_pets']);
@@ -29,7 +29,7 @@ test('keysForChannelName: whole words, not substrings', () => {
 });
 
 test('suggestReuse one: the busiest channel takes everything, first seen wins a tie', () => {
-  const foreign = [hook('1', 'dink'), hook('2', 'drops'), hook('2', 'drops'), hook('3', 'deaths')];
+  const foreign = [hook('1', 'otherplugin'), hook('2', 'drops'), hook('2', 'drops'), hook('3', 'deaths')];
   assert.deepEqual(suggestReuse(foreign, 'one'), { webhook_plugin_default: '2' });
   assert.deepEqual(suggestReuse([hook('1', 'a'), hook('2', 'b')], 'one'), { webhook_plugin_default: '1' });
   assert.deepEqual(suggestReuse([], 'one'), {});

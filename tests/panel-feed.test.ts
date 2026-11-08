@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { eventFeedFloor, panelFeedWorthy } from '../src/lib/moments.ts';
-import { chatFeedIds, chatRow, feedTabUi, modeFeedId, modeMomentFeedIds, momentFeedIds, momentRow } from '../src/lib/pluginUi/feedUi.ts';
+import { chatFeedId, chatLockFeeds, chatRow, feedTabUi, modeFeedId, modeMomentFeedIds, momentFeedIds, momentRow } from '../src/lib/pluginUi/feedUi.ts';
 
 const drop = (valueGp: number | null, extra: Record<string, unknown> = {}) => ({
   id: 1,
@@ -44,7 +44,7 @@ test('game modes stay behind one quiet doorway, then reuse the familiar filters'
     rows: [], mode: { active: false, count: 6 },
   }));
   assert.match(ordinary, /Game-mode activity · 6/);
-  assert.match(ordinary, /"t":"button"/, 'the mode doorway is a visible full-width button');
+  assert.match(ordinary, /"bg":"raised"[^}]*"on":\{"a":"load","v":"feed","args":\{"s":"clan:afk","p":"feed","m":"1"/, 'the mode doorway is a raised row that opens it');
   assert.doesNotMatch(ordinary, /moments:clan:3:modes/);
 
   const modes = JSON.stringify(feedTabUi({
@@ -102,10 +102,12 @@ test('achievement rows use compact titles and their native game icons', () => {
   assert.equal(ca.sprite, 'combat');
 });
 
-test('a chat line goes to everyone’s list, its team’s, and staff’s', () => {
-  assert.deepEqual(chatFeedIds(9, { teamId: 4, teamOnly: false, staff: false }), ['chat:9', 'chat:9:team:4']);
-  assert.deepEqual(chatFeedIds(9, { teamId: 4, teamOnly: true, staff: true }), ['chat:9:team:4'], 'team-only stays in the team');
-  assert.deepEqual(chatFeedIds(9, { teamId: null, teamOnly: false, staff: true }), ['chat:9', 'chat:9:mods']);
+test('a chat line goes to its channel’s list; locks name every channel or only the talking ones', () => {
+  assert.equal(chatFeedId(9, 'all'), 'chat:9:all');
+  assert.equal(chatFeedId(9, 'team:4'), 'chat:9:team:4');
+  assert.equal(chatFeedId(9, 'announce'), 'chat:9:announce');
+  assert.deepEqual(chatLockFeeds(9, 'every'), ['chat:9']);
+  assert.deepEqual(chatLockFeeds(9, 'talk'), ['chat:9:all', 'chat:9:team'], 'a pause never touches Announcements');
 });
 
 test('a moment row reads as item, who, value, time', () => {
@@ -121,10 +123,11 @@ test('a moment row reads as item, who, value, time', () => {
   assert.equal(stack.value, '3.0m', 'the stack’s worth');
 });
 
-test('a chat row: staff tag, team-only tag, mod menu only when given', () => {
-  const base = { id: 5, rsn: 'Kev', body: 'hi', teamOnly: false, createdAt: '2026-11-04 10:00:00' };
+test('a chat row: HOST and MOD tags, a team’s name otherwise, mod menu only when given', () => {
+  const base = { id: 5, rsn: 'Kev', body: 'hi', createdAt: '2026-11-04 10:00:00' };
   assert.equal(chatRow(base, { role: 'mod' }).tag, 'MOD');
-  assert.equal(chatRow({ ...base, teamOnly: true }).tag, 'TEAM');
+  assert.equal(chatRow(base, { role: 'host' }).tag, 'HOST');
+  assert.equal(chatRow(base, { team: { name: 'Ruby', color: null } }).tag, 'Ruby');
   assert.equal(chatRow(base).menu, undefined);
   const del = { a: 'post' as const, act: 'chat-del', args: {} };
   assert.equal(chatRow(base, { modActions: { del, mute: del } }).menu?.length, 2);
@@ -136,10 +139,23 @@ test('the chat pane carries the send box; the feed pane its floor line', () => {
     { kind: 'event' as const, id: 9, name: 'Winter Bingo' },
   ];
   const chat = JSON.stringify(
-    feedTabUi({ scopes, current: scopes[1], pane: 'chat', chatAvailable: true, filter: 'team', teamId: 4, rows: [], send: { act: 'chat-send', args: { e: '9', to: 'team' }, hint: 'x' } }),
+    feedTabUi({
+      scopes,
+      current: scopes[1],
+      pane: 'chat',
+      chatAvailable: true,
+      filter: 'team:4',
+      teamId: 4,
+      rows: [],
+      send: { act: 'chat-send', args: { e: '9', to: 'team:4' }, hint: 'x' },
+      chans: [{ label: 'My team', on: true, act: { a: 'load', v: 'feed' }, feed: 'chat:9:team:4' }, { label: 'All teams', on: false, act: { a: 'load', v: 'feed' }, feed: 'chat:9:all', n: 3, blue: true }],
+      lock: { locked: 'You’re timed out · 9m left', sub: 'You can still read along.', warn: true },
+    }),
   );
   assert.match(chat, /"t":"feed","id":"chat:9:team:4"/);
   assert.match(chat, /"send":\{"act":"chat-send"/);
+  assert.match(chat, /"chans":\[\{"label":"My team","on":true/);
+  assert.match(chat, /"locked":"You’re timed out · 9m left","lockSub":"You can still read along.","lockWarn":true/);
   const feed = JSON.stringify(feedTabUi({ scopes, current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'drops', teamId: null, rows: [], floorNote: 'Drops ≥ 5m' }));
   assert.match(feed, /"id":"moments:clan:3:drops"/);
   assert.match(feed, /Drops ≥ 5m/);
@@ -154,7 +170,9 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
     { kind: 'event' as const, id: 12, name: 'Summer Bingo' },
   ];
   const ui = feedTabUi({ scopes, current: scopes[3], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }) as unknown as { c: Record<string, unknown>[] };
-  const select = ui.c.find((n) => n.t === 'input') as { kind: string; name: string; value: string; options: { v: string; label: string }[] };
+  const top = ui.c[0] as unknown as { card: boolean; c: Record<string, unknown>[] };
+  assert.ok(top.card, 'the scope picker sits in the top card');
+  const select = top.c.find((n) => n.t === 'input') as { kind: string; name: string; value: string; options: { v: string; label: string }[] };
   assert.equal(select.kind, 'select');
   assert.equal(select.name, 's', 'the choice rides the load as the scope');
   assert.equal(select.value, 'event:12');

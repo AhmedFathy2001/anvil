@@ -75,7 +75,7 @@ const fi: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Siirtyminen Anviliin',
-        title: 'Siirtyminen Dinkistä tai Wise Old Manista',
+        title: 'Siirtyminen muista lisäosista ja seurantatyökaluista',
         blurb:
           'Anvil postaa dropit Discordiin ja pyörittää viikoittaisia kilpailuja. Viisi vaihetta henkilökunnalle, kaksi pelaajille.',
         minutes: '~3 min',
@@ -264,21 +264,21 @@ const fi: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Siirtyminen Dinkistä tai Wise Old Manista — Anvil',
+    metaTitle: 'Siirtyminen muista lisäosista ja seurantatyökaluista — Anvil',
     metaDescription:
-      'Siirrä klaanisi Dinkistä ja Wise Old Manista Anviliin: määritä Discord-kanavat, synkronoi klaanilista, aloita Skill tai Boss of the Week ja kerro jäsenillesi.',
+      'Siirrä klaanisi Anviliin: määritä Discord-kanavat, synkronoi klaanilista, aloita Skill tai Boss of the Week ja kerro jäsenillesi.',
     eyebrow: 'Siirtyminen Anviliin',
-    title: 'Siirtyminen Dinkistä tai Wise Old Manista',
-    dek: 'Anvil hoitaa molemmat tehtävät. Se postaa klaanin dropit ja saavutukset Discordiin. Se myös pitää klaanilistan ajan tasalla ja pyörittää viikoittaisia kilpailuja.',
+    title: 'Siirtyminen muista lisäosista ja seurantatyökaluista',
+    dek: 'Anvil julkaisee klaanisi dropit ja saavutukset Discordiin. Se myös ylläpitää klaanilistaa ja ajaa viikoittaiset kilpailut.',
 
     staff: {
       title: 'Jos johdat klaania',
       body: [
-        '**Anna botin määrittää kanavat.** Mene kohtaan Admin → Discord → **Set it up for me**. Valitse yksi kanava tai useampi. Jos Dink postasi johonkin, rastita _Use the same channels_. Jäsenillesi ei muutu mikään.',
-        '**Synkronoi klaanilista.** Avaa Anvil-lisäosan asetukset RuneLitessa. Laita päälle **Keep the clan roster in sync**. Yksi admin tekee tämän kerran pelissä. Tämä korvaa Wise Old Man -ryhmäsi.',
-        '**Aloita Skill tai Boss of the Week.** Mene kohtaan Admin → All events → **+ New event** ja valitse Skill of the Week tai Boss of the Week. Kaikki klaanilistalla olevat ovat mukana automaattisesti. Tämä korvaa Wise Old Manin kilpailut.',
+        '**Anna botin määrittää kanavat.** Mene kohtaan Admin → Discord → **Set it up for me**. Valitse yksi kanava tai useampi. Jos jokin muu lisäosa julkaisi jonnekin, rastita _Use the same channels_. Jäsenillesi ei muutu mikään.',
+        '**Synkronoi klaanilista.** Avaa Anvil-lisäosan asetukset RuneLitessa. Laita päälle **Keep the clan roster in sync**. Yksi admin tekee tämän kerran pelissä. Tämä korvaa muualla pitämäsi klaanilistan.',
+        '**Aloita Skill tai Boss of the Week.** Mene kohtaan Admin → All events → **+ New event** ja valitse Skill of the Week tai Boss of the Week. Kaikki klaanilistalla olevat ovat mukana automaattisesti. Tämä korvaa muualla järjestämäsi kilpailut.',
         '**Kerro jäsenillesi.** Mene kohtaan Admin → Discord → **Tell your members** → **Post it**. Botti postaa pelaajien ohjeet puolestasi.',
-        '**Viikon päästä: siivoa.** Mene kohtaan Admin → Discord → **Remove Dink’s old webhooks**, rastita poistettavat, paina **Remove … webhooks** ja sitten **Yes, remove them**. Sen jälkeen mikään ei voi postautua kahdesti. Paina **Keep** niiden kohdalla, jotka haluat jättää rauhaan.',
+        '**Viikon päästä: siivoa.** Mene kohtaan Admin → Discord → **Remove old webhooks from other plugins**, rastita poistettavat, paina **Remove … webhooks** ja sitten **Yes, remove them**. Sen jälkeen mikään ei voi postautua kahdesti. Paina **Keep** niiden kohdalla, jotka haluat jättää rauhaan.',
       ],
     },
 
@@ -286,8 +286,8 @@ const fi: PartialGuideDict = {
       title: 'Jos olet pelaaja',
       body: [
         '**Asenna Anvil.** Avaa RuneLitessa Plugin Hub, hae Anvil ja paina **Install**. Kirjaudu sitten sisään Discordilla Anvilin sivupaneelista.',
-        '**Laita Dinkin ilmoitukset pois päältä.** Tai poista Dink, jos et käytä sitä mihinkään muuhun.',
-        '**Siinä kaikki.** Wise Old Manin osalta sinun ei tarvitse tehdä mitään.',
+        '**Laita vanhan lisäosasi ilmoitukset pois päältä**, ettei mikään postaudu kahdesti. Tai poista lisäosa, jos et käytä sitä mihinkään muuhun.',
+        '**Siinä kaikki.** Muuta asennettavaa ei ole.',
       ],
     },
 
@@ -296,12 +296,8 @@ const fi: PartialGuideDict = {
       intro: 'Yleisimmät, joita klaanit kysyvät:',
       rows: [
         {
-          term: 'Voimmeko pitää Dinkin joihinkin asioihin?',
-          body: 'Kyllä. Anvil ei postaa kill counteja, slayer-tehtäviä eikä speedrunneja. Jätä Dinkissä päälle vain ne.',
-        },
-        {
-          term: 'Tarvitsemmeko vielä Wise Old Mania?',
-          body: 'Vain kaikkien aikojen ennätyksiin ja EHP / EHB-sijoituksiin.',
+          term: 'Tarkkaileeko Anvil kill countteja, slayer-tehtäviä ja henkilökohtaisia ennätyksiä?',
+          body: 'Kyllä. Anvil seuraa kill countteja, slayer-tehtäviä ja henkilökohtaisia ennätyksiä itse, joten mitään muuta ei tarvitse pitää käynnissä.',
         },
         {
           term: 'Pitääkö pelaajien liittää webhook jonnekin?',
@@ -643,11 +639,11 @@ const fi: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Vanhat webhookit Dinkiltä tai muilta boteilta',
+      title: 'Vanhat webhookit muilta lisäosilta tai boteilta',
       body: [
-        'Kun botti on palvelimellasi, Discord-sivu listaa sen jokaisen webhookin, joka ei ole Anvilin. **Coming from Dink?** tarjoaa vaihtoehdon **Use the same channels**, jolloin **Set it up for me** julkaisee sinne minne vanhat syötteesi julkaisivat, eikä jäsenillesi siirry mikään.',
-        'Kun jäsenesi ovat Anvilissa, mene kohtaan **Remove Dink’s old webhooks**, rastita poistettavat ja paina **Remove … webhooks**, sitten **Yes, remove them**. Se poistaa ne Discordista lopullisesti — sitä ei voi perua.',
-        'Listassa on jokainen webhook, joka ei ole Anvilin, ei pelkästään Dinkin. Onko joukossa jokin, jonka haluat pitää, kuten toisen botin syöte? Paina **Keep**, niin se poistuu listalta; **Show kept** ja **Put back** tuovat sen takaisin. Pitäminen vain piilottaa sen täällä — Discordissa mikään ei muutu.',
+        'Kun botti on palvelimellasi, Discord-sivu listaa sen jokaisen webhookin, joka ei ole Anvilin. **Coming from other plugins?** tarjoaa vaihtoehdon **Use the same channels**, jolloin **Set it up for me** julkaisee sinne, minne vanhat syötteesi julkaisivat, eikä jäsenillesi siirry mikään.',
+        'Kun jäsenesi ovat Anvilissa, mene kohtaan **Remove old webhooks from other plugins**, rastita poistettavat ja paina **Remove … webhooks**, sitten **Yes, remove them**. Se poistaa ne Discordista lopullisesti — sitä ei voi perua.',
+        'Listassa on jokainen webhook, joka ei ole Anvilin, ei pelkästään muiden lisäosien. Onko joukossa jokin, jonka haluat pitää, kuten toisen botin syöte? Paina **Keep**, niin se poistuu listalta; **Show kept** ja **Put back** tuovat sen takaisin. Pitäminen vain piilottaa sen täällä — Discordissa mikään ei muutu.',
       ],
       note: {
         tag: 'Vaatii Hallitse webhookeja -oikeuden',
@@ -838,7 +834,7 @@ const fi: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Näet myös **Anvilin sivupaneelin** täyttyvän klaaneistasi, käynnissä olevista tapahtumista, sijoituksestasi ja synkronointipainikkeista — ja pelin Collection Login otsikkopalkkiin ilmestyy **Anvil**-painike WikiSyncin ja RuneProfilen viereen.',
+        'Näet myös **Anvilin sivupaneelin** täyttyvän klaaneistasi, käynnissä olevista tapahtumista, sijoituksestasi ja synkronointipainikkeista — ja pelin Collection Login otsikkopalkkiin ilmestyy **Anvil**-painike.',
       guestNote: {
         tag: 'Vieras vai jäsen',
         body: 'Jos chat sanoo _Tracked as a guest_, sinua seurataan mutta et ole vielä klaanin jäsenlistalla. Ylläpitäjä korjaa sen synkronoimalla jäsenlistan pelistä — kysy {discordLink}.',
@@ -858,7 +854,7 @@ const fi: PartialGuideDict = {
         'Napsauta pelaajaa hiiren oikealla — vieressäsi tai nimeä chatissa, kaverilistassa tai klaanipaneelissa — ja valitse **Anvil** avataksesi hänen korttinsa sivupaneelin **Lookup**-välilehdellä. Omasi on **You**-välilehti.',
       lookupFigure: {
         caption: 'Oikea napsautus nimeen → Anvil',
-        alt: 'Pelaajan oikean napsautuksen valikko pelissä, jossa Anvil-kohta Lookupin ja RuneProfilen alla',
+        alt: 'Pelaajan oikean napsautuksen valikko pelissä, jossa Anvil-kohta on Lookupin alla',
       },
       lookupSettingNote:
         'Valitse pluginin asetusten kohdasta **Player lookup**, missä **Anvil**-valinta näkyy. Chatissa nimen kohdalla se ei ole koskaan vasemman klikkauksen toiminto, joten nimen klikkaaminen tekee yhä sen, mitä peli tekee.',
@@ -2606,8 +2602,8 @@ const fi: PartialGuideDict = {
         tip: 'Jokainen aktiivinen Boss of the Week ja sen reaaliaikainen tilanne.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'Klaanin tehokkuuslista ja sijoituksesi siinä. Oletuksena EHP (efficient hours played); valitse EHB bossaukseen.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'Klaanin tehokkuuslista ja sijoituksesi siinä. Oletuksena pelatut tunnit; valitse bossitunnit bossaukseen.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2623,7 +2619,7 @@ const fi: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Yksi tili yhdellä silmäyksellä: combat- ja kokonaistaso, EHP ja EHB, collection login määrä ja ennätykset.',
+        tip: 'Yksi tili yhdellä silmäyksellä: combat- ja kokonaistaso, pelatut tunnit ja bossitunnit, collection login määrä ja ennätykset.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2631,7 +2627,7 @@ const fi: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP ja EHB, ja mistä skilleistä ja bosseista ne tulevat.',
+        tip: 'Pelatut tunnit ja bossitunnit, ja mistä skilleistä ja bosseista ne tulevat.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4375,7 +4371,7 @@ const fi: PartialGuideDict = {
       intro: 'Viisi valintaa, ja oletukset käyvät useimmille klaaneille:',
       steps: [
         'Avaa **Schedule** ylläpitovalikosta ja paina **+ Schedule event** (moderaattorit voivat käyttää **Schedule a competition**).',
-        'Valitse laji: **Skill of the Week** (saadut XP), **Boss of the Week** (saadut tapot) tai **Efficiency race** (saatu EHP tai EHB).',
+        'Valitse laji: **Skill of the Week** (saadut XP), **Boss of the Week** (saadut tapot) tai **Efficiency race** (saatu pelatut tunnit tai bossitunnit).',
         'Kohdassa **What is measured** valitse taito tai boss. Jos haluat vaihtaa sen joka viikko, lisää niitä kohtaan **Then rotate through**. Jätä se tyhjäksi toistaaksesi saman.',
         'Valitse, milloin se **Runs**: **This weekend**, **One week** tai omat päivämäärät. Siinä on aina oltava loppu, koska se pisteyttää alun ja lopun välisen kasvun.',
         'Pidä **Repeat every week** päällä, jolloin seuraava alkaa heti kun tämä päättyy, samalla pituudella ja palkinnoilla. Rastita **Guests race too**, jos klaanisi vieraiden pitäisi olla taulussa.',

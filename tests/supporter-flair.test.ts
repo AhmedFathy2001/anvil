@@ -31,7 +31,7 @@ test('a supporter gets their colours and the star; nobody else changes', () => {
   assert.equal((zez.icon as Extract<Node, { t: 'icon' }>).glyph, 'star');
   assert.equal(zez.iconAfter, true);
   assert.ok(!out.includes('"who"'), 'the marks never reach the plugin');
-  const lynx = ((t.c[1] as Extract<Node, { t: 'tabs' }>).tabs[0].c as Extract<Node, { t: 'col' }>).c[0] as Extract<Node, { t: 'text' }>;
+  const lynx = (((t.c[1] as Extract<Node, { t: 'tabs' }>).tabs[0] as { c: Node }).c as Extract<Node, { t: 'col' }>).c[0] as Extract<Node, { t: 'text' }>;
   assert.equal(lynx.color, 'white');
   assert.equal(lynx.icon, undefined);
 });

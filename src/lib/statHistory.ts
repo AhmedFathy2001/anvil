@@ -24,6 +24,7 @@ import { announceMilestones } from '@/lib/milestoneAnnounce';
 import { keepTotalXpStep, TOTAL_XP_GRAIN_M, TOTAL_XP_RECORD_STEP_M } from '@/lib/levelRules';
 import { wantedTotalXpStepsM } from '@/lib/levelRulesStore';
 import { log } from '@/lib/logger';
+import { updateRecords } from '@/lib/records';
 
 // ── Adaptive polling ─────────────────────────────────────────────────────────────────────────────
 //
@@ -150,6 +151,12 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
         updatedAt: now.toISOString(),
       },
     });
+
+  // Records ride on the same "something moved" signal, so an idle tick still costs nothing. It
+  // writes only when a period rolls over or a best improves (lib/records), and never throws.
+  if (input.previous && !nothingMoved) {
+    await updateRecords({ accountId: input.accountId, snapshot: input.snapshot, previous: input.previous, now });
+  }
 
   return { wrote: true, day, xpGained, ehpMilliGained, ehbMilliGained };
 }

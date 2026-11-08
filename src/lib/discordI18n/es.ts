@@ -226,7 +226,7 @@ const es: PartialDiscordDict = {
   commands: {
     sotw: 'Skill of the Week — clasificación en vivo',
     botw: 'Boss of the Week — clasificación en vivo',
-    eff: 'Clasificación de eficiencia (EHP/EHB) y tu puesto',
+    eff: 'Clasificación de eficiencia (horas jugadas/horas de jefes) y tu puesto',
     coffer: 'El cofre del clan — saldo, donantes y el staff añade/quita',
     clog: 'Collection log — el recuento de un miembro y los mejores del clan',
     luck: 'Suerte en drops — los más secos y afortunados del clan, o de un miembro',

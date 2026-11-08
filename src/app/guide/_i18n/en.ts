@@ -70,7 +70,7 @@ export const en = {
     cards: {
       switching: {
         eyebrow: 'Moving to Anvil',
-        title: 'Switching from Dink or Wise Old Man',
+        title: 'Switching from other plugins and trackers',
         blurb:
           'Anvil posts your drops to Discord and runs your weekly competitions. Five steps for staff, two for players.',
         minutes: '~3 min',
@@ -274,21 +274,21 @@ export const en = {
   },
 
   switching: {
-    metaTitle: 'Switching from Dink or Wise Old Man — Anvil',
+    metaTitle: 'Switching from other plugins and trackers — Anvil',
     metaDescription:
-      'Move your clan from Dink and Wise Old Man to Anvil: set up the Discord channels, sync the clan list, start Skill or Boss of the Week, and tell your members.',
+      'Move your clan to Anvil: set up the Discord channels, sync the clan list, start Skill or Boss of the Week, and tell your members.',
     eyebrow: 'Moving to Anvil',
-    title: 'Switching from Dink or Wise Old Man',
-    dek: 'Anvil does both jobs. It posts your clan’s drops and achievements to Discord. It also keeps your clan list and runs weekly competitions.',
+    title: 'Switching from other plugins and trackers',
+    dek: 'Anvil posts your clan’s drops and achievements to Discord. It also keeps your clan list and runs weekly competitions.',
 
     staff: {
       title: 'If you run the clan',
       body: [
-        '**Let the bot set up your channels.** Go to Admin → Discord → **Set it up for me**. Pick one channel or a few. If Dink was posting somewhere, tick _Use the same channels_. Nothing moves for your members.',
-        '**Sync your clan list.** In RuneLite, open the Anvil plugin’s settings. Turn on **Keep the clan roster in sync**. One admin does this once, in game. This replaces your Wise Old Man group.',
-        '**Start a Skill or Boss of the Week.** Go to Admin → All events → **+ New event**, and pick Skill of the Week or Boss of the Week. Everyone on the clan list is in it automatically. This replaces Wise Old Man competitions.',
+        '**Let the bot set up your channels.** Go to Admin → Discord → **Set it up for me**. Pick one channel or a few. If another plugin was posting somewhere, tick _Use the same channels_. Nothing moves for your members.',
+        '**Sync your clan list.** In RuneLite, open the Anvil plugin’s settings. Turn on **Keep the clan roster in sync**. One admin does this once, in game. This replaces any clan list you kept elsewhere.',
+        '**Start a Skill or Boss of the Week.** Go to Admin → All events → **+ New event**, and pick Skill of the Week or Boss of the Week. Everyone on the clan list is in it automatically. This replaces competitions you ran elsewhere.',
         '**Tell your members.** Go to Admin → Discord → **Tell your members** → **Post it**. The bot posts the player steps for you.',
-        '**A week later, clean up.** Go to Admin → Discord → **Remove Dink’s old webhooks**, tick the ones to go, press **Remove … webhooks** and then **Yes, remove them**. After that, nothing can post twice. Press **Keep** on any you want to leave alone.',
+        '**A week later, clean up.** Go to Admin → Discord → **Remove old webhooks from other plugins**, tick the ones to go, press **Remove … webhooks** and then **Yes, remove them**. After that, nothing can post twice. Press **Keep** on any you want to leave alone.',
       ],
     },
 
@@ -296,8 +296,8 @@ export const en = {
       title: 'If you’re a player',
       body: [
         '**Install Anvil.** In RuneLite, open the Plugin Hub, search for Anvil and press **Install**. Then sign in with Discord from the Anvil side panel.',
-        '**Turn off Dink’s notifications.** Or uninstall Dink, if you don’t use it for anything else.',
-        '**That’s it.** There is nothing to do for Wise Old Man.',
+        '**Turn off your old plugin’s notifications** so nothing posts twice. Or uninstall it, if you don’t use it for anything else.',
+        '**That’s it.** There is nothing else to set up.',
       ],
     },
 
@@ -306,12 +306,8 @@ export const en = {
       intro: 'The ones clans ask most:',
       rows: [
         {
-          term: 'Can we keep Dink for some things?',
-          body: 'Yes. Anvil doesn’t post kill counts, slayer tasks or speedruns. Leave only those turned on in Dink.',
-        },
-        {
-          term: 'Do we still need Wise Old Man?',
-          body: 'Only for all-time records and EHP / EHB ranks.',
+          term: 'Does Anvil track kill counts, slayer tasks and personal bests?',
+          body: 'Yes. Anvil tracks kill counts, slayer tasks and personal bests itself, so there is nothing else to keep running.',
         },
         {
           term: 'Do players paste a webhook anywhere?',
@@ -652,11 +648,11 @@ export const en = {
     },
 
     cleanup: {
-      title: 'Old webhooks from Dink or other bots',
+      title: 'Old webhooks from other plugins or bots',
       body: [
-        'With the bot in your server, the Discord page lists every webhook in it that isn’t Anvil’s. **Coming from Dink?** offers **Use the same channels**, so **Set it up for me** posts where your old feeds did and nothing moves for your members.',
-        'Once your members are on Anvil, go to **Remove Dink’s old webhooks**, tick the ones to go and press **Remove … webhooks**, then **Yes, remove them**. That deletes them in Discord for good — it cannot be undone.',
-        'The list holds any webhook that isn’t Anvil’s, not just Dink’s. One you want to keep, like another bot’s feed? Press **Keep** and it leaves the list; **Show kept** and **Put back** bring it back. Keeping only hides it here — nothing changes in Discord.',
+        'With the bot in your server, the Discord page lists every webhook in it that isn’t Anvil’s. **Coming from other plugins?** offers **Use the same channels**, so **Set it up for me** posts where your old feeds did and nothing moves for your members.',
+        'Once your members are on Anvil, go to **Remove old webhooks from other plugins**, tick the ones to go and press **Remove … webhooks**, then **Yes, remove them**. That deletes them in Discord for good — it cannot be undone.',
+        'The list holds any webhook that isn’t Anvil’s, not just another plugin’s. One you want to keep, like another bot’s feed? Press **Keep** and it leaves the list; **Show kept** and **Put back** bring it back. Keeping only hides it here — nothing changes in Discord.',
       ],
       note: {
         tag: 'Needs Manage Webhooks',
@@ -849,7 +845,7 @@ export const en = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'You should also see the **Anvil side panel** fill in with your clans, your live events, your placing and the sync buttons — and an **Anvil** button appear in the title bar of your in-game Collection Log, next to WikiSync and RuneProfile.',
+        'You should also see the **Anvil side panel** fill in with your clans, your live events, your placing and the sync buttons — and an **Anvil** button appear in the title bar of your in-game Collection Log.',
       guestNote: {
         tag: 'Guest vs member',
         body: 'If chat says _Tracked as a guest_, you’re being tracked but you’re not on the clan roster yet. An admin fixes that by syncing the in-game clan roster — ask {discordLink}.',
@@ -869,7 +865,7 @@ export const en = {
         'Right-click a player — standing next to you, or by name in chat, your friends list or the clan panel — and pick **Anvil** to open their card in the side panel’s **Lookup** tab. Your own is the **You** tab.',
       lookupFigure: {
         caption: 'Right-click a name → Anvil',
-        alt: 'A player’s right-click menu in game with an Anvil entry under Lookup and RuneProfile',
+        alt: 'A player’s right-click menu in game with an Anvil entry under Lookup',
       },
       lookupSettingNote:
         'Choose where the **Anvil** entry shows under **Player lookup** in the plugin’s settings. On a name in chat it is never the left-click option, so clicking a name still does what the game does.',
@@ -2606,8 +2602,8 @@ export const en = {
         tip: 'Every active Boss of the Week and its live standings.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'The clan’s efficiency leaderboard and your rank in it. EHP (efficient hours played) by default; pick EHB for bossing.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'The clan’s efficiency leaderboard and your rank in it. Efficient hours played by default; pick hours bossed for bossing.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2623,7 +2619,7 @@ export const en = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'One account at a glance: combat and total level, EHP and EHB, collection log count and personal bests.',
+        tip: 'One account at a glance: combat and total level, hours played and hours bossed, collection log count and personal bests.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2631,7 +2627,7 @@ export const en = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP and EHB, and which skills and bosses they come from.',
+        tip: 'Hours played and hours bossed, and which skills and bosses they come from.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4383,7 +4379,7 @@ export const en = {
       intro: 'Five choices, and the defaults are fine for most clans:',
       steps: [
         'Open **Schedule** in the admin menu and press **+ Schedule event** (moderators can use **Schedule a competition**).',
-        'Pick the kind: **Skill of the Week** (XP gained), **Boss of the Week** (kills gained) or **Efficiency race** (EHP or EHB gained).',
+        'Pick the kind: **Skill of the Week** (XP gained), **Boss of the Week** (kills gained) or **Efficiency race** (hours played or hours bossed gained).',
         'Under **What is measured**, pick the skill or boss. To change it every week, add more under **Then rotate through**. Leave that empty to repeat the same one.',
         'Choose when it **Runs**: **This weekend**, **One week**, or your own dates. It always needs an end, because it scores the gains between start and end.',
         'Leave **Repeat every week** on and the next one starts the moment this one ends, with the same length and prizes. Tick **Guests race too** if your clan’s guests should be on the board.',

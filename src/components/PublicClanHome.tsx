@@ -362,7 +362,7 @@ export default function PublicClanHome({
                 )}
                 {reqs.minEhp != null && (
                   <div className="flex justify-between gap-2">
-                    <dt className="text-text-muted">Min EHP</dt>
+                    <dt className="text-text-muted">Min hours played</dt>
                     <dd className="font-medium tabular-nums text-foreground">{reqs.minEhp.toLocaleString()}</dd>
                   </div>
                 )}

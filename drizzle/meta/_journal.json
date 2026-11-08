@@ -1242,6 +1242,27 @@
       "breakpoints": true
     },
     {
+      "idx": 239,
+      "version": "7",
+      "when": 1794360219469,
+      "tag": "0239_weekly_day_ranks",
+      "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0241_event_chat_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1794410000000,
+      "tag": "0242_account_records",
+      "breakpoints": true
+    },
+    {
       "idx": 243,
       "version": "7",
       "when": 1794420000000,

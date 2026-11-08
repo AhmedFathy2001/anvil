@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { KillLuckRead } from '@/lib/dropOdds';
 import { setUrlParams } from '@/lib/urlState';
 import { itemIconUrl } from '@/lib/tileIcons';
 import LocalTime from '@/components/LocalTime';
 import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
-import { GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem, type ValuedItem } from '@/lib/clogRarity';
+import { formatKillLuck, GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem, type ValuedItem } from '@/lib/clogRarity';
 import { formatGp } from '@/lib/itemPrices';
 import Input from '@/components/Input';
 import { type PersonalLuckProps } from './PersonalLuck';
@@ -248,6 +249,7 @@ export default function CollectionLog({
                         {item.page} · 1 in {Math.round(item.denominator).toLocaleString()}
                         {item.kcAtUnlock != null && <> · at {item.kcAtUnlock.toLocaleString()} KC</>}
                       </div>
+                      {item.luck && <LuckLine luck={item.luck} />}
                     </div>
                   </div>
                 ))
@@ -329,6 +331,7 @@ export default function CollectionLog({
                     <LocalTime date={u.at} format="date" />
                     {u.kcAtUnlock != null && <> · at {u.kcAtUnlock.toLocaleString()} KC</>}
                   </div>
+                  {u.luck && <LuckLine luck={u.luck} />}
                 </div>
               </div>
             ))}
@@ -513,6 +516,19 @@ export default function CollectionLog({
         </div>
       </div>
 
+    </div>
+  );
+}
+
+/** Expected vs actual kills for one unlock: green when spooned, red when dry. */
+function LuckLine({ luck }: { luck: KillLuckRead }) {
+  const tone = luck.verdict === 'spooned' ? 'text-green-400' : luck.verdict === 'on-rate' ? 'text-text-muted' : 'text-red-400';
+  return (
+    <div
+      className={`text-[10px] ${tone}`}
+      title={`Got it at ${Math.round(luck.actual).toLocaleString()} kills; the drop rate expects ${Math.round(luck.expected).toLocaleString()}. ${Math.round(luck.percentile * 100)}% of players would have it by then.`}
+    >
+      {formatKillLuck(luck)}
     </div>
   );
 }

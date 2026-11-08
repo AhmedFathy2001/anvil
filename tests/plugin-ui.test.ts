@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -5,7 +6,9 @@ import type { CaLookup } from '../src/lib/combatTasks';
 import type { GoalView } from '../src/lib/goalProgress';
 import { shapePlayerCard, type PlayerCard, type PlayerCardInput } from '../src/lib/playerCardShape';
 import { clanCardUi, clanSearchUi } from '../src/lib/pluginUi/clanUi';
-import type { Action, Node } from '../src/lib/pluginUi/nodes';
+import { type Action, type Node, col } from '../src/lib/pluginUi/nodes';
+import { completionRow, feedTabUi, momentRow } from '../src/lib/pluginUi/feedUi';
+import { h2hUi } from '../src/lib/pluginUi/h2hUi';
 import { milestoneSubject, notFoundUi, playerCardUi, virtualLevel } from '../src/lib/pluginUi/playerCardUi';
 import { casUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from '../src/lib/pluginUi/playerMoreUi';
 
@@ -66,16 +69,21 @@ test('the hub rule: nothing in a view is a URL, and every link is a path on the 
   }
 });
 
-test('a card: identity, log, latest, then the profile sections', () => {
+test('a card: identity, then Stats | Bosses | Collection log, the rest folded under them', () => {
   const ui = playerCardUi(card, { sectionKey: 'lookup', cas: true });
   const all = texts(ui);
   assert.ok(all.includes('Drenvox mdps'));
-  assert.ok(all.includes('2,277 total · cb 126 · Ironman'));
-  assert.ok(all.includes('600 / 1,600'));
+  assert.ok(all.includes('2,277 total · cb 126'));
+  assert.ok(all.includes('600 / 1,600'), 'the log total heads its own tab');
   assert.ok(all.includes('Tanzanite fang'));
-  const tabs = walk(ui).find((x) => x.t === 'tabs') as Extract<Node, { t: 'tabs' }>;
-  assert.deepEqual(tabs.tabs.map((t) => t.label), ['Skills', 'Bosses', 'Clues', 'Times', 'CAs']);
-  assert.equal(tabs.key, 'lookup');
+  const tabs = walk(ui).filter((x) => x.t === 'tabs') as Extract<Node, { t: 'tabs' }>[];
+  assert.deepEqual(tabs[0].tabs.map((t) => t.label), ['Stats', 'Bosses', 'Log']);
+  assert.equal(tabs[0].key, 'lookup');
+  assert.deepEqual(tabs[1].tabs.map((t) => t.label), ['Clues', 'Times', 'CAs']);
+  assert.ok(all.includes('Clues · Times · CAs ▾'));
+  // Lookup keeps the log out of the top card; your own card carries its progress there.
+  const own = texts(playerCardUi(card, { sectionKey: 'you', cas: false, own: true }));
+  assert.ok(own.includes('Collection log'));
 });
 
 test('panel media, clan mark and this character’s display case are part of the player card', () => {
@@ -205,7 +213,9 @@ test('goals: remove posts the id, and the form only offers log pages once the lo
     { id: 4, kind: 'skill', metric: 'slayer', target: 99, label: '99 Slayer', current: 4_000_000, of: 13_034_431, text: 'Lv 87 / 99', done: false, due: null },
   ];
   const ui = goalsUi(goals, null);
-  assert.ok(actions(ui).some((a) => a.a === 'post' && a.act === 'goal-remove' && a.args?.id === '4'));
+  const menus = walk(ui).flatMap((n) => (n as { menu?: { on: Action }[] }).menu ?? []);
+  assert.ok(menus.some((m) => m.on.a === 'post' && m.on.act === 'goal-remove' && m.on.args?.id === '4'), 'remove is on the row menu');
+  assert.ok(JSON.stringify(ui).includes('+ New goal'));
   const kinds = (pages: string[]) =>
     texts(goalFormUi('skill', pages)).filter((s) => ['Skill level', 'Boss kills', 'Log page'].includes(s));
   assert.deepEqual(kinds([]), ['Skill level', 'Boss kills']);
@@ -238,7 +248,7 @@ test('clans: members open in Lookup, compare only when offered, search rows open
   assert.ok(!JSON.stringify(ui).includes('http'), 'the clan logo URL never reaches the plugin');
   assert.ok(actions(ui).some((a) => a.a === 'lookup' && a.rsn === 'Zezima'));
   assert.ok(!walk(ui).some((x) => x.t === 'button'));
-  assert.ok(texts(ui).includes('Running: BOTW Vorkath'));
+  assert.ok(texts(ui).includes('Running:') && texts(ui).includes('BOTW Vorkath'));
   const mark = walk(ui).find((n) => n.t === 'img' && n.src.includes('kind=logo')) as Extract<Node, { t: 'img' }>;
   assert.equal(mark.round, true);
   assert.equal(mark.motion, true, 'an uploaded clan logo may animate without the banner boost gate');
@@ -354,12 +364,13 @@ test('board rows: fifteen a page, every page and detail carried as a pane, and t
   assert.deepEqual(Object.keys(panes).length, 2 + 20, 'two pages and a detail per tile');
   const next = walk(first).find((x) => x.t === 'button' && x.label === 'Next ›') as Extract<Node, { t: 'button' }>;
   assert.deepEqual(next.on, { a: 'pane', into: 'tile', pane: 'p1' });
-  const back = (id: number) => (walk(panes[`t:${id}`]).find((x) => x.t === 'button' && x.label === 'Back to tiles') as Extract<Node, { t: 'button' }>).on;
+  const back = (id: number) => (walk(panes[`t:${id}`]).find((x) => x.tip === 'Return to the searchable tile list') as { on: unknown }).on;
   assert.deepEqual(back(17), { a: 'pane', into: 'tile', pane: 'p1' }, 'a tile goes back to its own page');
   const opened = boardRowsUi(boardOf(tiles), state, ctxOf(), tiles[16]);
   const shown = walk((opened as Extract<Node, { t: 'slot' }>).c);
-  assert.ok(shown.some((x) => x.t === 'button' && x.label === 'Back to tiles'), 'opened on a tile, the detail shows first');
-  assert.deepEqual(back(17), (shown.find((x) => x.t === 'button' && x.label === 'Back to tiles') as Extract<Node, { t: 'button' }>).on);
+  const backRow = shown.find((x) => x.tip === 'Return to the searchable tile list') as { on: unknown } | undefined;
+  assert.ok(backRow, 'opened on a tile, the detail shows first');
+  assert.deepEqual(back(17), backRow.on);
   assert.deepEqual(rows[0].menu!.map((m) => m.label), ['I’m going for this', 'I’m going for this, with a note…', 'Track on screen']);
   const prev = walk(first).find((x) => x.t === 'button' && x.label === '‹ Previous') as Extract<Node, { t: 'button' }>;
   assert.equal(prev.off, true);
@@ -444,3 +455,77 @@ test('clan search: a boosted name wears its own dark look as-is on the panel, el
   assert.equal(own?.color, '#303030');
   assert.deepEqual(own?.grad, ['#303030', '#404040']);
 });
+
+// RACE_FIXTURES=<dir> also writes the Feed, You and Lookup views for the plugin's offscreen render
+// test (RacePanelRenderTest), beside the race and Clan-tab ones.
+if (process.env.RACE_FIXTURES) {
+  const dir = process.env.RACE_FIXTURES;
+  const write = (name: string, ui: Node) => writeFileSync(`${dir}/${name}.json`, JSON.stringify({ ui }));
+  const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+  const later = (m: number) => new Date(Date.now() + m * 60_000).toISOString();
+
+  const m = (id: number, rsn: string, kind: string, extra: Partial<Parameters<typeof momentRow>[0]>) =>
+    momentRow({ id, rsn, kind, itemId: null, itemName: null, quantity: 1, valueGp: null, source: null, teamId: null, occurredAt: ago(id * 3), ...extra }, {
+      team: { name: id % 2 ? 'Jade' : 'Ruby', color: id % 2 ? '#5fd35f' : '#ff8f8f' },
+      reacts: { tally: () => ({ n: id + 3, mine: false }), act: () => ({ a: 'post', act: 'react-row' }) },
+    });
+  const scopes = [
+    { kind: 'clan' as const, id: 1, slug: 'iron-forge', name: 'Iron Forge' },
+    { kind: 'event' as const, id: 5, name: 'Autumn Bingo' },
+  ];
+  write('feed', feedTabUi({
+    scopes, current: scopes[1], pane: 'feed', chatAvailable: true, filter: 'all', teamId: 2,
+    rows: [
+      m(1, 'Lab~Field4', 'drop', { itemId: 20997, itemName: 'Twisted bow', valueGp: 1_400_000_000 }),
+      completionRow({ tileId: 3, teamId: 1, label: 'Kill 5 bosses', who: 'Lab~Field9', team: { name: 'Iron Lads', color: '#4aa3ff' }, at: ago(5) }),
+      m(4, 'Drenvox', 'pet', { itemId: 21992, itemName: 'Vorki' }),
+      m(5, 'Lab~Field7', 'drop', { itemId: 21907, itemName: "Vorkath's head", valueGp: 900_000, run: { n: 12 } }),
+      m(6, 'Lab~Field24', 'level', { itemName: 'Slayer', quantity: 99 }),
+      m(7, 'Lab~Field88', 'death', { source: 'Vorkath' }),
+    ],
+    floorNote: '+214 smaller drops in the last minute',
+  }));
+
+  const rich: PlayerCard = {
+    ...card,
+    rsn: 'Drenvox',
+    displayCase: [
+      { id: 1, kind: 'kc', itemId: 0, statKey: 'vorkath', headline: '1,204 KC', name: 'Vorkath', source: null },
+      { id: 2, kind: 'pb', itemId: 0, statKey: '4:theatre_of_blood', headline: '17:42.6', name: 'ToB · 4 players', source: null },
+      { id: 3, kind: 'drop', itemId: 20997, statKey: null, headline: null, name: 'Twisted bow', source: 'Chambers of Xeric' },
+      { id: 4, kind: 'clog', itemId: 21992, statKey: null, headline: null, name: 'Vorki', source: 'Vorkath' },
+    ],
+  };
+  const h2h = (id: number, status: 'pending' | 'active', side: 'challenger' | 'opponent', them: string, me: number, they: number) => ({
+    id, kind: 'kc' as const, label: 'Vorkath kills', sentence: `${status === 'pending' ? 'Vorkath' : 'Zulrah'} kills · 7 days`, status, durationMin: 10_080, side,
+    me: { rsn: 'Drenvox', score: me, hitAt: null }, them: { rsn: them, playerId: id, score: they, hitAt: null },
+    createdAt: ago(60), respondBy: later(20 * 60), startedAt: ago(60), endsAt: later(2 * 24 * 60), finishedAt: null, outcome: null, resultLine: null,
+    myPublic: true, isPublic: true, cancelAsked: null, itemIds: [], statKey: status === 'pending' ? 'vorkath' : 'zulrah',
+  });
+  const goals: GoalView[] = [
+    { id: 1, kind: 'skill', metric: 'slayer', target: 99, label: '99 Slayer', current: 10_200_000, of: 13_034_431, text: '96 · 4.2m xp left', done: false, due: null },
+    { id: 2, kind: 'boss', metric: 'vorkath', target: 500, label: '500 Vorkath', current: 312, of: 500, text: '312 / 500', done: false, due: null },
+    { id: 3, kind: 'clog', metric: 'Barrows', target: 25, label: 'Barrows log', current: 22, of: 25, text: '22 / 25', done: false, due: { text: 'due in 2d', pace: null, tone: 'behind' } },
+    { id: 4, kind: 'clog', metric: 'Fight Caves', target: 1, label: 'Fire cape', current: 1, of: 1, text: '1 / 1', done: true, due: null },
+  ] as GoalView[];
+  write('you', col([
+    playerCardUi(rich, { sectionKey: 'you', cas: true, own: true, slots: 4, afterTop: [h2hUi([h2h(1, 'pending', 'opponent', 'Lab~Field88', 0, 0), h2h(2, 'active', 'challenger', 'Lab~Field4', 41, 36)])] }),
+    goalsUi(goals, null),
+  ], { gap: 8 }));
+
+  const them: PlayerCard = { ...card, rsn: 'Lab~Field146' };
+  write('lookup-player', playerCardUi(them, { sectionKey: 'lookup', cas: true, me: 'Drenvox' }));
+  const clog = playerCardUi(them, { sectionKey: 'lookup-clog', cas: true, me: 'Drenvox' });
+  const tabs = walk(clog).find((x) => x.t === 'tabs') as Extract<Node, { t: 'tabs' }>;
+  tabs.open = 'Log';
+  write('lookup-clog', clog);
+  write('lookup-clan', col([
+    clanSearchUi('iron', [{ slug: 'iron-lads', name: 'Iron Lads', boostLevel: 2 }, { slug: 'iron-forge', name: 'Iron Forge' }, { slug: 'ironside', name: 'Ironside' }]),
+    clanCardUi({
+      slug: 'iron-lads', name: 'Iron Lads', logoUrl: null, members: 212, activeThisWeek: 97, weekHours: 2010, totalEhp: 9000, totalEhb: 4000,
+      topWeek: [{ rsn: 'Lab~Field9', hours: 52.1 }, { rsn: 'Lab~Field57', hours: 40.4 }, { rsn: 'Lab~Field24', hours: 38.8 }],
+      topPlayers: [], clog: { average: 612, synced: 120 }, highlights: [],
+      competitions: [{ type: 'boss', metric: 'vorkath', label: 'Vorkath' }],
+    } as unknown as Parameters<typeof clanCardUi>[0], true),
+  ], { gap: 8 }));
+}

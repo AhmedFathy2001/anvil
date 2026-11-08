@@ -7,9 +7,11 @@ import { runSuffix } from '@/lib/feedRuns';
 import { clanBoostInk } from '@/lib/clanBoostRules';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
+import type { ChatLock } from '@/lib/eventChatRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, row, text } from './nodes';
+import { BLUE, GREEN, CORAL, PURPLE, TINT, boxChip, openRow, section, segSwitch } from './sections';
 import { revisedMediaPath } from './mediaRevision';
 
 // The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
@@ -21,7 +23,7 @@ import { revisedMediaPath } from './mediaRevision';
 //   moments:clan:<clan>[:<group>]        a clan's moments, all or one kind group
 //   moments:event:<event>[:<group>]      a board's moments
 //   moments:event:<event>:team:<team>    one team's moments on it
-//   chat:<event> · chat:<event>:team:<team> · chat:<event>:mods
+//   chat:<event>:all · chat:<event>:team:<team> · chat:<event>:announce   (lib/eventChatRules ChatChannel)
 
 export type KindGroup = 'drops' | 'pets' | 'achievements' | 'deaths';
 export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'achievements', 'deaths'];
@@ -85,19 +87,18 @@ export function modeMomentFeedIds(clanId: number, kind: string, mode?: string | 
   return ids;
 }
 
-export function chatFeedId(eventId: number, filter?: 'team' | 'mods', teamId?: number | null): string {
-  if (filter === 'team' && teamId != null) return `chat:${eventId}:team:${teamId}`;
-  if (filter === 'mods') return `chat:${eventId}:mods`;
-  return `chat:${eventId}`;
+/** One chat channel's list: chat:<event>:all · chat:<event>:team:<team> · chat:<event>:announce. */
+export function chatFeedId(eventId: number, channel: string): string {
+  return `chat:${eventId}:${channel}`;
 }
 
-/** The lists a chat line goes to: everyone's (unless team-only), its team's, and the staff list for staff. */
-export function chatFeedIds(eventId: number, m: { teamId: number | null; teamOnly: boolean; staff: boolean }): string[] {
-  const ids: string[] = [];
-  if (!m.teamOnly) ids.push(chatFeedId(eventId));
-  if (m.teamId != null) ids.push(chatFeedId(eventId, 'team', m.teamId));
-  if (m.staff && !m.teamOnly) ids.push(chatFeedId(eventId, 'mods'));
-  return ids;
+/**
+ * The lists a lock push names (the plugin matches them as prefixes). `chat:<event>` is every channel;
+ * the board's pause, and a box reopening, name only the channels a player talks in, so the read-only
+ * line on Announcements stays put.
+ */
+export function chatLockFeeds(eventId: number, which: 'every' | 'talk'): string[] {
+  return which === 'every' ? [`chat:${eventId}`] : [`chat:${eventId}:all`, `chat:${eventId}:team`];
 }
 
 // ── Rows ─────────────────────────────────────────────────────────────────────────────────────────
@@ -123,7 +124,9 @@ export interface MomentLike {
   run?: { n: number; mixed?: boolean } | null;
 }
 
-const PET = '#ff7f27';
+const PET = PURPLE;
+/** A drop worth this much reads as rare: purple, like a pet. */
+const RARE_GP = 10_000_000;
 const ACHIEVEMENT = '#ffd35c';
 export function momentTitle(m: MomentLike): string {
   const run = m.run && m.run.n > 1 ? m.run : null;
@@ -224,6 +227,17 @@ function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | n
   return m.kind === 'pet' ? clogItemIdByName(m.itemName) : null;
 }
 
+/**
+ * The row's colour by kind, on its title and the tile behind its picture: purple for a pet, a log
+ * slot or a rare drop; green for a 99 or a max; coral for a death. Everything else stays plain.
+ */
+function toneOf(m: MomentLike, totalLevel: boolean): Pick<FeedRow, 'textColor' | 'tint'> {
+  if (m.kind === 'death') return { textColor: CORAL, tint: TINT.coral };
+  if (m.kind === 'pet' || m.kind === 'clog' || (m.kind === 'drop' && (m.valueGp ?? 0) >= RARE_GP)) return { textColor: PURPLE, tint: TINT.purple };
+  if (m.kind === 'level' && (m.sourceKind === 'max' || (!totalLevel && m.quantity >= 99))) return { textColor: GREEN, tint: TINT.green };
+  return {};
+}
+
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   // valueGp is the whole stack's worth (the plugin prices quantity × each), so it is shown as is.
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp) : undefined;
@@ -259,7 +273,7 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
         : {}),
     at: m.occurredAt,
     ...(value ? { value } : {}),
-    ...(m.kind === 'pet' ? { textColor: PET as Color } : m.kind === 'death' ? { textColor: 'error' as Color } : {}),
+    ...toneOf(m, totalLevel),
     ...(o.mine ? { mine: true } : {}),
     ...reactsOf(m.kind, o),
   };
@@ -311,10 +325,11 @@ export function completionRow(c: {
     id: `t${c.tileId}:${c.teamId}`,
     glyph: 'check',
     glyphColor: 'done',
-    // The green check says "complete"; the line is the tile.
+    // The green check on a green tile says "complete"; the line is the tile, green too. The team
+    // is the row's tag, in its own colour.
     title: c.label,
-    // In the team's colour, so each team's finishes read at a glance (green when it has none).
-    textColor: ((c.team?.color && /^#[0-9a-f]{6}$/i.test(c.team.color) ? c.team.color : 'done') as Color),
+    textColor: GREEN,
+    tint: TINT.green,
     // Who, then the team as the row's tag (the panel prints it after the name). No finisher: the team
     // is the name, untagged, so it never reads "Jade · Jade".
     who: c.who ?? c.team?.name ?? '',
@@ -347,7 +362,6 @@ export interface ChatLike {
   id: number;
   rsn: string;
   body: string;
-  teamOnly: boolean;
   createdAt: string;
 }
 
@@ -365,8 +379,9 @@ export interface ChatRowOptions {
 }
 
 export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
-  const tag = o.role === 'host' ? 'HOST' : o.role === 'mod' ? 'MOD' : m.teamOnly ? 'TEAM' : o.team?.name;
-  const tagColor: Color = o.role ? '#7ae0ff' : m.teamOnly ? 'claim' : ((o.team?.color as Color | null) ?? 'muted');
+  // HOST in gold, MOD in blue (the mockup's chips); everyone else carries their team's name.
+  const tag = o.role === 'host' ? 'HOST' : o.role === 'mod' ? 'MOD' : o.team?.name;
+  const tagColor: Color = o.role === 'host' ? '#ffb54d' : o.role === 'mod' ? '#8cc8ff' : ((o.team?.color as Color | null) ?? 'muted');
   return {
     id: `c${m.id}`,
     who: m.rsn,
@@ -386,11 +401,14 @@ export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
 
 // ── The tab ──────────────────────────────────────────────────────────────────────────────────────
 
-const ON = 'brand';
-const OFF = 'muted';
-
-function chip(label: string, on: boolean, act: Action): Node {
-  return text(label, on ? ON : OFF, { font: on ? 'bold' : 'small', on: act });
+/** One segment of the chat's channel switch (nodes feed `chans`). */
+export interface ChatChan {
+  label: string;
+  on: boolean;
+  act: Action;
+  feed: string;
+  n?: number;
+  blue?: boolean;
 }
 
 export interface FeedTabOptions {
@@ -414,7 +432,14 @@ export interface FeedTabOptions {
   send?: { act: string; args: Record<string, string>; hint: string } | null;
   /** Chat: the names the viewer's own lines carry (lib/eventChat myChatNames), so live lines highlight too. */
   mine?: string[];
-  locked?: string | null;
+  /** Chat: what stands in place of the message box (lib/eventChatRules lockFor). */
+  lock?: ChatLock | null;
+  /** Chat: the channel switch (My team | All teams | Announcements) over the list. */
+  chans?: ChatChan[];
+  /** Chat, staff on a team channel: which team's, as chips. */
+  teamPicks?: { label: string; on: boolean; act: Action }[] | null;
+  /** Chat: the open channel's list id (lib/eventChatRules ChatChannel via chatFeedId). */
+  feedId?: string;
   /** The viewer moderates this chat: the mods filter and the pause switch show. */
   staff?: boolean;
   paused?: boolean;
@@ -448,10 +473,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
     }, gap(4));
   }
 
-  // Which feed: a dropdown of every clan the viewer is in and every board they're on (chips ran out
-  // of room past two). One scope is just a heading.
+  // The top card says where you are: which feed (a dropdown of every clan the viewer is in and every
+  // board they're on; one scope is just its name), and what lands in it.
+  const top: Node[] = [];
   if (o.scopes.length > 1) {
-    parts.push(
+    top.push(
       {
         t: 'input',
         name: 's',
@@ -461,12 +487,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
         tip: 'Whose feed to show',
         on: load({}),
       } as Node,
-      gap(4),
     );
   } else {
     const sourceBoost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0, o.current.boostNameStyle) : null;
     const boost = sourceBoost ? inkForSurface(sourceBoost, 'dark') : null;
-    parts.push(row(
+    top.push(row(
       o.images && o.current.kind === 'clan' && o.current.logo
         ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=logo`, o.current.mediaRevision, o.current.boostLevel ?? 0), w: 28, h: 28, motion: true, round: true }
         : undefined,
@@ -476,8 +501,13 @@ export function feedTabUi(o: FeedTabOptions): Node {
         ...(boost?.move ? { move: true } : {}),
       }),
       undefined,
-    ), gap(4));
+    ));
   }
+  if (!o.mode?.active) {
+    const what = o.pane === 'chat' ? ' · your board’s chat' : o.current.kind === 'event' ? ' · drops, pets and finished tiles from every team' : ' · drops, pets and achievements from the clan';
+    top.push(text('', 'muted', { font: 'small', runs: [{ s: 'Live', color: BLUE }, { s: what, color: 'muted' }] }));
+  }
+  parts.push(section(top), gap(6));
 
   if (o.mode?.active) {
     parts.push(
@@ -505,19 +535,21 @@ export function feedTabUi(o: FeedTabOptions): Node {
     }
   } else if (o.chatAvailable) {
     parts.push(
-      rowOf([
-        chip('Feed', o.pane === 'feed', load({ s: key, p: 'feed' })),
-        chip('Chat', o.pane === 'chat', load({ s: key, p: 'chat' })),
+      segSwitch(`feed-pane:${key}`, [
+        { label: 'Feed', on: o.pane === 'feed', act: load({ s: key, p: 'feed' }) },
+        { label: 'Chat', on: o.pane === 'chat', act: load({ s: key, p: 'chat' }) },
       ]),
-      gap(4),
+      gap(6),
     );
   } else if (o.chatClosed) {
     parts.push(muted(o.chatClosed, { wrap: true }), gap(4));
   }
 
+  // The chat's channels are a switch on the list itself (`chans`); staff pick a team's under it.
+  if (o.pane === 'chat' && o.teamPicks?.length) parts.push(rowOf(o.teamPicks.map((t) => boxChip(t.label, t.on, t.act)), 3), gap(4));
   const filters: [string, string][] =
     o.pane === 'chat'
-      ? [['all', 'All'], ...(o.teamId != null ? [['team', 'My team'] as [string, string]] : []), ...(o.staff ? [['mods', 'Host & mods'] as [string, string]] : [])]
+      ? []
       // Achievements: log slots, diaries, quests, the clan's level milestones and combat-task tier,
       // kept for the clan whether or not anything is running (a board keeps its own tasks and levels).
       : [
@@ -532,12 +564,12 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
-  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({
+  if (filters.length) parts.push(rowOf(filters.map(([id, label]) => boxChip(label, o.filter === id, load({
     s: key,
     p: o.pane,
     f: id,
     ...(o.mode?.active ? { m: '1', ...(o.mode.selected && o.mode.selected !== 'all' ? { wm: o.mode.selected } : {}) } : {}),
-  }))), 3), gap(4));
+  }))), 3), gap(6));
 
   const id =
     o.mode?.active && o.current.kind === 'clan'
@@ -547,7 +579,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
           o.mode.selected === 'all' ? undefined : o.mode.selected,
         )
       : o.pane === 'chat' && o.current.kind === 'event'
-      ? chatFeedId(o.current.id, o.filter === 'team' ? 'team' : o.filter === 'mods' ? 'mods' : undefined, o.teamId)
+      ? (o.feedId ?? chatFeedId(o.current.id, o.filter))
       : momentsFeedId(o.current, o.filter === 'all' ? undefined : (o.filter as KindGroup | 'team' | 'tiles'), o.teamId);
 
   parts.push({
@@ -559,14 +591,17 @@ export function feedTabUi(o: FeedTabOptions): Node {
     empty: o.mode?.active ? emptyModeLine(o.filter) : emptyLine(o.pane, o.filter),
     ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: 200 } } : {}),
     ...(o.pane === 'chat' && o.mine?.length ? { mine: o.mine } : {}),
-    ...(o.locked ? { locked: o.locked } : {}),
+    ...(o.pane === 'chat' && o.chans?.length ? { chans: o.chans } : {}),
+    ...(o.lock ? { locked: o.lock.locked, ...(o.lock.sub ? { lockSub: o.lock.sub } : {}), ...(o.lock.warn ? { lockWarn: true } : {}) } : {}),
   });
 
   if (!o.mode?.active && o.mode && o.mode.count > 0 && o.pane === 'feed' && o.current.kind === 'clan') {
     parts.push(
-      gap(4),
-      button(
-        `Game-mode activity · ${o.mode.count}`,
+      gap(6),
+      openRow(
+        text(`Game-mode activity · ${o.mode.count}`),
+        undefined,
+        [],
         load({ s: key, p: 'feed', m: '1', f: 'all', wm: 'all' }),
         'Leagues, Hardcore Worlds, Deadman and other separate saves',
       ),
@@ -597,7 +632,7 @@ function emptyModeLine(filter: string): string {
 
 /** What an empty list says, for the filter that's on. */
 function emptyLine(pane: 'feed' | 'chat', filter: string): string {
-  if (pane === 'chat') return filter === 'team' ? 'Nothing said to your team yet.' : filter === 'mods' ? 'The host and mods haven’t said anything yet.' : 'No messages yet. Say hi to the board.';
+  if (pane === 'chat') return filter.startsWith('team') ? 'Nothing said to your team yet.' : filter === 'announce' ? 'No announcements yet.' : 'No messages yet. Say hi to the board.';
   if (filter === 'pets') return 'No pets yet. The next one lands here.';
   if (filter === 'drops') return 'No big drops yet. The next one lands here.';
   if (filter === 'achievements') return 'No achievements yet. The next log slot, 99 or diary lands here.';
@@ -607,7 +642,7 @@ function emptyLine(pane: 'feed' | 'chat', filter: string): string {
 
 /** A row of chips with a little space between, wrapping is the plugin's business. */
 function rowOf(items: Node[], maxCols = 5): Node {
-  return { t: 'grid', cols: Math.min(items.length, maxCols), c: items, gap: 4, vgap: 2 };
+  return { t: 'grid', cols: Math.min(items.length, maxCols), c: items, gap: 4, vgap: 4 };
 }
 
 /**

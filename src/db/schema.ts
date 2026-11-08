@@ -9,6 +9,7 @@ import {
   smallint,
   boolean,
   real,
+  doublePrecision,
   jsonb,
   timestamp,
   uniqueIndex,
@@ -439,7 +440,7 @@ export const accountStatSnapshots = pgTable('account_stat_snapshots', {
  * An in-game OSRS clan, as the characters in it describe it — whether or not that clan uses Anvil.
  *
  * A "ghost" clan: nobody created it, nobody owns it, and it grants nothing. It exists because a
- * player's plugin said "I'm in Iron Foundry, rank Dragonstone", the way WOM and RuneProfile show a
+ * player's plugin said "I'm in Iron Foundry, rank Dragonstone", the way a profile page shows a
  * player's clan. Built member by member from each player's OWN row (lib/gameClans) — never from a
  * roster push, so it only ever holds what Anvil users said about themselves.
  *
@@ -2017,6 +2018,19 @@ export const eventDaySnapshots = pgTable('event_day_snapshots', {
   uniqueIndex('event_day_snapshots_event_day_unique').on(table.eventId, table.dayIndex),
 ]);
 
+// One row per weekly competition per UTC day (lib/rankMoves): every entrant's rank as the day began,
+// written once by the lifecycle tick, so the standings can say "▲3 today". `ranks` is JSON
+// { rsnKey: rank } (lib/weeklyRsn), ranked the way the weekly board ranks (gain, then name).
+export const weeklyDayRanks = pgTable('weekly_day_ranks', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),
+  takenAt: text('taken_at').notNull(),
+  ranks: text('ranks').notNull(),
+}, (table) => [
+  uniqueIndex('weekly_day_ranks_comp_day_unique').on(table.competitionId, table.day),
+]);
+
 // One row per event per HOUR (lib/eventHourly): each player's gains-so-far as five numbers plus each
 // team's score, so the stats page can draw progress through the day. Kept tiny on purpose — see
 // lib/eventDay HourSnapshotData. Hour 0 (the start) is all zeroes and never stored.
@@ -2832,6 +2846,44 @@ export const memberDailyStats = pgTable('member_daily_stats', {
 }, (table) => [
   uniqueIndex('member_daily_stats_account_day_idx').on(table.accountId, table.day),
   index('member_daily_stats_day_idx').on(table.day),
+]);
+
+/**
+ * Records: an account's best gain per metric (skill XP, boss KC, hours played / bossed) in a
+ * calendar day, ISO week, month and year, all UTC. Written only when a best improves — see
+ * lib/records. Records start at deploy; there is no backfill from history.
+ */
+export const accountRecords = pgTable('account_records', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  /** Skill or boss hiscores key, or 'hours_played' / 'hours_bossed'. */
+  metric: text('metric').notNull(),
+  /** 'day' | 'week' | 'month' | 'year'. */
+  period: text('period').notNull(),
+  /** Best gain: XP, kills, or hours. */
+  value: doublePrecision('value').notNull(),
+  /** ISO start of the period the record was set in. */
+  startedAt: text('started_at').notNull(),
+  /** ISO time of the update that set (or last raised) it. */
+  endedAt: text('ended_at').notNull(),
+}, (table) => [
+  uniqueIndex('account_records_account_metric_period_idx').on(table.accountId, table.metric, table.period),
+  index('account_records_metric_period_value_idx').on(table.metric, table.period, table.value),
+]);
+
+/**
+ * One baseline per account and period: the totals at the start of the current day / week / month /
+ * year. Replaced (not appended) when the period rolls over, so this stays at four rows per account.
+ * `values` is JSON `{ metric: value }`.
+ */
+export const accountPeriodBaselines = pgTable('account_period_baselines', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  period: text('period').notNull(),
+  periodStart: text('period_start').notNull(),
+  values: text('values').notNull(),
+}, (table) => [
+  uniqueIndex('account_period_baselines_account_period_idx').on(table.accountId, table.period),
 ]);
 
 /**
@@ -4591,6 +4643,8 @@ export const eventChatMessages = pgTable('event_chat_messages', {
   /** The sender's team when they said it; null for host staff with no team. */
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   teamOnly: boolean('team_only').notNull().default(false),
+  /** Where it was said (lib/eventChatRules ChatChannel): 'all' | 'team:<id>' | 'announce'. */
+  channel: text('channel').notNull().default('all'),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** Said by the host's staff: the "Host & mods" filter reads this. */
   fromStaff: boolean('from_staff').notNull().default(false),
@@ -4602,7 +4656,17 @@ export const eventChatMessages = pgTable('event_chat_messages', {
 }, (table) => [
   index('event_chat_messages_event_idx').on(table.eventId, table.id),
   index('event_chat_messages_team_idx').on(table.eventId, table.teamId, table.id),
+  index('event_chat_messages_channel_idx').on(table.eventId, table.channel, table.id),
 ]);
+
+// How far each person has read each channel of a board's chat (lib/eventChat markChannelRead): the
+// newest line id they had on screen. Unread counts are the lines after it. One row per channel seen.
+export const eventChatReads = pgTable('event_chat_reads', {
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),
+  lastId: integer('last_id').notNull().default(0),
+}, (table) => [primaryKey({ columns: [table.eventId, table.userId, table.channel] })]);
 
 // Who may not talk in an event's chat (lib/eventChat sanctionChat): a 'timeout' until `until`, or a
 // 'ban' until a moderator lifts it (`until` null). One row per person per board; lifting deletes it

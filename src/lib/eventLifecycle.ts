@@ -38,6 +38,7 @@ import { runFootprintChecks } from '@/lib/footprintCheck';
 import { settleOwnershipClaims } from '@/lib/ownershipClaims';
 import { settleOwnershipTransfers } from '@/lib/ownershipTransfers';
 import { runSharedWebhookScan } from '@/lib/sharedWebhooks';
+import { runWeeklyDayRanks } from '@/lib/rankMoves';
 import { closeFinishedEventSeats } from '@/lib/eventPlayers';
 import { queueWinnerHighlight } from '@/lib/highlights/store';
 
@@ -435,6 +436,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await runSharedWebhookScan(nowMs).catch((err) => log.warn('event-lifecycle.shared-webhooks-failed', { err: String(err) }));
   await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
   await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
+  // Each running weekly's ranks as the UTC day began (lib/rankMoves): once a day, for "▲3 today".
+  await runWeeklyDayRanks(nowMs);
   // Hidden standings (lib/standingsReveal): mark curtains that are down, and post the leaderboard
   // once when one comes up mid-event. Before the end loop's next tick can matter, after the digests.
   await runStandingsReveals(nowMs).catch((err) => log.warn('event-lifecycle.standings-reveal-failed', { err: String(err) }));
