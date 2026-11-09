@@ -77,6 +77,7 @@ interface EventBoardProps {
   raceLayout?: 'full' | 'track';
   /** The race map scales up to fill its box (the race track's fullscreen overlay). */
   raceFit?: boolean;
+  raceLens?: number | null;
 }
 
 /**
@@ -92,6 +93,7 @@ export default function EventBoard({
   showStatusFilter = true,
   raceLayout,
   raceFit,
+  raceLens,
   ...rest
 }: EventBoardProps) {
   const { completions, activeTeamId, dropProgress, statProgress, matchedTileIds } = rest;
@@ -147,7 +149,7 @@ export default function EventBoard({
   const boardRest = { ...rest, matchedTileIds: combinedMatched };
 
   const board = isTileRaceFormat(format) ? (
-    <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} raceFit={raceFit} />
+    <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} raceFit={raceFit} raceLens={raceLens} />
   ) : pointsMode ? (
     // Point Hunt (points scoring) renders as a task-list accordion, not a square grid —
     // so it isn't bound to a perfect-square tile count. The status map lets it sort

@@ -47,6 +47,8 @@ export interface TileRaceBoardProps {
   raceLayout?: 'full' | 'track';
   /** Scale the race map up to its box (fullscreen). */
   raceFit?: boolean;
+  /** The race map's "Show progress for" lens: whose road it draws. Undefined = the viewer's; null = everyone (no road picked out). */
+  raceLens?: number | null;
 }
 
 // How many tiles per row before the track snakes back the other way.

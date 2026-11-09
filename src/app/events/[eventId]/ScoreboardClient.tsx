@@ -713,12 +713,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                 <span className="text-xs font-normal text-text-muted">click a tile for details</span>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                   <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} compact={windowed} mine={myTeamIds} noun={solo ? 'player' : 'team'} />
-                  <button
-                    onClick={() => setFullscreen(!fullscreen)}
-                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${fullscreen ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'}`}
-                  >
-                    {fullscreen ? 'Close fullscreen' : 'Fullscreen board'}
-                  </button>
                 </div>
               </>
             }
@@ -740,7 +734,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             staffOnlyTileIds={staffOnlySet}
             showStatusFilter={false}
             raceLayout="track"
-            raceFit={fullscreen}
+            raceLens={lensTeamId}
           />
         </section>
 

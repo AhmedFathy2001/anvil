@@ -75,7 +75,7 @@ export function useRacePick(eventId: number | undefined, teamId: number | null, 
   return { pickInfo, pickError, picking, pick };
 }
 
-export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full', raceFit = false }: TileRaceBoardProps) {
+export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full', raceFit = false, raceLens }: TileRaceBoardProps) {
   // 'track': the event page's Race track card — strip, map, legend, tiles. Up next and the standings
   // are page sections there (components/board/RaceEventSections). 'full': everything in one card.
   const full = raceLayout !== 'track';
@@ -101,6 +101,9 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const route = viewer != null ? routes.get(viewer) ?? null : null;
   const viewerTeam = viewer != null ? teamById.get(viewer) : undefined;
+  // The map draws the lens's road: yours by default, nobody's for Everyone, or the team picked.
+  const focus = raceLens === undefined ? viewer : raceLens;
+  const shown = focus != null ? routes.get(focus) ?? null : null;
 
   const progress = new Map<number, string>();
   for (const [id, p] of dropProgress ?? []) if (p.current > 0) progress.set(id, `${p.current}/${p.required}`);
@@ -132,8 +135,8 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
 
       <RaceRouteMap
         nodes={nodes}
-        state={route?.state}
-        path={route?.path}
+        state={shown?.state}
+        path={shown?.path}
         variant={variant}
         teams={mapTeams}
         viewerTeamId={viewer}
@@ -141,12 +144,12 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
         progress={progress}
         matched={matchedTileIds ?? null}
         stepLabel={(s) => stepTitle(graph, s)}
-        lockedIds={route ? new Set(route.pickFrom) : undefined}
+        lockedIds={shown ? new Set(shown.pickFrom) : undefined}
         youTileId={route && route.path.length ? route.path[route.path.length - 1] : null}
         youNotStarted={!!route && route.path.length === 0}
         fit={raceFit}
       />
-      <RouteMapLegend withTeam={!!route} />
+      <RouteMapLegend withTeam={!!shown} />
 
       {full && variant === 'medium' && <FrontAndAround standings={standings} teamById={teamById} viewer={viewer} steps={steps} />}
       {full && variant === 'huge' && eventId != null && (
