@@ -471,7 +471,23 @@ export function homeUi(d: HomeData): Node {
     return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, boardFromList(m.eventId, t), `Open ${t}`);
   });
   const liveRows = [...(playingHere ? [playingHere] : []), ...mineRows];
-  if (liveRows.length) parts.push(goldCard(liveRows.length > 1 ? 'Your live boards' : 'Your live board', liveRows));
+  if (liveRows.length > 1) {
+    // Several boards: the card folds to its heading (open by default, the choice kept per toggle key).
+    const flip: Action = { a: 'flip', key: 'liveboards' };
+    const head = (open: boolean) =>
+      row(
+        text(`Your live boards · ${liveRows.length}`, GOLD, { font: 'bold', icon: icon({ glyph: open ? 'down' : 'chevron-right', w: 10, h: 10, color: GOLD }) }),
+        undefined,
+        muted(open ? 'Hide' : 'Show'),
+        { on: flip, tip: open ? 'Fold the list' : 'Show every live board' },
+      );
+    parts.push({
+      t: 'toggle',
+      key: 'liveboards',
+      off: section([head(true), ...liveRows], { edge: GOLD }),
+      lit: section([head(false)], { edge: GOLD }),
+    });
+  } else if (liveRows.length) parts.push(goldCard('Your live board', liveRows));
 
   const heading = (s: string) => title(s);
   if (running.length) parts.push(col([heading('Running'), ...running], { gap: 5 }));

@@ -236,7 +236,7 @@ test('every live board the character is on sits in one card with its own progres
     myBoards: [summary(5, 'Summer Bingo', 'afk', 3, 25), summary(7, 'Side Bingo', 'afk', 2, 9), summary(8, 'Clan Wars', 'rivals', 0, 16)],
   }));
   const all = texts(ui);
-  assert.ok(all.includes('Your live boards'));
+  assert.ok(all.some((t) => t.startsWith('Your live boards')));
   assert.ok(!all.includes('Your live board'), 'no single “the” board');
   assert.ok(all.includes('Side Bingo') && all.includes('Clan Wars'));
   assert.ok(all.includes('2 / 9 tiles') && all.includes('0 / 16 tiles'));

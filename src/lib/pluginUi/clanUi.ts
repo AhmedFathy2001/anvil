@@ -74,7 +74,12 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     );
   }
   if (c.topPlayers.length) {
-    parts.push(section([siteHeader('Top accounts', 'by total XP', `/members?sort=xp`), ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn))], { gap: 4 }));
+    parts.push(section([
+      siteHeader('Top accounts', 'by total XP', `/members?sort=xp`),
+      ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn)),
+      // The clan's feed is one click from its card.
+      ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
+    ], { gap: 4 }));
   }
   if (c.highlights.length) {
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.

@@ -25,30 +25,20 @@ const n = (v: number) => Math.round(v).toLocaleString('en-GB');
 export function pinLuck(
   p: PinLuckInput,
   candidates: { itemId: number; sources: LuckRateSource[] }[],
-  kcNow: (bossKey: string) => number,
+  _kcNow: (bossKey: string) => number,
 ): PinLuck | null {
   const sources = candidates.find((c) => c.itemId === p.itemId)?.sources ?? [];
   const want = (p.source ?? '').trim().toLowerCase();
   const src = sources.find((s) => s.source.toLowerCase() === want) ?? sources[0];
   if (!src || !(src.denominator > 0)) return null;
   const rate = `1/${n(src.denominator)}`;
-  if (p.qty && p.qty > 1) {
-    // Several: judged over every kill they have now.
-    const kills = kcNow(src.bossKey);
-    if (!(kills > 0)) return null;
-    const e = expectationFor([src], { [src.bossKey]: kills });
-    const a = assessLuckAt(e.expected, kills, p.qty, e.expectedLow);
-    return { text: `×${n(p.qty)} in ${n(kills)} KC`, tone: a.verdict === 'spooned' ? 'green' : 'muted' };
-  }
   if (p.kc && p.kc > 0) {
     const a = assessLuckAt(chancePerKill(src.denominator, src.rolls) * p.kc, p.kc, 1);
     if (a.verdict === 'spooned') return { text: `Spooned · ${n(p.kc)} KC (${rate})`, tone: 'green' };
     if (a.verdict === 'dry') return { text: `Dry · ${n(p.kc)} KC (${rate})`, tone: 'muted' };
     return { text: `${n(p.kc)} KC · on rate`, tone: 'muted' };
   }
-  // Nothing was recorded at the drop (a log filled before tracking, or a one-button sync): the best
-  // honest number is the boss it comes from and how many the player has killed there now.
-  const now = kcNow(src.bossKey);
-  if (now > 0) return { text: `${n(now)} ${kcLabel(src.bossKey)} KC`, tone: 'muted' };
+  // Only the KC it actually dropped at is shown: no stand-in from today's kill count (it would read
+  // as the drop KC). Without one the pin falls back to ×N owned, the month, or the name.
   return null;
 }
