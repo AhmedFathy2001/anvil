@@ -175,7 +175,7 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
   for (let step = done + 1; step <= last; step++) {
     const end = step === last;
     const ids = g.steps[step];
-    const dot = end ? 'end' : 'todo';
+    const dot = end ? 'end' : 'lock'; // a step not reached yet: a small padlock, not trackable
     const word = end ? 'Finish' : `Step ${step + 1}`;
     const ways = at != null ? g.byId.get(at)!.next.filter((id) => ids.includes(id)) : [];
     if (at != null && ways.length) {
@@ -310,7 +310,7 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
     acts.push({ t: 'button', label: 'Pick this road', tip: 'Lock in this tile for your team: a pick can’t be changed', on: { a: 'post', act: 'race-pick', args: { ...x.o.pick, tile: String(id) } } });
   }
   const pin = pinAction(t, s, x.o.ctx, x.o.reload);
-  if (pin && state !== 'done' && state !== 'closed') acts.push(pin.on ? { t: 'button', label: pin.label, tip: pin.tip, on: pin.on } : muted(pin.tip, { wrap: true }));
+  if (pin && (state === 'open' || state === 'pick')) acts.push(pin.on ? { t: 'button', label: pin.label, tip: pin.tip, on: pin.on } : muted(pin.tip, { wrap: true }));
   if (acts.length) out.push(col(acts, { gap: 5 }));
   if (x.o.ctx.eventId > 0) {
     out.push(section([

@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, events, tiles, users } from '@/db/schema';
+import { clans, completions, events, tiles, users } from '@/db/schema';
+import { raceGraph, teamRoute } from '@/lib/raceRoutes';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { verifyPluginTokenOnEvent, verifyPluginTokenUser } from '@/lib/auth';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { tileProgressView } from '@/lib/tileTrackerView';
+import { tileGone, tileLocked } from '@/lib/tileTracker';
 
 // GET /api/plugin/event/[id]/tile/[tileId]/progress — one tile's progress for every team, with each
 // team's top contributors (lib/tileTracker). Backs the plugin's pinned in-game tracker widget, which
@@ -39,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const viewerUserPlayerId = viewer
     ? ((await db.query.users.findFirst({ where: eq(users.id, viewer.userId), columns: { playerId: true } }))?.playerId ?? null)
     : null;
-  if (!(await canSeeEvent({ eventId, playerId: viewerUserPlayerId }))) {
+  if (!mine && !(await canSeeEvent({ eventId, playerId: viewerUserPlayerId }))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -48,9 +51,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const tile = event.tilesRevealed
     ? await db.query.tiles.findFirst({ where: and(eq(tiles.id, tileId), eq(tiles.eventId, eventId)) })
     : undefined;
+  // A tile that no longer exists (a board re-seeded under the pin) is 410 "gone": final, so the plugin
+  // unpins at once instead of retrying a pin that can never load.
+  if (event.tilesRevealed && !tile) return tileGone();
   if (!tile || !isTileRevealed(parseEventRules(event.rules), tile)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // Not open for THIS viewer (a closed mission/bounty they haven't finished, or a race step not reached):
+  // a final 410 with a reason, so the plugin unpins with its own chat line.
+  if (mine && (await lockedForViewer(event, tile, mine.teamId))) return tileGone('locked');
 
   // The widget counts down to the start itself and drops its pins once the event is over. Both are
   // stable values, so the ETag still only moves when a phase or a number does.
@@ -69,4 +79,17 @@ async function seatedEvent(eventId: number) {
     .where(and(eq(events.id, eventId), ne(clans.status, 'suspended')))
     .limit(1);
   return row?.event;
+}
+
+async function lockedForViewer(event: typeof events.$inferSelect, tile: typeof tiles.$inferSelect, teamId: number): Promise<boolean> {
+  const done = await db.select({ tileId: completions.tileId }).from(completions).where(and(eq(completions.teamId, teamId), eq(completions.tileId, tile.id))).limit(1);
+  if (done.length) return false;
+  if (tileLocked(tile, null)) return true;
+  if (event.format !== 'tilerace') return false;
+  const all = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  const graph = raceGraph(all);
+  if (!graph.nodes.length) return false;
+  const doneIds = (await db.select({ tileId: completions.tileId }).from(completions).where(and(eq(completions.teamId, teamId), inArray(completions.tileId, all.map((t) => t.id))))).map((r) => r.tileId);
+  const state = teamRoute(graph, doneIds, await loadRacePicks(event, teamId)).state.get(tile.id);
+  return tileLocked(tile, state ?? null);
 }

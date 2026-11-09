@@ -24,7 +24,11 @@ export function trackedCard(rows: PinRow[], eventId: number, then: Action): Node
     const prog = p.done ? text('Done', 'done', { font: 'small' }) : p.goal && p.goal > 1 ? text(`${count(Math.min(p.cur ?? 0, p.goal))} / ${count(p.goal)}`, PROGRESS, { font: 'small', live: { tile: p.tileId, cur: p.cur ?? 0, goal: p.goal, fmt: 'of' } }) : undefined;
     const x = text('✕', SOFT, { chip: '#3a3a3a', font: 'small', w: 18, align: 'c', tip: 'Untrack this tile', on: { a: 'pin', event: p.eventId, tile: p.tileId, on: false, then } });
     const name = col([text(clip(p.label, 22), 'text', { tip: p.label }), ...(p.board ? [text(clip(p.board, 30), FAINT, { font: 'small' })] : [])], { gap: 1 });
-    return row(undefined, name, row(prog, undefined, x, { gap: 6 }), { gap: 6, pad: 6, bg: 'raised' });
+    // No blank under the name: progress gets a thin bar
+    const body = p.goal && p.goal > 1 && !p.done ? col([name, { t: 'bar', pct: Math.round((Math.min(p.cur ?? 0, p.goal) * 100) / p.goal), color: 'progress', h: 4, bg: 'panel' }], { gap: 3 }) : name;
+    // Nothing to show under the name: one tight line, name and ✕, no extra column.
+    if (body === name && !prog && !p.board) return row(undefined, text(clip(p.label, 26), 'text', { tip: p.label }), x, { gap: 6, pad: 6, bg: 'raised' });
+    return row(undefined, body, row(prog, undefined, x, { gap: 6 }), { gap: 6, pad: 6, bg: 'raised' });
   });
   const here = rows.filter((p) => p.eventId === eventId).length;
   return section([

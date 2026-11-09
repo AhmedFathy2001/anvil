@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
+import { tileGone, tileLocked, collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
 
 const input = (over: Partial<TrackerInput> = {}): TrackerInput => ({
   teams: [
@@ -94,4 +94,17 @@ test('an any-of-these-sets tile shows the closest set, and a stray piece of anot
   ], barrows, 'any', 1);
   assert.equal(out.goal, 4);
   assert.equal(out.teams.find((t) => t.name === 'Red')!.current, 2);
+});
+
+test('a deleted pinned tile answers a final 410 "gone", not a transient error', async () => {
+  const r = tileGone();
+  assert.equal(r.status, 410);
+  assert.deepEqual(await r.json(), { error: 'Tile removed', gone: true });
+});
+
+test('a tile not open for the viewer answers 410 with reason locked', async () => {
+  const r = tileGone('locked');
+  assert.equal(r.status, 410);
+  assert.equal(((await r.json()) as { reason: string }).reason, 'locked');
+  assert.ok(tileLocked({}, 'ahead') && tileLocked({ closedAt: 'x' }, null) && !tileLocked({}, 'open') && !tileLocked({}, null));
 });

@@ -150,3 +150,14 @@ function team(input: TrackerInput, t: TrackerTeamIn, current: number, byPlayer: 
 function rank(teams: TrackerTeam[]): TrackerTeam[] {
   return teams.sort((a, b) => Number(b.mine) - Number(a.mine) || b.current - a.current || a.name.localeCompare(b.name));
 }
+
+/**
+ * The progress route's answer for a pinned tile that can't be tracked: 410, final, so the plugin unpins
+ * at once instead of retrying. `reason` 'locked' = it exists but isn't open for this viewer.
+ */
+export const tileGone = (reason?: 'locked'): Response =>
+  Response.json({ error: reason ? 'Tile not open' : 'Tile removed', gone: true, ...(reason ? { reason } : {}) }, { status: 410 });
+
+/** Whether an unfinished tile is closed (mission/bounty) or a race step the viewer's road hasn't reached. */
+export const tileLocked = (t: { closedAt?: string | null }, raceState: string | null): boolean =>
+  !!t.closedAt || raceState === 'ahead' || raceState === 'closed';
