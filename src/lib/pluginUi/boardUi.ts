@@ -580,7 +580,9 @@ function claimMenu(t: BoardTile, s: BoardState, ctx: BoardContext, fromRow = fal
   const post = (act: string, extra: Partial<Extract<Action, { a: 'post' }>> = {}): Action => ({
     a: 'post',
     act,
-    args: args(s, { tile: String(t.tileId), ...(fromRow ? { list: '1' } : {}) }),
+    // `part: 'rows'`: the answer lands in slot `tiles`, so it must be the slot's inner content — the
+    // whole page here nested another header (back, Feed | Chat, search) on every claim.
+    args: args(s, { tile: String(t.tileId), part: 'rows', ...(fromRow ? { list: '1' } : {}) }),
     into: 'tiles',
     ...extra,
   });

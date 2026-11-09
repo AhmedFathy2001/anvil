@@ -423,7 +423,9 @@ async function claimAct(request: Request, act: 'claim' | 'unclaim', a: Args, not
       if (!r.ok) error = r.error;
     }
   }
-  return boardView(request, a, error);
+  // The answer always goes into slot `tiles` (boardUi claimMenu): only the list, never the whole page,
+  // even from a plugin built against an older site that left `part` out.
+  return boardView(request, { ...a, part: 'rows' }, error);
 }
 
 /** "Pick your road" at a fork on a "Choose and lock in" race (lib/raceRoutesDb). */

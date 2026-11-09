@@ -123,3 +123,32 @@ test('a tracked row with no progress is one line: the name and the ✕', () => {
   const line = walk(card).find((x) => x.t === 'row' && (x.c as { s?: string } | undefined)?.s === 'Step 1') as { r?: { s?: string } } | undefined;
   assert.equal(line?.r?.s, '✕');
 });
+
+test('every action in the list and the tile detail replaces only its own target (a claim never nests the page header)', () => {
+  const board = raceBoard([1]);
+  const c: BoardContext = { ...ctx, pins: [] };
+  const rows = boardRowsUi(board, st, c);
+  const page = boardUi(board, st, c, rows);
+  // Every action anywhere on the page — row menus, every detail pane (claim, add note, drop, track's `then`),
+  // paging, the filter dropdown and the search — as plain objects with an `a` key.
+  type A = { a: string; into?: string; act?: string; args?: Record<string, string> };
+  const acts = walk(page).filter((x): x is A & Record<string, unknown> => typeof x.a === 'string');
+  const claims = acts.filter((a) => a.a === 'post' && (a.act === 'claim' || a.act === 'unclaim'));
+  assert.ok(claims.length >= 4, 'claims from the rows and from the detail panes');
+  for (const a of acts) {
+    // Into `tiles`: the answer must be that slot's inner content, so the site must be asked for the rows.
+    if (a.into === 'tiles') assert.equal(a.args?.part, 'rows', `${a.a} ${a.act ?? ''} into tiles`);
+    // Into `tile`: only an in-place pane switch, never a fetched answer.
+    if (a.into === 'tile') assert.equal(a.a, 'pane');
+    // No into: a top-level answer (road pick, opening another view) — fine, it replaces the whole view.
+  }
+  // What the site answers for `part: 'rows'`: the list slot alone — no back row, Feed | Chat, search or `tiles` slot.
+  const t = texts(rows);
+  assert.ok(!t.includes('All tiles') && !t.includes('Feed') && !t.includes('Chat'));
+  assert.ok(!walk(rows).some((x) => x.t === 'input' && x.name === 'q'), 'no nested search');
+  assert.ok(!walk(rows).some((x) => x.t === 'slot' && x.id === 'tiles'), 'no nested tiles slot');
+  // A claim answered from a detail pane (tile + no list flag) is the rows slot opened on that tile.
+  const tile = (board.tiles as { tileId: number }[])[0] as never;
+  const detail = boardRowsUi(board, st, c, tile);
+  assert.ok(!walk(detail).some((x) => x.t === 'input' && x.name === 'q') && !texts(detail).includes('Feed'));
+});
