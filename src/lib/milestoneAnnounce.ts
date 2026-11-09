@@ -53,8 +53,9 @@ function embedsFor(rsn: string, rules: XpRules | null, rows: XpMilestoneRow[]): 
 }
 
 /**
- * Post the newly inserted milestones that are worth a Discord post. Several steps crossed at once
- * (a member back after months, a first poll in a while) post only the highest per destination —
+ * Post the newly inserted milestones that are worth a Discord post. The caller has already gated
+ * them (lib/milestoneGate): only steps crossed since a recent previous sample reach here, never
+ * history found across a long gap. Several steps crossed at once post only the highest per destination —
  * the rest are still recorded on the profile, but a channel doesn't need four posts about one login.
  */
 export async function announceMilestones(accountId: number, milestones: XpMilestoneRow[]): Promise<void> {

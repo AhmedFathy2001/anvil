@@ -609,7 +609,16 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           const curEff = overlaySnapshot(snapshot, entry.liveMap);
           await recordDailyStats({ accountId, snapshot: curEff, previous: prevEff });
           const found = detectMilestones(prevEff, curEff, computeDeltas(prevEff, curEff));
-          if (found.length > 0) milestonesRecorded += await recordMilestones(accountId, found);
+          // Announced only when crossed since a recent previous poll (lib/milestoneGate). entry.polledAt
+          // was read before this tick wrote statsPolledAt, so it is when `previous` was observed.
+          if (found.length > 0) {
+            milestonesRecorded += await recordMilestones(accountId, found, {
+              before: prevEff,
+              after: curEff,
+              previousAt: entry.polledAt ?? null,
+              now: new Date(ts),
+            });
+          }
         } catch (e) {
           // History is a reporting nicety; a failure here must never cost the tick its scoring work.
           log.warn('stats-cron.history-failed', { clanMemberId: entry.clanMemberId, error: (e as Error).message });

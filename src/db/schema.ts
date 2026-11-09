@@ -2910,6 +2910,8 @@ export const memberMilestones = pgTable('member_milestones', {
   threshold: integer('threshold').notNull(),
   noticedAt: text('noticed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
+  // NULLS NOT DISTINCT in the database (drizzle/0249) so null-metric kinds dedupe; drizzle's
+  // index builder cannot express it, so the migration is the source of truth for that clause.
   uniqueIndex('member_milestones_unique').on(table.accountId, table.kind, table.metric, table.threshold),
   index('member_milestones_member_idx').on(table.accountId, table.noticedAt),
 ]);
