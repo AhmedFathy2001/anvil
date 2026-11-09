@@ -94,7 +94,7 @@ export async function applyAccountPush(
   // clan-scope: global -- an OSRS account is one account however many clans roster it.
   const row = await db.query.accounts.findFirst({
     where: eq(accounts.id, accountId),
-    columns: { liveStats: true, liveStatKeyTimes: true },
+    columns: { liveStats: true, liveStatKeyTimes: true, statsPolledAt: true },
   });
   const before = parsePluginStats(row?.liveStats);
   const live = { ...before };
@@ -123,7 +123,7 @@ export async function applyAccountPush(
     liveStatKeyTimes: JSON.stringify(keyTimes),
   });
 
-  await recordPushHistory(accountId, before, live);
+  await recordPushHistory(accountId, before, live, row?.statsPolledAt ?? null, nowIso);
   return { live, changed };
 }
 
@@ -134,7 +134,13 @@ export async function applyAccountPush(
  * (lib/liveHistory). Needs one hiscores reading to sit on; an account never polled has no history
  * yet, and its first poll starts it. Best-effort: history must never cost the push its credit.
  */
-async function recordPushHistory(accountId: number, before: Record<string, number>, after: Record<string, number>) {
+async function recordPushHistory(
+  accountId: number,
+  before: Record<string, number>,
+  after: Record<string, number>,
+  polledAt: string | null,
+  nowIso: string,
+) {
   try {
     const raw = await statSnapshotOf(accountId);
     if (!raw) return;
@@ -143,7 +149,11 @@ async function recordPushHistory(accountId: number, before: Record<string, numbe
     const curEff = overlaySnapshot(snapshot, after);
     await recordDailyStats({ accountId, snapshot: curEff, previous: prevEff });
     const found = detectMilestones(prevEff, curEff, computeDeltas(prevEff, curEff));
-    if (found.length > 0) await recordMilestones(accountId, found);
+    // The base snapshot is as old as the last hiscores poll; announced only when that is recent
+    // (lib/milestoneGate), so a push onto a weeks-old reading cannot post old steps.
+    if (found.length > 0) {
+      await recordMilestones(accountId, found, { before: prevEff, after: curEff, previousAt: polledAt, now: new Date(nowIso) });
+    }
   } catch (e) {
     log.warn('plugin-stats.history-failed', { accountId, error: (e as Error).message });
   }

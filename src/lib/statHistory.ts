@@ -14,7 +14,7 @@
 
 import { db } from '@/db';
 import { computeDeltas, mergeDeltas, type StatDeltas } from '@/lib/statDeltas';
-import { memberDailyStats, memberMilestones } from '@/db/schema';
+import { accounts, memberDailyStats, memberMilestones } from '@/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEhpEhb } from '@/lib/efficiency';
@@ -25,6 +25,7 @@ import { keepTotalXpStep, TOTAL_XP_GRAIN_M, TOTAL_XP_RECORD_STEP_M } from '@/lib
 import { wantedTotalXpStepsM } from '@/lib/levelRulesStore';
 import { log } from '@/lib/logger';
 import { updateRecords } from '@/lib/records';
+import { gateMilestones } from '@/lib/milestoneGate';
 
 // ── Adaptive polling ─────────────────────────────────────────────────────────────────────────────
 //
@@ -230,12 +231,26 @@ export function detectMilestones(
   return found;
 }
 
+/** The two observations a set of milestones was detected between (lib/milestoneGate). */
+export interface MilestoneSamples {
+  before: HiscoresSnapshot | null;
+  after: HiscoresSnapshot;
+  /** When `before` was observed: the account's statsPolledAt as it stood BEFORE this poll. */
+  previousAt: string | null | undefined;
+  now?: Date;
+}
+
 /**
- * Insert newly crossed milestones. The unique index makes a re-detection a no-op, not a duplicate —
- * and since the push and the sweep can both detect the same crossing, only the rows THIS call
- * inserted are announced, so Discord hears about each one once. Returns how many were new.
+ * Insert newly crossed milestones. The unique index (NULLS NOT DISTINCT since 0249, so the
+ * account-wide kinds dedupe too) makes a re-detection a no-op, not a duplicate — and since the push
+ * and the sweep can both detect the same crossing, only the rows THIS call inserted are announced,
+ * so Discord hears about each one once.
+ *
+ * Every crossing is recorded; only the ones lib/milestoneGate passes are ANNOUNCED. A step that lies
+ * across a long gap, starts from an unknown value or implies an impossible rate is history, not
+ * news: it is stored as seen, so it can never be posted later either. Returns how many were new.
  */
-export async function recordMilestones(accountId: number, milestones: Milestone[]): Promise<number> {
+export async function recordMilestones(accountId: number, milestones: Milestone[], samples: MilestoneSamples): Promise<number> {
   // Total-XP steps off the usual 50M ladder are kept only when a destination of this account wants
   // that step (a clan's or the person's own `totalXpStepM`). The lookup only runs when such a step
   // was actually crossed — once per few million XP — never on an ordinary tick.
@@ -257,10 +272,26 @@ export async function recordMilestones(accountId: number, milestones: Milestone[
     .onConflictDoNothing()
     .returning({ kind: memberMilestones.kind, metric: memberMilestones.metric, threshold: memberMilestones.threshold });
   if (inserted.length > 0) {
-    // Fire-and-forget: a slow or failing webhook must never hold up the push or the sweep.
-    void announceMilestones(accountId, inserted as Milestone[]).catch((e) =>
-      log.warn('milestones.announce-failed', { accountId, error: (e as Error).message }),
-    );
+    // The account type picks the ironman vs main rate table for the rate check. Read only here,
+    // when something new was actually crossed — never on an ordinary tick.
+    const acct = await db.query.accounts
+      .findFirst({ where: eq(accounts.id, accountId), columns: { accountType: true } })
+      .catch(() => undefined);
+    const gate = gateMilestones(inserted as Milestone[], { ...samples, accountType: acct?.accountType ?? null });
+    if (gate.silent.length > 0) {
+      log.info('milestones.recorded-silently', {
+        accountId,
+        reason: gate.reason,
+        previousAt: samples.previousAt ?? null,
+        milestones: gate.silent.map((m) => `${m.kind}:${m.metric ?? ''}:${m.threshold}`).join(','),
+      });
+    }
+    if (gate.announce.length > 0) {
+      // Fire-and-forget: a slow or failing webhook must never hold up the push or the sweep.
+      void announceMilestones(accountId, gate.announce).catch((e) =>
+        log.warn('milestones.announce-failed', { accountId, error: (e as Error).message }),
+      );
+    }
   }
   return inserted.length;
 }
