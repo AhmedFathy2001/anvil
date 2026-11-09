@@ -973,6 +973,14 @@ const PAGES: readonly SettingEntry[] = [
     section: 'Your account',
   },
   {
+    id: 'notifications',
+    label: 'Notifications from Anvil',
+    description: 'A sound for new notices on the site, and whether Anvil may DM you important updates on Discord.',
+    keywords: ['notifications', 'inbox', 'bell', 'sound', 'dm', 'direct message', 'updates', 'notices'],
+    href: '/settings/notifications',
+    section: 'Your account',
+  },
+  {
     id: 'my-boosts',
     label: 'Boost a clan',
     description: 'As a Supporter, spend your boosts on the clans you are in.',

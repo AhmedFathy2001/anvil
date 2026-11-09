@@ -182,6 +182,7 @@ const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
   { href: '/settings/webhooks', label: 'Your Discord webhooks', icon: '⌁' },
   { href: '/settings/privacy', label: 'Who sees my characters', icon: '◐' },
   { href: '/settings/supporter', label: 'Supporter & name colours', icon: '★' },
+  { href: '/settings/notifications', label: 'Notifications', icon: '🔔' },
   { href: '/settings/look', label: 'Profile look', icon: '▣' },
   { href: '/settings/connections', label: 'Streaming accounts', icon: '⇄' },
 ];

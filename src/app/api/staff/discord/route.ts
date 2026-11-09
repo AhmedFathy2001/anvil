@@ -16,6 +16,9 @@ import { ANVIL_RECRUITMENT_WEBHOOK_KEY } from '@/lib/clanBoosts';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { getPlatformSetting, isPreview, setPlatformSetting } from '@/lib/platformSettings';
 import { apexOrigin } from '@/lib/seo';
+import { discordRest, sharedBotToken, type DiscordRole } from '@/lib/discord-roles';
+import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
+import { ANVIL_MEMBER_ROLE_KEY } from '@/lib/welcomeDm';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +37,13 @@ export async function GET() {
 export async function PUT(request: Request) {
   const gate = await requirePlatformApi(CAN_WRITE);
   if ('response' in gate) return gate.response;
-  const body = (await request.json().catch(() => null)) as { guildId?: unknown; webhook?: unknown; recruitWebhook?: unknown; rolesEnabled?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    guildId?: unknown;
+    webhook?: unknown;
+    recruitWebhook?: unknown;
+    rolesEnabled?: unknown;
+    memberRoleId?: unknown;
+  } | null;
   if (!body) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   if (typeof body.guildId === 'string') {
     const id = body.guildId.trim();
@@ -50,6 +59,22 @@ export async function PUT(request: Request) {
     const hook = body.recruitWebhook.trim();
     if (hook && !isDiscordWebhookUrl(hook)) return NextResponse.json({ error: 'That is not a Discord webhook link.' }, { status: 400 });
     await setPlatformSetting(ANVIL_RECRUITMENT_WEBHOOK_KEY, hook || null);
+  }
+  // The role "Join the Anvil Discord" hands out (lib/welcomeDm). Checked against the server: it has to
+  // exist and carry no moderation powers, the same rule as the supporter roles.
+  if (typeof body.memberRoleId === 'string') {
+    const id = body.memberRoleId.trim();
+    if (id) {
+      if (!/^\d{15,22}$/.test(id)) return NextResponse.json({ error: 'A role id is a long number (Copy Role ID in Discord).' }, { status: 400 });
+      const guildId = await getPlatformSetting(ANVIL_GUILD_KEY);
+      const token = sharedBotToken();
+      if (!guildId || !token) return NextResponse.json({ error: 'Set the Anvil server id and invite the bot first.' }, { status: 400 });
+      const res = await discordRest(token, `/guilds/${guildId}/roles`);
+      const role = res.ok ? ((await res.json()) as DiscordRole[]).find((r) => r.id === id) : undefined;
+      if (!role) return NextResponse.json({ error: 'No role with that id in the Anvil server.' }, { status: 400 });
+      if (!isSafeAutomatedRole(role, guildId)) return NextResponse.json({ error: 'That role carries moderation permissions, so Anvil will not hand it out.' }, { status: 400 });
+    }
+    await setPlatformSetting(ANVIL_MEMBER_ROLE_KEY, id || null);
   }
   if (typeof body.rolesEnabled === 'boolean') {
     await setPlatformSetting(ANVIL_ROLES_ENABLED_KEY, body.rolesEnabled ? '1' : null);

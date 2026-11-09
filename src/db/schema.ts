@@ -163,6 +163,10 @@ export const clans = pgTable('clans', {
   // The correlation token appended to the checkout URL and echoed back by Gumroad — how a payment
   // finds the clan that started it.
   gumroadRef: text('gumroad_ref'),
+  // Where the owner said they found Anvil, asked once on /clans/new (lib/foundVia FOUND_VIA). NULL =
+  // skipped or created before the question. `foundViaNote` is their free text for 'other'.
+  foundVia: text('found_via'),
+  foundViaNote: text('found_via_note'),
   trialEndsAt: text('trial_ends_at'),
   currentPeriodEnd: text('current_period_end'),
   // Cancelled but still inside the paid term. Gumroad keeps serving it, so we do too: dropping them
@@ -1550,6 +1554,14 @@ export const users = pgTable('users', {
   chatFeedPrefs: text('chat_feed_prefs'),
   /** The newest release this login was shown in the plugin's login brief (lib/releases). */
   seenReleaseId: integer('seen_release_id'),
+  // The one welcome DM from Anvil's bot (lib/welcomeDm): stamped only when it was actually delivered,
+  // so someone the bot couldn't reach yet is tried again after they join the Anvil Discord.
+  welcomedAt: timestamp('welcomed_at', { withTimezone: true }),
+  // Their answer to "DM me important updates?" (lib/welcomeDm): 'yes' | 'no', NULL = never asked or
+  // not answered, which counts as no. Only 'yes' ever gets a notice by DM.
+  anvilDms: text('anvil_dms'),
+  // Play a sound when a new notice lands while the site is open (lib/notices). Off by default.
+  noticeSound: boolean('notice_sound').notNull().default(false),
 }, (table) => [
   uniqueIndex('users_supporter_ref_unique').on(table.supporterRef),
   uniqueIndex('users_referral_code_unique').on(table.referralCode),
@@ -5286,3 +5298,41 @@ export const ownerTrials = pgTable('owner_trials', {
   index('owner_trials_clan_idx').on(t.clanId),
   check('owner_trials_one_target', sql`(${t.userId} is null) <> (${t.clanId} is null)`),
 ]);
+
+/**
+ * A notice from Anvil (lib/notices): written on /staff/notices and shown in the site inbox, the plugin
+ * panel's "From Anvil" card, the login brief and, for people who said yes, a bot DM.
+ * `audience` is 'everyone' | 'admins' | 'supporters' | 'clan:<id>' | 'user:<id>' (lib/noticeRules).
+ */
+export const platformNotices = pgTable('platform_notices', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull().default(''),
+  /** Site inbox only: an anvilosrs.com page or a Discord invite (lib/noticeRules safeNoticeLink). Never sent to the plugin. */
+  linkUrl: text('link_url'),
+  linkLabel: text('link_label'),
+  audience: text('audience').notNull(),
+  /** Where it shows besides the site inbox. */
+  inPlugin: boolean('in_plugin').notNull().default(false),
+  inBrief: boolean('in_brief').notNull().default(false),
+  byDm: boolean('by_dm').notNull().default(false),
+  /** 'info' | 'important': important ones stay pinned at the top until read. */
+  level: text('level').notNull().default('info'),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /** Set when the DMs finished going out; counts for the staff list. */
+  dmSentAt: timestamp('dm_sent_at', { withTimezone: true }),
+  dmSentCount: integer('dm_sent_count').notNull().default(0),
+  /** Taken down by staff: hidden everywhere, kept for the record. */
+  withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+}, (t) => [index('platform_notices_created_idx').on(t.createdAt)]);
+
+/** One person's state for one notice: read on the site, hidden in the panel, printed in the brief. */
+export const platformNoticeReads = pgTable('platform_notice_reads', {
+  noticeId: integer('notice_id').notNull().references(() => platformNotices.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  panelHiddenAt: timestamp('panel_hidden_at', { withTimezone: true }),
+  briefedAt: timestamp('briefed_at', { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.noticeId, t.userId] }), index('platform_notice_reads_user_idx').on(t.userId)]);

@@ -18,6 +18,8 @@ const RETURN_HOST_COOKIE = 'discord_oauth_return_host';
 // The tab's analytics session id, kept only until the callback (lib/analyticsAttribution): ten minutes,
 // httpOnly, deleted on arrival. It credits a NEW account to where its visit began; nothing reads it after.
 const SID_COOKIE = 'discord_oauth_sid';
+/** "Join the Anvil Discord" (clan creation): the callback adds them to Anvil's own server. */
+const ANVIL_JOIN_COOKIE = 'discord_oauth_anvil_join';
 const STATE_TTL_SECONDS = 600; // 10 minutes
 
 // GET /api/auth/discord/start?return=/profile
@@ -73,7 +75,10 @@ export async function GET(request: Request) {
   const state = crypto.randomBytes(24).toString('hex');
   // `join=1` is the event page's "add me automatically" opt-in (lib/eventDiscord): the same login,
   // plus the guilds.join scope. The callback stores the grant only if Discord actually granted it.
-  const res = NextResponse.redirect(buildAuthorizeUrl(state, { join: url.searchParams.get('join') === '1' }));
+  // `anvil=1` is the clan-creation "Join the Anvil Discord" box: the same guilds.join consent, used
+  // for Anvil's own server instead of an event's (lib/welcomeDm joinAnvilDiscord).
+  const anvilJoin = url.searchParams.get('anvil') === '1';
+  const res = NextResponse.redirect(buildAuthorizeUrl(state, { join: url.searchParams.get('join') === '1' || anvilJoin }));
   const cookie = {
     httpOnly: true,
     sameSite: 'lax' as const,
@@ -89,5 +94,7 @@ export async function GET(request: Request) {
   if (requestedClanHost) res.cookies.set(RETURN_HOST_COOKIE, requestedClanHost, cookie);
   const sid = url.searchParams.get('sid');
   if (isSessionId(sid)) res.cookies.set(SID_COOKIE, sid, cookie);
+  if (anvilJoin) res.cookies.set(ANVIL_JOIN_COOKIE, '1', cookie);
+  else res.cookies.set(ANVIL_JOIN_COOKIE, '', { ...cookie, maxAge: 0 });
   return res;
 }

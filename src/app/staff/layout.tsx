@@ -123,6 +123,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       items: [
         // The guide library and the task & board library: one library, two kinds of content.
         { href: '/staff/guides', label: 'Library', icon: '📖', badge: pending.guideProposals + pending.libraryProposals, matchPrefix: true, alsoMatch: ['/staff/library'] },
+        { href: '/staff/notices', label: 'Notices', icon: '🔔', matchPrefix: true },
         { href: '/staff/releases', label: 'Releases', icon: '⇪', matchPrefix: true },
         // Anvil's own server (lib/anvilDiscord) and the plugin event-chat switch.
         { href: '/staff/discord', label: 'Discord & chat', icon: '✉', matchPrefix: true, alsoMatch: ['/staff/event-chat'] },

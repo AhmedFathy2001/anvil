@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
+import NoticeBell from '@/components/NoticeBell';
 import PendingBadge from '@/components/PendingBadge';
 import CreatorChip from '@/components/CreatorChip';
 import { adminMenuLabel, groupClansAndSpaces, outsiderWord, placeWord } from '@/lib/creatorSpaces';
@@ -319,6 +320,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             </a>
           ) : null}
 
+          {signedIn && user && <NoticeBell />}
+
           {discordInvite && (
             <a
               href={discordInvite}
@@ -395,6 +398,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
 
       {/* Mobile: avatar shortcut + hamburger */}
       <div className="flex lg:hidden items-center gap-1">
+        {signedIn && user && <NoticeBell />}
         {signedIn && user && (
           <ClanLink href="/profile" className="p-1.5 rounded-md hover:bg-brown-light" title={user.displayName}>
             {avatar}

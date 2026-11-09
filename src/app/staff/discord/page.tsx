@@ -4,7 +4,9 @@ import { requirePlatformPage } from '@/lib/platformAccess';
 import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
 import { ANVIL_RECRUITMENT_WEBHOOK_KEY } from '@/lib/clanBoosts';
 import AnvilDiscordSettings from './AnvilDiscordSettings';
+import MemberRoleSetting from './MemberRoleSetting';
 import PostPreviews from './PostPreviews';
+import { ANVIL_MEMBER_ROLE_KEY } from '@/lib/welcomeDm';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +16,12 @@ export const dynamic = 'force-dynamic';
  */
 export default async function StaffDiscordPage() {
   const actor = await requirePlatformPage('support');
-  const [cfg, status, backfilledAt, recruitHook] = await Promise.all([
+  const [cfg, status, backfilledAt, recruitHook, memberRole] = await Promise.all([
     loadAnvilDiscordConfig(),
     anvilBotStatus(),
     getPlatformSetting(ANVIL_SUPPORTERS_BACKFILL_KEY),
     getPlatformSetting(ANVIL_RECRUITMENT_WEBHOOK_KEY),
+    getPlatformSetting(ANVIL_MEMBER_ROLE_KEY),
   ]);
   return (
     <div className="max-w-3xl">
@@ -42,6 +45,7 @@ export default async function StaffDiscordPage() {
         initial={{ guildId: cfg.guildId ?? '', webhookSet: !!cfg.webhook, rolesEnabled: cfg.rolesEnabled, backfilledAt, recruitWebhookSet: !!recruitHook }}
         initialStatus={status}
       />
+      <MemberRoleSetting initial={memberRole ?? ''} canWrite={!!actor && hasPlatformRole(actor.role, 'staff')} />
       {/* Works on beta too: it only posts to a channel someone pastes in, never the Anvil Discord. */}
       {!!actor && hasPlatformRole(actor.role, 'staff') && (
         <div className="mt-6">

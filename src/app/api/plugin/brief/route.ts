@@ -12,6 +12,7 @@ import { listClanEvents } from '@/lib/clanEvents';
 import { goalsWithProgress } from '@/lib/goals';
 import { playedCharacter, resolvePluginCharacter } from '@/lib/pluginAccount';
 import { pluginRoster } from '@/lib/pluginRoster';
+import { briefNoticeLine } from '@/lib/notices';
 import { unseenReleaseLine } from '@/lib/releases';
 import type { BoardSummary } from '@/lib/pluginBoards';
 import type { HomeConfig } from '@/lib/pluginUi/homeUi';
@@ -118,6 +119,12 @@ export async function GET(request: Request) {
 
   // A release this login hasn't seen goes first, once (lib/releases).
   const whatsNew = await unseenReleaseLine(who.userId).catch(() => null);
+  // Then a notice from Anvil marked for the brief, once each (lib/notices). Text only, no link.
+  const notice = await briefNoticeLine(who.userId).catch(() => null);
   const lines = composeBrief(items, facts);
-  return NextResponse.json({ lines: whatsNew ? [{ tone: 'info', text: whatsNew }, ...lines] : lines, look });
+  const lead = [
+    ...(notice ? [{ tone: 'warn' as const, text: notice }] : []),
+    ...(whatsNew ? [{ tone: 'info' as const, text: whatsNew }] : []),
+  ];
+  return NextResponse.json({ lines: [...lead, ...lines], look });
 }
