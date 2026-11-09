@@ -109,7 +109,10 @@ test('with X-Anvil-Boards, another clan’s board is folded in and tagged; a sus
   const boards = cfg.boards as Record<string, unknown>[];
   assert.deepEqual(boards.map((b) => b.eventId), [ids.aEvent, ids.bEvent, ids.cEvent]);
   assert.equal(boards[2].clan, 'alpha', 'a board the addressed clan co-hosts is reported through it');
-  assert.deepEqual(boards[1], { eventId: ids.bEvent, name: 'Board b', clan: 'bravo', clanName: 'Bravo', teamId: ids.bTeam, teamName: 'Team b', tilesComplete: 0, tilesTotal: 3, pointsScored: false });
+  // The summary also carries endDate / rank / of (the live-boards card); check the identity fields here.
+  const { endDate: _end, rank: _rank, of: _of, ...b1 } = boards[1] as typeof boards[1] & { endDate?: unknown; rank?: unknown; of?: unknown };
+  void _end; void _rank; void _of;
+  assert.deepEqual(b1, { eventId: ids.bEvent, name: 'Board b', clan: 'bravo', clanName: 'Bravo', teamId: ids.bTeam, teamName: 'Team b', tilesComplete: 0, tilesTotal: 3, pointsScored: false });
   assert.equal(boards[0].clan, 'alpha');
 });
 
