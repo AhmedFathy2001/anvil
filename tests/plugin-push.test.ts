@@ -213,6 +213,23 @@ test('a team view goes out as only what moved: counts, a bare "moved", or whole 
   assert.equal(teamDelta('tile:1:5', '{"a":1}', '{"a":2}'), '{"a":2}', 'tile views always go whole');
 });
 
+test('a view carrying the plugin\'s tile counts (config.tiles) still goes out as just the count', async () => {
+  const { withTileCounts } = await import('../src/lib/pluginTileCounts.ts');
+  // What lib/push/views sends since the plugin read `tiles`: the tracked lists, and `tiles` off them.
+  const view = (drops: [number, number][]) => {
+    const v = JSON.parse(teamView(drops));
+    withTileCounts(v.config);
+    return JSON.stringify(v);
+  };
+  const v1 = view([[5, 1], [6, 0]]);
+  assert.deepEqual(JSON.parse(v1).config.tiles, [{ t: 5, have: 1, of: 0 }, { t: 6, have: 0, of: 0 }]);
+  assert.deepEqual(JSON.parse(teamDelta('team:1:10', v1, view([[5, 3], [6, 0]]))), { t: 'counts', eventId: 1, teamId: 10, c: { 5: 3 }, m: {} });
+  // Anything else about a tile moving still sends the whole view.
+  const goal = JSON.parse(view([[5, 3], [6, 0]]));
+  goal.config.tiles[0].of = 9;
+  assert.equal(JSON.parse(teamDelta('team:1:10', v1, JSON.stringify(goal))).t, 'team');
+});
+
 test('listeners holding the last view get the delta; a newcomer gets the view whole', async () => {
   const { hub, client, advance, views } = harness();
   views.set(teamKey(1, 10), teamView([[5, 1]]));
