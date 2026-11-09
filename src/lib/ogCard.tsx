@@ -52,6 +52,53 @@ const SITE_SPRITES = [
 ];
 const SITE_DONE = new Set([0, 2, 6, 7, 11, 12, 16]);
 
+const BOARD_LEFT = 600;
+const BOARD_TOP = 40;
+const TILE = 94;
+const TILE_GAP = 10;
+
+/**
+ * The tilted board as one finished picture. The card renderer sizes an <img> before a parent's rotation
+ * and then slices it to that unturned box, so sprites inside a rotated grid came out cut off. Turning the
+ * board here (tiles and sprites centred in each, sprites crisp, then the whole thing turned) and handing
+ * the renderer a plain upright image avoids that.
+ */
+async function siteBoard(sprites: Awaited<ReturnType<typeof localSprite>>[]): Promise<{ src: string; width: number; height: number } | null> {
+  try {
+    const { default: sharp } = await import('sharp');
+    const cols = 5;
+    const rows = Math.ceil(SITE_SPRITES.length / cols);
+    const w = cols * TILE + (cols - 1) * TILE_GAP;
+    const h = rows * TILE + (rows - 1) * TILE_GAP;
+    const pos = (i: number) => ({ x: (i % cols) * (TILE + TILE_GAP), y: Math.floor(i / cols) * (TILE + TILE_GAP) });
+    const tiles = SITE_SPRITES.map((_, i) => {
+      const done = SITE_DONE.has(i);
+      const { x, y } = pos(i);
+      return `<rect x="${x + 1}" y="${y + 1}" width="${TILE - 2}" height="${TILE - 2}" rx="12" fill="${done ? '#e0aa1e' : '#1c1714'}" fill-opacity="${done ? 0.22 : 0.9}" stroke="${done ? C.gold : C.border}" stroke-width="2"/>`;
+    });
+    const layers: { input: Buffer; left: number; top: number }[] = [];
+    for (let i = 0; i < sprites.length; i++) {
+      const sp = sprites[i];
+      if (!sp) continue;
+      const { x, y } = pos(i);
+      let img = Buffer.from(sp.src.split(',')[1], 'base64');
+      if (!SITE_DONE.has(i)) {
+        img = await sharp(img).ensureAlpha().linear([1, 1, 1, 0.55], [0, 0, 0, 0]).png().toBuffer();
+      }
+      layers.push({ input: img, left: x + Math.round((TILE - sp.width) / 2), top: y + Math.round((TILE - sp.height) / 2) });
+    }
+    const flat = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${tiles.join('')}</svg>`))
+      .composite(layers)
+      .png()
+      .toBuffer();
+    const turned = await sharp(flat).rotate(-8, { background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+    const meta = await sharp(turned).metadata();
+    return { src: `data:image/png;base64,${turned.toString('base64')}`, width: meta.width ?? w, height: meta.height ?? h };
+  } catch {
+    return null;
+  }
+}
+
 export const SITE_PITCH = 'Bingos, Skill & Boss of the Week, and your whole roster, run from one place.';
 
 /**
@@ -62,36 +109,16 @@ export async function siteCard(): Promise<Response> {
   // Half the bundled 4× files = 2 screen px per game px, so the biggest sprite (31 game px) is 62px
   // and every one sits whole inside its 94px tile with room to spare.
   const sprites = await Promise.all(SITE_SPRITES.map((n) => localSprite(n, 0.5)));
+  const board = await siteBoard(sprites);
   return renderCard(['site'], async () => (
     <Frame brand={false} backdrop={await backdrop({ glow: '78% 40%', seed: 3, sparkCount: 18 })}>
       {/* 5×4 tiles of 94px + 10px gaps (510×406), turned -8°. Placed so the turned board's far corners
           stay inside the 1200×630 canvas (right edge ≈1180, bottom ≈525) — no tile is sliced by the
           frame; its near side fades into the text instead (the gradient below). */}
-      <div style={{ ...PANE, left: 640, top: 86, width: 520, flexWrap: 'wrap', gap: 10, transform: 'rotate(-8deg)' }}>
-        {sprites.map((sprite, i) => {
-          const done = SITE_DONE.has(i);
-          return (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                width: 94,
-                height: 94,
-                borderRadius: 12,
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: done ? 'rgba(224,170,30,0.22)' : 'rgba(28,23,20,0.9)',
-                border: `2px solid ${done ? C.gold : C.border}`,
-              }}
-            >
-              {sprite ? (
-                // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-                <img src={sprite.src} width={sprite.width} height={sprite.height} style={{ width: sprite.width, height: sprite.height, opacity: done ? 1 : 0.55 }} />
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+      {board ? (
+        // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+        <img src={board.src} width={board.width} height={board.height} style={{ position: 'absolute', left: BOARD_LEFT, top: BOARD_TOP, width: board.width, height: board.height }} />
+      ) : null}
       <div
         style={{
           ...PANE,
