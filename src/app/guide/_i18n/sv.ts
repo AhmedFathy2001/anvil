@@ -1265,7 +1265,7 @@ const sv: PartialGuideDict = {
           blurb: 'Ett kvadratiskt N×N-rutnät — lagen klarar rutorna i valfri ordning, var och en värd 1.',
         },
         leagues: {
-          label: 'Leagues-bingo',
+          label: 'Point Hunt',
           blurb: 'En uppgiftslista där varje ruta bär sitt eget poängvärde — hur många rutor som helst.',
         },
         race: {
@@ -1765,7 +1765,7 @@ const sv: PartialGuideDict = {
     bulk: {
       title: 'Skriv dem i klump, inte i webbläsaren',
       body: [
-        'Att klicka fram ett 25-rutors nät går bra. Att klicka fram en Leagues-bräda med 200 uppgifter gör det inte, och inte heller att korrekturläsa den efteråt. Tiles-fliken har en tur-och-retur byggd för precis det.',
+        'Att klicka fram ett 25-rutors nät går bra. Att klicka fram en Point Hunt-bräda med 200 uppgifter gör det inte, och inte heller att korrekturläsa den efteråt. Tiles-fliken har en tur-och-retur byggd för precis det.',
       ],
       steps: [
         '**Download spreadsheet** på eventets **Board & tiles**-sida. Du får en .xlsx av brädan som den ser ut nu, med rullgardiner, föremålslistan och kolumnanvisningarna på egna blad.',
@@ -1783,7 +1783,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Bara dynamiska brädor växer',
-          body: 'extra rader skapar nya rutor på en Leagues-bräda eller ett rutrace, före eventets start, upp till 1000. Ett klassiskt N×N-nät har en fast form och ignorerar dem. Ska du generera hundratals uppgifter, gör det till ett Leagues-event.',
+          body: 'extra rader skapar nya rutor på en Point Hunt-bräda eller ett rutrace, före eventets start, upp till 1000. Ett klassiskt N×N-nät har en fast form och ignorerar dem. Ska du generera hundratals uppgifter, gör det till ett Point Hunt-event.',
         },
         {
           term: 'Allt eller inget',
@@ -2116,8 +2116,8 @@ const sv: PartialGuideDict = {
       intro: 'Vet du vilken känsla du vill ha är det här kortaste vägen dit.',
       rows: [
         { term: 'En vanlig klanbingo', body: 'Klassiskt rutnät, alla rutor synliga. Lägg till en bonus till första laget om du vill ha lite brådska.' },
-        { term: 'Hundratals uppgifter, poängsatta efter svårighet', body: 'Leagues, allt synligt. Det är också den enda formen en stor kalkylarksimport kan växa in i.' },
-        { term: 'En vecka som byggs mot något', body: 'Leagues med schemalagt eller intervallavslöjande, så att brädan öppnar sig över veckan i stället för på en gång.' },
+        { term: 'Hundratals uppgifter, poängsatta efter svårighet', body: 'Point Hunt, allt synligt. Det är också den enda formen en stor kalkylarksimport kan växa in i.' },
+        { term: 'En vecka som byggs mot något', body: 'Point Hunt med schemalagt eller intervallavslöjande, så att brädan öppnar sig över veckan i stället för på en gång.' },
         { term: 'En kväll folk följer live', body: 'Prisjakt. En ruta, första laget tar den, nästa ruta direkt.' },
         { term: 'En individuell tävling, inte en lagtävling', body: 'Stege med roterande fönster och avtagande värde. Uppgifter kommer och går och ingen kan spara dem.' },
         { term: 'Ett race med en mållinje', body: 'Rutrace — en ordnad bana, och den som når längst vinner.' },

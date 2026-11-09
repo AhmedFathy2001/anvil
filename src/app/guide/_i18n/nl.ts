@@ -1266,7 +1266,7 @@ const nl: PartialGuideDict = {
           blurb: 'Een vierkant N×N-raster — teams doen de vakjes in willekeurige volgorde, elk telt 1.',
         },
         leagues: {
-          label: 'Leagues-bingo',
+          label: 'Point Hunt',
           blurb: 'Een takenlijst waarin elk vakje zijn eigen puntenwaarde draagt — zoveel vakjes als je wil.',
         },
         race: {
@@ -1766,7 +1766,7 @@ const nl: PartialGuideDict = {
     bulk: {
       title: 'Stel ze in bulk op, niet in de browser',
       body: [
-        'Een raster van 25 vakjes bij elkaar klikken gaat prima. Een Leagues-bord met 200 taken bij elkaar klikken niet, en het daarna nalezen evenmin. Het Tiles-tabblad heeft daar een heen-en-weer voor.',
+        'Een raster van 25 vakjes bij elkaar klikken gaat prima. Een Point Hunt-bord met 200 taken bij elkaar klikken niet, en het daarna nalezen evenmin. Het Tiles-tabblad heeft daar een heen-en-weer voor.',
       ],
       steps: [
         '**Download spreadsheet** op de pagina **Board & tiles** van het event. Je krijgt een .xlsx van het bord zoals het nu is, met keuzelijsten, de itemlijst en de kolomuitleg op eigen bladen.',
@@ -1784,7 +1784,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Alleen dynamische borden groeien',
-          body: 'extra rijen maken nieuwe vakjes op een Leagues-bord of een vakjesrace, vóór de start van het event, tot 1000. Een klassiek N×N-raster heeft een vaste vorm en negeert ze. Wil je honderden taken genereren, maak er dan een Leagues-event van.',
+          body: 'extra rijen maken nieuwe vakjes op een Point Hunt-bord of een vakjesrace, vóór de start van het event, tot 1000. Een klassiek N×N-raster heeft een vaste vorm en negeert ze. Wil je honderden taken genereren, maak er dan een Point Hunt-event van.',
         },
         {
           term: 'Alles of niets',
@@ -2117,8 +2117,8 @@ const nl: PartialGuideDict = {
       intro: 'Weet je welk gevoel je wil, dan is dit de kortste route ernaartoe.',
       rows: [
         { term: 'Een gewone clanbingo', body: 'Klassiek raster, alle vakjes zichtbaar. Voeg een bonus voor het eerste team toe als je wat haast wil.' },
-        { term: 'Honderden taken, gescoord op moeilijkheid', body: 'Leagues, alles zichtbaar. Dat is ook de enige vorm waar een grote spreadsheetimport in kan groeien.' },
-        { term: 'Een week die ergens naartoe werkt', body: 'Leagues met geplande of interval-onthulling, zodat het bord zich over de week opent in plaats van in één keer.' },
+        { term: 'Honderden taken, gescoord op moeilijkheid', body: 'Point Hunt, alles zichtbaar. Dat is ook de enige vorm waar een grote spreadsheetimport in kan groeien.' },
+        { term: 'Een week die ergens naartoe werkt', body: 'Point Hunt met geplande of interval-onthulling, zodat het bord zich over de week opent in plaats van in één keer.' },
         { term: 'Een avond die mensen live volgen', body: 'Premie. Eén vakje, het eerste team pakt het, meteen het volgende.' },
         { term: 'Een individuele competitie, geen teamcompetitie', body: 'Ladder met roterend venster en waardeverval. Taken komen en gaan en niemand kan ze opsparen.' },
         { term: 'Een race met een finish', body: 'Vakjesrace — een geordend parcours, en wie het verst komt wint.' },

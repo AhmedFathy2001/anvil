@@ -20,7 +20,7 @@ import { capEligible, serializeCapBy, validateCapBy } from '@/lib/tileCaps';
 import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, validateComboRule, validateComboWeight } from '@/lib/combo';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
-// Built for Leagues-style boards where configuring hundreds of tiles one at a time is
+// Built for Point Hunt boards where configuring hundreds of tiles one at a time is
 // impractical. Row index i targets the tile at position i (0-based):
 //   • rows that line up with existing tiles UPDATE them, and
 //   • on Leagues/Tile-race boards (arbitrary-length task lists), extra rows beyond the

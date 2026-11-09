@@ -11,7 +11,7 @@
 //
 // IMPORTANT: only the **Tiles** sheet maps onto tiles on import; the other sheets are helpers
 // and are ignored. So examples live on their own sheet, never appended to Tiles, where extra
-// rows would become real tiles on a Leagues board.
+// rows would become real tiles on a Point Hunt board.
 import ExcelJS from 'exceljs';
 import type { Event, Tile } from '@/lib/types';
 import { TILE_CSV_COLUMNS, tileToCsvCells, parseTileGrid, type ParsedTileCsv } from '@/lib/csvTiles';
@@ -187,7 +187,7 @@ export async function buildTileSpreadsheet(opts: {
     '',
     'THE TILES TAB',
     '  • One row per tile. Row order = tile order (row 2 → tile #1, row 3 → tile #2, …).',
-    '  • Rows that line up with existing tiles UPDATE them; on Leagues / Tile-race boards, extra rows',
+    '  • Rows that line up with existing tiles UPDATE them; on Point Hunt / Tile-race boards, extra rows',
     '    beyond the current count CREATE new tiles (before the event starts, up to 1000).',
     '  • A blank label auto-fills as "Tile N".',
     '  • Only the Tiles tab is imported — the other tabs (Examples, Item list, Stat keys) are helpers.',
@@ -196,7 +196,7 @@ export async function buildTileSpreadsheet(opts: {
     '  • type — one of standard / drop / kill / lap / timed / diary / ca (dropdown; advanced boards',
     '    can also use lms / value / valuetotal). SKILL & BOSS goals are NOT a type:',
     '    leave type = standard and fill trackedStat + statType + statGoal instead.',
-    '  • points — score weight (Leagues). category — free-text grouping (e.g. Zulrah, GWD, Skilling).',
+    '  • points — score weight (Point Hunt). category — free-text grouping (e.g. Zulrah, GWD, Skilling).',
     '  • optional — true/false; optional tiles don\'t count toward the total.',
     '  • requiredAmount — drop tiles (items needed), kill tiles (kills needed) OR lap tiles (laps',
     '    needed). Leave blank otherwise.',
@@ -226,7 +226,7 @@ export async function buildTileSpreadsheet(opts: {
     '  • items uses semicolons; targetNpcs accepts commas or pipes (quote a cell that contains commas).',
     '  • Collection tiles (items WITHOUT requiredAmount) compute their total from the item counts —',
     '    leave requiredAmount blank for them; filling it turns the tile into a pool ("any N of these").',
-    '  • Classic N×N bingo grids are a fixed size — extra rows are ignored. Use a Leagues board to grow.',
+    '  • Classic N×N bingo grids are a fixed size — extra rows are ignored. Use a Point Hunt board to grow.',
     '  • Before the event starts you can change everything; after it starts label/type/items lock.',
   ];
   for (const l of lines) help.addRow([l]);

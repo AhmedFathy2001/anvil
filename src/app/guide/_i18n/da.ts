@@ -1271,7 +1271,7 @@ const da: PartialGuideDict = {
           blurb: 'Et kvadratisk N×N-gitter — holdene tager felterne i vilkårlig rækkefølge, hvert felt tæller 1.',
         },
         leagues: {
-          label: 'Leagues-bingo',
+          label: 'Point Hunt',
           blurb: 'En opgaveliste, hvor hvert felt har sin egen pointværdi — et vilkårligt antal felter.',
         },
         race: {
@@ -1771,7 +1771,7 @@ const da: PartialGuideDict = {
     bulk: {
       title: 'Skriv dem i bulk, ikke i browseren',
       body: [
-        'At klikke sig gennem et 25-felters gitter er fint. At klikke sig gennem et Leagues-bræt med 200 opgaver er det ikke — og at læse korrektur bagefter er værre. Tiles-fanen har en tur-retur bygget til præcis det.',
+        'At klikke sig gennem et 25-felters gitter er fint. At klikke sig gennem et Point Hunt-bræt med 200 opgaver er det ikke — og at læse korrektur bagefter er værre. Tiles-fanen har en tur-retur bygget til præcis det.',
       ],
       steps: [
         '**Download spreadsheet** på eventets **Board & tiles**-side. Du får en .xlsx af brættet, som det ser ud nu, med dropdowns, itemlisten og kolonnevejledningen på hver sit ark.',
@@ -1789,7 +1789,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Kun dynamiske brætter vokser',
-          body: 'ekstra rækker opretter nye felter på et Leagues-bræt eller et feltræs, før eventet starter, op til 1000. Et klassisk N×N-gitter har en fast form og ignorerer dem. Skal du generere hundredvis af opgaver, så lav det som et Leagues-event.',
+          body: 'ekstra rækker opretter nye felter på et Point Hunt-bræt eller et feltræs, før eventet starter, op til 1000. Et klassisk N×N-gitter har en fast form og ignorerer dem. Skal du generere hundredvis af opgaver, så lav det som et Point Hunt-event.',
         },
         {
           term: 'Alt eller intet',
@@ -2122,8 +2122,8 @@ const da: PartialGuideDict = {
       intro: 'Ved du, hvilken fornemmelse du er ude efter, er det her den korteste vej dertil.',
       rows: [
         { term: 'En almindelig klanbingo', body: 'Klassisk gitter, alle felter synlige. Læg en bonus til første hold oveni, hvis du vil have lidt hastværk.' },
-        { term: 'Hundredvis af opgaver, scoret efter sværhedsgrad', body: 'Leagues, alt synligt. Det er også den eneste form, en stor regnearksimport kan vokse ind i.' },
-        { term: 'En uge, der bygger op mod noget', body: 'Leagues med planlagt eller interval-afsløring, så brættet åbner sig over ugen i stedet for på én gang.' },
+        { term: 'Hundredvis af opgaver, scoret efter sværhedsgrad', body: 'Point Hunt, alt synligt. Det er også den eneste form, en stor regnearksimport kan vokse ind i.' },
+        { term: 'En uge, der bygger op mod noget', body: 'Point Hunt med planlagt eller interval-afsløring, så brættet åbner sig over ugen i stedet for på én gang.' },
         { term: 'En aften folk ser med på live', body: 'Dusør. Ét felt, første hold tager det, næste felt med det samme.' },
         { term: 'En individuel konkurrence, ikke en holdkonkurrence', body: 'Stige med et roterende vindue og henfald. Opgaver kommer og går, og ingen kan gemme dem.' },
         { term: 'Et ræs med en målstreg', body: 'Feltræs — en ordnet bane, og den der når længst, vinder.' },

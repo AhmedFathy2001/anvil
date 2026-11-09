@@ -1261,7 +1261,7 @@ const ptBr: PartialGuideDict = {
         '**Events → All events → + New event**. Escolha primeiro um formato —— é ele que decide como o tabuleiro é pontuado e o que o resto do formulário vai te perguntar.',
       formats: {
         classic: { label: 'Bingo clássico', blurb: 'Uma grade quadrada N×N —— os times completam as casas em qualquer ordem, cada uma vale 1.' },
-        leagues: { label: 'Bingo Leagues', blurb: 'Uma lista de tarefas em que cada casa carrega um valor em pontos —— qualquer quantidade de casas.' },
+        leagues: { label: 'Point Hunt', blurb: 'Uma lista de tarefas em que cada casa carrega um valor em pontos —— qualquer quantidade de casas.' },
         race: { label: 'Corrida de casas', blurb: 'Um percurso ordenado —— os times alcançam as casas em sequência; vence quem chegar mais longe. O anfitrião pode ramificá-lo em rotas que se separam e se juntam — a casa que vocês concluem escolhe o caminho.' },
         showdown: {
           label: 'Showdown',
@@ -1754,7 +1754,7 @@ const ptBr: PartialGuideDict = {
     bulk: {
       title: 'Escreva em massa, não no navegador',
       body: [
-        'Clicar uma grade de 25 casas tudo bem. Clicar um tabuleiro Leagues de 200 tarefas não, e revisar depois também não. A aba Tiles tem uma volta completa feita exatamente para isso.',
+        'Clicar uma grade de 25 casas tudo bem. Clicar um tabuleiro Point Hunt de 200 tarefas não, e revisar depois também não. A aba Tiles tem uma volta completa feita exatamente para isso.',
       ],
       steps: [
         '**Download spreadsheet** na página **Board & tiles** do evento. Você recebe um .xlsx do tabuleiro como ele está, com listas suspensas, a lista de itens e as instruções das colunas em abas próprias.',
@@ -1772,7 +1772,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Só tabuleiros dinâmicos crescem',
-          body: 'linhas extras criam casas novas num tabuleiro Leagues ou numa corrida de casas, antes de o evento começar, até 1000. Uma grade clássica N×N tem formato fixo e as ignora. Para gerar centenas de tarefas, faça um evento Leagues.',
+          body: 'linhas extras criam casas novas num tabuleiro Point Hunt ou numa corrida de casas, antes de o evento começar, até 1000. Uma grade clássica N×N tem formato fixo e as ignora. Para gerar centenas de tarefas, faça um evento Point Hunt.',
         },
         {
           term: 'Tudo ou nada',
@@ -2105,8 +2105,8 @@ const ptBr: PartialGuideDict = {
       intro: 'Se você já sabe a sensação que quer, este é o caminho mais curto até ela.',
       rows: [
         { term: 'Um bingo de clã normal', body: 'Grade clássica, todas as casas visíveis. Adicione um bônus de primeiro time se quiser um pouco de pressa.' },
-        { term: 'Centenas de tarefas, pontuadas por dificuldade', body: 'Leagues, tudo visível. É também o único formato em que uma importação grande de planilha consegue crescer.' },
-        { term: 'Uma semana que vai crescendo', body: 'Leagues com revelação agendada ou por intervalo, para o tabuleiro abrir ao longo da semana em vez de tudo de uma vez.' },
+        { term: 'Centenas de tarefas, pontuadas por dificuldade', body: 'Point Hunt, tudo visível. É também o único formato em que uma importação grande de planilha consegue crescer.' },
+        { term: 'Uma semana que vai crescendo', body: 'Point Hunt com revelação agendada ou por intervalo, para o tabuleiro abrir ao longo da semana em vez de tudo de uma vez.' },
         { term: 'Uma noite que as pessoas assistem ao vivo', body: 'Recompensa. Uma casa, o primeiro time leva, próxima casa na hora.' },
         { term: 'Uma disputa individual, não de times', body: 'Ranking com janela rotativa e desvalorização. As tarefas vêm e vão e ninguém consegue guardá-las.' },
         { term: 'Uma corrida com linha de chegada', body: 'Corrida de casas —— um percurso ordenado, e vence quem chegar mais longe.' },

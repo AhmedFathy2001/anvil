@@ -166,7 +166,7 @@ export async function POST(request: Request) {
 
   // Three event shapes, all keyed off (format, scoringMode):
   //   • Classic bingo  (bingo + tiles)  → a square N×N grid, so boardSize is N and tiles = N².
-  //   • Leagues bingo  (bingo + points) → an arbitrary-length task list, boardSize IS the tile count.
+  //   • Point Hunt  (bingo + points) → an arbitrary-length task list, boardSize IS the tile count.
   //   • Tile race      (tilerace)       → a linear track, boardSize IS the tile count.
   // Only classic squares boardSize; the other two use it directly as the number of tiles.
   const isClassicGrid = resolvedFormat === 'bingo' && resolvedScoringMode === 'tiles';
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
         ? `${boardSize}×${boardSize} grid`
         : resolvedFormat === 'tilerace'
           ? `${boardSize}-tile race`
-          : `${boardSize}-tile Leagues board`;
+          : `${boardSize}-tile Point Hunt board`;
       return NextResponse.json(
         { error: `Expected ${expectedTiles} tiles for a ${shape}, got ${tileLabels.length}` },
         { status: 400 },

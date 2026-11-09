@@ -149,7 +149,7 @@ export default function EventBoard({
   const board = isTileRaceFormat(format) ? (
     <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} raceFit={raceFit} />
   ) : pointsMode ? (
-    // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
+    // Point Hunt (points scoring) renders as a task-list accordion, not a square grid —
     // so it isn't bound to a perfect-square tile count. The status map lets it sort
     // incomplete-first by default, like the plugin's collection-log list.
     <LeaguesBoard tiles={iconedTiles} {...boardRest} statusById={statusById} closestFirst={closestFirst} />

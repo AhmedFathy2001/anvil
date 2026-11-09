@@ -87,7 +87,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
     sections: [
       {
         heading: 'Build the board once',
-        body: 'Pick a format — classic bingo with rows and columns, a Leagues-style board, a tile race, or a hidden-tile showdown — and fill it with tiles. A tile can ask for a drop, a set of items, a boss kill count, skill XP, NPC kills, a timed clear, a deathless raid, agility laps, diaries, combat achievements, PvP kills, Last Man Standing placings or loot value. Import a whole board from a spreadsheet if you already have one.',
+        body: 'Pick a format — classic bingo with rows and columns, a Point Hunt board, a tile race, or a hidden-tile showdown — and fill it with tiles. A tile can ask for a drop, a set of items, a boss kill count, skill XP, NPC kills, a timed clear, a deathless raid, agility laps, diaries, combat achievements, PvP kills, Last Man Standing placings or loot value. Import a whole board from a spreadsheet if you already have one.',
       },
       {
         heading: 'The plugin fills it in',

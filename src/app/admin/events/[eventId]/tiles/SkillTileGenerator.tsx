@@ -130,7 +130,7 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
         title={
           canGrow
             ? 'Add an XP-goal tile for several skills at once (e.g. 2M XP in Cooking + Runecraft + Sailing)'
-            : 'Available on Leagues / Tile-race boards before the event starts'
+            : 'Available on Point Hunt / Tile-race boards before the event starts'
         }
         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >

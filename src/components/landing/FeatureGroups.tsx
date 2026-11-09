@@ -26,7 +26,7 @@ export const FEATURE_GROUPS: Group[] = [
       },
       {
         title: 'Eight formats',
-        body: 'Classic bingo, Leagues bingo, Tile race, Showdown, Lucky draw, Bounty hunt, Ladder and Solo (everyone for themselves). Team boards work on the board formats.',
+        body: 'Classic bingo, Point Hunt, Tile race, Showdown, Lucky draw, Bounty hunt, Ladder and Solo (everyone for themselves). Team boards work on the board formats.',
       },
       {
         title: 'Tile races with branching roads',

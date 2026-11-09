@@ -80,7 +80,7 @@ export function isTileRaceFormat(format: string | null | undefined): boolean {
 
 /**
  * A ladder event: a points-scored task list rendered as an individual leaderboard (teams optional).
- * Same engine as Leagues bingo (dynamic points-scored tile list) — only the render differs.
+ * Same engine as Point Hunt (dynamic points-scored tile list) — only the render differs.
  */
 export function isLadderFormat(format: string | null | undefined): boolean {
   return format === 'ladder';
@@ -89,7 +89,7 @@ export function isLadderFormat(format: string | null | undefined): boolean {
 /**
  * Total tiles for an event, accounting for all three shapes:
  *   • classic bingo (bingo + tiles) → a square N×N grid → N²
- *   • Leagues bingo (bingo + points) → an arbitrary task list → N
+ *   • Point Hunt (bingo + points) → an arbitrary task list → N
  *   • tile race (tilerace)           → a linear track       → N
  * `boardSize` is N. Only classic squares it.
  */

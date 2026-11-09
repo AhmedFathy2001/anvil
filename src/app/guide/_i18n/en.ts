@@ -1240,7 +1240,7 @@ export const en = {
         '**Events → All events → + New event**. Pick a format first — it decides how the board is scored and what the rest of the form asks you for.',
       formats: {
         classic: { label: 'Classic bingo', blurb: 'A square N×N grid — teams complete tiles in any order, each worth 1.' },
-        leagues: { label: 'Leagues bingo', blurb: 'A task list where each tile carries a point value — any number of tiles.' },
+        leagues: { label: 'Point Hunt', blurb: 'A task list where each tile carries a point value — any number of tiles.' },
         race: { label: 'Tile race', blurb: 'An ordered track — teams reach tiles in sequence; furthest reached wins. The host can branch it into routes that split and merge — finishing a tile picks your way.' },
         showdown: {
           label: 'Showdown',
@@ -1742,7 +1742,7 @@ export const en = {
     bulk: {
       title: 'Author in bulk, not in the browser',
       body: [
-        'Clicking out a 25-tile grid is fine. Clicking out a 200-task Leagues board is not, and neither is proof-reading it afterwards. The Tiles tab has a round trip built for exactly this.',
+        'Clicking out a 25-tile grid is fine. Clicking out a 200-task Point Hunt board is not, and neither is proof-reading it afterwards. The Tiles tab has a round trip built for exactly this.',
       ],
       steps: [
         '**Download spreadsheet** on the event’s **Board & tiles** page. You get an .xlsx of the board as it stands, with dropdowns, the item list and the column instructions on their own sheets.',
@@ -1760,7 +1760,7 @@ export const en = {
         },
         {
           term: 'Only dynamic boards grow',
-          body: 'extra rows create new tiles on a Leagues board or a tile race, before the event starts, up to 1000. A classic N×N grid is a fixed shape and ignores them. To generate hundreds of tasks, make it a Leagues event.',
+          body: 'extra rows create new tiles on a Point Hunt board or a tile race, before the event starts, up to 1000. A classic N×N grid is a fixed shape and ignores them. To generate hundreds of tasks, make it a Point Hunt event.',
         },
         {
           term: 'All or nothing',
@@ -2118,8 +2118,8 @@ export const en = {
       intro: 'If you know the feeling you want, this is the shortest route to it.',
       rows: [
         { term: 'A normal clan bingo', body: 'Classic grid, all tiles visible. Add a first-team bonus if you want a little urgency.' },
-        { term: 'Hundreds of tasks, scored by difficulty', body: 'Leagues, all visible. This is also the only shape a big spreadsheet import can grow into.' },
-        { term: 'A week that builds toward something', body: 'Leagues with scheduled or interval reveal, so the board opens over the week instead of all at once.' },
+        { term: 'Hundreds of tasks, scored by difficulty', body: 'Point Hunt, all visible. This is also the only shape a big spreadsheet import can grow into.' },
+        { term: 'A week that builds toward something', body: 'Point Hunt with scheduled or interval reveal, so the board opens over the week instead of all at once.' },
         { term: 'An evening people watch live', body: 'Bounty. One tile, first team takes it, next tile immediately.' },
         { term: 'An individual competition, not a team one', body: 'Ladder with a rotating window and decay. Tasks come and go and nobody can bank them.' },
         { term: 'A race with a finish line', body: 'Tile race — an ordered track, and whoever gets furthest wins.' },

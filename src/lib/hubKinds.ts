@@ -29,7 +29,7 @@ const label = (key: string, fallback: string) => EVENT_MODES.find((m) => m.key =
 
 export const HUB_KINDS: HubKindMeta[] = [
   { key: 'classic', label: label('classic', 'Classic bingo'), short: 'Classic', group: 'boards', accent: 'var(--gold)', emoji: '🎯' },
-  { key: 'leagues', label: label('leagues', 'Leagues bingo'), short: 'Leagues', group: 'boards', accent: '#f0a93b', emoji: '📜' },
+  { key: 'leagues', label: label('leagues', 'Point Hunt'), short: 'Point Hunt', group: 'boards', accent: '#f0a93b', emoji: '📜' },
   { key: 'race', label: label('race', 'Tile race'), short: 'Race', group: 'boards', accent: '#46c0b0', emoji: '🏁' },
   { key: 'showdown', label: label('showdown', 'Showdown'), short: 'Showdown', group: 'boards', accent: '#d98cb3', emoji: '⏱' },
   { key: 'luckydraw', label: label('luckydraw', 'Lucky draw'), short: 'Draw', group: 'boards', accent: '#a78bfa', emoji: '🎲' },

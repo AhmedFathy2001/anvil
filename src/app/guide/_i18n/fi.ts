@@ -1264,7 +1264,7 @@ const fi: PartialGuideDict = {
           blurb: 'Neliömäinen N×N-ruudukko — joukkueet suorittavat ruudut vapaassa järjestyksessä, kukin arvoltaan 1.',
         },
         leagues: {
-          label: 'Leagues-bingo',
+          label: 'Point Hunt',
           blurb: 'Tehtävälista jossa jokaisella ruudulla on oma pistearvonsa — ruutuja niin monta kuin haluat.',
         },
         race: {
@@ -1764,7 +1764,7 @@ const fi: PartialGuideDict = {
     bulk: {
       title: 'Laadi ne massana, ei selaimessa',
       body: [
-        '25 ruudun ruudukon klikkaaminen käy hyvin. 200 tehtävän Leagues-taulun klikkaaminen ei käy, eikä sen oikoluku jälkikäteen. Tiles-välilehdellä on juuri tähän rakennettu edestakainen kierto.',
+        '25 ruudun ruudukon klikkaaminen käy hyvin. 200 tehtävän Point Hunt-taulun klikkaaminen ei käy, eikä sen oikoluku jälkikäteen. Tiles-välilehdellä on juuri tähän rakennettu edestakainen kierto.',
       ],
       steps: [
         '**Download spreadsheet** tapahtuman **Board & tiles** -sivulla. Saat .xlsx-tiedoston taulusta sellaisena kuin se on, pudotusvalikoineen, esinelistoineen ja sarakeohjeineen omilla välilehdillään.',
@@ -1782,7 +1782,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Vain dynaamiset taulut kasvavat',
-          body: 'ylimääräiset rivit luovat uusia ruutuja Leagues-taululle tai ruutukisaan, ennen tapahtuman alkua, enintään 1000 asti. Klassisella N×N-ruudukolla on kiinteä muoto ja se ohittaa ne. Jos aiot tuottaa satoja tehtäviä, tee siitä Leagues-tapahtuma.',
+          body: 'ylimääräiset rivit luovat uusia ruutuja Point Hunt-taululle tai ruutukisaan, ennen tapahtuman alkua, enintään 1000 asti. Klassisella N×N-ruudukolla on kiinteä muoto ja se ohittaa ne. Jos aiot tuottaa satoja tehtäviä, tee siitä Point Hunt-tapahtuma.',
         },
         {
           term: 'Kaikki tai ei mitään',
@@ -2115,8 +2115,8 @@ const fi: PartialGuideDict = {
       intro: 'Jos tiedät minkälaisen tunnelman haluat, tämä on lyhin reitti sinne.',
       rows: [
         { term: 'Tavallinen klaanibingo', body: 'Klassinen ruudukko, kaikki ruudut näkyvissä. Lisää ensimmäisen joukkueen bonus jos haluat hieman kiirettä.' },
-        { term: 'Satoja tehtäviä, pisteytettynä vaikeuden mukaan', body: 'Leagues, kaikki näkyvissä. Se on myös ainoa muoto johon iso taulukkotuonti voi kasvaa.' },
-        { term: 'Viikko joka rakentuu kohti jotain', body: 'Leagues aikataulutetulla tai välipaljastuksella, jolloin taulu aukeaa viikon mittaan eikä kerralla.' },
+        { term: 'Satoja tehtäviä, pisteytettynä vaikeuden mukaan', body: 'Point Hunt, kaikki näkyvissä. Se on myös ainoa muoto johon iso taulukkotuonti voi kasvaa.' },
+        { term: 'Viikko joka rakentuu kohti jotain', body: 'Point Hunt aikataulutetulla tai välipaljastuksella, jolloin taulu aukeaa viikon mittaan eikä kerralla.' },
         { term: 'Ilta jota ihmiset seuraavat livenä', body: 'Palkkio. Yksi ruutu, ensimmäinen joukkue vie sen, seuraava ruutu heti.' },
         { term: 'Yksilökilpailu, ei joukkuekilpailu', body: 'Tikapuut kiertävällä ikkunalla ja arvonlaskulla. Tehtävät tulevat ja menevät eikä kukaan voi säästää niitä.' },
         { term: 'Kisa jolla on maaliviiva', body: 'Ruutukisa — järjestetty rata, ja pisimmälle päässyt voittaa.' },

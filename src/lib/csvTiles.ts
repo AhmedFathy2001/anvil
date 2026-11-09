@@ -13,7 +13,7 @@
 //                       shapes still import as they always did — "kill" (plugin) and "standard" +
 //                       statType=boss (hiscores); "boss"/"boss kc" and "kill count" are accepted as
 //                       those. Exports write the explicit shapes, so a sheet round-trips 1:1.
-//   points              integer reward weight (Leagues scoring)
+//   points              integer reward weight (Point Hunt scoring)
 //   skillRating         balance audit only — execution difficulty from 0 (routine) to 5 (elite)
 //   expectedEffortHours balance audit only — person-hours including setup and failed attempts;
 //                       overrides a rough automatic estimate and models bespoke objectives

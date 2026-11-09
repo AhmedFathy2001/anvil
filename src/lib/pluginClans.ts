@@ -52,7 +52,7 @@ export interface PluginClanLive {
   /** Zero on a weekly: a competition has a leaderboard, not a board to fill. */
   tilesComplete: number;
   tilesTotal: number;
-  /** Leagues-style points scoring — the tallies above are points, not tile counts. */
+  /** Point Hunt points scoring — the tallies above are points, not tile counts. */
   pointsScored: boolean;
 }
 

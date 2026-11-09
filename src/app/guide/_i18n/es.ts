@@ -1267,7 +1267,7 @@ const es: PartialGuideDict = {
           blurb: 'Una cuadrícula cuadrada N×N — los equipos hacen las casillas en el orden que quieran, cada una vale 1.',
         },
         leagues: {
-          label: 'Bingo Leagues',
+          label: 'Point Hunt',
           blurb: 'Una lista de tareas donde cada casilla lleva su propio valor en puntos — tantas casillas como quieras.',
         },
         race: {
@@ -1767,7 +1767,7 @@ const es: PartialGuideDict = {
     bulk: {
       title: 'Créalas en bloque, no en el navegador',
       body: [
-        'Hacer a clics una cuadrícula de 25 casillas está bien. Hacer a clics un tablero Leagues de 200 tareas no, y revisarlo después tampoco. La pestaña Tiles tiene una ida y vuelta hecha justo para eso.',
+        'Hacer a clics una cuadrícula de 25 casillas está bien. Hacer a clics un tablero Point Hunt de 200 tareas no, y revisarlo después tampoco. La pestaña Tiles tiene una ida y vuelta hecha justo para eso.',
       ],
       steps: [
         '**Download spreadsheet** en la página **Board & tiles** del evento. Obtienes un .xlsx del tablero tal cual está, con desplegables, la lista de objetos y las instrucciones de columnas en hojas propias.',
@@ -1785,7 +1785,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Solo crecen los tableros dinámicos',
-          body: 'las filas de más crean casillas nuevas en un tablero Leagues o una carrera de casillas, antes de que arranque el evento, hasta 1000. Una cuadrícula clásica N×N tiene forma fija y las ignora. Para generar cientos de tareas, hazlo un evento Leagues.',
+          body: 'las filas de más crean casillas nuevas en un tablero Point Hunt o una carrera de casillas, antes de que arranque el evento, hasta 1000. Una cuadrícula clásica N×N tiene forma fija y las ignora. Para generar cientos de tareas, hazlo un evento Point Hunt.',
         },
         {
           term: 'Todo o nada',
@@ -2118,8 +2118,8 @@ const es: PartialGuideDict = {
       intro: 'Si sabes qué sensación quieres, esta es la ruta más corta.',
       rows: [
         { term: 'Un bingo de clan normal', body: 'Cuadrícula clásica, todas las casillas visibles. Añade una bonificación al primer equipo si quieres algo de prisa.' },
-        { term: 'Cientos de tareas, puntuadas por dificultad', body: 'Leagues, todo visible. Es además la única forma en la que puede crecer una importación grande de hoja de cálculo.' },
-        { term: 'Una semana que construye hacia algo', body: 'Leagues con revelación programada o por intervalos, para que el tablero se abra a lo largo de la semana en vez de de golpe.' },
+        { term: 'Cientos de tareas, puntuadas por dificultad', body: 'Point Hunt, todo visible. Es además la única forma en la que puede crecer una importación grande de hoja de cálculo.' },
+        { term: 'Una semana que construye hacia algo', body: 'Point Hunt con revelación programada o por intervalos, para que el tablero se abra a lo largo de la semana en vez de de golpe.' },
         { term: 'Una noche que la gente sigue en directo', body: 'Recompensa. Una casilla, el primer equipo se la lleva, la siguiente al momento.' },
         { term: 'Una competición individual, no por equipos', body: 'Escalera con ventana rotatoria y decaimiento. Las tareas van y vienen y nadie puede guardarlas.' },
         { term: 'Una carrera con meta', body: 'Carrera de casillas — un recorrido ordenado, y gana quien llega más lejos.' },

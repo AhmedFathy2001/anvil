@@ -1266,7 +1266,7 @@ const de: PartialGuideDict = {
           blurb: 'Ein quadratisches N×N-Raster — Teams erledigen Felder in beliebiger Reihenfolge, jedes zählt 1.',
         },
         leagues: {
-          label: 'Leagues-Bingo',
+          label: 'Point Hunt',
           blurb: 'Eine Aufgabenliste, in der jedes Feld seinen eigenen Punktwert trägt — beliebig viele Felder.',
         },
         race: {
@@ -1766,7 +1766,7 @@ const de: PartialGuideDict = {
     bulk: {
       title: 'Leg sie in Bulk an, nicht im Browser',
       body: [
-        'Ein 25-Felder-Raster zusammenzuklicken geht. Ein Leagues-Board mit 200 Aufgaben zusammenzuklicken nicht, und Korrekturlesen danach ebenso wenig. Der Tiles-Reiter hat genau dafür einen Hin- und Rückweg.',
+        'Ein 25-Felder-Raster zusammenzuklicken geht. Ein Point Hunt-Board mit 200 Aufgaben zusammenzuklicken nicht, und Korrekturlesen danach ebenso wenig. Der Tiles-Reiter hat genau dafür einen Hin- und Rückweg.',
       ],
       steps: [
         '**Download spreadsheet** auf der Seite **Board & tiles** des Events. Du bekommst eine .xlsx des Boards, wie es gerade ist, mit Auswahllisten, der Gegenstandsliste und den Spaltenhinweisen auf eigenen Blättern.',
@@ -1784,7 +1784,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Nur dynamische Boards wachsen',
-          body: 'zusätzliche Zeilen legen neue Felder auf einem Leagues-Board oder einem Feldrennen an, vor dem Eventstart, bis zu 1000. Ein klassisches N×N-Raster hat eine feste Form und ignoriert sie. Willst du Hunderte Aufgaben erzeugen, mach ein Leagues-Event daraus.',
+          body: 'zusätzliche Zeilen legen neue Felder auf einem Point Hunt-Board oder einem Feldrennen an, vor dem Eventstart, bis zu 1000. Ein klassisches N×N-Raster hat eine feste Form und ignoriert sie. Willst du Hunderte Aufgaben erzeugen, mach ein Point Hunt-Event daraus.',
         },
         {
           term: 'Alles oder nichts',
@@ -2117,8 +2117,8 @@ const de: PartialGuideDict = {
       intro: 'Wenn du weißt, welches Gefühl du willst, ist das der kürzeste Weg dorthin.',
       rows: [
         { term: 'Ein normales Clanbingo', body: 'Klassisches Raster, alle Felder sichtbar. Ergänze einen Bonus fürs erste Team, wenn du etwas Dringlichkeit willst.' },
-        { term: 'Hunderte Aufgaben, nach Schwierigkeit gewertet', body: 'Leagues, alles sichtbar. Das ist auch die einzige Form, in die ein großer Tabellenimport hineinwachsen kann.' },
-        { term: 'Eine Woche, die auf etwas zuläuft', body: 'Leagues mit geplanter oder Intervall-Aufdeckung, damit sich das Board über die Woche öffnet statt auf einmal.' },
+        { term: 'Hunderte Aufgaben, nach Schwierigkeit gewertet', body: 'Point Hunt, alles sichtbar. Das ist auch die einzige Form, in die ein großer Tabellenimport hineinwachsen kann.' },
+        { term: 'Eine Woche, die auf etwas zuläuft', body: 'Point Hunt mit geplanter oder Intervall-Aufdeckung, damit sich das Board über die Woche öffnet statt auf einmal.' },
         { term: 'Ein Abend, den Leute live verfolgen', body: 'Kopfgeld. Ein Feld, das erste Team holt es, sofort das nächste.' },
         { term: 'Ein Einzelwettbewerb, kein Teamwettbewerb', body: 'Leiter mit rotierendem Fenster und Wertverfall. Aufgaben kommen und gehen, und niemand kann sie horten.' },
         { term: 'Ein Rennen mit Ziellinie', body: 'Feldrennen — eine geordnete Strecke, und wer am weitesten kommt, gewinnt.' },

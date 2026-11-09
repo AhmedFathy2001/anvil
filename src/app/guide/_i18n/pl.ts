@@ -1259,7 +1259,7 @@ const pl: PartialGuideDict = {
         '**Events → All events → + New event**. Najpierw wybierz format —— to on decyduje, jak plansza jest punktowana i o co zapyta cię reszta formularza.',
       formats: {
         classic: { label: 'Klasyczne bingo', blurb: 'Kwadratowa siatka N×N —— drużyny kończą pola w dowolnej kolejności, każde warte 1.' },
-        leagues: { label: 'Bingo w stylu Leagues', blurb: 'Lista zadań, gdzie każde pole ma własną wartość punktową —— dowolna liczba pól.' },
+        leagues: { label: 'Point Hunt', blurb: 'Lista zadań, gdzie każde pole ma własną wartość punktową —— dowolna liczba pól.' },
         race: { label: 'Wyścig po polach', blurb: 'Uporządkowana trasa —— drużyny sięgają pól po kolei; wygrywa ta, która zajdzie najdalej. Gospodarz może rozgałęzić ją na trasy, które się rozdzielają i łączą — ukończone pole wybiera waszą drogę.' },
         showdown: {
           label: 'Showdown',
@@ -1752,7 +1752,7 @@ const pl: PartialGuideDict = {
     bulk: {
       title: 'Pisz hurtem, nie w przeglądarce',
       body: [
-        'Wyklikanie siatki na 25 pól jest w porządku. Wyklikanie planszy Leagues na 200 zadań już nie, tak samo jak przeczytanie jej potem. Zakładka Tiles ma pełne kółko zbudowane dokładnie do tego.',
+        'Wyklikanie siatki na 25 pól jest w porządku. Wyklikanie planszy Point Hunt na 200 zadań już nie, tak samo jak przeczytanie jej potem. Zakładka Tiles ma pełne kółko zbudowane dokładnie do tego.',
       ],
       steps: [
         '**Download spreadsheet** na stronie **Board & tiles** wydarzenia. Dostajesz .xlsx z planszą w obecnym stanie, z listami rozwijanymi, listą przedmiotów i instrukcjami kolumn na osobnych arkuszach.',
@@ -1770,7 +1770,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Rosną tylko plansze dynamiczne',
-          body: 'dodatkowe wiersze tworzą nowe pola na planszy Leagues albo w wyścigu po polach, przed startem wydarzenia, do 1000. Klasyczna siatka N×N ma stały kształt i je ignoruje. Żeby wygenerować setki zadań, zrób wydarzenie Leagues.',
+          body: 'dodatkowe wiersze tworzą nowe pola na planszy Point Hunt albo w wyścigu po polach, przed startem wydarzenia, do 1000. Klasyczna siatka N×N ma stały kształt i je ignoruje. Żeby wygenerować setki zadań, zrób wydarzenie Point Hunt.',
         },
         {
           term: 'Wszystko albo nic',
@@ -2103,8 +2103,8 @@ const pl: PartialGuideDict = {
       intro: 'Jeśli wiesz, jakiego wrażenia chcesz, to najkrótsza droga do niego.',
       rows: [
         { term: 'Zwykłe klanowe bingo', body: 'Klasyczna siatka, wszystkie pola widoczne. Dodaj bonus za pierwszą drużynę, jeśli chcesz odrobiny pośpiechu.' },
-        { term: 'Setki zadań punktowanych za trudność', body: 'Leagues, wszystko widoczne. To także jedyny kształt, w który może urosnąć duży import z arkusza.' },
-        { term: 'Tydzień, który do czegoś narasta', body: 'Leagues z odsłanianiem zaplanowanym albo interwałowym, żeby plansza otwierała się przez tydzień, a nie naraz.' },
+        { term: 'Setki zadań punktowanych za trudność', body: 'Point Hunt, wszystko widoczne. To także jedyny kształt, w który może urosnąć duży import z arkusza.' },
+        { term: 'Tydzień, który do czegoś narasta', body: 'Point Hunt z odsłanianiem zaplanowanym albo interwałowym, żeby plansza otwierała się przez tydzień, a nie naraz.' },
         { term: 'Wieczór, który ludzie oglądają na żywo', body: 'Tryb nagrodowy. Jedno pole, pierwsza drużyna bierze, natychmiast kolejne.' },
         { term: 'Rywalizacja indywidualna, nie drużynowa', body: 'Drabinka z oknem rotacyjnym i spadkiem wartości. Zadania przychodzą i znikają, a nikt ich nie odłoży.' },
         { term: 'Wyścig z metą', body: 'Wyścig po polach —— uporządkowana trasa i wygrywa ten, kto zajdzie najdalej.' },

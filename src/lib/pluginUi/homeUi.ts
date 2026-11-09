@@ -184,7 +184,7 @@ function weeklyGain(w: ScheduleWeekly, gained: number): string {
 export function scheduledKind(b: ScheduleBingo): string {
   if (isLadder(b.format)) return 'Ladder';
   if (b.format === 'tilerace') return 'Tile race';
-  return b.scoringMode === 'points' ? 'Bingo (points)' : 'Bingo';
+  return b.scoringMode === 'points' ? 'Point Hunt' : 'Bingo';
 }
 
 /** "5×5 · 25 tiles" for a grid, "240 tiles" for a list (Leagues, races, ladders), or "". */
@@ -451,7 +451,7 @@ export function homeUi(d: HomeData): Node {
   // Your live board: the gold card.
   let playingHere: Node | null = null;
   if (b) {
-    const kind = b.ladder ? 'Ladder' : d.cfg.event?.race ? 'Tile race' : d.cfg.event?.revealPolicy === 'bounty' ? 'Bounty hunt' : d.cfg.event?.revealPolicy ? 'Showdown' : b.points ? 'Bingo (points)' : 'Bingo';
+    const kind = b.ladder ? 'Ladder' : d.cfg.event?.race ? 'Tile race' : d.cfg.event?.revealPolicy === 'bounty' ? 'Bounty hunt' : d.cfg.event?.revealPolicy ? 'Showdown' : b.points ? 'Point Hunt' : 'Bingo';
     const lines: Node[] = [];
     if (b.total > 0 && !b.ladder && !b.spectating) {
       lines.push(row(muted(clip([kind, p.team].filter(Boolean).join(' · '), 24)), undefined, placeNode(p)));

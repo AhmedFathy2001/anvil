@@ -1265,7 +1265,7 @@ const no: PartialGuideDict = {
           blurb: 'Et kvadratisk N×N-rutenett — lagene fullfører rutene i vilkårlig rekkefølge, hver verdt 1.',
         },
         leagues: {
-          label: 'Leagues-bingo',
+          label: 'Point Hunt',
           blurb: 'En oppgaveliste der hver rute har sin egen poengverdi — så mange ruter du vil.',
         },
         race: {
@@ -1765,7 +1765,7 @@ const no: PartialGuideDict = {
     bulk: {
       title: 'Skriv dem i bulk, ikke i nettleseren',
       body: [
-        'Å klikke fram et 25-ruters nett går fint. Å klikke fram et Leagues-brett med 200 oppgaver gjør det ikke, og heller ikke å korrekturlese det etterpå. Tiles-fanen har en tur-retur bygget for nettopp dette.',
+        'Å klikke fram et 25-ruters nett går fint. Å klikke fram et Point Hunt-brett med 200 oppgaver gjør det ikke, og heller ikke å korrekturlese det etterpå. Tiles-fanen har en tur-retur bygget for nettopp dette.',
       ],
       steps: [
         '**Download spreadsheet** på eventets **Board & tiles**-side. Du får en .xlsx av brettet slik det er nå, med nedtrekkslister, gjenstandslista og kolonneveiledningen på hvert sitt ark.',
@@ -1783,7 +1783,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Bare dynamiske brett vokser',
-          body: 'ekstra rader oppretter nye ruter på et Leagues-brett eller et ruteløp, før eventet starter, opptil 1000. Et klassisk N×N-nett har en fast form og ignorerer dem. Skal du generere hundrevis av oppgaver, gjør det til et Leagues-event.',
+          body: 'ekstra rader oppretter nye ruter på et Point Hunt-brett eller et ruteløp, før eventet starter, opptil 1000. Et klassisk N×N-nett har en fast form og ignorerer dem. Skal du generere hundrevis av oppgaver, gjør det til et Point Hunt-event.',
         },
         {
           term: 'Alt eller ingenting',
@@ -2116,8 +2116,8 @@ const no: PartialGuideDict = {
       intro: 'Vet du hvilken følelse du er ute etter, er dette korteste vei dit.',
       rows: [
         { term: 'En vanlig klanbingo', body: 'Klassisk rutenett, alle ruter synlige. Legg til en bonus til første lag hvis du vil ha litt hastverk.' },
-        { term: 'Hundrevis av oppgaver, scoret etter vanskelighet', body: 'Leagues, alt synlig. Det er også den eneste formen en stor regnearkimport kan vokse inn i.' },
-        { term: 'En uke som bygger mot noe', body: 'Leagues med planlagt eller intervallavsløring, så brettet åpner seg utover uka i stedet for på én gang.' },
+        { term: 'Hundrevis av oppgaver, scoret etter vanskelighet', body: 'Point Hunt, alt synlig. Det er også den eneste formen en stor regnearkimport kan vokse inn i.' },
+        { term: 'En uke som bygger mot noe', body: 'Point Hunt med planlagt eller intervallavsløring, så brettet åpner seg utover uka i stedet for på én gang.' },
         { term: 'En kveld folk følger live', body: 'Dusør. Én rute, første lag tar den, neste rute med én gang.' },
         { term: 'En individuell konkurranse, ikke en lagkonkurranse', body: 'Stige med roterende vindu og verdifall. Oppgaver kommer og går, og ingen kan spare dem.' },
         { term: 'Et løp med en målstrek', body: 'Ruteløp — en ordnet bane, og den som kommer lengst, vinner.' },

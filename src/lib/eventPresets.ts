@@ -43,7 +43,7 @@ export const BUILTIN_PRESETS: EventPreset[] = [
   },
   {
     key: 'leagues-20',
-    label: 'Leagues board · 20 tiles',
+    label: 'Point Hunt board · 20 tiles',
     blurb: 'A point-scored task list — mix easy and hard tiles by value.',
     emoji: '🏅',
     mode: 'leagues',
@@ -51,7 +51,7 @@ export const BUILTIN_PRESETS: EventPreset[] = [
   },
   {
     key: 'leagues-40',
-    label: 'Leagues board · 40 tiles',
+    label: 'Point Hunt board · 40 tiles',
     blurb: 'A big point-scored board to keep a whole clan busy.',
     emoji: '🏅',
     mode: 'leagues',

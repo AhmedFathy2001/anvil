@@ -56,7 +56,7 @@ export const EVENT_MODES: EventModeMeta[] = [
   },
   {
     key: 'leagues',
-    label: 'Leagues bingo',
+    label: 'Point Hunt',
     blurb: 'A task list where each tile carries a point value — any number of tiles.',
     format: 'bingo',
     scoringMode: 'points',

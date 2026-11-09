@@ -86,7 +86,7 @@ type Format = 'bingo' | 'leagues' | 'race' | 'week' | 'ladder';
 
 const FORMATS: { key: Format; label: string }[] = [
   { key: 'bingo', label: 'Bingo' },
-  { key: 'leagues', label: 'Leagues' },
+  { key: 'leagues', label: 'Point Hunt' },
   { key: 'race', label: 'Tile race' },
   { key: 'week', label: 'Boss week' },
   { key: 'ladder', label: 'Ladder' },
@@ -144,7 +144,7 @@ export default function HeroShowcase() {
 
             {f.key === 'leagues' && (
               <>
-                <Head title="Summer Leagues — 40 tasks" meta="610 pts" />
+                <Head title="Summer Hunt — 40 tasks" meta="610 pts" />
                 <div className="flex flex-col gap-1 px-0.5 pt-0.5">
                   {LEAGUES.map((t) => (
                     <Row key={t.task} tone={t.done ? 'done' : 'idle'} label={t.task} value={String(t.pts)} />

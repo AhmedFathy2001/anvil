@@ -27,7 +27,7 @@ in `src/lib/csvTiles.ts` and the import API in
 - **Rows map to tiles by position.** Row 1 → tile 1, row 2 → tile 2, … Existing tiles at
   that position are **updated**; fields you don't include are left untouched.
 - **Growing the board:** extra rows beyond the current tile count **create new tiles**
-  only on **dynamic boards** (Leagues bingo / Tile race) and only **before the event
+  only on **dynamic boards** (Point Hunt / Tile race) and only **before the event
   starts**, up to **1000 tiles**. A classic N×N grid is a fixed shape, so extra rows are
   **ignored** there.
 - **The event must already have tiles** to import into (creating an event always seeds
@@ -38,7 +38,7 @@ in `src/lib/csvTiles.ts` and the import API in
 - **All-or-nothing:** every row is validated first; if any row is invalid (or any item
   name doesn't resolve), the whole import fails with a specific error and nothing changes.
 
-**To create hundreds of tiles:** create a **Leagues bingo** event (set its tile count to
+**To create hundreds of tiles:** create a **Point Hunt** event (set its tile count to
 roughly what you want, or any number — the importer grows it), then upload a CSV with one
 row per task. The board auto-resizes to the row count.
 

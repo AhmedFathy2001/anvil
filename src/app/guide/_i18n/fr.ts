@@ -1268,7 +1268,7 @@ const fr: PartialGuideDict = {
           blurb: 'Une grille carrée N×N — les équipes font les cases dans l’ordre qu’elles veulent, chacune vaut 1.',
         },
         leagues: {
-          label: 'Bingo Leagues',
+          label: 'Point Hunt',
           blurb: 'Une liste de tâches où chaque case porte sa propre valeur en points — autant de cases que vous voulez.',
         },
         race: {
@@ -1768,7 +1768,7 @@ const fr: PartialGuideDict = {
     bulk: {
       title: 'Créez-les en masse, pas dans le navigateur',
       body: [
-        'Cliquer une grille de 25 cases, ça va. Cliquer une grille Leagues de 200 tâches, non, et la relire ensuite non plus. L’onglet Tiles a un aller-retour prévu exactement pour ça.',
+        'Cliquer une grille de 25 cases, ça va. Cliquer une grille Point Hunt de 200 tâches, non, et la relire ensuite non plus. L’onglet Tiles a un aller-retour prévu exactement pour ça.',
       ],
       steps: [
         '**Download spreadsheet** sur la page **Board & tiles** de l’événement. Vous obtenez un .xlsx de la grille telle qu’elle est, avec listes déroulantes, liste d’objets et consignes de colonnes sur leurs propres feuilles.',
@@ -1786,7 +1786,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Seules les grilles dynamiques s’agrandissent',
-          body: 'les lignes en trop créent de nouvelles cases sur une grille Leagues ou une course de cases, avant le démarrage, jusqu’à 1000. Une grille classique N×N a une forme fixe et les ignore. Pour générer des centaines de tâches, faites-en un événement Leagues.',
+          body: 'les lignes en trop créent de nouvelles cases sur une grille Point Hunt ou une course de cases, avant le démarrage, jusqu’à 1000. Une grille classique N×N a une forme fixe et les ignore. Pour générer des centaines de tâches, faites-en un événement Point Hunt.',
         },
         {
           term: 'Tout ou rien',
@@ -2119,8 +2119,8 @@ const fr: PartialGuideDict = {
       intro: 'Si vous savez quelle sensation vous voulez, voici le chemin le plus court.',
       rows: [
         { term: 'Un bingo de clan ordinaire', body: 'Grille classique, toutes cases visibles. Ajoutez un bonus à la première équipe si vous voulez un peu d’urgence.' },
-        { term: 'Des centaines de tâches, notées par difficulté', body: 'Leagues, tout visible. C’est aussi la seule forme dans laquelle un gros import de tableur peut grandir.' },
-        { term: 'Une semaine qui construit vers quelque chose', body: 'Leagues avec révélation programmée ou par intervalle, pour que la grille s’ouvre au fil de la semaine plutôt que d’un coup.' },
+        { term: 'Des centaines de tâches, notées par difficulté', body: 'Point Hunt, tout visible. C’est aussi la seule forme dans laquelle un gros import de tableur peut grandir.' },
+        { term: 'Une semaine qui construit vers quelque chose', body: 'Point Hunt avec révélation programmée ou par intervalle, pour que la grille s’ouvre au fil de la semaine plutôt que d’un coup.' },
         { term: 'Une soirée que les gens suivent en direct', body: 'Prime. Une case, la première équipe la prend, la suivante aussitôt.' },
         { term: 'Une compétition individuelle, pas par équipes', body: 'Échelle avec fenêtre rotative et décote. Les tâches vont et viennent et personne ne peut les mettre de côté.' },
         { term: 'Une course avec une ligne d’arrivée', body: 'Course de cases — un parcours ordonné, et qui va le plus loin gagne.' },

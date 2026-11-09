@@ -1261,7 +1261,7 @@ const it: PartialGuideDict = {
         '**Events → All events → + New event**. Scegli prima il formato —— decide come viene assegnato il punteggio e cosa ti chiederà il resto del modulo.',
       formats: {
         classic: { label: 'Bingo classico', blurb: 'Una griglia quadrata N×N —— le squadre completano le caselle nell’ordine che vogliono, ognuna vale 1.' },
-        leagues: { label: 'Bingo Leagues', blurb: 'Una lista di compiti dove ogni casella porta un valore in punti —— quante caselle vuoi.' },
+        leagues: { label: 'Point Hunt', blurb: 'Una lista di compiti dove ogni casella porta un valore in punti —— quante caselle vuoi.' },
         race: { label: 'Corsa a caselle', blurb: 'Un percorso ordinato —— le squadre raggiungono le caselle in sequenza; vince chi arriva più lontano. L’organizzatore può ramificarlo in percorsi che si dividono e si riuniscono: la casella che completi sceglie la tua strada.' },
         showdown: {
           label: 'Showdown',
@@ -1754,7 +1754,7 @@ const it: PartialGuideDict = {
     bulk: {
       title: 'Scrivi in blocco, non nel browser',
       body: [
-        'Cliccare a mano una griglia da 25 caselle va bene. Cliccare a mano un tabellone Leagues da 200 compiti no, e nemmeno rileggerlo dopo. La scheda Tiles ha un giro completo pensato esattamente per questo.',
+        'Cliccare a mano una griglia da 25 caselle va bene. Cliccare a mano un tabellone Point Hunt da 200 compiti no, e nemmeno rileggerlo dopo. La scheda Tiles ha un giro completo pensato esattamente per questo.',
       ],
       steps: [
         '**Download spreadsheet** nella pagina **Board & tiles** dell’evento. Ottieni un .xlsx del tabellone com’è, con i menu a tendina, la lista degli oggetti e le istruzioni delle colonne in fogli separati.',
@@ -1772,7 +1772,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Solo i tabelloni dinamici crescono',
-          body: 'le righe in più creano nuove caselle su un tabellone Leagues o una corsa a caselle, prima che l’evento inizi, fino a 1000. Una griglia classica N×N ha una forma fissa e le ignora. Per generare centinaia di compiti, fai un evento Leagues.',
+          body: 'le righe in più creano nuove caselle su un tabellone Point Hunt o una corsa a caselle, prima che l’evento inizi, fino a 1000. Una griglia classica N×N ha una forma fissa e le ignora. Per generare centinaia di compiti, fai un evento Point Hunt.',
         },
         {
           term: 'Tutto o niente',
@@ -2105,8 +2105,8 @@ const it: PartialGuideDict = {
       intro: 'Se sai già la sensazione che vuoi, questa è la strada più breve per arrivarci.',
       rows: [
         { term: 'Un normale bingo di clan', body: 'Griglia classica, tutte le caselle visibili. Aggiungi un bonus prima squadra se vuoi un po’ di fretta.' },
-        { term: 'Centinaia di compiti, valutati per difficoltà', body: 'Leagues, tutto visibile. È anche l’unica forma in cui una grossa importazione da foglio di calcolo può crescere.' },
-        { term: 'Una settimana che sale verso qualcosa', body: 'Leagues con svelamento programmato o a intervalli, così il tabellone si apre lungo la settimana invece che tutto insieme.' },
+        { term: 'Centinaia di compiti, valutati per difficoltà', body: 'Point Hunt, tutto visibile. È anche l’unica forma in cui una grossa importazione da foglio di calcolo può crescere.' },
+        { term: 'Una settimana che sale verso qualcosa', body: 'Point Hunt con svelamento programmato o a intervalli, così il tabellone si apre lungo la settimana invece che tutto insieme.' },
         { term: 'Una serata che la gente guarda in diretta', body: 'Taglie. Una casella, la prima squadra se la prende, subito la successiva.' },
         { term: 'Una gara individuale, non a squadre', body: 'Classifica con finestra a rotazione e decadimento. I compiti vanno e vengono e nessuno può accumularli.' },
         { term: 'Una corsa con un traguardo', body: 'Corsa a caselle —— un percorso ordinato, e vince chi arriva più lontano.' },

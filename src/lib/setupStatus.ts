@@ -142,7 +142,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
     {
       key: 'event',
       label: 'Create your first event',
-      hint: 'Spin up a bingo board, Leagues board, or tile race.',
+      hint: 'Spin up a bingo board, Point Hunt board, or tile race.',
       done: eventsCount > 0,
       href: '/admin/events/new',
     },

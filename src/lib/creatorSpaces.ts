@@ -458,7 +458,7 @@ export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: n
     {
       key: 'event',
       label: 'Create your first event',
-      hint: 'A bingo board, a tile race or a leagues-style points list for your viewers.',
+      hint: 'A bingo board, a tile race or a Point Hunt points list for your viewers.',
       done: opts.eventsCount > 0,
       href: '/admin/events/new',
     },
