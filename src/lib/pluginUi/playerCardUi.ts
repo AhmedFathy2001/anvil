@@ -259,6 +259,9 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, 
  * This character's pins, two to a row: the number on top (gold: a KC, a time) or the item's name in
  * purple (a drop, a log slot), what it is small and muted under it. Hidden when there are none.
  */
+/** A pin's text width in pt: ~225 panel, two columns with a 4 gap (~110 each), less 4 inset a side and the card edge. */
+const PIN_WRAP = 96;
+
 function displayCase(c: PlayerCard, slots?: number): Node {
   const pins = c.displayCase ?? [];
   /** What the pin says big: a headline, else the luck line, else the KC it came at, else a count owned, else the month it came; null when none is known. */
@@ -289,8 +292,9 @@ function displayCase(c: PlayerCard, slots?: number): Node {
           [
             picture(p),
             ...(value(p)
-              ? [small(value(p)!, p.luck ? (p.luck.tone === 'green' ? GREEN : 'muted') : item ? PURPLE : GOLD, { font: 'bold', wrap: true }), small(p.name, item ? PURPLE : 'muted', { wrap: true, tip: p.name })]
-              : [small(p.name, item ? PURPLE : GOLD, { font: 'bold', wrap: true })]),
+              ? [small(value(p)!, p.luck ? (p.luck.tone === 'green' ? GREEN : 'muted') : item ? PURPLE : GOLD, { font: 'bold', wrap: PIN_WRAP }), small(p.name, item ? PURPLE : 'muted', { wrap: PIN_WRAP, tip: p.name })]
+              : // Nothing known: the name, in the normal small font, wrapped — never the big line.
+                [small(p.name, item ? PURPLE : GOLD, { wrap: PIN_WRAP, tip: p.name })]),
           ],
           { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
         );

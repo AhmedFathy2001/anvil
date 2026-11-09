@@ -593,6 +593,11 @@ test('display case: every pin kind shows its value, items keep a full-size icon'
   assert.ok(texts(lucky).includes('Spooned · 54 KC (1/1,200)') && !texts(lucky).includes('312 KC'), 'the luck line outranks a bare KC');
   assert.ok(walk(lucky).some((n) => n.t === 'text' && n.s?.startsWith('Spooned') && n.color === '#5fd35f'), 'spooned is green');
   assert.ok(!t.includes('Obtained') && !t.some((x) => x.startsWith('Obtained')), 'never the word Obtained');
+  // Nothing known: the name in the normal small font, wrapped to the pin's width, with a tooltip.
+  const nameNode = walk(ui).find((n) => n.t === 'text' && n.s === 'Armadyl godsword');
+  assert.ok(nameNode && nameNode.t === 'text' && nameNode.font === 'small' && typeof nameNode.wrap === 'number' && nameNode.wrap <= 100 && nameNode.tip === 'Armadyl godsword');
+  // A value never overflows: every pin text wraps at a width, not the whole panel.
+  assert.ok(walk(ui).filter((n) => n.t === 'text' && n.font === 'bold' && ['Nov 2026', '312 KC'].includes(n.s ?? '')).every((n) => n.t === 'text' && typeof n.wrap === 'number'));
 });
 
 test('goals: name on its own line, progress and due muted, days left only when close', () => {

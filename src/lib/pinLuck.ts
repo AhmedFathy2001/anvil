@@ -1,4 +1,5 @@
 import { assessLuckAt, chancePerKill } from '@/lib/clogLuck';
+import { kcLabel } from '@/lib/displayCaseStats';
 import { expectationFor, type LuckRateSource } from '@/lib/clogProfile';
 
 // The luck line under a display-case pin: how the drop went against its wiki rate. Pure — the caller
@@ -45,5 +46,9 @@ export function pinLuck(
     if (a.verdict === 'dry') return { text: `Dry · ${n(p.kc)} KC (${rate})`, tone: 'muted' };
     return { text: `${n(p.kc)} KC · on rate`, tone: 'muted' };
   }
+  // Nothing was recorded at the drop (a log filled before tracking, or a one-button sync): the best
+  // honest number is the boss it comes from and how many the player has killed there now.
+  const now = kcNow(src.bossKey);
+  if (now > 0) return { text: `${n(now)} ${kcLabel(src.bossKey)} KC`, tone: 'muted' };
   return null;
 }
