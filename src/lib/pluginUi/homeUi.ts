@@ -24,6 +24,8 @@ import { BLUE, CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, big, cells, ch
 // tiles nearest done; a weekly's standings; an upcoming bingo. Pure: views.ts gathers the data.
 
 const NEAREST = 10;
+/** A weekly's standings show the top ten (then you): one metric, so the top three alone looked empty. */
+const WEEKLY_SHOWN = 10;
 const ACTIVITY_SHOWN = 12;
 const EFFICIENCY_SCALE = 1000;
 const IN_PROGRESS: Color = 'progress';
@@ -1108,7 +1110,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
     else {
       const rows = [...s.top, ...(s.you && !s.top.some((r) => r.self) ? [s.you] : [])];
       const line = (r: WeeklyStanding) => standingRow(w, r);
-      parts.push(standingsCard(compactStandings(rows, (r) => r.self, line, { a: 'site', path }, `weekly:${w.id}`, Math.max(s.total, rows.length)), headcount ?? undefined));
+      parts.push(standingsCard(compactStandings(rows, (r) => r.self, line, { a: 'site', path }, `weekly:${w.id}`, Math.max(s.total, rows.length), WEEKLY_SHOWN), headcount ?? undefined));
     }
   }
   // The rest of the clan's weekly schedule, one line each.

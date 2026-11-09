@@ -113,9 +113,9 @@ export function more(nodes: Node[], shown: number, key: string, gapPx = 4): Node
  * "View all N" — the rest open in place (a toggle) when there are few enough, else `all` (the paged
  * Teams view). Shared by every competition the panel shows.
  */
-export function compactStandings<T>(rows: T[], mine: (r: T) => boolean, line: (r: T) => Node, all: Action | null, key: string, total = rows.length): Node[] {
-  const top = rows.slice(0, 3);
-  const yours = rows.filter((r, i) => i >= 3 && mine(r)).slice(0, 3);
+export function compactStandings<T>(rows: T[], mine: (r: T) => boolean, line: (r: T) => Node, all: Action | null, key: string, total = rows.length, shown = 3): Node[] {
+  const top = rows.slice(0, shown);
+  const yours = rows.filter((r, i) => i >= shown && mine(r)).slice(0, 3);
   const dots = row(undefined, muted('· · ·', { align: 'c' }), undefined);
   const compact: Node[] = [...top.map(line), ...(yours.length ? [dots, ...yours.map(line)] : [])];
   if (total <= top.length + yours.length && rows.length === total) return compact;

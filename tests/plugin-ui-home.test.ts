@@ -149,10 +149,10 @@ test('the weekly page: you below the cut still show, gains in the comp’s unit'
     weekly: new Map([[3, { total: 12, top, you: top[11] }]]),
   }), 'weekly:3')!;
   const all = texts(ui);
-  // Compact: the top three, · · ·, and you; the rest open in place.
+  // Compact: the top ten, · · ·, and you; the rest open in place.
   const tog = walk(ui).find((x) => x.t === 'toggle') as unknown as { off: Node; lit: Node };
   const off = texts(tog.off);
-  assert.ok(off.includes('P3') && !off.includes('P10') && off.includes('P12') && off.includes('· · ·'));
+  assert.ok(off.includes('P10') && !off.includes('P11') && off.includes('P12') && off.includes('· · ·'));
   assert.ok(texts(tog.lit).includes('P11'));
   assert.ok(all.includes('+5.00 hrs'), 'efficiency comps travel in milli-hours');
   assert.equal(weeklyKind('efficiency'), 'Efficiency of the Week');
