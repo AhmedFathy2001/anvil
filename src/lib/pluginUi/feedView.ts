@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, eventParticipants, events, teams, users } from '@/db/schema';
 import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, setOwnTeamChat, type ChatAccess, type ChatSeatPick, type ChatTarget } from '@/lib/eventChat';
-import { canChooseOwnTeamChat, chatPaceHint, lockFor, parseChannel, type ChatChannel } from '@/lib/eventChatRules';
+import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, setOwnTeamChat, type ChatAccess, type ChatSeatPick, type ChatTarget, type SendResult } from '@/lib/eventChat';
+import { canChooseOwnTeamChat, chatPaceHint, lockFor, parseChannel, type ChatChannel, type ChatLock } from '@/lib/eventChatRules';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -257,6 +257,13 @@ export function chatCharacter(request: Request): ChatSeatPick {
   };
 }
 
+/** A board's Feed & chat page on the website, at its host clan's address. */
+async function boardWebPath(eventId: number): Promise<string | null> {
+  // clan-scope: global -- by the board id the viewer's chatAccess just admitted them to; only its host's slug.
+  const [row] = await db.select({ slug: clans.slug }).from(events).innerJoin(clans, eq(clans.id, events.clanId)).where(eq(events.id, eventId)).limit(1);
+  return row ? `/c/${encodeURIComponent(row.slug)}/events/${eventId}/live` : null;
+}
+
 /** Opened from a board page on the Clan tab ("Feed" / "Chat" there): a way back over the feed. */
 function withBack(a: Args, view: View): View {
   if (!a.back) return view;
@@ -291,6 +298,8 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const requestedFilter = a.f || 'all';
   const filter = modeActive && requestedFilter !== 'all' && !groupOf(requestedFilter) ? 'all' : requestedFilter;
   const teamId = access?.teamId ?? null;
+  // The board's Feed & chat page on the website, for its players: at the host's address.
+  const webPath = current.kind === 'event' && access?.member ? await boardWebPath(current.id) : null;
 
   if (pane === 'chat' && access && viewer) {
     const chat = await chatPane(access, viewer.userId, current.id, a);
@@ -314,17 +323,14 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
           act: 'chat-send',
           args: { e: String(current.id), to: chat.channel },
           // The viewer's own pace (Supporter tier) or the board's slow mode, so nobody is surprised by it.
-          hint: `${chat.channel.startsWith('team:') ? 'Message your team' : chat.channel === 'announce' ? 'Announce to everyone' : 'Message all teams'} · ${chatPaceHint({
-            tier: access.staffKind === 'platform' ? null : ((await supporterForUser(viewer.userId).catch(() => null))?.tier.id ?? null),
-            slow: boardChatSlow(current.id),
-            staff: access.staffKind ?? false,
-          })}`,
+          hint: `${chatBoxPrompt(chat.channel)} · ${await chatPaceFor(access, viewer.userId, current.id)}`,
         },
         // In place of the message box: their own timeout or ban (coral, with how long is left), a
         // read-only Announcements, or the board's pause.
         lock: chat.lock,
         staff: access.staff,
         paused: access.paused,
+        webPath,
       }),
     };
   }
@@ -354,11 +360,38 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
       // No "Drops 5m+" floor line: the floor differs per clan, per mode and per user, so a single
       // number under the list was wrong for most of them.
       mode: current.kind === 'clan' ? { active: modeActive, count: modeCount, selected: selectedMode, options: modeOptions } : null,
+      webPath,
     }),
   };
 }
 
 // ── The chat pane: My team | All teams | Announcements ─────────────────────────────────────────
+
+/** Where the chat pane is: which channel, which team a staff member reads, the channel just left. */
+export interface ChatPaneArgs {
+  f?: string;
+  tm?: string;
+  rd?: string;
+}
+
+/**
+ * The chat pane as data, for the plugin (chatPane) and the website's Feed & chat page alike: the open
+ * channel and its rows, the switch's channels with unread counts, staff's team chips, the box's lock
+ * and whether "Only my team's chat" is offered.
+ */
+export interface ChatPaneState {
+  channel: ChatChannel;
+  rows: FeedRow[];
+  /** The switch, in order: the team channel (when there is one), All teams, Announcements. */
+  channels: { ch: ChatChannel; label: string; n: number }[];
+  /** The team whose channel the switch's team segment opens (staff pick any; a player has theirs). */
+  myTeam: number | null;
+  /** Staff on a team channel with more than one team: which team's, as chips. */
+  teamPicks: { id: number; name: string; on: boolean }[] | null;
+  lock: ChatLock | null;
+  /** Event staff seated on a team: "Only my team's chat" is theirs to flip. */
+  ownTeamOffered: boolean;
+}
 
 /**
  * Which channel is open and what the switch over it says. `f`: 'team' | 'all' | 'announce' ('mods',
@@ -366,7 +399,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
  * team's); `rd`: the channel just left, marked read to its newest line (lines arrived live there).
  * A solo board, or a player with no team, has no team segment.
  */
-export async function chatPane(access: ChatAccess, userId: number, eventId: number, a: Args) {
+export async function chatPaneState(access: ChatAccess, userId: number, eventId: number, a: ChatPaneArgs): Promise<ChatPaneState> {
   // Staff read every team's channel, unless they play on a team and chose "Only my team's chat".
   const everyTeam = access.staff && !access.ownTeamOnly;
   const teamList = access.solo
@@ -393,32 +426,60 @@ export async function chatPane(access: ChatAccess, userId: number, eventId: numb
     chatBlockOf(eventId, userId),
     chatUnread(access, userId, all.filter((c) => c !== channel)),
   ]);
+  const channels = all.map((c) => ({
+    ch: c,
+    label: c === 'all' ? 'All teams' : c === 'announce' ? 'Announcements' : everyTeam && access.teamId !== myTeam ? 'Teams' : 'My team',
+    n: unread.get(c) ?? 0,
+  }));
+  const teamPicks =
+    everyTeam && channel.startsWith('team:') && teamList.length > 1 ? teamList.map((t) => ({ id: t.id, name: t.name, on: t.id === myTeam })) : null;
+  const lock = lockFor(channel, { block, paused: access.paused, staff: access.staff, rank: access.rank });
+  return { channel, rows, channels, myTeam, teamPicks, lock, ownTeamOffered: canChooseOwnTeamChat(access) };
+}
+
+/** The switch's `f` for a channel: 'team' for any team's, else the channel itself. */
+export const chatPaneF = (ch: ChatChannel): string => (ch.startsWith('team:') ? 'team' : ch);
+
+/** The words in the message box before anything is typed: who the line goes to. */
+export function chatBoxPrompt(channel: ChatChannel): string {
+  return channel.startsWith('team:') ? 'Message your team' : channel === 'announce' ? 'Announce to everyone' : 'Message all teams';
+}
+
+/** The pace line for this person (their Supporter tier, or the board's slow mode, or staff's exemption). */
+export async function chatPaceFor(access: ChatAccess, userId: number, eventId: number): Promise<string> {
+  return chatPaceHint({
+    tier: access.staffKind === 'platform' ? null : ((await supporterForUser(userId).catch(() => null))?.tier.id ?? null),
+    slow: boardChatSlow(eventId),
+    staff: access.staffKind ?? false,
+  });
+}
+
+/** The plugin's chat pane: chatPaneState with the switch's segments and chips as panel actions. */
+export async function chatPane(access: ChatAccess, userId: number, eventId: number, a: Args) {
+  const st = await chatPaneState(access, userId, eventId, a);
+  const { channel, myTeam } = st;
   const go = (f: string, extra: Record<string, string> = {}) => ({
     a: 'load' as const,
     v: 'feed',
     args: { s: `event:${eventId}`, p: 'chat', f, rd: channel, ...extra },
   });
-  const chans: ChatChan[] = all.map((c) => ({
-    label: c === 'all' ? 'All teams' : c === 'announce' ? 'Announcements' : everyTeam && access.teamId !== myTeam ? 'Teams' : 'My team',
+  const chans: ChatChan[] = st.channels.map(({ ch: c, label, n }) => ({
+    label,
     on: c === channel,
-    act: go(c === 'all' ? 'all' : c === 'announce' ? 'announce' : 'team', teamCh && c === teamCh && myTeam != null ? { tm: String(myTeam) } : {}),
+    act: go(chatPaneF(c), c.startsWith('team:') && myTeam != null ? { tm: String(myTeam) } : {}),
     feed: chatFeedId(eventId, c),
-    n: unread.get(c) ?? 0,
+    n,
     // All teams is the busy one: its count reads as info, the others' as gold.
     ...(c === 'all' ? { blue: true } : {}),
   }));
   // Staff on a team channel: which team's, as chips under the switch.
-  const teamPicks =
-    everyTeam && channel.startsWith('team:') && teamList.length > 1
-      ? teamList.map((t) => ({ label: t.name, on: t.id === myTeam, act: go('team', { tm: String(t.id) }) }))
-      : null;
-  const lock = lockFor(channel, { block, paused: access.paused, staff: access.staff, rank: access.rank });
+  const teamPicks = st.teamPicks ? st.teamPicks.map((t) => ({ label: t.name, on: t.on, act: go('team', { tm: String(t.id) }) })) : null;
   // Event staff seated on a team: the "Only my team's chat" switch, near the team chips.
-  const f = channel.startsWith('team:') ? 'team' : channel;
-  const ownTeam = canChooseOwnTeamChat(access)
+  const f = chatPaneF(channel);
+  const ownTeam = st.ownTeamOffered
     ? { on: access.ownTeamOnly, act: { a: 'post' as const, act: 'chat-own-team', args: { e: String(eventId), on: access.ownTeamOnly ? '0' : '1', s: `event:${eventId}`, f } } }
     : null;
-  return { channel, rows, chans, teamPicks, lock, ownTeam };
+  return { channel, rows: st.rows, chans, teamPicks, lock: st.lock, ownTeam };
 }
 
 // ── Actions (no redraw: the plugin reads an error line, or nothing) ─────────────────────────────
@@ -437,24 +498,37 @@ function sendTarget(to: string | undefined): ChatTarget {
   return to === 'team' ? 'team' : (parseChannel(to) ?? 'all');
 }
 
+/** One person's chat actions per minute, whichever client they come from (the plugin or the website). */
+export const CHAT_ACT_LIMIT = { limit: 40, windowMs: 60_000 };
+
+export type ChatActName = 'chat-send' | 'chat-del' | 'chat-mute' | 'chat-pause' | 'chat-own-team';
+
+/**
+ * One chat action, after the caller has checked who they are and rate-limited them: the plugin's
+ * chatAct and the website's Feed & chat page both come through here, so a line sent from either is
+ * the same sendChat call (the same row, the same push to every open plugin).
+ */
+export async function runChatAct(access: ChatAccess, userId: number, act: ChatActName, a: Args, fields: Args): Promise<SendResult> {
+  const id = Number(a.id);
+  return act === 'chat-send'
+    ? sendChat(access, userId, fields.msg ?? '', sendTarget(a.to))
+    : act === 'chat-del'
+      ? deleteChat(access, userId, id)
+      : act === 'chat-mute'
+        ? muteChat(access, userId, id)
+        : act === 'chat-own-team'
+          ? setOwnTeamChat(access, userId, a.on === '1')
+          : pauseChat(access, a.on === '1', userId);
+}
+
 export async function chatAct(request: Request, act: string, a: Args, fields: Args): Promise<View | null> {
   if (!['chat-send', 'chat-del', 'chat-mute', 'chat-pause', 'chat-own-team'].includes(act)) return null;
   const got = await accessFor(request, a);
   if ('ui' in got) return got;
   const { access, userId } = got;
-  const rl = await rateLimit(request, `event-chat:${userId}`, { limit: 40, windowMs: 60_000 });
+  const rl = await rateLimit(request, `event-chat:${userId}`, CHAT_ACT_LIMIT);
   if (!rl.ok) return err('Slow down a little.');
-  const id = Number(a.id);
-  const r =
-    act === 'chat-send'
-      ? await sendChat(access, userId, fields.msg ?? '', sendTarget(a.to))
-      : act === 'chat-del'
-        ? await deleteChat(access, userId, id)
-        : act === 'chat-mute'
-          ? await muteChat(access, userId, id)
-          : act === 'chat-own-team'
-            ? await setOwnTeamChat(access, userId, a.on === '1')
-            : await pauseChat(access, a.on === '1', userId);
+  const r = await runChatAct(access, userId, act as ChatActName, a, fields);
   if (!r.ok) return err(r.error);
   // Pausing and "Only my team's chat" redraw the tab so the switch flips; everything else changes
   // nothing on the sender's screen.
