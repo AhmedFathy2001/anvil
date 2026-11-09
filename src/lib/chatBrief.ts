@@ -15,6 +15,8 @@ export interface BriefLine {
 export interface BriefFacts {
   /** `solo`: a players board — the rank is yours, `teams` counts players. */
   bingo: { name: string; rank: number | null; teams: number; nearly: string[]; solo?: boolean } | null;
+  /** The character's OTHER live boards (the config's `boards`, minus the one in `bingo`); rank is null where hidden. */
+  others?: { name: string; rank: number | null; of: number; done: number; total: number; points: boolean }[];
   weeklies: { label: string; unit: 'XP' | 'KC' | 'h'; rank: number | null; gained: number; ahead: number | null }[];
   clanEvents: { title: string; startsInMin: number }[];
   goal: { text: string; pct: number } | null;
@@ -52,8 +54,22 @@ export function composeBrief(items: BriefItem[], f: BriefFacts): BriefLine[] {
     const b = f.bingo;
     const parts = [b.rank != null ? `${b.solo ? 'you’re' : 'your team is'} ${ord(b.rank)}${b.teams > 1 ? ` of ${b.teams}` : ''}` : null];
     if (b.nearly.length) parts.push(`${b.nearly.length} tile${b.nearly.length === 1 ? '' : 's'} nearly done`);
-    first.push(`${b.name} is live${parts.some(Boolean) ? `: ${parts.filter(Boolean).join(', ')}` : ''}`);
+    if (!f.others?.length) first.push(`${b.name} is live${parts.some(Boolean) ? `: ${parts.filter(Boolean).join(', ')}` : ''}`);
     if (b.nearly.length) tone = 'near';
+  }
+  if (want.has('bingo') && f.others?.length) {
+    // Several boards: one compact line, "3 boards live: Lab 185th/201 · Side 5/9 tiles · Chat 1/9 tiles".
+    const entry = (n: string, rank: number | null, of: number, done: number, total: number, points: boolean) => {
+      const name = n.length > 22 ? `${n.slice(0, 21)}…` : n;
+      return rank != null ? `${name} ${ord(rank)}${of > 1 ? `/${of}` : ''}` : total > 0 ? `${name} ${done}/${total}${points ? ' pts' : ' tiles'}` : name;
+    };
+    const all = [
+      ...(f.bingo ? [entry(f.bingo.name, f.bingo.rank, f.bingo.teams, 0, 0, false)] : []),
+      ...f.others.map((o) => entry(o.name, o.rank, o.of, o.done, o.total, o.points)),
+    ];
+    const shown = all.slice(0, 4);
+    const rest = all.length - shown.length;
+    first.push(`${all.length} boards live: ${shown.join(' · ')}${rest > 0 ? ` · +${rest} more` : ''}`);
   }
   if (want.has('weekly')) {
     for (const w of f.weeklies.slice(0, 2)) {
