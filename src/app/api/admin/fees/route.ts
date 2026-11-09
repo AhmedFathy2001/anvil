@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { selfMarkedFeeIds } from '@/lib/feeConfirmations';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanRoster, eventSignups, events, signupFees, users } from '@/db/schema';
@@ -107,5 +108,7 @@ export async function GET(request: Request) {
     .where(and(eq(events.clanId, clan.id), ...(filters.length > 0 ? [and(...filters)] : [])))
     .orderBy(desc(signupFees.id));
 
-  return NextResponse.json({ fees: rows });
+  // "Self-marked": the collector is the fee's own owner (lib/feeConfirmations). Allowed, never hidden.
+  const self = await selfMarkedFeeIds(rows.map((r) => ({ id: r.fee.id, signupId: r.fee.signupId, collectedByUserId: r.fee.collectedByUserId })));
+  return NextResponse.json({ fees: rows.map((r) => ({ ...r, selfMarked: self.has(r.fee.id) })) });
 }

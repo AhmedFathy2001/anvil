@@ -6,8 +6,8 @@
 // 2. A ban reaches the plugin. The plugin's token lookup never asked about either ban, so a banned
 //    person kept submitting and posting through the plugin as if nothing had happened.
 //
-// 3. Nobody collects their own fee. markFeeCollected itself refuses (SelfCollectError → 403), so
-//    every route that marks a fee collected enforces it, not only the team-staff one.
+// 3. Staff may mark their own fee paid, but never invisibly: the collector and time are recorded, the
+//    audit log says so, and it is tagged "self-marked" (owner resolved by login OR roster seat).
 //
 // Run: npx tsx --test tests/security-audit-1108.test.ts
 
@@ -87,7 +87,7 @@ test('a plugin token stops working the moment its login or its person is banned'
   assert.equal(await auth.verifyPluginTokenUser(bearer(token)), null, 'platform ban on the person');
 });
 
-test('nobody marks their own fee collected: markFeeCollected refuses it, someone else can', async () => {
+test('staff may mark their own fee paid: it goes through, records who, and is tagged self-marked', async () => {
   const fees = await import('../src/lib/feeConfirmations.ts');
   const ev = await db.query.events.findFirst({ columns: { id: true, clanId: true } });
   const [p] = await db.insert(s.players).values({ displayName: 'Fee payer' }).returning();
@@ -97,10 +97,49 @@ test('nobody marks their own fee collected: markFeeCollected refuses it, someone
   const [signup] = await db.insert(s.eventSignups).values({ eventId: ev!.id, clanMemberId: member.id, userId: hostAdmin }).returning();
   const [fee] = await db.insert(s.signupFees).values({ signupId: signup.id, amount: 1_000_000 }).returning();
 
-  await assert.rejects(fees.markFeeCollected(fee, hostAdmin), fees.SelfCollectError);
-  const still = await db.query.signupFees.findFirst({ where: eq(s.signupFees.id, fee.id) });
-  assert.equal(still!.collectedByUserId, null, 'nothing written');
+  const r = await fees.markFeeCollected(fee, hostAdmin);
+  assert.equal(r.selfMarked, true);
+  assert.equal(r.fee.collectedByUserId, hostAdmin, 'who marked it');
+  assert.ok(r.fee.collectedAt, 'and when');
+  assert.deepEqual([...(await fees.selfMarkedFeeIds([r.fee]))], [fee.id]);
+  await new Promise((done) => setTimeout(done, 200)); // the audit insert is fire-and-forget
+  const log = await db.query.clanAuditLog.findFirst({ where: eq(s.clanAuditLog.eventType, 'fee_collected') });
+  assert.equal(log?.clanId, ev!.clanId, 'shows in the clan’s log');
+  assert.equal(log?.actorUserId, hostAdmin);
+  assert.match(log?.notes ?? '', /Self-marked/);
+});
 
-  const ok = await fees.markFeeCollected(fee, captain);
-  assert.equal(ok.fee.collectedByUserId, captain);
+test('an on-behalf signup (no login) owned through the roster seat: self-marking is allowed and tagged', async () => {
+  const fees = await import('../src/lib/feeConfirmations.ts');
+  const ev = await db.query.events.findFirst({ columns: { id: true, clanId: true } });
+  // The Captain's own player and character; the signup carries only the roster seat (admin sign-up on behalf).
+  const [p] = await db.insert(s.players).values({ displayName: 'Captain player' }).returning();
+  await db.update(s.users).set({ playerId: p.id }).where(eq(s.users.id, captain));
+  const [acct] = await db.insert(s.accounts).values({ playerId: p.id, rsn: 'Cap Alt', rsnNormalized: 'cap alt' }).returning();
+  const [member] = await db.insert(s.clanMemberships).values({ clanId: ev!.clanId!, accountId: acct.id }).returning();
+  const [signup] = await db.insert(s.eventSignups).values({ eventId: ev!.id, clanMemberId: member.id, userId: null }).returning();
+  const [fee] = await db.insert(s.signupFees).values({ signupId: signup.id, amount: 500_000 }).returning();
+
+  assert.equal(await fees.isOwnFee(signup.id, captain), true);
+  assert.equal(await fees.isOwnFee(signup.id, strangerOwner), false);
+  const r = await fees.markFeeCollected(fee, captain);
+  assert.equal(r.selfMarked, true);
+  assert.equal(r.fee.collectedByUserId, captain);
+  assert.equal((await fees.selfMarkedFeeIds([r.fee])).has(fee.id), true);
+  // The same fee marked by someone else is not tagged.
+  assert.equal((await fees.selfMarkedFeeIds([{ ...r.fee, collectedByUserId: strangerOwner }])).size, 0);
+});
+
+test('a signup whose login is linked to the actor’s player is theirs too', async () => {
+  const fees = await import('../src/lib/feeConfirmations.ts');
+  const ev = await db.query.events.findFirst({ columns: { id: true, clanId: true } });
+  const capPlayer = (await db.query.users.findFirst({ where: eq(s.users.id, captain), columns: { playerId: true } }))!.playerId!;
+  // A second login on the same player signed up with a character of another player.
+  const [alt] = await db.insert(s.users).values({ displayName: 'Captain second login', discordId: '800000000000000009', playerId: capPlayer }).returning();
+  const [op] = await db.insert(s.players).values({ displayName: 'Other' }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: op.id, rsn: 'Other Char', rsnNormalized: 'other char' }).returning();
+  const [member] = await db.insert(s.clanMemberships).values({ clanId: ev!.clanId!, accountId: acct.id }).returning();
+  const [signup] = await db.insert(s.eventSignups).values({ eventId: ev!.id, clanMemberId: member.id, userId: alt.id }).returning();
+  assert.equal(await fees.isOwnFee(signup.id, captain), true);
+  assert.equal(await fees.isOwnFee(signup.id, hostAdmin), false);
 });

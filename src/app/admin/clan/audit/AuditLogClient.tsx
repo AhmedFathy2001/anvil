@@ -76,6 +76,7 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   signup_answers_edited: { label: 'Sign-up answers edited', color: 'text-text-muted' },
   captain_promoted: { label: 'Captain promoted', color: 'text-gold' },
   captain_demoted: { label: 'Captain demoted', color: 'text-text-muted' },
+  fee_collected: { label: 'Fee marked paid', color: 'text-gold' },
   fee_confirmed: { label: 'Fee confirmed', color: 'text-accent-green-light' },
   feature_toggled: { label: 'Feature switched', color: 'text-gold' },
   settings_changed: { label: 'Settings changed', color: 'text-text-muted' },

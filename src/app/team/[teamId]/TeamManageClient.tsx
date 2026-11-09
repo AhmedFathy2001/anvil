@@ -53,6 +53,8 @@ interface FeeRow {
   collectedAt: string | null;
   collectedByName: string | null;
   collectedByViewer: boolean;
+  /** The collector is the fee's own owner: allowed, shown so others can spot it. */
+  selfMarked?: boolean;
   /** The server's answer to "may I take this back" — see the DELETE in api/team/[id]/fees. */
   canUndo?: boolean;
 }
@@ -562,7 +564,9 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                         {f.collectedByName && (
                           <>
                             {' · '}
-                            {f.collectedByViewer ? 'you took this' : `${f.collectedByName} took this`}
+                            {f.collectedByViewer ? 'marked paid by you' : `marked paid by ${f.collectedByName}`}
+                            {f.collectedAt && ` · ${new Date(f.collectedAt).toLocaleDateString()}`}
+                            {f.selfMarked && ' · self-marked'}
                             {f.status === 'collected' && ' · waiting on the host'}
                           </>
                         )}

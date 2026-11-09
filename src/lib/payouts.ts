@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { events, payouts, eventParticipants } from '@/db/schema';
+import { events, payouts, eventParticipants, eventSignups, signupFees } from '@/db/schema';
+import { selfMarkedFeeIds } from '@/lib/feeConfirmations';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { countApprovedSignups, countPaidEntries, computePrizePool, owedEntryFeesGp } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
@@ -50,14 +51,17 @@ export async function getEventPrizePool(eventId: number): Promise<{
   paidFeesGp: number;
   /** What approved entries still owe, at each entry's own fee. */
   owedFeesGp: number;
+  /** Fees marked paid by the person who owed them (allowed; shown so others can check them). */
+  selfMarkedCount: number;
 }> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  const [approvedCount, paid, cofferFunded, owedFeesGp] = await Promise.all([
+  const [approvedCount, paid, cofferFunded, owedFeesGp, selfMarkedCount] = await Promise.all([
     countApprovedSignups(eventId),
     countPaidEntries(eventId),
     eventPoolGp(eventId),
     owedEntryFeesGp(eventId),
+    selfMarkedFeeCount(eventId),
   ]);
   const added = event?.addedPrizePool ?? 0;
   const signupFee = event?.signupFee ?? 0;
@@ -70,7 +74,18 @@ export async function getEventPrizePool(eventId: number): Promise<{
     paidCount: paid.count,
     paidFeesGp: paid.gp,
     owedFeesGp,
+    selfMarkedCount,
   };
+}
+
+/** How many of this event's marked-paid fees were marked by their own owner (lib/feeConfirmations). */
+async function selfMarkedFeeCount(eventId: number): Promise<number> {
+  const marked = await db
+    .select({ id: signupFees.id, signupId: signupFees.signupId, collectedByUserId: signupFees.collectedByUserId })
+    .from(signupFees)
+    .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+    .where(and(eq(eventSignups.eventId, eventId), isNotNull(signupFees.collectedByUserId)));
+  return (await selfMarkedFeeIds(marked)).size;
 }
 
 export interface PlanTeam {

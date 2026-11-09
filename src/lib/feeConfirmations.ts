@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { clanAuditLog, eventSignups, events, signupFees } from '@/db/schema';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { accounts, clanAuditLog, clanMemberships, eventSignups, events, signupFees, users } from '@/db/schema';
+import { and, eq, inArray, notInArray } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import {
   clampRequiredConfirmations,
@@ -141,11 +141,14 @@ export async function recordFeeSettled(
   amount: number,
   collectedByUserId: number | null,
   actorUserId: number,
-  flags: { auto?: boolean; noSignature?: boolean } = {},
+  flags: { auto?: boolean; noSignature?: boolean; selfMarked?: boolean } = {},
 ): Promise<void> {
   const signup = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, signupId) });
+  // The clan's log reads by clan_id; without it these entries never showed there.
+  const clanId = await clanIdForSignup(signupId);
   db.insert(clanAuditLog)
     .values({
+      clanId,
       clanMemberId: signup?.clanMemberId ?? null,
       eventType: 'fee_confirmed',
       newValue: JSON.stringify({
@@ -154,8 +157,10 @@ export async function recordFeeSettled(
         collectedByUserId,
         ...(flags.auto ? { auto: true } : {}),
         ...(flags.noSignature ? { noSignature: true } : {}),
+        ...(flags.selfMarked ? { selfMarked: true } : {}),
       }),
       actorUserId: actorUserId > 0 ? actorUserId : null,
+      ...(flags.selfMarked ? { notes: 'Self-marked: they marked their own fee paid' } : {}),
     })
     .catch(() => {});
 }
@@ -293,12 +298,51 @@ export class FeeChangedError extends Error {
   }
 }
 
-/** Collecting your own entry fee: paying yourself. Somebody else has to record it (→ 403). */
-export class SelfCollectError extends Error {
-  constructor() {
-    super('Someone else has to record your own fee.');
-  }
+/**
+ * Is this signup's fee the actor's own? The person behind a signup is its login (`user_id`) OR the
+ * player behind its roster seat (`clan_member_id` → membership → account → player): a sign-up made on
+ * someone's behalf, or one linked from the roster, has no `user_id` at all. The actor is their login
+ * and its linked player. Staff may mark their own fee paid; this is what tags it "self-marked".
+ *
+ * true = theirs, false = someone else's, null = nobody could be resolved behind the signup.
+ */
+export async function isOwnFee(signupId: number, actorUserId: number): Promise<boolean | null> {
+  return (await feeOwnership([{ signupId, collectedByUserId: actorUserId }]))[0];
 }
+
+/** The fees (by id) whose collector is the fee's own owner: the "self-marked" tag on every fee list. */
+export async function selfMarkedFeeIds(fees: { id: number; signupId: number; collectedByUserId: number | null }[]): Promise<Set<number>> {
+  const marked = fees.filter((f) => f.collectedByUserId != null);
+  const own = await feeOwnership(marked.map((f) => ({ signupId: f.signupId, collectedByUserId: f.collectedByUserId! })));
+  return new Set(marked.filter((_, i) => own[i] === true).map((f) => f.id));
+}
+
+/** Batch form of isOwnFee: one answer per (signup, actor) pair, in order. */
+async function feeOwnership(pairs: { signupId: number; collectedByUserId: number }[]): Promise<(boolean | null)[]> {
+  if (pairs.length === 0) return [];
+  const signupIds = [...new Set(pairs.map((p) => p.signupId))];
+  const rows = await db
+    .select({ id: eventSignups.id, userId: eventSignups.userId, seatPlayerId: accounts.playerId })
+    .from(eventSignups)
+    .leftJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
+    .leftJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(inArray(eventSignups.id, signupIds));
+  const bySignup = new Map(rows.map((r) => [r.id, r]));
+  const userIds = [...new Set([...pairs.map((p) => p.collectedByUserId), ...rows.flatMap((r) => (r.userId != null ? [r.userId] : []))])];
+  const people = await db.select({ id: users.id, playerId: users.playerId }).from(users).where(inArray(users.id, userIds));
+  const playerOf = new Map(people.map((u) => [u.id, u.playerId]));
+  return pairs.map(({ signupId, collectedByUserId: actor }) => {
+    const row = bySignup.get(signupId);
+    if (!row) return null;
+    if (row.userId != null && row.userId === actor) return true;
+    if (row.userId == null && row.seatPlayerId == null) return null;
+    const actorPlayer = playerOf.get(actor) ?? null;
+    if (actorPlayer == null) return false;
+    const loginPlayer = row.userId != null ? (playerOf.get(row.userId) ?? null) : null;
+    return row.seatPlayerId === actorPlayer || loginPlayer === actorPlayer;
+  });
+}
+
 
 /**
  * Mark a fee paid, whoever is doing it.
@@ -313,14 +357,12 @@ export async function markFeeCollected(
   fee: typeof signupFees.$inferSelect,
   actorUserId: number,
   opts: { proofUrl?: string | null; notes?: string | null } = {},
-): Promise<{ fee: typeof signupFees.$inferSelect; settled: boolean }> {
+): Promise<{ fee: typeof signupFees.$inferSelect; settled: boolean; selfMarked: boolean }> {
   const proofUrl = opts.proofUrl ?? null;
 
-  // Never your own. Enforced here so every route that collects a fee refuses it, not just the ones
-  // that remembered to check: staff marking their own fee collected (settled outright on a
-  // one-confirmation clan) is paying themselves.
-  const owner = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, fee.signupId), columns: { userId: true } });
-  if (owner?.userId != null && owner.userId === actorUserId) throw new SelfCollectError();
+  // Collecting your own fee is allowed, but never hidden: the collector and time are recorded below,
+  // every fee list names them, and selfMarkedFeeIds tags a fee its own owner marked (lib below).
+  const selfMarked = (await isOwnFee(fee.signupId, actorUserId)) === true;
 
   // A dispute is the player naming a different collector — that needs a human either way.
   const disputed = fee.reportedCollectorUserId !== null && fee.reportedCollectorUserId !== actorUserId;
@@ -356,11 +398,26 @@ export async function markFeeCollected(
     del(fee.proofBlobUrl).catch(() => {});
   }
 
+  // On the audit trail every time, with who marked it (the actor) and, when it was their own fee,
+  // a "self-marked" note so others can spot it.
+  const signupRow = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, fee.signupId), columns: { clanMemberId: true } });
+  db.insert(clanAuditLog)
+    .values({
+      clanId: feeClanId,
+      clanMemberId: signupRow?.clanMemberId ?? null,
+      eventType: 'fee_collected',
+      newValue: JSON.stringify({ feeId: fee.id, amount: fee.amount, collectedByUserId: actorUserId, status, ...(selfMarked ? { selfMarked: true } : {}) }),
+      actorUserId,
+      notes: selfMarked ? 'Self-marked: they marked their own fee paid' : null,
+    })
+    .catch(() => {});
+
   if (settleNow) {
     await recordFeeSettled(fee.id, fee.signupId, fee.amount, actorUserId, actorUserId, {
       noSignature: true,
+      selfMarked,
     });
   }
 
-  return { fee: updated, settled: settleNow };
+  return { fee: updated, settled: settleNow, selfMarked };
 }
