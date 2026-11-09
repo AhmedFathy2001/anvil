@@ -3849,7 +3849,7 @@ const ptBr: PartialGuideDict = {
             'aparece quando você joga em mais de um clã ou espaço. **All clans** (o padrão) mostra tudo que você joga, com o evento ao vivo primeiro. Escolher um clã restringe o painel a ele e registra suas submissões ali.',
         },
         {
-          term: 'Fazer isto agora',
+          term: 'A seguir',
           body:
             'um cartão dourado no topo que aponta para a coisa mais útil a fazer agora, como entrar em um evento, responder a uma pesquisa ou dar seu tiro inicial.',
         },

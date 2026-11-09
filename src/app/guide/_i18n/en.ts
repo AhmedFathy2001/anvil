@@ -3840,7 +3840,7 @@ export const en = {
           body: 'shown when you play in more than one clan or space. **All clans** (the default) shows everything you are playing, live event first. Picking one clan narrows the panel to it and files your submissions there.',
         },
         {
-          term: 'Do this next',
+          term: 'Up next',
           body: 'a gold card at the top that points at the one thing worth doing now, such as joining an event, answering a survey or taking your starting shot.',
         },
         {

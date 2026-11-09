@@ -77,7 +77,7 @@ export interface Live {
 export type Node =
   /**
    * `card`: the darker rounded card. `bg` 'raised': a lighter rounded row that lights up under the
-   * mouse (a tile to open). `edge`: a 1px rounded outline in that colour (the "Do this next" card).
+   * mouse (a tile to open). `edge`: a 1px rounded outline in that colour (the "Up next" card).
    */
   | (Common & { t: 'col'; c: Node[]; gap?: number; card?: boolean; inset?: number; /** Corner radius of a card (default 6). */ rad?: number; bg?: Ground; edge?: Color })
   | (Common & {

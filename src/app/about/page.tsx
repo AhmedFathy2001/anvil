@@ -86,7 +86,7 @@ export default async function AboutPage() {
           Three parts work together. The <b className="text-text">website</b> holds the boards, rosters,
           competitions and clan pages. The <b className="text-text">RuneLite plugin</b> watches the
           game, credits the right player with a screenshot as proof, and puts your team in a side
-          panel with a feed, chat, lookup and a &ldquo;Do this next&rdquo; card. The{' '}
+          panel with a feed, chat, lookup and an &ldquo;Up next&rdquo; card. The{' '}
           <b className="text-text">Discord bot</b> posts the highlights to the channels you choose and
           can set those channels up for you.
         </Section>

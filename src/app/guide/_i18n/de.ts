@@ -3860,7 +3860,7 @@ const de: PartialGuideDict = {
             'wird angezeigt, wenn du in mehr als einem Clan oder Space spielst. **All clans** (der Standard) zeigt alles, was du spielst, mit dem Live-Event zuerst. Wählst du einen Clan, zeigt das Panel nur ihn und ordnet deine Einreichungen dort ein.',
         },
         {
-          term: 'Als Nächstes erledigen',
+          term: 'Als Nächstes',
           body:
             'eine goldene Karte oben, die auf das eine zeigt, was sich jetzt lohnt, etwa einem Event beizutreten, eine Umfrage zu beantworten oder deinen Startschuss abzugeben.',
         },

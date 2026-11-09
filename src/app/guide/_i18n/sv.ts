@@ -3859,7 +3859,7 @@ const sv: PartialGuideDict = {
             'visas när du spelar i fler än en klan eller ett utrymme. **All clans** (standard) visar allt du spelar, med livehändelsen först. Att välja en klan begränsar panelen till den och arkiverar dina bidrag där.',
         },
         {
-          term: 'Gör detta härnäst',
+          term: 'Nästa',
           body:
             'ett guldkort överst som pekar på det enda som är värt att göra nu, till exempel att gå med i ett event, svara på en enkät eller ta ditt startskott.',
         },

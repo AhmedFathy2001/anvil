@@ -3860,7 +3860,7 @@ const nl: PartialGuideDict = {
             'wordt getoond als je in meer dan één clan of space speelt. **All clans** (de standaard) toont alles wat je speelt, met live events eerst. Kies je één clan, dan beperkt het paneel zich daartoe en worden je inzendingen daar opgeslagen.',
         },
         {
-          term: 'Doe dit nu',
+          term: 'Hierna',
           body:
             'een gouden kaart bovenaan die wijst naar het ene ding dat je nu het beste kunt doen, zoals meedoen aan een event, een enquête invullen of je startschot nemen.',
         },

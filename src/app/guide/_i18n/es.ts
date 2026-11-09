@@ -3862,7 +3862,7 @@ const es: PartialGuideDict = {
             'aparece cuando juegas en más de un clan o espacio. **All clans** (el predeterminado) muestra todo lo que juegas, con el evento en vivo primero. Elegir un clan reduce el panel a ese clan y guarda allí tus envíos.',
         },
         {
-          term: 'Haz esto ahora',
+          term: 'A continuación',
           body:
             'una tarjeta dorada arriba que señala lo más útil que puedes hacer ahora, como unirte a un evento, responder una encuesta o registrar tu primer resultado inicial.',
         },

@@ -3849,7 +3849,7 @@ const it: PartialGuideDict = {
             'visibile quando giochi in più di un clan o spazio. **All clans** (predefinito) mostra tutto ciò che stai giocando, con l\'evento in corso per primo. Scegliere un clan restringe il pannello a quello e vi registra i tuoi invii.',
         },
         {
-          term: 'Fai questo ora',
+          term: 'Prossimo',
           body:
             'una scheda dorata in alto che indica la cosa più utile da fare adesso, come unirsi a un evento, rispondere a un sondaggio o fare il tuo primo tiro di partenza.',
         },

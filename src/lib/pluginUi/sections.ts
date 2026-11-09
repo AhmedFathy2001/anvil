@@ -2,7 +2,7 @@ import { type Action, type Color, type Node, card, col, icon, muted, row, text }
 
 // The panel's page pattern, shared by every Clan-tab page (the race, a bingo, a ladder, a weekly, a
 // clan event): a back line with the page's kind, the event's name, a top card that says where you
-// are, at most one gold "Do this next" card, compact standings, then activity. Colours mean one
+// are, at most one gold "Up next" card, compact standings, then activity. Colours mean one
 // thing each, and only on chips and small text:
 //   green done · gold you / your action · coral urgent · blue info, upcoming, live · purple rare.
 
@@ -50,7 +50,7 @@ export function pageHead(back: Action, backLabel: string, kind: string, name?: s
   ], { gap: 4 });
 }
 
-/** The gold card: "▶ Do this next" (or its own head) over what to do. At most one per page. */
+/** The gold card: "▶ Up next" (or its own head) over what to do. At most one per page. */
 export function goldCard(head: string, body: (Node | null | false | undefined)[]): Node {
   return section([text(head, GOLD, { font: 'bold', icon: icon({ glyph: 'chevron-right', w: 10, h: 10, color: GOLD }) }), ...body], { edge: GOLD });
 }

@@ -835,7 +835,7 @@ function tileLine(t: PanelTile, title: string, right?: Node, sub?: Node): Node {
 
 /** At most one gold card: the starting shot, the mission running out, the tile just opened, or the nearest. */
 function nextCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>): Node | null {
-  if (d.cfg.startProof) return goldCard('Do this next: starting shot', [{ t: 'native', name: 'start-proof' }]);
+  if (d.cfg.startProof) return goldCard('Up next: starting shot', [{ t: 'native', name: 'start-proof' }]);
   const e = d.cfg.event;
   if (k === 'ladder' && e) {
     const live = (e.missions ?? []).filter((m) => !tiles.get(m.tileId)?.complete).sort((x, y) => (ms(x.expiresAt) < 0 ? Infinity : ms(x.expiresAt)) - (ms(y.expiresAt) < 0 ? Infinity : ms(y.expiresAt)));
@@ -844,13 +844,13 @@ function nextCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>)
     const val = liveValue(m.points, m.revealedAt, e.decay ?? null, d.now);
     const t = tiles.get(m.tileId) ?? { tileId: m.tileId, label: m.label, current: 0, goal: 0, points: m.points, complete: false, position: 0, description: null };
     const worth = small(val === m.points ? `${m.points}` : `${m.points} → ${val}`, val < m.points ? CORAL : val > m.points ? GREEN : SOFT);
-    return goldCard('Do this next', [tileLine({ ...t, label: m.label }, b.title, worth, m.expiresAt ? clock(m.expiresAt, 'Expires in ', 'Expired', d.now) : undefined)]);
+    return goldCard('Up next', [tileLine({ ...t, label: m.label }, b.title, worth, m.expiresAt ? clock(m.expiresAt, 'Expires in ', 'Expired', d.now) : undefined)]);
   }
   if (k === 'reveal' || k === 'bounty') {
     const fresh = foldFeed(d.feed).find((x) => x.kind === 'reveal' && tiles.has(x.tileId) && !tiles.get(x.tileId)!.complete);
     if (fresh) {
       const t = tiles.get(fresh.tileId)!;
-      return goldCard('Do this next', [muted(k === 'bounty' ? 'First team to finish it takes the points.' : t.current > 0 ? 'Just opened. Your team is on it.' : 'Just opened. Nobody has it yet.', { wrap: CARD_W }), tileLine(t, b.title, b.points ? chip(`${t.points} pts`, 'blue') : undefined)]);
+      return goldCard('Up next', [muted(k === 'bounty' ? 'First team to finish it takes the points.' : t.current > 0 ? 'Just opened. Your team is on it.' : 'Just opened. Nobody has it yet.', { wrap: CARD_W }), tileLine(t, b.title, b.points ? chip(`${t.points} pts`, 'blue') : undefined)]);
     }
   }
   const nearest = [...tiles.values()].filter((t) => !t.complete).sort((x, y) => frac(y) - frac(x) || x.position - y.position).slice(0, 2);

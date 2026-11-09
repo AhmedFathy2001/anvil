@@ -3868,7 +3868,7 @@ const da: PartialGuideDict = {
             'vises, når du spiller i mere end én klan eller ét space. **All clans** (standard) viser alt, du spiller, med det live event først. Vælger du én klan, begrænses panelet til den, og dine indsendelser gemmes der.',
         },
         {
-          term: 'Gør dette næste',
+          term: 'Næste',
           body:
             'et guldkort øverst, der peger på den ene ting, der er værd at gøre nu, f.eks. at deltage i et event, svare på en undersøgelse eller tage dit startskud.',
         },

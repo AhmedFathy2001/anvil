@@ -73,7 +73,7 @@ export const FEATURE_GROUPS: Group[] = [
     lede: 'Your clan, in the game window you already have open.',
     items: [
       {
-        title: 'Do this next',
+        title: 'Up next',
         body: 'A card that tells you the next thing worth doing for your team, and the race track when the event is a race.',
       },
       {

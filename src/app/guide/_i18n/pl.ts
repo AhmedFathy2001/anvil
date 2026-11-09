@@ -3847,7 +3847,7 @@ const pl: PartialGuideDict = {
             'pokazywana, gdy grasz w więcej niż jednym klanie lub space. **All clans** (domyślnie) pokazuje wszystko, w czym grasz, z aktywnym eventem na początku. Wybranie jednego klanu zawęża panel do niego, a Twoje zgłoszenia trafiają tam.',
         },
         {
-          term: 'Zrób teraz',
+          term: 'Następne',
           body:
             'złota karta na górze wskazująca jedną rzecz wartą zrobienia teraz, np. dołączenie do eventu, odpowiedź na ankietę lub oddanie startowego strzału.',
         },

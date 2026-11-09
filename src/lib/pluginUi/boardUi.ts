@@ -313,7 +313,7 @@ export function raceModel(board: Board): { graph: RaceGraph; route: TeamRoute | 
 }
 
 const RACE_CHIP: Record<RaceTileState | 'pick', [string, Parameters<typeof chip>[1]]> = {
-  open: ['Do this next', 'gold'],
+  open: ['Up next', 'gold'],
   pick: ['Pick one', 'gold'],
   done: ['Done', 'green'],
   ahead: ['Locked', 'grey'],

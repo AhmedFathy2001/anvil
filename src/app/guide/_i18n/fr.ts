@@ -3863,7 +3863,7 @@ const fr: PartialGuideDict = {
             'affiché quand vous jouez dans plusieurs clans ou espaces. **All clans** (par défaut) affiche tout ce que vous jouez, l’événement en direct en premier. Choisir un clan restreint le panneau à celui-ci et y classe vos envois.',
         },
         {
-          term: 'À faire ensuite',
+          term: 'À suivre',
           body:
             'une carte dorée en haut qui signale la chose la plus utile à faire maintenant, comme rejoindre un événement, répondre à un sondage ou faire votre premier relevé de départ.',
         },
