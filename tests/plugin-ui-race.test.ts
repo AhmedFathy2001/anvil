@@ -238,11 +238,11 @@ test('a two-way fork after the start: both open tiles on the track, no chip', ()
   assert.ok(!walk(steps[1]).some((x) => x.t === 'toggle'));
 });
 
-test('board list: the road heads the list only; a locked tile offers no claim, note or tracking', () => {
+test('board list: no road over the list (the race page has it); a locked tile offers no claim, note or tracking', () => {
   const b = raceBoard([1, 12], FIVE);
   const page = boardPage(b);
   const slot = walk(page).find((x) => x.t === 'slot' && x.id === 'tile') as unknown as Slot;
-  assert.ok(texts(slot.panes!.p0).includes('Your road'));
+  assert.ok(!texts(slot.panes!.p0).includes('Your road'), 'the race page above already shows the road');
   assert.ok(!texts(slot.panes!['t:32']).includes('Your road'), 'the detail starts at the top');
   const locked = texts(slot.panes!['t:32']);
   assert.ok(locked.includes('Locked'));

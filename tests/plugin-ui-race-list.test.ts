@@ -37,12 +37,12 @@ test('the tracked card lists every pin with a board label for other boards, an u
   assert.ok(!texts(trackedCard([rows[0]], 77, then)).includes('Untrack all'));
 });
 
-test('the All tiles list: race header and track, filter dropdown, step groups, state chips', () => {
+test('the All tiles list: no race header (the race page has it), filter dropdown, step groups, state chips', () => {
   const board = raceBoard([1]);
   const ui = boardUi(board, st, ctx, boardRowsUi(board, st, ctx));
   const t = texts(ui);
-  assert.ok(t.some((x) => /^Step 2 of 4/.test(x)), 'the race page’s top card');
-  assert.ok(walk(ui).some((x) => x.t === 'segs') && walk(ui).some((x) => x.t === 'step'));
+  const p0 = texts((walk(ui).find((x) => x.t === 'slot' && x.id === 'tile') as unknown as { panes: Record<string, never> }).panes.p0);
+  assert.ok(!p0.some((x) => /^Step 2 of 4/.test(x)) && !p0.includes('Your road'), 'the step card and road stay on the race page');
   const raw = JSON.stringify(ui);
   for (const c of ['All', 'Next for us', 'Done', 'Locked']) assert.ok(raw.includes(`"label":"${c}"`), c);
   assert.ok(walk(ui).some((x) => x.t === 'input' && x.kind === 'select'), 'one filter dropdown');

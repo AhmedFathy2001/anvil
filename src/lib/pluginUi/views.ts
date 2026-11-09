@@ -379,7 +379,9 @@ async function boardView(request: Request, a: Args, error: string | null = null)
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   // A tile race opened from the event list is its race page (lib/pluginUi/raceUi); its "View all
   // tiles", and the home board page's tile links (back 'board'), keep the searchable list.
-  if (!error && a.part !== 'rows' && a.tiles !== '1' && a.back !== 'board' && !tile) {
+  // 'board:<id>' is the same home board page for a character's other boards (homeUi refocus).
+  const fromHome = a.back === 'board' || /^board:\d+$/.test(a.back ?? '');
+  if (!error && a.part !== 'rows' && a.tiles !== '1' && !fromHome && !tile) {
     const back: Action = { a: 'load', v: 'home', args: a.back ? { open: a.back } : {} };
     const nav = { back: a.back ?? '', backLabel: a.backLabel ?? '' };
     const page = racePageUi(board, {

@@ -1018,7 +1018,9 @@ function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: 
   // The buttons below sit under the Feed | Chat row: keep a gap so they never touch.
   // Space the button off a bare row (Feed | Chat) only: after a card the column's own spacing is enough.
   const spacer = (): Node[] => ((parts[parts.length - 1] as { card?: boolean } | undefined)?.card ? [] : [gap(8)]);
-  if (d.live && b.total > 0 && race) parts.push(...spacer(), button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
+  // Every tile on the board, not the steps on the route (b.total counts steps on a race).
+  const raceTiles = d.raceBoard?.board.tiles.length ?? b.total;
+  if (d.live && b.total > 0 && race) parts.push(...spacer(), button(`View all ${raceTiles} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
   else if (d.live && b.total > 0) {
     parts.push(...spacer(), button(b.points ? 'View all tiles' : `View all ${b.total} tiles`, allTiles(b.title), 'Search the full board, including manual tiles'), { t: 'warm', on: allTiles(b.title) });
   }

@@ -3,7 +3,7 @@ import type { buildBoard } from '@/app/api/plugin/board/route';
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
 import { BLUE, CARD_W, FAINT, GOLD, GREEN, PROGRESS, SOFT, chip, clip, goldCard, more, section, small, title } from './sections';
-import { namesCard, raceWhoCards, roadBadge, trackStops, whereCard, whereItGoes } from './raceUi';
+import { namesCard, raceWhoCards, roadBadge, whereItGoes } from './raceUi';
 import { raceGraph, raceTileInfo, roadChoiceLine, roadOf, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
 import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
@@ -425,17 +425,6 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
   ]);
 }
 
-/** A race's top card (step, rank, bar) and its road as a compact vertical track; null off a race. */
-function listHeader(board: Board): Node | null {
-  const race = racePayload(board);
-  const m = raceModel(board);
-  if (!race || !m || !m.route) return null;
-  const byId = new Map((board.tiles as BoardTile[]).map((t) => [t.tileId, t]));
-  const name = (id: number) => byId.get(id)?.label?.trim() || `Tile ${id}`;
-  const x = { graph: m.graph, route: m.route, race, board, name };
-  return col([whereCard(x), section([title(m.route.path.length > 0 ? 'Your road' : 'After that'), ...trackStops(x, (id) => pane(`t:${id}`))], { gap: 4 })], { gap: 8 });
-}
-
 /** Switch slot `tile` to a page (`p<n>`) or a tile's detail (`t:<id>`) the answer already carries. */
 const pane = (name: string): Action => ({ a: 'pane', into: 'tile', pane: name });
 
@@ -448,9 +437,8 @@ export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open
   const all = board.tiles as BoardTile[];
   const found = groupOrder(filterTiles(all, s.q, s.status, s.pre, ctx.progress), all, s);
   const chips = s.pre ? null : filterChips(s, !!racePayload(board));
-  // The race's top card and road head the list panes only: an open tile's detail starts at the top.
-  const header = s.pre ? null : listHeader(board);
-  const withHead = (n: Node): Node => (header ? col([header, n], { gap: 8 }) : n);
+  // The list is only the list: a race's step card and road are on the race page it was opened from.
+  const withHead = (n: Node): Node => n;
   if (!found.length && !open) return withHead(col([...(chips ? [chips, gap(6)] : []), muted('No matching tiles.')]));
   const pages = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
   const panes: Record<string, Node> = {};
