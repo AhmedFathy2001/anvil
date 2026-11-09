@@ -293,6 +293,13 @@ export class FeeChangedError extends Error {
   }
 }
 
+/** Collecting your own entry fee: paying yourself. Somebody else has to record it (→ 403). */
+export class SelfCollectError extends Error {
+  constructor() {
+    super('Someone else has to record your own fee.');
+  }
+}
+
 /**
  * Mark a fee paid, whoever is doing it.
  *
@@ -308,6 +315,12 @@ export async function markFeeCollected(
   opts: { proofUrl?: string | null; notes?: string | null } = {},
 ): Promise<{ fee: typeof signupFees.$inferSelect; settled: boolean }> {
   const proofUrl = opts.proofUrl ?? null;
+
+  // Never your own. Enforced here so every route that collects a fee refuses it, not just the ones
+  // that remembered to check: staff marking their own fee collected (settled outright on a
+  // one-confirmation clan) is paying themselves.
+  const owner = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, fee.signupId), columns: { userId: true } });
+  if (owner?.userId != null && owner.userId === actorUserId) throw new SelfCollectError();
 
   // A dispute is the player naming a different collector — that needs a human either way.
   const disputed = fee.reportedCollectorUserId !== null && fee.reportedCollectorUserId !== actorUserId;

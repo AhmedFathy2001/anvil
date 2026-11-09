@@ -6,6 +6,9 @@
 // 2. A ban reaches the plugin. The plugin's token lookup never asked about either ban, so a banned
 //    person kept submitting and posting through the plugin as if nothing had happened.
 //
+// 3. Nobody collects their own fee. markFeeCollected itself refuses (SelfCollectError → 403), so
+//    every route that marks a fee collected enforces it, not only the team-staff one.
+//
 // Run: npx tsx --test tests/security-audit-1108.test.ts
 
 import { test, before, after } from 'node:test';
@@ -82,4 +85,22 @@ test('a plugin token stops working the moment its login or its person is banned'
   const [person] = await db.insert(s.players).values({ displayName: 'Captain', banned: true }).returning();
   await db.update(s.users).set({ playerId: person.id }).where(eq(s.users.id, captain));
   assert.equal(await auth.verifyPluginTokenUser(bearer(token)), null, 'platform ban on the person');
+});
+
+test('nobody marks their own fee collected: markFeeCollected refuses it, someone else can', async () => {
+  const fees = await import('../src/lib/feeConfirmations.ts');
+  const ev = await db.query.events.findFirst({ columns: { id: true, clanId: true } });
+  const [p] = await db.insert(s.players).values({ displayName: 'Fee payer' }).returning();
+  await db.update(s.users).set({ playerId: p.id }).where(eq(s.users.id, hostAdmin));
+  const [acct] = await db.insert(s.accounts).values({ playerId: p.id, rsn: 'Fee Payer', rsnNormalized: 'fee payer' }).returning();
+  const [member] = await db.insert(s.clanMemberships).values({ clanId: ev!.clanId!, accountId: acct.id }).returning();
+  const [signup] = await db.insert(s.eventSignups).values({ eventId: ev!.id, clanMemberId: member.id, userId: hostAdmin }).returning();
+  const [fee] = await db.insert(s.signupFees).values({ signupId: signup.id, amount: 1_000_000 }).returning();
+
+  await assert.rejects(fees.markFeeCollected(fee, hostAdmin), fees.SelfCollectError);
+  const still = await db.query.signupFees.findFirst({ where: eq(s.signupFees.id, fee.id) });
+  assert.equal(still!.collectedByUserId, null, 'nothing written');
+
+  const ok = await fees.markFeeCollected(fee, captain);
+  assert.equal(ok.fee.collectedByUserId, captain);
 });

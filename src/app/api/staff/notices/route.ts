@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clans, users } from '@/db/schema';
 import { createNotice, staffNoticeList, withdrawNotice } from '@/lib/notices';
+import { noticeFieldsFrom } from '@/lib/noticeRules';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,9 @@ export async function POST(request: Request) {
     audience = `user:${person.id}`;
   }
 
-  const result = await createNotice({ ...body, audience }, gate.actor.user.userId);
+  // Only the fields a notice has, each type-checked; never the request body spread in (lib/noticeRules).
+  const input = noticeFieldsFrom(body as Record<string, unknown>, audience);
+  const result = await createNotice(input, gate.actor.user.userId);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, id: result.id });
 }
