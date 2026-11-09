@@ -975,14 +975,16 @@ function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: 
   if (d.live && feed.length) parts.push(activityCard(d, feed, tiles, b));
 
   // The buttons below sit under the Feed | Chat row: keep a gap so they never touch.
-  if (d.live && b.total > 0 && race) parts.push(gap(8), button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
+  // Space the button off a bare row (Feed | Chat) only: after a card the column's own spacing is enough.
+  const spacer = (): Node[] => ((parts[parts.length - 1] as { card?: boolean } | undefined)?.card ? [] : [gap(8)]);
+  if (d.live && b.total > 0 && race) parts.push(...spacer(), button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
   else if (d.live && b.total > 0) {
     // A points board's nearest tiles and what each is worth; a square bingo has its gold card.
     if (b.points) {
       const nearest = [...tiles.values()].filter((t) => !t.complete).sort((x, y) => frac(y) - frac(x) || x.position - y.position).slice(0, NEAREST);
       if (nearest.length) parts.push(section([title('Nearest tiles'), ...more(nearest.map((t) => tileLine(t, b.title, chip(`${t.points} pts`, 'blue'))), 3, `nearest:${b.id}`, 5)]));
     }
-    parts.push(gap(8), button(b.points ? 'View all tiles' : `View all ${b.total} tiles`, allTiles(b.title), 'Search the full board, including manual tiles'), { t: 'warm', on: allTiles(b.title) });
+    parts.push(...spacer(), button(b.points ? 'View all tiles' : `View all ${b.total} tiles`, allTiles(b.title), 'Search the full board, including manual tiles'), { t: 'warm', on: allTiles(b.title) });
   }
   return parts;
 }
