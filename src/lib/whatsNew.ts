@@ -79,6 +79,61 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-09-side-panel',
+    date: '2026-11-09',
+    title: 'A new side panel',
+    body: 'Every tab in the RuneLite side panel has been rebuilt: where you stand at a glance, what to do next, your profile with a banner and display case, a searchable collection log, and every live board you’re on tracked at once.',
+    audience: ['pluginUser'],
+    links: [{ label: 'The side panel, tab by tab', href: '/guide/side-panel' }],
+    pluginUpdate: 'next',
+  },
+  {
+    id: '2026-11-09-team-competitions',
+    date: '2026-11-09',
+    title: 'Team and clan vs clan competitions',
+    body: 'Run a competition as balanced teams, or race any number of other clans. Each clan accepts the invite, picks all or selected members, and players can opt out.',
+    audience: ['clanStaff'],
+    links: [{ label: 'How team competitions work', href: '/guide/team-competitions' }],
+  },
+  {
+    id: '2026-11-09-announcements',
+    date: '2026-11-09',
+    title: 'Announcements your clan sets for everyone',
+    body: 'Slayer, clues, speedruns, kill count milestones, BA gambles and your own custom messages can now post too, each with its own wording and screenshot switch. Members follow the clan’s defaults unless they pick their own.',
+    audience: ['clanAdmin'],
+    links: [{ label: 'Clan Discord settings', href: '/c/{clan}/admin/integrations', clan: { role: 'admin' } }],
+  },
+  {
+    id: '2026-11-09-my-announcements',
+    date: '2026-11-09',
+    title: 'Choose what you announce',
+    body: 'Drops now post from 1m or 1 in 1,000 by default, following your clan. Turn on new kinds like slayer or kill count milestones, change the wording, and give each of your own webhooks its own filters.',
+    audience: ['pluginUser'],
+    links: [{ label: 'Your announcement settings', href: '/settings/announcements', account: true }],
+  },
+  {
+    id: '2026-11-09-chat-channels',
+    date: '2026-11-09',
+    title: 'Event chat channels',
+    body: 'Event chat now has My team, All teams and Announcements, with unread counts. Only the host and mods post announcements.',
+    audience: ['pluginUser', 'clanStaff'],
+  },
+  {
+    id: '2026-11-09-races',
+    date: '2026-11-09',
+    title: 'Branching tile races',
+    body: 'Tile races can split into several roads and meet again, with one start and one finish. The race track shows each road and where you are.',
+    audience: ['clanStaff'],
+    links: [{ label: 'Event formats', href: '/guide/formats' }],
+  },
+  {
+    id: '2026-11-09-records',
+    date: '2026-11-09',
+    title: 'Records, efficient hours and drop luck',
+    body: 'See your best day, week, month and year for every skill and boss, your efficient hours, and whether you went dry or got spooned on a drop.',
+    links: [{ label: 'Odds, luck and records', href: '/guide/luck-and-records' }],
+  },
+  {
     id: '2026-11-07-name-looks',
     date: '2026-11-07',
     title: 'Name colours for dark and light pages',
@@ -341,4 +396,83 @@ function fill(s: string, c: ViewerClan): string {
 export function entryDate(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? date : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+// =============================================================================
+// Tabs: one per scope, an entry may sit in several
+// =============================================================================
+
+export type WhatsNewTab = 'you' | 'everyone' | 'players' | 'staff' | 'supporters' | 'creators';
+
+/** Query parameter that carries the tab (`/whats-new?tab=staff`). */
+export const WHATS_NEW_TAB_PARAM = 'tab';
+
+/** Left to right. 'you' is only offered to a signed-in viewer with entries aimed at them. */
+export const WHATS_NEW_TABS: { id: WhatsNewTab; label: string }[] = [
+  { id: 'you', label: 'For you' },
+  { id: 'everyone', label: 'Everyone' },
+  { id: 'players', label: 'Players' },
+  { id: 'staff', label: 'Clan staff' },
+  { id: 'supporters', label: 'Supporters' },
+  { id: 'creators', label: 'Creators' },
+];
+
+/** The scope tabs (not 'you') an audience puts an entry in. */
+function audienceTabs(a: Audience): WhatsNewTab[] {
+  if (typeof a === 'object') return a.clan.kind === 'creator' ? ['creators', 'staff'] : ['staff'];
+  switch (a) {
+    case 'everyone':
+      return ['everyone'];
+    case 'pluginUser':
+      return ['players'];
+    case 'clanStaff':
+    case 'clanAdmin':
+      return ['staff'];
+    case 'supporter':
+    case 'champion+':
+    case 'patron':
+    case 'boostedClan':
+    case 'boostedClan2':
+      return ['supporters'];
+    case 'creatorOwner':
+      return ['creators'];
+  }
+}
+
+/** Scope tabs for one entry, in tab order. No audience means everyone. */
+export function entryTabs(entry: WhatsNewEntry): WhatsNewTab[] {
+  const aud = entry.audience?.length ? entry.audience : (['everyone'] as Audience[]);
+  const set = new Set(aud.flatMap(audienceTabs));
+  return WHATS_NEW_TABS.map((t) => t.id).filter((id) => set.has(id));
+}
+
+export interface TabBucket {
+  id: WhatsNewTab;
+  label: string;
+  entries: WhatsNewEntry[];
+}
+
+/** Non-empty tabs for this viewer, with their entries (input order kept: newest first). */
+export function bucketEntries(entries: WhatsNewEntry[], v: Viewer): TabBucket[] {
+  return WHATS_NEW_TABS.map((t) => ({
+    ...t,
+    entries: entries.filter((e) => (t.id === 'you' ? isForViewer(e, v) : entryTabs(e).includes(t.id))),
+  })).filter((b) => b.entries.length > 0);
+}
+
+/** The tab to open: the asked-for one if it is shown, else 'For you' when there is one, else the first. */
+export function pickTab(buckets: TabBucket[], asked: string | null | undefined): WhatsNewTab {
+  if (asked && buckets.some((b) => b.id === asked)) return asked as WhatsNewTab;
+  return (buckets.find((b) => b.id === 'you') ?? buckets.find((b) => b.id === 'everyone') ?? buckets[0])?.id ?? 'everyone';
+}
+
+/** Entries grouped under their date, in order. */
+export function groupByDate(entries: WhatsNewEntry[]): { date: string; entries: WhatsNewEntry[] }[] {
+  const out: { date: string; entries: WhatsNewEntry[] }[] = [];
+  for (const e of entries) {
+    const last = out[out.length - 1];
+    if (last && last.date === e.date) last.entries.push(e);
+    else out.push({ date: e.date, entries: [e] });
+  }
+  return out;
 }

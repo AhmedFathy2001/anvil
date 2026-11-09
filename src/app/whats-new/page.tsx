@@ -13,7 +13,11 @@ import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
 import {
   SIGNED_OUT,
   WHATS_NEW,
+  WHATS_NEW_TAB_PARAM,
+  bucketEntries,
   entryDate,
+  groupByDate,
+  pickTab,
   hasClanLinks,
   isForViewer,
   resolveLinks,
@@ -22,6 +26,7 @@ import {
   type WhatsNewEntry,
 } from '@/lib/whatsNew';
 import ClanLink from '@/components/ClanLink';
+import WhatsNewTabs, { NewBadge } from './WhatsNewTabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,20 +38,21 @@ export const metadata: Metadata = {
 };
 
 /**
- * What's new, for the person reading it (lib/whatsNew): the entries meant for their Supporter tier,
- * their clans and their plugin use first, with links filled in for their own clan; then everything.
- * The full release notes stay on /changelog.
+ * What's new, for the person reading it (lib/whatsNew): tabs per scope (For you, Everyone, Players,
+ * Clan staff, Supporters, Creators), each with its entries under date headers, and every link filled
+ * in for THIS viewer's clans. `?tab=staff` opens a tab. The full release notes stay on /changelog.
  */
-export default async function WhatsNewPage() {
+export default async function WhatsNewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const onApex = isApexHost((await headers()).get('host'));
   const viewer = await resolveViewer(onApex);
+  const asked = (await searchParams)[WHATS_NEW_TAB_PARAM];
 
-  const forYou = WHATS_NEW.filter((e) => isForViewer(e, viewer));
-  const forYouIds = new Set(forYou.map((e) => e.id));
+  const buckets = bucketEntries(WHATS_NEW, viewer);
+  const initial = pickTab(buckets, typeof asked === 'string' ? asked : null);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
-      <header className="mb-10">
+      <header className="mb-8">
         <h1 className="display display-lg text-[clamp(1.8rem,4vw,2.4rem)] font-semibold">What&rsquo;s new</h1>
         <p className="mt-2 max-w-[60ch] text-[15px] text-text-muted">
           The changes you&rsquo;re most likely to notice, in plain words.
@@ -64,7 +70,7 @@ export default async function WhatsNewPage() {
       </header>
 
       {!viewer.signedIn && (
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-5">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-5">
           <p className="text-[14px] text-text-muted">
             Sign in to see what&rsquo;s new for your clan and your Supporter tier, with links to your own pages.
           </p>
@@ -77,43 +83,33 @@ export default async function WhatsNewPage() {
         </div>
       )}
 
-      {viewer.signedIn && (
-        <section className="mb-12" aria-labelledby="for-you">
-          <SectionTitle id="for-you" title="For you" note={whoNote(viewer)} />
-          {forYou.length > 0 ? (
-            <ol className="grid gap-3">
-              {forYou.map((e) => (
-                <EntryCard key={e.id} entry={e} viewer={viewer} />
+      <WhatsNewTabs
+        initial={initial}
+        newest={WHATS_NEW[0]?.date ?? ''}
+        tabs={buckets.map((b) => ({
+          id: b.id,
+          label: b.label,
+          count: b.entries.length,
+          panel: (
+            <section aria-label={b.label}>
+              {b.id === 'you' && whoNote(viewer) && <p className="mb-4 text-[13px] text-text-dim">{whoNote(viewer)}</p>}
+              {groupByDate(b.entries).map((g) => (
+                <div key={g.date} className="mb-8">
+                  <h2 className="mb-3 flex items-center gap-2.5 text-[15px] font-semibold">
+                    <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
+                    <time dateTime={g.date}>{entryDate(g.date)}</time>
+                  </h2>
+                  <ol className="grid gap-3">
+                    {g.entries.map((e) => (
+                      <EntryCard key={e.id} entry={e} viewer={viewer} tagged={b.id !== 'you' && isForViewer(e, viewer)} />
+                    ))}
+                  </ol>
+                </div>
               ))}
-            </ol>
-          ) : (
-            <p className="rounded-xl border border-card-border bg-card-bg p-5 text-[14px] text-text-muted">
-              Nothing aimed at you in particular this time. Everything that changed is below.
-            </p>
-          )}
-        </section>
-      )}
-
-      <section aria-labelledby="everything">
-        <SectionTitle id="everything" title="Everything new" />
-        <ol className="grid gap-3">
-          {WHATS_NEW.map((e) => (
-            <EntryCard key={e.id} entry={e} viewer={viewer} tagged={forYouIds.has(e.id)} />
-          ))}
-        </ol>
-      </section>
-    </div>
-  );
-}
-
-function SectionTitle({ id, title, note }: { id: string; title: string; note?: string | null }) {
-  return (
-    <div className="mb-4">
-      <h2 id={id} className="flex items-center gap-2.5 text-[17px] font-semibold">
-        <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
-        {title}
-      </h2>
-      {note && <p className="mt-1 pl-[14px] text-[13px] text-text-dim">{note}</p>}
+            </section>
+          ),
+        }))}
+      />
     </div>
   );
 }
@@ -122,30 +118,30 @@ function EntryCard({ entry, viewer, tagged = false }: { entry: WhatsNewEntry; vi
   const links = resolveLinks(entry, viewer);
   const clanHint = !viewer.signedIn && hasClanLinks(entry);
   return (
-    <li className="rounded-xl border border-card-border bg-card-bg p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="text-[15.5px] font-semibold">
-          {entry.title}
-          {tagged && (
-            <span className="ml-2 rounded-full border border-gold/40 px-2 py-0.5 align-middle text-[11px] font-medium text-gold">
-              For you
-            </span>
-          )}
-        </h3>
-        <time dateTime={entry.date} className="text-[12.5px] tabular-nums text-text-dim">
-          {entryDate(entry.date)}
-        </time>
-      </div>
+    <li className="rounded-xl border border-card-border bg-card-bg p-4 sm:p-5">
+      <h3 className="text-[15.5px] font-semibold">
+        {entry.title}
+        <NewBadge date={entry.date} />
+        {tagged && (
+          <span className="ml-2 rounded-full border border-gold/40 px-2 py-0.5 align-middle text-[11px] font-medium text-gold">
+            For you
+          </span>
+        )}
+      </h3>
       <p className="mt-1.5 text-[14px] leading-relaxed text-text-muted">{entry.body}</p>
       {entry.pluginUpdate === 'next' && (
         <p className="mt-2 text-[12.5px] text-text-dim">Coming in the next plugin update. RuneLite installs it for you.</p>
       )}
       {(links.length > 0 || clanHint) && (
-        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13.5px]">
+        <ul className="mt-3 flex flex-wrap items-center gap-2 text-[13.5px]">
           {links.map((l) => (
-            <li key={`${l.href}|${l.label}`}>
-              <ClanLink href={l.href} className="text-gold transition-colors hover:text-gold-light">
-                {l.signIn ? `Sign in: ${l.label}` : l.label} &rarr;
+            <li key={`${l.href}|${l.label}`} className="max-w-full">
+              <ClanLink
+                href={l.href}
+                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 font-medium text-gold transition-colors hover:border-gold hover:bg-gold/20"
+              >
+                <span className="truncate">{l.signIn ? `Sign in to ${lowerFirst(l.label)}` : l.label}</span>
+                <span aria-hidden>&rarr;</span>
               </ClanLink>
             </li>
           ))}
@@ -161,6 +157,10 @@ function EntryCard({ entry, viewer, tagged = false }: { entry: WhatsNewEntry; vi
       )}
     </li>
   );
+}
+
+function lowerFirst(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
 }
 
 /** "Picked for your Champion membership and The AFK Spot." Says what the page went on, briefly. */

@@ -6,6 +6,10 @@ import {
   SIGNED_OUT,
   WHATS_NEW,
   audienceMatches,
+  bucketEntries,
+  entryTabs,
+  groupByDate,
+  pickTab,
   clanMeets,
   isForViewer,
   resolveLinks,
@@ -136,4 +140,83 @@ test('the seed list is well formed', () => {
       if (l.label.includes('{clanName}')) assert.ok(l.href.includes('{clan}'), `${e.id}: a clan-named label needs a clan link`);
     }
   }
+});
+
+const e = (id: string, audience?: WhatsNewEntry['audience'], date = '2026-11-07'): WhatsNewEntry => ({ id, date, title: id, body: 'b', audience });
+
+test('tabs: each audience lands in its scope, several audiences in several tabs', () => {
+  assert.deepEqual(entryTabs(e('a')), ['everyone']);
+  assert.deepEqual(entryTabs(e('a', ['everyone'])), ['everyone']);
+  assert.deepEqual(entryTabs(e('a', ['pluginUser'])), ['players']);
+  assert.deepEqual(entryTabs(e('a', ['clanStaff'])), ['staff']);
+  assert.deepEqual(entryTabs(e('a', ['clanAdmin'])), ['staff']);
+  assert.deepEqual(entryTabs(e('a', [{ clan: { role: 'staff', kind: 'clan' } }])), ['staff']);
+  for (const a of ['supporter', 'champion+', 'patron', 'boostedClan', 'boostedClan2'] as const) {
+    assert.deepEqual(entryTabs(e('a', [a])), ['supporters'], a);
+  }
+  assert.deepEqual(entryTabs(e('a', ['creatorOwner'])), ['creators']);
+  assert.deepEqual(entryTabs(e('a', ['pluginUser', 'clanStaff'])), ['players', 'staff']);
+  assert.deepEqual(entryTabs(e('a', [{ clan: { role: 'admin', boost: 1 } }, 'boostedClan'])), ['staff', 'supporters']);
+});
+
+test('bucketing: empty tabs are hidden, counts follow, "For you" only when signed in and targeted', () => {
+  const list = [e('p', ['pluginUser']), e('s', ['clanStaff']), e('all'), e('both', ['pluginUser', 'clanStaff'])];
+  const out = bucketEntries(list, SIGNED_OUT);
+  assert.deepEqual(out.map((b) => [b.id, b.entries.map((x) => x.id)]), [
+    ['everyone', ['all']],
+    ['players', ['p', 'both']],
+    ['staff', ['s', 'both']],
+  ]);
+  const staff = bucketEntries(list, viewer({ clans: [afk] }));
+  assert.deepEqual(staff.find((b) => b.id === 'you')?.entries.map((x) => x.id), ['s', 'both']);
+  assert.equal(bucketEntries([e('all')], viewer()).some((b) => b.id === 'you'), false);
+  // Every tab of the real list has entries, and nothing is lost.
+  const real = bucketEntries(WHATS_NEW, SIGNED_OUT);
+  assert.ok(real.every((b) => b.entries.length > 0));
+  assert.ok(WHATS_NEW.every((x) => real.some((b) => b.entries.includes(x))));
+});
+
+test('pickTab: asked tab if shown, else For you, else Everyone', () => {
+  const list = [e('s', ['clanStaff']), e('all')];
+  const signed = bucketEntries(list, viewer({ clans: [afk] }));
+  assert.equal(pickTab(signed, null), 'you');
+  assert.equal(pickTab(signed, 'staff'), 'staff');
+  assert.equal(pickTab(signed, 'creators'), 'you', 'a tab with no entries is not opened');
+  assert.equal(pickTab(bucketEntries(list, SIGNED_OUT), 'bogus'), 'everyone');
+});
+
+test('groupByDate keeps order and groups equal dates', () => {
+  const g = groupByDate([e('a', undefined, '2026-11-09'), e('b', undefined, '2026-11-09'), e('c', undefined, '2026-11-07')]);
+  assert.deepEqual(g.map((x) => [x.date, x.entries.length]), [['2026-11-09', 2], ['2026-11-07', 1]]);
+});
+
+const byId = (id: string) => WHATS_NEW.find((x) => x.id === id)!;
+
+test('1.20.0 announcements: one integrations button per clan the viewer admins', () => {
+  const two = viewer({ clans: [afk, { ...other, slug: 'b-clan', name: 'B Clan', role: 'owner' }, { ...other, role: 'moderator' }] });
+  assert.deepEqual(
+    resolveLinks(byId('2026-11-09-announcements'), two).map((l) => l.href),
+    ['/c/theafkspot/admin/integrations', '/c/b-clan/admin/integrations'],
+  );
+  assert.deepEqual(resolveLinks(byId('2026-11-09-announcements'), viewer({ clans: [other] })), []);
+  assert.deepEqual(resolveLinks(byId('2026-11-09-announcements'), SIGNED_OUT), []);
+});
+
+test('1.20.0 account links go through sign-in when signed out, direct when signed in', () => {
+  const my = byId('2026-11-09-my-announcements');
+  assert.deepEqual(resolveLinks(my, SIGNED_OUT).map((l) => [l.href, l.signIn]), [[signInHref('/settings/announcements'), true]]);
+  assert.deepEqual(resolveLinks(my, viewer()).map((l) => [l.href, l.signIn]), [['/settings/announcements', false]]);
+});
+
+test('every link in the list resolves to a site path for a multi-clan viewer, signed out and off-apex', () => {
+  const many = viewer({ clans: [afk, { ...afk, slug: 'b', name: 'B' }, { ...space }] });
+  for (const v of [many, SIGNED_OUT, { ...SIGNED_OUT, onApex: false }, { ...many, onApex: false }]) {
+    for (const x of WHATS_NEW) {
+      for (const l of resolveLinks(x, v)) {
+        assert.ok(l.href.startsWith('/'), `${x.id}: ${l.href}`);
+        assert.ok(!l.href.includes('{') && !l.label.includes('{'), `${x.id}: unfilled token in ${l.label}`);
+      }
+    }
+  }
+  assert.ok(!resolveLinks(byId('2026-11-07-name-looks'), { ...many, onApex: false }).some((l) => l.href === '/supporter'));
 });
