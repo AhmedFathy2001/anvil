@@ -26,6 +26,7 @@ import { standingsScopeForPlugin } from '@/lib/standingsAccess';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { visibleClan } from '@/lib/pluginUi/load';
 import { appendBoardTiles } from '@/lib/pluginBoardTiles';
+import { LAB_CLAN_SLUG } from '@/lib/labRules';
 
 export { appendBoardTiles, TRACKED_TILE_LISTS } from '@/lib/pluginBoardTiles';
 
@@ -71,7 +72,8 @@ export interface BoardSummary {
 
 /**
  * Every live board (a team, started, not ended, not force-ended) this character sits on, in clans
- * that are not suspended and that the viewer may see (visibleClan, the panel's own rule). Latest
+ * that are not suspended, each addressed through a clan where the character holds a seat that opens it
+ * (a lab board: through the addressed clan, platform staff only). Latest
  * start first. `except` leaves out the board the caller already has.
  *
  * `preferClanId` is the clan the plugin is addressing: a board it hosts or co-hosts is reported
@@ -90,7 +92,6 @@ export async function liveBoardsForCharacter(
   const seatIds = seats.map((s) => s.id);
   // An event player's seat opens only the event it names: a row on any other board through it is dropped.
   const eventSeatOf = new Map(seats.filter((s) => isEventSeat(s)).map((s) => [s.id, s.eventId]));
-  const eventSeatClan = new Map(seats.filter((s) => isEventSeat(s)).map((s) => [s.id, s.clanId]));
   // clan-scope: global -- the character's own entries across clans; each board's clan is checked below.
   const rows = await db
     .select({
@@ -129,10 +130,12 @@ export async function liveBoardsForCharacter(
   if (byEvent.size === 0) return [];
 
   const running = await clansRunningEvents([...byEvent.keys()]);
-  const clanIds = [...new Set([...running.values()].flatMap((s) => [...s]))];
+  const clanIds = [...new Set([...running.values()].flatMap((s) => [...s]).concat(opts.preferClanId != null ? [opts.preferClanId] : []))];
   // clan-scope: global -- naming the clans that run these boards is the question.
   const clanRows = await db.select({ id: clans.id, slug: clans.slug, name: clans.name, status: clans.status }).from(clans).where(inArray(clans.id, clanIds));
   const clanById = new Map(clanRows.map((c) => [c.id, c]));
+  // The clans this character holds a member or guest seat in: each opens every board the clan runs.
+  const clanSeatClans = new Set(seats.filter((s) => !isEventSeat(s)).map((s) => s.clanId));
 
   const out: LiveBoard[] = [];
   for (const r of byEvent.values()) {
@@ -145,15 +148,27 @@ export async function liveBoardsForCharacter(
       r.hostClanId,
       ...runners.filter((id) => id !== r.hostClanId && id !== opts.preferClanId),
     ];
-    // Its own event seat's clan addresses the board even where visibleClan (clan seats only) would not.
-    const ownSeatClan = r.clanMemberId != null && eventSeatOf.get(r.clanMemberId) === r.eventId ? eventSeatClan.get(r.clanMemberId) : undefined;
+    // WHERE THE CHARACTER HOLDS A SEAT, not merely where the clan is visible. Writes to this board
+    // (facts -> submissions, progress, proof) resolve the token through a seat in the addressed
+    // clan (resolvePluginMember), so an address with no seat 401s. visibleClan also passes every
+    // PUBLIC clan, which tagged a co-hosted board with its public host while the character's seat
+    // was in the co-host — and every credit there came back Unauthorized. A seat opens the board
+    // when it is a member/guest seat, or an event seat naming this very event (seatOpensEvent).
+    const seatClans = new Set(clanSeatClans);
+    for (const s of seats) if (isEventSeat(s) && s.eventId === r.eventId) seatClans.add(s.clanId);
     let via: { id: number; slug: string; name: string } | null = null;
     for (const id of order) {
       const c = clanById.get(id);
-      if (c && (id === ownSeatClan || (await visibleClan(request, c.slug)))) {
+      if (c && c.status !== 'suspended' && seatClans.has(id)) {
         via = c;
         break;
       }
+    }
+    // The hidden lab clan holds no seats: its board (shown to platform staff only) is reached from the
+    // clan the plugin is already addressing (lib/eventScope labEventForPluginRequest).
+    if (!via && host.slug === LAB_CLAN_SLUG && opts.preferClanId != null && (await visibleClan(request, host.slug))) {
+      const here = clanById.get(opts.preferClanId);
+      if (here) via = { id: host.id, slug: here.slug, name: host.name };
     }
     if (!via) continue;
     out.push({

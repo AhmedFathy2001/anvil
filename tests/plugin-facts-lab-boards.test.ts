@@ -108,3 +108,15 @@ test('a banned login’s token is still refused', async () => {
     await db.update(s.users).set({ banned: false }).where(eq(s.users.id, userId));
   }
 });
+
+test('a folded-in lab board is tagged with the addressed clan, which resolves the seat (pins, board reads)', async () => {
+  const { GET } = await import('../src/app/api/plugin/config/route.ts');
+  const h = { Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-labby', 'x-anvil-clan-slug': 'alpha' };
+  const res = await GET(new Request('https://example.test/api/plugin/config', { headers: { ...h, 'X-Anvil-Boards': '1' } }));
+  const cfg = (await res.json()) as { boards: { eventId: number; clan: string; teamId: number }[] };
+  const lab = cfg.boards.find((b) => b.eventId === events[0]);
+  assert.equal(lab?.clan, 'alpha', JSON.stringify(cfg.boards));
+  const A = await import('../src/lib/auth.ts');
+  const seat = await A.verifyPluginTokenForEvent(new Request('https://example.test/x', { headers: h }), events[0]);
+  assert.equal(seat?.teamId, lab?.teamId);
+});

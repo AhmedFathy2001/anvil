@@ -49,7 +49,7 @@ export async function GET(request: Request) {
   if (rows) {
     const character = await resolvePluginCharacter(request).catch(() => null);
     if (character) {
-      const others = await liveBoardsForCharacter(request, character.accountId, { except: eventIds[0] ?? null }).catch(() => []);
+      const others = await liveBoardsForCharacter(request, character.accountId, { except: eventIds[0] ?? null, preferClanId: clan?.id ?? null }).catch(() => []);
       for (const b of others.slice(0, MAX_EXTRA_BOARDS)) if (!eventIds.includes(b.eventId)) eventIds.push(b.eventId);
     }
   }
