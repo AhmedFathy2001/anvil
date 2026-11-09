@@ -98,7 +98,8 @@ test('game-mode moments live behind their own timeline; Fallen also appears unde
   assert.equal(r.stored, 2);
   assert.ok(r.inserted.every((m) => m.worldMode === 'hardcore'));
   const leagues = await M.recordModeMoments(seat.member, [
-    { kind: 'ca', itemName: 'League task', occurredAt: now(), dedupKey: 'mode-league-task' },
+    // A combat task always names its tier (Observation.tier): one under the clan's floor keeps nothing.
+    { kind: 'ca', taskName: 'League task', tier: 'Grandmaster', occurredAt: now(), dedupKey: 'mode-league-task' },
   ], scopes.clan, { key: 'leagues', label: 'Leagues' });
   assert.equal(leagues.stored, 1);
 
