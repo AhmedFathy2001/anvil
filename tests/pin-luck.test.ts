@@ -17,5 +17,6 @@ test('pin luck: spooned, on rate, dry, several owned, and no rate', () => {
   assert.deepEqual(pinLuck({ itemId: 21992, source: 'Vorkath', qty: 4 }, cands, kc), { text: '×4 in 1,204 KC', tone: 'green' });
   assert.equal(pinLuck({ itemId: 4151, source: 'X', kc: 54 }, cands, kc), null, 'no known rate: the caller falls back');
   assert.equal(pinLuck({ itemId: 21992, source: 'Vorkath', qty: 3 }, cands, () => 0), null, 'no kills known');
-  assert.equal(pinLuck({ itemId: 21992, source: 'Vorkath' }, cands, kc), null, 'neither KC nor count');
+  assert.deepEqual(pinLuck({ itemId: 21992, source: 'Vorkath' }, cands, kc), { text: '1,204 Vorkath KC', tone: 'muted' }, 'clog sync only: the source boss and its KC now');
+  assert.equal(pinLuck({ itemId: 21992, source: 'Vorkath' }, cands, () => 0), null, 'no KC at the boss either');
 });
