@@ -324,9 +324,17 @@ function boardState(a: Args): BoardState {
  * The team's count per tile, as the side panel's rows read it (the config builder, with the caller as
  * the viewer so per-member tiles are theirs). The live board only: a preview has no team counts.
  */
-async function teamProgress(request: Request): Promise<BoardContext['progress']> {
+async function teamProgress(request: Request, eventId: number | null = null): Promise<BoardContext['progress']> {
   const out: BoardContext['progress'] = new Map();
   const auth = await verifyPluginToken(request);
+  // Another live board this character sits on: that board's own seat, team, reveal and hidden-standings
+  // rules, exactly as the Clan tab's focus on it builds them (focusBoard) — never the followed board's.
+  if (eventId != null && auth?.eventId !== eventId) {
+    const f = await focusSeat(request, eventId, null);
+    if (!f) return out;
+    for (const t of (f.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) out.set(t.tileId, { current: t.current, goal: t.goal, ...(t.sets ? { sets: t.sets } : {}) });
+    return out;
+  }
   const user = auth?.userId != null ? { userId: auth.userId } : await verifyPluginTokenUser(request);
   const clan = auth && user ? await resolvePluginClan(request, user.userId) : null;
   if (!auth || !clan) return out;
@@ -353,7 +361,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
   if (!scope) return message('Couldn’t load the board.', [gap(5), button('Retry', { a: 'load', v: 'board', args: a })]);
   const [board, progress] = await Promise.all([
     buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId),
-    !state.event && !state.pre && scope.teamId != null ? teamProgress(request) : Promise.resolve(new Map()),
+    !state.pre && scope.teamId != null ? teamProgress(request, state.event || null) : Promise.resolve(new Map()),
   ]);
   const clan = (a.clan ?? '').trim();
   const ctx: BoardContext = {
@@ -544,19 +552,27 @@ function withBack(a: Args, title: string, page: Node): Node {
  * The config of another live board this character sits on, as that board's own seat would get it.
  * Null unless the board is one of the character's live seats (liveBoardsForCharacter).
  */
-async function focusBoard<C extends HomeConfig>(request: Request, cfg: C, eventId: number) {
+/** The enrolled config body of this character's own live seat on board `eventId`; null when it isn't one. */
+async function focusSeat(request: Request, eventId: number, preferClanId: number | null) {
   const member = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
   if (!member) return null;
-  const clanNow = cfg.activeClan?.slug ? await visibleClan(request, cfg.activeClan.slug) : null;
-  const seat = (await liveBoardsForCharacter(request, member.accountId, { preferClanId: clanNow?.id ?? null })).find((b) => b.eventId === eventId);
+  const seat = (await liveBoardsForCharacter(request, member.accountId, { preferClanId })).find((b) => b.eventId === eventId);
   if (!seat) return null;
   const clan = await resolveClanById(seat.clanId);
   const user = await verifyPluginTokenUser(request);
   if (!clan) return null;
   const built = await buildEnrolledConfig({ eventId, teamId: seat.teamId, clan, viewer: { playerId: seat.playerId, userId: user?.userId ?? null, rsn: seat.rsn, request } });
   if (!built.ok) return null;
-  const next = { ...cfg, ...(built.body as unknown as HomeConfig), boards: cfg.boards, activeClan: { ...cfg.activeClan, slug: seat.clan, name: seat.clanName } } as unknown as C;
-  return { cfg: next, seat: { eventId, teamId: seat.teamId, playerId: seat.playerId, rsn: seat.rsn, userId: user?.userId ?? null } };
+  return { body: built.body as unknown as HomeConfig, seat, userId: user?.userId ?? null };
+}
+
+async function focusBoard<C extends HomeConfig>(request: Request, cfg: C, eventId: number) {
+  const clanNow = cfg.activeClan?.slug ? await visibleClan(request, cfg.activeClan.slug) : null;
+  const f = await focusSeat(request, eventId, clanNow?.id ?? null);
+  if (!f) return null;
+  const { seat } = f;
+  const next = { ...cfg, ...f.body, boards: cfg.boards, activeClan: { ...cfg.activeClan, slug: seat.clan, name: seat.clanName } } as unknown as C;
+  return { cfg: next, seat: { eventId, teamId: seat.teamId, playerId: seat.playerId, rsn: seat.rsn, userId: f.userId } };
 }
 
 async function homeView(request: Request, a: Args): Promise<View> {

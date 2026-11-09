@@ -135,7 +135,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
     new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer ui-board-token', 'X-RSN': 'Board Main', 'x-anvil-clan-slug': 'uiboard' } });
 
   const page = await V.pluginView(asPlayer(), 'board', { event: '0', clan: 'uiboard', track: '1', pins: '' });
-  assert.ok(texts(page!.ui).includes('1 visible tile'));
+  assert.ok(texts(page!.ui).includes('1 tile'));
   assert.ok(texts(page!.ui).includes('Fire cape'));
   assert.ok(texts(page!.ui).includes('Click for details · right-click to claim.'));
 

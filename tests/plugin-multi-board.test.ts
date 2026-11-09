@@ -235,3 +235,19 @@ test('a tile pinned from another clan’s board polls its progress through the a
   assert.ok(body.teams.some((t) => t.teamId === ids.bTeam && t.mine), 'its own team marked');
   assert.equal((await get(ids.sEvent, ids.sKill)).status, 404, 'a suspended clan’s board stays hidden, seat or not');
 });
+
+// The tile list and tile detail of a board the plugin is not following carry that board's own team counts.
+test('a tile opened from a second board shows that team’s count there', async () => {
+  const V = await import('../src/lib/pluginUi/views.ts');
+  const texts: string[] = [];
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    if (o.t === 'text' && typeof o.s === 'string') texts.push(o.s);
+    Object.values(o).forEach(walk);
+  };
+  const req = () => new Request('https://example.test/api/plugin/ui', { headers: headers('alpha') });
+  const page = await V.pluginView(req(), 'board', { event: String(ids.cEvent), tiles: '1', clan: 'alpha' });
+  walk(page!.ui);
+  assert.ok(texts.some((t) => t.includes('3 / 50')), JSON.stringify(texts));
+});

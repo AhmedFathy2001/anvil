@@ -26,7 +26,7 @@ interface FeeRow {
   signup: { id: number; status: string; signedUpAt: string };
   event: { id: number; name: string; startDate: string | null };
   player: {
-    id: number;
+    id: number | null;
     displayName: string;
     discordUsername: string | null;
   };
