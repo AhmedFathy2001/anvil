@@ -13,6 +13,7 @@ import { goalsWithProgress } from '@/lib/goals';
 import { playedCharacter, resolvePluginCharacter } from '@/lib/pluginAccount';
 import { pluginRoster } from '@/lib/pluginRoster';
 import { unseenReleaseLine } from '@/lib/releases';
+import type { BoardSummary } from '@/lib/pluginBoards';
 import type { HomeConfig } from '@/lib/pluginUi/homeUi';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { supporterForUser } from '@/lib/supporter';
@@ -42,8 +43,11 @@ export async function GET(request: Request) {
   const now = Date.now();
   const me = playedCharacter(request);
 
-  const res = await configRoute(request);
-  const cfg = res.ok ? ((await res.json()) as HomeConfig & { event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null }) : null;
+  // Ask for every live board (X-Anvil-Boards), so the brief can name them all, not just the active one.
+  const headers = new Headers(request.headers);
+  headers.set('x-anvil-boards', '1');
+  const res = await configRoute(new Request(request.url, { headers }));
+  const cfg = res.ok ? ((await res.json()) as HomeConfig & { boards?: BoardSummary[]; event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null }) : null;
 
   const ev = cfg?.event;
   const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
@@ -62,6 +66,12 @@ export async function GET(request: Request) {
       solo: !!playersBoard,
       nearly: flat.filter(nearlyDone).map((t) => t.label),
     };
+  }
+
+  if (items.includes('bingo') && cfg?.boards) {
+    const activeId = live && ev ? ev.id : null;
+    const others = cfg.boards.filter((b) => b.eventId !== activeId);
+    if (others.length) facts.others = others.map((b) => ({ name: b.name, rank: b.rank ?? null, of: b.of ?? 0, done: b.tilesComplete, total: b.tilesTotal, points: b.pointsScored }));
   }
 
   if (items.includes('weekly')) {

@@ -48,6 +48,8 @@ export interface RacePageOpts {
   teams: Action;
   /** After a pin or a pick: this page again. */
   reload: Action;
+  /** The "Tracked on screen" card, when anything is pinned. */
+  tracked?: Node | null;
 }
 
 /** The race page as a nav slot: pane `main`, and `t:<id>` per route tile. Null off a race or for a spectator. */
@@ -86,6 +88,7 @@ function mainPage(x: Ctx): Node[] {
     ]),
     whereCard(x),
     nextCard(x, route),
+    ...(x.o.tracked ? [x.o.tracked] : []),
     track(x, route),
     standingsCard(x),
     ...(x.o.rest.length ? [col(x.o.rest)] : []),
@@ -154,7 +157,7 @@ function nextCard(x: Ctx, route: TeamRoute): Node {
  * on a road, each later step is the tile that road leads to, and where the road splits the other
  * ways are offered as "or switch: C: <tile>".
  */
-export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>): Node[] {
+export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, open: (id: number) => Action = (id) => pane(`t:${id}`)): Node[] {
   const g = x.graph;
   const route = x.route!;
   const out: Node[] = [];
@@ -163,12 +166,12 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>): N
   const sub = (s: string, color: Color = FAINT) => text(s, color, { font: 'small', wrap: TRACK_W });
   route.path.forEach((id, step) => {
     if (step > last) return;
-    out.push(stop('done', text(clip(x.name(id), 28), GREEN), sub(`${step === last ? 'Finish' : `Step ${step + 1}`} · done`), pane(`t:${id}`), step === last));
+    out.push(stop('done', text(clip(x.name(id), 28), GREEN), sub(`${step === last ? 'Finish' : `Step ${step + 1}`} · done`), open(id), step === last));
   });
   if (x.race.finished) return out;
   // Where the team stands: one open tile is "you are here"; several (a fork) are in the gold card.
   let at: number | null = route.open.length === 1 && route.pickFrom.length === 0 ? route.open[0] : null;
-  if (at != null) out.push(stop('now', text(clip(x.name(at), 28), 'white', { font: 'bold' }), sub(`${done === last ? 'Finish' : `Step ${done + 1}`} · you are here`, GOLD), pane(`t:${at}`), done === last));
+  if (at != null) out.push(stop('now', text(clip(x.name(at), 28), 'white', { font: 'bold' }), sub(`${done === last ? 'Finish' : `Step ${done + 1}`} · you are here`, GOLD), open(at), done === last));
   for (let step = done + 1; step <= last; step++) {
     const end = step === last;
     const ids = g.steps[step];
@@ -182,12 +185,12 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>): N
       const others = ways.filter((id) => id !== main);
       const other = others[0];
       const subLine = other != null
-        ? row(text(`${word} · or switch: `, FAINT, { font: 'small' }), text(clip(`${roadOf(g, other)}: ${x.name(other)}`, 22), roadInk(roadOf(g, other))[1], { font: 'small', on: pane(`t:${other}`), tip: `Open ${x.name(other)}` }), undefined, { gap: 0 })
+        ? row(text(`${word} · or switch: `, FAINT, { font: 'small' }), text(clip(`${roadOf(g, other)}: ${x.name(other)}`, 22), roadInk(roadOf(g, other))[1], { font: 'small', on: open(other), tip: `Open ${x.name(other)}` }), undefined, { gap: 0 })
         : sub(word);
-      out.push(stop(dot, text(clip(x.name(main), 28), 'text'), subLine, pane(`t:${main}`), end));
+      out.push(stop(dot, text(clip(x.name(main), 28), 'text'), subLine, open(main), end));
       at = main;
     } else if (ids.length === 1) {
-      out.push(stop(dot, text(word, 'text'), sub(`${clip(x.name(ids[0]), 22)} · same for everyone`), pane(`t:${ids[0]}`), end));
+      out.push(stop(dot, text(word, 'text'), sub(`${clip(x.name(ids[0]), 22)} · same for everyone`), open(ids[0]), end));
       at = ids[0];
     } else {
       const cross = ids.some((id) => (g.prev.get(id)?.length ?? 0) > 1);

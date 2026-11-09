@@ -2,7 +2,8 @@ import type { buildBoard } from '@/app/api/plugin/board/route';
 
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
-import { BLUE, CARD_W, GREEN, PROGRESS, SOFT, chip, clip, goldCard, more, section, small, title } from './sections';
+import { BLUE, CARD_W, FAINT, GOLD, GREEN, PROGRESS, SOFT, chip, clip, goldCard, more, section, small, title } from './sections';
+import { roadBadge, trackStops, whereCard } from './raceUi';
 import { raceGraph, raceTileInfo, roadChoiceLine, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
 import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
@@ -405,22 +406,31 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
           ? 'Click for details · join this event to claim tiles.'
           : 'Click for details · claims aren’t available on this site.';
   const reload = list({ ...s, page: 0 });
+  const header = listHeader(board);
   return col([
     // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
     boardFeedLinks(ctx.eventId, ctx.feedBack, ctx.feedTab, ctx.chatOn ?? true),
     gap(8),
-    ...(raceRouteUi(board, s) ? [raceRouteUi(board, s), gap(7)] : []),
-    text(`${tiles.length} visible tile${tiles.length === 1 ? '' : 's'}${hidden}`, '#cdcdcd'),
-    gap(2),
-    muted(hint),
-    gap(7),
+    ...(header ? [header, gap(8)] : []),
+    row(text(`${tiles.length} tile${tiles.length === 1 ? '' : 's'}${hidden}`, SOFT, { font: 'small' }), undefined, undefined),
+    gap(4),
     { t: 'input', name: 'q', kind: 'search', value: s.q, label: `Search ${tiles.length} tiles…`, tip: 'Search tile names, descriptions, requirements and categories', on: reload },
-    ...(s.pre
-      ? []
-      : [gap(5), row(muted('Show'), { t: 'input', name: 'status', kind: 'select', options: 'race' in board && board.race ? [...RACE_STATUSES] : [...STATUSES], value: s.status, tip: 'Filter tiles by completion state', on: reload } as Node, undefined)]),
-    gap(7),
+    gap(6),
     { t: 'slot', id: 'tiles', c: inner },
+    gap(4),
+    text(hint, FAINT, { font: 'small', wrap: CARD_W }),
   ]);
+}
+
+/** A race's top card (step, rank, bar) and its road as a compact vertical track; null off a race. */
+function listHeader(board: Board): Node | null {
+  const race = racePayload(board);
+  const m = raceModel(board);
+  if (!race || !m || !m.route) return null;
+  const byId = new Map((board.tiles as BoardTile[]).map((t) => [t.tileId, t]));
+  const name = (id: number) => byId.get(id)?.label?.trim() || `Tile ${id}`;
+  const x = { graph: m.graph, route: m.route, race, board, name };
+  return col([whereCard(x), section([title(m.route.path.length > 0 ? 'Your road' : 'After that'), ...trackStops(x, (id) => pane(`t:${id}`))], { gap: 4 })], { gap: 8 });
 }
 
 /** Switch slot `tile` to a page (`p<n>`) or a tile's detail (`t:<id>`) the answer already carries. */
@@ -432,11 +442,14 @@ const pane = (name: string): Action => ({ a: 'pane', into: 'tile', pane: name })
  * tile shown first (opened from the Clan tab, or after a claim); otherwise the state's page.
  */
 export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open?: BoardTile, error: string | null = null): Node {
-  const found = filterTiles(board.tiles as BoardTile[], s.q, s.status, s.pre, ctx.progress);
-  if (!found.length && !open) return muted('No matching tiles.');
+  const all = board.tiles as BoardTile[];
+  const found = groupOrder(filterTiles(all, s.q, s.status, s.pre, ctx.progress), all, s);
+  const chips = s.pre ? null : filterChips(s, !!racePayload(board));
+  if (!found.length && !open) return col([...(chips ? [chips, gap(6)] : []), muted('No matching tiles.')]);
   const pages = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
   const panes: Record<string, Node> = {};
-  for (let page = 0; page < pages; page++) panes[`p${page}`] = rowsPage(found, page, pages, { ...s, page }, ctx);
+  const groupOf = groupFn(all, s);
+  for (let page = 0; page < pages; page++) panes[`p${page}`] = rowsPage(found, page, pages, { ...s, page }, ctx, chips, groupOf);
   found.forEach((t, i) => (panes[`t:${t.tileId}`] = tileDetailUi(board, t, { ...s, page: Math.floor(i / PAGE_SIZE) }, ctx)));
   let first = panes[`p${Math.max(0, Math.min(s.page, pages - 1))}`];
   if (open) {
@@ -447,13 +460,66 @@ export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open
   return { t: 'slot', id: 'tile', panes, c: first };
 }
 
-/** One page of matching rows, with Previous / Next. */
-function rowsPage(found: BoardTile[], page: number, pages: number, s: BoardState, ctx: BoardContext): Node {
-  if (!found.length) return muted('No matching tiles.');
+/** All / Open / Done / Locked (a race) or In progress (any other board), as chips that reload the list. */
+function filterChips(s: BoardState, race: boolean): Node {
+  const opts: { v: Status; label: string }[] = race
+    ? [{ v: 'all', label: 'All' }, { v: 'next', label: 'Open' }, { v: 'done', label: 'Done' }, { v: 'locked', label: 'Locked' }]
+    : [{ v: 'all', label: 'All' }, { v: 'open', label: 'Open' }, { v: 'progress', label: 'Started' }, { v: 'done', label: 'Done' }];
+  return {
+    t: 'grid',
+    cols: opts.length,
+    gap: 4,
+    c: opts.map((o) => {
+      const on = s.status === o.v;
+      return text(o.label, on ? '#1e1e1e' : SOFT, { chip: on ? GOLD : '#3a3a3a', font: 'small', align: 'c', tip: `Show ${o.label.toLowerCase()} tiles`, on: list({ ...s, status: o.v, page: 0 }) });
+    }),
+  };
+}
+
+/** The small header a row sits under: a race's step, or a bingo's category (else its row of a square board). */
+function groupFn(all: BoardTile[], s: BoardState): ((t: BoardTile) => string | null) {
+  if (s.q.trim() || s.status === 'closest') return () => null;
+  if (all.some((t) => 'raceStep' in t)) {
+    const last = Math.max(...all.map((t) => ('raceStep' in t ? (t.raceStep as number) : 0)));
+    return (t) => ('raceStep' in t ? ((t.raceStep as number) === last && last > 0 ? 'Finish' : `Step ${(t.raceStep as number) + 1}`) : null);
+  }
+  const cat = (t: BoardTile) => (t.category ?? '').split(',')[0].trim();
+  if (new Set(all.map(cat).filter(Boolean)).size > 1) return (t) => cat(t) || 'Other';
+  const side = Math.round(Math.sqrt(all.length));
+  if (side > 1 && side * side === all.length) {
+    const order = [...all].sort((a, b) => a.position - b.position);
+    const idx = new Map(order.map((t, i) => [t.tileId, i]));
+    return (t) => `Row ${Math.floor((idx.get(t.tileId) ?? 0) / side) + 1}`;
+  }
+  return () => null;
+}
+
+/** The found tiles with each group's rows together (a race is already in step order). */
+function groupOrder(found: BoardTile[], all: BoardTile[], s: BoardState): BoardTile[] {
+  const g = groupFn(all, s);
+  const keys: string[] = [];
+  const by = new Map<string, BoardTile[]>();
+  for (const t of found) {
+    const k = g(t) ?? '';
+    if (!by.has(k)) by.set(k, []), keys.push(k);
+    by.get(k)!.push(t);
+  }
+  return keys.length > 1 && !all.some((t) => 'raceStep' in t) ? keys.flatMap((k) => by.get(k)!) : found;
+}
+
+/** One page of matching rows grouped under their headers, with Previous / Next. */
+function rowsPage(found: BoardTile[], page: number, pages: number, s: BoardState, ctx: BoardContext, chips: Node | null, groupOf: (t: BoardTile) => string | null): Node {
   const from = page * PAGE_SIZE;
   const to = Math.min(found.length, from + PAGE_SIZE);
-  const rows: Node[] = [muted(`${from + 1}–${to} of ${found.length}`), gap(5)];
-  found.slice(from, to).forEach((t, i) => rows.push(...(i ? [gap(5)] : []), tileRow(t, s, ctx)));
+  const rows: Node[] = [...(chips ? [chips, gap(6)] : []), muted(`${from + 1}–${to} of ${found.length}`, { font: 'small' }), gap(4)];
+  let last: string | null | undefined;
+  found.slice(from, to).forEach((t, i) => {
+    const g = groupOf(t);
+    if (g && g !== last) rows.push(...(i ? [gap(4)] : []), text(g, SOFT, { font: 'small' }), gap(3));
+    else if (i) rows.push(gap(3));
+    last = g;
+    rows.push(tileRow(t, s, ctx, !!g && /^Step|^Finish/.test(g)));
+  });
   if (pages > 1) {
     rows.push(gap(7), {
       t: 'grid',
@@ -468,26 +534,33 @@ function rowsPage(found: BoardTile[], page: number, pages: number, s: BoardState
   return col(rows);
 }
 
-function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext): Node {
+/** A raised rounded row: road badge, name, and a state chip (Next gold, Done green, Locked muted, Closed dim) or the count. */
+function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext, _inStep = false): Node {
   const name = t.label?.trim() || `Tile ${t.tileId}`;
   const started = startedCount(t, ctx.progress);
-  const state = started != null && !closedUndone(t) ? started : stateText(t, s.pre);
   const done = !s.pre && t.complete;
   const details = t.description?.trim() || t.requirement;
   const canClaim = ctx.claimBlock == null && !t.complete;
   const planning = claimLine(t.claims);
   const p = started != null ? ctx.progress.get(t.tileId) : undefined;
-  const right = state
-    ? text(state, done ? 'done' : started != null ? IN_PROGRESS : isManual(t) ? MANUAL : 'muted', done ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: 'done' } } : p && !closedUndone(t) ? { live: { tile: t.tileId, cur: p.current, goal: p.goal } } : {})
-    : undefined;
   const race = raceStateOf(t);
-  // A race tile's row leads with its step, so the list reads in race order.
-  const shown = 'raceStep' in t ? `Step ${(t.raceStep as number) + 1} · ${name}` : name;
-  const head = row(undefined, text(shown.length > 28 ? `${shown.slice(0, 27)}…` : shown, done ? 'done' : race === 'open' ? 'brand' : race === 'closed' || race === 'ahead' ? 'muted' : 'text'), right, { gap: 6 });
-  const raceLine = 'raceStep' in t && 'raceLanes' in t && (t.raceLanes as number) > 1 ? muted(`${race === 'open' ? '▸ ' : race === 'ahead' || race === 'closed' ? '🔒 ' : ''}Road ${'raceRoad' in t ? t.raceRoad : ''}`) : null;
-  return col([head, ...(raceLine ? [raceLine] : []), ...(planning ? [text(planning.length > 36 ? `${planning.slice(0, 35)}…` : planning, mine(t.claims) ? 'brand' : 'claim', { tip: claimWho(t.claims) })] : [])], {
-    bg: 'card',
+  const closed = !s.pre && closedUndone(t);
+  let right: Node | undefined;
+  if (s.pre) right = isManual(t) ? text('manual', '#8cc8ff', { chip: '#1b2a3a', font: 'small' }) : undefined;
+  else if (done) right = text('Done', GREEN, { chip: '#2f5f2f', font: 'small', icon: { t: 'icon', glyph: 'check', w: 9, h: 9, color: GREEN } });
+  else if (closed) right = text(race ? 'Locked' : t.closedAt && 'closedReason' in t && t.closedReason === 'expired' ? 'Expired' : 'Closed', FAINT, { chip: '#2a2a2a', font: 'small' });
+  else if (race === 'open') right = text('Next', '#1e1e1e', { chip: GOLD, font: 'small' });
+  else if (race === 'ahead') right = text('Locked', SOFT, { chip: '#3a3a3a', font: 'small' });
+  else if (started != null) right = text(started, IN_PROGRESS, { font: 'small', ...(p ? { live: { tile: t.tileId, cur: p.current, goal: p.goal } } : {}) });
+  else if (isManual(t)) right = text('manual', '#8cc8ff', { chip: '#1b2a3a', font: 'small' });
+  const lanes = 'raceStep' in t && 'raceLanes' in t && (t.raceLanes as number) > 1;
+  const badge = lanes ? roadBadge(String('raceRoad' in t ? t.raceRoad : 'A')) : undefined;
+  const ink = done ? 'done' : race === 'open' ? 'brand' : closed || race === 'ahead' ? 'muted' : 'text';
+  const head = row(badge, text(clip(name, lanes ? 18 : 24), ink, { tip: name }), right, { gap: 6 });
+  return col([head, ...(planning ? [text(planning.length > 36 ? `${planning.slice(0, 35)}…` : planning, mine(t.claims) ? 'brand' : 'claim', { tip: claimWho(t.claims), font: 'small' })] : [])], {
+    bg: 'raised',
     inset: 7,
+    gap: 3,
     tip: `${details ? `${name} — ${details}` : name}${canClaim ? ' (right-click to claim)' : ''}`,
     on: pane(`t:${t.tileId}`),
     menu: [...claimMenu(t, s, ctx, true), ...pinMenu(t, s, ctx)],

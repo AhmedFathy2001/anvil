@@ -14,6 +14,7 @@ import { missionTileState } from '@/lib/tileState';
 import { boardFeedLinks } from './feedUi';
 import type { Board as RaceBoard, BoardContext } from './boardUi';
 import { racePageUi } from './raceUi';
+import { type PinRow, trackedCard } from './trackedUi';
 import { ordinal } from '@/lib/raceSummary';
 import { BLUE, CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, big, cells, chip, clip, clock, compactStandings, goldCard, link, more, openRow, pageHead, section, small, standingsCard, stop, thin, title, withMove } from './sections';
 
@@ -117,6 +118,8 @@ export interface HomeData {
   weekly: Map<number, { total: number; top: WeeklyStanding[]; you: WeeklyStanding | null }>;
   /** Tiles this client has pinned on the live board; null where it can't pin. */
   pins: number[] | null;
+  /** Every pin with its name, board and count (views.ts pinRowsFor), this board's and the others'. */
+  pinRows?: PinRow[];
   /** The member picked this clan rather than leaving it on Auto: no "Also live" then. */
   chosen: boolean;
   /** The clan's own card, already built (clanUi), or null. */
@@ -370,6 +373,13 @@ function placeOf(d: HomeData): Place {
   return { rank: me.rank, of, team: me.name, gap: gapTo(scoreOf(me.score), scoreOf(top?.score), top?.name ?? '', me.rank), move: me.move ?? null };
 }
 
+/** "Live · ends in 56:13", or a plain "Ends 24 Nov" while it is more than a week off; "Live" with no date. */
+function endsNode(end: string | null | undefined, now: number): Node {
+  if (!end) return small('Live', BLUE);
+  const at = Date.parse(/[zZ]|[+-]\d\d:\d\d$/.test(end) ? end.replace(' ', 'T') : `${end.replace(' ', 'T')}Z`);
+  if (Number.isFinite(at) && at - now > 7 * 86_400_000) return small(`Ends ${new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}`, BLUE);
+  return clock(end, 'Live · ends in ', 'Ended', now);
+}
 const endOf = (d: HomeData) => d.cfg.event?.endDate ?? null;
 const placeText = (p: Place) => (p.rank != null && p.of > 1 ? `${ordinal(p.rank)} of ${count(p.of)}` : null);
 /** "3rd of 6" and its move, right-aligned in a top card. */
@@ -453,8 +463,10 @@ export function homeUi(d: HomeData): Node {
   // is "the" tracked board — the plugin tracks them all (lib/pluginBoards).
   const mineRows = mine.map((m) => {
     const t = titled(m.eventId, m.name);
-    const lines: Node[] = [muted(clip(`${m.clanName} · ${m.teamName}`, 32))];
-    if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`));
+    // The same four things as the board above: clan · team and the rank, the bar, the count and the clock.
+    const rank = m.rank != null && (m.of ?? 0) > 1 ? text(`${ordinal(m.rank)} of ${count(m.of ?? 0)}`, SOFT) : undefined;
+    const lines: Node[] = [row(muted(clip(`${m.clanName} · ${m.teamName}`, 24)), undefined, rank)];
+    if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), row(muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`), undefined, endsNode(m.endDate, d.now)));
     else lines.push(muted('Board not revealed yet'));
     return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, boardFromList(m.eventId, t), `Open ${t}`);
   });
@@ -561,7 +573,7 @@ export function eventUi(d: HomeData, open: string): Node | null {
     if (!b) return null;
     const titled = { ...b, title: eventName(all, { id: b.id, name: b.title }) };
     const race = d.live && d.raceBoard && !b.spectating
-      ? racePageUi(d.raceBoard.board, { title: titled.title, back: home(), rest: boardPage(d, titled, true), ctx: d.raceBoard.ctx, teams: teams(titled.title), reload: home('board'), pick: { event: '0', home: 'board' } })
+      ? racePageUi(d.raceBoard.board, { title: titled.title, back: home(), rest: boardPage(d, titled, true), ctx: d.raceBoard.ctx, teams: teams(titled.title), reload: home('board'), pick: { event: '0', home: 'board' }, tracked: trackedOf(d, titled) })
       : null;
     return race ?? col(boardPage(d, titled), { gap: 10 });
   }
@@ -880,19 +892,29 @@ function standingsPart(d: HomeData, b: Board): Node[] {
 
 const swatch = (color: string | null | undefined) => icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(color ?? '') ? color : '#989898') as Color, w: 8, h: 8 });
 
+/** The "Tracked on screen" card for this board's page: every pin, on any board, or null. */
+function trackedOf(d: HomeData, b: Board): Node | null {
+  const event = d.cfg.event;
+  if (!d.live || !event) return null;
+  // views.ts looks every pin up (other boards too); without that, this board's own from the panel tiles.
+  const own = (d.cfg.panel?.tiles ?? []);
+  const rows = d.pinRows ?? (d.pins ?? []).flatMap((id) => {
+    const t = own.find((x) => x.tileId === id);
+    return t ? [{ tileId: id, label: t.label, eventId: event.id, board: null, cur: t.current, goal: t.goal, done: t.complete }] : [];
+  });
+  return trackedCard(rows, event.id, home('board'));
+}
+
 /** Under the standings: pins, who's active, the feed and the nearest tiles. */
 function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: HomeConfig['event'], race: boolean): Node[] {
   const parts: Node[] = [];
   // On a race the starting shot sits under the race's own page (it has no gold card of ours).
   if (race && d.live && d.cfg.startProof) parts.push({ t: 'native', name: 'start-proof' });
 
-  const pinned = (d.pins ?? []).filter((id) => tiles.has(id));
-  if (d.live && event && pinned.length) {
-    const rows = pinned.map((id) => row(undefined, progressRow(tiles.get(id)!.label, tiles.get(id)!, null, IN_PROGRESS, b.title), text('✕', 'muted', {
-      tip: 'Stop tracking this tile',
-      on: { a: 'pin', event: event.id, tile: id, on: false, then: home('board') },
-    }), { gap: 6 }));
-    parts.push(section([title('Tracked on screen'), ...rows, ...(pinned.length > 1 ? [link('Untrack all', { a: 'pin', event: event.id, tile: 0, on: false, then: home('board') }, 'Take every pinned tile off the screen')] : [])]));
+  // Race boards draw it inside their own page (raceUi), right under the next tile.
+  if (!race) {
+    const tr = trackedOf(d, b);
+    if (tr) parts.push(tr);
   }
 
   const active = (d.cfg.panel?.activeNow ?? []).filter((a) => tiles.has(a.tileId) && !tiles.get(a.tileId)!.complete && a.workers.length);
@@ -904,7 +926,7 @@ function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: 
   if (d.live && feed.length) parts.push(activityCard(d, feed, tiles, b));
 
   // The buttons below sit under the Feed | Chat row: keep a gap so they never touch.
-  if (d.live && tiles.size > 0 && race) parts.push(gap(8), button(`View all ${tiles.size} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
+  if (d.live && b.total > 0 && race) parts.push(gap(8), button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
   else if (d.live && b.total > 0) {
     // A points board's nearest tiles and what each is worth; a square bingo has its gold card.
     if (b.points) {

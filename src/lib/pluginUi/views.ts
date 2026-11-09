@@ -1,5 +1,6 @@
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
-import { and, eq, ilike, or } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { type PinRow, revealedTileIds, trackedCard } from './trackedUi';
 
 import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
@@ -379,6 +380,15 @@ async function boardView(request: Request, a: Args, error: string | null = null)
       teams: { a: 'load', v: 'teams', args: { event: String(scope.event.id), ...nav } },
       reload: { a: 'load', v: 'board', args: { ...a, tile: '' } },
       pick: { ...a, tile: '' },
+      tracked: trackedCard(
+        (ctx.pins ?? []).flatMap((id) => {
+          const t = (board.tiles as BoardTile[]).find((x) => x.tileId === id);
+          const p = ctx.progress.get(id);
+          return t ? [{ tileId: id, label: t.label?.trim() || `Tile ${id}`, eventId: ctx.eventId, board: null, cur: p?.current ?? null, goal: p?.goal ?? null, done: !!t.complete }] : [];
+        }),
+        ctx.eventId,
+        { a: 'load', v: 'board', args: { ...a, tile: '' } },
+      ),
     });
     if (page) return { ui: page };
   }
@@ -605,6 +615,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
       ? standingsHiddenNotice(curtain, (iso) => new Date(iso).toUTCString().replace(':00 GMT', ' UTC'))
       : null,
     weekly,
+    pinRows: await pinRowsFor(pinsOf(a), cfg).catch(() => []),
     pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
     chosen: a.chosen === '1',
     ownClan,
@@ -616,6 +627,45 @@ async function homeView(request: Request, a: Args): Promise<View> {
     raceBoard: open === 'board' && live && cfg.event?.race ? await raceBoardFor(request, a, cfg.event ? `${clanPath}/events/${cfg.event.id}` : null) : null,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
+}
+
+/** At most this many pin ids are read from one request. */
+const MAX_PIN_IDS = 50;
+const pinsOf = (a: Args): number[] => (a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, MAX_PIN_IDS) : []);
+
+/**
+ * Every pinned tile with its name, board and count. The addressed board's come from the config's
+ * panel tiles; pins on the character's other live boards are looked up, but only within the boards
+ * the config itself names, so a pin id can't read any other event's tiles.
+ */
+export async function pinRowsFor(pins: number[], cfg: { event?: { id: number } | null; panel?: { tiles?: PanelTile[] }; boards?: { eventId: number; name: string }[] }): Promise<PinRow[]> {
+  if (!pins.length) return [];
+  const here = cfg.event?.id ?? 0;
+  const known = new Map((cfg.panel?.tiles ?? []).map((t) => [t.tileId, t]));
+  const rows: PinRow[] = [];
+  const rest: number[] = [];
+  for (const id of pins) {
+    const t = known.get(id);
+    if (t) rows.push({ tileId: id, label: t.label, eventId: here, board: null, cur: t.current, goal: t.goal, done: t.complete });
+    else rest.push(id);
+  }
+  const names = new Map((cfg.boards ?? []).map((b) => [b.eventId, b.name]));
+  if (here) names.set(here, names.get(here) ?? '');
+  if (rest.length && names.size) {
+    // clan-scope: global -- limited to the boards this caller's own config lists.
+    const [found, evs] = await Promise.all([
+      db.select().from(tiles).where(and(inArray(tiles.id, rest), inArray(tiles.eventId, [...names.keys()]), isNull(tiles.parentTileId))),
+      db.select({ id: events.id, rules: events.rules, tilesRevealed: events.tilesRevealed }).from(events).where(inArray(events.id, [...names.keys()])),
+    ]);
+    // Only what the board itself shows this viewer: revealed boards, tiles past the reveal rules (no hidden missions).
+    const shown = revealedTileIds(found, evs);
+    for (const f of found) {
+      if (!shown.has(f.id)) continue;
+      rows.push({ tileId: f.id, label: f.label, eventId: f.eventId, board: f.eventId === here ? null : names.get(f.eventId) ?? null, cur: null, goal: null, done: false });
+    }
+  }
+  const order = new Map(pins.map((id, i) => [id, i]));
+  return rows.sort((x, y) => order.get(x.tileId)! - order.get(y.tileId)!);
 }
 
 /** Each ranked team (or one-person team's player) gets its places climbed since the day began. */

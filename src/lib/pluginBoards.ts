@@ -12,13 +12,18 @@
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, clans, eventParticipants, events, teams } from '@/db/schema';
+import { clanRoster, clans, completions, eventParticipants, events, teams } from '@/db/schema';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
 import { isEventSeat } from '@/lib/seatKinds';
 import { resolveClanById } from '@/lib/clanContext';
 import { clansRunningEvents } from '@/lib/coHost';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 import { teamBoardScore } from '@/lib/pluginHomeBoard';
+import { boardPointsPool, scoreTeams } from '@/lib/boardScoring';
+import { eventBoardTiles } from '@/lib/comboSql';
+import { parseEventRules } from '@/lib/eventRules';
+import { standingsScopeForPlugin } from '@/lib/standingsAccess';
+import { ttlMemo } from '@/lib/ttlMemo';
 import { visibleClan } from '@/lib/pluginUi/load';
 import { appendBoardTiles } from '@/lib/pluginBoardTiles';
 
@@ -42,6 +47,7 @@ export interface LiveBoard {
   playerId: number;
   rsn: string;
   startDate: string | null;
+  endDate?: string | null;
 }
 
 /** The `boards` summary row /config sends and Home draws. */
@@ -55,6 +61,12 @@ export interface BoardSummary {
   tilesComplete: number;
   tilesTotal: number;
   pointsScored: boolean;
+  /** When the board ends (the event's own date), for "Live · ends in …". */
+  endDate?: string | null;
+  /** The team's place (1 = first) among the board's teams; null when the standings are hidden from this viewer or it isn't a scored table. */
+  rank?: number | null;
+  /** How many teams the rank is out of; 0 when there is no rank. */
+  of?: number;
 }
 
 /**
@@ -155,6 +167,7 @@ export async function liveBoardsForCharacter(
       playerId: r.id,
       rsn: r.name,
       startDate: r.startDate,
+      endDate: r.endDate,
     });
   }
   out.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? '') || b.eventId - a.eventId);
@@ -162,11 +175,11 @@ export async function liveBoardsForCharacter(
 }
 
 /** Each board's team standing for Home — the same fraction its own card shows; 0/0 until the tiles are revealed. */
-export async function summarizeBoards(boards: LiveBoard[]): Promise<BoardSummary[]> {
+export async function summarizeBoards(boards: LiveBoard[], viewer: { userId: number | null } = { userId: null }): Promise<BoardSummary[]> {
   if (boards.length === 0) return [];
   // clan-scope: global -- these boards came from liveBoardsForCharacter, which settled each clan.
   const meta = await db
-    .select({ id: events.id, scoringMode: events.scoringMode, rules: events.rules, tilesRevealed: events.tilesRevealed })
+    .select()
     .from(events)
     .where(inArray(events.id, boards.map((b) => b.eventId)));
   const byId = new Map(meta.map((m) => [m.id, m]));
@@ -174,14 +187,42 @@ export async function summarizeBoards(boards: LiveBoard[]): Promise<BoardSummary
     boards.map(async (b) => {
       const m = byId.get(b.eventId);
       const score = m?.tilesRevealed ? await teamBoardScore({ eventId: b.eventId, scoringMode: m.scoringMode, rules: m.rules }, b.teamId) : null;
-      return summaryOf(b, score ? { tilesComplete: score.boardScore, tilesTotal: score.total, pointsScored: score.unit === 'pts' } : null);
+      const place = m?.tilesRevealed ? await boardPlace(m, b.teamId, viewer.userId).catch(() => null) : null;
+      return summaryOf({ ...b, endDate: b.endDate ?? m?.endDate ?? null }, score ? { tilesComplete: score.boardScore, tilesTotal: score.total, pointsScored: score.unit === 'pts' } : null, place);
     }),
   );
 }
 
+/** Every team's rank on a board, by score (ties share a place); a few seconds stale at most, the same for every viewer. */
+async function boardRanks(m: { id: number; scoringMode: string | null; rules: string | null }): Promise<Map<number, number>> {
+  return ttlMemo(`board-ranks:${m.id}`, async () => {
+    const [tileRows, teamRows, doneRows] = await Promise.all([
+      db.query.tiles.findMany({ where: eventBoardTiles(m.id) }),
+      db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, m.id)),
+      db.select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints }).from(completions).innerJoin(teams, eq(teams.id, completions.teamId)).where(eq(teams.eventId, m.id)),
+    ]);
+    const scores = scoreTeams({ scoringMode: m.scoringMode, rules: parseEventRules(m.rules), tiles: tileRows, completions: doneRows, teams: teamRows, boardPointsTotal: boardPointsPool(m.scoringMode, tileRows) });
+    const sorted = [...scores].sort((x, y) => y.score - x.score);
+    const out = new Map<number, number>();
+    sorted.forEach((sc, i) => out.set(sc.teamId, i > 0 && sorted[i - 1].score === sc.score ? out.get(sorted[i - 1].teamId)! : i + 1));
+    return out;
+  }, 10_000);
+}
+
+/** The team's "Nth of N" on a board, or null where the standings are hidden from this viewer. */
+export async function boardPlace(m: typeof events.$inferSelect, teamId: number, userId: number | null): Promise<{ rank: number | null; of: number } | null> {
+  const scope = await standingsScopeForPlugin(m, { userId, teamId });
+  if (scope.hidden) return { rank: null, of: 0 };
+  const ranks = await boardRanks(m);
+  const rank = ranks.get(teamId);
+  return rank == null ? { rank: null, of: 0 } : { rank, of: ranks.size };
+}
+
+/** The row /config sends for one board. */
 export function summaryOf(
-  b: Pick<LiveBoard, 'eventId' | 'name' | 'clan' | 'clanName' | 'teamId' | 'teamName'>,
+  b: Pick<LiveBoard, 'eventId' | 'name' | 'clan' | 'clanName' | 'teamId' | 'teamName'> & { endDate?: string | null },
   tally: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null | undefined,
+  place?: { rank: number | null; of: number } | null,
 ): BoardSummary {
   return {
     eventId: b.eventId,
@@ -193,6 +234,9 @@ export function summaryOf(
     tilesComplete: tally?.tilesComplete ?? 0,
     tilesTotal: tally?.tilesTotal ?? 0,
     pointsScored: tally?.pointsScored ?? false,
+    endDate: ('endDate' in b ? b.endDate : null) ?? null,
+    rank: place?.rank ?? null,
+    of: place?.of ?? 0,
   };
 }
 
@@ -221,7 +265,9 @@ export async function foldOtherBoards(
     });
     if (!built.ok) continue;
     appendBoardTiles(body, built.body as unknown as Record<string, unknown>, b);
-    summaries.push(summaryOf(b, (built.body as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board));
+    const ev = await db.query.events.findFirst({ where: eq(events.id, b.eventId) });
+    const place = ev?.tilesRevealed ? await boardPlace(ev, b.teamId, args.userId).catch(() => null) : null;
+    summaries.push(summaryOf({ ...b, endDate: b.endDate ?? ev?.endDate ?? null }, (built.body as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board, place));
   }
   body.boards = summaries;
 }
