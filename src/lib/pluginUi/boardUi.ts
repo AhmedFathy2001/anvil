@@ -472,27 +472,14 @@ export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open
  * link under the chips (it lists the tiles not done, furthest along first; "Not done" stays lit).
  */
 export function filterChips(s: BoardState, race: boolean): Node {
-  const opts: { v: Status; label: string }[] = race
-    ? RACE_STATUSES.map((o) => ({ v: o.v, label: o.label }))
-    : STATUSES.filter((o) => o.v !== 'closest').map((o) => ({ v: o.v, label: o.label }));
-  const lit = (v: Status) => s.status === v || (v === 'open' && s.status === 'closest');
-  const grid: Node = {
-    t: 'grid',
-    cols: 3,
-    gap: 4,
-    c: opts.map((o) => {
-      const on = lit(o.v);
-      return text(o.label, on ? '#1e1e1e' : SOFT, { chip: on ? GOLD : '#3a3a3a', font: 'small', align: 'c', tip: `Show ${o.label.toLowerCase()} tiles`, on: list({ ...s, status: o.v, page: 0 }) });
-    }),
-  };
-  if (race) return grid;
-  const closest = s.status === 'closest';
-  const sort = text(closest ? 'Sort: closest first ✓' : 'Sort: closest first', closest ? GOLD : FAINT, {
-    font: 'small',
-    on: list({ ...s, status: closest ? 'open' : 'closest', page: 0 }),
-    tip: closest ? 'Back to board order' : 'Tiles not done yet, the furthest along first',
-  });
-  return col([grid, row(undefined, undefined, sort)], { gap: 4 });
+  // One styled dropdown, as before the redesign: every state plus "Closest first" (a sort) in one place.
+  const options = race ? [...RACE_STATUSES] : [...STATUSES];
+  return row(
+    muted('Show'),
+    { t: 'input', name: 'status', kind: 'select', options, value: s.status, tip: 'Filter tiles by state', on: list({ ...s, page: 0 }) } as Node,
+    undefined,
+    { gap: 6 },
+  );
 }
 
 /** The small header a row sits under: a race's step, or a bingo's category (else its row of a square board). */

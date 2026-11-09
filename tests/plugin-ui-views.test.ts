@@ -161,7 +161,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   assert.ok(texts(home!.ui).includes('Live Bingo'), JSON.stringify(texts(home!.ui)));
   const boardHome = await V.pluginView(asPlayer(), 'home', { open: 'board' });
   assert.ok(texts(boardHome!.ui).includes('All events'));
-  assert.ok(texts(boardHome!.ui).includes('Do this next'), JSON.stringify(texts(boardHome!.ui)));
+  assert.ok(texts(boardHome!.ui).includes('Closest to done'), JSON.stringify(texts(boardHome!.ui)));
   // From the page, "All tiles" comes back with a way home.
   const tilesPage = await V.pluginView(asPlayer(), 'board', { event: '0', back: 'board', backLabel: 'Live Bingo' });
   assert.ok(texts(tilesPage!.ui).includes('Live Bingo') && texts(tilesPage!.ui).includes('All tiles'));

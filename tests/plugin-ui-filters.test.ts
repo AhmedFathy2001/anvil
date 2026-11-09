@@ -30,13 +30,12 @@ test('each race filter keeps the tiles it names', () => {
   assert.deepEqual(ids('locked', race).sort(), [3, 4]);
 });
 
-test('the chips: five filters three to a row and a sort link; a race gets its own four', () => {
-  const board = filterChips(state('closest'), false);
-  const words = texts(board);
-  assert.deepEqual(words.slice(0, 5), ['All', 'Not done', 'In progress', 'Not started', 'Done']);
-  assert.ok(words.includes('Sort: closest first ✓'));
-  assert.ok(JSON.stringify(board).includes('"cols":3'));
-  // "Not done" stays lit under the sort.
-  assert.ok(JSON.stringify(board).includes('{"t":"text","s":"Not done","color":"#1e1e1e"'));
-  assert.deepEqual(texts(filterChips(state('all'), true)), ['All', 'Next for us', 'Done', 'Locked']);
+test('the filter: one dropdown with every state and the closest-first sort; a race gets its own four', () => {
+  const sel = (n: unknown) => JSON.parse(JSON.stringify(n)).c ?? JSON.parse(JSON.stringify(n));
+  const board = JSON.stringify(filterChips(state('closest'), false));
+  for (const w of ['All', 'Not done', 'Closest first', 'In progress', 'Not started', 'Done']) assert.ok(board.includes(`"label":"${w}"`), w);
+  assert.ok(board.includes('"kind":"select"') && board.includes('"value":"closest"'));
+  const race = JSON.stringify(filterChips(state('all'), true));
+  for (const w of ['All', 'Next for us', 'Done', 'Locked']) assert.ok(race.includes(`"label":"${w}"`), w);
+  void sel;
 });

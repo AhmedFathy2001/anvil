@@ -111,8 +111,8 @@ test('the board page: standings, pins with a way to drop them, active now, neare
   assert.ok(all.includes('Tracked on screen'));
   assert.ok(walk(ui).some((x) => x.on && (x.on as { a: string; tile?: number; on?: boolean }).a === 'pin' && (x.on as { tile: number }).tile === 2));
   assert.ok(all.includes('You 30 · Mate 10'));
-  // Do this next: tile 1 (80%) before tile 2 (1%); the done tile isn't there.
-  const nearest = all.slice(all.indexOf('Do this next'), all.indexOf('Feed'));
+  // Closest to done: tile 1 (80%) before tile 2 (1%); the done tile isn't there.
+  const nearest = all.slice(all.indexOf('Closest to done'), all.indexOf('Feed'));
   assert.ok(nearest.indexOf('Tile 1') < nearest.indexOf('Tile 2'));
   assert.ok(!nearest.includes('Tile 3'));
   assert.ok(all.includes('View all 25 tiles'));

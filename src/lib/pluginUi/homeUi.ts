@@ -855,7 +855,7 @@ function nextCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>)
   }
   const nearest = [...tiles.values()].filter((t) => !t.complete).sort((x, y) => frac(y) - frac(x) || x.position - y.position).slice(0, 2);
   if (!nearest.length) return null;
-  return goldCard('Do this next', [muted('Closest to done for your team.', { wrap: CARD_W }), ...nearest.map((t) => tileLine(t, b.title, b.points && !(t.goal > 1 && !t.complete) ? chip(`${t.points} pts`, 'blue') : undefined))]);
+  return goldCard('Closest to done', [...nearest.map((t) => tileLine(t, b.title, b.points && !(t.goal > 1 && !t.complete) ? chip(`${t.points} pts`, 'blue') : undefined))]);
 }
 
 /** A showdown's reveals or a bounty hunt's bounties so far, as a vertical track. */

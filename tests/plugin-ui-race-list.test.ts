@@ -37,14 +37,15 @@ test('the tracked card lists every pin with a board label for other boards, an u
   assert.ok(!texts(trackedCard([rows[0]], 77, then)).includes('Untrack all'));
 });
 
-test('the All tiles list: race header and track, chips, step groups, state chips', () => {
+test('the All tiles list: race header and track, filter dropdown, step groups, state chips', () => {
   const board = raceBoard([1]);
   const ui = boardUi(board, st, ctx, boardRowsUi(board, st, ctx));
   const t = texts(ui);
   assert.ok(t.some((x) => /^Step 2 of 4/.test(x)), 'the race page’s top card');
   assert.ok(walk(ui).some((x) => x.t === 'segs') && walk(ui).some((x) => x.t === 'step'));
-  for (const c of ['All', 'Next for us', 'Done', 'Locked']) assert.ok(t.includes(c), c);
-  assert.ok(!walk(ui).some((x) => x.t === 'input' && x.kind === 'select'), 'no dropdown');
+  const raw = JSON.stringify(ui);
+  for (const c of ['All', 'Next for us', 'Done', 'Locked']) assert.ok(raw.includes(`"label":"${c}"`), c);
+  assert.ok(walk(ui).some((x) => x.t === 'input' && x.kind === 'select'), 'one filter dropdown');
   assert.ok(t.includes('Step 2') && t.includes('Finish'));
   assert.ok(!t.some((x) => /^Step \d · (Kill|One|Vorkath|Barrows|Raid|Wintertodt)/.test(x)), 'no “Step 2 ·” in rows');
   assert.ok(t.includes('Done') && t.includes('Next') && t.includes('Locked'));
