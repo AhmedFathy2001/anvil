@@ -14,6 +14,12 @@ import type { PushScope } from './ticket.ts';
 // Stream overlays (lib/overlay) are WATCHERS, not clients: they get a bare NUDGE (`{"t":"nudge"}`)
 // when their event moves, never a view, and fetch their own public payload in answer. So nothing an
 // overlay key opens is built here, and the overlay's own rules (curtain, reveal) stay the only gate.
+//
+// The website's Feed & chat page (a `web` ticket) is a ROWS-ONLY client: it sits in its board's and
+// its teams' rooms for panel rows (deliverRows) and in `people` for rows aimed at its user, but never
+// in the view rooms — nothing is built for it and no board or tile view is sent to it. Staff who read
+// every team's chat carry those teams in `teamIds` (rows rooms only, any ticket); a team not listed is
+// never heard.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -98,6 +104,10 @@ export class ViewHub {
   private readonly feeds = new Map<number, Set<PushClient>>();
   /** user → every client they have open, for panel rows (lib/panelRows) aimed at people. */
   private readonly people = new Map<number, Set<PushClient>>();
+  /** team key → rows-only listeners (a web ticket's teams, any ticket's `teamIds`): rows, never views. */
+  private readonly rowTeams = new Map<string, Set<PushClient>>();
+  /** event → rows-only listeners on the board (web tickets): its room's rows, never its tile views. */
+  private readonly rowEvents = new Map<number, Set<PushClient>>();
   /** event → stream overlays watching it (see the header: they only ever get a nudge). */
   private readonly watchers = new Map<number, Set<Watcher>>();
   /** event → its pending nudge, gathered and spaced like a view build. */
@@ -109,10 +119,15 @@ export class ViewHub {
 
   /** Subscribe a client to its scope and send it what's current; the returned function unsubscribes. */
   add(client: PushClient): () => void {
-    // The team belongs to the first board (the seat's); any other board is watched without one.
-    const keys = client.scope.eventIds.map((e, n) => teamKey(e, n === 0 ? client.scope.teamId : null));
+    const sc = client.scope;
+    // The team belongs to the first board (the seat's); any other board is watched without one. A web
+    // client holds no view at all.
+    const keys = sc.web ? [] : sc.eventIds.map((e, n) => teamKey(e, n === 0 ? sc.teamId : null));
+    const rowKeys = rowTeamKeys(sc);
+    const boards = sc.web ? this.rowEvents : this.events;
     for (const k of keys) addTo(this.teams, k, client);
-    for (const e of client.scope.eventIds) addTo(this.events, e, client);
+    for (const k of rowKeys) addTo(this.rowTeams, k, client);
+    for (const e of sc.eventIds) addTo(boards, e, client);
     if (client.scope.feed) addTo(this.feeds, client.scope.userId, client);
     addTo(this.people, client.scope.userId, client);
     for (const k of keys) {
@@ -131,9 +146,10 @@ export class ViewHub {
         this.views.get(k)?.owed.delete(client);
         if (!this.teams.has(k)) this.drop(k);
       }
-      for (const e of client.scope.eventIds) {
-        removeFrom(this.events, e, client);
-        if (!this.events.has(e)) for (const k of [...this.views.keys()]) if (parseViewKey(k)?.eventId === e) this.drop(k);
+      for (const k of rowKeys) removeFrom(this.rowTeams, k, client);
+      for (const e of sc.eventIds) {
+        removeFrom(boards, e, client);
+        if (!sc.web && !this.events.has(e)) for (const k of [...this.views.keys()]) if (parseViewKey(k)?.eventId === e) this.drop(k);
       }
     };
   }
@@ -200,7 +216,16 @@ export class ViewHub {
     // The people named first: they're the ones a row was meant for as it is (a staff member watching
     // the board from their home board is named too, and gets the chips).
     for (const u of notice.u ?? []) send(this.people.get(u));
-    if (notice.e != null) send(notice.t != null ? this.teams.get(teamKey(notice.e, notice.t)) : this.events.get(notice.e), true);
+    if (notice.e != null) {
+      if (notice.t != null) {
+        const k = teamKey(notice.e, notice.t);
+        send(this.teams.get(k), true);
+        send(this.rowTeams.get(k), true);
+      } else {
+        send(this.events.get(notice.e), true);
+        send(this.rowEvents.get(notice.e), true);
+      }
+    }
     // A feed row on a board is news for its overlays' feed view (a reaction count isn't).
     if (notice.e != null && notice.m.t !== 'rowsreact') this.nudge(notice.e);
   }
@@ -229,6 +254,9 @@ export class ViewHub {
     // listens. A newly seated player isn't on this board's room yet (their ticket predates the seat),
     // so nothing below would reach them — and their chat and Feed rows would wait for a config poll.
     for (const u of change.p ?? []) for (const c of [...(this.people.get(u) ?? [])]) c.rescope?.();
+    // Rows-only listeners on a team somebody just left re-ticket too (they hold no view, so nothing
+    // below reaches them).
+    if (change.x != null) for (const c of [...(this.rowTeams.get(teamKey(change.e, change.x)) ?? [])]) c.rescope?.();
     const onBoard = this.events.get(change.e);
     if (!onBoard) return;
     // A ticket's team was true when the site signed it. When somebody leaves a team, that team's
@@ -262,6 +290,15 @@ export class ViewHub {
   refreshAll(): void {
     for (const k of this.teams.keys()) this.schedule(this.view(k));
     for (const e of this.watchers.keys()) this.nudge(e);
+    // Web pages hold no view to rebuild: rows may have gone unheard, so they check once.
+    const sent = new Set<PushClient>();
+    for (const set of this.rowEvents.values()) {
+      for (const c of set) {
+        if (sent.has(c)) continue;
+        sent.add(c);
+        c.send(NUDGE);
+      }
+    }
   }
 
   /** Tell an event's overlays to fetch: gathered for a moment, then at most once per gap. */
@@ -346,6 +383,16 @@ export class ViewHub {
     const t = setTimeout(fn, ms);
     return () => clearTimeout(t);
   }
+}
+
+/** The rows-only team rooms a scope listens in, on its first board: a web ticket's own team, and `teamIds`. */
+function rowTeamKeys(scope: PushScope): string[] {
+  const first = scope.eventIds[0];
+  if (first == null) return [];
+  const teams = new Set<number>(scope.teamIds ?? []);
+  if (scope.web && scope.teamId != null) teams.add(scope.teamId);
+  else if (scope.teamId != null) teams.delete(scope.teamId); // already in its view room
+  return [...teams].map((t) => teamKey(first, t));
 }
 
 function addTo<K>(map: Map<K, Set<PushClient>>, key: K, client: PushClient): void {

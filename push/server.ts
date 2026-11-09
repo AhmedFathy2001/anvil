@@ -115,14 +115,19 @@ const server = http.createServer((req, res) => {
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url ?? '/', 'http://push');
   const auth = req.headers.authorization ?? '';
-  const ticket = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const headerTicket = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  // The website's Feed & chat page (a browser: no headers on a WebSocket) brings its ticket in the
+  // address instead. Only a web ticket may come that way; the header, the plugin's, wins when both are.
+  const queryTicket = headerTicket ? '' : (url.searchParams.get('ticket') ?? '').trim();
+  const ticket = headerTicket || queryTicket;
   // A stream overlay (a browser: it can't send the plugin's Authorization header) on the same path.
   const overlayKey = url.searchParams.get('overlay');
   if (url.pathname === PATH && !ticket && overlayKey != null) {
     void acceptOverlay(req, socket, head, overlayKey);
     return;
   }
-  const scope = url.pathname === PATH && ticket ? verifyTicket(ticket, key, Date.now()) : null;
+  const verified = url.pathname === PATH && ticket ? verifyTicket(ticket, key, Date.now()) : null;
+  const scope = verified && (headerTicket || verified.web) ? verified : null;
   if (!scope) {
     socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
     return;
@@ -130,7 +135,7 @@ server.on('upgrade', (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => {
     alive.add(ws);
     ws.on('pong', () => alive.add(ws));
-    // Nothing comes the other way; the plugin only listens.
+    // Nothing comes the other way; the plugin (and the web page) only listens.
     ws.on('message', () => ws.close(1003, 'listen only'));
     // Hello first: the views follow, the cached ones straight away.
     ws.send(JSON.stringify({ t: 'hello' }));

@@ -264,3 +264,19 @@ test('the pulse moves with a new line and a new moment, and holds still otherwis
   assert.equal(c.c, b.c);
   assert.notEqual(c.f, b.f);
 });
+
+test('the push ticket follows chatAccess: a player their team, a host every team, “Only my team’s chat” theirs, an outsider none', async () => {
+  const rik = await L.liveTicket(await access('Rikkert'), u.Rikkert);
+  assert.deepEqual(rik, { userId: u.Rikkert, eventIds: [eventId], teamId: ruby, rows: true, web: true });
+  const kev = await L.liveTicket(await access('Kev'), u.Kev);
+  assert.deepEqual(kev, { userId: u.Kev, eventIds: [eventId], teamId: null, rows: true, web: true, teamIds: [ruby, jade] });
+  // Mara chose "Only my team's chat" above: just Jade, like a player.
+  let mara = await access('Mara');
+  assert.equal(mara.ownTeamOnly, true);
+  assert.deepEqual(await L.liveTicket(mara, u.Mara), { userId: u.Mara, eventIds: [eventId], teamId: jade, rows: true, web: true });
+  assert.deepEqual(await L.liveChatAct(req(), mara, u.Mara, { action: 'own-team', on: false }), { ok: true });
+  mara = await access('Mara');
+  assert.deepEqual((await L.liveTicket(mara, u.Mara))?.teamIds, [ruby]);
+  assert.equal(await L.liveTicket(await access('Stranger'), u.Stranger), null);
+  assert.equal(await L.liveTicket(null, u.Stranger), null);
+});
