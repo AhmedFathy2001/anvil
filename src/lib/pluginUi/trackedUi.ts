@@ -1,3 +1,4 @@
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { type Action, type Node, col, count, row, text } from './nodes';
 import { FAINT, PROGRESS, SOFT, clip, link, section, title } from './sections';
 
@@ -30,4 +31,18 @@ export function trackedCard(rows: PinRow[], eventId: number, then: Action): Node
     row(undefined, title('Tracked on screen'), rows.length > 1 && here > 1 ? link('Untrack all', { a: 'pin', event: eventId, tile: 0, on: false, then }, 'Take every tile pinned on this board off the screen') : undefined),
     ...lines,
   ], { gap: 5 });
+}
+
+/**
+ * Of tiles looked up by id, the ones the board shows its viewers: its tiles revealed at all, and past
+ * the reveal rules (an unannounced mission or a not-yet-drawn tile never gets a label). Pure.
+ */
+export function revealedTileIds<T extends { id: number; eventId: number }>(found: T[], evs: { id: number; rules: string | null; tilesRevealed: boolean | number | null }[]): Set<number> {
+  const shown = new Set<number>();
+  for (const ev of evs) {
+    if (!ev.tilesRevealed) continue;
+    const mine = found.filter((f) => f.eventId === ev.id);
+    for (const t of visibleTiles(parseEventRules(ev.rules), mine as never[]) as T[]) shown.add(t.id);
+  }
+  return shown;
 }

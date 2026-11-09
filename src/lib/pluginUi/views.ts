@@ -1,6 +1,6 @@
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
-import { and, eq, ilike, inArray, or } from 'drizzle-orm';
-import { type PinRow, trackedCard } from './trackedUi';
+import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { type PinRow, revealedTileIds, trackedCard } from './trackedUi';
 
 import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
@@ -629,7 +629,9 @@ async function homeView(request: Request, a: Args): Promise<View> {
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
 }
 
-const pinsOf = (a: Args): number[] => (a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : []);
+/** At most this many pin ids are read from one request. */
+const MAX_PIN_IDS = 50;
+const pinsOf = (a: Args): number[] => (a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, MAX_PIN_IDS) : []);
 
 /**
  * Every pinned tile with its name, board and count. The addressed board's come from the config's
@@ -651,8 +653,16 @@ export async function pinRowsFor(pins: number[], cfg: { event?: { id: number } |
   if (here) names.set(here, names.get(here) ?? '');
   if (rest.length && names.size) {
     // clan-scope: global -- limited to the boards this caller's own config lists.
-    const found = await db.select({ id: tiles.id, label: tiles.label, eventId: tiles.eventId }).from(tiles).where(and(inArray(tiles.id, rest), inArray(tiles.eventId, [...names.keys()])));
-    for (const f of found) rows.push({ tileId: f.id, label: f.label, eventId: f.eventId, board: f.eventId === here ? null : names.get(f.eventId) ?? null, cur: null, goal: null, done: false });
+    const [found, evs] = await Promise.all([
+      db.select().from(tiles).where(and(inArray(tiles.id, rest), inArray(tiles.eventId, [...names.keys()]), isNull(tiles.parentTileId))),
+      db.select({ id: events.id, rules: events.rules, tilesRevealed: events.tilesRevealed }).from(events).where(inArray(events.id, [...names.keys()])),
+    ]);
+    // Only what the board itself shows this viewer: revealed boards, tiles past the reveal rules (no hidden missions).
+    const shown = revealedTileIds(found, evs);
+    for (const f of found) {
+      if (!shown.has(f.id)) continue;
+      rows.push({ tileId: f.id, label: f.label, eventId: f.eventId, board: f.eventId === here ? null : names.get(f.eventId) ?? null, cur: null, goal: null, done: false });
+    }
   }
   const order = new Map(pins.map((id, i) => [id, i]));
   return rows.sort((x, y) => order.get(x.tileId)! - order.get(y.tileId)!);

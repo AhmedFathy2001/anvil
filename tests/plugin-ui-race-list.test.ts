@@ -89,3 +89,14 @@ test('every live board row has rank, bar, count and the clock', () => {
   assert.ok(t.some((x) => /^Ends \d+ \w+$/.test(x)), 'a far-off end is a date');
   assert.equal(t.filter((x) => x === '2 / 9 tiles').length, 2);
 });
+
+test('a pin on a tile of an unrevealed board, or one the reveal rules hide, resolves to no label', async () => {
+  const { revealedTileIds } = await import('../src/lib/pluginUi/trackedUi');
+  const rules = JSON.stringify({ revealPolicy: 'bounty' });
+  const found = [{ id: 1, eventId: 10 }, { id: 2, eventId: 11 }];
+  // Event 11 hasn't revealed its tiles: nothing from it.
+  assert.deepEqual([...revealedTileIds(found, [{ id: 10, rules: null, tilesRevealed: true }, { id: 11, rules: null, tilesRevealed: false }])], [1]);
+  // A reveal-policy board: a tile that hasn't been drawn stays out.
+  const hidden = revealedTileIds([{ id: 5, eventId: 12, revealedAt: null, tileType: 'drop' }], [{ id: 12, rules, tilesRevealed: true }]);
+  assert.equal(hidden.has(5), false);
+});
