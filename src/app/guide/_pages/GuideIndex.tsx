@@ -208,6 +208,11 @@ export default async function GuideIndex({ lang, tab = 'anvil' }: { lang: string
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-gold sm:text-3xl">{t.index.title}</h1>
         <p className="mt-1 text-sm text-text-muted">{rt(t.index.dek)}</p>
+        <p className="mt-2 text-[13px] text-text-muted">
+          <ClanLink href="/whats-new" className="text-gold hover:text-gold-light">
+            What&rsquo;s new on Anvil &rarr;
+          </ClanLink>
+        </p>
       </header>
 
       <GuideTabs

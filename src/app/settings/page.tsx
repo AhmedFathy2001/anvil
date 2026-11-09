@@ -1,6 +1,7 @@
 import { settingsCharacters } from '@/lib/settingsData';
 import { MEMBER_SETTINGS_CARDS, resolveMemberHref } from '@/lib/memberSettingsIndex';
 import { settingsSession } from '@/app/settings/settingsSession';
+import ClanLink from '@/components/ClanLink';
 import { SettingsTitle } from './_ui';
 import { MemberSettingsSearch, SettingsCard } from './SettingsHub';
 
@@ -37,6 +38,14 @@ export default async function SettingsHome() {
           ))}
         </div>
       </section>
+
+      <p className="mt-8 text-[13px] text-text-muted">
+        Looking for something that changed lately?{' '}
+        <ClanLink href="/whats-new" className="text-gold hover:text-gold-light">
+          See what&rsquo;s new
+        </ClanLink>
+        .
+      </p>
     </>
   );
 }

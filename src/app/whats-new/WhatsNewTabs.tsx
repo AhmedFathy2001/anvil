@@ -3,9 +3,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
 import { setUrlParams } from '@/lib/urlState';
-import { WHATS_NEW_TAB_PARAM, type WhatsNewTab } from '@/lib/whatsNew';
+import { WHATS_NEW_SEEN_EVENT, WHATS_NEW_SEEN_KEY, WHATS_NEW_TAB_PARAM, type WhatsNewTab } from '@/lib/whatsNew';
 
-const SEEN_KEY = 'anvil.whatsNew.seen';
+const SEEN_KEY = WHATS_NEW_SEEN_KEY;
 
 /** The newest entry date the viewer had already seen on their last visit, or null (first visit / no storage). */
 const SeenContext = createContext<string | null>(null);
@@ -42,6 +42,7 @@ export default function WhatsNewTabs({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
       setSeen(localStorage.getItem(SEEN_KEY));
       localStorage.setItem(SEEN_KEY, newest);
+      window.dispatchEvent(new Event(WHATS_NEW_SEEN_EVENT));
     } catch {
       // Private window or blocked storage: no badges, nothing else lost.
     }

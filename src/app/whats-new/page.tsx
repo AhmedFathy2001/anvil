@@ -15,18 +15,17 @@ import {
   WHATS_NEW,
   WHATS_NEW_TAB_PARAM,
   bucketEntries,
-  entryDate,
-  groupByDate,
+  forYouCards,
   pickTab,
   hasClanLinks,
-  isForViewer,
   resolveLinks,
   signInHref,
   type Viewer,
   type WhatsNewEntry,
 } from '@/lib/whatsNew';
 import ClanLink from '@/components/ClanLink';
-import WhatsNewTabs, { NewBadge } from './WhatsNewTabs';
+import WhatsNewTabs from './WhatsNewTabs';
+import WhatsNewList, { type ListItem } from './WhatsNewList';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,19 +92,11 @@ export default async function WhatsNewPage({ searchParams }: { searchParams: Pro
           panel: (
             <section aria-label={b.label}>
               {b.id === 'you' && whoNote(viewer) && <p className="mb-4 text-[13px] text-text-dim">{whoNote(viewer)}</p>}
-              {groupByDate(b.entries).map((g) => (
-                <div key={g.date} className="mb-8">
-                  <h2 className="mb-3 flex items-center gap-2.5 text-[15px] font-semibold">
-                    <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
-                    <time dateTime={g.date}>{entryDate(g.date)}</time>
-                  </h2>
-                  <ol className="grid gap-3">
-                    {g.entries.map((e) => (
-                      <EntryCard key={e.id} entry={e} viewer={viewer} tagged={b.id !== 'you' && isForViewer(e, viewer)} />
-                    ))}
-                  </ol>
-                </div>
-              ))}
+              <WhatsNewList
+                items={(b.id === 'you' ? forYouCards(b.entries, viewer) : b.entries.map((entry) => ({ entry, chips: [] as string[] }))).map(
+                  ({ entry, chips }) => toItem(entry, chips, viewer),
+                )}
+              />
             </section>
           ),
         }))}
@@ -114,53 +105,18 @@ export default async function WhatsNewPage({ searchParams }: { searchParams: Pro
   );
 }
 
-function EntryCard({ entry, viewer, tagged = false }: { entry: WhatsNewEntry; viewer: Viewer; tagged?: boolean }) {
-  const links = resolveLinks(entry, viewer);
-  const clanHint = !viewer.signedIn && hasClanLinks(entry);
-  return (
-    <li className="rounded-xl border border-card-border bg-card-bg p-4 sm:p-5">
-      <h3 className="text-[15.5px] font-semibold">
-        {entry.title}
-        <NewBadge date={entry.date} />
-        {tagged && (
-          <span className="ml-2 rounded-full border border-gold/40 px-2 py-0.5 align-middle text-[11px] font-medium text-gold">
-            For you
-          </span>
-        )}
-      </h3>
-      <p className="mt-1.5 text-[14px] leading-relaxed text-text-muted">{entry.body}</p>
-      {entry.pluginUpdate === 'next' && (
-        <p className="mt-2 text-[12.5px] text-text-dim">Coming in the next plugin update. RuneLite installs it for you.</p>
-      )}
-      {(links.length > 0 || clanHint) && (
-        <ul className="mt-3 flex flex-wrap items-center gap-2 text-[13.5px]">
-          {links.map((l) => (
-            <li key={`${l.href}|${l.label}`} className="max-w-full">
-              <ClanLink
-                href={l.href}
-                className="inline-flex max-w-full items-center gap-1 rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 font-medium text-gold transition-colors hover:border-gold hover:bg-gold/20"
-              >
-                <span className="truncate">{l.signIn ? `Sign in to ${lowerFirst(l.label)}` : l.label}</span>
-                <span aria-hidden>&rarr;</span>
-              </ClanLink>
-            </li>
-          ))}
-          {clanHint && (
-            <li className="text-text-dim">
-              <ClanLink href={signInHref('/whats-new')} className="underline-offset-2 hover:text-foreground hover:underline">
-                Sign in
-              </ClanLink>{' '}
-              for a link to your clan&rsquo;s page
-            </li>
-          )}
-        </ul>
-      )}
-    </li>
-  );
-}
-
-function lowerFirst(s: string): string {
-  return s.charAt(0).toLowerCase() + s.slice(1);
+function toItem(entry: WhatsNewEntry, chips: string[], viewer: Viewer): ListItem {
+  return {
+    id: entry.id,
+    date: entry.date,
+    title: entry.title,
+    body: entry.body,
+    chips,
+    links: resolveLinks(entry, viewer).map((l) => ({ href: l.href, label: l.label, signIn: !!l.signIn })),
+    pluginNext: entry.pluginUpdate === 'next',
+    clanHint: !viewer.signedIn && hasClanLinks(entry),
+    signInHref: signInHref('/whats-new'),
+  };
 }
 
 /** "Picked for your Champion membership and The AFK Spot." Says what the page went on, briefly. */

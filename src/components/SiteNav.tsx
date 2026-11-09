@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
+import WhatsNewNavLink from '@/components/WhatsNewNavLink';
 import NoticeBell from '@/components/NoticeBell';
 import PendingBadge from '@/components/PendingBadge';
 import CreatorChip from '@/components/CreatorChip';
@@ -274,6 +275,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               {l.label}
             </ClanLink>
           ))}
+        <WhatsNewNavLink className="whitespace-nowrap px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all" />
 
         <div className="ml-auto flex items-center gap-1.5 pl-2">
           {/* My teams: a chip with a count, so a second line can never happen. */}
@@ -470,6 +472,10 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                 {l.label}
               </ClanLink>
             ))}
+            <WhatsNewNavLink
+              onClick={() => setOpen(false)}
+              className="px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+            />
             {signedIn && (
               <ClanLink
                 href="/challenges"

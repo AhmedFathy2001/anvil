@@ -3,7 +3,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  RECENT_LIMIT,
   SIGNED_OUT,
+  forYouCards,
+  groupByMonth,
+  splitRecent,
+  unseenCount,
   WHATS_NEW,
   audienceMatches,
   bucketEntries,
@@ -219,4 +224,41 @@ test('every link in the list resolves to a site path for a multi-clan viewer, si
     }
   }
   assert.ok(!resolveLinks(byId('2026-11-07-name-looks'), { ...many, onApex: false }).some((l) => l.href === '/supporter'));
+});
+
+test('unseenCount counts entries newer than the last visit, or recent ones on a first visit', () => {
+  const dates = ['2026-11-09', '2026-11-07', '2026-10-01', '2026-08-01'];
+  assert.equal(unseenCount(dates, '2026-11-07', '2026-11-10'), 1);
+  assert.equal(unseenCount(dates, '2026-11-09', '2026-11-10'), 0);
+  assert.equal(unseenCount(dates, null, '2026-11-10'), 3 - 1); // 30 days: 11-09, 11-07 only
+  assert.equal(unseenCount([], null, 'nope'), 0);
+});
+
+test('forYouCards merges an entry aimed at several of the viewer roles into one chipped card', () => {
+  const v: Viewer = {
+    signedIn: true,
+    tier: 'champion',
+    clans: [{ slug: 'a', name: 'A', kind: 'clan', role: 'admin', boostLevel: 0 }],
+    pluginUser: true,
+    onApex: true,
+  } as Viewer;
+  const e: WhatsNewEntry = {
+    id: 'x',
+    date: '2026-11-01',
+    title: 't',
+    body: 'b',
+    audience: ['supporter', 'clanAdmin', 'clanStaff', 'creatorOwner'],
+  };
+  const cards = forYouCards([e, e], v);
+  assert.equal(cards.length, 1);
+  assert.deepEqual(cards[0].chips, ['Supporter', 'Clan admin', 'Clan staff']);
+});
+
+test('splitRecent keeps the newest five and groupByMonth buckets the rest', () => {
+  const items = Array.from({ length: 8 }, (_, i) => ({ date: i < 6 ? '2026-11-0' + (9 - i) : '2026-10-0' + (9 - i) }));
+  const { recent, older } = splitRecent(items);
+  assert.equal(recent.length, RECENT_LIMIT);
+  assert.equal(older.length, 3);
+  const months = groupByMonth(older);
+  assert.deepEqual(months.map((m) => [m.label, m.items.length]), [['November 2026', 1], ['October 2026', 2]]);
 });

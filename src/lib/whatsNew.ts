@@ -476,3 +476,103 @@ export function groupByDate(entries: WhatsNewEntry[]): { date: string; entries: 
   }
   return out;
 }
+
+// =============================================================================
+// Discoverability and the short list
+// =============================================================================
+
+/** localStorage key holding the newest entry date the viewer had seen (shared by the page and the header). */
+export const WHATS_NEW_SEEN_KEY = 'anvil.whatsNew.seen';
+
+/** Fired on window by the page after it records a visit, so the header dot clears without a reload. */
+export const WHATS_NEW_SEEN_EVENT = 'anvil:whatsNewSeen';
+
+/** A first visit (nothing stored) only counts entries this recent, so a new reader is not told "40 new". */
+const FIRST_VISIT_DAYS = 30;
+
+/**
+ * How many entries are newer than the viewer's last visit. `seen` is the stored date (null: never
+ * visited, or no storage); `today` is YYYY-MM-DD.
+ */
+export function unseenCount(dates: string[], seen: string | null, today: string): number {
+  if (seen) return dates.filter((d) => d > seen).length;
+  const t = Date.parse(`${today}T00:00:00Z`);
+  if (Number.isNaN(t)) return 0;
+  const cutoff = new Date(t - FIRST_VISIT_DAYS * 86_400_000).toISOString().slice(0, 10);
+  return dates.filter((d) => d >= cutoff).length;
+}
+
+/** Entries dated after `seen`, for the banner. With nothing stored, none (the header dot covers first visits). */
+export function unseenEntries(entries: WhatsNewEntry[], seen: string | null): WhatsNewEntry[] {
+  return seen ? entries.filter((e) => e.date > seen) : [];
+}
+
+/** Short role labels for the audiences of an entry that put it in front of this viewer. */
+export function roleChips(entry: WhatsNewEntry, v: Viewer): string[] {
+  const aud = entry.audience?.length ? entry.audience : (['everyone'] as Audience[]);
+  const out: string[] = [];
+  for (const a of aud) {
+    if (a === 'everyone' || !audienceMatches(a, v)) continue;
+    let label: string;
+    if (typeof a === 'object') {
+      const r = a.clan.role;
+      label = a.clan.kind === 'creator' ? 'Creator' : r === 'admin' || r === 'owner' ? 'Clan admin' : r === 'staff' ? 'Clan staff' : 'Clan';
+      if (a.clan.boost) label = 'Boosted clan';
+    } else {
+      label = {
+        supporter: 'Supporter',
+        'champion+': 'Champion',
+        patron: 'Patron',
+        clanStaff: 'Clan staff',
+        clanAdmin: 'Clan admin',
+        boostedClan: 'Boosted clan',
+        boostedClan2: 'Boosted clan',
+        creatorOwner: 'Creator',
+        pluginUser: 'Plugin',
+      }[a];
+    }
+    if (!out.includes(label)) out.push(label);
+  }
+  return out;
+}
+
+export interface ForYouCard {
+  entry: WhatsNewEntry;
+  chips: string[];
+}
+
+/** "For you": one card per entry however many of the viewer's roles it targets, chips saying why. */
+export function forYouCards(entries: WhatsNewEntry[], v: Viewer): ForYouCard[] {
+  const seen = new Set<string>();
+  const out: ForYouCard[] = [];
+  for (const e of entries) {
+    if (seen.has(e.id) || !isForViewer(e, v)) continue;
+    seen.add(e.id);
+    out.push({ entry: e, chips: roleChips(e, v) });
+  }
+  return out;
+}
+
+/** How many entries a tab shows before "Show older". */
+export const RECENT_LIMIT = 5;
+
+/** The newest `limit` items and the rest (input is newest first). */
+export function splitRecent<T>(items: T[], limit = RECENT_LIMIT): { recent: T[]; older: T[] } {
+  return { recent: items.slice(0, limit), older: items.slice(limit) };
+}
+
+/** "November 2026" groups, newest first, for the older entries. */
+export function groupByMonth<T extends { date: string }>(items: T[]): { month: string; label: string; items: T[] }[] {
+  const out: { month: string; label: string; items: T[] }[] = [];
+  for (const it of items) {
+    const month = it.date.slice(0, 7);
+    const last = out[out.length - 1];
+    if (last && last.month === month) last.items.push(it);
+    else {
+      const d = new Date(`${month}-01T00:00:00Z`);
+      const label = Number.isNaN(d.getTime()) ? month : d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      out.push({ month, label, items: [it] });
+    }
+  }
+  return out;
+}
