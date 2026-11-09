@@ -176,8 +176,8 @@ test('validation names what is wrong and passes a good route', () => {
 });
 
 test('templates produce valid routes for many sizes', () => {
-  for (const kind of ['line', 'lanes2', 'braid3', 'diamond'] as const) {
-    for (let n = 1; n <= 14; n++) {
+  for (const kind of ['line', 'lanes2', 'braid3', 'braid5', 'diamond'] as const) {
+    for (let n = 1; n <= 32; n++) {
       const ids = Array.from({ length: n }, (_, i) => i + 1);
       const route = applyRouteTemplate(kind, ids);
       assert.equal(route.length, n, `${kind} ${n}`);
@@ -191,6 +191,11 @@ test('templates produce valid routes for many sizes', () => {
   assert.deepEqual(braid.find((e) => e.id === 2)!.next, [5], 'roads run straight…');
   assert.deepEqual([...braid.find((e) => e.id === 5)!.next].sort(), [8, 9], '…then may swap to a neighbour');
   assert.deepEqual(braid.filter((e) => e.step === 4).map((e) => e.id), [11], 'a single finish');
+  // Five roads over eight steps (32 tiles): one start, five roads swapping with neighbours, one finish.
+  const five = applyRouteTemplate('braid5', Array.from({ length: 32 }, (_, i) => i + 1));
+  assert.deepEqual(five.map((e) => e.step).filter((s, i, a) => a.indexOf(s) === i).length, 8);
+  assert.deepEqual([...five.find((e) => e.id === 1)!.next].sort((a, b) => a - b), [2, 3, 4, 5, 6], 'it branches into five roads');
+  assert.equal(five.filter((e) => e.step === 1).length, 5);
   // Two roads: one start, one finish too.
   const two = applyRouteTemplate('lanes2', [1, 2, 3, 4, 5, 6]);
   assert.deepEqual(two.map((e) => e.step), [0, 1, 1, 2, 2, 3]);

@@ -3,8 +3,8 @@ import type { buildBoard } from '@/app/api/plugin/board/route';
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
 import { BLUE, CARD_W, FAINT, GOLD, GREEN, PROGRESS, SOFT, chip, clip, goldCard, more, section, small, title } from './sections';
-import { roadBadge, trackStops, whereCard } from './raceUi';
-import { raceGraph, raceTileInfo, roadChoiceLine, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
+import { namesCard, raceWhoCards, roadBadge, trackStops, whereCard, whereItGoes } from './raceUi';
+import { raceGraph, raceTileInfo, roadChoiceLine, roadOf, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
 import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
 // The board's "All tiles" page in the plugin's side panel (was the catalogue in AnvilSidebarPanel):
@@ -312,35 +312,40 @@ export function raceModel(board: Board): { graph: RaceGraph; route: TeamRoute | 
   return { graph, route };
 }
 
-/** A race tile's banner in its detail: Locked / Next / Done, why, where it leads and where it's reached from. */
-function raceDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardContext): Node[] {
+const RACE_CHIP: Record<RaceTileState | 'pick', [string, Parameters<typeof chip>[1]]> = {
+  open: ['Do this next', 'gold'],
+  pick: ['Pick one', 'gold'],
+  done: ['Done', 'green'],
+  ahead: ['Locked', 'grey'],
+  closed: ['Off your road', 'grey'],
+};
+
+/**
+ * A race tile in its detail: the step and road over the name, its state as the chip (Locked, Do this
+ * next, …), why in one quiet line, and "Where it goes" with tile links. Locked tiles offer no claim,
+ * note or tracking. Null off a race, and for a spectator (no road of its own).
+ */
+function raceDetail(board: Board, t: BoardTile) {
   const m = raceModel(board);
-  if (!m || !m.graph.byId.has(t.tileId)) return [];
+  if (!m || !m.route || !m.graph.byId.has(t.tileId)) return null;
+  const route = m.route;
   const tiles = board.tiles as BoardTile[];
   const label = (id: number) => tiles.find((x) => x.tileId === id)?.label?.trim() || `Tile ${id}`;
-  const info = raceTileInfo(m.graph, m.route, t.tileId, label)!;
-  const color: Color = info.state === 'open' ? 'brand' : info.state === 'done' ? 'done' : 'muted';
-  const head = info.state === 'open' ? '▸ Next for your team' : info.state === 'done' ? '✓ Done' : info.state === 'closed' ? '🔒 Locked' : info.state === 'ahead' ? '🔒 Locked' : info.stepLine;
-  const chips = (ids: number[]) => ids.map((id) => text(`· ${label(id)}`, 'white', { tip: 'Open this tile', on: pane(`t:${id}`) }));
-  const out: Node[] = [
-    card([
-      text(head, color, { font: 'bold' }),
-      muted(`${info.stepLine} · road ${info.road}`),
-      ...(info.why ? [text(info.why, info.state === 'open' ? 'text' : 'muted', { wrap: true })] : []),
-      ...(m.route?.pickFrom.includes(t.tileId) && !ctx.claimBlock
-        ? [gap(4), button('Pick this road', { a: 'post', act: 'race-pick', args: args(s, { tile: String(t.tileId) }) }, 'Lock in this tile for your team — a pick can’t be changed')]
-        : []),
-    ]),
-    gap(6),
-  ];
-  if (info.leadsTo.length) out.push(muted('Leads to:'), ...chips(info.leadsTo), gap(4));
-  if (info.reachedFrom.length) out.push(muted('Reached from:'), ...chips(info.reachedFrom), gap(4));
-  const here = board.teams.filter((tm) => {
-    const done = tm.completedTileIds;
-    return done.includes(t.tileId) && !m.graph.byId.get(t.tileId)!.next.some((n) => done.includes(n));
-  });
-  if (here.length) out.push(muted(`On it now: ${here.map((tm) => tm.name).slice(0, 4).join(', ')}${here.length > 4 ? ` +${here.length - 4}` : ''}`, { wrap: true }), gap(4));
-  return out;
+  const info = raceTileInfo(m.graph, route, t.tileId, label)!;
+  const state: RaceTileState | 'pick' = route.pickFrom.includes(t.tileId) ? 'pick' : route.state.get(t.tileId) ?? 'ahead';
+  const roads = (m.graph.steps[m.graph.byId.get(t.tileId)!.step]?.length ?? 0) > 1;
+  // Many ways in make a long list of names: say which step instead (Where it goes links them).
+  const ways = (m.graph.prev.get(t.tileId) ?? []).length;
+  const why = state === 'done' ? '' : state === 'ahead' && ways > 2 ? `Finish a step ${m.graph.byId.get(t.tileId)!.step} tile to open this.` : info.why.replace(/^(Locked|Fork|Next for your team)( —\s*|\.$)/, '').replace(/^\w/, (c) => c.toUpperCase());
+  return {
+    state,
+    locked: state === 'ahead' || state === 'closed',
+    where: `${info.stepLine}${roads ? ` · Road ${roadOf(m.graph, t.tileId)}` : ''}`,
+    chip: chip(...RACE_CHIP[state]),
+    why: why ? text(why, FAINT, { font: 'small', wrap: CARD_W }) : null,
+    goes: whereItGoes(m.graph, route, t.tileId, label, (id) => pane(`t:${id}`)),
+    who: raceWhoCards(m.graph, board, racePayload(board)?.standings ?? [], t.tileId, 'Teams done'),
+  };
 }
 
 /**
@@ -406,12 +411,10 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
           ? 'Click for details · join this event to claim tiles.'
           : 'Click for details · claims aren’t available on this site.';
   const reload = list({ ...s, page: 0 });
-  const header = listHeader(board);
   return col([
     // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
     boardFeedLinks(ctx.eventId, ctx.feedBack, ctx.feedTab, ctx.chatOn ?? true),
     gap(8),
-    ...(header ? [header, gap(8)] : []),
     row(text(`${tiles.length} tile${tiles.length === 1 ? '' : 's'}${hidden}`, SOFT, { font: 'small' }), undefined, undefined),
     gap(4),
     { t: 'input', name: 'q', kind: 'search', value: s.q, label: `Search ${tiles.length} tiles…`, tip: 'Search tile names, descriptions, requirements and categories', on: reload },
@@ -445,11 +448,14 @@ export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open
   const all = board.tiles as BoardTile[];
   const found = groupOrder(filterTiles(all, s.q, s.status, s.pre, ctx.progress), all, s);
   const chips = s.pre ? null : filterChips(s, !!racePayload(board));
-  if (!found.length && !open) return col([...(chips ? [chips, gap(6)] : []), muted('No matching tiles.')]);
+  // The race's top card and road head the list panes only: an open tile's detail starts at the top.
+  const header = s.pre ? null : listHeader(board);
+  const withHead = (n: Node): Node => (header ? col([header, n], { gap: 8 }) : n);
+  if (!found.length && !open) return withHead(col([...(chips ? [chips, gap(6)] : []), muted('No matching tiles.')]));
   const pages = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
   const panes: Record<string, Node> = {};
   const groupOf = groupFn(all, s);
-  for (let page = 0; page < pages; page++) panes[`p${page}`] = rowsPage(found, page, pages, { ...s, page }, ctx, chips, groupOf);
+  for (let page = 0; page < pages; page++) panes[`p${page}`] = withHead(rowsPage(found, page, pages, { ...s, page }, ctx, chips, groupOf));
   found.forEach((t, i) => (panes[`t:${t.tileId}`] = tileDetailUi(board, t, { ...s, page: Math.floor(i / PAGE_SIZE) }, ctx)));
   let first = panes[`p${Math.max(0, Math.min(s.page, pages - 1))}`];
   if (open) {
@@ -460,20 +466,33 @@ export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open
   return { t: 'slot', id: 'tile', panes, c: first };
 }
 
-/** All / Open / Done / Locked (a race) or In progress (any other board), as chips that reload the list. */
-function filterChips(s: BoardState, race: boolean): Node {
+/**
+ * The filter chips, three to a row: a race's All · Next for us · Done · Locked, any other board's
+ * All · Not done · In progress · Not started · Done. "Closest first" is a sort, not a filter: a quiet
+ * link under the chips (it lists the tiles not done, furthest along first; "Not done" stays lit).
+ */
+export function filterChips(s: BoardState, race: boolean): Node {
   const opts: { v: Status; label: string }[] = race
-    ? [{ v: 'all', label: 'All' }, { v: 'next', label: 'Open' }, { v: 'done', label: 'Done' }, { v: 'locked', label: 'Locked' }]
-    : [{ v: 'all', label: 'All' }, { v: 'open', label: 'Open' }, { v: 'progress', label: 'Started' }, { v: 'done', label: 'Done' }];
-  return {
+    ? RACE_STATUSES.map((o) => ({ v: o.v, label: o.label }))
+    : STATUSES.filter((o) => o.v !== 'closest').map((o) => ({ v: o.v, label: o.label }));
+  const lit = (v: Status) => s.status === v || (v === 'open' && s.status === 'closest');
+  const grid: Node = {
     t: 'grid',
-    cols: opts.length,
+    cols: 3,
     gap: 4,
     c: opts.map((o) => {
-      const on = s.status === o.v;
+      const on = lit(o.v);
       return text(o.label, on ? '#1e1e1e' : SOFT, { chip: on ? GOLD : '#3a3a3a', font: 'small', align: 'c', tip: `Show ${o.label.toLowerCase()} tiles`, on: list({ ...s, status: o.v, page: 0 }) });
     }),
   };
+  if (race) return grid;
+  const closest = s.status === 'closest';
+  const sort = text(closest ? 'Sort: closest first ✓' : 'Sort: closest first', closest ? GOLD : FAINT, {
+    font: 'small',
+    on: list({ ...s, status: closest ? 'open' : 'closest', page: 0 }),
+    tip: closest ? 'Back to board order' : 'Tiles not done yet, the furthest along first',
+  });
+  return col([grid, row(undefined, undefined, sort)], { gap: 4 });
 }
 
 /** The small header a row sits under: a race's step, or a bingo's category (else its row of a square board). */
@@ -540,7 +559,7 @@ function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext, _inStep = false
   const started = startedCount(t, ctx.progress);
   const done = !s.pre && t.complete;
   const details = t.description?.trim() || t.requirement;
-  const canClaim = ctx.claimBlock == null && !t.complete;
+  const canClaim = ctx.claimBlock == null && !t.complete && raceStateOf(t) !== 'ahead' && raceStateOf(t) !== 'closed';
   const planning = claimLine(t.claims);
   const p = started != null ? ctx.progress.get(t.tileId) : undefined;
   const race = raceStateOf(t);
@@ -679,19 +698,24 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   const moving = !!p && !t.complete && p.current < p.goal && p.goal > 1;
   const live = moving ? { tile: t.tileId, cur: p!.current, goal: p!.goal } : undefined;
   const meta = [t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null, t.category?.trim() ? t.category.trim().replace(/,/g, ' ·') : null].filter(Boolean).join(' · ');
-  const state = s.pre ? (isManual(t) ? chip('Manual', 'blue') : null) : t.complete ? chip('Done', 'green') : closedUndone(t) ? chip('Closed', 'grey') : moving && p!.current > 0 ? chip('In progress', 'gold') : chip(stateText(t, false) ?? 'Open', 'grey');
+  const race = s.pre ? null : raceDetail(board, t);
+  const locked = !!race?.locked;
+  const state = s.pre ? (isManual(t) ? chip('Manual', 'blue') : null) : race && !t.complete ? race.chip : t.complete ? chip('Done', 'green') : closedUndone(t) ? chip('Closed', 'grey') : moving && p!.current > 0 ? chip('In progress', 'gold') : chip(stateText(t, false) ?? 'Open', 'grey');
   out.push(col([
+    ...(race ? [muted(race.where)] : []),
     ...(meta ? [muted(clip(meta, 40))] : []),
     text(name, 'white', { font: 'bold', wrap: 205 }),
     row(state ?? undefined, moving ? text(`${count(p!.current)} of ${count(p!.goal)}`, PROGRESS, { tip: exact(p!.current, p!.goal), live: { ...live!, fmt: 'raw' } }) : undefined, t.points > 1 ? chip(`${t.points} pts`, 'blue') : undefined, { gap: 6 }),
+    ...(race?.why ? [race.why] : []),
   ], { gap: 4 }));
   if (error) out.push(text(error, 'error', { wrap: true }));
-  const race = raceDetailUi(board, t, s, ctx);
-  if (race.length) out.push(section(race));
+  if (race?.state === 'pick' && !ctx.claimBlock) {
+    out.push(button('Pick this road', { a: 'post', act: 'race-pick', args: args(s, { tile: String(t.tileId) }) }, 'Lock in this tile for your team — a pick can’t be changed'));
+  }
 
   // Your claim: the gold card. Not yours: the claim buttons sit with who's planning it.
   const claimed = mine(t.claims);
-  const canClaim = ctx.claimBlock == null && !t.complete;
+  const canClaim = ctx.claimBlock == null && !t.complete && !locked;
   const claimButtons = (): Node | null => {
     if (!canClaim) return null;
     const [first, second] = claimMenu(t, s, ctx);
@@ -706,7 +730,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
     };
   };
   const pin = pinAction(t, s, ctx, list(s, { tile: String(t.tileId) }));
-  const pinNode = pin ? (pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true })) : null;
+  const pinNode = pin && !locked ? (pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true })) : null;
   if (claimed && !t.complete) {
     const note = (t.claims ?? []).find((c) => c.mine)?.note?.trim();
     out.push(goldCard('You’re going for this', [
@@ -741,6 +765,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   if (req && req !== (t.description ?? '').trim() && !lines.includes(req)) what.push(muted(req, { wrap: CARD_W }));
   if (p?.sets) what.push(muted(p.sets, { wrap: CARD_W }));
   if (what.length > 1) out.push(section(what));
+  if (race) out.push(race.goes);
 
   // Who: on it (and who's planning it), finished by, teams done.
   const who = (head: string, list: { name: string; amount: number }[] | undefined, extra: number | undefined, color: Color, foot: Node[] = []): Node | null => {
@@ -760,9 +785,12 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
     if (c) out.push(c);
     else if (notMine.length) out.push(col(notMine));
   }
-  const teamsDone = board.teams.filter((tm) => tm.completedTileIds.includes(t.tileId));
-  if (teamsDone.length) {
-    out.push(section([title('Teams done'), text('', SOFT, { wrap: CARD_W, runs: teamsDone.flatMap((tm, i) => [...(i ? [{ s: ', ' }] : []), { s: `${tm.name ?? 'Team'} ✓`, color: (/^#[0-9a-f]{6}$/i.test(tm.color ?? '') ? tm.color : GREEN) as Color }]) })]));
+  // Teams done (and, on a race, whose road has it open): the first few names, the rest folded.
+  if (race) out.push(...race.who);
+  else {
+    const teamsDone = board.teams.filter((tm) => tm.completedTileIds.includes(t.tileId)).map((tm) => ({ name: tm.name ?? 'Team', color: (/^#[0-9a-f]{6}$/i.test(tm.color ?? '') ? tm.color : GREEN) as Color }));
+    const c = namesCard('Teams done', teamsDone, teamsDone.length === 1 ? 'team' : 'teams', `tile-teams:${t.tileId}`);
+    if (c) out.push(c);
   }
   if (!claimed && pinNode) out.push(pinNode);
   // The team's proofs, fetched when this tile is opened (one tile's, not every pane's): lib/pluginUi proofsUi.

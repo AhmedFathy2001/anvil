@@ -43,7 +43,7 @@ test('the All tiles list: race header and track, chips, step groups, state chips
   const t = texts(ui);
   assert.ok(t.some((x) => /^Step 2 of 4/.test(x)), 'the race page’s top card');
   assert.ok(walk(ui).some((x) => x.t === 'segs') && walk(ui).some((x) => x.t === 'step'));
-  for (const c of ['All', 'Open', 'Done', 'Locked']) assert.ok(t.includes(c), c);
+  for (const c of ['All', 'Next for us', 'Done', 'Locked']) assert.ok(t.includes(c), c);
   assert.ok(!walk(ui).some((x) => x.t === 'input' && x.kind === 'select'), 'no dropdown');
   assert.ok(t.includes('Step 2') && t.includes('Finish'));
   assert.ok(!t.some((x) => /^Step \d · (Kill|One|Vorkath|Barrows|Raid|Wintertodt)/.test(x)), 'no “Step 2 ·” in rows');
