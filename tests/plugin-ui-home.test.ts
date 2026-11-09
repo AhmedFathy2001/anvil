@@ -497,3 +497,13 @@ test('a race board opened from the card is the race page, re-pointed at that boa
   assert.ok(!/"event":"0"/.test(json) && !/"home":"board"/.test(json));
   assert.ok(/"open":"board:9"/.test(json) && /"event":"9"/.test(json));
 });
+
+test('a long mission run stays short: live always, the latest two finished, the next two locked', () => {
+  const gone = Array.from({ length: 6 }, (_, i) => ({ tileId: 100 + i, label: `Old ${i}`, points: 5, revealedAt: '2026-10-26T06:00:00Z', expiresAt: '2026-10-26T07:00:00Z' }));
+  const ui = eventUi(base(liveCfg({
+    event: { id: 5, name: 'Ladder', format: 'ladder', nextRevealAt: '2026-10-26T12:30:00Z', missions: [...gone, { tileId: 1, label: 'Kill 5', points: 100, revealedAt: '2026-10-26T11:00:00Z', expiresAt: null }], lockedMissions: Array.from({ length: 5 }, (_, i) => ({ label: `Soon ${i}` })), monthlyStandings: { yourRank: 2, yourPoints: 340 } },
+  })), 'board')!;
+  const all = texts(ui);
+  assert.ok(all.includes('4 earlier missions finished') && !all.includes('Old 3') && all.includes('Old 4') && all.includes('Old 5'));
+  assert.ok(all.includes('Kill 5') && all.includes('Soon 1') && !all.includes('Soon 2') && all.includes('+3 more locked'));
+});

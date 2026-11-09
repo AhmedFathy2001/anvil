@@ -24,6 +24,11 @@ import { BLUE, CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, big, cells, ch
 // tiles nearest done; a weekly's standings; an upcoming bingo. Pure: views.ts gathers the data.
 
 const NEAREST = 10;
+/** Missions card: the latest finished and next locked missions shown (live ones always). */
+const MISSIONS_DONE_SHOWN = 2;
+const MISSIONS_LOCKED_SHOWN = 2;
+/** Other live boards listed before the rest fold behind a toggle. */
+const SWITCHER_SHOWN = 3;
 /** A weekly's standings show the top ten (then you): one metric, so the top three alone looked empty. */
 const WEEKLY_SHOWN = 10;
 const ACTIVITY_SHOWN = 12;
@@ -771,7 +776,7 @@ function switcher(d: HomeData, current: number): Node | null {
   if (!others.length) return null;
   return section([
     muted('Your other live boards'),
-    ...others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name} · ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), home(`board:${m.eventId}`), `Open ${m.name}`)),
+    ...more(others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name} · ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), home(`board:${m.eventId}`), `Open ${m.name}`)), SWITCHER_SHOWN, `switcher:${current}`),
   ]);
 }
 
@@ -913,31 +918,43 @@ function missionsCard(d: HomeData, e: NonNullable<HomeConfig['event']>, boardTit
   const locked = e.lockedMissions ?? [];
   const none = ladder ? 'Next on a claim' : 'Whenever staff drop it';
   const head = row(undefined, title('Missions'), { t: 'countdown', at: e.nextRevealAt ?? null, prefix: 'Next in ', due: 'Dropping…', none, font: 'small', color: BLUE });
-  const stops: Node[] = [];
-  const total = missions.length + locked.length;
-  missions.forEach((m, i) => {
+  // Built first, drawn after trimming: live missions always show, finished ones only the latest
+  // two and locked ones the next two, so a long event never grows the card without end.
+  type Spec = { kind: 'done' | 'live' | 'locked'; draw: (last: boolean) => Node };
+  const specs: Spec[] = [];
+  missions.forEach((m) => {
     const val = liveValue(m.points, m.revealedAt, e.decay ?? null, d.now);
     const p = tiles.get(m.tileId);
     const hours = m.expiresAt && m.revealedAt ? (ms(m.expiresAt) - ms(m.revealedAt)) / 3_600_000 : null;
     const st = missionTileState({ revealedAt: m.revealedAt, expiryHours: hours != null && Number.isFinite(hours) ? hours : null }, { done: !!p?.complete, now: d.now });
-    const last = i === total - 1;
     const on = openTile(m.tileId, boardTitle);
     const worth = val === m.points ? String(m.points) : `${m.points} → ${val}`;
     if (st.kind === 'done') {
-      stops.push(stop('done', row(undefined, text(clip(m.label, 22), GREEN), muted(worth)), small('Done', GREEN), on, last));
+      specs.push({ kind: 'done', draw: (last) => stop('done', row(undefined, text(clip(m.label, 22), GREEN), muted(worth)), small('Done', GREEN), on, last) });
     } else if (st.kind === 'expired') {
-      stops.push(stop('todo', row(undefined, text(clip(m.label, 22), 'muted'), muted(worth)), small('Expired', FAINT), on, last));
+      specs.push({ kind: 'done', draw: (last) => stop('todo', row(undefined, text(clip(m.label, 22), 'muted'), muted(worth)), small('Expired', FAINT), on, last) });
     } else {
       const prog = p && p.goal > 1 ? ` · ${count(Math.min(p.current, p.goal))}/${count(p.goal)}` : '';
       const sub: Node = m.expiresAt
         ? clock(m.expiresAt, `Live${prog} · ends in `, 'Expired', d.now)
         : small(`Live${val > m.points ? ' · growing' : ''}${prog}`, BLUE);
-      stops.push(stop('now', row(undefined, text(clip(m.label, 22), 'white'), small(worth, val < m.points ? CORAL : val > m.points ? GREEN : SOFT)), sub, on, last));
+      specs.push({ kind: 'live', draw: (last) => stop('now', row(undefined, text(clip(m.label, 22), 'white'), small(worth, val < m.points ? CORAL : val > m.points ? GREEN : SOFT)), sub, on, last) });
     }
   });
-  locked.forEach((m, i) => {
-    stops.push(stop('todo', row(undefined, text(clip(m.label, 22), 'muted'), muted('Locked')), small('Not announced yet', FAINT), undefined, missions.length + i === total - 1));
+  locked.forEach((m) => {
+    specs.push({ kind: 'locked', draw: (last) => stop('todo', row(undefined, text(clip(m.label, 22), 'muted'), muted('Locked')), small('Not announced yet', FAINT), undefined, last) });
   });
+  const finished = specs.filter((x) => x.kind === 'done');
+  const lockedSpecs = specs.filter((x) => x.kind === 'locked');
+  const keepDone = new Set(finished.slice(-MISSIONS_DONE_SHOWN));
+  const keepLocked = new Set(lockedSpecs.slice(0, MISSIONS_LOCKED_SHOWN));
+  const kept = specs.filter((x) => x.kind === 'live' || keepDone.has(x) || keepLocked.has(x));
+  const earlier = finished.length - keepDone.size;
+  const later = lockedSpecs.length - keepLocked.size;
+  const stops: Node[] = [];
+  if (earlier > 0) stops.push(muted(`${earlier} earlier mission${earlier === 1 ? '' : 's'} finished`));
+  stops.push(...kept.map((x, i) => x.draw(i === kept.length - 1)));
+  if (later > 0) stops.push(muted(`+${later} more locked`));
   if (!stops.length) stops.push(muted('Waiting for the next mission…'));
   return section([head, col(stops)]);
 }
