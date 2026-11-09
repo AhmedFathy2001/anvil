@@ -748,7 +748,8 @@ function boardPage(d: HomeData, b: Board, raceRest = false): Node[] {
     const eventId = d.cfg.homeBoard?.eventId ?? 0;
     return [...parts, section([muted(b.note ?? '', { wrap: CARD_W }), button('View the board', { a: 'load', v: 'board', args: { event: String(eventId), back: 'board', backLabel: b.title } })])];
   }
-  parts.push(topCard(d, b, k, tiles));
+  const top = topCard(d, b, k, tiles);
+  if (top) parts.push(top);
   const next = d.live ? nextCard(d, b, k, tiles) : null;
   if (next) parts.push(next);
   if (d.live && (k === 'reveal' || k === 'bounty')) {
@@ -773,7 +774,7 @@ function switcher(d: HomeData, current: number): Node | null {
 }
 
 /** Where you are: the tally, your place, a bar, and one quiet line with the clock. */
-function topCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>): Node {
+function topCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>): Node | null {
   if (b.total <= 0 && k !== 'ladder') return section([big(b.title), muted(b.note ?? 'No active event yet.', { wrap: CARD_W })]);
   const p = placeOf(d);
   const e = d.cfg.event;
@@ -815,11 +816,14 @@ function topCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>):
       row(muted(clip(p.gap ?? 'Solo board', 22)), undefined, ends),
     ]);
   }
+  // A live Point Hunt board with standings: Standings already shows rank and points, and the clock rides on Nearest tiles.
+  if (b.points && hasStandings(d) && nearestOf(tiles).length) return null;
   const head = b.points ? `${count(b.done)} pts` : `${count(b.done)} of ${count(b.total)} tiles`;
   return section([
     row(undefined, big(head), placeNode(p)),
     tally(b.done, b.total, b.points),
-    row(whoLine(b.points ? [`${count(b.total)} pts on the board`] : []), undefined, ends),
+    // The points total and the clock each get room: side by side they ran into each other.
+    ...(b.points ? [whoLine([`${count(b.total)} pts on the board`]), row(undefined, undefined, ends)] : [row(whoLine([]), undefined, ends)]),
   ]);
 }
 
@@ -831,6 +835,16 @@ function tileLine(t: PanelTile, title: string, right?: Node, sub?: Node): Node {
   if (moving && t.current > 0) lines.push(thin(percent(t.current, t.goal), false, { tile: t.tileId, cur: t.current, goal: t.goal }));
   if (sub) lines.push(sub);
   return openRow(text(clip(t.label, 24), '#e6e6e6'), right ?? prog, lines, openTile(t.tileId, title), tileTip(t));
+}
+
+/** The open tiles closest to done, nearest first. */
+function nearestOf(tiles: Map<number, PanelTile>): PanelTile[] {
+  return [...tiles.values()].filter((t) => !t.complete).sort((x, y) => frac(y) - frac(x) || x.position - y.position).slice(0, NEAREST);
+}
+
+/** Whether the board page will show a Standings card with rows (rank and score live there). */
+function hasStandings(d: HomeData): boolean {
+  return !!d.live && !d.standingsNotice && !!(d.soloStandings || d.teamStandings || d.standings.length);
 }
 
 /** At most one gold card: the starting shot, the mission running out, the tile just opened, or the nearest. */
@@ -852,6 +866,14 @@ function nextCard(d: HomeData, b: Board, k: Kind, tiles: Map<number, PanelTile>)
       const t = tiles.get(fresh.tileId)!;
       return goldCard('Up next', [muted(k === 'bounty' ? 'First team to finish it takes the points.' : t.current > 0 ? 'Just opened. Your team is on it.' : 'Just opened. Nobody has it yet.', { wrap: CARD_W }), tileLine(t, b.title, b.points ? chip(`${t.points} pts`, 'blue') : undefined)]);
     }
+  }
+  // A Point Hunt board: its nearest tiles and what each is worth lead the page (one card, not two).
+  if (b.points) {
+    const near = nearestOf(tiles);
+    if (!near.length) return null;
+    const ends = endOf(d) ? clock(endOf(d), 'Ends in ', 'Ended', d.now) : undefined;
+    const foot = hasStandings(d) ? [row(muted(`${count(b.total)} pts on the board`), undefined, ends)] : [];
+    return goldCard('Nearest tiles', [...more(near.map((t) => tileLine(t, b.title, chip(`${t.points} pts`, 'blue'))), 3, `nearest:${b.id}`, 5), ...foot]);
   }
   const nearest = [...tiles.values()].filter((t) => !t.complete).sort((x, y) => frac(y) - frac(x) || x.position - y.position).slice(0, 2);
   if (!nearest.length) return null;
@@ -979,11 +1001,6 @@ function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: 
   const spacer = (): Node[] => ((parts[parts.length - 1] as { card?: boolean } | undefined)?.card ? [] : [gap(8)]);
   if (d.live && b.total > 0 && race) parts.push(...spacer(), button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
   else if (d.live && b.total > 0) {
-    // A points board's nearest tiles and what each is worth; a square bingo has its gold card.
-    if (b.points) {
-      const nearest = [...tiles.values()].filter((t) => !t.complete).sort((x, y) => frac(y) - frac(x) || x.position - y.position).slice(0, NEAREST);
-      if (nearest.length) parts.push(section([title('Nearest tiles'), ...more(nearest.map((t) => tileLine(t, b.title, chip(`${t.points} pts`, 'blue'))), 3, `nearest:${b.id}`, 5)]));
-    }
     parts.push(...spacer(), button(b.points ? 'View all tiles' : `View all ${b.total} tiles`, allTiles(b.title), 'Search the full board, including manual tiles'), { t: 'warm', on: allTiles(b.title) });
   }
   return parts;
