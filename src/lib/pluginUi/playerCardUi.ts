@@ -187,17 +187,14 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   };
   const clues = c.activities.filter((a) => isClue(a.key));
   const minigames = c.activities.filter((a) => !isClue(a.key));
-  // One section: the clue tiers first under a small "Clues" heading, then the other activities.
+  // One section: the clue tiers first, then the other activities, in one grid.
   if (clues.length || minigames.length) {
     const all = clues.find((a) => a.key === 'cluesAll')?.score ?? clues.reduce((t, a) => t + a.score, 0);
     more.push({
       label: 'Minigames & activities',
       summary: clues.length ? `Clues ${fmt(all)}` : String(minigames.length),
-      c: card([
-        ...(clues.length ? [small('Clues', 'muted', { font: 'bold' }), { t: 'grid' as const, cols: 3, gap: 2, vgap: 2, c: clues.map(activityCell) }] : []),
-        ...(clues.length && minigames.length ? [gap(4)] : []),
-        ...(minigames.length ? [{ t: 'grid' as const, cols: 3, gap: 2, vgap: 2, c: minigames.map(activityCell) }] : []),
-      ]),
+      // One grid: clue tiers lead, the other activities follow straight on.
+      c: card([{ t: 'grid' as const, cols: 3, gap: 2, vgap: 2, c: [...clues, ...minigames].map(activityCell) }]),
     });
   }
   if (anvil && c.times.length) more.push({ label: 'Times', summary: `${c.times.length} PB${c.times.length === 1 ? '' : 's'}`, c: times(c) });

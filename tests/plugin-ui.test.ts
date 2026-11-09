@@ -104,7 +104,7 @@ test('panel media, clan mark and this character’s display case are part of the
   const ui = playerCardUi(shown, { sectionKey: 'lookup', cas: false, images: true });
   const images = walk(ui).filter((n): n is Extract<Node, { t: 'img' }> => n.t === 'img');
   assert.ok(walk(ui).some((n) => n.t === 'hero' && n.src?.includes('kind=banner') && n.motion));
-  assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.rad === 4));
+  assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.rad === 6));
   assert.ok(texts(ui).includes('Display case'));
   assert.ok(texts(ui).includes("Tumeken's shadow"));
   assert.ok(texts(ui).includes('The AFK Spot · Ironman · on Anvil'), 'the muted line');
@@ -276,7 +276,7 @@ test('clans: members open in Lookup, compare only when offered, search rows open
   assert.ok(!walk(ui).some((x) => x.t === 'button'));
   assert.ok(texts(ui).includes('Running:') && texts(ui).includes('BOTW Vorkath'));
   const mark = walk(ui).find((n) => n.t === 'img' && n.src.includes('kind=logo')) as Extract<Node, { t: 'img' }>;
-  assert.equal(mark.rad, 4);
+  assert.equal(mark.rad, 6);
   assert.equal(mark.motion, true, 'an uploaded clan logo may animate without the banner boost gate');
   assert.ok(actions(clanSearchUi('afk', [{ slug: 'theafkspot', name: 'The AFK Spot' }])).some((a) => a.a === 'load' && a.v === 'clan'));
 });
