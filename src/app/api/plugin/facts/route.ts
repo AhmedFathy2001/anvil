@@ -4,6 +4,7 @@ import { coalesce, matchFacts, type Credit } from '@/lib/pluginFacts/match';
 import { MAX_FACTS, parseFacts } from '@/lib/pluginFacts/parse';
 import { creditOutcome, planSubmissions, retryFacts, type Coop, type Outcome } from '@/lib/pluginFacts/plan';
 import { readBody, storeImage } from '@/lib/pluginFacts/request';
+import { named } from '@/lib/pluginFacts/rules';
 import { LAB_CLAN_SLUG } from '@/lib/labRules';
 import { newProofKey } from '@/lib/proofAfter';
 import { afterReply, sweepOverdueProofs } from '@/lib/proofFinish';
@@ -144,7 +145,9 @@ export async function POST(request: Request) {
     credits: credits.filter((c) => !(c.kind === 'tile' && (c.tileKind === 'drop' || c.tileKind === 'kill' || c.tileKind === 'value'))).map((c) => ({
       t: c.tileId,
       kind: c.kind,
-      label: c.label,
+      // Another board's tile says which board ("Wintertodt crate · Chat Test"): the plugin's "Tile
+      // complete" line is this label, and two boards can share a tile name.
+      label: named(c),
       amount: c.amount,
       // A refused credit never counted: the count from before it, not the one it would have made.
       have: byTile.get(c.tileId)?.ok === false && byTile.get(c.tileId)?.error !== 'Will retry' ? Math.max(0, c.have - c.amount) : c.have,

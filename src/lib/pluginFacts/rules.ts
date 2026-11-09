@@ -274,7 +274,7 @@ export function buildEventRules(cfg: RulesConfigIn): EventRule[] {
  * Another board's row (tagged by lib/pluginBoardTiles) says which board in its chat line, so one drop
  * on two boards reads as two lines that can be told apart. Plugin-judged kinds arrive suffixed already.
  */
-function named(r: { label: string; board?: unknown }): string {
+export function named(r: { label: string; board?: unknown }): string {
   const name = (r.board as { name?: string } | null | undefined)?.name;
   return name && !r.label.endsWith(` \u00b7 ${name}`) ? `${r.label} \u00b7 ${name}` : r.label;
 }
