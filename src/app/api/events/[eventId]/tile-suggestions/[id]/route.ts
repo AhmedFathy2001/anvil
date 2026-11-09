@@ -41,7 +41,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     await db
       .update(tileSuggestions)
       .set({ status: 'rejected', note, decidedByUserId: editor.userId, decidedAt: new Date() })
-      .where(eq(tileSuggestions.id, id));
+      .where(and(eq(tileSuggestions.id, id), eq(tileSuggestions.status, 'pending')));
     return NextResponse.json({ ok: true });
   }
 
@@ -58,6 +58,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   // Once the board is live its tiles are frozen for this path — rewriting one mid-event would move
   // the goalposts on teams already working it. The tile editor's own live-override is the way in.
   const started = !!event.startDate && new Date(event.startDate) <= new Date();
+  // DECIDED ONCE, just before the board is written. The pending check up top is a read: two editors
+  // accepting together each wrote a tile from one suggestion. Exactly one takes it here.
+  const takeIt = async () =>
+    (
+      await db
+        .update(tileSuggestions)
+        .set({ status: 'accepted', decidedByUserId: editor.userId, decidedAt: new Date() })
+        .where(and(eq(tileSuggestions.id, id), eq(tileSuggestions.status, 'pending')))
+        .returning({ id: tileSuggestions.id })
+    ).length > 0;
+  const alreadyTaken = () => NextResponse.json({ error: 'That one is already decided.' }, { status: 409 });
   let tileId: number;
   if (overwrite != null) {
     if (started) {
@@ -65,6 +76,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     }
     const before = await db.query.tiles.findFirst({ where: and(eq(tiles.id, overwrite), eq(tiles.eventId, eventId)) });
     if (!before) return NextResponse.json({ error: 'That tile is not on this board.' }, { status: 404 });
+    if (!(await takeIt())) return alreadyTaken();
     const [after] = await db
       .update(tiles)
       .set({ label: s.title, description: s.details, ...(s.points ? { points: s.points } : {}) })
@@ -90,6 +102,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     const existing = await db.select({ position: tiles.position }).from(tiles).where(eventBoardTiles(eventId));
     if (existing.length >= MAX_TILES) return NextResponse.json({ error: `Events are capped at ${MAX_TILES} tiles.` }, { status: 400 });
     const position = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
+    if (!(await takeIt())) return alreadyTaken();
     tileId = await db.transaction(async (tx) => {
       const [t] = await tx
         .insert(tiles)
@@ -103,7 +116,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
 
   await db
     .update(tileSuggestions)
-    .set({ status: 'accepted', tileId, decidedByUserId: editor.userId, decidedAt: new Date() })
+    .set({ tileId })
     .where(eq(tileSuggestions.id, id));
   return NextResponse.json({ ok: true, tileId });
 }

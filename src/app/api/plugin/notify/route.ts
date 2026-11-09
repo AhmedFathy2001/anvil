@@ -4,7 +4,7 @@ import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
 import { NOTIFY_DEFAULTS } from '@/lib/notifyPrefs';
-import { factsAsPoster, withPosterAuthor, isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
+import { factsAsPoster, isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
 import { liveBoardRows, recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
 import { pluginParticipantScope, requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
@@ -51,6 +51,8 @@ import { refuseForeignCharacter } from '@/lib/pluginForeign';
 // Screenshots are small PNGs. Cap well under the platform request-body limit so an oversized upload
 // can't tie up the function.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** A death / PvP-kill line is one game message; nothing longer is a real one. */
+const MAX_LINE_CHARS = 300;
 
 // Clips are the one channel that never arrives here (multi-MB video goes to /api/plugin/clip), so
 // the accepted set is every channel minus that one. Older plugins post "combatAchievements" for
@@ -284,15 +286,22 @@ export async function POST(request: Request) {
   // ── Build the message once, then fan it out ─────────────────────────────────────────────────
   //
   // Deaths and PvP kills arrive as plain text + a screenshot; give them the same embed treatment as
-  // everything else. Skipped the moment the plugin sends its own embed for these channels.
+  // everything else.
   //
   // The plugin composes these embeds from chat lines, and until every client is on a release that
   // strips Jagex's @tag@ colour codes (lib/chatTags) one can be anywhere in one — a title, a field,
   // the wiki URL built from a task name. Cleaned here so a post reads right today rather than on the
   // plugin-hub's schedule; on a client that already strips them this is a no-op.
-  // An older plugin's finished embed names its author itself: that name is the token's character's too.
-  let finalEmbed: Record<string, unknown> | null = embed ? withPosterAuthor(stripChatTagsDeep(embed), poster) : null;
-  let finalContent = stripChatTags(content);
+  //
+  // A plugin-built `embed`, and free `content` on any other channel, are no longer posted. Both went
+  // straight from the request body into the clan's Discord, so any member's token could put whatever
+  // it liked there — links, a fake "announcement" — under the site's webhook. Every current client
+  // sends `kind` + `facts`, which the site composes; free text survives only as a death / PvP-kill
+  // line, folded into the site's own embed below, and capped.
+  void embed;
+  let finalEmbed: Record<string, unknown> | null = null;
+  const finalContent: string | undefined = undefined;
+  const lineText = typeof content === 'string' ? stripChatTags(content).slice(0, MAX_LINE_CHARS) : '';
   if (newPost) {
     finalEmbed = stripChatTagsDeep(newPost.embed as unknown as Record<string, unknown>);
     if (image) finalEmbed.image = { url: `attachment://${image.filename}` };
@@ -304,15 +313,16 @@ export async function POST(request: Request) {
     // Same tag scrub as a passed-through embed: names in facts come straight off game text.
     finalEmbed = stripChatTagsDeep(built.embed as unknown as Record<string, unknown>);
   }
-  if (!finalEmbed && content && (channel === 'deaths' || channel === 'pvpKills')) {
+  if (!finalEmbed && lineText && (channel === 'deaths' || channel === 'pvpKills')) {
     finalEmbed = playerEventEmbed({
       kind: channel === 'deaths' ? 'death' : 'pvp_kill',
       rsn: await posterRsn(request, auth.userId),
-      message: content,
+      message: lineText,
       imageFilename: image?.filename ?? null,
     }) as unknown as Record<string, unknown>;
-    // The message moves into the embed's description, so don't also post it as content.
-    finalContent = undefined;
+  }
+  if (!finalEmbed) {
+    return NextResponse.json({ error: 'Nothing to post — send kind and facts.' }, { status: 400 });
   }
   // A message template someone set (lib/notifyTemplates) replaces the post's first line. Unset, the
   // builder's own wording stands untouched. Deaths are worded above.

@@ -102,8 +102,29 @@ export function signUserToken(
   );
 }
 
-export function signCaptainToken(teamId: number): string {
-  return sign(JSON.stringify({ role: 'captain', teamId, iat: Date.now() }), CAPTAIN_SESSION_SECRET);
+/**
+ * The captain cookie for `teamId`, held by `userId`. The person is part of the token so that
+ * verifyCaptain can ask again, on every request, whether THIS person may still hold THIS seat — a
+ * token naming only a team was a bearer pass to that team for a week, whoever had it.
+ */
+export function signCaptainToken(teamId: number, userId: number): string {
+  return sign(JSON.stringify({ role: 'captain', teamId, userId, iat: Date.now() }), CAPTAIN_SESSION_SECRET);
+}
+
+/**
+ * May `userId` hold the captain seat of `teamId`? Their own captaincy, or admin authority in the clan
+ * that OWNS the team's board — never in whichever clan the request happens to be addressed to. Team
+ * ids are global, and an admin check against the current clan let the owner of any clan (anyone can
+ * found one) take the captain seat of every team on the platform.
+ */
+export async function captainSeatAllowed(teamId: number, userId: number): Promise<boolean> {
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { captainUserId: true, eventId: true } });
+  if (!team) return false;
+  if (team.captainUserId === userId) return true;
+  const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId), columns: { clanId: true } });
+  if (event?.clanId == null) return false;
+  const grant = await clanGrant(event.clanId, userId);
+  return grant != null && atLeast(grant.role, 'admin');
 }
 
 export interface UserPayload {
@@ -535,10 +556,15 @@ export async function verifyCaptain(): Promise<{ teamId: number } | null> {
   if (!payload) return null;
   try {
     const data = JSON.parse(payload);
-    if (data.role === 'captain' && typeof data.teamId === 'number' && isFreshIat(data.iat)) {
-      return { teamId: data.teamId };
-    }
-    return null;
+    if (data.role !== 'captain' || typeof data.teamId !== 'number' || !isFreshIat(data.iat)) return null;
+    // Bound to a person (tokens from before that carried none, and are refused — re-claiming is one
+    // click on /team). The signed-in session must still be that person, and they must still be
+    // allowed the seat: a captain swapped out, or an admin demoted, loses it on the next request.
+    if (typeof data.userId !== 'number') return null;
+    const session = await verifyUser();
+    if (!session || session.userId !== data.userId) return null;
+    if (!(await captainSeatAllowed(data.teamId, data.userId))) return null;
+    return { teamId: data.teamId };
   } catch {
     return null;
   }
@@ -809,15 +835,30 @@ async function userByPluginToken(token: string) {
   // By hash only: tokens are never stored in the clear (0138/0166).
   const hash = hashPluginToken(token);
   const direct = await db.query.users.findFirst({ where: eq(users.pluginTokenHash, hash) });
-  if (direct) return direct;
+  if (direct) return (await pluginLoginBarred(direct)) ? undefined : direct;
 
   const link = await db.query.pluginLinks.findFirst({
     where: and(eq(pluginLinks.tokenHash, hash), isNull(pluginLinks.revokedAt)),
     columns: { id: true, userId: true },
   });
   if (!link) return undefined;
+  const user = await db.query.users.findFirst({ where: eq(users.id, link.userId) });
+  if (!user || (await pluginLoginBarred(user))) return undefined;
   touchPluginLink(link.id);
-  return db.query.users.findFirst({ where: eq(users.id, link.userId) });
+  return user;
+}
+
+/**
+ * The same two bans verifyUser enforces, for the plugin's door. Every plugin route resolves its
+ * caller here, and nothing here asked — so a login barred (`users.banned`) or a person platform-banned
+ * from /staff (`players.banned`) kept submitting, syncing and posting through the plugin as before;
+ * the ban only ever reached the website. Lifting the ban lifts this too: the token is not revoked.
+ */
+async function pluginLoginBarred(user: { banned: boolean | number | null; playerId: number | null }): Promise<boolean> {
+  if (user.banned) return true;
+  if (user.playerId == null) return false;
+  const person = await db.query.players.findFirst({ where: eq(players.id, user.playerId), columns: { banned: true } });
+  return !!person?.banned;
 }
 
 /** When each sign-in's "last used" was last written, so a busy plugin writes it at most hourly. */

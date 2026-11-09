@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, players, users } from '@/db/schema';
 import { requirePlatformApi, CAN_GRANT, CAN_WRITE } from '@/lib/platformAccess';
-import { PLATFORM_ROLES, type PlatformRole } from '@/lib/clanRoles';
+import { PLATFORM_ROLES, hasPlatformRole, type PlatformRole } from '@/lib/clanRoles';
 
 /**
  * Platform-level actions on a PERSON: the site-wide ban, and the platform role.
@@ -121,6 +121,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         { error: 'You cannot ban yourself — it would lock you out with no way back in.' },
         { status: 400 },
       );
+    }
+
+    // NOT ANOTHER OPERATOR, unless you are root. Staff can ban people, but banning a fellow operator —
+    // root above all — is the same unrecoverable lockout as banning yourself, done to someone else:
+    // the banned root can't sign in to undo it. Only root decides about platform staff.
+    if (banned) {
+      const target = await db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { platformRole: true } });
+      if (target && (target.platformRole ?? 'none') !== 'none' && !hasPlatformRole(actor.role, CAN_GRANT)) {
+        return NextResponse.json({ error: 'Only root can ban a member of platform staff.' }, { status: 403 });
+      }
     }
 
     await db

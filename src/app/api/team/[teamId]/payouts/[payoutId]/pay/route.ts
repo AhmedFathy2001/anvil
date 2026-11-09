@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
@@ -53,8 +53,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
       proofBlobUrl: proofUrl ?? payout.proofBlobUrl,
       notes: body?.notes ?? payout.notes,
     })
-    .where(eq(payouts.id, id))
+    // Once: a second "paid" overwrote who paid and when, and re-ran the announcement.
+    .where(and(eq(payouts.id, id), ne(payouts.status, 'paid')))
     .returning();
+  if (!updated) return NextResponse.json({ error: 'That payout is already marked paid.' }, { status: 409 });
 
   // Same auto-announce as the host path: once the whole event is settled, post the winners once.
   let announced = false;

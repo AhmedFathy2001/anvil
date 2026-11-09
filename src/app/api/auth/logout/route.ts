@@ -28,6 +28,11 @@ async function clear(request: Request) {
   const origin = clan ? originForHost(clan.host) : publicOrigin(request);
 
   const res = NextResponse.redirect(new URL(safeReturn, origin));
+  // Not from another site. GET is here for the menu's plain link, which also let any page sign its
+  // visitors out with an <img src>. Browsers mark where a request came from; a cross-site one goes
+  // where it asked without touching the session. (No header — an old browser, curl — is allowed.)
+  const site = request.headers.get('sec-fetch-site');
+  if (site === 'cross-site') return res;
   const domain = sessionCookieDomain();
   res.cookies.set(SESSION_COOKIE, '', { path: '/', maxAge: 0, ...(domain ? { domain } : {}) });
   // And any "view as a lab test user" riding on it (lib/auth).

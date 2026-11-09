@@ -1,5 +1,5 @@
 // /api/plugin/notify names the poster from the TOKEN's character, never from the body: a drop's
-// facts.rsn, a newer kind's rsn, or an older plugin's finished embed author can't put a post under
+// facts.rsn, a newer kind's rsn, can't put a post under
 // someone else's name.
 //
 // Run: npx tsx --test tests/notify-poster-name-db.test.ts
@@ -67,9 +67,9 @@ test('a site-built drop post ignores the body rsn and names the token’s charac
   assert.doesNotMatch(JSON.stringify(sent[0]), /Zezima/);
 });
 
-test('an older plugin’s finished embed gets its author line from the token too', async () => {
+test('a client-built embed is never posted (security audit 2026-11-08): only site-composed posts go out', async () => {
   sent.length = 0;
-  await post({ channel: 'rareDrops', embed: { author: { name: 'Zezima' }, title: 'Loot', description: 'a drop' } });
-  assert.equal(sent.length, 1);
-  assert.equal(lastEmbed()?.author?.name, 'Realme');
+  const res = await post({ channel: 'rareDrops', embed: { author: { name: 'Zezima' }, title: 'Loot', description: 'a drop' } });
+  assert.equal(res.status, 400);
+  assert.equal(sent.length, 0);
 });

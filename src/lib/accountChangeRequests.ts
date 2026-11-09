@@ -265,33 +265,48 @@ export async function decideAccountChange(opts: {
     return { ok: false, status: 409, error: `That request was already ${req.status}.` };
   }
 
-  const settle = async () => {
+  // DECIDE ONCE. The pending check above is a read; an approve and a reject sent together both
+  // passed it, both ran, and the swap happened under a request that ended up "rejected". Taking the
+  // decision is the conditional write — exactly one caller gets it — and an approval that then fails
+  // hands it back (undecide) so it can be decided again.
+  const [took] = await db
+    .update(accountChangeRequests)
+    .set({
+      status: opts.decision,
+      decidedByUserId: opts.actorUserId,
+      decidedAt: new Date().toISOString(),
+      decisionNote: opts.note?.trim().slice(0, 400) || null,
+    })
+    .where(and(eq(accountChangeRequests.id, req.id), eq(accountChangeRequests.status, 'pending')))
+    .returning({ id: accountChangeRequests.id });
+  if (!took) return { ok: false, status: 409, error: 'That request was just decided by someone else.' };
+  const undecide = async () => {
     await db
       .update(accountChangeRequests)
-      .set({
-        status: opts.decision,
-        decidedByUserId: opts.actorUserId,
-        decidedAt: new Date().toISOString(),
-        decisionNote: opts.note?.trim().slice(0, 400) || null,
-      })
-      .where(eq(accountChangeRequests.id, req.id));
+      .set({ status: 'pending', decidedByUserId: null, decidedAt: null, decisionNote: null })
+      .where(and(eq(accountChangeRequests.id, req.id), eq(accountChangeRequests.status, opts.decision)));
   };
 
   if (opts.decision === 'rejected') {
-    await settle();
     return { ok: true, changed: false };
   }
 
   const participant = await db.query.eventParticipants.findFirst({
     where: eq(eventParticipants.id, req.participantId),
   });
-  if (!participant) return { ok: false, status: 404, error: 'That player row is gone' };
+  if (!participant) {
+    await undecide();
+    return { ok: false, status: 404, error: 'That player row is gone' };
+  }
 
   // clan-scope: global -- the id was stored on a request whose ownership was checked when it was
   // filed, and `swapTrackedAccount` re-checks that both seats are the same person before moving
   // anything. The clan read off this seat is the swap's only allowed clan.
   const target = await findRosterSeat(eq(clanRoster.id, req.toClanMemberId));
-  if (!target) return { ok: false, status: 404, error: 'That character is no longer on a roster' };
+  if (!target) {
+    await undecide();
+    return { ok: false, status: 404, error: 'That character is no longer on a roster' };
+  }
 
   const swap = await swapTrackedAccount({
     player: participant,
@@ -302,13 +317,15 @@ export async function decideAccountChange(opts: {
     allowedClanIds: [target.clanId],
     samePersonOnly: true,
   });
-  if (!swap.ok) return { ok: false, status: swap.status, error: swap.error };
+  if (!swap.ok) {
+    await undecide();
+    return { ok: false, status: swap.status, error: swap.error };
+  }
 
   if (swap.changed && swap.updates) {
     await db.update(eventParticipants).set(swap.updates).where(eq(eventParticipants.id, participant.id));
     // The swap cleared the start line; on a running event take the new account's now.
     captureStartingStatsSoon(participant.eventId, [participant.id]);
   }
-  await settle();
   return { ok: true, changed: !!swap.changed, rsn: swap.rsn };
 }

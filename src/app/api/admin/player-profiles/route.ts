@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { computePlayerProfiles } from '@/lib/playerProfile';
+import { eventInClan } from '@/lib/eventScope';
 
 // Staff-only player-profile ratings (balance-engine plan). ?eventId=N rates that event's roster /
 // sign-up pool (the draft + pre-start view); without it, the whole active clan is rated. Ratings
@@ -19,6 +20,10 @@ export async function GET(request: Request) {
   const eventId = eventIdRaw != null ? parseInt(eventIdRaw, 10) : undefined;
   if (eventIdRaw != null && !Number.isFinite(eventId)) {
     return NextResponse.json({ error: 'eventId must be a number' }, { status: 400 });
+  }
+  // Event ids are global: one from another clan rated THAT clan's board roster for whoever asked.
+  if (eventId != null && !(await eventInClan(clan.id, eventId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   const profiles = await computePlayerProfiles(clan.id, { eventId });

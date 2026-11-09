@@ -12,7 +12,8 @@ import { eq, inArray, and, count, not } from 'drizzle-orm';
 import { writtenTile } from '@/lib/writtenTiles';
 import { deleteOwnedFiles, eventMediaUrls } from '@/lib/eventMediaRetention';
 import { cleanEventImageUrl } from '@/lib/eventImage';
-import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
+import { verifyAdmin } from '@/lib/auth';
+import { tilesForViewer } from '@/lib/tilesForViewer';
 import { notifyBoardRevealed, notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 import { emptyTeamCount, getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
@@ -55,14 +56,9 @@ export async function GET(
     orderBy: (tiles, { asc }) => [asc(tiles.position)],
   });
 
-  // Reveal-policy events: members only receive the revealed subset — hidden tile content must
-  // never reach the client. Staff keep the full board so admin tooling (and previews) work.
-  const rules = parseEventRules(event.rules);
-  let eventTiles = allEventTiles;
-  if (hasRevealPolicy(rules)) {
-    const staff = await verifyAdminOrModerator();
-    if (!staff) eventTiles = visibleTiles(rules, allEventTiles);
-  }
+  // Members see only what's revealed: nothing on a board not yet revealed, the policy's subset after
+  // (lib/tilesForViewer). Staff keep the full board so admin tooling and previews work.
+  const eventTiles = await tilesForViewer(event, allEventTiles);
 
   const eventTeams = await db.query.teams.findMany({
     where: eq(teams.eventId, id),

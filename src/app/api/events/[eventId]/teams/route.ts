@@ -26,8 +26,11 @@ export async function GET(
     where: eq(teams.eventId, id),
   });
 
-  // Strip captain passwords
-  const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
+  // Public read: no captain password, and none of the team's Discord wiring (role and channel ids) —
+  // nothing on a board needs them, and they map a clan's server for whoever asks.
+  const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) =>
+    Object.fromEntries(Object.entries(rest).filter(([k]) => !k.startsWith('discord'))),
+  );
   return NextResponse.json(safeTeams);
 }
 

@@ -4,9 +4,13 @@ import { eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { signPlayerToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
-  const { playerToken } = await request.json();
+  // A bearer token checked anonymously: cap the guessing, and a bad body is a 400, not a 500.
+  const rl = await rateLimit(request, 'player-login', { limit: 20, windowMs: 5 * 60 * 1000 });
+  if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  const { playerToken } = ((await request.json().catch(() => null)) ?? {}) as { playerToken?: unknown };
 
   if (!playerToken || typeof playerToken !== 'string') {
     return NextResponse.json({ error: 'playerToken is required' }, { status: 400 });
