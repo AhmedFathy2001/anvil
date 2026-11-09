@@ -7,7 +7,7 @@ import type { Node } from '../src/lib/pluginUi/nodes';
 import { compactStandings, racePageUi, type RacePageOpts } from '../src/lib/pluginUi/raceUi';
 import { raceGraph, rankRaceTeams, teamRoute } from '../src/lib/raceRoutes';
 
-// A tile race's page on the plugin's Clan tab (lib/pluginUi/raceUi): where am I, do this next, the
+// A tile race's page on the plugin's Clan tab (lib/pluginUi/raceUi): where am I, up next, the
 // road as a track, compact standings, and each tile's detail as a nav pane.
 
 // Three roads A/B/C over four steps; road B's step-2 tile splits to B and C, A's to A and B.
@@ -99,14 +99,15 @@ test('at the start fork: Not started, every road open, the road ahead unknown, y
   assert.ok(s.some((x) => x.includes('Lab~Field146 already finished')));
   assert.ok(s.includes('Get any one of these. The first you finish picks your road.'));
   for (const name of ['Kill 5 bosses', 'One haul worth 1m+', 'Vorkath under 2:00']) assert.ok(s.includes(name), name);
-  assert.deepEqual(walk(main).filter((x) => x.chip && (x as { w?: number }).w === 18).map((x) => x.s), ['A', 'B', 'C']);
-  assert.ok(s.includes('After that'));
+  // The gold card's three, then the track's open fork (its head, and every road behind the chip).
+  assert.deepEqual(walk(main).filter((x) => x.chip && (x as { w?: number }).w === 18).map((x) => x.s), ['A', 'B', 'C', 'A', 'A', 'B', 'C']);
+  assert.ok(s.includes('Your road'));
   assert.ok(s.includes('Depends on your road'));
   assert.ok(s.includes('Roads cross here: you can switch'));
   assert.ok(s.includes('Hard Ardougne diary · same for everyone'));
   const segs = walk(main).find((x) => x.t === 'segs') as { c: string[] };
   assert.deepEqual(segs.c, ['#4a4a4a', '#4a4a4a', '#4a4a4a', '#4a4a4a']);
-  assert.deepEqual(walk(main).filter((x) => x.t === 'step').map((x) => x.dot), ['lock', 'lock', 'end']);
+  assert.deepEqual(walk(main).filter((x) => x.t === 'step').map((x) => x.dot), ['now', 'lock', 'lock', 'end']);
   // Exactly one way back on the page.
   assert.equal(s.filter((x) => /all events|back/i.test(x)).length, 1);
 });
@@ -137,7 +138,7 @@ test('a tile opens in place: one Back, what counts, where it goes, who, proofs',
   assert.equal(s.filter((x) => /back|all events/i.test(x)).length, 1);
   assert.equal(s[0], 'Back to the race');
   assert.ok(s.includes('Step 2 · Road B'));
-  assert.ok(s.includes('Do this next'));
+  assert.ok(s.includes('Up next'));
   assert.ok(s.includes('1 of 3'));
   assert.ok(s.includes('What counts'));
   assert.ok(s.includes('One haul worth 1m+ ✓'));
@@ -202,6 +203,41 @@ test('five roads: the fork lists all five, the track folds the other roads behin
   assert.ok(detail.includes('+1 more'));
 });
 
+test('start tile done: Step 2 of 6, and the track names step 2\'s open tiles with the now dot', () => {
+  const page = racePageUi(raceBoard([1], FIVE), opts(ctx())) as Slot;
+  const main = page.panes!.main;
+  const s = texts(main);
+  assert.ok(s.includes('Step 2 of 6'));
+  assert.ok(!s.includes('Not started'));
+  assert.ok(s.includes('Up next'));
+  const steps = walk(main).filter((x) => x.t === 'step');
+  assert.deepEqual(steps.map((x) => x.dot), ['done', 'now', 'lock', 'lock', 'lock', 'end']);
+  const two = texts(steps[1]);
+  assert.ok(two.includes('2 Araxxor kills'), 'road A by name');
+  assert.ok(two.includes('B: Tanzanite fang'), 'road B inline');
+  assert.ok(two.includes('Step 2 · open now'));
+  assert.ok(!two.includes('Depends on your road'));
+  assert.ok(texts(walk(steps[1]).find((x) => x.t === 'toggle')!.off).includes('+3 other roads'));
+  assert.deepEqual(walk(steps[1]).filter((x) => x.chip && (x as { w?: number }).w === 18).map((x) => x.s).slice(0, 1), ['A']);
+  // Only the steps past the fork still depend on the road.
+  assert.ok(texts(steps[2]).includes('Depends on your road') || texts(steps[2]).some((t) => t.startsWith('Roads cross')));
+});
+
+test('a two-way fork after the start: both open tiles on the track, no chip', () => {
+  const TWO: [number, number, string, number[]][] = [
+    [1, 0, 'Wintertodt crate', [2, 3]],
+    [2, 1, '2 Araxxor kills', [4]],
+    [3, 1, 'Tanzanite fang', [4]],
+    [4, 2, 'Chambers of Xeric', []],
+  ];
+  const page = racePageUi(raceBoard([1], TWO), opts(ctx())) as Slot;
+  const steps = walk(page.panes!.main).filter((x) => x.t === 'step');
+  assert.deepEqual(steps.map((x) => x.dot), ['done', 'now', 'end']);
+  const two = texts(steps[1]);
+  assert.ok(two.includes('2 Araxxor kills') && two.includes('B: Tanzanite fang'));
+  assert.ok(!walk(steps[1]).some((x) => x.t === 'toggle'));
+});
+
 test('board list: the road heads the list only; a locked tile offers no claim, note or tracking', () => {
   const b = raceBoard([1, 12], FIVE);
   const page = boardPage(b);
@@ -214,7 +250,7 @@ test('board list: the road heads the list only; a locked tile offers no claim, n
   const lockedJson = JSON.stringify(slot.panes!['t:32']);
   for (const gone of ['Claim tile', 'Add note…', 'Track on screen', 'Stop tracking']) assert.ok(!lockedJson.includes(`"${gone}"`), gone);
   const open = texts(slot.panes!['t:22']);
-  assert.ok(open.includes('Do this next'));
+  assert.ok(open.includes('Up next'));
   const openJson = JSON.stringify(slot.panes!['t:22']);
   assert.ok(openJson.includes('"Claim tile"') && openJson.includes('"Track on screen"'));
   // 120 teams did the start tile: six names, the rest folded.

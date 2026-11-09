@@ -136,7 +136,7 @@ function tileRow(x: Ctx, id: number, letter: boolean, right?: Node, current = fa
 
 /** The gold card: the open tile(s), or the fork to pick from, each opening its detail. */
 function nextCard(x: Ctx, route: TeamRoute): Node {
-  const head = text('Do this next', GOLD, { font: 'bold', icon: icon({ glyph: 'chevron-right', w: 10, h: 10, color: GOLD }) });
+  const head = text('Up next', GOLD, { font: 'bold', icon: icon({ glyph: 'chevron-right', w: 10, h: 10, color: GOLD }) });
   if (x.race.finished) return section([title('Finished!', GREEN), muted('Your road is done. The standings below say where you placed.', { wrap: CARD_W })]);
   if (route.pickFrom.length) {
     return section([head, text('Pick your road first: open one and press Pick. A pick can’t be changed.', SOFT, { wrap: CARD_W }), ...route.pickFrom.map((id) => tileRow(x, id, true))], { edge: GOLD });
@@ -172,6 +172,25 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
   // Where the team stands: one open tile is "you are here"; several (a fork) are in the gold card.
   let at: number | null = route.open.length === 1 && route.pickFrom.length === 0 ? route.open[0] : null;
   if (at != null) out.push(stop('now', text(clip(x.name(at), 28), 'white', { font: 'bold' }), sub(`${done === last ? 'Finish' : `Step ${done + 1}`} · you are here`, GOLD), open(at), done === last));
+  // A fork the team is AT (open now, or picked from): its tiles are unlocked, so the track names them
+  // — badged, one other inline, the rest behind "+N other roads" — with the gold "now" dot. Only the
+  // steps past it can still say "Depends on your road".
+  const fork = at == null ? (route.pickFrom.length ? route.pickFrom : route.open.length > 1 ? route.open : []) : [];
+  if (fork.length && done <= last) {
+    const word = done === last ? 'Finish' : `Step ${done + 1}`;
+    const [first, ...others] = fork;
+    const head = row(roadBadge(roadOf(g, first)), text(clip(x.name(first), 24), 'white', { font: 'bold', tip: x.name(first) }), undefined, { gap: 6 });
+    const other = others[0];
+    const here = `${word} · ${route.pickFrom.length ? 'pick your road' : 'open now'}`;
+    const inline = other != null
+      ? col([
+          sub(here, GOLD),
+          row(text('or: ', FAINT, { font: 'small' }), text(clip(`${roadOf(g, other)}: ${x.name(other)}`, 24), roadInk(roadOf(g, other))[1], { font: 'small', on: open(other), tip: `Open ${x.name(other)}` }), undefined, { gap: 0 }),
+        ], { gap: 2 })
+      : sub(here, GOLD);
+    const subLine = others.length > 1 ? roadsToggle(`race-fork:${done}`, inline, sub(here, GOLD), fork, g, x.name, open) : inline;
+    out.push(stop('now', head, subLine, open(first), done === last));
+  }
   for (let step = done + 1; step <= last; step++) {
     const end = step === last;
     const ids = g.steps[step];
@@ -218,7 +237,7 @@ function roadsToggle(key: string, inline: Node, head: Node, ways: number[], g: R
 }
 
 function track(x: Ctx, route: TeamRoute): Node {
-  const started = route.path.length > 0 || (route.open.length === 1 && !route.pickFrom.length);
+  const started = route.path.length > 0 || route.open.length > 0 || route.pickFrom.length > 0;
   return col([title(started ? 'Your road' : 'After that'), gap(4), ...trackStops(x)]);
 }
 
@@ -241,7 +260,7 @@ function standingsCard(x: Ctx): Node {
 // ---- One tile ------------------------------------------------------------------------------------
 
 const STATE_CHIP: Record<string, [string, Color, Color]> = {
-  open: ['Do this next', GOLD, '#1e1e1e'],
+  open: ['Up next', GOLD, '#1e1e1e'],
   pick: ['Pick one', GOLD, '#1e1e1e'],
   done: ['Done', '#2f5f2f', GREEN],
   ahead: ['Later', '#3a3a3a', SOFT],
