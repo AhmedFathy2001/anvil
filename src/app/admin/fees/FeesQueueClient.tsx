@@ -33,6 +33,8 @@ interface FeeRow {
   account: { id: number; rsn: string };
   collector: { id: number; displayName: string; role: string } | null;
   reportedCollector: { id: number; displayName: string; role: string } | null;
+  /** The collector is the fee's own owner (lib/feeConfirmations selfMarkedFeeIds). */
+  selfMarked?: boolean;
 }
 
 type StatusFilter = 'open' | 'pending' | 'reported' | 'collected' | 'disputed' | 'confirmed' | 'all';
@@ -366,6 +368,7 @@ function FeeCard({
           <div className="mt-1">
             {row.collector ? (
               <span>
+                <span className="text-text-muted">Marked paid by </span>
                 {row.collector.displayName}{' '}
                 <span className="text-text-muted">({row.collector.role})</span>
                 {fee.collectedAt && (
@@ -373,6 +376,7 @@ function FeeCard({
                     · {new Date(fee.collectedAt).toLocaleDateString()}
                   </span>
                 )}
+                {row.selfMarked && <SelfMarkedTag />}
               </span>
             ) : (
               <span className="text-text-muted">Not collected yet</span>
@@ -549,6 +553,18 @@ function FeeStatusBadge({ status }: { status: string }) {
       className={`text-[10px] font-medium px-2 py-0.5 rounded-full border capitalize ${map[status] ?? map.pending}`}
     >
       {status}
+    </span>
+  );
+}
+
+/** Staff may mark their own fee paid; this makes it plain to everyone else who looks. */
+function SelfMarkedTag() {
+  return (
+    <span
+      className="ml-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-yellow-500/15 text-yellow-300 border-yellow-500/25"
+      title="The person who marked this paid is the person who owes it"
+    >
+      self-marked
     </span>
   );
 }

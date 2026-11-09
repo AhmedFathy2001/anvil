@@ -3,7 +3,7 @@ import { chargesFee, feeLabel } from '@/lib/entryFeeMath';
 import { db } from '@/db';
 import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { FeeChangedError, SelfCollectError, markFeeCollected } from '@/lib/feeConfirmations';
+import { FeeChangedError, markFeeCollected, selfMarkedFeeIds } from '@/lib/feeConfirmations';
 import { canTeamUndoCollection } from '@/lib/feeRules';
 import { requireTeamManager, teamManagerIds } from '@/lib/teamStaff';
 import { del } from '@/lib/storage';
@@ -112,6 +112,7 @@ export async function GET(
   const rows = await db
     .select({
       id: signupFees.id,
+      signupId: signupFees.signupId,
       amount: signupFees.amount,
       status: signupFees.status,
       collectedByUserId: signupFees.collectedByUserId,
@@ -134,6 +135,8 @@ export async function GET(
     ? await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, collectorIds))
     : [];
   const collectorName = new Map(collectors.map((c) => [c.id, c.displayName]));
+  // A fee its own owner marked paid: allowed, and tagged so others can spot it (lib/feeConfirmations).
+  const self = await selfMarkedFeeIds(rows);
 
   // Owed first — that's the list a manager is actually working through.
   const order: Record<string, number> = { pending: 0, disputed: 1, reported: 2, collected: 3, confirmed: 4 };
@@ -144,6 +147,7 @@ export async function GET(
     fees: rows.map((r) => ({
       ...r,
       collectedByName: r.collectedByUserId != null ? collectorName.get(r.collectedByUserId) ?? null : null,
+      selfMarked: self.has(r.id),
       // "was it me?" is the question the row has to answer, and the client doesn't know its own id.
       collectedByViewer: r.collectedByUserId != null && r.collectedByUserId === management.userId,
       // Whether the undo below would actually be allowed, decided HERE rather than re-derived in the
@@ -185,19 +189,13 @@ export async function POST(
   if (fee.status === 'confirmed') {
     return NextResponse.json({ error: 'That fee is already settled' }, { status: 409 });
   }
-  // Not your own. A team manager recording their own entry fee as paid — settled outright on a
-  // one-confirmation clan — is paying themselves; somebody else has to take it.
-  const owner = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, fee.signupId), columns: { userId: true } });
-  if (owner?.userId === management.userId) {
-    return NextResponse.json({ error: 'Someone else has to record your own fee.' }, { status: 403 });
-  }
+  // Not your own: markFeeCollected refuses it (by login or by the player behind the roster seat).
 
   const notes = typeof body?.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 300) : null;
   let collected;
   try {
     collected = await markFeeCollected(fee, management.userId, { notes });
   } catch (e) {
-    if (e instanceof SelfCollectError) return NextResponse.json({ error: e.message }, { status: 403 });
     if (e instanceof FeeChangedError) return NextResponse.json({ error: e.message }, { status: 409 });
     throw e;
   }

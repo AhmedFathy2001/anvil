@@ -43,6 +43,8 @@ interface Pool {
   paidFeesGp: number;
   /** What approved entries still owe, at each entry's own fee (guest and hand-set fees included). */
   owedFeesGp?: number;
+  /** Fees marked paid by the person who owed them. */
+  selfMarkedCount?: number;
 }
 
 interface Payload {
@@ -374,6 +376,11 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
             {pool.paidCount === 1 ? 'y' : 'ies'}
             {pool.approvedCount > pool.paidCount &&
               ` · ${(pool.owedFeesGp ?? (pool.approvedCount - pool.paidCount) * pool.signupFee).toLocaleString()} still owed by ${pool.approvedCount - pool.paidCount}`}
+            {(pool.selfMarkedCount ?? 0) > 0 && (
+              <span className="text-yellow-300" title="Marked paid by the person who owed it: see Fees for who">
+                {` · ${pool.selfMarkedCount} self-marked`}
+              </span>
+            )}
           </div>
         </div>
 
