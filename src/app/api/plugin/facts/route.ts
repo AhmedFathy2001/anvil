@@ -4,6 +4,7 @@ import { coalesce, matchFacts, type Credit } from '@/lib/pluginFacts/match';
 import { MAX_FACTS, parseFacts } from '@/lib/pluginFacts/parse';
 import { creditOutcome, planSubmissions, retryFacts, type Coop, type Outcome } from '@/lib/pluginFacts/plan';
 import { readBody, storeImage } from '@/lib/pluginFacts/request';
+import { LAB_CLAN_SLUG } from '@/lib/labRules';
 import { newProofKey } from '@/lib/proofAfter';
 import { afterReply, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
@@ -92,7 +93,10 @@ export async function POST(request: Request) {
         const headers = new Headers(request.headers);
         headers.set('content-type', 'application/json');
         headers.delete('content-length');
-        if (p.board.clan) headers.set('x-anvil-clan-slug', p.board.clan);
+        // Address the board's own clan — except the hidden lab clan, which holds no seats: the token
+        // would resolve no member there and every lab credit came back 401. A lab board is reached
+        // from the caller's own address instead (lib/eventScope labEventForPluginRequest).
+        if (p.board.clan && p.board.clan !== LAB_CLAN_SLUG) headers.set('x-anvil-clan-slug', p.board.clan);
         const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
         const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),
