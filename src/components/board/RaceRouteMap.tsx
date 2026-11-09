@@ -12,7 +12,9 @@ import { TileStateIcon } from './TileState';
  * glow), closed waypoints fade with a padlock and done ones carry a check. The crowd variants add
  * team pennants and lines (a few teams), crowd chips and road traffic (a field), or a heat glow
  * (solo-sized). Used by the route editor too, with a selected waypoint and its candidate links.
- * The map scrolls sideways inside its own box; the page never does.
+ * The map scrolls sideways inside its own box; the page never does. On a phone (under 640px) it
+ * becomes a vertical list of steps instead, each road a row with its letter, so five roads and ten
+ * steps read top to bottom with no sideways scroll at all.
  */
 
 export interface RouteMapNode {
@@ -57,6 +59,8 @@ interface Props {
   youNotStarted?: boolean;
   /** Scale the map up to the width of its box (up to 1.75×) — the fullscreen overlay. */
   fit?: boolean;
+  /** Under 640px, a list of steps (each road a row) instead of the sideways map. Off in the editor. */
+  mobileList?: boolean;
 }
 
 const ROAD = '#251e18';
@@ -69,6 +73,26 @@ const PAD_X = 70;
 const LANE_W = 58;
 const R = 33;
 const R_FINISH = 42;
+/** Rows stand further apart when team pennants stack over the waypoints. */
+const ROW_PENNANTS = 176;
+/** Road letter badges (ground, ink), A first — the panel's colours. */
+export const ROAD_INK: [string, string][] = [
+  ['#7a6230', '#ffe2a0'],
+  ['#2f6680', '#c4e8ff'],
+  ['#6a3a80', '#f0d4ff'],
+  ['#2f7046', '#c4f0cc'],
+  ['#7a3434', '#ffc4c4'],
+];
+
+/** The small square road letter ("A"), in its road's colours. */
+export function RoadBadge({ letter, className }: { letter: string; className?: string }) {
+  const [bg, fg] = ROAD_INK[Math.max(0, letter.charCodeAt(0) - 65) % ROAD_INK.length];
+  return (
+    <span className={cn('inline-flex shrink-0 items-center justify-center w-5 h-5 rounded text-[10px] font-bold', className)} style={{ backgroundColor: bg, color: fg }} aria-label={`Road ${letter}`}>
+      {letter}
+    </span>
+  );
+}
 
 export function defaultStepLabel(step: number, last: number): string {
   if (step === 0) return last === 0 ? 'Start · finish' : 'Start';
@@ -110,6 +134,7 @@ export default function RaceRouteMap({
   youTileId = null,
   youNotStarted = false,
   fit = false,
+  mobileList = true,
 }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(0);
@@ -129,16 +154,17 @@ export default function RaceRouteMap({
   // on, so "Road C at step 2" is the third row of column 2 — named down the left edge. A single-tile
   // step (a start, a merge, the finish) belongs to no road and sits in the middle.
   const roads = tallest > 1;
+  const rowH = variant === 'few' && roads ? ROW_PENNANTS : ROW;
   const left = PAD_X + (roads ? LANE_W : 0);
   const multiStart = (columns[0]?.length ?? 0) > 1;
   const head = HEAD + (multiStart || youNotStarted ? 16 : 0);
-  const height = head + tallest * ROW + 10;
+  const height = head + tallest * rowH + 10;
   const width = left + PAD_X + last * COL;
-  const rowY = (i: number) => head + i * ROW + 48;
+  const rowY = (i: number) => head + i * rowH + 48;
 
   const pos = new Map<number, { x: number; y: number }>();
   columns.forEach((col, s) => {
-    col.forEach((n, i) => pos.set(n.id, { x: left + s * COL, y: col.length === 1 ? head + ((tallest - 1) * ROW) / 2 + 48 : rowY(i) }));
+    col.forEach((n, i) => pos.set(n.id, { x: left + s * COL, y: col.length === 1 ? head + ((tallest - 1) * rowH) / 2 + 48 : rowY(i) }));
   });
 
   // Crowd: each team's current tile, and how many teams travelled each link.
@@ -163,7 +189,37 @@ export default function RaceRouteMap({
   const scale = fit && boxWidth > 0 ? Math.min(1.75, Math.max(1, (boxWidth - 8) / width)) : 1;
 
   return (
-    <div ref={boxRef} className="w-full overflow-x-auto overscroll-x-contain rounded-xl border border-card-border bg-[#141010] pb-2" role="group" aria-label="Race route map">
+    <>
+    {mobileList && (
+      <RouteStepList
+        className="sm:hidden"
+        columns={columns}
+        last={last}
+        state={state}
+        path={path}
+        at={at}
+        viewerTeamId={viewerTeamId}
+        onTileClick={onTileClick}
+        progress={progress}
+        matched={matched}
+        stepLabel={stepLabel}
+        lockedIds={lockedIds}
+        youTileId={youTileId}
+        youNotStarted={youNotStarted}
+      />
+    )}
+    <div ref={boxRef} className={cn('w-full overflow-x-auto overscroll-x-contain rounded-xl border border-card-border bg-[#141010] pb-2', mobileList && 'hidden sm:block')} role="group" aria-label="Race route map">
+      {/* The road names stay pinned to the left edge while a long map scrolls sideways under them. */}
+      {roads && (
+        <div className="sticky left-0 z-20 h-0 w-0" aria-hidden>
+          {Array.from({ length: tallest }, (_, i) => (
+            <div key={`road${i}`} className="absolute flex items-center gap-1 rounded-r bg-[#141010]/90 py-0.5 pl-2 pr-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted/80 whitespace-nowrap" style={{ left: 0, top: (rowY(i) - 9) * scale }}>
+              Road
+              <RoadBadge letter={String.fromCharCode(65 + i)} className="w-4 h-4 text-[9px]" />
+            </div>
+          ))}
+        </div>
+      )}
       <div style={scale > 1 ? { width: width * scale, height: height * scale, margin: '0 auto' } : undefined}>
       <div className="relative mx-auto" style={{ width, height, minWidth: width, ...(scale > 1 ? { transform: `scale(${scale})`, transformOrigin: 'top left' } : {}) }}>
         {columns.map((col, s) => (
@@ -177,12 +233,6 @@ export default function RaceRouteMap({
             {s === 0 && youNotStarted && <span className="inline-block mt-0.5 rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You · not started</span>}
           </div>
         ))}
-        {roads &&
-          Array.from({ length: tallest }, (_, i) => (
-            <div key={`road${i}`} className="absolute text-[10px] font-semibold uppercase tracking-wide text-text-muted/80" style={{ left: 8, top: rowY(i) - 7, width: LANE_W }}>
-              Road {String.fromCharCode(65 + i)}
-            </div>
-          ))}
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height} aria-hidden>
           {links.map(({ from, to }) => (
             <path key={`r${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={ROAD} strokeWidth={22} strokeLinecap="round"
@@ -315,6 +365,104 @@ export default function RaceRouteMap({
       </div>
       </div>
     </div>
+    </>
+  );
+}
+
+/**
+ * The route on a phone: one block per step down the page, each road's tile a row with its letter,
+ * sprite, name and state (Next, done, locked, You, how many teams stand there). Steps the viewer
+ * has passed carry a gold rail. Tapping a row opens the tile, like a waypoint on the map.
+ */
+function RouteStepList({
+  className,
+  columns,
+  last,
+  state,
+  path,
+  at,
+  viewerTeamId,
+  onTileClick,
+  progress,
+  matched,
+  stepLabel,
+  lockedIds,
+  youTileId,
+  youNotStarted,
+}: {
+  className?: string;
+  columns: RouteMapNode[][];
+  last: number;
+  state?: Map<number, RaceTileState>;
+  path: number[];
+  at: Map<number, RouteMapTeam[]>;
+  viewerTeamId: number | null;
+  onTileClick?: (id: number) => void;
+  progress?: Map<number, string>;
+  matched?: Set<number> | null;
+  stepLabel: (step: number, last: number) => string;
+  lockedIds?: Set<number>;
+  youTileId: number | null;
+  youNotStarted: boolean;
+}) {
+  return (
+    <ol className={cn('rounded-xl border border-card-border bg-[#141010] p-3 space-y-3', className)} aria-label="Race route, step by step">
+      {columns.map((col, s) => {
+        const passed = path.length > s;
+        return (
+          <li key={s} className={cn('border-l-2 pl-3', passed ? 'border-gold' : 'border-[#332a22]')}>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-text-muted font-semibold">{stepLabel(s, last)}</span>
+              {col.length > 1 && <span className="text-[10px] text-text-muted/80">{s === 0 ? `pick any of ${col.length}` : `${col.length} roads`}</span>}
+              {s === 0 && youNotStarted && <span className="rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You · not started</span>}
+            </div>
+            <div className="space-y-1.5">
+              {col.map((n, i) => {
+                const st = state?.get(n.id);
+                const here = at.get(n.id) ?? [];
+                const mine = youTileId === n.id || (viewerTeamId != null && here.some((t) => t.id === viewerTeamId));
+                const line = progress?.get(n.id);
+                return (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={onTileClick ? () => onTileClick(n.id) : undefined}
+                    disabled={!onTileClick}
+                    title={n.label}
+                    className={cn(
+                      'flex w-full items-center gap-2.5 rounded-lg border bg-[#1c1714] px-2.5 py-2 text-left',
+                      st === 'open' ? 'border-dashed border-gold' : st === 'done' ? 'border-gold/60' : 'border-[#332a22]',
+                      st === 'ahead' && !lockedIds?.has(n.id) && 'opacity-70',
+                      st === 'closed' && 'opacity-40 grayscale',
+                      matched && !matched.has(n.id) && 'opacity-30',
+                    )}
+                  >
+                    {col.length > 1 ? <RoadBadge letter={String.fromCharCode(65 + i)} /> : <span className="w-5 shrink-0" />}
+                    <span className="relative w-8 h-8 shrink-0 rounded-full bg-[#141010] border border-[#332a22] flex items-center justify-center">
+                      {n.icon ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={n.icon} alt="" className="w-6 h-6 object-contain" style={{ imageRendering: 'pixelated' }} loading="lazy" />
+                      ) : (
+                        <span className="text-[10px] text-text-muted font-bold">{tileInitials(n.label)}</span>
+                      )}
+                    </span>
+                    <span className={cn('flex-1 min-w-0 truncate text-sm', st === 'open' || st === 'done' ? 'text-foreground' : 'text-text-muted')}>{n.label}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {line && st !== 'done' && <span className="text-[10px] text-gold-light tabular-nums">{line}</span>}
+                      {here.length > 0 && !mine && <span className="text-[10px] text-text-muted whitespace-nowrap">{here.length} here</span>}
+                      {mine && <span className="rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You</span>}
+                      {st === 'open' && <span className="text-[9px] font-bold px-1.5 rounded bg-gold text-brown-dark">Next</span>}
+                      {st === 'done' && <span className="w-4 h-4 rounded-full bg-gold text-brown-dark flex items-center justify-center"><TileStateIcon kind="done" /></span>}
+                      {(lockedIds?.has(n.id) || st === 'ahead' || st === 'closed') && <span className="text-text-muted/80"><TileStateIcon kind="locked" /></span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

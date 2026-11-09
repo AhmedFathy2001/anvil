@@ -346,13 +346,14 @@ export function routeEntries(tiles: RouteTileIn[]): RouteEntry[] {
   });
 }
 
-export type RouteTemplate = 'line' | 'lanes2' | 'braid3' | 'diamond' | 'free';
+export type RouteTemplate = 'line' | 'lanes2' | 'braid3' | 'braid5' | 'diamond' | 'free';
 
 /** The templates, the default first: one start, lanes in between, one finish. */
 export const ROUTE_TEMPLATES: { key: RouteTemplate; label: string; help: string }[] = [
   { key: 'diamond', label: 'Diamond', help: 'One start tile splits into two roads that merge again at one finish tile.' },
   { key: 'lanes2', label: 'Two roads', help: 'One start, two side-by-side roads that never meet, one finish.' },
   { key: 'braid3', label: 'Braid', help: 'One start, three roads that can swap at every other step, one finish.' },
+  { key: 'braid5', label: 'Five roads', help: 'One start, five roads that can swap with a neighbour at every other step, one finish.' },
   { key: 'line', label: 'Straight line', help: 'One tile per step, each leading to the next.' },
   { key: 'free', label: 'Free', help: 'One tile per step and no links — draw every link yourself.' },
 ];
@@ -400,15 +401,15 @@ export function applyRouteTemplate(kind: RouteTemplate, ids: number[]): RouteEnt
   if (!n) return [];
   if (kind === 'free') return ids.map((id, s) => ({ id, step: s, next: [] }));
   if (kind === 'line') return fromWidths(ids, ids.map(() => 1), () => false);
-  if (kind === 'lanes2' || kind === 'braid3') {
-    const lanes = kind === 'lanes2' ? 2 : 3;
+  if (kind === 'lanes2' || kind === 'braid3' || kind === 'braid5') {
+    const lanes = kind === 'lanes2' ? 2 : kind === 'braid3' ? 3 : 5;
     // One fixed start and one fixed finish around the roads, once there are tiles for both.
     const framed = n >= lanes + 2;
     const widths: number[] = framed ? [1] : [];
     for (let left = framed ? n - 2 : n; left > 0; left -= lanes) widths.push(Math.min(lanes, left));
     if (framed) widths.push(1);
     // Braid: roads run straight out of one step and may swap out of the next, alternately.
-    return fromWidths(ids, widths, (s) => kind === 'braid3' && (framed ? s % 2 === 0 && s > 0 : s % 2 === 1));
+    return fromWidths(ids, widths, (s) => kind !== 'lanes2' && (framed ? s % 2 === 0 && s > 0 : s % 2 === 1));
   }
   // Diamond: one start, two lanes, one finish (an odd tile out becomes a single junction mid-way).
   if (n <= 3) return fromWidths(ids, ids.map(() => 1), () => false);

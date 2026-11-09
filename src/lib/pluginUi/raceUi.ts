@@ -1,5 +1,5 @@
 import { type Action, type Color, type Node, col, count, gap, icon, muted, row, text } from './nodes';
-import { CARD_W, FAINT, GOLD, GREEN, LATER, PROGRESS, SOFT, clip, compactStandings, section, stop, title } from './sections';
+import { CARD_W, FAINT, GOLD, GREEN, LATER, PROGRESS, SOFT, clip, compactStandings, more, section, stop, title } from './sections';
 
 export { compactStandings, STANDINGS_INLINE_MAX } from './sections';
 import { type Board, type BoardContext, type BoardState, type BoardTile, pinAction, raceModel, racePayload, trackingLines } from './boardUi';
@@ -22,7 +22,7 @@ const ROADS: [Color, Color][] = [
 ];
 /** Wrap width (pt) beside a track's dots. */
 const TRACK_W = 178;
-export const NAMES_SHOWN = 5;
+export const NAMES_SHOWN = 6;
 
 const roadInk = (letter: string): [Color, Color] => ROADS[Math.max(0, letter.charCodeAt(0) - 65) % ROADS.length];
 /** The small square road letter. */
@@ -184,9 +184,11 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
       const main = ways.find((id) => roadOf(g, id) === road) ?? ways[0];
       const others = ways.filter((id) => id !== main);
       const other = others[0];
-      const subLine = other != null
+      const inline = other != null
         ? row(text(`${word} · or switch: `, FAINT, { font: 'small' }), text(clip(`${roadOf(g, other)}: ${x.name(other)}`, 22), roadInk(roadOf(g, other))[1], { font: 'small', on: open(other), tip: `Open ${x.name(other)}` }), undefined, { gap: 0 })
         : sub(word);
+      // Many roads: one switch inline, the rest behind "+N other roads" (every road's tile, badged).
+      const subLine = others.length > 1 ? roadsToggle(`race-alts:${main}`, inline, sub(word), ways, g, x.name, open) : inline;
       out.push(stop(dot, text(clip(x.name(main), 28), 'text'), subLine, open(main), end));
       at = main;
     } else if (ids.length === 1) {
@@ -199,6 +201,20 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
     }
   }
   return out;
+}
+
+/** A step's roads folded: `inline` and a "+N other roads" chip, opening to one badged row per road. */
+function roadsToggle(key: string, inline: Node, head: Node, ways: number[], g: RaceGraph, name: (id: number) => string, open: (id: number) => Action): Node {
+  const flip: Action = { a: 'flip', key };
+  const n = ways.length - 2;
+  const chipNode = text(`+${n} other road${n === 1 ? '' : 's'}`, SOFT, { chip: '#3a3a3a', font: 'small', on: flip, tip: 'Show every road at this step' });
+  const rows = ways.map((id) => row(roadBadge(roadOf(g, id)), text(clip(name(id), 22), 'text', { font: 'small', on: open(id), tip: `Open ${name(id)}` }), undefined, { gap: 6 }));
+  return {
+    t: 'toggle',
+    key,
+    off: col([inline, row(chipNode, undefined, undefined)], { gap: 3 }),
+    lit: col([head, ...rows, text('Show less', GOLD, { font: 'small', on: flip })], { gap: 3 }),
+  };
 }
 
 function track(x: Ctx, route: TeamRoute): Node {
@@ -233,7 +249,7 @@ const STATE_CHIP: Record<string, [string, Color, Color]> = {
 };
 
 /** The names in a "Done it" / "On it now" card: the first five, then "+N more" opening the rest. */
-function namesCard(head: string, teams: { name: string; color: Color }[], word: string, key: string): Node | null {
+export function namesCard(head: string, teams: { name: string; color: Color }[], word: string, key: string): Node | null {
   if (!teams.length) return null;
   // One wrapped line of names, each in its team's colour.
   const grid = (list: typeof teams): Node => text('', SOFT, { wrap: CARD_W, runs: list.flatMap((t, i) => [...(i ? [{ s: ', ' }] : []), { s: t.name, color: t.color }]) });
@@ -243,6 +259,48 @@ function namesCard(head: string, teams: { name: string; color: Color }[], word: 
     ? { t: 'toggle', key, off: col([grid(teams.slice(0, NAMES_SHOWN)), text(`+${more} more`, GOLD, { font: 'small', on: flip })], { gap: 4 }), lit: col([grid(teams), text('Show less', GOLD, { font: 'small', on: flip })], { gap: 4 }) }
     : grid(teams);
   return section([row(undefined, title(head), text(`${teams.length} ${word}`, SOFT)), body]);
+}
+
+/**
+ * "Where it goes": the tile the team came from, the one this leads to on its own road, and every
+ * other road it can switch to there, one badged row per road (five roads stay a list, not a sentence).
+ */
+export function whereItGoes(g: RaceGraph, route: TeamRoute | null, id: number, name: (id: number) => string, open: (id: number) => Action, lead?: Node | null): Node {
+  const node = g.byId.get(id)!;
+  const prev = g.prev.get(id) ?? [];
+  const from = route ? prev.filter((pid) => route.path.includes(pid)) : [];
+  const cameFrom = from.length ? from : prev;
+  const link = (pid: number) => {
+    const ok = route?.state.get(pid) === 'done';
+    return text(clip(`${name(pid)}${ok ? ' ✓' : ''}`, 24), ok ? GREEN : 'text', { on: open(pid), tip: `Open ${name(pid)}` });
+  };
+  const goes: Node[] = [];
+  if (lead) goes.push(lead);
+  if (cameFrom.length) goes.push(row(muted('Came from'), link(cameFrom[0]), undefined, { gap: 4 }), ...more(cameFrom.slice(1).map((pid) => row(muted('or'), link(pid), undefined, { gap: 4 })), 1, `race-from:${id}`, 4));
+  else goes.push(muted(node.step === 0 ? 'The first step: open from the start.' : 'Nothing leads here.', { wrap: CARD_W }));
+  const road = roadOf(g, id);
+  const ahead = node.next;
+  const keep = ahead.find((n) => route?.path.includes(n)) ?? ahead.find((n) => roadOf(g, n) === road) ?? ahead[0];
+  if (keep != null) goes.push(row(muted('Leads to'), link(keep), undefined, { gap: 4 }));
+  else goes.push(muted('The finish: the race ends here.'));
+  const switches = ahead.filter((n) => n !== keep);
+  if (switches.length) {
+    goes.push(text(`Or switch at step ${node.step + 2}:`, FAINT, { font: 'small' }));
+    goes.push(...more(switches.map((n) => row(roadBadge(roadOf(g, n)), link(n), undefined, { gap: 6 })), 3, `race-switch:${id}`, 4));
+  }
+  return section([title('Where it goes'), ...goes]);
+}
+
+/** "Done it" and "On it now" for a race tile: who finished it, and whose road has it open, in race order. */
+export function raceWhoCards(g: RaceGraph, board: Board, standings: { teamId: number }[], id: number, doneHead = 'Done it'): Node[] {
+  const teams = board.teams.map((tm) => ({ id: tm.teamId, name: tm.name ?? 'Team', color: (/^#[0-9a-f]{6}$/i.test(tm.color ?? '') ? tm.color : SOFT) as Color, done: tm.completedTileIds }));
+  const lines = raceLines(g, teams.map((tm) => ({ id: tm.id, name: tm.name, color: tm.color })), teams.flatMap((tm) => tm.done.map((tileId) => ({ teamId: tm.id, tileId }))));
+  const order = new Map(standings.map((s, i) => [s.teamId, i]));
+  const ranked = (list: typeof teams) => [...list].sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
+  const doneBy = ranked(teams.filter((tm) => tm.done.includes(id)));
+  const onIt = ranked(teams.filter((tm) => lines.find((l) => l.team.id === tm.id)?.route.open.includes(id)));
+  const word = (n: number) => (n === 1 ? 'team' : 'teams');
+  return [namesCard(doneHead, doneBy, word(doneBy.length), `race-done:${id}`), namesCard('On it now', onIt, word(onIt.length), `race-on:${id}`)].filter((n): n is Node => !!n);
 }
 
 function tilePage(x: Ctx, t: BoardTile): Node[] {
@@ -271,37 +329,10 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
   ]));
 
   // Where it goes: the tile the team came from, the tile(s) it leads to, and where it may switch.
-  const prev = g.prev.get(id) ?? [];
-  const from = prev.filter((pid) => route.path.includes(pid));
-  const cameFrom = from.length ? from : prev;
-  const link = (pid: number) => {
-    const ok = route.state.get(pid) === 'done';
-    return text(clip(`${x.name(pid)}${ok ? ' ✓' : ''}`, 26), ok ? GREEN : 'text', { on: pane(`t:${pid}`), tip: `Open ${x.name(pid)}` });
-  };
-  const goes: Node[] = [];
-  if (cameFrom.length) goes.push(row(muted('Came from'), link(cameFrom[0]), undefined, { gap: 4 }), ...cameFrom.slice(1).map((pid) => row(muted('or'), link(pid), undefined, { gap: 4 })));
-  else goes.push(muted(node.step === 0 ? 'The first step: open from the start.' : 'Nothing leads here.', { wrap: CARD_W }));
-  const road = roadOf(g, id);
-  const ahead = node.next;
-  const keep = ahead.find((n) => roadOf(g, n) === road) ?? ahead[0];
-  if (keep != null) goes.push(row(muted('Leads to'), link(keep), undefined, { gap: 4 }));
-  else goes.push(muted('The finish: the race ends here.'));
-  const switches = ahead.filter((n) => n !== keep);
-  if (switches.length) goes.push(text(`At step ${node.step + 2} you can switch to ${switches.map((n) => `Road ${roadOf(g, n)} (${x.name(n)})`).join(' or ')}.`, FAINT, { wrap: CARD_W, font: 'small' }));
-  out.push(section([title('Where it goes'), ...goes]));
+  out.push(whereItGoes(g, route, id, x.name, (pid) => pane(`t:${pid}`)));
 
   // Who: the teams done with it, and the teams it's open for right now.
-  const teams = x.board.teams.map((tm) => ({ id: tm.teamId, name: tm.name ?? 'Team', color: (/^#[0-9a-f]{6}$/i.test(tm.color ?? '') ? tm.color : SOFT) as Color, done: tm.completedTileIds }));
-  const lines2 = raceLines(g, teams.map((tm) => ({ id: tm.id, name: tm.name, color: tm.color })), teams.flatMap((tm) => tm.done.map((tileId) => ({ teamId: tm.id, tileId }))));
-  const order = new Map((x.race.standings ?? []).map((s, i) => [s.teamId, i]));
-  const ranked = (list: typeof teams) => [...list].sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
-  const doneBy = ranked(teams.filter((tm) => tm.done.includes(id)));
-  const onIt = ranked(teams.filter((tm) => lines2.find((l) => l.team.id === tm.id)?.route.open.includes(id)));
-  const word = (n: number) => (n === 1 ? 'team' : 'teams');
-  const doneCard = namesCard('Done it', doneBy, word(doneBy.length), `race-done:${id}`);
-  const onCard = namesCard('On it now', onIt, word(onIt.length), `race-on:${id}`);
-  if (doneCard) out.push(doneCard);
-  if (onCard) out.push(onCard);
+  out.push(...raceWhoCards(g, x.board, x.race.standings ?? [], id));
 
   // Pick (choose-and-lock forks), track on screen, the proofs, the site.
   const s: BoardState = { event: 0, pre: false, q: '', status: 'all', page: 0 };

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { raceGraph, raceTileInfo, isBranchingRoute, rankRaceTeams, teamRoute } from '@/lib/raceRoutes';
+import { raceGraph, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute } from '@/lib/raceRoutes';
 import { raceTileState } from '@/lib/tileState';
 import { clanFetch } from '@/lib/clanFetch';
+import { cn } from '@/lib/utils';
 import { TileStateBanner } from './TileState';
+import { RoadBadge } from './RaceRouteMap';
 
 export interface RaceDetailContext {
   tiles: { id: number; eventId?: number; position: number; label: string; icon?: string | null; raceStep?: number | null; raceNext?: number[] | null; parentTileId?: number | null; mission?: number | boolean | null }[];
@@ -57,19 +59,28 @@ export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext
     return r.path[r.path.length - 1] === tileId;
   });
 
-  const chips = (ids: number[]) => (
-    <span className="flex flex-wrap gap-1.5 mt-1">
+  // Per road: where a step has several tiles each carries its road letter, in road order, and three
+  // or more stack one per line so five roads read as a list, not a jumble of chips.
+  const roadsAt = (id: number) => (graph.steps[graph.byId.get(id)?.step ?? -1]?.length ?? 0) > 1;
+  const chips = (list: number[]) => {
+    const ids = [...list].sort((a, b) => roadOf(graph, a).localeCompare(roadOf(graph, b)));
+    return (
+    <span className={cn('mt-1', ids.length > 2 ? 'flex flex-col items-start gap-1' : 'flex flex-wrap gap-1.5')}>
       {ids.map((id) => (
-        <button key={id} type="button" onClick={ctx.onOpenTile ? () => ctx.onOpenTile!(id) : undefined} className="inline-flex items-center gap-1.5 rounded-full border border-card-border bg-brown-dark/60 pl-1 pr-2 py-0.5 text-xs text-foreground/90 hover:border-gold/60">
+        <span key={id} className="inline-flex items-center gap-1.5">
+        {roadsAt(id) && <RoadBadge letter={roadOf(graph, id)} />}
+        <button type="button" onClick={ctx.onOpenTile ? () => ctx.onOpenTile!(id) : undefined} className="inline-flex items-center gap-1.5 rounded-full border border-card-border bg-brown-dark/60 pl-1 pr-2 py-0.5 text-xs text-foreground/90 hover:border-gold/60">
           <span className="w-5 h-5 rounded-full bg-[#1c1714] flex items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {byId.get(id)?.icon ? <img src={byId.get(id)!.icon!} alt="" className="w-4 h-4 object-contain" style={{ imageRendering: 'pixelated' }} /> : null}
           </span>
           {label(id)}
         </button>
+        </span>
       ))}
     </span>
-  );
+    );
+  };
 
   return (
     <div className="space-y-2 mb-4">
@@ -78,8 +89,8 @@ export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext
         {info.why && <p className="text-xs mt-1">{info.why}</p>}
         {doneRow?.completedAt && <p className="text-xs text-text-muted mt-1">Finished {doneRow.completedAt.slice(0, 16).replace('T', ' ')} UTC</p>}
       </TileStateBanner>
-      {info.leadsTo.length > 0 && <div className="text-xs text-text-muted">Leads to:{chips(info.leadsTo)}</div>}
-      {info.reachedFrom.length > 0 && <div className="text-xs text-text-muted">Reached from:{chips(info.reachedFrom)}</div>}
+      {info.leadsTo.length > 0 && <div className="text-xs text-text-muted">{info.leadsTo.length > 1 ? `Leads to ${info.leadsTo.length} roads:` : 'Leads to:'}{chips(info.leadsTo)}</div>}
+      {info.reachedFrom.length > 0 && <div className="text-xs text-text-muted">{info.reachedFrom.length > 1 ? `Reached from ${info.reachedFrom.length} roads:` : 'Reached from:'}{chips(info.reachedFrom)}</div>}
       {onIt.length > 0 && (
         <p className="text-xs text-text-muted">
           On it now:{' '}

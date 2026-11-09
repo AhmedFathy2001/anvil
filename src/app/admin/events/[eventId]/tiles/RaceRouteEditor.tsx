@@ -289,7 +289,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         </p>
       )}
 
-      <RaceRouteMap nodes={nodes} onTileClick={clickTile} selectedId={selected} linkable={linkable} problemIds={problemIds} />
+      <RaceRouteMap nodes={nodes} onTileClick={clickTile} selectedId={selected} linkable={linkable} problemIds={problemIds} mobileList={false} />
 
       {!locked && sel && (
         <div className="border border-gold/30 rounded-xl bg-card-bg p-3 flex flex-wrap items-center gap-2">

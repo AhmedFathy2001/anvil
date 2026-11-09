@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
-import type { Board, BoardContext } from '../src/lib/pluginUi/boardUi';
+import { type Board, type BoardContext, type BoardState, boardRowsUi, boardUi } from '../src/lib/pluginUi/boardUi';
 import type { Node } from '../src/lib/pluginUi/nodes';
 import { compactStandings, racePageUi, type RacePageOpts } from '../src/lib/pluginUi/raceUi';
 import { raceGraph, rankRaceTeams, teamRoute } from '../src/lib/raceRoutes';
@@ -11,7 +11,7 @@ import { raceGraph, rankRaceTeams, teamRoute } from '../src/lib/raceRoutes';
 // road as a track, compact standings, and each tile's detail as a nav pane.
 
 // Three roads A/B/C over four steps; road B's step-2 tile splits to B and C, A's to A and B.
-const TILES: [number, number, string, number[]][] = [
+const TILES4: [number, number, string, number[]][] = [
   [1, 0, 'Kill 5 bosses', [4]],
   [2, 0, 'One haul worth 1m+', [5]],
   [3, 0, 'Vorkath under 2:00', [6]],
@@ -23,14 +23,26 @@ const TILES: [number, number, string, number[]][] = [
   [9, 2, "3 Seers' laps", [10]],
   [10, 3, 'Hard Ardougne diary', []],
 ];
+// Five roads A–E over six steps: one start tile forks five ways, each road runs on, every step-3 tile
+// reaches all five step-4 tiles, then each road runs on to one finish (ids: 10·step + road + 1, start 1, finish 50).
+export const FIVE: [number, number, string, number[]][] = [
+  [1, 0, 'Wintertodt crate', [11, 12, 13, 14, 15]],
+  ...[1, 2, 3, 4].flatMap((step) => [0, 1, 2, 3, 4].map((r): [number, number, string, number[]] => {
+    const id = 10 * step + r + 1;
+    const next = step === 1 ? [21 + r] : step === 2 ? [31, 32, 33, 34, 35] : step === 3 ? [41 + r] : [50];
+    return [id, step, ['2 Araxxor kills', 'Tanzanite fang', 'Vorkath head', 'Zulrah unique', 'Barrows set'][r] + (step > 1 ? ` ${step}` : ''), next];
+  })),
+  [50, 5, 'Chambers of Xeric', []],
+];
 const COLORS = ['#b38cff', '#7fd1ff', '#ff8f8f', '#9fe07f', '#ffd27a'];
 
 /** 201 solo entrants; `mine` = what the viewer's team (189) has done; the field is spread out behind a finisher. */
-export function raceBoard(mine: number[]): Board {
+export function raceBoard(mine: number[], TILES: [number, number, string, number[]][] = TILES4): Board {
   const graph = raceGraph(TILES.map(([id, step, , next]) => ({ id, position: id, raceStep: step, raceNext: next })));
   const teams = Array.from({ length: 201 }, (_, i) => i + 1).map((id) => {
     let done: number[] = id === 189 ? mine : id === 146 ? [3, 6, 9, 10] : id < 40 ? [2, 5, 8] : id < 110 ? [1 + (id % 3)] : [];
     if (id >= 40 && id < 60) done = [2, 5];
+    if (TILES !== TILES4) done = id === 189 ? mine : id < 60 ? [1, 11 + (id % 5)] : id < 120 ? [1] : [];
     return { teamId: id, name: `Lab~Field${id}`, color: COLORS[id % COLORS.length], completedTileIds: done };
   });
   const completions = teams.flatMap((t) => t.completedTileIds.map((tileId, k) => ({ teamId: t.teamId, tileId, completedAt: new Date(Date.UTC(2026, 10, 8, 10, t.teamId % 60, k)).toISOString() })));
@@ -41,7 +53,7 @@ export function raceBoard(mine: number[]): Board {
     yourTeamId: 189,
     readOnly: false,
     race: {
-      steps: 4, mode: 'achieve', path: route.path, open: route.open, pickFrom: route.pickFrom, finished: route.finished,
+      steps: graph.lastStep + 1, mode: 'achieve', path: route.path, open: route.open, pickFrom: route.pickFrom, finished: route.finished,
       rank: me.rank, entrants: ranked.length, leaderSteps: ranked[0].stepsDone, field: [],
       standings: ranked.map((r) => ({ teamId: r.teamId, rank: r.rank, stepsDone: r.stepsDone, finished: r.finished })),
     },
@@ -130,7 +142,7 @@ test('a tile opens in place: one Back, what counts, where it goes, who, proofs',
   assert.ok(s.includes('What counts'));
   assert.ok(s.includes('One haul worth 1m+ ✓'));
   assert.ok(s.includes('PK Some Pker'));
-  assert.ok(s.some((x) => x.startsWith('At step 3 you can switch to Road C')));
+  assert.ok(s.includes('Or switch at step 3:'));
   assert.ok(s.includes('Done it'));
   assert.ok(s.some((x) => /^\+\d+ more$/.test(x)));
   assert.ok(walk(detail).some((x) => x.t === 'slot' && x.id === 'proofs'));
@@ -163,4 +175,70 @@ if (process.env.RACE_FIXTURES) {
   writeFileSync(`${dir}/race-start.json`, JSON.stringify({ ui: start }));
   writeFileSync(`${dir}/race-mid.json`, JSON.stringify({ ui: mid }));
   writeFileSync(`${dir}/race-detail.json`, JSON.stringify({ ui: { ...mid, open: 't:5' } }));
+}
+
+// ---- Five roads ----------------------------------------------------------------------------------
+
+const boardState: BoardState = { event: 0, pre: false, q: '', status: 'all', page: 0 };
+const boardPage = (b: Board, open?: number) => {
+  const tile = open != null ? (b.tiles as { tileId: number }[]).find((t) => t.tileId === open) : undefined;
+  return boardUi(b, boardState, ctx(), boardRowsUi(b, boardState, ctx(), tile as never));
+};
+/** Every toggle shown lit (its "+N more" opened), for a render of the expanded face. */
+const lit = (n: unknown): unknown => (!n || typeof n !== 'object' ? n : Array.isArray(n) ? n.map(lit) : (n as { t?: string }).t === 'toggle' ? lit((n as { lit: unknown }).lit) : Object.fromEntries(Object.entries(n).map(([k, v]) => [k, lit(v)])));
+
+test('five roads: the fork lists all five, the track folds the other roads behind one chip', () => {
+  const fork = racePageUi(raceBoard([1], FIVE), opts(ctx())) as Slot;
+  const main = texts(fork.panes!.main);
+  for (const n of ['2 Araxxor kills', 'Tanzanite fang', 'Vorkath head', 'Zulrah unique', 'Barrows set']) assert.ok(main.includes(n), n);
+  const onB = racePageUi(raceBoard([1, 12], FIVE), opts(ctx())) as Slot;
+  const tog = walk(onB.panes!.main).find((x) => x.t === 'toggle' && String(x.key).startsWith('race-alts:'))!;
+  assert.ok(tog, 'a step with five roads folds');
+  assert.ok(texts(tog.off).includes('+3 other roads'));
+  assert.equal(walk(tog.lit).filter((x) => x.t === 'text' && /^[A-E]$/.test(String(x.s))).length, 5, 'one badged row per road');
+  // The detail lists each switch as its own badged row, three then "+1 more".
+  const detail = texts(onB.panes!['t:22']);
+  assert.ok(detail.includes('Or switch at step 4:'));
+  assert.ok(detail.includes('+1 more'));
+});
+
+test('board list: the road heads the list only; a locked tile offers no claim, note or tracking', () => {
+  const b = raceBoard([1, 12], FIVE);
+  const page = boardPage(b);
+  const slot = walk(page).find((x) => x.t === 'slot' && x.id === 'tile') as unknown as Slot;
+  assert.ok(texts(slot.panes!.p0).includes('Your road'));
+  assert.ok(!texts(slot.panes!['t:32']).includes('Your road'), 'the detail starts at the top');
+  const locked = texts(slot.panes!['t:32']);
+  assert.ok(locked.includes('Locked'));
+  assert.ok(locked.includes('Where it goes'));
+  const lockedJson = JSON.stringify(slot.panes!['t:32']);
+  for (const gone of ['Claim tile', 'Add note…', 'Track on screen', 'Stop tracking']) assert.ok(!lockedJson.includes(`"${gone}"`), gone);
+  const open = texts(slot.panes!['t:22']);
+  assert.ok(open.includes('Do this next'));
+  const openJson = JSON.stringify(slot.panes!['t:22']);
+  assert.ok(openJson.includes('"Claim tile"') && openJson.includes('"Track on screen"'));
+  // 120 teams did the start tile: six names, the rest folded.
+  const start = walk(slot.panes!['t:1']).find((x) => x.t === 'toggle' && x.key === 'race-done:1')!;
+  assert.ok(texts(slot.panes!['t:1']).includes('Teams done'));
+  assert.ok(texts(start.off).includes('+114 more'));
+});
+
+if (process.env.RACE_FIXTURES) {
+  const dir = process.env.RACE_FIXTURES;
+  mkdirSync(dir, { recursive: true });
+  const fork = racePageUi(raceBoard([1], FIVE), opts(ctx())) as Slot;
+  const onB = racePageUi(raceBoard([1, 12], FIVE), opts(ctx())) as Slot;
+  const b = raceBoard([1, 12], FIVE);
+  const tilePane = (open: number) => (walk(boardPage(b, open)).find((x) => x.t === 'slot' && x.id === 'tile') as unknown as Slot).c;
+  const files: Record<string, unknown> = {
+    'race5-start': fork,
+    'race5-mid': onB,
+    'race5-mid-lit': lit(onB),
+    'race5-detail': { ...onB, open: 't:22' },
+    'board5-list': boardPage(b),
+    'board5-locked': tilePane(32),
+    'board5-done': tilePane(1),
+    'board5-done-lit': lit(tilePane(1)),
+  };
+  for (const [k, v] of Object.entries(files)) writeFileSync(`${dir}/${k}.json`, JSON.stringify({ ui: v }));
 }
