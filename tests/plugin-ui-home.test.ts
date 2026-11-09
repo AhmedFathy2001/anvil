@@ -19,6 +19,7 @@ import {
   weeklyKind,
   workersLine,
 } from '../src/lib/pluginUi/homeUi';
+import { raceBoard } from './plugin-ui-race.test';
 import type { Node } from '../src/lib/pluginUi/nodes';
 
 // The plugin's Clan tab, built on the site (lib/pluginUi/homeUi). Several of these rules were the
@@ -241,8 +242,8 @@ test('every live board the character is on sits in one card with its own progres
   assert.ok(all.includes('Side Bingo') && all.includes('Clan Wars'));
   assert.ok(all.includes('2 / 9 tiles') && all.includes('0 / 16 tiles'));
   const opens = walk(ui).flatMap((n) => {
-    const on = n.on as { a?: string; v?: string; args?: { event?: string } } | undefined;
-    return on?.a === 'load' && on.v === 'board' && on.args?.event && on.args.event !== '0' ? [on.args.event] : [];
+    const on = n.on as { a?: string; v?: string; args?: { open?: string } } | undefined;
+    return on?.a === 'load' && on.v === 'home' && on.args?.open?.startsWith('board:') ? [on.args.open.slice(6)] : [];
   });
   assert.deepEqual(opens, ['7', '8']);
 });
@@ -259,8 +260,8 @@ test('a board’s page offers the character’s other live boards (the board swi
   assert.ok(texts(page).includes('Your other live boards'));
   assert.ok(texts(page).includes('Clan Wars · 4 / 16'));
   const opens = walk(page).flatMap((n) => {
-    const on = n.on as { v?: string; args?: { event?: string } } | undefined;
-    return on?.v === 'board' && on.args?.event && on.args.event !== '0' ? [on.args.event] : [];
+    const on = n.on as { v?: string; args?: { open?: string } } | undefined;
+    return on?.v === 'home' && on.args?.open?.startsWith('board:') ? [on.args.open.slice(6)] : [];
   });
   assert.deepEqual(opens, ['8'], 'not the board already open');
   assert.ok(!texts(eventUi(base(liveCfg({ boards: [summary(5, 'Summer Bingo', 3, 25)] })), 'board')!).includes('Your other live boards'));
@@ -466,3 +467,33 @@ if (process.env.RACE_FIXTURES) {
   const quiet = base({ clanName: 'Iron Forge', activeClan: { slug: 'iron-forge', name: 'Iron Forge' }, panel: { tiles: [], scheduled: [], weeklies: [] } }, { live: false, now: at0, clanEvents: events, clanPath: '/c/iron-forge', supportCta: true });
   write('clan-home', homeUi(quiet));
 }
+
+// A row on "Your live boards" opens the same full event page the followed board gets, for its own board.
+test('a second board opens its own event page (home page for bingo, race page for a race), back to the Clan tab', () => {
+  const loads = (n: Node) => walk(n).flatMap((x) => (x.on && (x.on as { a: string }).a === 'load' ? [x.on as { v: string; args?: Record<string, string> }] : []));
+  // The Clan tab: the second board's row asks for open 'board:9', not the tile list.
+  const tab = homeUi(base(liveCfg({ boards: [{ eventId: 5, name: 'Summer', clan: 'afk', clanName: 'AFK', teamId: 1, teamName: 'Red', tilesComplete: 1, tilesTotal: 4, pointsScored: false }, { eventId: 9, name: 'Winter', clan: 'afk', clanName: 'AFK', teamId: 2, teamName: 'Blue', tilesComplete: 2, tilesTotal: 8, pointsScored: false }] as never }), { myBoards: [{ eventId: 9, name: 'Winter', clan: 'afk', clanName: 'AFK', teamId: 2, teamName: 'Blue', tilesComplete: 2, tilesTotal: 8, pointsScored: false }] as never }));
+  const row = loads(tab).find((o) => o.args?.open === 'board:9');
+  assert.ok(row && row.v === 'home', 'the row loads the home page for board 9');
+  assert.ok(!loads(tab).some((o) => o.v === 'board' && o.args?.event === '9'), 'no tile-list link for it');
+
+  // The page itself: board 9's data, links that stay on it, one way back to the Clan tab.
+  const cfg9 = liveCfg({ event: { id: 9, name: 'Winter Bingo', endDate: null } as never, panel: { tiles: [tile(1, 2, 8)] } });
+  const page = eventUi(base(cfg9, { boardPath: '/c/afk/events/9', standings: [{ teamId: 2, name: 'Blue', color: '#0000ff', rank: 1, score: '2 tiles', members: 3, yours: true }] }), 'board:9')!;
+  assert.ok(texts(page).includes('Winter Bingo') && texts(page).some((t) => t.startsWith('Blue')));
+  const links = loads(page);
+  assert.ok(!links.some((o) => o.args?.event === '0' || o.args?.back === 'board' || o.args?.open === 'board'), 'nothing falls back to the followed board');
+  assert.ok(links.some((o) => o.v === 'teams' && o.args?.event === '9' && o.args?.back === 'board:9'));
+  const back = links.filter((o) => o.v === 'home' && !o.args?.open);
+  assert.ok(back.length >= 1, 'back is the Clan tab');
+});
+
+test('a race board opened from the card is the race page, re-pointed at that board', () => {
+  const cfg = { event: { id: 9, name: 'Race 9', race: { steps: 4, stepsDone: 1, finished: false, mode: 'achieve', open: [], pickFrom: [], rank: 1, entrants: 5, leaderSteps: 1, atYourStep: 1, ahead: 0 }, endDate: null }, board: { tilesComplete: 1, tilesTotal: 10, pointsScored: false }, panel: { tiles: [tile(1, 1, 5)] } } as unknown as HomeConfig;
+  const rc = { eventId: 9, claimBlock: null, pins: [], boardPath: '/events/9', progress: new Map() } as never;
+  const page = eventUi(base(cfg, { raceBoard: { board: raceBoard([1]), ctx: rc } as never }), 'board:9')!;
+  const json = JSON.stringify(page);
+  assert.ok(/Tile race/.test(json), 'the race page');
+  assert.ok(!/"event":"0"/.test(json) && !/"home":"board"/.test(json));
+  assert.ok(/"open":"board:9"/.test(json) && /"event":"9"/.test(json));
+});

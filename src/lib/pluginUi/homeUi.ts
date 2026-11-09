@@ -471,7 +471,7 @@ export function homeUi(d: HomeData): Node {
     const lines: Node[] = [row(muted(clip(`${m.clanName} · ${m.teamName}`, 24)), undefined, rank)];
     if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), row(muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`), undefined, endsNode(m.endDate, d.now)));
     else lines.push(muted('Board not revealed yet'));
-    return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, boardFromList(m.eventId, t), `Open ${t}`);
+    return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, home(`board:${m.eventId}`), `Open ${t}`);
   });
   const liveRows = [...(playingHere ? [playingHere] : []), ...mineRows];
   if (liveRows.length > 1) {
@@ -584,8 +584,38 @@ export function otherBoards(cfg: HomeConfig): NonNullable<HomeConfig['clans']> {
 
 // ---- One event -----------------------------------------------------------------------------------
 
+/**
+ * Re-points a board page's links at board `id`: "the active board" (event 0, back/open/home 'board')
+ * becomes that board's own, so tiles, teams, the feed and back all stay on it.
+ */
+export function refocus<T>(node: T, id: number): T {
+  const own = `board:${id}`;
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (!v || typeof v !== 'object') return v;
+    const o = v as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(o)) out[k] = walk(x);
+    if (typeof o.a === 'string' && (o.a === 'load' || o.a === 'post') && o.args && typeof o.args === 'object') {
+      const args = { ...(out.args as Record<string, unknown>) };
+      if (args.event === '0') args.event = String(id);
+      for (const k of ['back', 'open', 'home']) if (args[k] === 'board') args[k] = own;
+      out.args = args;
+    }
+    return out;
+  };
+  return walk(node) as T;
+}
+
 /** One event's page: the board, a weekly, or a bingo on the schedule. Null when `open` names nothing. */
 export function eventUi(d: HomeData, open: string): Node | null {
+  // `board:<id>`: another board this character is seated on, built from that board's own data
+  // (lib/pluginUi/views homeView); its links keep naming it instead of "the active board".
+  const other = /^board:(\d+)$/.exec(open);
+  if (other) {
+    const page = eventUi(d, 'board');
+    return page ? refocus(page, Number(other[1])) : null;
+  }
   const all = listed(d);
   if (open === 'board') {
     const b = boardOf(d);
@@ -738,7 +768,7 @@ function switcher(d: HomeData, current: number): Node | null {
   if (!others.length) return null;
   return section([
     muted('Your other live boards'),
-    ...others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name} · ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), boardFromList(m.eventId, m.name), `Open ${m.name}`)),
+    ...others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name} · ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), home(`board:${m.eventId}`), `Open ${m.name}`)),
   ]);
 }
 

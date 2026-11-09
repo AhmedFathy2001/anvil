@@ -26,6 +26,9 @@ import { pluginCharacterRefusal } from '@/lib/pluginForeign';
 import { checkOwnershipClaim, myClaimOn, startOwnershipClaim } from '@/lib/ownershipClaims';
 import { pluginClaimCaller } from '@/lib/pluginClaimCaller';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
+import { liveBoardsForCharacter } from '@/lib/pluginBoards';
+import { resolveClanById } from '@/lib/clanContext';
+import { pluginRsnHintOnly, resolvePluginMember } from '@/lib/auth';
 import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
 import type { RosterPersonOut, RosterTeamOut } from '@/lib/eventRoster';
@@ -439,11 +442,13 @@ async function racePickAct(request: Request, a: Args): Promise<View> {
  * A tile race's page needs the whole board (every road, who's done what): gathered only when the race
  * is the page being opened. Best effort: without it the plain board page shows.
  */
-async function raceBoardFor(request: Request, a: Args, boardPath: string | null): Promise<HomeData['raceBoard']> {
+async function raceBoardFor(request: Request, a: Args, boardPath: string | null, other: { eventId: number; tiles: PanelTile[] } | null = null): Promise<HomeData['raceBoard']> {
   try {
-    const scope = await pluginBoardScope(request, null);
+    const scope = await pluginBoardScope(request, other?.eventId ?? null);
     if (!scope || scope.teamId == null) return null;
-    const [board, progress] = await Promise.all([buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId), teamProgress(request)]);
+    // Another board: its team's counts come from its own enrolled config (already built), not the token's active event.
+    const own: BoardContext['progress'] = new Map((other?.tiles ?? []).map((t) => [t.tileId, { current: t.current, goal: t.goal, ...(t.sets ? { sets: t.sets } : {}) }]));
+    const [board, progress] = await Promise.all([buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId), other ? Promise.resolve(own) : teamProgress(request)]);
     if (board.readOnly || !('race' in board) || !board.race) return null;
     const ctx: BoardContext = {
       eventId: scope.event.id,
@@ -534,18 +539,51 @@ function withBack(a: Args, title: string, page: Node): Node {
  * same caller — the route itself, so the tab can never show a board the plugin isn't tracking — plus
  * the team feed, the standings, the live weeklies' boards and the clan's card.
  */
+/**
+ * The config of another live board this character sits on, as that board's own seat would get it.
+ * Null unless the board is one of the character's live seats (liveBoardsForCharacter).
+ */
+async function focusBoard<C extends HomeConfig>(request: Request, cfg: C, eventId: number) {
+  const member = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
+  if (!member) return null;
+  const clanNow = cfg.activeClan?.slug ? await visibleClan(request, cfg.activeClan.slug) : null;
+  const seat = (await liveBoardsForCharacter(request, member.accountId, { preferClanId: clanNow?.id ?? null })).find((b) => b.eventId === eventId);
+  if (!seat) return null;
+  const clan = await resolveClanById(seat.clanId);
+  const user = await verifyPluginTokenUser(request);
+  if (!clan) return null;
+  const built = await buildEnrolledConfig({ eventId, teamId: seat.teamId, clan, viewer: { playerId: seat.playerId, userId: user?.userId ?? null, rsn: seat.rsn, request } });
+  if (!built.ok) return null;
+  const next = { ...cfg, ...(built.body as unknown as HomeConfig), boards: cfg.boards, activeClan: { ...cfg.activeClan, slug: seat.clan, name: seat.clanName } } as unknown as C;
+  return { cfg: next, seat: { eventId, teamId: seat.teamId, playerId: seat.playerId, rsn: seat.rsn, userId: user?.userId ?? null } };
+}
+
 async function homeView(request: Request, a: Args): Promise<View> {
   const res = await configRoute(request);
   const noClan = 'You’re not in a clan or an event on Anvil yet — join one on the site and it shows here.';
   if (!res.ok) {
     return message(res.status === 404 ? noClan : 'Couldn’t reach Anvil — try again in a moment.');
   }
-  const cfg = (await res.json()) as HomeConfig & { clanless?: boolean; event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
+  let cfg = (await res.json()) as HomeConfig & { clanless?: boolean; event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
   // In no clan, but in a head-to-head drop race: the config answered only to carry the race's items
   // (lib/pluginConfigClanless). The Clan tab still has no clan to show.
   if (cfg.clanless) return message(noClan);
   const now = Date.now();
-  // Running: started, not force-ended, and not past an end — an open-ended event (no end date) runs
+  // `open: board:<id>`: another board this character is on gets the same event page the followed one
+  // does. Only a seat liveBoardsForCharacter names (live, visible clan, this character's own entry),
+  // built through that board's own enrolled config, so the reveal and hidden-standings rules are its own.
+  let focus: { eventId: number; teamId: number; playerId: number; rsn: string; userId: number | null } | null = null;
+  const want = /^board:(\d+)$/.exec(a.open ?? '');
+  if (want && Number(want[1]) !== cfg.event?.id) {
+    const f = await focusBoard(request, cfg, Number(want[1]));
+    if (f) {
+      cfg = f.cfg;
+      focus = f.seat;
+    }
+  } else if (want) a = { ...a, open: 'board' };
+  // A board that isn't one of this character's live seats opens nothing: the Clan tab, never the followed board's page.
+  if (want && Number(want[1]) !== cfg.event?.id && !focus) a = { ...a, open: '' };
+    // Running: started, not force-ended, and not past an end — an open-ended event (no end date) runs
   // until the host ends it, as the plugin's tracking reads it (eventTimeState calls that 'none').
   const ev = cfg.event;
   const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
@@ -555,7 +593,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
   const me = playedCharacter(request);
   const open = a.open ?? '';
 
-  const auth = live ? await verifyPluginToken(request) : null;
+  const auth = live ? (focus ? { eventId: focus.eventId, teamId: focus.teamId, playerId: focus.playerId, rsn: focus.rsn, userId: focus.userId } : await verifyPluginToken(request)) : null;
   const liveWeeklies = (cfg.panel?.weeklies ?? []).filter((w) => w.status === 'active');
   const [feed, roster, boards, ownClan, clanEvents, myBoards, dayRanks] = await Promise.all([
     auth
@@ -631,7 +669,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     now,
     clanEvents,
     myBoards,
-    raceBoard: open === 'board' && live && cfg.event?.race ? await raceBoardFor(request, a, cfg.event ? `${clanPath}/events/${cfg.event.id}` : null) : null,
+    raceBoard: (open === 'board' || focus) && live && cfg.event?.race ? await raceBoardFor(request, a, cfg.event ? `${clanPath}/events/${cfg.event.id}` : null, focus ? { eventId: focus.eventId, tiles: cfg.panel?.tiles ?? [] } : null) : null,
     notice,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
