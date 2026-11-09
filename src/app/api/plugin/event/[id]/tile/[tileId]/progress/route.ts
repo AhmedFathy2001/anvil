@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, events, tiles, users } from '@/db/schema';
+import { clans, completions, events, tiles, users } from '@/db/schema';
+import { raceGraph, teamRoute } from '@/lib/raceRoutes';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { verifyPluginTokenOnEvent, verifyPluginTokenUser } from '@/lib/auth';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { tileProgressView } from '@/lib/tileTrackerView';
-import { tileGone } from '@/lib/tileTracker';
+import { tileGone, tileLocked } from '@/lib/tileTracker';
 
 // GET /api/plugin/event/[id]/tile/[tileId]/progress — one tile's progress for every team, with each
 // team's top contributors (lib/tileTracker). Backs the plugin's pinned in-game tracker widget, which
@@ -56,6 +58,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // Not open for THIS viewer (a closed mission/bounty they haven't finished, or a race step not reached):
+  // a final 410 with a reason, so the plugin unpins with its own chat line.
+  if (mine && (await lockedForViewer(event, tile, mine.teamId))) return tileGone('locked');
+
   // The widget counts down to the start itself and drops its pins once the event is over. Both are
   // stable values, so the ETag still only moves when a phase or a number does.
   // Hidden standings: the caller's own team's line only, unless they're staff (lib/standingsAccess).
@@ -73,4 +79,17 @@ async function seatedEvent(eventId: number) {
     .where(and(eq(events.id, eventId), ne(clans.status, 'suspended')))
     .limit(1);
   return row?.event;
+}
+
+async function lockedForViewer(event: typeof events.$inferSelect, tile: typeof tiles.$inferSelect, teamId: number): Promise<boolean> {
+  const done = await db.select({ tileId: completions.tileId }).from(completions).where(and(eq(completions.teamId, teamId), eq(completions.tileId, tile.id))).limit(1);
+  if (done.length) return false;
+  if (tileLocked(tile, null)) return true;
+  if (event.format !== 'tilerace') return false;
+  const all = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  const graph = raceGraph(all);
+  if (!graph.nodes.length) return false;
+  const doneIds = (await db.select({ tileId: completions.tileId }).from(completions).where(and(eq(completions.teamId, teamId), inArray(completions.tileId, all.map((t) => t.id))))).map((r) => r.tileId);
+  const state = teamRoute(graph, doneIds, await loadRacePicks(event, teamId)).state.get(tile.id);
+  return tileLocked(tile, state ?? null);
 }

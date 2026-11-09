@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { tileGone, collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
+import { tileGone, tileLocked, collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
 
 const input = (over: Partial<TrackerInput> = {}): TrackerInput => ({
   teams: [
@@ -100,4 +100,11 @@ test('a deleted pinned tile answers a final 410 "gone", not a transient error', 
   const r = tileGone();
   assert.equal(r.status, 410);
   assert.deepEqual(await r.json(), { error: 'Tile removed', gone: true });
+});
+
+test('a tile not open for the viewer answers 410 with reason locked', async () => {
+  const r = tileGone('locked');
+  assert.equal(r.status, 410);
+  assert.equal(((await r.json()) as { reason: string }).reason, 'locked');
+  assert.ok(tileLocked({}, 'ahead') && tileLocked({ closedAt: 'x' }, null) && !tileLocked({}, 'open') && !tileLocked({}, null));
 });

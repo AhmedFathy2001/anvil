@@ -116,3 +116,9 @@ test('a locked race step or a closed tile cannot be tracked, an open one can', (
   assert.equal(pinAction(withState({ closedAt: '2026-01-01' }), st, c), null);
   assert.ok(pinAction(withState({ raceState: 'open' }), st, c)?.on);
 });
+
+test('a tracked row with no progress is one line: the name and the ✕', () => {
+  const card = trackedCard([{ tileId: 3, label: 'Step 1', eventId: 77, board: null, cur: null, goal: null, done: false }], 77, { a: 'load', v: 'home' })!;
+  const line = walk(card).find((x) => x.t === 'row' && (x.c as { s?: string } | undefined)?.s === 'Step 1') as { r?: { s?: string } } | undefined;
+  assert.equal(line?.r?.s, '✕');
+});

@@ -152,7 +152,12 @@ function rank(teams: TrackerTeam[]): TrackerTeam[] {
 }
 
 /**
- * The progress route's answer for a pinned tile that was deleted (a board re-seeded under the pin): 410,
- * final, so the plugin unpins at once instead of retrying a pin that can never load.
+ * The progress route's answer for a pinned tile that can't be tracked: 410, final, so the plugin unpins
+ * at once instead of retrying. `reason` 'locked' = it exists but isn't open for this viewer.
  */
-export const tileGone = (): Response => Response.json({ error: 'Tile removed', gone: true }, { status: 410 });
+export const tileGone = (reason?: 'locked'): Response =>
+  Response.json({ error: reason ? 'Tile not open' : 'Tile removed', gone: true, ...(reason ? { reason } : {}) }, { status: 410 });
+
+/** Whether an unfinished tile is closed (mission/bounty) or a race step the viewer's road hasn't reached. */
+export const tileLocked = (t: { closedAt?: string | null }, raceState: string | null): boolean =>
+  !!t.closedAt || raceState === 'ahead' || raceState === 'closed';
