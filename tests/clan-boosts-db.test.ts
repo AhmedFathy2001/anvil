@@ -87,11 +87,11 @@ test('only a paying Supporter on their own old-enough member seat can place', as
   assert.equal(r.ok, false);
 
   // Invite time alone gives no slots.
-  await setTier(me.userId, 'champion', 'granted');
+  await setTier(me.userId, 'patron', 'granted');
   r = await B.placeBoost(me.userId, me.playerId, ids.mainAlpha);
   assert.equal(r.ok, false);
 
-  await setTier(me.userId, 'champion');
+  await setTier(me.userId, 'patron');
   // Someone else's seat, a guest seat, a too-new seat: all refused.
   assert.equal((await B.placeBoost(me.userId, me.playerId, ids.theirSeat)).ok, false);
   assert.equal((await B.placeBoost(me.userId, me.playerId, ids.mainBetaGuest)).ok, false);
@@ -108,7 +108,7 @@ test('only a paying Supporter on their own old-enough member seat can place', as
 });
 
 test('a double submit never places more boosts than slots', async () => {
-  // Champion: two slots, one used. Fire three at once.
+  // Patron: two slots, one used. Fire three at once.
   const results = await Promise.all([1, 2, 3].map(() => B.placeBoost(ids.me, ids.mePlayer, ids.mainAlpha)));
   assert.equal(results.filter((x) => x.ok).length, 1);
   const live = await db.select().from(s.clanBoosts).where(eq(s.clanBoosts.userId, ids.me));
@@ -170,7 +170,7 @@ test('levels count two per person, lift with a Level-up badge, and pause on a la
   assert.ok(level.graceEndsAt && level.graceEndsAt > Date.now());
   const paused = await B.myBoosts(ids.me, ids.mePlayer);
   assert.ok(paused.placements.every((p) => p.state === 'paused'));
-  await setTier(ids.me, 'champion');
+  await setTier(ids.me, 'patron');
   assert.equal((await B.clanBoostLevel(ids.alpha)).counted, 4);
 });
 
@@ -214,10 +214,10 @@ test('a staff gift gives boost slots only when granted with them', async () => {
   const G = await import('../src/lib/supporterGifts.ts');
   const giftee = await person('Giftee');
   const gSeat = await seat(ids.beta, await character(giftee.playerId, 'GifteeMain'), 'member', 60);
-  await G.giveGift({ userId: giftee.userId, tier: 'champion', days: 30, actorUserId: ids.me });
+  await G.giveGift({ userId: giftee.userId, tier: 'patron', days: 30, actorUserId: ids.me });
   assert.equal((await B.boostSlotsFor(giftee.userId)).slots, 0);
   assert.equal((await B.placeBoost(giftee.userId, giftee.playerId, gSeat)).ok, false);
-  const withSlots = await G.giveGift({ userId: giftee.userId, tier: 'champion', days: 30, actorUserId: ids.me, boostSlots: true });
+  const withSlots = await G.giveGift({ userId: giftee.userId, tier: 'patron', days: 30, actorUserId: ids.me, boostSlots: true });
   assert.equal(withSlots.boostSlots, true);
   assert.equal((await B.boostSlotsFor(giftee.userId)).slots, 2);
   assert.equal((await B.placeBoost(giftee.userId, giftee.playerId, gSeat)).ok, true);
@@ -230,7 +230,7 @@ test('the hourly reconcile records a drop when it happens, and only once an hour
   await db.delete(s.clanBoostState).where(eq(s.clanBoostState.clanId, ids.beta));
   const people = await Promise.all(['R1', 'R2', 'R3'].map((n) => person(n)));
   for (const p of people) {
-    await setTier(p.userId, 'supporter');
+    await setTier(p.userId, 'champion');
     const st = await seat(ids.beta, await character(p.playerId, `${p.userId}Char`), 'member', 30);
     assert.equal((await B.placeBoost(p.userId, p.playerId, st)).ok, true);
   }
