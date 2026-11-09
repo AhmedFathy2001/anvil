@@ -532,7 +532,11 @@ export default async function EventScoreboardPage({
   const showStatsLink = boardHasStarted(event);
   // The chat moderation page, for the host clan's mods and up and Anvil staff (lib/eventChat chatAccess),
   // only at the host's own address: a co-host's role says nothing about this event.
-  const canModerateChat = !apiPrefix && event.chatEnabled && session ? !!(await chatAccess(event.id, session.userId))?.staff : false;
+  const viewerChat = session ? await chatAccess(event.id, session.userId) : null;
+  const canModerateChat = !apiPrefix && event.chatEnabled && !!viewerChat?.staff;
+  // The board's Feed and chat on the website (app/events/[eventId]/live), for its players and staff:
+  // the plugin panel's Feed tab for someone on a phone or away from the game.
+  const canOpenLive = !!viewerChat?.member;
 
   // The pot counts fees actually in (lib/prizePool countPaidEntries), not every approved sign-up.
   const [paid, cofferFunded] = await Promise.all([countPaidEntries(id), eventPoolGp(id)]);
@@ -847,6 +851,19 @@ export default async function EventScoreboardPage({
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">Live event stats</span>
             <span className="block text-sm text-text-muted">Drops, deaths, XP and tiles per player — by day and hour by hour.</span>
+          </span>
+          <span className="text-sm text-gold shrink-0">Open →</span>
+        </ClanLink>
+      )}
+      {canOpenLive && (
+        <ClanLink
+          href={`/events/${id}/live`}
+          className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
+        >
+          <span className="text-xl leading-none" aria-hidden>💬</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Feed &amp; chat</span>
+            <span className="block text-sm text-text-muted">The board’s drops and finished tiles, and its chat. Talk to your team from your phone; it reaches them in game.</span>
           </span>
           <span className="text-sm text-gold shrink-0">Open →</span>
         </ClanLink>

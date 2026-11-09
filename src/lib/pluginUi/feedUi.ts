@@ -244,37 +244,52 @@ function toneOf(m: MomentLike, totalLevel: boolean): Pick<FeedRow, 'textColor' |
   return {};
 }
 
+/** Is this a total-level row (a total or a max, or an old verbatim total-level line)? */
+export function isTotalLevel(m: MomentLike): boolean {
+  return (m.kind === 'level' && (m.sourceKind === 'total' || m.sourceKind === 'max')) || rawTotalLevel(m) != null;
+}
+
+/** The picture a moment's row carries: an item, a skill, a named sprite, or a glyph. */
+export function momentIcon(m: MomentLike): Pick<FeedRow, 'item' | 'skill' | 'sprite' | 'glyph' | 'glyphColor'> {
+  const totalLevel = isTotalLevel(m);
+  const levelSkill = m.kind === 'level' && !totalLevel ? m.itemName?.trim().toLowerCase() : null;
+  // A death has no item: the game's Skull (item 964) stands for it.
+  return totalLevel
+    ? { sprite: 'total' as const }
+    : levelSkill
+    ? { skill: levelSkill }
+    : m.kind === 'milestone' && m.sourceKind === 'slayer'
+    ? { skill: 'slayer' }
+    : m.kind === 'milestone' && m.sourceKind === 'clues' && m.tier && CLUE_ITEM[m.tier]
+    ? { item: CLUE_ITEM[m.tier] }
+    : m.kind === 'milestone'
+    ? { glyph: 'check' as const, glyphColor: BLUE as Color }
+    : m.kind === 'clog'
+      ? { sprite: 'collection-log' as const }
+      : itemOf(m) != null
+        ? { item: itemOf(m)! }
+        : m.kind === 'death'
+          ? { item: 964 }
+          : m.kind === 'quest'
+            ? { sprite: 'quest' as const }
+            : m.kind === 'diary'
+              ? { sprite: 'diary' as const }
+              : m.kind === 'ca'
+                ? { sprite: 'combat' as const }
+                : glyphOf(m.kind);
+}
+
+/** A moment's tone (title colour and picture tint), as its panel row wears it. */
+export function momentTone(m: MomentLike): Pick<FeedRow, 'textColor' | 'tint'> {
+  return toneOf(m, isTotalLevel(m));
+}
+
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   // valueGp is the whole stack's worth (the plugin prices quantity × each), so it is shown as is.
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp) : undefined;
-  const totalLevel = (m.kind === 'level' && (m.sourceKind === 'total' || m.sourceKind === 'max')) || rawTotalLevel(m) != null;
-  const levelSkill = m.kind === 'level' && !totalLevel ? m.itemName?.trim().toLowerCase() : null;
   return {
     id: `m${m.id}`,
-    // A death has no item: the game's Skull (item 964) stands for it.
-    ...(totalLevel
-      ? { sprite: 'total' as const }
-      : levelSkill
-      ? { skill: levelSkill }
-      : m.kind === 'milestone' && m.sourceKind === 'slayer'
-      ? { skill: 'slayer' }
-      : m.kind === 'milestone' && m.sourceKind === 'clues' && m.tier && CLUE_ITEM[m.tier]
-      ? { item: CLUE_ITEM[m.tier] }
-      : m.kind === 'milestone'
-      ? { glyph: 'check' as const, glyphColor: BLUE as Color }
-      : m.kind === 'clog'
-        ? { sprite: 'collection-log' as const }
-        : itemOf(m) != null
-          ? { item: itemOf(m)! }
-          : m.kind === 'death'
-            ? { item: 964 }
-            : m.kind === 'quest'
-              ? { sprite: 'quest' as const }
-              : m.kind === 'diary'
-                ? { sprite: 'diary' as const }
-                : m.kind === 'ca'
-                  ? { sprite: 'combat' as const }
-                  : glyphOf(m.kind)),
+    ...momentIcon(m),
     title: momentTitle(m),
     who: m.rsn,
     ...whoInk(o),
@@ -285,7 +300,7 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
         : {}),
     at: m.occurredAt,
     ...(value ? { value } : {}),
-    ...toneOf(m, totalLevel),
+    ...momentTone(m),
     ...(o.mine ? { mine: true } : {}),
     ...reactsOf(m.kind, o),
   };
@@ -454,6 +469,8 @@ export interface FeedTabOptions {
   ownTeam?: { on: boolean; act: Action } | null;
   /** Chat: the open channel's list id (lib/eventChatRules ChatChannel via chatFeedId). */
   feedId?: string;
+  /** A board's Feed & chat page on the website (app/events/[eventId]/live), for its players: a link under the list. */
+  webPath?: string | null;
   /** The viewer moderates this chat: the mods filter and the pause switch show. */
   staff?: boolean;
   paused?: boolean;
@@ -464,6 +481,25 @@ export interface FeedTabOptions {
     selected?: string;
     options?: { key: string; label: string }[];
   } | null;
+}
+
+/** The Feed's filter chips for a clan or a board, in order: [filter, label]. */
+export function feedFilterChips(kind: 'clan' | 'event', teamId: number | null): [string, string][] {
+  // Achievements: log slots, diaries, quests, the clan's level milestones and combat-task tier,
+  // kept for the clan whether or not anything is running (a board keeps its own tasks and levels).
+  return [
+    ['all', 'All'],
+    // A board's finished tiles (lib/panelRows completionRow); a clan has no tiles of its own.
+    ...(kind === 'event' ? [['tiles', 'Tiles'] as [string, string]] : []),
+    ['drops', 'Drops'],
+    ['pets', 'Pets'],
+    ['achievements', 'Achievements'],
+    // A board keeps every death; a clan its members' deaths unless it turned them off (Rules).
+    ['deaths', 'Deaths'],
+    // Slayer, clues, speedruns, kill counts, BA gambles: the clan's and each live board's.
+    ['milestones', 'Milestones'],
+    ...(kind === 'event' && teamId != null ? [['team', 'My team'] as [string, string]] : []),
+  ];
 }
 
 const scopeKey = (s: Scope) => (s.kind === 'clan' ? `clan:${s.slug}` : `event:${s.id}`);
@@ -557,24 +593,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     const words = ownTeamChatLabel(o.ownTeam.on);
     parts.push(muted(words.label, { font: 'small', align: 'r', on: o.ownTeam.act, tip: words.tip }), gap(4));
   }
-  const filters: [string, string][] =
-    o.pane === 'chat'
-      ? []
-      // Achievements: log slots, diaries, quests, the clan's level milestones and combat-task tier,
-      // kept for the clan whether or not anything is running (a board keeps its own tasks and levels).
-      : [
-          ['all', 'All'],
-          // A board's finished tiles (lib/panelRows completionRow); a clan has no tiles of its own.
-          ...(o.current.kind === 'event' ? [['tiles', 'Tiles'] as [string, string]] : []),
-          ['drops', 'Drops'],
-          ['pets', 'Pets'],
-          ['achievements', 'Achievements'],
-          // A board keeps every death; a clan its members' deaths unless it turned them off (Rules).
-          ['deaths', 'Deaths'],
-          // Slayer, clues, speedruns, kill counts, BA gambles: the clan's and each live board's.
-          ['milestones', 'Milestones'],
-          ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
-        ];
+  const filters: [string, string][] = o.pane === 'chat' ? [] : feedFilterChips(o.current.kind, o.teamId);
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
   if (filters.length) parts.push(rowOf(filters.map(([id, label]) => boxChip(label, o.filter === id, load({
     s: key,
@@ -620,6 +639,18 @@ export function feedTabUi(o: FeedTabOptions): Node {
     );
   }
 
+  if (o.webPath && o.current.kind === 'event' && !o.mode?.active) {
+    parts.push(
+      gap(4),
+      text('Open on Anvil', 'brand', {
+        font: 'small',
+        tip: 'This board’s feed and chat on the Anvil website, for when you’re on your phone or away from the game',
+        on: { a: 'site', path: `${o.webPath}${o.pane === 'chat' ? '?tab=chat' : ''}` },
+        icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' },
+        iconAfter: true,
+      }),
+    );
+  }
   if (o.pane === 'chat' && o.staff && o.current.kind === 'event') {
     parts.push(
       gap(4),
@@ -643,7 +674,7 @@ function emptyModeLine(filter: string): string {
 }
 
 /** What an empty list says, for the filter that's on. */
-function emptyLine(pane: 'feed' | 'chat', filter: string): string {
+export function emptyLine(pane: 'feed' | 'chat', filter: string): string {
   if (pane === 'chat') return filter.startsWith('team') ? 'Nothing said to your team yet.' : filter === 'announce' ? 'No announcements yet.' : 'No messages yet. Say hi to the board.';
   if (filter === 'pets') return 'No pets yet. The next one lands here.';
   if (filter === 'drops') return 'No big drops yet. The next one lands here.';
