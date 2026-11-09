@@ -30,6 +30,8 @@ import { supporterInksForRsns } from '@/lib/supporter';
 import { inkForSurface, type SupporterInk } from '@/lib/supporterStyle';
 import { chanKey, feedCount, type LiveChanKey, type LiveChatLine, type LiveFeedRow } from '@/lib/liveView';
 import { liveChatLine, liveEmptyLine, liveMomentRow, liveTileRow } from '@/lib/liveRows';
+import { liveTicketScope } from '@/lib/liveTicket';
+import { MAX_TICKET_TEAMS, type PushScope } from '@/lib/push/ticket';
 
 // ── Who's asking ────────────────────────────────────────────────────────────────────────────────
 
@@ -266,4 +268,18 @@ export async function livePulse(access: ChatAccess): Promise<{ c: string; f: str
   ]);
   // The curtain lifting changes the token by itself, and every open page refetches the full list.
   return { c, f: `${hidden ? 'h' : 'o'}|${f}` };
+}
+
+// ── The push socket ────────────────────────────────────────────────────────────────────────────
+
+/** What this viewer's push ticket grants (lib/liveTicket), or null when they may not read the board. */
+export async function liveTicket(access: ChatAccess | null, userId: number): Promise<PushScope | null> {
+  if (!access?.member) return null;
+  // clan-scope: global -- the board chatAccess just admitted the viewer to.
+  const [ev, teamRows] = await Promise.all([
+    db.query.events.findFirst({ where: eq(events.id, access.eventId) }),
+    db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, access.eventId)).orderBy(teams.id).limit(MAX_TICKET_TEAMS + 1),
+  ]);
+  if (!ev) return null;
+  return liveTicketScope(access, userId, { teamIds: teamRows.map((t) => t.id), hidden: standingsHidden(ev) });
 }

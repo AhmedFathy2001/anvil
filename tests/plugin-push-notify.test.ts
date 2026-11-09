@@ -228,6 +228,39 @@ test('the push server sends my team its view, then just the count when a teammat
   blue.ws.close();
 });
 
+test('a browser brings a web ticket in the address and hears rows, no views; a plugin ticket may not come that way', async () => {
+  const url = `ws://127.0.0.1:${PORT}/api/plugin/push/ws`;
+  const k = ticketKey('test-secret');
+  const status = (target: string, headers?: Record<string, string>) =>
+    new Promise<number>((resolve) => {
+      const ws = new WebSocket(target, headers ? { headers } : undefined);
+      ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
+      ws.on('open', () => {
+        resolve(101);
+        ws.close();
+      });
+    });
+  const plugin = signTicket({ userId: 1, eventIds: [ids.event], teamId: ids.red, rows: true }, k, Date.now()).ticket;
+  assert.equal(await status(`${url}?ticket=${encodeURIComponent(plugin)}`), 401, 'a plugin ticket only in the header');
+  assert.equal(await status(url, { Authorization: `Bearer ${plugin}` }), 101, 'the plugin path as before');
+  assert.equal(await status(`${url}?ticket=not.valid`), 401);
+
+  const web = signTicket({ userId: 77, eventIds: [ids.event], teamId: null, rows: true, web: true, teamIds: [ids.blue] }, k, Date.now()).ticket;
+  const ws = new WebSocket(`${url}?ticket=${encodeURIComponent(web)}`);
+  const got: { t: string; n?: string }[] = [];
+  ws.on('message', (m) => got.push(JSON.parse(String(m))));
+  await waitFor(() => got.length >= 1);
+  assert.deepEqual(got, [{ t: 'hello' }]);
+  await pool.query(`select pg_notify('anvil_push', $1)`, [JSON.stringify({ k: 'rows', e: ids.event, t: ids.red, m: { t: 'rows', n: 'red' } })]);
+  await pool.query(`select pg_notify('anvil_push', $1)`, [JSON.stringify({ k: 'rows', e: ids.event, t: ids.blue, m: { t: 'rows', n: 'blue' } })]);
+  await pool.query(`select pg_notify('anvil_push', $1)`, [JSON.stringify({ k: 'rows', e: ids.event, m: { t: 'rows', n: 'board' } })]);
+  await db.insert(s.submissions).values({ tileId: ids.teamTile, teamId: ids.red, playerId: ids.mate, amount: 1 });
+  await waitFor(() => got.length >= 3);
+  await new Promise((r) => setTimeout(r, 600));
+  assert.deepEqual(got.map((m) => m.n ?? m.t), ['hello', 'blue', 'board'], 'its granted team and the board; no other team, no views');
+  ws.close();
+});
+
 async function waitFor(ok: () => boolean, ms = 5_000) {
   const until = Date.now() + ms;
   while (!ok()) {

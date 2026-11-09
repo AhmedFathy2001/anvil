@@ -12,8 +12,19 @@ import { clanFetch } from '@/lib/clanFetch';
 import type { LiveChatState, LiveFeedState, LiveSeat } from '@/lib/liveData';
 import { FEED_PAGE, clockLabel, type LiveChatLine, type LiveFeedRow, type LiveIcon, type LiveInk } from '@/lib/liveView';
 
-/** How often the page asks "anything new?" while it is in view (a 304 when nothing moved). */
+/** How often the page asks "anything new?" while it is in view and the push socket is down (a 304 when nothing moved). */
 const POLL_MS = 5_000;
+/**
+ * With the socket up, a slow check all the same: a few changes reach nobody by push (a sanction on
+ * someone else, a team line to Anvil staff who aren't the host's), and a 304 costs next to nothing.
+ */
+const SAFETY_POLL_MS = 60_000;
+/** A burst of pushes (a raid's drops) is one check. */
+const PUSH_GATHER_MS = 300;
+/** Reconnect backoff: doubling from the first to the last; a socket that lived a while starts over. */
+const RETRY_MIN_MS = 1_000;
+const RETRY_MAX_MS = 60_000;
+const SOCKET_SETTLED_MS = 30_000;
 const INFO_BLUE = '#6fb6ff';
 
 type Tab = 'feed' | 'chat';
@@ -120,18 +131,32 @@ export default function LiveClient({
     }
   }, [tab]);
 
-  // ── "Anything new?" every few seconds while the page is in view; nothing while it's hidden ──
+  // ── Live updates ─────────────────────────────────────────────────────────────────────────────
+  //
+  // The push socket (push/server.ts, a web ticket from api/events/[id]/live/ticket) says WHEN something
+  // moved; the pulse says WHAT: a push only triggers the same ETag'd pulse check the poll makes, which
+  // refetches the half that changed. The socket's panel rows are the plugin's shapes (feed ids, run
+  // collapsing, chips), and the website's lists are built by the site (lib/liveData), so applying
+  // them here would be a second copy of that logic — and a refetch keeps the curtain's rules where
+  // they are. While the socket is down the page polls every few seconds; nothing at all while hidden.
   const latest = useRef({ tab, filter, count, where, loadFeed, loadChat });
   useEffect(() => {
     latest.current = { tab, filter, count, where, loadFeed, loadChat };
   });
   const marks = useRef<{ c: string | null; f: string | null; etag: string | null }>({ c: null, f: null, etag: null });
+  /** Drops the socket and dials again with a fresh ticket (after "Only my team's chat" changes its rooms). */
+  const reconnect = useRef<() => void>(() => {});
   useEffect(() => {
     marks.current = { c: null, f: null, etag: null };
     let stopped = false;
     let busy = false;
+    let again = false;
     const tick = async () => {
-      if (stopped || busy || document.visibilityState !== 'visible') return;
+      if (stopped || document.visibilityState !== 'visible') return;
+      if (busy) {
+        again = true;
+        return;
+      }
       busy = true;
       try {
         const res = await clanFetch(`${base}/pulse?${seatQ.slice(1)}`, {
@@ -151,15 +176,138 @@ export default function LiveClient({
         /* the next tick tries again */
       } finally {
         busy = false;
+        // A push that landed mid-check is checked again, so it never waits for the next poll.
+        if (again) {
+          again = false;
+          void tick();
+        }
       }
     };
+
+    // The poll: every few seconds while the socket is down, a slow safety check while it's up.
+    let socketUp = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    const schedulePoll = () => {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = stopped ? null : setTimeout(() => void tick().finally(schedulePoll), socketUp ? SAFETY_POLL_MS : POLL_MS);
+    };
+
+    // The socket.
+    let ws: WebSocket | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let gatherTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryMs = RETRY_MIN_MS;
+    /** No push server here (404), or this browser has no WebSocket: poll only, for this page's life. */
+    let noPush = typeof WebSocket === 'undefined';
+    const setUp = (up: boolean) => {
+      if (socketUp === up) return;
+      socketUp = up;
+      schedulePoll();
+    };
+    const pushed = () => {
+      if (gatherTimer) return;
+      gatherTimer = setTimeout(() => {
+        gatherTimer = null;
+        void tick();
+      }, PUSH_GATHER_MS);
+    };
+    const retry = (ms: number) => {
+      if (stopped || noPush || retryTimer) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void connect();
+      }, ms);
+    };
+    const backoff = () => {
+      const ms = retryMs;
+      retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+      retry(ms);
+    };
+    let dialing = false;
+    const connect = async () => {
+      if (stopped || noPush || ws || dialing || document.visibilityState !== 'visible') return;
+      dialing = true;
+      let pass: { url: string; ticket: string };
+      try {
+        const res = await clanFetch(`${base}/ticket?${seatQ.slice(1)}`, { cache: 'no-store' });
+        if (res.status === 404) {
+          noPush = true;
+          return;
+        }
+        if (!res.ok) return backoff();
+        pass = (await res.json()) as { url: string; ticket: string };
+      } catch {
+        return backoff();
+      } finally {
+        dialing = false;
+      }
+      if (stopped || ws || document.visibilityState !== 'visible') return;
+      let sock: WebSocket;
+      try {
+        const u = new URL(pass.url);
+        u.searchParams.set('ticket', pass.ticket);
+        sock = new WebSocket(u.toString());
+      } catch {
+        return backoff();
+      }
+      ws = sock;
+      let openedAt = 0;
+      sock.onopen = () => {
+        openedAt = Date.now();
+        setUp(true);
+        // Whatever moved while the socket was down.
+        void tick();
+      };
+      sock.onmessage = (e) => {
+        let t: unknown;
+        try {
+          t = (JSON.parse(String(e.data)) as { t?: unknown }).t;
+        } catch {
+          return;
+        }
+        if (t !== 'hello') pushed();
+      };
+      sock.onclose = (e) => {
+        if (ws !== sock) return;
+        ws = null;
+        setUp(false);
+        if (stopped) return;
+        if (openedAt && Date.now() - openedAt > SOCKET_SETTLED_MS) retryMs = RETRY_MIN_MS;
+        // 4001: the ticket ran out or the roster moved — ask for a fresh one straight away.
+        if (e.code === 4001) retry(250);
+        else backoff();
+      };
+    };
+    const hangUp = () => {
+      const sock = ws;
+      ws = null;
+      setUp(false);
+      sock?.close(1000, 'page');
+    };
+    reconnect.current = () => {
+      hangUp();
+      retryMs = RETRY_MIN_MS;
+      void connect();
+    };
+
+    // Hidden: no socket and no poll. Back in view: check at once, and dial again.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void tick();
+        void connect();
+      } else hangUp();
+    };
+
     void tick();
-    const id = setInterval(tick, POLL_MS);
-    document.addEventListener('visibilitychange', tick);
+    void connect();
+    schedulePoll();
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       stopped = true;
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+      for (const t of [pollTimer, retryTimer, gatherTimer]) if (t) clearTimeout(t);
+      reconnect.current = () => {};
+      hangUp();
     };
   }, [base, seatQ, chatOpen]);
 
@@ -215,6 +363,8 @@ export default function LiveClient({
     if (!chat?.ownTeam) return;
     const error = await post({ action: 'own-team', on: !chat.ownTeam.on });
     if (error) dialog.notify(error, 'error');
+    // Which teams the socket hears follows the switch: a fresh ticket.
+    else reconnect.current();
     await loadChat(where);
   }
 

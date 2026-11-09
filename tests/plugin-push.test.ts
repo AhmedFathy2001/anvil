@@ -418,3 +418,84 @@ test('a reaction update goes to the board\'s players, never to a clanmate only w
   assert.deepEqual(got.watcher, []);
   assert.equal(sent.length, before, 'no overlay nudge scheduled for a count');
 });
+
+// ── The website's Feed & chat page: web tickets (rows only) and staff's every-team rooms ─────────
+
+test('a plugin ticket is byte for byte what it was; a web ticket carries its teams and runs shorter', async () => {
+  const { WEB_TICKET_TTL_MS } = await import('../src/lib/push/ticket.ts');
+  const plain = signTicket({ userId: 7, eventIds: [3], teamId: 2, rows: true }, key, 0).ticket;
+  assert.deepEqual(JSON.parse(Buffer.from(plain.split('.')[0], 'base64url').toString()), { u: 7, e: [3], t: 2, r: 1, x: TICKET_TTL_MS });
+  const web = signTicket({ userId: 7, eventIds: [3], teamId: 2, rows: true, web: true, teamIds: [2, 4, 5] }, key, 0, WEB_TICKET_TTL_MS);
+  assert.equal(web.expiresAt, WEB_TICKET_TTL_MS);
+  assert.deepEqual(verifyTicket(web.ticket, key, 1), { userId: 7, eventIds: [3], teamId: 2, rows: true, teamIds: [4, 5], web: true });
+  // A ttl can shorten a ticket, never stretch it.
+  assert.equal(signTicket({ userId: 7, eventIds: [3], teamId: 2 }, key, 0, 10 * TICKET_TTL_MS).expiresAt, TICKET_TTL_MS);
+});
+
+test('a web client hears rows in its board and every granted team room, never a view, never another team', async () => {
+  const { hub, advance, built, views } = harness();
+  views.set(teamKey(5, 10), 'red-view');
+  const got = { host: [] as string[], narrowed: [] as string[], plugin: [] as string[] };
+  // An every-team host (no seat), a narrowed host on team 10, and a plugin on team 10.
+  hub.add({ scope: { userId: 1, eventIds: [5], teamId: null, rows: true, web: true, teamIds: [10, 11] }, send: (m) => got.host.push(m) });
+  hub.add({ scope: { userId: 2, eventIds: [5], teamId: 10, rows: true, web: true }, send: (m) => got.narrowed.push(m) });
+  hub.add({ scope: { userId: 3, eventIds: [5], teamId: 10, rows: true }, send: (m) => got.plugin.push(m) });
+  await advance(100);
+  assert.deepEqual(built, [teamKey(5, 10)], 'only the plugin asked for a view');
+  assert.deepEqual(got.host, []);
+  assert.deepEqual(got.narrowed, []);
+  assert.deepEqual(got.plugin, ['red-view']);
+
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, m: { t: 'rows', n: 'board' } }))!);
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, t: 11, m: { t: 'rows', n: 'blue' } }))!);
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, t: 10, m: { t: 'rows', n: 'red' } }))!);
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, t: 12, m: { t: 'rows', n: 'green' } }))!);
+  const ns = (list: string[]) => list.map((m) => JSON.parse(m).n);
+  assert.deepEqual(ns(got.host), ['board', 'blue', 'red'], 'both granted teams, not green');
+  assert.deepEqual(ns(got.narrowed), ['board', 'red'], 'their own team only');
+  assert.deepEqual(ns(got.plugin.slice(1)), ['board', 'red'], 'the plugin exactly as before');
+
+  // A board change rebuilds views for plugins; a web client is sent nothing for it.
+  views.set(teamKey(5, 10), 'red-view-2');
+  hub.dispatch(change({ e: 5, t: 10 }));
+  await advance(1_000);
+  assert.equal(got.host.length, 3);
+  assert.equal(got.narrowed.length, 2);
+});
+
+test('rows-only team rooms re-ticket when somebody leaves that team, and unsubscribe cleanly', () => {
+  const { hub } = harness();
+  let blue = 0;
+  let red = 0;
+  const got: string[] = [];
+  const off = hub.add({ scope: { userId: 1, eventIds: [5], teamId: null, rows: true, web: true, teamIds: [11] }, send: (m) => got.push(m), rescope: () => blue++ });
+  hub.add({ scope: { userId: 2, eventIds: [5], teamId: 10, rows: true, web: true }, send: () => {}, rescope: () => red++ });
+  hub.dispatch(change({ e: 5, x: 11 }));
+  assert.deepEqual([blue, red], [1, 0]);
+  hub.dispatch(change({ e: 5, x: 10 }));
+  assert.deepEqual([blue, red], [1, 1]);
+  off();
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, t: 11, m: { t: 'rows' } }))!);
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, m: { t: 'rows' } }))!);
+  assert.deepEqual(got, []);
+  // After the database listener comes back, web pages are told to check once.
+  const again: string[] = [];
+  hub.add({ scope: { userId: 4, eventIds: [5], teamId: null, rows: true, web: true }, send: (m) => again.push(m) });
+  hub.refreshAll();
+  assert.deepEqual(again, [NUDGE]);
+});
+
+test('the live page’s ticket: a player their team, an every-team host all teams, a narrowed host theirs, an outsider nothing', async () => {
+  const { liveTicketScope } = await import('../src/lib/liveTicket.ts');
+  const board = { teamIds: [10, 11, 12], hidden: false };
+  const base = { eventId: 5, member: true, staff: false, ownTeamOnly: false, solo: false, teamId: 10 as number | null };
+  assert.deepEqual(liveTicketScope(base, 1, board), { userId: 1, eventIds: [5], teamId: 10, rows: true, web: true });
+  assert.deepEqual(liveTicketScope({ ...base, staff: true, teamId: null }, 2, board), { userId: 2, eventIds: [5], teamId: null, rows: true, web: true, teamIds: [10, 11, 12] });
+  assert.deepEqual(liveTicketScope({ ...base, staff: true }, 3, board)?.teamIds, [11, 12], 'a host on a team: the others beside their own');
+  assert.equal(liveTicketScope({ ...base, staff: true, ownTeamOnly: true }, 3, board)?.teamIds, undefined);
+  // Behind the curtain the page's Feed shows staff their own team only, so the socket hears no other.
+  assert.equal(liveTicketScope({ ...base, staff: true }, 3, { ...board, hidden: true })?.teamIds, undefined);
+  assert.equal(liveTicketScope({ ...base, staff: true, solo: true }, 3, board)?.teamIds, undefined, 'a solo board has no team chat');
+  assert.equal(liveTicketScope({ ...base, member: false }, 4, board), null);
+  assert.equal(liveTicketScope(null, 4, board), null);
+});
