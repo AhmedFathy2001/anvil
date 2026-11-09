@@ -186,7 +186,7 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
   const markedClan = { ...scopes[0], logo: true };
   const marked = JSON.stringify(feedTabUi({ scopes: [markedClan], current: markedClan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x', images: true }));
   assert.match(marked, /kind=logo/);
-  assert.match(marked, /"motion":true,"round":true/);
+  assert.match(marked, /"rad":8,"motion":true/, "the hero badge: a rounded-square logo");
 });
 
 test('a finished tile: its row, its lists, and a Tiles chip on a board only', async () => {
