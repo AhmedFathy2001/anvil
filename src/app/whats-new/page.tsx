@@ -1,14 +1,8 @@
-import { and, eq, isNotNull } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 
-import { db } from '@/db';
-import { accountPluginSeen, accounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
-import { clanBoostLevels } from '@/lib/clanBoosts';
-import { clansOfPerson } from '@/lib/myClans';
-import { supporterForUser } from '@/lib/supporter';
 import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
 import {
   SIGNED_OUT,
@@ -23,6 +17,7 @@ import {
   type Viewer,
   type WhatsNewEntry,
 } from '@/lib/whatsNew';
+import { viewerFor } from '@/lib/whatsNewViewer';
 import ClanLink from '@/components/ClanLink';
 import WhatsNewTabs from './WhatsNewTabs';
 import WhatsNewList, { type ListItem } from './WhatsNewList';
@@ -85,6 +80,7 @@ export default async function WhatsNewPage({ searchParams }: { searchParams: Pro
       <WhatsNewTabs
         initial={initial}
         newest={WHATS_NEW[0]?.date ?? ''}
+        signedIn={viewer.signedIn}
         tabs={buckets.map((b) => ({
           id: b.id,
           label: b.label,
@@ -132,48 +128,9 @@ function whoNote(v: Viewer): string | null {
   return `Picked for ${parts.length ? `${parts.join(', ')} and ${last}` : last}.`;
 }
 
-/**
- * Who is reading: Supporter tier, every clan they belong to (a seat or a staff grant, lib/myClans)
- * with their role and the clan's boost level, and whether any character of theirs has played with
- * the plugin. Each lookup fails soft: a missing piece only makes the page less personal.
- */
+/** Who is reading (lib/whatsNewViewer); signed out reads the general page. */
 async function resolveViewer(onApex: boolean): Promise<Viewer> {
   const session = await verifyUser();
   if (!session) return { ...SIGNED_OUT, onApex };
-
-  const [supporter, myClans, pluginUser] = await Promise.all([
-    supporterForUser(session.userId).catch(() => null),
-    clansOfPerson(session.playerId ?? null, session.userId).catch(() => []),
-    usesPlugin(session.userId, session.playerId ?? null).catch(() => false),
-  ]);
-  const levels = myClans.length
-    ? await clanBoostLevels(myClans.map((c) => c.id)).catch(() => new Map<number, { level: number }>())
-    : new Map<number, { level: number }>();
-
-  return {
-    signedIn: true,
-    tier: supporter?.tier.id ?? null,
-    clans: myClans.map((c) => ({ slug: c.slug, name: c.name, kind: c.clanKind, role: c.role, boostLevel: levels.get(c.id)?.level ?? 0 })),
-    pluginUser,
-    onApex,
-  };
-}
-
-/** Has this person used the plugin: a device token, or any character the plugin has reported from. */
-async function usesPlugin(userId: number, playerId: number | null): Promise<boolean> {
-  const [token] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.id, userId), isNotNull(users.pluginTokenHash)))
-    .limit(1);
-  if (token) return true;
-  if (playerId == null) return false;
-  // clan-scope: global -- a person's own characters, across every clan.
-  const [seen] = await db
-    .select({ id: accountPluginSeen.accountId })
-    .from(accountPluginSeen)
-    .innerJoin(accounts, eq(accounts.id, accountPluginSeen.accountId))
-    .where(eq(accounts.playerId, playerId))
-    .limit(1);
-  return !!seen;
+  return viewerFor(session.userId, session.playerId ?? null, onApex);
 }

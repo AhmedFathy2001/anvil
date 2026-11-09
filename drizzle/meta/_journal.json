@@ -1324,6 +1324,13 @@
       "when": 1794520000000,
       "tag": "0251_own_team_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1794530000000,
+      "tag": "0252_whats_new_seen",
+      "breakpoints": true
     }
   ]
 }

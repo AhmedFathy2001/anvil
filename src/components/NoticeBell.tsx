@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import ClanLink from '@/components/ClanLink';
 import type { NoticeView } from '@/lib/notices';
+import { WHATS_NEW_SEEN_EVENT } from '@/lib/whatsNew';
 
 /**
  * The bell: notices from Anvil (lib/notices), with an unread count and a short list.
@@ -10,7 +12,8 @@ import type { NoticeView } from '@/lib/notices';
  * NEAR-REALTIME, CHEAPLY. It asks for just the count when the tab comes back into focus and every
  * minute while it's visible, never while hidden. When a new unread notice turns up and the person
  * turned "Play a sound" on in /settings, it chimes once. No live chat behind it: replies happen on
- * Discord, which every notice points to.
+ * Discord, which every notice points to. New What's new entries show here too (one per date), linking
+ * to /whats-new; a visit there clears them.
  */
 const POLL_MS = 60_000;
 
@@ -95,6 +98,7 @@ function subscribe(l: (p: Pulse) => void): () => void {
     timer = setInterval(onFocus, POLL_MS);
     document.addEventListener('visibilitychange', onFocus);
     window.addEventListener('focus', onFocus);
+    window.addEventListener(WHATS_NEW_SEEN_EVENT, onFocus);
   }
   return () => {
     listeners.delete(l);
@@ -103,6 +107,7 @@ function subscribe(l: (p: Pulse) => void): () => void {
       timer = null;
       document.removeEventListener('visibilitychange', onFocus);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener(WHATS_NEW_SEEN_EVENT, onFocus);
     }
   };
 }
@@ -176,17 +181,30 @@ export default function NoticeBell({ className = '' }: { className?: string }) {
             <p className="px-4 py-6 text-center text-sm text-gray-500">Nothing yet. Updates from Anvil show up here.</p>
           ) : (
             <ul className="max-h-96 divide-y divide-card-border overflow-y-auto">
-              {list.map((n) => (
-                <li key={n.id} className="px-4 py-3">
-                  <a href="/inbox" className="block">
+              {list.map((n) => {
+                const inner = (
+                  <>
                     <span className="flex items-baseline justify-between gap-2">
                       <span className={`text-sm ${n.level === 'important' ? 'text-gold' : 'text-gray-100'} ${n.read ? '' : 'font-semibold'}`}>{n.title}</span>
                       <span className="shrink-0 text-[11px] text-gray-500">{ago(n.createdAt)}</span>
                     </span>
                     {n.body && <span className="mt-0.5 line-clamp-2 block text-xs text-gray-400">{n.body}</span>}
-                  </a>
-                </li>
-              ))}
+                  </>
+                );
+                return (
+                  <li key={n.id} className="px-4 py-3">
+                    {n.kind === 'whatsNew' ? (
+                      <ClanLink href="/whats-new" onClick={() => setOpen(false)} className="block">
+                        {inner}
+                      </ClanLink>
+                    ) : (
+                      <a href="/inbox" className="block">
+                        {inner}
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

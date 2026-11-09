@@ -127,3 +127,41 @@ test('DM choice is saved by Discord id; no bot token means no welcome', async ()
   assert.deepEqual(await W.welcomeContextFor(ids.patron), { kind: 'supporter', tierName: 'Patron' });
   assert.equal(await W.welcomeContextFor(ids.member), null);
 });
+
+test("What's new in the bell: marker starts at the newest, new entries per date, audience respected, read clears", async () => {
+  const fresh = await person('fresh');
+  const old = [{ id: 'old', date: '2026-10-01', title: 'Old', body: 'Old body' }];
+  // First look: the marker starts at the newest entry, so no back-catalogue.
+  assert.deepEqual(await N.whatsNewNoticesFor(fresh, old), []);
+  assert.equal((await db.query.users.findFirst({ where: eq(s.users.id, fresh) }))?.whatsNewSeen, 'old');
+
+  const later = [
+    { id: 'staff-only', date: '2026-11-09', title: 'For staff', body: 'b', audience: ['clanStaff' as const] },
+    { id: 'all-2', date: '2026-11-09', title: 'Two', body: 'b' },
+    { id: 'all-1', date: '2026-11-08', title: 'One', body: 'One body' },
+    ...old,
+  ];
+  const mine = await N.whatsNewNoticesFor(fresh, later);
+  assert.deepEqual(
+    mine.map((n) => [n.id, n.title, n.kind, n.linkUrl, n.read]),
+    [
+      [-20261109, 'What’s new: Two', 'whatsNew', '/whats-new', false],
+      [-20261108, 'What’s new: One', 'whatsNew', '/whats-new', false],
+    ],
+  );
+  // The clan owner gets the staff entry in the same date's notice.
+  await db.update(s.users).set({ whatsNewSeen: 'old' }).where(eq(s.users.id, ids.owner));
+  assert.equal((await N.whatsNewNoticesFor(ids.owner, later))[0].title, 'What’s new: 2 changes');
+
+  // Only staff entries are new and this person isn't staff: the marker moves on quietly.
+  const staffOnly = [{ id: 'staff-2', date: '2026-11-10', title: 'Staff again', body: 'b', audience: ['clanStaff' as const] }, ...later];
+  await N.markWhatsNewSeen(fresh, later);
+  assert.deepEqual(await N.whatsNewNoticesFor(fresh, staffOnly), []);
+  assert.equal((await db.query.users.findFirst({ where: eq(s.users.id, fresh) }))?.whatsNewSeen, 'staff-2');
+
+  // Reading a What's new notice (negative id) moves the marker to the real list's newest entry.
+  await db.update(s.users).set({ whatsNewSeen: '2026-01-01-ancient' }).where(eq(s.users.id, fresh));
+  assert.ok((await N.inboxFor(fresh)).notices.some((n) => n.kind === 'whatsNew'));
+  await N.markRead(fresh, [-20261109]);
+  assert.ok(!(await N.inboxFor(fresh)).notices.some((n) => n.kind === 'whatsNew'));
+});

@@ -23,15 +23,17 @@ export function NewBadge({ date }: { date: string }) {
  * The tab row on /whats-new. Every panel is rendered on the server and the inactive ones are only
  * hidden, so switching is instant; the tab is written into the address (`?tab=staff`) so a link to
  * one scope can be shared. Also remembers (localStorage, best effort) the newest entry seen, so the
- * next visit can mark what is new.
+ * next visit can mark what is new. Signed in, the visit also clears the bell's What's new notices.
  */
 export default function WhatsNewTabs({
   initial,
   newest,
+  signedIn,
   tabs,
 }: {
   initial: WhatsNewTab;
   newest: string;
+  signedIn: boolean;
   tabs: { id: WhatsNewTab; label: string; count: number; panel: React.ReactNode }[];
 }) {
   const [tab, setTab] = useState<WhatsNewTab>(initial);
@@ -42,11 +44,14 @@ export default function WhatsNewTabs({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
       setSeen(localStorage.getItem(SEEN_KEY));
       localStorage.setItem(SEEN_KEY, newest);
-      window.dispatchEvent(new Event(WHATS_NEW_SEEN_EVENT));
     } catch {
       // Private window or blocked storage: no badges, nothing else lost.
     }
-  }, [newest]);
+    if (!signedIn) return;
+    void fetch('/api/notices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'read', whatsNew: true }) })
+      .then(() => window.dispatchEvent(new Event(WHATS_NEW_SEEN_EVENT)))
+      .catch(() => {});
+  }, [newest, signedIn]);
 
   const pick = (next: WhatsNewTab) => {
     setTab(next);

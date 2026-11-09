@@ -8,7 +8,10 @@ import {
   forYouCards,
   groupByMonth,
   splitRecent,
-  unseenCount,
+  bellGroups,
+  entriesSince,
+  isRelevantTo,
+  needsViewer,
   WHATS_NEW,
   audienceMatches,
   bucketEntries,
@@ -226,12 +229,41 @@ test('every link in the list resolves to a site path for a multi-clan viewer, si
   assert.ok(!resolveLinks(byId('2026-11-07-name-looks'), { ...many, onApex: false }).some((l) => l.href === '/supporter'));
 });
 
-test('unseenCount counts entries newer than the last visit, or recent ones on a first visit', () => {
-  const dates = ['2026-11-09', '2026-11-07', '2026-10-01', '2026-08-01'];
-  assert.equal(unseenCount(dates, '2026-11-07', '2026-11-10'), 1);
-  assert.equal(unseenCount(dates, '2026-11-09', '2026-11-10'), 0);
-  assert.equal(unseenCount(dates, null, '2026-11-10'), 3 - 1); // 30 days: 11-09, 11-07 only
-  assert.equal(unseenCount([], null, 'nope'), 0);
+const mk = (id: string, date: string, audience?: WhatsNewEntry['audience']): WhatsNewEntry => ({ id, date, title: id, body: `${id} body`, audience });
+
+test('entriesSince lists what was added above the marker, falling back to the date of a removed id', () => {
+  const list = [mk('c', '2026-11-09'), mk('b', '2026-11-09'), mk('a', '2026-11-07'), mk('2026-10-01-x', '2026-10-01')];
+  assert.deepEqual(entriesSince(list, 'a').map((x) => x.id), ['c', 'b']);
+  assert.deepEqual(entriesSince(list, 'c'), []);
+  // Added later the same day, above the one already seen.
+  assert.deepEqual(entriesSince(list, 'b').map((x) => x.id), ['c']);
+  assert.deepEqual(entriesSince(list, '2026-11-07-gone').map((x) => x.id), ['c', 'b']);
+  assert.deepEqual(entriesSince(list, 'not-a-date'), []);
+  // The real list: the newest id is never "new" again.
+  assert.deepEqual(entriesSince(WHATS_NEW, WHATS_NEW[0].id), []);
+});
+
+test('isRelevantTo: everyone entries reach anyone signed in, targeted ones only their audience', () => {
+  const anyone: Viewer = { ...SIGNED_OUT, signedIn: true };
+  const staff: Viewer = { ...anyone, clans: [afk] };
+  assert.ok(isRelevantTo(mk('x', '2026-11-09'), anyone));
+  assert.ok(isRelevantTo(mk('x', '2026-11-09', ['everyone']), anyone));
+  assert.ok(!isRelevantTo(mk('x', '2026-11-09', ['clanStaff']), anyone));
+  assert.ok(isRelevantTo(mk('x', '2026-11-09', ['clanStaff']), staff));
+  assert.ok(!isRelevantTo(mk('x', '2026-11-09', ['patron', 'pluginUser']), staff));
+  assert.ok(!needsViewer([mk('x', '2026-11-09'), mk('y', '2026-11-09', ['everyone'])]));
+  assert.ok(needsViewer([mk('x', '2026-11-09'), mk('y', '2026-11-09', ['supporter'])]));
+});
+
+test('bellGroups: one notice per date, a lone entry reads as itself', () => {
+  const groups = bellGroups([mk('d', '2026-11-09'), mk('c', '2026-11-09'), mk('b', '2026-11-09'), mk('a', '2026-11-09'), mk('z', '2026-11-07')]);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].title, 'What\u2019s new: 4 changes');
+  assert.equal(groups[0].body, 'd, c, b and 1 more.');
+  assert.deepEqual(groups[0].ids, ['d', 'c', 'b', 'a']);
+  assert.equal(groups[1].title, 'What\u2019s new: z');
+  assert.equal(groups[1].body, 'z body');
+  assert.equal(bellGroups([mk('b', '2026-11-09'), mk('a', '2026-11-09')])[0].body, 'b and a.');
 });
 
 test('forYouCards merges an entry aimed at several of the viewer roles into one chipped card', () => {
