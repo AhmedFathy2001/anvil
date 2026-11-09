@@ -238,7 +238,7 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, 
   // The mockup's header: one hero card (banner, badge overlapping it, name beside the badge).
   const media = anvil && images ? c.panelMedia : undefined;
   const pic = (kind: 'banner' | 'avatar') => revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=${kind}`, media!.revision);
-  const avatar = badge(media?.avatar ? { t: 'img', src: pic('avatar'), w: 32, h: 32, rad: 4, ...(media.avatarAnimated ? { motion: true } : {}) } : undefined, c.rsn);
+  const avatar = badge(media?.avatar ? { t: 'img', src: pic('avatar'), w: 32, h: 32, rad: 6, ...(media.avatarAnimated ? { motion: true } : {}) } : undefined, c.rsn);
   const name = anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' });
   const who = [c.clan?.name ?? null, c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? 'on Anvil' : 'from the hiscores'].filter(Boolean).join(' · ');
   const totals = [c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null, c.combatLevel != null ? `cb ${c.combatLevel}` : null].filter(Boolean);

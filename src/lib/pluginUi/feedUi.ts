@@ -503,7 +503,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     parts.push(hero(
       o.images && cur.banner ? { src: rev('banner'), motion: (cur.boostLevel ?? 0) >= 2 } : null,
       nameTint(cur.name),
-      badge(o.images && cur.logo ? { t: 'img', src: rev('logo'), w: 32, h: 32, rad: 4, motion: true } : undefined, cur.name),
+      badge(o.images && cur.logo ? { t: 'img', src: rev('logo'), w: 32, h: 32, rad: 6, motion: true } : undefined, cur.name),
       [text(cur.name, boost?.color ?? 'white', { font: 'bold', ...(boost?.grad ? { grad: boost.grad } : {}), ...(boost?.move ? { move: true } : {}) })],
       live ? [live] : [],
     ), gap(6));
