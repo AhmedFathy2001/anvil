@@ -324,6 +324,7 @@ async function feeOwnership(pairs: { signupId: number; collectedByUserId: number
   const rows = await db
     .select({ id: eventSignups.id, userId: eventSignups.userId, seatPlayerId: accounts.playerId })
     .from(eventSignups)
+    // clan-scope: global -- joined by the signup's own seat id; the signup ids were already scoped by the caller.
     .leftJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
     .leftJoin(accounts, eq(accounts.id, clanMemberships.accountId))
     .where(inArray(eventSignups.id, signupIds));

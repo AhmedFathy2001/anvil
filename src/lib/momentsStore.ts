@@ -392,6 +392,7 @@ export async function recordModeMoments(
   clan: ClanScope,
   mode: { key: string; label: string },
 ): Promise<{ stored: number; matched: number; inserted: StoredMoment[]; seatKind: string; idle: true }> {
+  // clan-scope: global -- one seat by id, the authenticated plugin member's own; its clan is the seat's.
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
   const seatKind = seat?.kind ?? 'guest';
   if (seatKind !== 'member') return { stored: 0, matched: 0, inserted: [], seatKind, idle: true };
@@ -406,6 +407,7 @@ export async function recordModeLineMoments(
   mode: { key: string; label: string },
   events: readonly { kind: 'mode' | 'level' | 'quest'; title: string; itemName?: string | null; quantity?: number; sourceKind?: string | null }[],
 ): Promise<StoredMoment[]> {
+  // clan-scope: global -- one seat by id, the authenticated plugin member's own; its clan is the seat's.
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
   if (seat?.kind !== 'member') return [];
   const inserted: StoredMoment[] = [];

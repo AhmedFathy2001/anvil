@@ -116,7 +116,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
         boosters={boosters}
         records={
           <div className="border border-card-border rounded-xl bg-card-bg p-4">
-            <p className="text-sm text-text-muted mb-3">Who holds the clan's biggest day, week, month and year for each skill and boss. Counted from when Anvil started tracking records.</p>
+            <p className="text-sm text-text-muted mb-3">Who holds the clan&apos;s biggest day, week, month and year for each skill and boss. Counted from when Anvil started tracking records.</p>
             <RecordsBoard rows={recordHolders} emptyText="No records yet. They fill in as members gain XP and kills." />
           </div>
         }

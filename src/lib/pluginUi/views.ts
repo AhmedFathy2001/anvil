@@ -425,6 +425,7 @@ async function racePickAct(request: Request, a: Args): Promise<View> {
   const c = await pluginClaimCaller(request, event ?? undefined);
   let error: string | null = c.ok ? null : c.error;
   if (c.ok && tileId) {
+    // clan-scope: global -- the event id is the caller's own plugin-token board, already resolved by pluginClaimCaller.
     const ev = await db.query.events.findFirst({ where: eq(events.id, c.auth.eventId) });
     if (!ev) error = 'Event not found';
     else if (!(await mayPickRoad(c.auth.teamId, c.userId, true))) error = 'Your team’s captain picks the road.';

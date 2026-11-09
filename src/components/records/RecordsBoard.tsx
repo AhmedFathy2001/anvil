@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import ClanLink from '@/components/ClanLink';
 
 import {
   RECORD_PERIODS,
@@ -91,7 +92,7 @@ export default function RecordsBoard({ rows, emptyText }: { rows: RecordRow[]; e
                     <div className="text-xs text-text-muted truncate">
                       {r.rsn ? (
                         <>
-                          {r.href ? <a href={r.href} className="hover:text-gold">{r.rsn}</a> : r.rsn}
+                          {r.href ? <ClanLink href={r.href} className="hover:text-gold">{r.rsn}</ClanLink> : r.rsn}
                           {' · '}
                         </>
                       ) : null}

@@ -194,6 +194,7 @@ export default function DiscordFeedsPanel({
   const [pasting, setPasting] = useState<string | null>(null);
   const [pasted, setPasted] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [wantMode, setWantMode] = useState<string | null>(null);
   // A pasted webhook URL is an unsaved draft until its Save lands; Cancel closes the row and clears the flag.
   const pasteDirty = !!pasting && pasted.trim() !== '';
   useUnsavedChanges(pasteDirty);
@@ -223,7 +224,6 @@ export default function DiscordFeedsPanel({
     }
   });
   // A mode's row is keyed by its own id, known only once the view has loaded.
-  const [wantMode, setWantMode] = useState<string | null>(null);
   useEffect(() => {
     const row = wantMode ? rawView?.modes.rows.find((m) => m.key === wantMode) : null;
     if (!row) return;

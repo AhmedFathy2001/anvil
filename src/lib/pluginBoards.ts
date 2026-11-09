@@ -265,6 +265,7 @@ export async function foldOtherBoards(
     });
     if (!built.ok) continue;
     appendBoardTiles(body, built.body as unknown as Record<string, unknown>, b);
+    // clan-scope: global -- multi-board tracking spans a character's clans by design; b.eventId came from that character's own live seats.
     const ev = await db.query.events.findFirst({ where: eq(events.id, b.eventId) });
     const place = ev?.tilesRevealed ? await boardPlace(ev, b.teamId, args.userId).catch(() => null) : null;
     summaries.push(summaryOf({ ...b, endDate: b.endDate ?? ev?.endDate ?? null }, (built.body as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board, place));

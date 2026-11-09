@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDialog } from '@/components/Confirm';
-import { createDirtyTracker, stableKey } from '@/lib/unsavedChanges';
+import { stableKey } from '@/lib/unsavedChanges';
 
 /**
  * Unsaved-changes guard. A form calls useUnsavedChanges(dirty) (or useDirtyForm(values), which also
@@ -108,20 +108,20 @@ export function useUnsavedChanges(dirty: boolean): boolean {
  * Clean on mount; editing and changing back is clean; call markSaved() after a successful save.
  */
 export function useDirtyForm<T>(values: T, opts?: { guard?: boolean }) {
-  const tracker = useRef<ReturnType<typeof createDirtyTracker<T>> | null>(null);
-  if (!tracker.current) tracker.current = createDirtyTracker(values);
-  const [, bump] = useState(0);
-  const dirty = tracker.current.isDirty(values);
+  // Baseline lives in state (not a ref) so render never reads a ref; the latest values are kept in a
+  // ref that only effects and handlers read.
+  const [saved, setSaved] = useState(() => ({ key: stableKey(values), values }));
+  const latest = useRef(values);
+  useEffect(() => {
+    latest.current = values;
+  });
+  const dirty = stableKey(values) !== saved.key;
   useUnsavedChanges(opts?.guard === false ? false : dirty);
-  const markSaved = useCallback(
-    (saved?: T) => {
-      tracker.current!.markSaved(saved ?? values);
-      bump((n) => n + 1);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stableKey(values)],
-  );
-  return { dirty, markSaved, baseline: () => tracker.current!.baseline() };
+  const markSaved = useCallback((next?: T) => {
+    const v = next ?? latest.current;
+    setSaved({ key: stableKey(v), values: v });
+  }, []);
+  return { dirty, markSaved, baseline: () => saved.values };
 }
 
 /** The shared "you have unsaved changes" marker: gold dot + text, next to a Save button. */

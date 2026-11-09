@@ -5,6 +5,7 @@ import { useParams, usePathname } from 'next/navigation';
 
 import { clanSlugOf, routePattern } from '@/lib/analyticsPattern';
 import { isOptedOut } from '@/lib/analyticsSource';
+import { clanFetch } from '@/lib/clanFetch';
 
 // One page view per navigation, and one leave per page, to /api/analytics/collect (first-party; see
 // lib/analytics).
@@ -40,7 +41,7 @@ function send(body: object) {
   const json = JSON.stringify(body);
   const blob = new Blob([json], { type: 'application/json' });
   if (!navigator.sendBeacon?.(URL_, blob)) {
-    void fetch(URL_, { method: 'POST', body: json, keepalive: true }).catch(() => {});
+    void clanFetch(URL_, { method: 'POST', body: json, keepalive: true }).catch(() => {});
   }
 }
 
