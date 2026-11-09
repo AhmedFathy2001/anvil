@@ -1,5 +1,5 @@
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
-import { loadRacePicks } from '@/lib/raceRoutePicks';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { standingsHidden } from '@/lib/standingsVisibility';
@@ -246,13 +246,13 @@ export async function buildEnrolledConfig(args: {
   let raceVisible: Set<number> | null = null;
   // The panel's "Your race" card (lib/pluginUi homeUi): position, rank, the leader and the tiles up next.
   let raceSummary: {
-    steps: number; stepsDone: number; finished: boolean; mode: 'achieve' | 'choose';
+    steps: number; stepsDone: number; finished: boolean; mode: 'achieve' | 'choose' | 'open';
     open: { tileId: number; label: string; road: string }[]; pickFrom: { tileId: number; label: string; road: string }[];
     rank: number | null; entrants: number; leaderSteps: number; atYourStep: number; ahead: number;
   } | null = null;
   if (raceGraphRows?.branching) {
     const doneRows = await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId));
-    const route = teamRoute(raceGraphRows, doneRows.map((r) => r.tileId), await loadRacePicks(event, teamId));
+    const route = teamRoute(raceGraphRows, doneRows.map((r) => r.tileId), await loadRacePicks(event, teamId), eventRaceOpts(event));
     raceVisible = new Set([...route.open, ...[...route.state].filter(([, st]) => st === 'done').map(([id]) => id)]);
     const ids = raceGraphRows.nodes.map((n) => n.id);
     const everyone = ids.length

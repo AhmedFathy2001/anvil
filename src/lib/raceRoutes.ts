@@ -14,12 +14,13 @@
  * Picking a route is done by playing it. Before a team has finished anything, every step-0 tile is
  * open. After that, the open tiles are the links of the tile the team finished at its furthest step;
  * finishing one commits the team to it and the other options at that step close for that team.
+ * "Roads stay open" (events.rules.raceRoad = 'open') keeps every road the team has opened open:
+ * finishing a tile at an earlier fork opens its links too, and the furthest road counts.
  *
- * The committed path is walked from the start: at step 0 the finished step-0 tile, then at each
- * following step the finished tile LINKED FROM the previous one. When a team holds more than one
- * finished tile at a step (only an admin toggle can do that), the one with the MOST links wins, then
- * the earlier one in board order. A finished tile off that path (also admin-only) stays done and
- * scores, but it doesn't move the team along the route.
+ * The committed path is the LONGEST chain of finished tiles from a finished step-0 tile, each linked
+ * from the one before. When a team holds more than one finished tile at a step (an admin toggle, or
+ * "Roads stay open"), the longer chain wins, then the one with the MOST links, then the earlier one
+ * in board order. A finished tile off that path stays done and scores, but it doesn't move the team.
  *
  * Pure (no `@/db`): the completion guards, the plugin config, the boards and the editor all call it.
  */
@@ -131,6 +132,8 @@ export interface TeamRoute {
   pickFrom: number[];
   /** "Choose and lock in": the tile picked at the current fork, if any. */
   picked: number | null;
+  /** "Roads stay open": open tiles may sit at earlier forks, not only after the path's end. */
+  roadsOpen: boolean;
 }
 
 /** Pick the tile that carries the team on: the most links, then board order. */
@@ -142,37 +145,115 @@ function pickCommitted(graph: RaceGraph, candidates: number[]): number {
   })[0];
 }
 
+/** How a race's roads play (events.rules.raceRoad). 'open' = "Roads stay open". */
+export type RaceRoadMode = 'achieve' | 'choose' | 'open';
+
+export interface TeamRouteOpts {
+  /**
+   * Off (false): only finishes that follow the links count toward the path (the route-edit check).
+   * Default on: a finish an admin kept through a route edit still holds its step.
+   */
+  lenient?: boolean;
+  /** "Roads stay open": every road the team has opened stays open (see teamRoute). */
+  roads?: 'open';
+}
+
+/** The one line every player view shows on a "Roads stay open" race (web board and plugin panel). */
+export const ROADS_OPEN_NOTE = 'Roads stay open: earlier forks still count.';
+
+/** The road modes as the admin picks them: a label and what players experience. */
+export const RACE_ROAD_MODES: { key: RaceRoadMode; label: string; help: string }[] = [
+  { key: 'achieve', label: 'By achievement', help: 'The first tile your team finishes at a fork sets your road. The other options at that fork close.' },
+  { key: 'choose', label: 'Choose and lock in', help: 'Your team picks a road at each fork before playing it. Only the picked tile counts.' },
+  {
+    key: 'open',
+    label: 'Roads stay open',
+    help: 'Finishing a tile at any fork you’ve passed opens that road too, even from far behind. Your furthest road sets your place, and finished tiles always keep their points.',
+  },
+];
+
+/** The open tiles at the team's next step (on "Roads stay open" the rest sit at earlier forks). */
+export function frontOpen(graph: RaceGraph, route: Pick<TeamRoute, 'open' | 'path'>): number[] {
+  return route.open.filter((id) => graph.byId.get(id)?.step === route.path.length);
+}
+
+/** teamRoute's options for a race's road mode — the one place a caller turns rules into opts. */
+export function raceRouteOpts(mode: RaceRoadMode | null | undefined): TeamRouteOpts {
+  return mode === 'open' ? { roads: 'open' } : {};
+}
+
 /**
  * `picks` switches on "Choose and lock in" (events.rules.raceRoad = 'choose'): step → the tile the
  * team picked there. At a fork (more than one next tile) nothing is open until the team picks; then
  * only the pick is open and the other options close. Omit (or null) for "By achievement", the
  * default: every linked next tile is open and the first one finished sets the road.
+ *
+ * The path, in every mode, is the LONGEST chain of finished tiles from a finished start following the
+ * links (ties: pickCommitted's order, step by step), so an admin-marked finish that makes a longer
+ * chain moves the team on. `opts.roads = 'open'` ("Roads stay open", picks ignored): the open tiles
+ * are every unfinished start plus the unfinished links of EVERY finished tile on a finished chain
+ * from a start — finishing a tile at an earlier fork opens that road too, and the furthest road
+ * counts (the path).
  */
 export function teamRoute(
   graph: RaceGraph,
   doneIds: Iterable<number>,
   picks?: Map<number, number> | null,
-  opts: { lenient?: boolean } = {},
+  opts: TeamRouteOpts = {},
 ): TeamRoute {
   const done = new Set(doneIds);
-  const path: number[] = [];
-  let options = graph.steps[0] ?? [];
-  for (;;) {
-    let finished = options.filter((id) => done.has(id));
-    // "Whoever got it, got it": a finish an admin kept through a route edit may no longer follow the
-    // links; it still holds its step (the linked finish is preferred when there is one).
-    if (!finished.length && opts.lenient !== false) {
-      const step = path.length;
-      finished = (graph.steps[step] ?? []).filter((id) => done.has(id));
+  const roadsOpen = opts.roads === 'open';
+  if (roadsOpen) picks = null;
+  // Which finished tiles carry on from a finished tile: its finished links; with none (lenient),
+  // any finished tile on the next step — "whoever got it, got it": a finish an admin kept through a
+  // route edit may no longer follow the links, and it still holds its step.
+  const carry = (id: number): number[] => {
+    const n = graph.byId.get(id)!;
+    const linked = n.next.filter((to) => done.has(to));
+    if (linked.length || opts.lenient === false) return linked;
+    return (graph.steps[n.step + 1] ?? []).filter((to) => done.has(to));
+  };
+  // Longest chain from each finished tile, last step first; between equal chains, the one with the
+  // fewest off-link hops (a chain that follows the links beats one held only by "whoever got it").
+  const len = new Map<number, number>();
+  const offLink = new Map<number, number>();
+  const better = (a: number, b: number) => (len.get(a)! - len.get(b)!) || (offLink.get(b)! - offLink.get(a)!);
+  const best = (ids: number[]): number | null => {
+    if (!ids.length) return null;
+    const top = ids.reduce((m, id) => (better(id, m) > 0 ? id : m));
+    return pickCommitted(graph, ids.filter((id) => better(id, top) === 0));
+  };
+  for (let s = graph.lastStep; s >= 0; s--) {
+    for (const id of graph.steps[s]) {
+      if (!done.has(id)) continue;
+      const nextIds = carry(id);
+      const to = best(nextIds);
+      const off = to != null && !graph.byId.get(id)!.next.includes(to) ? 1 : 0;
+      len.set(id, 1 + (to != null ? len.get(to)! : 0));
+      offLink.set(id, off + (to != null ? offLink.get(to)! : 0));
     }
-    if (!finished.length) break;
-    const pick = pickCommitted(graph, finished);
-    path.push(pick);
-    options = graph.byId.get(pick)!.next;
   }
+  const path: number[] = [];
+  for (let at = best((graph.steps[0] ?? []).filter((id) => done.has(id))); at != null; at = best(carry(at))) path.push(at);
   const current = path.length ? graph.byId.get(path[path.length - 1])! : null;
   const isFinished = current != null && current.step === graph.lastStep;
-  const candidates = isFinished ? [] : current ? current.next.filter((id) => !done.has(id)) : (graph.steps[0] ?? []).filter((id) => !done.has(id));
+  let candidates = isFinished ? [] : current ? current.next.filter((id) => !done.has(id)) : (graph.steps[0] ?? []).filter((id) => !done.has(id));
+  if (roadsOpen && !isFinished) {
+    // Every finished tile reachable on a finished chain from a start opens its links.
+    const reached = new Set<number>((graph.steps[0] ?? []).filter((id) => done.has(id)));
+    const queue = [...reached];
+    while (queue.length) {
+      for (const to of carry(queue.shift()!)) {
+        if (!reached.has(to)) {
+          reached.add(to);
+          queue.push(to);
+        }
+      }
+    }
+    const opened = new Set<number>((graph.steps[0] ?? []).filter((id) => !done.has(id)));
+    for (const id of reached) for (const to of graph.byId.get(id)!.next) if (!done.has(to)) opened.add(to);
+    candidates = graph.nodes.filter((n) => opened.has(n.id)).map((n) => n.id);
+  }
   let open = candidates;
   let pickFrom: number[] = [];
   let picked: number | null = null;
@@ -212,16 +293,22 @@ export function teamRoute(
       closed.add(n.id);
     }
   }
-  return { path, stepsDone: path.length, open, ahead, closed, finished: isFinished, state, pickFrom, picked };
+  return { path, stepsDone: path.length, open, ahead, closed, finished: isFinished, state, pickFrom, picked, roadsOpen };
 }
 
 /**
  * May this team credit this tile now? Only an open tile (the race guard). A tile that isn't on the
  * route at all (a mission) isn't the race's to refuse; an unplaced tile on a laid-out board is.
  */
-export function canCreditRaceTile(graph: RaceGraph, doneIds: Iterable<number>, tileId: number, picks?: Map<number, number> | null): boolean {
+export function canCreditRaceTile(
+  graph: RaceGraph,
+  doneIds: Iterable<number>,
+  tileId: number,
+  picks?: Map<number, number> | null,
+  opts: TeamRouteOpts = {},
+): boolean {
   if (!graph.byId.has(tileId)) return !graph.unplaced.includes(tileId);
-  return teamRoute(graph, doneIds, picks).open.includes(tileId);
+  return teamRoute(graph, doneIds, picks, opts).open.includes(tileId);
 }
 
 /** May the team pick this tile now ("Choose and lock in")? Only from the fork it stands at. */
@@ -529,8 +616,11 @@ export function stepLine(graph: RaceGraph, tileId: number): string {
 /** What finishing an open tile does to the team's road. */
 export function roadChoiceLine(graph: RaceGraph, route: TeamRoute, tileId: number): string {
   const to = roadOf(graph, tileId);
-  const at = route.path.length ? roadOf(graph, route.path[route.path.length - 1]) : null;
+  const atId = route.path.length ? route.path[route.path.length - 1] : null;
+  const at = atId != null ? roadOf(graph, atId) : null;
   if (at == null) return `Starts you on road ${to}`;
+  // "Roads stay open": a tile at or behind the team's furthest step opens a road beside it.
+  if (route.roadsOpen && (graph.byId.get(tileId)?.step ?? 0) <= graph.byId.get(atId!)!.step) return `Opens road ${to} too`;
   return at === to ? `Keeps you on road ${to}` : `Switches you to road ${to}`;
 }
 
@@ -554,7 +644,9 @@ export function raceTileInfo(graph: RaceGraph, route: TeamRoute | null, tileId: 
   let why = '';
   const road = route ? roadChoiceLine(graph, route, tileId).replace(/^\w/, (c) => c.toLowerCase()) : '';
   if (route && state === 'open') {
-    why = route.open.length > 1
+    why = route.roadsOpen
+      ? `Open — every road your team opens stays open; the furthest one counts. This one ${road}.`
+      : route.open.length > 1
       ? `Up next — whichever your team finishes first sets your road. This one ${road}.`
       : `Next for your team — finishing this ${road}.`;
   } else if (route && route.pickFrom.includes(tileId)) {
@@ -604,7 +696,7 @@ export function raceFieldSize(entrants: number): RaceFieldSize {
  * except one open from the whistle — a step-0 tile on a "By achievement" race, or the only start —
  * which counts from the event start like any board tile.
  */
-export function raceTileNeedsBaseline(graph: RaceGraph, tileId: number, mode: 'achieve' | 'choose'): boolean {
+export function raceTileNeedsBaseline(graph: RaceGraph, tileId: number, mode: RaceRoadMode): boolean {
   const n = graph.byId.get(tileId);
   if (!n) return false;
   if (n.step > 0) return true;

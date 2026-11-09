@@ -1,7 +1,7 @@
 import { missionTileState } from '@/lib/tileState';
 import { parseTileMissionRules } from '@/lib/eventRules';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
-import { loadRacePicks } from '@/lib/raceRoutePicks';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { NextResponse } from 'next/server';
 import { primaryCredit } from '@/lib/comboSql';
 import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
@@ -468,7 +468,7 @@ export async function buildBoard(
   const raceTimes = raceOn && tileIds.length
     ? await db.select({ teamId: completions.teamId, tileId: completions.tileId, completedAt: completions.completedAt }).from(completions).where(inArray(completions.tileId, routeGraph!.nodes.map((n) => n.id)))
     : [];
-  const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted, callerPicks) : null;
+  const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted, callerPicks, eventRaceOpts(event)) : null;
 
   return {
     eventId: event.id,

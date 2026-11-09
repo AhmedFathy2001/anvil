@@ -1,6 +1,6 @@
 'use client';
 
-import { raceGraph, raceFieldSize } from '@/lib/raceRoutes';
+import { raceGraph, raceFieldSize, raceRouteOpts } from '@/lib/raceRoutes';
 import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/lib/raceSummary';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
 import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
@@ -597,7 +597,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const raceLineList = useMemo(
     () => {
       if (!raceG) return [];
-      const local = raceLines(raceG, teams, completions, (id) => (id === raceViewer && racePick.pickInfo?.mode === 'choose' ? racePick.pickInfo.picks : null));
+      const local = raceLines(raceG, teams, completions, (id) => (id === raceViewer && racePick.pickInfo?.mode === 'choose' ? racePick.pickInfo.picks : null), raceRouteOpts(racePick.pickInfo?.mode));
       // The server's order and ranks — the same the plugin shows — never a local re-sort.
       return raceStandings ? orderLinesBy(local, raceStandings) : local;
     },

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import ClanLink from '@/components/ClanLink';
 import { cn } from '@/lib/utils';
-import { roadChoiceLine, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
+import { ROADS_OPEN_NOTE, frontOpen, roadChoiceLine, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
 import { hoursText, type RaceFeedItem, type RaceStatCards, type RaceTeamLine } from '@/lib/raceSummary';
 import type { TeamMvp } from '@/lib/memberBreakdown';
 
@@ -167,7 +167,9 @@ export function RaceUpNext({
     return <p className="rounded-xl border border-gold/50 bg-gold/10 px-3 py-2 text-sm text-gold font-semibold">🏁 {teamName} reached the finish.</p>;
   }
   const choosing = route.pickFrom.length > 0;
-  const ids = choosing ? route.pickFrom : route.open;
+  // "Roads stay open": the next step's tiles first, then the ones at earlier forks.
+  const front = frontOpen(graph, route);
+  const ids = choosing ? route.pickFrom : [...front, ...route.open.filter((id) => !front.includes(id))];
   return (
     <section aria-label={`Up next for ${teamName}`}>
       <SectionTitle>{choosing ? `Pick your road, ${teamName}` : `Up next for ${teamName}`}</SectionTitle>
@@ -176,9 +178,11 @@ export function RaceUpNext({
           ? canPick
             ? 'A fork: pick the tile your team goes for. Only the picked tile counts, and the pick can’t be changed.'
             : 'A fork: your captain picks the road before any tile here counts.'
-          : ids.length > 1
-            ? 'Whichever you get first sets your road — the others close for your team.'
-            : 'Your next tile.'}
+          : route.roadsOpen
+            ? `${ROADS_OPEN_NOTE} Every road your team opens stays open; the furthest one sets your place.`
+            : ids.length > 1
+              ? 'Whichever you get first sets your road — the others close for your team.'
+              : 'Your next tile.'}
       </p>
       <div className="space-y-2.5">
         {ids.map((id) => {

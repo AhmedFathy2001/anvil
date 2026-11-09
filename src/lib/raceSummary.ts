@@ -16,6 +16,7 @@ import {
   type RaceStanding,
   type RaceTileState,
   type TeamRoute,
+  type TeamRouteOpts,
 } from '@/lib/raceRoutes';
 
 export interface RaceTeamIn {
@@ -64,13 +65,14 @@ export function raceLines(
   teams: RaceTeamIn[],
   completions: RaceCompletionIn[],
   picksFor?: (teamId: number) => Map<number, number> | null,
+  opts: TeamRouteOpts = {},
 ): RaceTeamLine[] {
   const standings = rankRaceTeams(graph, teams, completions);
   const leaderSteps = standings[0]?.stepsDone ?? 0;
   const byTeam = new Map(teams.map((t) => [t.id, t]));
   return standings.map((s: RaceStanding) => {
     const mine = completions.filter((c) => c.teamId === s.teamId);
-    const route = teamRoute(graph, mine.map((c) => c.tileId), picksFor?.(s.teamId) ?? null);
+    const route = teamRoute(graph, mine.map((c) => c.tileId), picksFor?.(s.teamId) ?? null, opts);
     const cur = route.path[route.path.length - 1] ?? null;
     const times = route.path.map((id) => stamp(mine.find((c) => c.tileId === id)?.completedAt)).filter(Number.isFinite).sort((a, b) => a - b);
     const perStep = times.length >= 2 ? (times[times.length - 1] - times[0]) / (times.length - 1) : null;

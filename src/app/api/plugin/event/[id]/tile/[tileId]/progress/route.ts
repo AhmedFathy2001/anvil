@@ -5,7 +5,7 @@ import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, completions, events, tiles, users } from '@/db/schema';
 import { raceGraph, teamRoute } from '@/lib/raceRoutes';
-import { loadRacePicks } from '@/lib/raceRoutePicks';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { verifyPluginTokenOnEvent, verifyPluginTokenUser } from '@/lib/auth';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { eventForPluginRequest } from '@/lib/eventScope';
@@ -90,6 +90,6 @@ async function lockedForViewer(event: typeof events.$inferSelect, tile: typeof t
   const graph = raceGraph(all);
   if (!graph.nodes.length) return false;
   const doneIds = (await db.select({ tileId: completions.tileId }).from(completions).where(and(eq(completions.teamId, teamId), inArray(completions.tileId, all.map((t) => t.id))))).map((r) => r.tileId);
-  const state = teamRoute(graph, doneIds, await loadRacePicks(event, teamId)).state.get(tile.id);
+  const state = teamRoute(graph, doneIds, await loadRacePicks(event, teamId), eventRaceOpts(event)).state.get(tile.id);
   return tileLocked(tile, state ?? null);
 }

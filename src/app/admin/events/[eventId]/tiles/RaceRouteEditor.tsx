@@ -9,6 +9,7 @@ import { useDialog } from '@/components/Confirm';
 import RaceRouteMap from '@/components/board/RaceRouteMap';
 import { clanFetch } from '@/lib/clanFetch';
 import {
+  RACE_ROAD_MODES,
   ROUTE_TEMPLATES,
   applyRouteTemplate,
   insertStep,
@@ -19,6 +20,7 @@ import {
   swapSteps,
   toggleRouteLink,
   validateRoute,
+  type RaceRoadMode,
   type RouteEntry,
   type RouteTemplate,
 } from '@/lib/raceRoutes';
@@ -31,7 +33,7 @@ interface Props {
   /** Admins may edit the route mid-race (with a decision when it invalidates progress). */
   isAdmin?: boolean;
   raceBank: boolean;
-  raceRoad: 'achieve' | 'choose';
+  raceRoad: RaceRoadMode;
   /** A tile was created straight into a step (already saved as a blank tile). */
   onTileCreated: (tile: Tile) => void;
   /** The route was saved: each tile's new step / links / position. */
@@ -199,7 +201,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     setSelected(data.id);
   }
 
-  async function changeRoad(next: 'achieve' | 'choose') {
+  async function changeRoad(next: RaceRoadMode) {
+    if (next === road) return;
     const prev = road;
     setRoad(next);
     const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceRoad: next } }) });
@@ -233,7 +236,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             <h3 className="text-sm font-bold flex items-center gap-2"><span className="w-1 h-4 bg-gold rounded-full" />Route</h3>
             <p className="text-xs text-text-muted mt-1 max-w-2xl">
               {branching || dirty
-                ? 'Tiles sit on numbered steps; each links to tiles on the next step. A team’s road is set at each fork (see “At a fork”), and the other options at that step close for it. Every route has the same number of steps, so the team with the most steps done is closest to the end.'
+                ? 'Tiles sit on numbered steps; each links to tiles on the next step. How a team’s road is set at each fork is chosen under “At a fork”. Every route has the same number of steps, so the team with the most steps done is closest to the end.'
                 : 'This race is a straight line: every tile leads to the next. Pick a template or click a tile and link it to lay out branching routes.'}
             </p>
           </div>
@@ -246,25 +249,22 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
           )}
         </div>
         {!locked && <p className="text-[11px] text-text-muted">{ROUTE_TEMPLATES.find((t) => t.key === template)?.help} Templates set steps and links only.</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">At a fork</span>
-          <div className="w-60">
-            <Select
-              value={road}
-              onChange={(v) => void changeRoad(v as 'achieve' | 'choose')}
-              disabled={eventStarted}
-              ariaLabel="How a team's road is set at a fork"
-              options={[
-                { value: 'achieve', label: 'By achievement' },
-                { value: 'choose', label: 'Choose and lock in' },
-              ]}
-            />
+        <div role="radiogroup" aria-label="How a team's road is set at a fork" className="space-y-1.5">
+          <span className="block text-sm font-medium">At a fork</span>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {RACE_ROAD_MODES.map((m) => (
+              <Choice
+                key={m.key}
+                name="race-road"
+                checked={road === m.key}
+                disabled={eventStarted}
+                onSelect={() => void changeRoad(m.key)}
+                title={m.label}
+                body={m.key === 'choose' ? `${m.help} The captain (or team staff; any member if the team has neither) picks; an admin can reset a pick.` : m.help}
+              />
+            ))}
           </div>
-          <p className="text-[11px] text-text-muted basis-full">
-            {road === 'achieve'
-              ? 'Every linked next tile is open; whichever the team finishes first sets its road and the others close.'
-              : 'The team’s captain (or team staff; any member if the team has neither) picks the next tile before it counts. Only the pick is open and it can’t be changed — an admin can reset it.'}
-          </p>
+          {eventStarted && <p className="text-[11px] text-text-muted">The road mode can’t change once the event has started.</p>}
         </div>
         <Checkbox
           checked={bank}
@@ -439,10 +439,10 @@ function LiveEditDecision({ preview, saving, onCancel, onApply }: { preview: Pre
   );
 }
 
-function Choice({ checked, onSelect, title, body }: { checked: boolean; onSelect: () => void; title: string; body: string }) {
+function Choice({ checked, onSelect, title, body, name, disabled = false }: { checked: boolean; onSelect: () => void; title: string; body: string; name?: string; disabled?: boolean }) {
   return (
-    <label className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer ${checked ? 'border-gold/60 bg-gold/10' : 'border-card-border'}`}>
-      <Radio checked={checked} onChange={onSelect} className="mt-0.5" />
+    <label className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${checked ? 'border-gold/60 bg-gold/10' : 'border-card-border'}`}>
+      <Radio checked={checked} onChange={onSelect} name={name} disabled={disabled} className="mt-0.5" />
       <span className="min-w-0">
         <span className="block text-sm font-medium">{title}</span>
         <span className="block text-xs text-text-muted">{body}</span>

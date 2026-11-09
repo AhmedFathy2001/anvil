@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { isBranchingRoute, raceFieldSize, raceGraph, rankRaceTeams, roadChoiceLine, teamRoute } from '@/lib/raceRoutes';
+import { ROADS_OPEN_NOTE, isBranchingRoute, raceFieldSize, raceGraph, rankRaceTeams, roadChoiceLine, teamRoute } from '@/lib/raceRoutes';
 import { useRacePicks, type RaceDetailContext } from './RaceTileDetail';
 
 /**
@@ -12,12 +12,12 @@ import { useRacePicks, type RaceDetailContext } from './RaceTileDetail';
  */
 export default function YourRaceCard({ ctx }: { ctx: RaceDetailContext }) {
   const graph = useMemo(() => raceGraph(ctx.tiles), [ctx.tiles]);
-  const picks = useRacePicks(ctx.tiles[0]?.eventId, ctx.viewerTeamId);
+  const { picks, opts } = useRacePicks(ctx.tiles[0]?.eventId, ctx.viewerTeamId);
   if (!isBranchingRoute(ctx.tiles) || ctx.viewerTeamId == null) return null;
   const team = ctx.teams.find((t) => t.id === ctx.viewerTeamId);
   if (!team) return null;
   const steps = graph.lastStep + 1;
-  const route = teamRoute(graph, ctx.completions.filter((c) => c.teamId === team.id).map((c) => c.tileId), picks);
+  const route = teamRoute(graph, ctx.completions.filter((c) => c.teamId === team.id).map((c) => c.tileId), picks, opts);
   const standings = rankRaceTeams(graph, ctx.teams, ctx.completions);
   const mine = standings.find((s) => s.teamId === team.id);
   const leader = standings[0];
@@ -44,7 +44,7 @@ export default function YourRaceCard({ ctx }: { ctx: RaceDetailContext }) {
       {size !== 'few' && <p className="text-xs text-text-muted">{ahead} {size === 'huge' ? 'players' : 'teams'} ahead · {level} level with you</p>}
       {!route.finished && next.length > 0 && (
         <div>
-          <p className="text-xs text-text-muted mb-1.5">{route.pickFrom.length ? 'Pick your road:' : next.length > 1 ? 'Up next — whichever you get first sets your road:' : 'Up next:'}</p>
+          <p className="text-xs text-text-muted mb-1.5">{route.pickFrom.length ? 'Pick your road:' : route.roadsOpen ? `${ROADS_OPEN_NOTE} Up next:` : next.length > 1 ? 'Up next — whichever you get first sets your road:' : 'Up next:'}</p>
           <div className="flex flex-wrap gap-2">
             {next.map((id) => (
               <button

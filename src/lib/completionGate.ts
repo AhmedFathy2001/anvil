@@ -3,7 +3,7 @@ import { completions, eventParticipants, events, tiles } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { raceGraph, canCreditRaceTile, raceTileNeedsBaseline } from '@/lib/raceRoutes';
 import { parseRevealStats } from '@/lib/revealStats';
-import { loadRacePicks } from '@/lib/raceRoutePicks';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import {
   completionAward,
   hasRevealPolicy,
@@ -152,7 +152,7 @@ export async function evaluateCompletionGate(args: {
     const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
     const picks = await loadRacePicks(event, teamId);
     const graph = raceGraph(board);
-    if (!done.includes(tile.id) && !canCreditRaceTile(graph, done, tile.id, picks)) {
+    if (!done.includes(tile.id) && !canCreditRaceTile(graph, done, tile.id, picks, eventRaceOpts(event))) {
       return { allowed: false, reason: 'That tile isn’t open on your team’s route yet.', awardedPoints: null, bounty, rules, raceLocked: true };
     }
     // A stat (XP / KC) race tile counts only what the team gains AFTER it opened for them: its

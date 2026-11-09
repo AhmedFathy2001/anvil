@@ -4,7 +4,7 @@ import { type Action, type Color, type Node, button, card, col, count, exact, ga
 import { boardFeedLinks } from './feedUi';
 import { BLUE, CARD_W, FAINT, GOLD, GREEN, PROGRESS, SOFT, chip, clip, goldCard, more, section, small, title } from './sections';
 import { namesCard, raceWhoCards, roadBadge, whereItGoes } from './raceUi';
-import { raceGraph, raceTileInfo, roadChoiceLine, roadOf, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
+import { ROADS_OPEN_NOTE, raceGraph, raceTileInfo, roadChoiceLine, roadOf, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
 import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
 // The board's "All tiles" page in the plugin's side panel (was the catalogue in AnvilSidebarPanel):
@@ -289,7 +289,7 @@ export function joinToClaimLine(gate: string | null): string {
 }
 
 export type RacePayload = {
-  steps: number; mode: 'achieve' | 'choose'; path: number[]; open: number[]; pickFrom: number[]; finished: boolean;
+  steps: number; mode: 'achieve' | 'choose' | 'open'; path: number[]; open: number[]; pickFrom: number[]; finished: boolean;
   rank: number | null; entrants: number; leaderSteps: number; field: number[];
   standings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[];
 };
@@ -305,7 +305,7 @@ export function raceModel(board: Board): { graph: RaceGraph; route: TeamRoute | 
   const state = new Map<number, RaceTileState>();
   for (const t of tiles) if (raceStateOf(t)) state.set(t.tileId, raceStateOf(t) as RaceTileState);
   const route: TeamRoute = {
-    path: race.path, stepsDone: race.path.length, open: race.open, pickFrom: race.pickFrom, picked: null, finished: race.finished, state,
+    path: race.path, stepsDone: race.path.length, open: race.open, pickFrom: race.pickFrom, picked: null, finished: race.finished, state, roadsOpen: race.mode === 'open',
     ahead: new Set([...state].filter(([, v]) => v === 'ahead').map(([k]) => k)),
     closed: new Set([...state].filter(([, v]) => v === 'closed').map(([k]) => k)),
   };
@@ -393,6 +393,7 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
     }
   }
   if (m.route?.pickFrom.length) out.push(gap(4), muted('A fork: your team picks its road before any tile here counts.', { wrap: true }));
+  else if (m.route?.roadsOpen) out.push(gap(4), muted(ROADS_OPEN_NOTE, { wrap: true }));
   else if (m.route && m.route.open.length > 1) out.push(gap(4), muted('Up next — whichever you get first sets your road.', { wrap: true }));
   return card(out);
 }

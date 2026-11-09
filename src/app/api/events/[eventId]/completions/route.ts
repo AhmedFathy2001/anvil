@@ -1,7 +1,7 @@
 import { afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { branchingRaceWin } from '@/lib/raceRoutesDb';
 import { raceGraph, canCreditRaceTile, canUndoRaceTile } from '@/lib/raceRoutes';
-import { loadRacePicks } from '@/lib/raceRoutePicks';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { NextResponse } from 'next/server';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { eventForRequest } from '@/lib/eventScope';
@@ -151,7 +151,7 @@ export async function POST(
     const graph = raceGraph(raceTiles);
 
     if (!doneTileIds.has(tileId)) {
-      if (!canCreditRaceTile(graph, doneTileIds, tileId, await loadRacePicks(event, teamId))) {
+      if (!canCreditRaceTile(graph, doneTileIds, tileId, await loadRacePicks(event, teamId), eventRaceOpts(event))) {
         return NextResponse.json(
           { error: graph.branching ? 'That tile isn’t open on your team’s route' : 'Complete the earlier tiles in the race first' },
           { status: 400 },

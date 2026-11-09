@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { type Board, type BoardContext, type BoardState, boardRowsUi, boardUi } from '../src/lib/pluginUi/boardUi';
 import type { Node } from '../src/lib/pluginUi/nodes';
 import { compactStandings, racePageUi, type RacePageOpts } from '../src/lib/pluginUi/raceUi';
-import { raceGraph, rankRaceTeams, teamRoute } from '../src/lib/raceRoutes';
+import { ROADS_OPEN_NOTE, raceGraph, raceRouteOpts, rankRaceTeams, teamRoute } from '../src/lib/raceRoutes';
 
 // A tile race's page on the plugin's Clan tab (lib/pluginUi/raceUi): where am I, up next, the
 // road as a track, compact standings, and each tile's detail as a nav pane.
@@ -37,7 +37,7 @@ export const FIVE: [number, number, string, number[]][] = [
 const COLORS = ['#b38cff', '#7fd1ff', '#ff8f8f', '#9fe07f', '#ffd27a'];
 
 /** 201 solo entrants; `mine` = what the viewer's team (189) has done; the field is spread out behind a finisher. */
-export function raceBoard(mine: number[], TILES: [number, number, string, number[]][] = TILES4): Board {
+export function raceBoard(mine: number[], TILES: [number, number, string, number[]][] = TILES4, mode: 'achieve' | 'open' = 'achieve'): Board {
   const graph = raceGraph(TILES.map(([id, step, , next]) => ({ id, position: id, raceStep: step, raceNext: next })));
   const teams = Array.from({ length: 201 }, (_, i) => i + 1).map((id) => {
     let done: number[] = id === 189 ? mine : id === 146 ? [3, 6, 9, 10] : id < 40 ? [2, 5, 8] : id < 110 ? [1 + (id % 3)] : [];
@@ -47,13 +47,13 @@ export function raceBoard(mine: number[], TILES: [number, number, string, number
   });
   const completions = teams.flatMap((t) => t.completedTileIds.map((tileId, k) => ({ teamId: t.teamId, tileId, completedAt: new Date(Date.UTC(2026, 10, 8, 10, t.teamId % 60, k)).toISOString() })));
   const ranked = rankRaceTeams(graph, teams.map((t) => ({ id: t.teamId, name: t.name })), completions);
-  const route = teamRoute(graph, mine);
+  const route = teamRoute(graph, mine, null, raceRouteOpts(mode));
   const me = ranked.find((r) => r.teamId === 189)!;
   return {
     yourTeamId: 189,
     readOnly: false,
     race: {
-      steps: graph.lastStep + 1, mode: 'achieve', path: route.path, open: route.open, pickFrom: route.pickFrom, finished: route.finished,
+      steps: graph.lastStep + 1, mode, path: route.path, open: route.open, pickFrom: route.pickFrom, finished: route.finished,
       rank: me.rank, entrants: ranked.length, leaderSteps: ranked[0].stepsDone, field: [],
       standings: ranked.map((r) => ({ teamId: r.teamId, rank: r.rank, stepsDone: r.stepsDone, finished: r.finished })),
     },
@@ -278,3 +278,22 @@ if (process.env.RACE_FIXTURES) {
   };
   for (const [k, v] of Object.entries(files)) writeFileSync(`${dir}/${k}.json`, JSON.stringify({ ui: v }));
 }
+
+test('roads stay open: the note, the next step up front, earlier forks listed as open', () => {
+  const board = raceBoard([1, 4, 7], TILES4, 'open');
+  const main = (racePageUi(board, opts(ctx())) as Slot).panes!.main;
+  const s = texts(main);
+  assert.ok(s.includes(ROADS_OPEN_NOTE));
+  assert.ok(s.includes('Also open at earlier forks:'));
+  // The finish is the one step ahead; the other starts and road B at step 3 stay open.
+  assert.ok(s.some((x) => x.includes('Finish · you are here')));
+  for (const name of ['One haul worth 1m+', 'Vorkath under 2:00', 'PK Some Pker']) assert.ok(s.includes(name), name);
+  // Earlier-fork tiles read as open in the tile list, never "Off your road".
+  const tiles = (board.tiles as { tileId: number; raceState: string | null }[]);
+  assert.equal(tiles.find((t) => t.tileId === 8)!.raceState, 'open');
+  assert.equal(tiles.find((t) => t.tileId === 2)!.raceState, 'open');
+  // By achievement the same finishes leave them closed and say nothing about open roads.
+  const plain = texts((racePageUi(raceBoard([1, 4, 7]), opts(ctx())) as Slot).panes!.main);
+  assert.ok(!plain.includes(ROADS_OPEN_NOTE));
+  assert.ok(!plain.includes('Also open at earlier forks:'));
+});

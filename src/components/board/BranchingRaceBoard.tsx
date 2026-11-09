@@ -7,11 +7,15 @@ import {
   raceGraph,
   rankRaceTeams,
   roadChoiceLine,
+  ROADS_OPEN_NOTE,
+  frontOpen,
+  raceRouteOpts,
   roadOf,
   stepLine,
   stepTitle,
   teamRoute,
   type RaceGraph,
+  type RaceRoadMode,
   type RaceStanding,
   type TeamRoute,
 } from '@/lib/raceRoutes';
@@ -31,7 +35,7 @@ import { TileStateChip } from './TileState';
  * the fork to pick, on a choose-and-lock race), and the tile list with the same state language.
  */
 
-export type PickInfo = { mode: 'achieve' | 'choose'; picks: Map<number, number>; canPick: boolean };
+export type PickInfo = { mode: RaceRoadMode; picks: Map<number, number>; canPick: boolean };
 
 /**
  * A team's road picks on a "Choose and lock in" race, whether the viewer may pick, and `pick` to
@@ -89,7 +93,7 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
   }, [completions]);
   const routes = useMemo(() => {
     const m = new Map<number, TeamRoute>();
-    for (const t of teams) m.set(t.id, teamRoute(graph, doneBy.get(t.id) ?? [], t.id === viewer && pickInfo?.mode === 'choose' ? pickInfo.picks : null));
+    for (const t of teams) m.set(t.id, teamRoute(graph, doneBy.get(t.id) ?? [], t.id === viewer && pickInfo?.mode === 'choose' ? pickInfo.picks : null, raceRouteOpts(pickInfo?.mode)));
     return m;
   }, [teams, graph, doneBy, viewer, pickInfo]);
   const standings = useMemo(() => rankRaceTeams(graph, teams, completions), [graph, teams, completions]);
@@ -268,7 +272,9 @@ export function NextCards({ graph, route, tileById, onTileClick, canPick, pickin
   onTileClick?: (id: number) => void; canPick: boolean; picking: boolean; onPick: (id: number) => void; error: string | null;
 }) {
   const choosing = route.pickFrom.length > 0;
-  const ids = choosing ? route.pickFrom : route.open;
+  // "Roads stay open": the next step's tiles first, then the ones at earlier forks.
+  const front = frontOpen(graph, route);
+  const ids = choosing ? route.pickFrom : [...front, ...route.open.filter((id) => !front.includes(id))];
   return (
     <section aria-label={choosing ? 'Pick your road' : 'Up next'}>
       <h3 className="text-sm font-bold flex items-center gap-2"><span className="w-1 h-4 bg-gold rounded-full" />{choosing ? 'Pick your road' : 'Up next'}</h3>
@@ -277,9 +283,11 @@ export function NextCards({ graph, route, tileById, onTileClick, canPick, pickin
           ? canPick
             ? 'A fork: pick the tile your team goes for. Only the picked tile counts, and the pick can’t be changed.'
             : 'A fork: your team’s captain picks the road before any tile here counts.'
-          : ids.length > 1
-            ? 'Up next — whichever you get first sets your road. The others close for your team.'
-            : 'Your next tile.'}
+          : route.roadsOpen
+            ? `${ROADS_OPEN_NOTE} Every road your team opens stays open; the furthest one sets your place.`
+            : ids.length > 1
+              ? 'Up next — whichever you get first sets your road. The others close for your team.'
+              : 'Your next tile.'}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {ids.map((id) => {

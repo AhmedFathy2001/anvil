@@ -10,7 +10,7 @@ import { teamUserIds } from '@/lib/panelRows';
 import { captureRaceOpenStats, clearRaceOpenStats } from '@/lib/revealStatsCapture';
 import { teamManagerIds } from '@/lib/teamStaff';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
-import { loadRacePicks } from '@/lib/raceRoutePicks';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { notifyTileCompletion, notifyTeamWin, sendEventBingoWebhook } from '@/lib/discord';
@@ -55,7 +55,7 @@ export async function bankRaceCredit(event: EventRow, tileId: number, teamId: nu
   // clan-scope: global -- the event row came from a caller that already scoped it.
   const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
   const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
-  const route = teamRoute(raceGraph(board), done, await loadRacePicks(event, teamId));
+  const route = teamRoute(raceGraph(board), done, await loadRacePicks(event, teamId), eventRaceOpts(event));
   if (route.state.get(tileId) !== 'ahead') return false;
   const inserted = await db
     .insert(raceBankedCredits)
@@ -85,7 +85,7 @@ export async function releaseBankedRaceCredits(eventId: number, teamId: number):
   let released = 0;
   for (let guard = 0; guard <= graph.lastStep + 1 && pending.length; guard++) {
     const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
-    const route = teamRoute(graph, done, picks);
+    const route = teamRoute(graph, done, picks, eventRaceOpts(event));
     // Drop what can never land: done already, or closed off by the route the team took.
     const dead = pending.filter((b) => route.state.get(b.tileId) === 'done' || route.state.get(b.tileId) === 'closed');
     if (dead.length) {
@@ -179,7 +179,7 @@ export async function ensureRaceBaselines(eventId: number, teamIds?: number[]): 
   let captured = 0;
   for (const teamId of ids) {
     const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
-    const route = teamRoute(graph, done, await loadRacePicks(event, teamId));
+    const route = teamRoute(graph, done, await loadRacePicks(event, teamId), eventRaceOpts(event));
     const want = route.open
       .filter((id) => raceTileNeedsBaseline(graph, id, mode))
       .flatMap((id) => [...(statIds.has(id) ? [id] : []), ...(partsOf.get(id) ?? [])]);

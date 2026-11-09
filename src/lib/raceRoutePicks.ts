@@ -2,6 +2,12 @@ import { db } from '@/db';
 import { raceRoadPicks } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { parseEventRules } from '@/lib/eventRules';
+import { raceRouteOpts, type TeamRouteOpts } from '@/lib/raceRoutes';
+
+/** teamRoute / canCreditRaceTile options for this event's road mode ("Roads stay open" or none). */
+export function eventRaceOpts(event: { format: string | null; rules: string | null }): TeamRouteOpts {
+  return event.format === 'tilerace' ? raceRouteOpts(parseEventRules(event.rules).raceRoad) : {};
+}
 
 /**
  * A team's road picks on a "Choose and lock in" race (events.rules.raceRoad = 'choose'), as the

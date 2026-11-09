@@ -305,9 +305,11 @@ export interface EventRules {
    * Tile race: how a team's road is set at a fork (lib/raceRoutes). 'achieve' (default): every
    * linked next tile is open and the first one finished sets the road. 'choose': the team picks the
    * next tile first (captain / team staff, or any member without a captain), only the pick is open,
-   * and the pick is final (an admin can reset it). Stored in race_road_picks.
+   * and the pick is final (an admin can reset it). Stored in race_road_picks. 'open' ("Roads stay
+   * open"): like 'achieve', but finishing a tile at an earlier fork opens that road too — every road
+   * the team has opened stays open and the furthest one counts.
    */
-  raceRoad: 'achieve' | 'choose';
+  raceRoad: 'achieve' | 'choose' | 'open';
 }
 
 /** The optional halves of the sign-up form. The account picker and the fee are never optional. */
@@ -621,7 +623,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     rulesAtStart: obj.rulesAtStart !== false,
     sharingChecks: obj.sharingChecks === true,
     raceBank: obj.raceBank === true,
-    raceRoad: obj.raceRoad === 'choose' ? 'choose' : 'achieve',
+    raceRoad: obj.raceRoad === 'choose' || obj.raceRoad === 'open' ? obj.raceRoad : 'achieve',
   };
 }
 
@@ -764,8 +766,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.raceBank !== undefined && typeof o.raceBank !== 'boolean') {
     return { error: 'rules.raceBank must be a boolean' };
   }
-  if (o.raceRoad !== undefined && o.raceRoad !== 'achieve' && o.raceRoad !== 'choose') {
-    return { error: "rules.raceRoad must be 'achieve' or 'choose'" };
+  if (o.raceRoad !== undefined && o.raceRoad !== 'achieve' && o.raceRoad !== 'choose' && o.raceRoad !== 'open') {
+    return { error: "rules.raceRoad must be 'achieve', 'choose' or 'open'" };
   }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {

@@ -3,7 +3,7 @@ import { CARD_W, FAINT, GOLD, GREEN, LATER, PROGRESS, SOFT, clip, compactStandin
 
 export { compactStandings, STANDINGS_INLINE_MAX } from './sections';
 import { type Board, type BoardContext, type BoardState, type BoardTile, pinAction, raceModel, racePayload, trackingLines } from './boardUi';
-import { roadOf, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
+import { ROADS_OPEN_NOTE, frontOpen, roadOf, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
 import { ordinal, raceLines } from '@/lib/raceSummary';
 
 // A tile race on the plugin's Clan tab, the way a player reads it at a glance: where am I (state,
@@ -87,6 +87,7 @@ function mainPage(x: Ctx): Node[] {
       text(x.o.title, 'brand', { font: 'bold' }),
     ]),
     whereCard(x),
+    ...(route.roadsOpen ? [muted(ROADS_OPEN_NOTE, { wrap: CARD_W })] : []),
     nextCard(x, route),
     ...(x.o.tracked ? [x.o.tracked] : []),
     track(x, route),
@@ -141,14 +142,22 @@ function nextCard(x: Ctx, route: TeamRoute): Node {
   if (route.pickFrom.length) {
     return section([head, text('Pick your road first: open one and press Pick. A pick can’t be changed.', SOFT, { wrap: CARD_W }), ...route.pickFrom.map((id) => tileRow(x, id, true))], { edge: GOLD });
   }
-  if (route.open.length > 1) {
-    return section([head, text('Get any one of these. The first you finish picks your road.', SOFT, { wrap: CARD_W }), ...route.open.map((id) => tileRow(x, id, hasRoads(x.graph, id)))], { edge: GOLD });
+  // "Roads stay open": tiles at earlier forks are open too; they're listed under the next step's.
+  const front = frontOpen(x.graph, route);
+  const side = route.open.filter((id) => !front.includes(id));
+  const sideRows = side.length
+    ? [text('Also open at earlier forks:', SOFT, { wrap: CARD_W }), ...side.map((id) => tileRow(x, id, hasRoads(x.graph, id)))]
+    : [];
+  if (front.length > 1) {
+    const how = route.roadsOpen ? 'Get any of these to move on. Every road you open stays open.' : 'Get any one of these. The first you finish picks your road.';
+    return section([head, text(how, SOFT, { wrap: CARD_W }), ...front.map((id) => tileRow(x, id, hasRoads(x.graph, id))), ...sideRows], { edge: GOLD });
   }
-  const id = route.open[0];
+  const id = front[0];
   if (id == null) return section([head, muted('Nothing is open for your team right now.', { wrap: CARD_W })], { edge: GOLD });
   const p = x.o.ctx.progress.get(id);
   const prog = p && p.goal > 1 ? text(`${count(Math.min(p.current, p.goal))}/${count(p.goal)}`, PROGRESS, { live: { tile: id, cur: p.current, goal: p.goal, fmt: 'raw' } }) : undefined;
-  return section([head, tileRow(x, id, false, prog, true), muted('Only this one counts now. Drops for later tiles don’t count yet.', { wrap: CARD_W, color: FAINT })], { edge: GOLD });
+  const only = side.length ? 'This one moves you on. Drops for later tiles don’t count yet.' : 'Only this one counts now. Drops for later tiles don’t count yet.';
+  return section([head, tileRow(x, id, false, prog, true), muted(only, { wrap: CARD_W, color: FAINT }), ...sideRows], { edge: GOLD });
 }
 
 /**
@@ -170,12 +179,14 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
   });
   if (x.race.finished) return out;
   // Where the team stands: one open tile is "you are here"; several (a fork) are in the gold card.
-  let at: number | null = route.open.length === 1 && route.pickFrom.length === 0 ? route.open[0] : null;
+  // ("Roads stay open": only the open tiles at the next step; earlier forks are in the gold card.)
+  const front = frontOpen(g, route);
+  let at: number | null = front.length === 1 && route.pickFrom.length === 0 ? front[0] : null;
   if (at != null) out.push(stop('now', text(clip(x.name(at), 28), 'white', { font: 'bold' }), sub(`${done === last ? 'Finish' : `Step ${done + 1}`} · you are here`, GOLD), open(at), done === last));
   // A fork the team is AT (open now, or picked from): its tiles are unlocked, so the track names them
   // — badged, one other inline, the rest behind "+N other roads" — with the gold "now" dot. Only the
   // steps past it can still say "Depends on your road".
-  const fork = at == null ? (route.pickFrom.length ? route.pickFrom : route.open.length > 1 ? route.open : []) : [];
+  const fork = at == null ? (route.pickFrom.length ? route.pickFrom : front.length > 1 ? front : []) : [];
   if (fork.length && done <= last) {
     const word = done === last ? 'Finish' : `Step ${done + 1}`;
     const [first, ...others] = fork;

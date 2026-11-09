@@ -66,7 +66,7 @@ export interface HomeConfig {
     monthlyStandings?: { yourRank: number; yourPoints: number } | null;
     /** A branching tile race (lib/raceRoutes): the "Your race" card. */
     race?: {
-      steps: number; stepsDone: number; finished: boolean; mode: 'achieve' | 'choose';
+      steps: number; stepsDone: number; finished: boolean; mode: 'achieve' | 'choose' | 'open';
       open: { tileId: number; label: string; road: string }[]; pickFrom: { tileId: number; label: string; road: string }[];
       rank: number | null; entrants: number; leaderSteps: number; atYourStep: number; ahead: number;
     } | null;

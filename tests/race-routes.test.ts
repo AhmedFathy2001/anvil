@@ -25,9 +25,11 @@ import {
   raceFieldSize,
   raceTileNeedsBaseline,
   routeEditImpact,
+  raceRouteOpts,
+  frontOpen,
 } from '../src/lib/raceRoutes.ts';
 import { raceTileState, missionTileState } from '../src/lib/tileState.ts';
-import { lockedMissionPreviews, visibleTiles, parseTileMissionRules, DEFAULT_EVENT_RULES } from '../src/lib/eventRules.ts';
+import { lockedMissionPreviews, visibleTiles, parseTileMissionRules, DEFAULT_EVENT_RULES, parseEventRules, validateEventRules } from '../src/lib/eventRules.ts';
 import { scoreTeams } from '../src/lib/boardScoring.ts';
 
 // A straight line: no steps stored anywhere.
@@ -354,4 +356,80 @@ test('hidden-until-drop missions: only "show as Locked" ones preview, with name 
   assert.ok(!visible.includes(1) && !visible.includes(2));
   assert.ok(visible.includes(3) && visible.includes(4));
   assert.equal(parseTileMissionRules(null).showLocked, false);
+});
+
+// Two roads from one fork that merge again:
+//   step 0: 1 -> 2;  step 1: 2 -> 3, 4 (fork);  step 2: 3 -> 5, 4 -> 6;  step 3: 5, 6 -> 7;  step 4: 7 (finish)
+const twoRoads = [
+  { id: 1, position: 0, raceStep: 0, raceNext: [2] },
+  { id: 2, position: 1, raceStep: 1, raceNext: [3, 4] },
+  { id: 3, position: 2, raceStep: 2, raceNext: [5] },
+  { id: 4, position: 3, raceStep: 2, raceNext: [6] },
+  { id: 5, position: 4, raceStep: 3, raceNext: [7] },
+  { id: 6, position: 5, raceStep: 3, raceNext: [7] },
+  { id: 7, position: 6, raceStep: 4, raceNext: [] },
+];
+
+test('an admin-marked longer chain moves the team along the road (every mode)', () => {
+  const g = raceGraph(twoRoads);
+  // Admin marked 4 and 6 besides the 3 the team played: 3 is a dead end, the 4 -> 6 chain is longer.
+  const r = teamRoute(g, [1, 2, 3, 4, 6]);
+  assert.deepEqual(r.path, [1, 2, 4, 6]);
+  assert.equal(r.stepsDone, 4);
+  assert.deepEqual(r.open, [7]);
+  assert.equal(r.state.get(3), 'done');
+  assert.deepEqual(teamRoute(g, [1, 2, 3, 4, 6], new Map()).path, [1, 2, 4, 6]);
+  assert.equal(rankRaceTeams(g, [{ id: 1 }], [1, 2, 3, 4, 6].map((tileId) => ({ teamId: 1, tileId })))[0].stepsDone, 4);
+  // Equal chains: the old order (most links, then board order) still decides.
+  assert.deepEqual(teamRoute(g, [1, 2, 3, 4, 5, 6]).path, [1, 2, 3, 5]);
+});
+
+test('by achievement and choose and lock in: a passed-up fork stays closed', () => {
+  const g = raceGraph(twoRoads);
+  const r = teamRoute(g, [1, 2, 3, 5]);
+  assert.deepEqual(r.open, [7]);
+  assert.equal(r.state.get(4), 'closed');
+  assert.equal(r.roadsOpen, false);
+  assert.equal(canCreditRaceTile(g, [1, 2, 3, 5], 4), false);
+  assert.equal(canCreditRaceTile(g, [1, 2, 3, 5], 4, new Map([[2, 3]])), false);
+  assert.deepEqual(raceRouteOpts('achieve'), {});
+  assert.deepEqual(raceRouteOpts('choose'), {});
+});
+
+test('roads stay open: an earlier fork still opens, and the furthest road counts', () => {
+  const g = raceGraph(twoRoads);
+  const opts = raceRouteOpts('open');
+  assert.deepEqual(opts, { roads: 'open' });
+  // On road 3 -> 5 at step 4; the other step-3 option (4) is still open.
+  const r = teamRoute(g, [1, 2, 3, 5], null, opts);
+  assert.equal(r.roadsOpen, true);
+  assert.deepEqual(r.path, [1, 2, 3, 5]);
+  assert.deepEqual(r.open, [4, 7]);
+  assert.deepEqual(frontOpen(g, r), [7]);
+  assert.equal(r.state.get(4), 'open');
+  assert.equal(r.closed.size, 0);
+  assert.equal(canCreditRaceTile(g, [1, 2, 3, 5], 4, null, opts), true);
+  // Finishing 4 opens its road (6) while the team stays furthest along the first one.
+  const r2 = teamRoute(g, [1, 2, 3, 5, 4], null, opts);
+  assert.deepEqual(r2.path, [1, 2, 3, 5]);
+  assert.equal(r2.stepsDone, 4);
+  assert.deepEqual(r2.open, [6, 7]);
+  assert.equal(canCreditRaceTile(g, [1, 2, 3, 5, 4], 6, null, opts), true);
+  // Picks are ignored on this mode.
+  assert.deepEqual(teamRoute(g, [1, 2, 3, 5], new Map([[2, 3]]), opts).pickFrom, []);
+  // Two starts: finishing one leaves the other open.
+  const b = raceGraph(branch);
+  assert.deepEqual(teamRoute(b, [11], null, opts).open, [10, 20]);
+  // A finished race opens nothing more.
+  assert.deepEqual(teamRoute(g, [1, 2, 3, 5, 7, 4], null, opts).open, []);
+  // Stat baselines: the starts are open from the whistle, as by achievement.
+  assert.equal(raceTileNeedsBaseline(b, 10, 'open'), false);
+});
+
+test('rules: raceRoad accepts "open" and round-trips', () => {
+  assert.equal(parseEventRules(JSON.stringify({ raceRoad: 'open' })).raceRoad, 'open');
+  assert.equal(parseEventRules(JSON.stringify({ raceRoad: 'nope' })).raceRoad, 'achieve');
+  const v = validateEventRules({ raceRoad: 'open' });
+  assert.ok('rules' in v && v.rules && JSON.parse(v.rules).raceRoad === 'open');
+  assert.ok('error' in validateEventRules({ raceRoad: 'sideways' }));
 });
