@@ -224,7 +224,8 @@ test('a stranger entering an OPEN creator event is seated at once', async () => 
 });
 
 test('an APPROVAL creator event still waits on the host', async () => {
-  const viewer = await person('Patient Viewer');
+  // A real RSN (≤12 chars): pendingRequests hides implausible names, the per-event count does not.
+  const viewer = await person('Patient');
   assert.deepEqual(await A.canEnterEvent({ eventId: approvalEvent, playerId: viewer.playerId }), {
     outcome: 'outsider',
     needsApproval: true,
