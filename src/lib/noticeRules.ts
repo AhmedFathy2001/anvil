@@ -151,3 +151,44 @@ export function parseFoundVia(raw: unknown, note: unknown): { foundVia: FoundVia
 export function foundViaLabel(id: string | null | undefined): string | null {
   return FOUND_VIA.find((o) => o.id === id)?.label ?? null;
 }
+
+/** The fields a staff-written notice takes from a request, each type-checked (lib/notices createNotice bounds the values). */
+export interface NoticeFields {
+  title: string;
+  body: string;
+  linkUrl: string;
+  linkLabel: string;
+  audience: string;
+  inPlugin: boolean;
+  inBrief: boolean;
+  byDm: boolean;
+  level: NoticeLevel;
+  expiresInDays: number | null;
+}
+
+/**
+ * Pick a notice's fields out of a request body: ONLY these, each of the right type, anything else
+ * dropped. The route used to spread the whole body into createNotice (mass assignment), so any key
+ * createNotice ever learned to read became settable from the request. `audience` is the resolved key.
+ */
+export function noticeFieldsFrom(body: Record<string, unknown>, audience: string): NoticeFields {
+  const text = (v: unknown) => (typeof v === 'string' ? v : '');
+  const days =
+    typeof body.expiresInDays === 'number' && Number.isFinite(body.expiresInDays)
+      ? body.expiresInDays
+      : typeof body.expiresInDays === 'string' && /^\d{1,3}$/.test(body.expiresInDays)
+        ? Number(body.expiresInDays)
+        : null;
+  return {
+    title: text(body.title),
+    body: text(body.body),
+    linkUrl: text(body.linkUrl),
+    linkLabel: text(body.linkLabel),
+    audience,
+    inPlugin: body.inPlugin === true,
+    inBrief: body.inBrief === true,
+    byDm: body.byDm === true,
+    level: body.level === 'important' ? 'important' : 'info',
+    expiresInDays: days,
+  };
+}

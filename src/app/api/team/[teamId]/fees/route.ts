@@ -3,7 +3,7 @@ import { chargesFee, feeLabel } from '@/lib/entryFeeMath';
 import { db } from '@/db';
 import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { FeeChangedError, markFeeCollected } from '@/lib/feeConfirmations';
+import { FeeChangedError, SelfCollectError, markFeeCollected } from '@/lib/feeConfirmations';
 import { canTeamUndoCollection } from '@/lib/feeRules';
 import { requireTeamManager, teamManagerIds } from '@/lib/teamStaff';
 import { del } from '@/lib/storage';
@@ -197,6 +197,7 @@ export async function POST(
   try {
     collected = await markFeeCollected(fee, management.userId, { notes });
   } catch (e) {
+    if (e instanceof SelfCollectError) return NextResponse.json({ error: e.message }, { status: 403 });
     if (e instanceof FeeChangedError) return NextResponse.json({ error: e.message }, { status: 409 });
     throw e;
   }

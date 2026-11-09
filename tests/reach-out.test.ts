@@ -23,6 +23,7 @@ import {
 } from '../src/lib/noticeRules.ts';
 import { DMS_NO, DMS_STOP, DMS_YES, choiceFor, choiceRow, welcomeMessage, welcomeText } from '../src/lib/welcomeDmText.ts';
 import { noticeCard } from '../src/lib/pluginUi/homeUi.ts';
+import { noticeFieldsFrom } from '../src/lib/noticeRules.ts';
 
 const HOSTS = ['anvilosrs.com'];
 const reader = (over: Partial<ReaderFacts> = {}): ReaderFacts => ({ userId: 7, staffClanIds: [], tier: null, ...over });
@@ -148,4 +149,25 @@ test('plugin card: text only, the one link is the inbox', () => {
     { a: 'post', act: 'notice-hide', args: { id: '5', clan: 'afk', chosen: '1' } },
     { a: 'site', path: '/inbox' },
   ]);
+});
+
+test('a staff notice takes only its own fields from the request, each of the right type (no mass assignment)', () => {
+  const body = {
+    title: 'Hello', body: 'Text', linkUrl: 'https://anvilosrs.com/x', linkLabel: 'Go', audience: 'everyone',
+    inPlugin: true, inBrief: 'yes', byDm: 1, level: 'urgent', expiresInDays: '7',
+    // Not notice fields: must never reach createNotice.
+    createdByUserId: 1, id: 99, dmSentCount: 5, withdrawnAt: null, __proto__: { admin: true },
+  } as Record<string, unknown>;
+  const f = noticeFieldsFrom(body, 'clan:3');
+  assert.deepEqual(Object.keys(f).sort(), ['audience', 'body', 'byDm', 'expiresInDays', 'inBrief', 'inPlugin', 'level', 'linkLabel', 'linkUrl', 'title']);
+  assert.equal(f.audience, 'clan:3', 'the resolved audience, not the body one');
+  assert.equal(f.inPlugin, true);
+  assert.equal(f.inBrief, false, 'only a real true');
+  assert.equal(f.byDm, false, 'only a real true');
+  assert.equal(f.level, 'info');
+  assert.equal(f.expiresInDays, 7);
+  const odd = noticeFieldsFrom({ title: { $ne: 1 }, body: 5, expiresInDays: 'forever' }, 'everyone');
+  assert.equal(odd.title, '');
+  assert.equal(odd.body, '');
+  assert.equal(odd.expiresInDays, null);
 });

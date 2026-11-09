@@ -4,7 +4,7 @@ import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
 import { feeEventForRequest } from '@/lib/eventScope';
-import { FeeChangedError, markFeeCollected } from '@/lib/feeConfirmations';
+import { FeeChangedError, SelfCollectError, markFeeCollected } from '@/lib/feeConfirmations';
 import { currentClan } from '@/lib/clanContext';
 import { isClanMediaUrl } from '@/lib/storage';
 
@@ -72,6 +72,7 @@ export async function POST(
     notes: body?.notes ?? null,
   });
   } catch (e) {
+    if (e instanceof SelfCollectError) return NextResponse.json({ error: e.message }, { status: 403 });
     if (e instanceof FeeChangedError) return NextResponse.json({ error: e.message }, { status: 409 });
     throw e;
   }
