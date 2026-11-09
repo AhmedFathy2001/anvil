@@ -314,7 +314,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
           args: { e: String(current.id), to: chat.channel },
           // The viewer's own pace (Supporter tier) or the board's slow mode, so nobody is surprised by it.
           hint: `${chat.channel.startsWith('team:') ? 'Message your team' : chat.channel === 'announce' ? 'Announce to everyone' : 'Message all teams'} · ${chatPaceHint({
-            tier: access.staff ? null : ((await supporterForUser(viewer.userId).catch(() => null))?.tier.id ?? null),
+            tier: access.staffKind === 'platform' ? null : ((await supporterForUser(viewer.userId).catch(() => null))?.tier.id ?? null),
             slow: boardChatSlow(current.id),
             staff: access.staffKind ?? false,
           })}`,

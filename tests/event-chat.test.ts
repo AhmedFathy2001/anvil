@@ -15,6 +15,7 @@ import {
   personGapMs,
   recordSend,
   waitFor,
+  paceExempt,
   sanctionBlock,
   sanctionMessage,
   timeLeftText,
@@ -126,8 +127,13 @@ test('the message box says what the wait is', () => {
   assert.equal(chatPaceHint({ tier: 'patron', slow: false, staff: false }), 'no slow mode (Patron)');
   assert.equal(chatPaceHint({ tier: 'patron', slow: true, staff: false }), 'slow mode 10s (busy chat)');
   // Who "staff" means: the event's own (the host clan's mods and up), or Anvil staff who aren't.
-  assert.equal(chatPaceHint({ tier: null, slow: true, staff: true }), 'no slow mode for event staff');
-  assert.equal(chatPaceHint({ tier: null, slow: false, staff: 'event' }), 'no slow mode for event staff');
+  // Event staff wait like players unless they're Supporters (paceExempt).
+  assert.equal(chatPaceHint({ tier: null, slow: true, staff: 'event' }), `slow mode ${Math.round(Math.max(SLOW_GAP_MS, personGapMs(null)) / 1000)}s (busy chat)`);
+  assert.equal(chatPaceHint({ tier: 'supporter', slow: true, staff: 'event' }), 'no slow mode (staff Supporter)');
+  assert.equal(paceExempt('event', null), false);
+  assert.equal(paceExempt('event', 'supporter'), true);
+  assert.equal(paceExempt('platform', null), true);
+  assert.equal(paceExempt(null, 'patron'), false);
   assert.equal(chatPaceHint({ tier: null, slow: false, staff: 'platform' }), 'no slow mode (Anvil staff)');
 });
 

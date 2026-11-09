@@ -21,6 +21,7 @@ import {
   BURST_MAX,
   BURST_WINDOW_MS,
   isSlow,
+  paceExempt,
   canSanction,
   chatRank,
   personGapMs,
@@ -468,12 +469,14 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
 
   const pace = paceOf(access.eventId);
   const key = `${access.eventId}:${userId}`;
-  // Their own pace follows their Supporter tier (lib/eventChatRules personGapMs); staff never wait.
-  const tier = access.staff ? null : ((await supporterForUser(userId).catch(() => null))?.tier.id ?? null);
-  const wait = waitFor(lastSent.get(key), now, isSlow(pace, now), access.staff, personGapMs(tier));
+  // Their own pace follows their Supporter tier (lib/eventChatRules personGapMs); Anvil staff and
+  // event staff who are Supporters never wait (paceExempt).
+  const tier = access.staffKind === 'platform' ? null : ((await supporterForUser(userId).catch(() => null))?.tier.id ?? null);
+  const exempt = paceExempt(access.staffKind, tier);
+  const wait = waitFor(lastSent.get(key), now, isSlow(pace, now), exempt, personGapMs(tier));
   if (wait > 0) return { ok: false, error: `Slow mode — wait ${Math.ceil(wait / 1000)}s.` };
   // A flood guard for everyone, Patrons included: no more than BURST_MAX lines in BURST_WINDOW_MS.
-  if (!access.staff) {
+  if (!exempt) {
     const recent = (bursts.get(key) ?? []).filter((t) => t > now - BURST_WINDOW_MS);
     if (recent.length >= BURST_MAX) return { ok: false, error: 'Slow down a little.' };
     recent.push(now);

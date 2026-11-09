@@ -134,12 +134,20 @@ export type ChatStaffKind = 'event' | 'platform';
  */
 export function chatPaceHint(opts: { tier: SupporterTierId | null | undefined; slow: boolean; staff: boolean | ChatStaffKind }): string {
   if (opts.staff === 'platform') return 'no slow mode (Anvil staff)';
-  if (opts.staff) return 'no slow mode for event staff';
+  if (opts.staff && opts.tier) return 'no slow mode (staff Supporter)';
   if (opts.slow) return `slow mode ${Math.round(Math.max(SLOW_GAP_MS, personGapMs(opts.tier)) / 1000)}s (busy chat)`;
   const gap = personGapMs(opts.tier);
   if (gap === 0) return 'no slow mode (Patron)';
   const s = `slow mode ${Math.round(gap / 1000)}s`;
   return opts.tier ? s : `${s} · Supporters chat faster`;
+}
+
+/**
+ * Who skips slow mode and the flood guard: Anvil's platform staff, and event staff who are
+ * Supporters. Event staff without a tier wait like everyone else (the owner's call).
+ */
+export function paceExempt(staff: ChatStaffKind | null | undefined, tier: SupporterTierId | null | undefined): boolean {
+  return staff === 'platform' || (staff === 'event' && !!tier);
 }
 
 /** Most messages one person may send in BURST_WINDOW_MS, whatever their tier: a flood guard. */
