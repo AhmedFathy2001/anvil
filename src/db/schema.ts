@@ -1222,6 +1222,10 @@ export const eventParticipants = pgTable('event_participants', {
   // first completions count — the plugin gates on the CA points varbit actually rising, so the
   // in-game "Repeat completion" setting can't inflate it.
   caTasks: integer('ca_tasks').default(0),
+  // Event staff who also play on a team in this event can hide the other teams' chat channels
+  // (lib/eventChat chatAccess ownTeamOnly): they read and post in their own team's channel only,
+  // like any player. Kept on every seat the person holds on the board, and read as "any seat".
+  ownTeamChatOnly: boolean('own_team_chat_only').notNull().default(false),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
   // One row per account per event. See the accountId column above for why the seat could not carry

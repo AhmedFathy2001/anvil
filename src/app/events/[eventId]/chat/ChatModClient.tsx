@@ -8,7 +8,7 @@ import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
-import { timeLeftText } from '@/lib/eventChatRules';
+import { ownTeamChatLabel, timeLeftText } from '@/lib/eventChatRules';
 
 interface Line {
   id: number;
@@ -41,6 +41,8 @@ interface Data {
   teams: { id: number; name: string; color: string | null }[];
   lines: Line[];
   sanctions: Sanction[];
+  /** "Only my team's chat": offered to event staff who play on a team; null otherwise. */
+  ownTeam: { on: boolean } | null;
 }
 
 /** How often the list refreshes itself while the tab is in view. */
@@ -184,6 +186,15 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
     await act({ action: 'pause', paused: !data.chat.paused }, data.chat.paused ? 'Chat resumed' : 'Chat paused');
   }
 
+  async function toggleOwnTeam() {
+    if (!data?.ownTeam) return;
+    const on = !data.ownTeam.on;
+    // A team channel picked from the full list may be gone from the narrowed one.
+    if (on && filter.startsWith('team:')) setFilter('every');
+    await act({ action: 'own-team', on }, on ? 'Showing only your team’s chat' : 'Showing every team’s chat');
+  }
+
+  const ownTeamSwitch = data?.ownTeam ? ownTeamChatLabel(data.ownTeam.on) : null;
   const teamName = new Map((data?.teams ?? []).map((t) => [t.id, t]));
   const filterOptions = [
     { value: 'every', label: 'Every channel' },
@@ -213,11 +224,18 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
                     : 'Open: the board’s players can talk.'}
             </p>
           </div>
-          {data?.chat.open && (
-            <button type="button" disabled={busy} onClick={togglePause} className={data.chat.paused ? goldBtn : quietBtn} title="Read-only for everyone until resumed">
-              {data.chat.paused ? 'Resume chat' : 'Pause chat'}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {ownTeamSwitch && (
+              <button type="button" disabled={busy} onClick={toggleOwnTeam} className={quietBtn} title={ownTeamSwitch.tip}>
+                {ownTeamSwitch.label}
+              </button>
+            )}
+            {data?.chat.open && (
+              <button type="button" disabled={busy} onClick={togglePause} className={data.chat.paused ? goldBtn : quietBtn} title="Read-only for everyone until resumed">
+                {data.chat.paused ? 'Resume chat' : 'Pause chat'}
+              </button>
+            )}
+          </div>
         </div>
       </section>
 

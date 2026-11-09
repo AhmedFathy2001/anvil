@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, eventParticipants, events, teams, users } from '@/db/schema';
 import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick, type ChatTarget } from '@/lib/eventChat';
-import { chatPaceHint, lockFor, parseChannel, type ChatChannel } from '@/lib/eventChatRules';
+import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, setOwnTeamChat, type ChatAccess, type ChatSeatPick, type ChatTarget } from '@/lib/eventChat';
+import { canChooseOwnTeamChat, chatPaceHint, lockFor, parseChannel, type ChatChannel } from '@/lib/eventChatRules';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -308,6 +308,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
         mine: await myChatNames(viewer.userId),
         chans: chat.chans,
         teamPicks: chat.teamPicks,
+        ownTeam: chat.ownTeam,
         feedId: chatFeedId(current.id, chat.channel),
         send: {
           act: 'chat-send',
@@ -365,16 +366,18 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
  * team's); `rd`: the channel just left, marked read to its newest line (lines arrived live there).
  * A solo board, or a player with no team, has no team segment.
  */
-async function chatPane(access: ChatAccess, userId: number, eventId: number, a: Args) {
+export async function chatPane(access: ChatAccess, userId: number, eventId: number, a: Args) {
+  // Staff read every team's channel, unless they play on a team and chose "Only my team's chat".
+  const everyTeam = access.staff && !access.ownTeamOnly;
   const teamList = access.solo
     ? []
-    : access.staff
+    : everyTeam
       ? await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, eventId)).orderBy(teams.name)
       : [];
   const pickedTeam = Number(a.tm) || null;
   const myTeam: number | null = access.solo
     ? null
-    : access.staff
+    : everyTeam
       ? (teamList.find((t) => t.id === pickedTeam)?.id ?? (access.teamId != null && teamList.some((t) => t.id === access.teamId) ? access.teamId : (teamList[0]?.id ?? null)))
       : access.teamId;
   const teamCh: ChatChannel | null = myTeam != null ? `team:${myTeam}` : null;
@@ -396,7 +399,7 @@ async function chatPane(access: ChatAccess, userId: number, eventId: number, a: 
     args: { s: `event:${eventId}`, p: 'chat', f, rd: channel, ...extra },
   });
   const chans: ChatChan[] = all.map((c) => ({
-    label: c === 'all' ? 'All teams' : c === 'announce' ? 'Announcements' : access.staff && access.teamId !== myTeam ? 'Teams' : 'My team',
+    label: c === 'all' ? 'All teams' : c === 'announce' ? 'Announcements' : everyTeam && access.teamId !== myTeam ? 'Teams' : 'My team',
     on: c === channel,
     act: go(c === 'all' ? 'all' : c === 'announce' ? 'announce' : 'team', teamCh && c === teamCh && myTeam != null ? { tm: String(myTeam) } : {}),
     feed: chatFeedId(eventId, c),
@@ -406,11 +409,16 @@ async function chatPane(access: ChatAccess, userId: number, eventId: number, a: 
   }));
   // Staff on a team channel: which team's, as chips under the switch.
   const teamPicks =
-    access.staff && channel.startsWith('team:') && teamList.length > 1
+    everyTeam && channel.startsWith('team:') && teamList.length > 1
       ? teamList.map((t) => ({ label: t.name, on: t.id === myTeam, act: go('team', { tm: String(t.id) }) }))
       : null;
   const lock = lockFor(channel, { block, paused: access.paused, staff: access.staff, rank: access.rank });
-  return { channel, rows, chans, teamPicks, lock };
+  // Event staff seated on a team: the "Only my team's chat" switch, near the team chips.
+  const f = channel.startsWith('team:') ? 'team' : channel;
+  const ownTeam = canChooseOwnTeamChat(access)
+    ? { on: access.ownTeamOnly, act: { a: 'post' as const, act: 'chat-own-team', args: { e: String(eventId), on: access.ownTeamOnly ? '0' : '1', s: `event:${eventId}`, f } } }
+    : null;
+  return { channel, rows, chans, teamPicks, lock, ownTeam };
 }
 
 // ── Actions (no redraw: the plugin reads an error line, or nothing) ─────────────────────────────
@@ -430,7 +438,7 @@ function sendTarget(to: string | undefined): ChatTarget {
 }
 
 export async function chatAct(request: Request, act: string, a: Args, fields: Args): Promise<View | null> {
-  if (!['chat-send', 'chat-del', 'chat-mute', 'chat-pause'].includes(act)) return null;
+  if (!['chat-send', 'chat-del', 'chat-mute', 'chat-pause', 'chat-own-team'].includes(act)) return null;
   const got = await accessFor(request, a);
   if ('ui' in got) return got;
   const { access, userId } = got;
@@ -444,9 +452,12 @@ export async function chatAct(request: Request, act: string, a: Args, fields: Ar
         ? await deleteChat(access, userId, id)
         : act === 'chat-mute'
           ? await muteChat(access, userId, id)
-          : await pauseChat(access, a.on === '1', userId);
+          : act === 'chat-own-team'
+            ? await setOwnTeamChat(access, userId, a.on === '1')
+            : await pauseChat(access, a.on === '1', userId);
   if (!r.ok) return err(r.error);
-  // Pausing redraws the tab so the switch flips; everything else changes nothing on the sender's screen.
-  if (act === 'chat-pause') return feedView(request, { s: a.s ?? `event:${access.eventId}`, p: 'chat', ...(a.f ? { f: a.f } : {}) });
+  // Pausing and "Only my team's chat" redraw the tab so the switch flips; everything else changes
+  // nothing on the sender's screen.
+  if (act === 'chat-pause' || act === 'chat-own-team') return feedView(request, { s: a.s ?? `event:${access.eventId}`, p: 'chat', ...(a.f ? { f: a.f } : {}) });
   return OK;
 }

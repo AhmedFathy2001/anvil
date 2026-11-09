@@ -14,9 +14,10 @@ import {
   pauseChat,
   sanctionChat,
   sanctionableUsers,
+  setOwnTeamChat,
   type ChatAccess,
 } from '@/lib/eventChat';
-import { cleanReason, parseChannel, timeoutMinutes } from '@/lib/eventChatRules';
+import { canChooseOwnTeamChat, canReadChannel, cleanReason, parseChannel, timeoutMinutes } from '@/lib/eventChatRules';
 import { eventInClan } from '@/lib/eventScope';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -28,9 +29,12 @@ import { rateLimit } from '@/lib/rate-limit';
 // from the database on every request. WHOSE EVENT: the one this address's clan hosts (eventInClan) —
 // never a co-host's address, where a clan role would be the co-host's, not the host's.
 //
-// GET  ?ch=every|staff|all|announce|team:<id>&q=<text>  → { chat, lines, teams, sanctions }
+// GET  ?ch=every|staff|all|announce|team:<id>&q=<text>  → { chat, lines, teams, sanctions, ownTeam }
 // POST { action: 'delete', id } | { action: 'timeout', userId, minutes | preset, reason? }
 //      | { action: 'ban', userId, reason? } | { action: 'lift', userId } | { action: 'pause', paused }
+//      | { action: 'own-team', on }  ("Only my team's chat": event staff who play on a team)
+//
+// A moderator who chose "Only my team's chat" sees, of the teams' channels, only their own team's.
 
 async function scope(raw: string): Promise<{ access: ChatAccess; userId: number } | NextResponse> {
   const eventId = Number(raw);
@@ -52,12 +56,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const url = new URL(request.url);
   // ?ch=every (default) | staff | all | announce | team:<id>
   const ch = url.searchParams.get('ch') ?? 'every';
-  const filter = ch === 'staff' ? 'staff' : (parseChannel(ch) ?? 'every');
-  const [lines, teamRows, sanctions] = await Promise.all([
-    chatModLines(access.eventId, { filter, q: url.searchParams.get('q') ?? '' }),
+  const picked = ch === 'staff' ? 'staff' : (parseChannel(ch) ?? 'every');
+  // Another team's channel, asked for while they read only their own: the whole list instead.
+  const filter = picked === 'staff' || picked === 'every' || canReadChannel(access, picked) ? picked : 'every';
+  const ownTeam = access.ownTeamOnly ? access.teamId : null;
+  const [lines, allTeams, sanctions] = await Promise.all([
+    chatModLines(access.eventId, { filter, q: url.searchParams.get('q') ?? '', ownTeam }),
     db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, access.eventId)).orderBy(teams.name),
     chatSanctions(access, userId),
   ]);
+  const teamRows = ownTeam != null ? allTeams.filter((t) => t.id === ownTeam) : allTeams;
   const actOn = await sanctionableUsers(access, userId, lines.map((l) => l.userId));
   return NextResponse.json({
     chat: { open: access.open, closedWhy: access.closedWhy, paused: access.paused },
@@ -65,6 +73,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     // Delete: their own lines, or a sender they outrank (lib/eventChat deleteChat checks it again).
     lines: lines.map((l) => ({ ...l, canSanction: actOn.has(l.userId), canDelete: l.userId === userId || actOn.has(l.userId) })),
     sanctions,
+    // The "Only my team's chat" switch: null when it isn't offered to this person.
+    ownTeam: canChooseOwnTeamChat(access) ? { on: access.ownTeamOnly } : null,
   });
 }
 
@@ -90,6 +100,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     r = await liftChatSanction(access, userId, target);
   } else if (action === 'pause' && typeof body?.paused === 'boolean') {
     r = await pauseChat(access, body.paused, userId);
+  } else if (action === 'own-team' && typeof body?.on === 'boolean') {
+    r = await setOwnTeamChat(access, userId, body.on);
   } else {
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   }

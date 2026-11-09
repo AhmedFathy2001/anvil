@@ -36,6 +36,7 @@ import {
   type BoardPace,
   type ChatChannel,
   type ChatLock,
+  canChooseOwnTeamChat,
   canPostChannel,
   canReadChannel,
   channelTeam,
@@ -118,6 +119,11 @@ export interface ChatAccess {
   seats: number;
   /** A solo board (every player their own team): no team channels. */
   solo: boolean;
+  /**
+   * Event staff seated on a team who chose "Only my team's chat" (event_participants
+   * own_team_chat_only): they read and post in their own team's channel only, like a player.
+   */
+  ownTeamOnly: boolean;
 }
 
 /**
@@ -138,6 +144,7 @@ interface Seat {
   name: string;
   accountHash: string | null;
   rsnNormalized: string | null;
+  ownTeamChatOnly?: boolean;
 }
 
 /** The seat on a board this person speaks from: by the requesting character when they hold several. */
@@ -167,7 +174,7 @@ async function participantOf(
   eventId: number,
   userId: number,
   pick: ChatSeatPick | null | undefined,
-): Promise<{ teamId: number | null; rsn: string; seats: number } | null> {
+): Promise<{ teamId: number | null; rsn: string; seats: number; ownTeamOnly: boolean } | null> {
   const seats = await db
     .select({
       id: eventParticipants.id,
@@ -175,6 +182,7 @@ async function participantOf(
       name: eventParticipants.name,
       accountHash: accounts.accountHash,
       rsnNormalized: accounts.rsnNormalized,
+      ownTeamChatOnly: eventParticipants.ownTeamChatOnly,
     })
     .from(eventParticipants)
     .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
@@ -182,7 +190,8 @@ async function participantOf(
     .where(and(eq(eventParticipants.eventId, eventId), eq(users.id, userId)))
     .orderBy(eventParticipants.id);
   const seat = pickSeat(seats, pick);
-  return seat ? { teamId: seat.teamId, rsn: seat.name, seats: seats.length } : null;
+  // The choice is the person's, on every seat they hold here: any seat set means it's on.
+  return seat ? { teamId: seat.teamId, rsn: seat.name, seats: seats.length, ownTeamOnly: seats.some((s) => s.ownTeamChatOnly) } : null;
 }
 
 /**
@@ -206,6 +215,9 @@ export async function chatAccess(eventId: number, userId: number, pick?: ChatSea
   const staff = clanStaff || platformStaff;
   const role = grant && atLeast(grant.role, 'admin') ? 'host' : clanStaff ? 'mod' : null;
   const open = platformOn && ev.chatEnabled;
+  const staffKind: ChatStaffKind | null = clanStaff ? 'event' : platformStaff ? 'platform' : null;
+  const solo = ev.teamPlacement === 'solo';
+  const teamId = part?.teamId ?? null;
   return {
     eventId,
     clanId: ev.clanId,
@@ -214,14 +226,44 @@ export async function chatAccess(eventId: number, userId: number, pick?: ChatSea
     closedWhy: !platformOn ? 'Event chat is switched off on Anvil right now.' : !ev.chatEnabled ? 'The host hasn’t turned chat on for this event.' : null,
     member: part != null || staff,
     staff,
-    staffKind: clanStaff ? 'event' : platformStaff ? 'platform' : null,
+    staffKind,
     rank: chatRank(clanStaff ? rankOf(grant!.role) : 0, platformStaff),
     role,
-    teamId: part?.teamId ?? null,
+    teamId,
     rsn: part?.rsn ?? null,
     seats: part?.seats ?? 0,
-    solo: ev.teamPlacement === 'solo',
+    solo,
+    // Only where it was offered (canChooseOwnTeamChat): a flag left on a seat after the person lost
+    // their staff job or their team narrows nothing.
+    ownTeamOnly: !!part?.ownTeamOnly && canChooseOwnTeamChat({ staffKind, teamId, solo }),
   };
+}
+
+/**
+ * Turn "Only my team's chat" on or off for this person on this board: every seat they hold on it.
+ * Offered to the event's own staff who play on one of its teams (canChooseOwnTeamChat).
+ */
+export async function setOwnTeamChat(access: ChatAccess, userId: number, on: boolean): Promise<SendResult> {
+  if (!canChooseOwnTeamChat(access)) return { ok: false, error: 'That’s for event staff who play on a team.' };
+  const mine = db
+    .select({ id: eventParticipants.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(and(eq(eventParticipants.eventId, access.eventId), eq(users.id, userId)));
+  await db.update(eventParticipants).set({ ownTeamChatOnly: on }).where(inArray(eventParticipants.id, mine));
+  return { ok: true };
+}
+
+/** People on this board who chose to read only their own team's chat (any of their seats). */
+async function ownTeamOnlyUserIds(eventId: number): Promise<Set<number>> {
+  const rows = await db
+    .selectDistinct({ id: users.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.ownTeamChatOnly, true)));
+  return new Set(rows.map((r) => r.id));
 }
 
 // ── Pace (per process: one site process serves the plugin API) ─────────────────────────────────
@@ -420,8 +462,10 @@ export async function chatUnread(access: ChatAccess, userId: number, channels: C
 export async function channelTarget(eventId: number, channel: ChatChannel): Promise<RowsTarget> {
   const team = channelTeam(channel);
   if (team == null) return { e: eventId };
-  const [players, staff] = await Promise.all([teamUserIds(team, eventId), eventStaffUserIds(eventId)]);
-  return { u: [...new Set([...players, ...staff])] };
+  const [players, staff, narrowed] = await Promise.all([teamUserIds(team, eventId), eventStaffUserIds(eventId), ownTeamOnlyUserIds(eventId)]);
+  // Staff who chose "Only my team's chat" hear other teams' lines no more than a player does; their
+  // own team's still reach them as one of its players.
+  return { u: [...new Set([...players, ...staff.filter((u) => !narrowed.has(u))])] };
 }
 
 /**
@@ -525,7 +569,7 @@ async function audit(access: ChatAccess, byUserId: number, eventType: string, va
 export async function deleteChat(access: ChatAccess, byUserId: number, id: number): Promise<SendResult> {
   if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
   const line = await lineOf(access.eventId, id);
-  if (!line || line.deletedAt) return { ok: false, error: 'That message is gone.' };
+  if (!line || line.deletedAt || !(await mayRead(access, (line.channel as ChatChannel) ?? 'all'))) return { ok: false, error: 'That message is gone.' };
   // Their own line, or one from someone they strictly outrank: a mod can't remove an admin's words.
   if (line.userId !== byUserId && !canSanction(access.rank, await rankIn(access, line.userId))) {
     return { ok: false, error: 'Only someone above them on staff can remove that.' };
@@ -692,13 +736,17 @@ const likeText = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 /**
  * Every recent line on the board for its staff, every channel (teams' included), removed ones not.
  * `filter`: one channel, 'staff' (said by the host's staff, any channel), or 'every' (the default).
- * `q` searches the text and name.
+ * `q` searches the text and name. `ownTeam`: a moderator who chose "Only my team's chat" — of the
+ * teams' channels, only that team's.
  */
 export async function chatModLines(
   eventId: number,
-  opts: { filter?: 'every' | 'staff' | ChatChannel; q?: string; limit?: number } = {},
+  opts: { filter?: 'every' | 'staff' | ChatChannel; q?: string; limit?: number; ownTeam?: number | null } = {},
 ): Promise<ModLine[]> {
   const where = [eq(eventChatMessages.eventId, eventId), isNull(eventChatMessages.deletedAt)];
+  if (opts.ownTeam != null) {
+    where.push(or(sql`${eventChatMessages.channel} not like 'team:%'`, eq(eventChatMessages.channel, `team:${opts.ownTeam}`))!);
+  }
   if (opts.filter === 'staff') where.push(eq(eventChatMessages.fromStaff, true));
   else if (opts.filter && opts.filter !== 'every') where.push(...channelWhere(opts.filter));
   const q = opts.q?.trim().slice(0, 100);
@@ -770,7 +818,7 @@ export async function sanctionableUsers(access: ChatAccess, viewerUserId: number
 export async function muteChat(access: ChatAccess, byUserId: number, id: number): Promise<SendResult> {
   if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
   const line = await lineOf(access.eventId, id);
-  if (!line) return { ok: false, error: 'That message is gone.' };
+  if (!line || !(await mayRead(access, (line.channel as ChatChannel) ?? 'all'))) return { ok: false, error: 'That message is gone.' };
   return sanctionChat(access, byUserId, line.userId, { kind: 'ban' });
 }
 

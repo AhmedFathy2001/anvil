@@ -7,7 +7,7 @@ import { runSuffix } from '@/lib/feedRuns';
 import { clanBoostInk } from '@/lib/clanBoostRules';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
-import type { ChatLock } from '@/lib/eventChatRules';
+import { ownTeamChatLabel, type ChatLock } from '@/lib/eventChatRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { badge, button, col, gap, hero, muted, nameTint, row, text } from './nodes';
@@ -450,6 +450,8 @@ export interface FeedTabOptions {
   chans?: ChatChan[];
   /** Chat, staff on a team channel: which team's, as chips. */
   teamPicks?: { label: string; on: boolean; act: Action }[] | null;
+  /** Chat, event staff seated on a team: the "Only my team's chat" switch (`act` flips it). */
+  ownTeam?: { on: boolean; act: Action } | null;
   /** Chat: the open channel's list id (lib/eventChatRules ChatChannel via chatFeedId). */
   feedId?: string;
   /** The viewer moderates this chat: the mods filter and the pause switch show. */
@@ -551,6 +553,10 @@ export function feedTabUi(o: FeedTabOptions): Node {
 
   // The chat's channels are a switch on the list itself (`chans`); staff pick a team's under it.
   if (o.pane === 'chat' && o.teamPicks?.length) parts.push(rowOf(o.teamPicks.map((t) => boxChip(t.label, t.on, t.act)), 3), gap(4));
+  if (o.pane === 'chat' && o.ownTeam) {
+    const words = ownTeamChatLabel(o.ownTeam.on);
+    parts.push(muted(words.label, { font: 'small', align: 'r', on: o.ownTeam.act, tip: words.tip }), gap(4));
+  }
   const filters: [string, string][] =
     o.pane === 'chat'
       ? []

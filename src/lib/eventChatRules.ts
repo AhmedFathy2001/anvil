@@ -277,13 +277,34 @@ export interface ChannelViewer {
   /** Standing in the chat (chatRank): 1 and up is staff. */
   rank: number;
   teamId: number | null;
+  /**
+   * Event staff who play on a team and chose "Only my team's chat": other teams' channels are closed
+   * to them as to any player. Their staff powers elsewhere (announcements, pause, moderation) stay.
+   */
+  ownTeamOnly?: boolean;
 }
 
 /** Reading: 'all' and 'announce' for anyone on the board; a team's channel for that team and staff. */
 export function canReadChannel(v: ChannelViewer, ch: ChatChannel): boolean {
   if (!v.member) return false;
   const team = channelTeam(ch);
-  return team == null || v.staff || v.teamId === team;
+  return team == null || (v.staff && !v.ownTeamOnly) || v.teamId === team;
+}
+
+/**
+ * Who is offered "Only my team's chat": the event's own staff (the host clan's moderators and up)
+ * who also hold a seat on one of its teams. Anvil staff with no job there, and staff without a team,
+ * have no team of their own to narrow to.
+ */
+export function canChooseOwnTeamChat(v: { staffKind: ChatStaffKind | null; teamId: number | null; solo?: boolean }): boolean {
+  return v.staffKind === 'event' && v.teamId != null && !v.solo;
+}
+
+/** The switch's words: what pressing it does. */
+export function ownTeamChatLabel(on: boolean): { label: string; tip: string } {
+  return on
+    ? { label: 'See every team’s chat', tip: 'Read and answer in every team’s chat again' }
+    : { label: 'Only my team’s chat', tip: 'Hide other teams’ chats while you play' };
 }
 
 /** Posting: announcements need staff rank; a team's channel its own players (staff may answer there). */
