@@ -110,7 +110,7 @@ export interface LabTileSeed {
   category: string;
 }
 
-type LabTileSpec = Omit<LabTileSeed, 'position' | 'points' | 'revealAt'>;
+export type LabTileSpec = Omit<LabTileSeed, 'position' | 'points' | 'revealAt'>;
 const spec = (label: string, tileType: string, category: string, extra: Partial<LabTileSpec> = {}): LabTileSpec => ({
   label,
   tileType,
@@ -201,6 +201,18 @@ export function labTilePlan(count: number): LabTileSpec[] {
     }
   }
   return [opener, ...fill, closer];
+}
+
+/**
+ * A real tile for one more mission on a board that already holds `usedLabels`: the first tile of
+ * the plan not on the board, or once all are used a harder copy (labTilePlan's own ×2 rule).
+ */
+export function labMissionSpec(usedLabels: readonly string[]): LabTileSpec {
+  const used = new Set(usedLabels);
+  for (let n = LAB_TILE_SET.length; ; n += LAB_TILE_SET.length) {
+    const hit = labTilePlan(n).find((t) => !used.has(t.label));
+    if (hit) return hit;
+  }
 }
 
 /** The tiles of a new session, in board order — real, creditable tiles (labTilePlan). */

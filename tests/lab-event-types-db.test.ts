@@ -140,6 +140,14 @@ test('mission controls: add, rules, announce now, expire now, reset', async () =
   let [tile] = await db.select().from(s.tiles).where(eq(s.tiles.id, tileId));
   assert.equal(tile.mission, 1);
   assert.equal(tile.revealedAt, null);
+  assert.ok(!/^Lab mission/.test(tile.label) && tile.tileType !== 'manual');
+  assert.ok(tile.targetNpcs || tile.trackedItemIds || tile.timedActivity || (tile.requiredAmount ?? 0) > 1);
+  const second = await M.addLabMission(event);
+  const [t2] = await db.select().from(s.tiles).where(eq(s.tiles.id, second));
+  const labels = (await db.select().from(s.tiles).where(eq(s.tiles.eventId, eventId))).map((t) => t.label);
+  assert.ok(!/^Lab mission/.test(t2.label) && t2.tileType);
+  assert.equal(new Set(labels).size, labels.length);
+  await db.delete(s.tiles).where(eq(s.tiles.id, second));
 
   const rules = await M.setLabMissionRules(event, tileId, { lockout: true, expiryHours: 2, reward: { places: [{ points: 50, gp: 0, unfundedPoints: null }], restPoints: 0, maxClaims: 3 } });
   assert.equal(rules.reward?.maxClaims, 3);

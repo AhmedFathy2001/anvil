@@ -19,6 +19,7 @@ import {
   labRules,
   labTileCount,
   labTileSeeds,
+  labMissionSpec,
   labTilePlan,
   LAB_TILE_SET,
   planLabTeams,
@@ -257,4 +258,15 @@ test('simulated field is repeatable for a seed and respects intensity 0', () => 
   assert.deepEqual(planSimulatedField(input), planSimulatedField(input));
   assert.deepEqual(planSimulatedField({ ...input, intensity: 0 }), []);
   for (const c of planSimulatedField(input)) assert.match(c.completedAt, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
+});
+
+test('mission tile: a real plan tile not already used, a harder copy once all are', () => {
+  const first = labMissionSpec([]);
+  assert.equal(first.label, LAB_TILE_SET[0].label);
+  assert.notEqual(first.tileType, 'mission');
+  const used = LAB_TILE_SET.map((t) => t.label);
+  assert.equal(labMissionSpec(used.slice(0, 5)).label, LAB_TILE_SET[5].label);
+  const harder = labMissionSpec(used);
+  assert.ok(!used.includes(harder.label) && /×2$/.test(harder.label));
+  assert.ok(harder.targetNpcs || harder.trackedItemIds || harder.timedActivity || harder.requiredAmount > 1);
 });

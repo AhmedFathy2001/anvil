@@ -20,6 +20,7 @@ import {
   type MissionAnnounceMode,
   type MissionRules,
 } from '@/lib/eventRules';
+import { labMissionSpec } from '@/lib/labPlan';
 import { captureRevealStats } from '@/lib/revealStatsCapture';
 import { announceMissionTile, announceNextMission, closeMissionTileNow } from '@/lib/revealEngine';
 
@@ -67,17 +68,20 @@ export async function setMissionPolicy(
   await db.update(events).set({ rules: checked.rules }).where(eq(events.id, event.id));
 }
 
-/** A new hidden mission tile at the end of the board. Returns its id. */
+/** A new hidden mission tile at the end of the board: a real, creditable tile from the lab plan not already on it. Returns its id. */
 export async function addLabMission(event: EventRow, label?: string): Promise<number> {
   await ensureMissionPolicy(event);
   const [{ last }] = await db.select({ last: max(tiles.position) }).from(tiles).where(eq(tiles.eventId, event.id));
   const position = (last ?? -1) + 1;
+  const existing = await db.select({ label: tiles.label }).from(tiles).where(eq(tiles.eventId, event.id));
+  const plan = labMissionSpec(existing.map((t) => t.label));
   const [tile] = await db
     .insert(tiles)
     .values({
       eventId: event.id,
       position,
-      label: (label?.trim() || `Lab mission ${position + 1}`).slice(0, 80),
+      ...plan,
+      label: (label?.trim() || plan.label).slice(0, 80),
       mission: 1,
       points: event.scoringMode === 'points' ? 25 : 1,
     })
