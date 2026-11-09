@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { type BoardContext, type BoardState, boardRowsUi, boardUi } from '../src/lib/pluginUi/boardUi';
+import { type BoardContext, type BoardState, boardRowsUi, boardUi, pinAction } from '../src/lib/pluginUi/boardUi';
 import { eventUi, homeUi, type HomeConfig, type HomeData } from '../src/lib/pluginUi/homeUi';
 import { trackedCard } from '../src/lib/pluginUi/trackedUi';
 import { raceBoard } from './plugin-ui-race.test';
@@ -99,4 +99,20 @@ test('a pin on a tile of an unrevealed board, or one the reveal rules hide, reso
   // A reveal-policy board: a tile that hasn't been drawn stays out.
   const hidden = revealedTileIds([{ id: 5, eventId: 12, revealedAt: null, tileType: 'drop' }], [{ id: 12, rules, tilesRevealed: true }]);
   assert.equal(hidden.has(5), false);
+});
+
+test('the tracked card gives a pin with progress a thin bar under its name (no blank space)', () => {
+  const card = trackedCard([{ tileId: 1, label: '2 Araxxor kills', eventId: 77, board: null, cur: 0, goal: 2, done: false }], 77, { a: 'load', v: 'home' })!;
+  assert.ok(walk(card).some((x) => x.t === 'bar'));
+  assert.ok(texts(card).includes('0 / 2'));
+});
+
+test('a locked race step or a closed tile cannot be tracked, an open one can', () => {
+  const base = { tileId: 5, complete: false } as never;
+  const withState = (o: object) => ({ ...(base as object), ...o }) as never;
+  const c = { ...ctx, pins: [] as number[] };
+  assert.equal(pinAction(withState({ raceState: 'ahead' }), st, c), null);
+  assert.equal(pinAction(withState({ raceState: 'closed' }), st, c), null);
+  assert.equal(pinAction(withState({ closedAt: '2026-01-01' }), st, c), null);
+  assert.ok(pinAction(withState({ raceState: 'open' }), st, c)?.on);
 });

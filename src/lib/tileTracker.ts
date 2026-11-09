@@ -150,3 +150,9 @@ function team(input: TrackerInput, t: TrackerTeamIn, current: number, byPlayer: 
 function rank(teams: TrackerTeam[]): TrackerTeam[] {
   return teams.sort((a, b) => Number(b.mine) - Number(a.mine) || b.current - a.current || a.name.localeCompare(b.name));
 }
+
+/**
+ * The progress route's answer for a pinned tile that was deleted (a board re-seeded under the pin): 410,
+ * final, so the plugin unpins at once instead of retrying a pin that can never load.
+ */
+export const tileGone = (): Response => Response.json({ error: 'Tile removed', gone: true }, { status: 410 });

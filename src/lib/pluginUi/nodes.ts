@@ -79,7 +79,7 @@ export type Node =
    * `card`: the darker rounded card. `bg` 'raised': a lighter rounded row that lights up under the
    * mouse (a tile to open). `edge`: a 1px rounded outline in that colour (the "Do this next" card).
    */
-  | (Common & { t: 'col'; c: Node[]; gap?: number; card?: boolean; inset?: number; bg?: Ground; edge?: Color })
+  | (Common & { t: 'col'; c: Node[]; gap?: number; card?: boolean; inset?: number; /** Corner radius of a card (default 6). */ rad?: number; bg?: Ground; edge?: Color })
   | (Common & {
       t: 'row';
       l?: Node;
@@ -186,7 +186,7 @@ export type Node =
    * One stop on a vertical track: its dot (`done` ticked, `now` glowing gold, `end` a gold ring, `todo`
    * hollow), a `line` down to the next stop in that colour (none on the last), and the content beside it.
    */
-  | (Common & { t: 'step'; dot: 'done' | 'now' | 'todo' | 'end'; line?: Color; c: Node })
+  | (Common & { t: 'step'; dot: 'done' | 'now' | 'todo' | 'end' | 'lock'; line?: Color; c: Node })
   | (Common & { t: 'toggle'; key: string; off: Node; lit: Node })
   /** Draws nothing: fetches `on` (a load) ahead of the click that will want it, so the click is instant. */
   | (Common & { t: 'warm'; on: Action })
@@ -434,7 +434,7 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
 
 /** The hero badge: a 2px card-coloured ring round a 32px logo/avatar (`pic`, rounded square) or initials. */
 export const badge = (pic: Node | undefined, initials: string): Node =>
-  col([pic ?? text(initials.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).replace(/^./, (x) => x.toUpperCase()), 'brand', { font: 'bold', chip: '#3a3a3a', w: 32, align: 'c' })], { card: true, inset: 2 });
+  col([pic ?? text(initials.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).replace(/^./, (x) => x.toUpperCase()), 'brand', { font: 'bold', chip: '#3a3a3a', w: 32, align: 'c' })], { card: true, inset: 2, rad: 10 });
 /** One rounded card: banner, the badge beside the name just under it, then the muted lines. */
 const mix = (hex: string, k: number): string => {
   const n = parseInt(hex.slice(1), 16);

@@ -58,7 +58,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
   parts.push(hero(
     images && c.bannerUrl ? { src: rev('banner'), motion: !!boost?.move } : null,
     c.accent ?? nameTint(c.name),
-    badge(images && c.logoUrl ? { t: 'img', src: rev('logo'), w: 32, h: 32, rad: 6, motion: true } : undefined, c.name),
+    badge(images && c.logoUrl ? { t: 'img', src: rev('logo'), w: 32, h: 32, rad: 8, motion: true } : undefined, c.name),
     [nm, link],
     id,
   ));

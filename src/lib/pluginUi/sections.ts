@@ -91,7 +91,7 @@ export function clock(at: string | null | undefined, prefix: string, due: string
 }
 
 /** One stop on a vertical track. */
-export function stop(dot: 'done' | 'now' | 'todo' | 'end', head: Node, sub: Node, on?: Action, last = false, tip = 'Open this tile'): Node {
+export function stop(dot: 'done' | 'now' | 'todo' | 'end' | 'lock', head: Node, sub: Node, on?: Action, last = false, tip = 'Open this tile'): Node {
   const line: Color | undefined = last ? undefined : dot === 'done' ? GREEN : LATER;
   return { t: 'step', dot, ...(line ? { line } : {}), c: col([head, sub]), ...(on ? { on, tip } : {}) };
 }

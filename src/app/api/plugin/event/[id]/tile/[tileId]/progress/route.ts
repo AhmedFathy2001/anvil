@@ -10,6 +10,7 @@ import { eventForPluginRequest } from '@/lib/eventScope';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { tileProgressView } from '@/lib/tileTrackerView';
+import { tileGone } from '@/lib/tileTracker';
 
 // GET /api/plugin/event/[id]/tile/[tileId]/progress — one tile's progress for every team, with each
 // team's top contributors (lib/tileTracker). Backs the plugin's pinned in-game tracker widget, which
@@ -39,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const viewerUserPlayerId = viewer
     ? ((await db.query.users.findFirst({ where: eq(users.id, viewer.userId), columns: { playerId: true } }))?.playerId ?? null)
     : null;
-  if (!(await canSeeEvent({ eventId, playerId: viewerUserPlayerId }))) {
+  if (!mine && !(await canSeeEvent({ eventId, playerId: viewerUserPlayerId }))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -48,6 +49,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const tile = event.tilesRevealed
     ? await db.query.tiles.findFirst({ where: and(eq(tiles.id, tileId), eq(tiles.eventId, eventId)) })
     : undefined;
+  // A tile that no longer exists (a board re-seeded under the pin) is 410 "gone": final, so the plugin
+  // unpins at once instead of retrying a pin that can never load.
+  if (event.tilesRevealed && !tile) return tileGone();
   if (!tile || !isTileRevealed(parseEventRules(event.rules), tile)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

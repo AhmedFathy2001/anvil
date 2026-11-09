@@ -599,6 +599,8 @@ function pinMenu(t: BoardTile, s: BoardState, ctx: BoardContext): { label: strin
 export function pinAction(t: BoardTile, s: BoardState, ctx: BoardContext, then?: Action): { label: string; on?: Action; tip: string } | null {
   if (t.complete || !ctx.pins || ctx.eventId <= 0) return null;
   const pinned = ctx.pins.includes(t.tileId);
+  // A locked race step, or a closed/expired tile, can be read but not tracked (and comes off once it locks).
+  if (!pinned && (raceStateOf(t) === 'ahead' || raceStateOf(t) === 'closed' || closedUndone(t))) return null;
   if (!pinned && ctx.pins.length >= MAX_PINS) return { label: 'Track on screen', tip: `You're already tracking ${MAX_PINS} tiles — stop one first` };
   return {
     label: pinned ? 'Stop tracking' : 'Track on screen',

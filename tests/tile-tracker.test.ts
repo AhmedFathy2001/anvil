@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
+import { tileGone, collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
 
 const input = (over: Partial<TrackerInput> = {}): TrackerInput => ({
   teams: [
@@ -94,4 +94,10 @@ test('an any-of-these-sets tile shows the closest set, and a stray piece of anot
   ], barrows, 'any', 1);
   assert.equal(out.goal, 4);
   assert.equal(out.teams.find((t) => t.name === 'Red')!.current, 2);
+});
+
+test('a deleted pinned tile answers a final 410 "gone", not a transient error', async () => {
+  const r = tileGone();
+  assert.equal(r.status, 410);
+  assert.deepEqual(await r.json(), { error: 'Tile removed', gone: true });
 });
