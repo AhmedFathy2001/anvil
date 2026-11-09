@@ -411,6 +411,12 @@ function splitCounts(v: TeamMessage): [string, Record<string, number>] {
       return { ...r, currentAmount: 0 };
     });
   }
+  // `tiles` (lib/pluginTileCounts) repeats those counts as `have`, read off the lists above: zeroed too,
+  // or every count change reads as a new shape and the whole view goes out instead of the count. The
+  // plugin lays a 'counts' message's `c` over both (PushMerge).
+  if (Array.isArray(config.tiles)) {
+    config.tiles = config.tiles.map((row: unknown) => (row && typeof row === 'object' && 'have' in row ? { ...row, have: 0 } : row));
+  }
   return [JSON.stringify({ ...v, at: undefined, members: undefined, config }), counts];
 }
 
