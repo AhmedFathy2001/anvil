@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
-import { inboxFor, markRead } from '@/lib/notices';
+import { inboxFor, markRead, markWhatsNewSeen } from '@/lib/notices';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -34,8 +34,10 @@ export async function POST(request: Request) {
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Bad body' }, { status: 400 });
 
   if (body.action === 'read') {
-    const ids = body.all === true ? 'all' : Array.isArray(body.ids) ? body.ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0) : [];
-    await markRead(session.userId, ids);
+    // Negative ids are What's new dates (lib/notices whatsNewNoticesFor); `whatsNew` is a visit to /whats-new.
+    const ids = body.all === true ? 'all' : Array.isArray(body.ids) ? body.ids.map(Number).filter((n: number) => Number.isInteger(n) && n !== 0) : [];
+    if (body.whatsNew === true) await markWhatsNewSeen(session.userId);
+    else await markRead(session.userId, ids);
     return NextResponse.json({ ok: true });
   }
   if (body.action === 'prefs') {

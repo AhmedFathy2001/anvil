@@ -1566,6 +1566,9 @@ export const users = pgTable('users', {
   anvilDms: text('anvil_dms'),
   // Play a sound when a new notice lands while the site is open (lib/notices). Off by default.
   noticeSound: boolean('notice_sound').notNull().default(false),
+  // The newest What's new entry (lib/whatsNew, by id) this person has seen, for the bell (lib/notices).
+  // NULL = not set yet: the first bell poll sets it to the newest entry, so nobody gets the back-catalogue.
+  whatsNewSeen: text('whats_new_seen'),
 }, (table) => [
   uniqueIndex('users_supporter_ref_unique').on(table.supporterRef),
   uniqueIndex('users_referral_code_unique').on(table.referralCode),

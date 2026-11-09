@@ -4,6 +4,9 @@
 // the plugin panel's "From Anvil" card, the login brief, and a bot DM for people who said yes to DMs.
 // Who it's for is worked out when it's READ, from what the person is right now (an admin, a supporter),
 // so a notice to "admins" reaches someone who becomes one next week, and nothing is fanned out to rows.
+//
+// What's new (lib/whatsNew) rides along the same way: entries added above the person's one marker
+// (users.whats_new_seen) and meant for them show as one notice per date, merged into the same list.
 
 import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 
@@ -29,6 +32,8 @@ import {
 import { sendDm } from '@/lib/onboardingNudge';
 import { apexOrigin } from '@/lib/seo';
 import { supporterForUser, supporterForUsers } from '@/lib/supporter';
+import { SIGNED_OUT, WHATS_NEW, bellGroups, entriesSince, isRelevantTo, needsViewer, type WhatsNewEntry } from '@/lib/whatsNew';
+import { viewerFor } from '@/lib/whatsNewViewer';
 import { mayReach } from '@/lib/welcomeDm';
 import { stopRow } from '@/lib/welcomeDmText';
 
@@ -48,6 +53,8 @@ export interface NoticeView {
   level: NoticeLevel;
   createdAt: string;
   read: boolean;
+  /** A What's new date (lib/whatsNew), not a notice: its id is -YYYYMMDD and it links to /whats-new. */
+  kind?: 'whatsNew';
 }
 
 async function readerFacts(userId: number): Promise<ReaderFacts> {
@@ -102,8 +109,9 @@ function view(n: NoticeRow, read: boolean): NoticeView {
 
 /** The inbox: unread important ones first, then newest. */
 export async function inboxFor(userId: number): Promise<{ notices: NoticeView[]; unread: number }> {
-  const rows = await forReader(userId);
-  const notices = rows.map(({ n, r }) => view(n, !!r?.readAt));
+  const [rows, fresh] = await Promise.all([forReader(userId), whatsNewNoticesFor(userId).catch(() => [])]);
+  const notices = [...fresh, ...rows.map(({ n, r }) => view(n, !!r?.readAt))];
+  if (fresh.length) notices.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   notices.sort((a, b) => Number(!b.read && b.level === 'important') - Number(!a.read && a.level === 'important'));
   return { notices, unread: notices.filter((x) => !x.read).length };
 }
@@ -124,8 +132,56 @@ async function stamp(userId: number, noticeIds: number[], col: keyof typeof STAM
     });
 }
 
-/** Mark read: the given ids that are really this person's, or all of them. */
+// ---- What's new in the bell ------------------------------------------------------------------------
+
+const ANYONE_SIGNED_IN = { ...SIGNED_OUT, signedIn: true };
+
+/**
+ * What's new entries added since this person last saw the list, that are for them, as one unread
+ * notice per date. Cheap on the bell's poll: one row read, and the viewer (tier, clans, plugin) only
+ * when there IS something new aimed at someone in particular. A first look sets the marker to the
+ * newest entry (no back-catalogue for a new account); new entries none of which are for them move it
+ * on quietly, so the viewer isn't worked out again on every poll.
+ */
+export async function whatsNewNoticesFor(userId: number, entries: WhatsNewEntry[] = WHATS_NEW): Promise<NoticeView[]> {
+  const newest = entries[0]?.id;
+  if (!newest) return [];
+  const me = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { whatsNewSeen: true, playerId: true } });
+  if (!me) return [];
+  if (me.whatsNewSeen == null) {
+    await db.update(users).set({ whatsNewSeen: newest }).where(and(eq(users.id, userId), isNull(users.whatsNewSeen)));
+    return [];
+  }
+  const since = entriesSince(entries, me.whatsNewSeen);
+  if (since.length === 0) return [];
+  const viewer = needsViewer(since) ? await viewerFor(userId, me.playerId ?? null, true) : ANYONE_SIGNED_IN;
+  const mine = since.filter((e) => isRelevantTo(e, viewer));
+  if (mine.length === 0) {
+    await markWhatsNewSeen(userId, entries);
+    return [];
+  }
+  return bellGroups(mine).map((g) => ({
+    id: -Number(g.date.replace(/-/g, '')),
+    title: g.title,
+    body: g.body,
+    linkUrl: '/whats-new',
+    linkLabel: 'See what\u2019s new',
+    level: 'info',
+    createdAt: `${g.date}T00:00:00.000Z`,
+    read: false,
+    kind: 'whatsNew',
+  }));
+}
+
+/** Seen everything in What's new: the marker moves to the newest entry. */
+export async function markWhatsNewSeen(userId: number, entries: WhatsNewEntry[] = WHATS_NEW): Promise<void> {
+  const newest = entries[0]?.id;
+  if (newest) await db.update(users).set({ whatsNewSeen: newest }).where(eq(users.id, userId));
+}
+
+/** Mark read: the given ids that are really this person's, or all of them. A negative id is What's new. */
 export async function markRead(userId: number, ids: number[] | 'all'): Promise<void> {
+  if (ids === 'all' || ids.some((id) => id < 0)) await markWhatsNewSeen(userId);
   const mine = (await forReader(userId)).filter(({ r }) => !r?.readAt).map(({ n }) => n.id);
   await stamp(userId, ids === 'all' ? mine : mine.filter((id) => ids.includes(id)), 'readAt');
 }

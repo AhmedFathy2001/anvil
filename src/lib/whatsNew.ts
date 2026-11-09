@@ -481,28 +481,60 @@ export function groupByDate(entries: WhatsNewEntry[]): { date: string; entries: 
 // Discoverability and the short list
 // =============================================================================
 
-/** localStorage key holding the newest entry date the viewer had seen (shared by the page and the header). */
+/** localStorage key holding the newest entry date the viewer had seen, for the page's "New" badges. */
 export const WHATS_NEW_SEEN_KEY = 'anvil.whatsNew.seen';
 
-/** Fired on window by the page after it records a visit, so the header dot clears without a reload. */
+/** Fired on window by the page after it records a visit, so the bell clears without a reload. */
 export const WHATS_NEW_SEEN_EVENT = 'anvil:whatsNewSeen';
 
-/** A first visit (nothing stored) only counts entries this recent, so a new reader is not told "40 new". */
-const FIRST_VISIT_DAYS = 30;
+// ---- The header bell (lib/notices) ----------------------------------------------------------------
+//
+// Nothing is written per person per entry. Each account keeps one marker, the id of the newest entry
+// it has seen (users.whats_new_seen); the bell lists what was added above it, one notice per date.
+// That is why new entries go at the TOP of WHATS_NEW.
 
-/**
- * How many entries are newer than the viewer's last visit. `seen` is the stored date (null: never
- * visited, or no storage); `today` is YYYY-MM-DD.
- */
-export function unseenCount(dates: string[], seen: string | null, today: string): number {
-  if (seen) return dates.filter((d) => d > seen).length;
-  const t = Date.parse(`${today}T00:00:00Z`);
-  if (Number.isNaN(t)) return 0;
-  const cutoff = new Date(t - FIRST_VISIT_DAYS * 86_400_000).toISOString().slice(0, 10);
-  return dates.filter((d) => d >= cutoff).length;
+/** Entries added since `seenId` (WHATS_NEW is newest first). An id no longer listed falls back to its date prefix. */
+export function entriesSince(entries: WhatsNewEntry[], seenId: string): WhatsNewEntry[] {
+  const i = entries.findIndex((e) => e.id === seenId);
+  if (i >= 0) return entries.slice(0, i);
+  const d = /^\d{4}-\d{2}-\d{2}/.exec(seenId)?.[0];
+  return d ? entries.filter((e) => e.date > d) : [];
 }
 
-/** Entries dated after `seen`, for the banner. With nothing stored, none (the header dot covers first visits). */
+/** Worth a notice to this viewer: for everyone, or one of its audiences is them. */
+export function isRelevantTo(entry: WhatsNewEntry, v: Viewer): boolean {
+  const aud = entry.audience?.length ? entry.audience : (['everyone'] as Audience[]);
+  return aud.some((a) => audienceMatches(a, v));
+}
+
+/** Does deciding relevance need the viewer at all (any entry aimed at someone in particular)? */
+export function needsViewer(entries: WhatsNewEntry[]): boolean {
+  return entries.some((e) => (e.audience ?? []).some((a) => a !== 'everyone'));
+}
+
+export interface BellGroup {
+  date: string;
+  title: string;
+  body: string;
+  ids: string[];
+}
+
+/**
+ * One bell notice per date: entries land in batches (a release), and a batch of seven separate rows
+ * would push every other notice out of the bell's short list. One entry reads as itself.
+ */
+export function bellGroups(entries: WhatsNewEntry[]): BellGroup[] {
+  return groupByDate(entries).map(({ date, entries: es }) => {
+    const ids = es.map((e) => e.id);
+    if (es.length === 1) return { date, title: `What\u2019s new: ${es[0].title}`, body: es[0].body, ids };
+    const shown = es.slice(0, 3).map((e) => e.title);
+    const more = es.length - shown.length;
+    const body = more > 0 ? `${shown.join(', ')} and ${more} more.` : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}.`;
+    return { date, title: `What\u2019s new: ${es.length} changes`, body, ids };
+  });
+}
+
+/** Entries dated after `seen`, for the banner. With nothing stored, none. */
 export function unseenEntries(entries: WhatsNewEntry[], seen: string | null): WhatsNewEntry[] {
   return seen ? entries.filter((e) => e.date > seen) : [];
 }
