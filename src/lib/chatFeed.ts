@@ -18,9 +18,11 @@ import { log } from '@/lib/logger';
 import { getSetting } from '@/lib/settings';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import {
+  DEFAULT_PREFS,
   feedMessage,
   parsePrefs,
   recipients,
+  wants,
   type Candidate,
   type ChatFeedPrefs,
   type FeedItem,
@@ -246,6 +248,25 @@ async function route(item: FeedItem, senderUserId: number | null, candidates: Ca
   if (!to.length) return 0;
   // A tile is a team's, not a person's: no one's flair on it.
   return deliver(item, to, item.kind === 'tile' ? null : await flairOf(senderUserId));
+}
+
+/**
+ * Lines about a board itself (lib/revealPush: tiles opening, missions going live), to everyone playing
+ * it who wants them. Per person, not per socket room, so a player on several boards hears every one.
+ * Untagged, so the plugin prints a plain "[Anvil]" line.
+ */
+export async function emitBoardLines(eventId: number, texts: string[]): Promise<number> {
+  if (!texts.length) return 0;
+  const people = [...new Set((await boardUsers(eventId)).map((u) => u.userId))];
+  if (!people.length) return 0;
+  const prefs = await prefsFor(people);
+  let reached = 0;
+  for (const text of texts) {
+    const item: FeedItem = { kind: 'reveal', who: '', text };
+    const to = people.filter((u) => wants(prefs.get(u) ?? DEFAULT_PREFS, item)).map((userId) => ({ userId, tag: '' }));
+    reached = await deliver(item, to);
+  }
+  return reached;
 }
 
 /** A player's own item (drop, pet, slot, task, level, quest, game-mode unlock). How many it reached. */

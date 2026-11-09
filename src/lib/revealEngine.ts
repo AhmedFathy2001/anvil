@@ -23,6 +23,7 @@ import { dayKeyFields, localDayKey } from '@/lib/zonedTime';
 import { notifyTilesRevealed, notifyBountyClaim, notifyMissionPrize } from '@/lib/discord';
 import { log } from '@/lib/logger';
 import { captureRevealStats } from '@/lib/revealStatsCapture';
+import { pushReveals } from '@/lib/revealPush';
 import { missionPool } from '@/lib/missionRamp';
 import { getTierBands } from '@/lib/pluginConfig';
 
@@ -157,6 +158,7 @@ async function revealPass(event: EventRow, rules: EventRules, now: string, event
         eventId: event.id,
         nextRevealAt: nextRevealAt(event, rules, after),
       }).catch(() => {});
+      void pushReveals(event, flipped.map((f) => f.id));
     }
   }
 
@@ -364,6 +366,7 @@ async function flipAndAnnounceMissions(
       eventId: event.id,
       multiplier: boost.points,
     }).catch(() => {});
+    void pushReveals(event, flipped.map((f) => f.id));
   }
   return flipped.length;
 }

@@ -132,6 +132,12 @@ export default function ChatFeedPanel() {
                 onChange={(v) => save({ teamProgress: v })}
                 label="My team's progress on item tiles"
               />
+              <Checkbox
+                checked={prefs.reveals}
+                disabled={busy}
+                onChange={(v) => save({ reveals: v })}
+                label="Reveals & missions on my boards"
+              />
               <Checkbox checked={prefs.modes} disabled={busy} onChange={(v) => save({ modes: v })} label="Leagues, Deadman and other game-mode unlocks" />
               <Row label="Combat achievements">
                 <Select value={prefs.ca} onChange={(v) => save({ ca: v as ChatFeedPrefs['ca'] })} options={CA_OPTIONS} disabled={busy} ariaLabel="Combat achievements" className="w-44 shrink-0" />

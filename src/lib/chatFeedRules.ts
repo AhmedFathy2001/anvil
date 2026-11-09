@@ -40,6 +40,8 @@ export interface ChatFeedPrefs {
   teamProgress: boolean;
   /** Game-mode unlocks: relics, areas, pacts, masteries, harder tasks. */
   modes: boolean;
+  /** New tiles opening and missions going live on your own boards (lib/revealPush). */
+  reveals: boolean;
   /** The one-or-two-line brief printed at login (lib/chatBrief). */
   login: boolean;
   /** How Anvil lines are coloured — see lib/chatLook. 'custom' is a Supporter perk. */
@@ -73,6 +75,7 @@ export const DEFAULT_PREFS: ChatFeedPrefs = {
   tiles: true,
   teamProgress: true,
   modes: true,
+  reveals: true,
   login: true,
   palette: 'anvil',
   colors: {},
@@ -110,6 +113,7 @@ export function cleanPrefs(p: Record<string, unknown>): ChatFeedPrefs {
     tiles: bool('tiles'),
     teamProgress: bool('teamProgress'),
     modes: bool('modes'),
+    reveals: bool('reveals'),
     login: bool('login'),
     palette: (PALETTES as readonly unknown[]).includes(p.palette) ? (p.palette as Palette) : DEFAULT_PREFS.palette,
     colors: cleanColors(p.colors),
@@ -131,10 +135,10 @@ function cleanColors(v: unknown): Partial<Record<Tone, string>> {
 
 /** The tone a feed item is printed in: drops and pets stand out, other teams' tiles sit back. */
 export function toneOf(kind: FeedKind): Tone {
-  return kind === 'drop' || kind === 'pet' ? 'drop' : kind === 'tile' ? 'feed' : kind === 'progress' ? 'near' : 'info';
+  return kind === 'drop' || kind === 'pet' ? 'drop' : kind === 'tile' ? 'feed' : kind === 'progress' || kind === 'reveal' ? 'near' : 'info';
 }
 
-export type FeedKind = 'drop' | 'pet' | 'clog' | 'ca' | 'level' | 'quest' | 'mode' | 'tile' | 'progress';
+export type FeedKind = 'drop' | 'pet' | 'clog' | 'ca' | 'level' | 'quest' | 'mode' | 'tile' | 'progress' | 'reveal';
 
 export interface FeedItem {
   kind: FeedKind;
@@ -171,6 +175,8 @@ export function wants(prefs: ChatFeedPrefs, item: FeedItem): boolean {
       return prefs.tiles;
     case 'progress':
       return prefs.teamProgress;
+    case 'reveal':
+      return prefs.reveals;
   }
 }
 
