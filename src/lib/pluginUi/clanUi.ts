@@ -73,6 +73,12 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     parts.push(
       section([
         siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
+        ...(c.heat && c.heat.on > 0
+          ? [
+              row(small('Clan heat', 'muted'), undefined, small(`${c.heat.pct}% · ${fmt(c.heat.on)} of ${fmt(c.heat.total)} on a streak`, '#ff8a3d'), { tip: 'Members with 3+ active days a week, week after week' }),
+              { t: 'bar' as const, pct: c.heat.pct, color: '#ff8a3d' as const, h: 4 },
+            ]
+          : []),
         ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
       ], { gap: 4 }),
     );

@@ -822,7 +822,63 @@ export function ClanWeek({ view }: { view: HomeView }) {
           </div>
         </div>
       </div>
+      {view.heat && view.heat.on > 0 && <ClanHeat heat={view.heat} />}
     </>
+  );
+}
+
+/** Clan heat: who keeps showing up week after week (lib/activityStreak). */
+function ClanHeat({ heat }: { heat: NonNullable<HomeView['heat']> }) {
+  return (
+    <div className="mt-3.5 grid gap-3.5 rounded-2xl border border-card-border bg-card-bg p-5 lg:grid-cols-[0.8fr_1fr_1fr]">
+      <div>
+        <h3 className="text-sm font-bold">Clan heat</h3>
+        <p className="mt-0.5 text-[11.5px] text-text-muted">members with 3+ active days a week, week after week</p>
+        <p className="mt-3 flex items-baseline gap-2">
+          <span className="font-mono text-3xl font-bold text-gold-light">{heat.pct}%</span>
+          <span className="text-[12.5px] text-text-muted">
+            {heat.on} of {heat.total} on a streak
+          </span>
+        </p>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-card-border" aria-hidden>
+          <div className="h-full rounded-full bg-[#ff8a3d]" style={{ width: `${heat.pct}%` }} />
+        </div>
+        {heat.started > 0 && (
+          <p className="mt-2 text-[12px] text-text-muted">
+            {heat.started} started a new streak this week
+          </p>
+        )}
+      </div>
+      <div>
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">Longest streaks</h4>
+        <ol className="mt-1.5">
+          {heat.top.map((t, i) => (
+            <li key={t.rsn} className="flex items-center gap-2.5 border-t border-card-border/60 py-1.5 text-[12.5px] first:border-t-0">
+              <span className="w-4 font-mono text-[11px] text-text-muted">{i + 1}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold">{t.rsn}</span>
+              <span className="shrink-0 font-mono text-[12px] font-semibold text-[#ff8a3d]">{t.weeks} wk</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div>
+        <h4 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">Milestones this week</h4>
+        {heat.milestones.length === 0 ? (
+          <p className="py-3 text-[12px] text-text-muted">None yet. Kindled at 4 weeks, Steady 12, Forged 26, Eternal 52.</p>
+        ) : (
+          <ul className="mt-1.5">
+            {heat.milestones.slice(0, 5).map((m) => (
+              <li key={m.rsn} className="flex items-center gap-2.5 border-t border-card-border/60 py-1.5 text-[12.5px] first:border-t-0">
+                <span className="w-7 shrink-0 font-mono text-[12px] font-bold text-gold-light">{m.weeks}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  <b className="font-semibold">{m.rsn}</b> <span className="text-text-muted">reached {m.name}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 

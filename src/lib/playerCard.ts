@@ -1,5 +1,7 @@
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 
+import { streakForAccount } from '@/lib/activityStreaks';
+import type { PlayerCardStreak } from '@/lib/playerCardShape';
 import { db } from '@/db';
 import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import type { ApexCharacter } from '@/lib/apexProfiles';
@@ -53,8 +55,10 @@ export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
     items,
   });
   const names = clogItemNames();
+  // Decoration: a failed read is a card without a streak.
+  const streak = await streakForAccount(c.accountId).catch(() => null);
 
-  return shapePlayerCard({
+  const card = shapePlayerCard({
     rsn: c.rsn,
     accountType: profile?.accountType ?? null,
     clan: c.clan,
@@ -85,4 +89,19 @@ export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
       time: formatPersonalBest(b.centis),
     })),
   });
+  return { ...card, streak: streak && cardStreak(streak) };
+}
+
+function cardStreak(s: Awaited<ReturnType<typeof streakForAccount>>): PlayerCardStreak {
+  const letter = { active: 'a', rest: 'r', missed: 'm' } as const;
+  return {
+    weeks: s.weeks,
+    best: s.best,
+    thisWeek: s.thisWeek,
+    needed: s.needed,
+    safe: s.safe,
+    restBanked: s.restBanked,
+    recent: s.history.slice(-13).map((m) => letter[m]).join(''),
+    milestone: s.milestone?.name ?? null,
+  };
 }

@@ -12,6 +12,7 @@ import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevel } from '@/lib/clanBoosts';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
+import { clanStreaks } from '@/lib/activityStreaks';
 import type { TenureGlyph, TenureStepId } from '@/lib/supporterTiers';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
@@ -35,6 +36,8 @@ export interface ClanCard {
   boostNameStyle?: ClanBoostNameStyle | null;
   /** How long the clan has paid for Anvil without a break (lib/clanTenure); absent when it hasn't. */
   tenure?: { id: TenureStepId; glyph: TenureGlyph; months: number; line: string } | null;
+  /** Clan heat: members on a weekly activity streak (lib/activityStreaks). */
+  heat?: { on: number; total: number; pct: number } | null;
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -148,6 +151,9 @@ export async function loadClanCard(clan: {
     boostLevel,
     boostNameStyle,
     tenure: await loadClanTenure(clan.id),
+    heat: await clanStreaks(clan.id)
+      .then((h) => (h.total ? { on: h.on, total: h.total, pct: h.heat } : null))
+      .catch(() => null),
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,

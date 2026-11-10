@@ -20,6 +20,8 @@ export interface BriefFacts {
   weeklies: { label: string; unit: 'XP' | 'KC' | 'h'; rank: number | null; gained: number; ahead: number | null }[];
   clanEvents: { title: string; startsInMin: number }[];
   goal: { text: string; pct: number } | null;
+  /** The weekly activity streak's line (lib/activityStreak streakBriefLine), when there is one. */
+  streak?: string | null;
 }
 
 const ord = (n: number) => {
@@ -79,6 +81,8 @@ export function composeBrief(items: BriefItem[], f: BriefFacts): BriefLine[] {
       else first.push(`${w.label}: ${ord(w.rank)}${w.ahead != null ? `, ${amount(Math.max(1, w.ahead - w.gained), w.unit)} to ${ord(w.rank - 1)}` : ''}`);
     }
   }
+  // The streak leads the second line: it's the one thing here about the player, not an event.
+  if (want.has('streak') && f.streak) second.push(f.streak);
   if (want.has('tiles') && f.bingo?.nearly.length) second.push(`Nearly done: ${f.bingo.nearly.slice(0, 3).join(', ')}`);
   if (want.has('clanEvents')) for (const e of f.clanEvents.slice(0, 2)) second.push(`${e.title} ${when(e.startsInMin)}`);
   if (want.has('goals') && f.goal) second.push(`Goal: ${f.goal.text} (${Math.round(f.goal.pct)}%)`);

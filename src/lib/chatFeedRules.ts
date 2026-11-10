@@ -58,9 +58,9 @@ export const TONES = ['done', 'near', 'drop', 'feed', 'warn', 'info'] as const;
 export type Tone = (typeof TONES)[number];
 export const PALETTES = ['anvil', 'plain', 'custom'] as const;
 export type Palette = (typeof PALETTES)[number];
-export const BRIEF_ITEMS = ['bingo', 'weekly', 'tiles', 'clanEvents', 'goals'] as const;
+export const BRIEF_ITEMS = ['bingo', 'weekly', 'tiles', 'clanEvents', 'goals', 'streak'] as const;
 export type BriefItem = (typeof BRIEF_ITEMS)[number];
-export const DEFAULT_BRIEF: BriefItem[] = ['bingo', 'weekly'];
+export const DEFAULT_BRIEF: BriefItem[] = ['bingo', 'weekly', 'streak'];
 
 export const DEFAULT_PREFS: ChatFeedPrefs = {
   events: true,
