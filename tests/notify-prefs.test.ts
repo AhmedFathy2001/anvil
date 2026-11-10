@@ -186,3 +186,14 @@ test('pluginMe sends screenshot privacy whatever the clan switches', () => {
   assert.notEqual(me.hide, prefs.hide);
   assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, ALL_ON, NO_CLAN_DROPS, null).hide, NOTIFY_DEFAULTS.hide);
 });
+
+test('a personal drop webhook keeps drops on when the clan has no drop channel', () => {
+  const hook = { id: 1, minValue: 1_000_000, minRarity: null, mode: null };
+  const noClanDrops = { ...ALL_ON, rareDrops: false };
+  assert.equal(pluginMe(NOTIFY_DEFAULTS, noClanDrops, NO_CLAN_DROPS, null).drops, false);
+  const me = pluginMe(NOTIFY_DEFAULTS, noClanDrops, NO_CLAN_DROPS, null, [hook]);
+  assert.equal(me.drops, true);
+  assert.equal(me.dropMin, 1_000_000);
+  // The person's own switch still wins.
+  assert.equal(pluginMe({ ...NOTIFY_DEFAULTS, drops: false }, noClanDrops, NO_CLAN_DROPS, null, [hook]).drops, false);
+});
