@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { killPickHits, killPickLabel } from '@/lib/tileCreatorConfig';
+import { bossIconForStatKey, bossIconUrl } from '@/lib/tileIcons';
+import ThingIcon from '@/components/ThingIcon';
+
+/** A kill pick's icon: a hiscores boss key's sprite, else whatever the name finds. */
+const pickIcon = (p: string) => bossIconForStatKey(p) ?? bossIconUrl(killPickLabel(p));
 
 /**
  * "+ Add another boss (kills count together)": the monsters on a kills tile, as removable chips with
@@ -37,9 +42,13 @@ export default function KillPicksField({ picks, onChange }: { picks: string[]; o
 
   return (
     <div className="mb-4">
+      {/* One pick is already named in the sentence above; the chips only earn their place once
+          there are several to remove. */}
+      {picks.length > 1 && (
       <ul aria-label="Monsters whose kills count" className="flex flex-wrap gap-1.5">
         {picks.map((p) => (
-          <li key={p} className="flex items-center gap-1 rounded-full border border-red-400/30 bg-red-500/10 pl-3 pr-1 text-sm">
+          <li key={p} className="flex items-center gap-1.5 rounded-full border border-red-400/30 bg-red-500/10 pl-1.5 pr-1 text-sm">
+            <ThingIcon src={pickIcon(p)} alt={killPickLabel(p)} size={22} />
             <span>{killPickLabel(p)}</span>
             <button
               type="button"
@@ -53,6 +62,7 @@ export default function KillPicksField({ picks, onChange }: { picks: string[]; o
           </li>
         ))}
       </ul>
+      )}
       {open ? (
         <div className="relative mt-2">
           <input
@@ -74,9 +84,10 @@ export default function KillPicksField({ picks, onChange }: { picks: string[]; o
                       setQ('');
                       setOpen(false);
                     }}
-                    className="w-full min-h-11 text-left px-3 text-sm hover:bg-gold/10 flex items-center justify-between gap-2"
+                    className="w-full min-h-11 text-left px-3 text-sm hover:bg-gold/10 flex items-center gap-2.5"
                   >
-                    <span>{h.label}</span>
+                    <ThingIcon src={pickIcon(h.value)} alt={h.label} />
+                    <span className="flex-1 min-w-0">{h.label}</span>
                     <span className="text-[11px] text-text-muted">{h.note}</span>
                   </button>
                 </li>

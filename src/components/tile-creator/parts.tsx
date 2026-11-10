@@ -5,6 +5,32 @@
 
 import type { ReactNode } from 'react';
 import type { CountEngine } from '@/lib/tileCreatorConfig';
+import type { TaskCandidate } from '@/lib/taskMatch';
+import type { TileConfig } from '@/lib/types';
+import { bossIconUrl, deriveTileIcon, itemIconUrl } from '@/lib/tileIcons';
+
+/** The icon a tile with this config shows on the board (lib/tileIcons), or null. */
+export function configIcon(config: Partial<TileConfig>): string | null {
+  return deriveTileIcon({
+    tileType: config.tileType ?? 'standard',
+    trackedStat: config.trackedStat ?? null,
+    statType: config.statType ?? null,
+    trackedItemIds: config.trackedItemIds ? JSON.stringify(config.trackedItemIds) : null,
+    itemRequirements: config.itemRequirements ? JSON.stringify(config.itemRequirements) : null,
+    timedActivity: config.timedActivity ?? null,
+    targetNpcs: config.targetNpcs ? JSON.stringify(config.targetNpcs) : null,
+  });
+}
+
+/** A search result's / suggestion's icon: what its tile would show, else what it seeds from. */
+export function candidateIcon(c: TaskCandidate): string | null {
+  const fromConfig = configIcon(c.config);
+  if (fromConfig) return fromConfig;
+  const item = c.seed?.items?.[0]?.id ?? c.seed?.clog?.itemIds?.[0];
+  if (item != null) return itemIconUrl(item);
+  const page = c.seed?.clog?.pages?.[0];
+  return page ? bossIconUrl(page) : null;
+}
 
 export function SearchIcon({ className = '' }: { className?: string }) {
   return (
@@ -53,7 +79,7 @@ export function StepHeader({ title, onBack }: { title: string; onBack?: () => vo
 
 export function Eyebrow({ children, id }: { children: ReactNode; id?: string }) {
   return (
-    <p id={id} className="text-[11px] uppercase tracking-wide text-text-muted mb-2">
+    <p id={id} className="text-sm font-semibold text-foreground/90 mb-2.5">
       {children}
     </p>
   );

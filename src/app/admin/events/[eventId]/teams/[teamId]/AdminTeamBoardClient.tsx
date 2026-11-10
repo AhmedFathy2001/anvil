@@ -162,6 +162,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
         dropProgress={dropProgress}
         pointsMode={pointsMode}
         matchedTileIds={matchedTileIds}
+        raceLayout="full"
       />
 
       {/* Tile Detail Modal */}

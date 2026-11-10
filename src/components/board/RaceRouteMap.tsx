@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { RaceTileState } from '@/lib/raceRoutes';
 import { TileStateIcon } from './TileState';
@@ -61,6 +61,28 @@ interface Props {
   fit?: boolean;
   /** Under 640px, a list of steps (each road a row) instead of the sideways map. Off in the editor. */
   mobileList?: boolean;
+  /** Scale a long map DOWN to the width of its box (to half size at most), so it reads without a
+   *  sideways scroll. The editor uses it; past half size the map scrolls as before. */
+  shrink?: boolean;
+  /** Editor: things drawn over the map in screen pixels (the "+" between steps), placed from the
+   *  map's geometry at its current scale. */
+  overlay?: (geo: RouteMapGeometry) => ReactNode;
+  /** Editor: clicking a road between two tiles (from → to). */
+  onLinkClick?: (from: number, to: number) => void;
+  /** Editor: tiles with no task written yet, drawn as dashed empty waypoints. */
+  blankIds?: Set<number>;
+}
+
+/** Where things sit on the drawn map, in screen pixels (already scaled). */
+export interface RouteMapGeometry {
+  scale: number;
+  width: number;
+  height: number;
+  /** The centre x of a step's column. */
+  stepX: (step: number) => number;
+  /** The y of the step names along the top. */
+  headY: number;
+  last: number;
 }
 
 const ROAD = '#251e18';
@@ -135,17 +157,22 @@ export default function RaceRouteMap({
   youNotStarted = false,
   fit = false,
   mobileList = true,
+  shrink = false,
+  overlay,
+  onLinkClick,
+  blankIds,
 }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(0);
+  const measure = fit || shrink;
   useEffect(() => {
-    if (!fit || !boxRef.current) return;
+    if (!measure || !boxRef.current) return;
     const el = boxRef.current;
     const ro = new ResizeObserver(() => setBoxWidth(el.clientWidth));
     ro.observe(el);
     setBoxWidth(el.clientWidth);
     return () => ro.disconnect();
-  }, [fit]);
+  }, [measure]);
   const last = nodes.reduce((m, n) => Math.max(m, n.step), 0);
   const columns: RouteMapNode[][] = Array.from({ length: last + 1 }, () => []);
   for (const n of nodes) columns[n.step]?.push(n);
@@ -186,7 +213,10 @@ export default function RaceRouteMap({
   const current = path[path.length - 1];
   const openIds = state ? nodes.filter((n) => state.get(n.id) === 'open').map((n) => n.id) : [];
   const links = nodes.flatMap((n) => n.next.filter((to) => pos.has(to)).map((to) => ({ from: n.id, to })));
-  const scale = fit && boxWidth > 0 ? Math.min(1.75, Math.max(1, (boxWidth - 8) / width)) : 1;
+  const room = (boxWidth - 8) / width;
+  const scale = boxWidth > 0 ? (fit ? Math.min(1.75, Math.max(1, room)) : shrink ? Math.min(1, Math.max(0.5, room)) : 1) : 1;
+  const scaled = scale !== 1 || !!overlay;
+  const geo: RouteMapGeometry = { scale, width: width * scale, height: height * scale, stepX: (s) => (left + s * COL) * scale, headY: 14 * scale, last };
 
   return (
     <>
@@ -220,8 +250,10 @@ export default function RaceRouteMap({
           ))}
         </div>
       )}
-      <div style={scale > 1 ? { width: width * scale, height: height * scale, margin: '0 auto' } : undefined}>
-      <div className="relative mx-auto" style={{ width, height, minWidth: width, ...(scale > 1 ? { transform: `scale(${scale})`, transformOrigin: 'top left' } : {}) }}>
+      <div className={scaled ? 'relative' : undefined} style={scaled ? { width: width * scale, height: height * scale, margin: '0 auto' } : undefined}>
+      {/* Shrunk, the map is clipped to its scaled box so the unscaled layout never adds a scrollbar. */}
+      <div className={scale < 1 ? 'absolute inset-0 overflow-hidden' : undefined}>
+      <div className="relative mx-auto" style={{ width, height, minWidth: width, ...(scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: 'top left' } : {}) }}>
         {columns.map((col, s) => (
           <div
             key={`h${s}`}
@@ -264,6 +296,23 @@ export default function RaceRouteMap({
             links.filter(({ from, to }) => from === selectedId || to === selectedId).map(({ from, to }) => (
               <path key={`e${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" />
             ))}
+          {/* Editor: each road is clickable (the svg itself lets clicks through to the tiles). */}
+          {onLinkClick &&
+            links.map(({ from, to }) => (
+              <path
+                key={`c${from}-${to}`}
+                d={curve(pos.get(from)!, pos.get(to)!)}
+                fill="none"
+                stroke={GOLD}
+                strokeOpacity={0}
+                strokeWidth={22}
+                className="cursor-pointer hover:[stroke-opacity:0.35]"
+                style={{ pointerEvents: 'stroke' }}
+                onClick={() => onLinkClick(from, to)}
+              >
+                <title>Remove this road</title>
+              </path>
+            ))}
         </svg>
 
         {nodes.map((n) => {
@@ -273,6 +322,7 @@ export default function RaceRouteMap({
           const st = state?.get(n.id);
           const here = at.get(n.id) ?? [];
           const isSelected = selectedId === n.id;
+          const blank = blankIds?.has(n.id) ?? false;
           const isLinkable = linkable?.has(n.id) ?? false;
           const sel = selectedId != null ? nodes.find((x) => x.id === selectedId) : undefined;
           const linked = sel != null && (n.next.includes(sel.id) || sel.next.includes(n.id));
@@ -313,12 +363,15 @@ export default function RaceRouteMap({
                   isSelected && 'border-gold ring-4 ring-gold/40',
                   !isSelected && isLinkable && (linked ? 'border-gold' : 'border-dashed border-gold/50'),
                   !isSelected && problemIds?.has(n.id) && 'border-red-500',
+                  blank && !isSelected && !isLinkable && !problemIds?.has(n.id) && 'border-dashed border-text-muted/40 bg-[#141010]',
                 )}
                 style={{ width: 2 * r, height: 2 * r, ...(heat ? { boxShadow: `0 0 ${10 + 24 * heat}px rgba(224,170,30,${heat})` } : {}) }}
               >
                 {n.icon ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={n.icon} alt="" className="object-contain" style={{ width: r * 1.1, height: r * 1.1, imageRendering: 'pixelated' }} loading="lazy" />
+                ) : blank ? (
+                  <span className="text-lg text-text-muted/60 font-bold" aria-hidden>+</span>
                 ) : (
                   <span className="text-xs text-text-muted font-bold">{tileInitials(n.label)}</span>
                 )}
@@ -342,6 +395,7 @@ export default function RaceRouteMap({
                 {shortLabel(n.label)}
               </span>
               <span className="flex items-center gap-1 mt-0.5 min-h-[14px]">
+                {blank && !(isLinkable && sel) && <span className="text-[9px] italic text-text-muted/70">not written yet</span>}
                 {st === 'open' && <span className="text-[9px] font-bold px-1.5 rounded bg-gold text-brown-dark">Next</span>}
                 {isLinkable && sel && <span className="text-[9px] text-gold">{linked ? 'Linked · click to unlink' : '+ Link'}</span>}
                 {line && st !== 'done' && <span className="text-[9px] text-gold-light tabular-nums">{line}</span>}
@@ -363,6 +417,8 @@ export default function RaceRouteMap({
           );
         })}
       </div>
+      </div>
+      {overlay?.(geo)}
       </div>
     </div>
     </>

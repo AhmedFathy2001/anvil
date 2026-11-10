@@ -21,7 +21,8 @@ const PRESETS = {
 test('the page opens on the board where the board is the format', () => {
   // A square and a track carry their meaning in their layout, so editing them as a list hides it.
   assert.equal(authoringModel(PRESETS.classic).views[0], 'board');
-  assert.equal(authoringModel(PRESETS.race).views[0], 'board');
+  // A race opens on its map: roads and tiles are written in the same place.
+  assert.equal(authoringModel(PRESETS.race).views[0], 'routes');
   // A pool has no geometry to show.
   assert.equal(authoringModel(PRESETS.leagues).views[0], 'cards');
   assert.equal(authoringModel(PRESETS.showdown).views[0], 'cards');
@@ -41,11 +42,13 @@ test('each format offers its own view, and only its own', () => {
   assert.ok(!authoringModel(PRESETS.leagues).views.includes('rotation'));
 });
 
-test('every board keeps the general-purpose views', () => {
+test('every board keeps the list, and no board offers two views of the same job', () => {
   for (const preset of Object.values(PRESETS)) {
     const views = authoringModel(preset).views;
     assert.ok(views.includes('cards'));
-    assert.ok(views.includes('grid'));
+    // A race's map replaces its old track view; the list replaces the old quick-build view.
+    assert.ok(!(views.includes('board') && views.includes('routes')));
+    assert.equal(new Set(views).size, views.length);
   }
 });
 

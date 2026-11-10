@@ -12,7 +12,8 @@ import StartProofAdminPanel from '@/components/StartProofAdminPanel';
 import CreditIntegrityPanel from '@/components/CreditIntegrityPanel';
 import FinalHourButton from '@/components/FinalHourButton';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
-import { isPointsMode, eventNoun, isLadderFormat } from '@/lib/utils';
+import { isPointsMode, eventNoun, isLadderFormat, isTileRaceFormat } from '@/lib/utils';
+import { isBranchingRoute, raceGraph } from '@/lib/raceRoutes';
 import { eventAxes, supportsMissions, taskNoun } from '@/lib/eventAxes';
 import { nextStep } from '@/lib/eventNextStep';
 import { NextStepPanel, ProofsToCheck, useStartNow } from './EventNextStep';
@@ -207,6 +208,7 @@ export default function OverviewClient({
     unpaidPayouts: counts.unpaidPayouts,
     blockers: counts.blockers,
     individual: axes.competitors === 'individuals',
+    race: isTileRaceFormat(currentEvent.format),
     surveyMissing: surveyOn && !counts.hasSurvey,
   });
   const starter = useStartNow(event.id, (e) => {
@@ -231,6 +233,7 @@ export default function OverviewClient({
           noun={noun}
           problems={problems}
           handTiles={handTiles}
+          tiles={localTiles}
         />
       )}
 
@@ -344,6 +347,9 @@ export default function OverviewClient({
           pointsMode={pointsMode}
           onTileClick={setSelectedTileId}
           matchedTileIds={matchedTileIds}
+          // A race previews as the members' race map (roads, even a single straight one), never
+          // the old numbered snake.
+          raceLayout="full"
         />
       </div>
 
@@ -376,17 +382,27 @@ function BuildHome({
   noun,
   problems,
   handTiles,
+  tiles,
 }: {
   event: Event;
   counts: StageCounts;
   noun: string;
   problems: BoardProblem[];
   handTiles: number;
+  tiles: Tile[];
 }) {
   const [testingReveal, setTestingReveal] = useState(false);
   const [testRevealStatus, setTestRevealStatus] = useState('');
 
   const base = `/admin/events/${event.id}`;
+  const race = isTileRaceFormat(event.format);
+  // "5 steps, splits into 2" — the laid-out shape in a few words, or null for the straight road.
+  const roads = useMemo(() => {
+    if (!race || !isBranchingRoute(tiles)) return null;
+    const g = raceGraph(tiles);
+    const widest = Math.max(1, ...g.steps.map((s) => s.length));
+    return `${g.steps.length} steps${widest > 1 ? `, up to ${widest} side by side` : ''}`;
+  }, [race, tiles]);
   const tilesDone = counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles;
   const blocked = counts.blockers.length > 0;
 
@@ -394,11 +410,28 @@ function BuildHome({
     {
       done: tilesDone,
       title: tilesDone ? `${counts.tileCount} tiles authored` : `${counts.tileCount} of ${counts.expectedTiles} tiles written`,
-      detail: tilesDone ? 'The board is complete.' : 'Paste a list, draw from the library, or generate from the collection log.',
-      href: `${base}/tiles`,
+      detail: tilesDone
+        ? 'The board is complete.'
+        : race
+          ? 'Click a tile on the race map and type its task, or paste a list.'
+          : 'Paste a list, draw from the library, or generate from the collection log.',
+      href: race ? `${base}/tiles?view=map` : `${base}/tiles`,
       action: tilesDone ? 'Review' : 'Write tiles',
       blocking: false,
     },
+    // A race's roads: optional (a straight road is a fine race), but say where they're laid out.
+    ...(race
+      ? [
+          {
+            done: true,
+            title: roads ? `Roads: ${roads}` : 'Roads: one straight road',
+            detail: roads ? 'Change the shape on the race map.' : 'Optional. Split it into roads that fork and meet again.',
+            href: `${base}/tiles?view=map`,
+            action: 'Lay out roads',
+            blocking: false,
+          },
+        ]
+      : []),
     // How the tiles count. Problems were only shown once the event was live (LiveFixPanel), by which
     // point a player had already wasted an evening on a tile that could never complete.
     ...(counts.tileCount > 0

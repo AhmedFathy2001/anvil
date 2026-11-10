@@ -106,6 +106,11 @@ export function NextStepPanel({
               {a.label}
             </ClanLink>
           )}
+          {step.alt && (
+            <ClanLink href={`/admin/events/${eventId}/${step.alt.tab}`} className="ml-4 text-sm text-gold hover:text-gold-light">
+              {step.alt.label} ›
+            </ClanLink>
+          )}
         </div>
       )}
       {error && <p className="text-sm text-red-400 mt-3">{error}</p>}

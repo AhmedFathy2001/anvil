@@ -43,7 +43,12 @@ export interface TileRaceBoardProps {
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   matchedTileIds?: Set<number> | null;
-  /** 'track' on the event page: the race track card only (its other sections are on the page). */
+  /**
+   * Set on every surface that should draw the race as roads (a plain straight race too): 'track' on
+   * the event page (the race track card only; its other sections are on the page), 'full' for the
+   * admin previews (everything in one card). Unset keeps the old numbered snake for a race with no
+   * roads laid out — the member surfaces that haven't moved to the map yet.
+   */
   raceLayout?: 'full' | 'track';
   /** Scale the race map up to its box (fullscreen). */
   raceFit?: boolean;
@@ -56,8 +61,9 @@ const COLS = 5;
 
 export default function TileRaceBoard(props: TileRaceBoardProps) {
   // A board with steps laid out is a branching route (lib/raceRoutes): drawn as a map, not a track.
-  // The event page's Race track draws every race as roads, a straight line included.
-  if (isBranchingRoute(props.tiles) || props.raceLayout === 'track') return <BranchingRaceBoard {...props} />;
+  // A surface that asks for a layout (the event page, the admin previews) draws every race as roads,
+  // a straight line included.
+  if (isBranchingRoute(props.tiles) || props.raceLayout != null) return <BranchingRaceBoard {...props} />;
   return <LinearRaceBoard {...props} />;
 }
 

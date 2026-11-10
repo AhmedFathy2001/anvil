@@ -26,6 +26,8 @@ export interface NextStepInput {
   blockers: string[];
   /** Individual boards (a ladder) have no teams to make. */
   individual: boolean;
+  /** A tile race: its tiles are written on the race map, where the roads are laid out too. */
+  race?: boolean;
   /**
    * The clan uses surveys and this board has none yet — the wrap-up mentions it. Optional, so it is a
    * line in the last step rather than a step of its own that would sit there until somebody made one.
@@ -44,6 +46,8 @@ export interface NextStep {
   title: string;
   body: string;
   action: NextStepAction;
+  /** A quieter second way to do the same job, shown as a link beside the action. */
+  alt?: { label: string; tab: string };
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -56,6 +60,19 @@ function day(iso: string): string {
 
 export function nextStep(e: NextStepInput): NextStep {
   if (e.stage === 'build') {
+    if (e.expectedTiles > 0 && e.tileCount < e.expectedTiles && e.race) {
+      // A race is built on its map: the roads' shape first, then each tile written in place.
+      const left = e.expectedTiles - e.tileCount;
+      return {
+        title: e.tileCount === 0 ? 'Lay out your race' : `Write ${plural(left, `more ${e.noun.one}`, `more ${e.noun.many}`)}`,
+        body:
+          e.tileCount === 0
+            ? `Pick the shape of the roads (one straight road, or roads that split and meet again), then click each ${e.noun.one} on the map and type its task (“zenyte shard”, “100 zulrah”).`
+            : `${e.tileCount} of ${e.expectedTiles} are written. The blank ones are the dashed ${e.noun.many} on the map.`,
+        action: { kind: 'link', label: 'Open the race map', tab: 'tiles?view=map' },
+        alt: { label: 'or fill it from a list', tab: 'tiles?view=list' },
+      };
+    }
     if (e.expectedTiles > 0 && e.tileCount < e.expectedTiles) {
       const left = e.expectedTiles - e.tileCount;
       return {
