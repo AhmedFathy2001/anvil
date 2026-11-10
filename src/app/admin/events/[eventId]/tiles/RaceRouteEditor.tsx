@@ -19,6 +19,7 @@ import {
   isBranchingRoute,
   moveTileToStep,
   removeStep,
+  removeTileFromRoute,
   routeEntries,
   swapSteps,
   toggleRouteLink,
@@ -296,7 +297,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
 
   /** "Remove": the tile leaves the map now and is deleted when the roads are saved (Undo brings it back). */
   function removeTile(id: number) {
-    change(live, 0, '', [...removed, id]);
+    // Its step closes up when it was the only tile there (lib/raceRoutes removeTileFromRoute).
+    change(removeTileFromRoute(live, id, removed), 0, '', [...removed, id]);
     pick(null);
   }
 

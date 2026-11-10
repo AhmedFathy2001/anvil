@@ -549,6 +549,26 @@ export function removeStep(entries: RouteEntry[], at: number): { entries: RouteE
   return moveTileToStepAll(shifted);
 }
 
+/**
+ * Take a tile off the map. When it was the only tile on its step, the step closes up: later steps
+ * move back one and the roads that ran into it run straight on to where it led, so removing the
+ * middle of a straight road leaves a straight road. `gone` = tiles already off the map (they don't
+ * count as company on the step).
+ */
+export function removeTileFromRoute(entries: RouteEntry[], id: number, gone: readonly number[] = []): RouteEntry[] {
+  const tile = entries.find((e) => e.id === id);
+  const at = tile?.step;
+  if (tile == null || at == null) return entries;
+  const alone = !entries.some((e) => e.id !== id && e.step === at && !gone.includes(e.id));
+  return entries.map((e) => {
+    if (e.id === id) return { ...e, step: null, next: [] };
+    let next = e.next.filter((n) => n !== id);
+    if (alone && e.next.includes(id)) next = [...new Set([...next, ...tile.next])];
+    const step = alone && e.step != null && e.step > at ? e.step - 1 : e.step;
+    return next.length === e.next.length && next.every((n, i) => n === e.next[i]) && step === e.step ? e : { ...e, step, next };
+  });
+}
+
 /** Swap step `at` with step `at + dir`. */
 export function swapSteps(entries: RouteEntry[], at: number, dir: -1 | 1): { entries: RouteEntry[]; dropped: number } {
   const other = at + dir;

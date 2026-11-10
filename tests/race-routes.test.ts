@@ -433,3 +433,30 @@ test('rules: raceRoad accepts "open" and round-trips', () => {
   assert.ok('rules' in v && v.rules && JSON.parse(v.rules).raceRoad === 'open');
   assert.ok('error' in validateEventRules({ raceRoad: 'sideways' }));
 });
+
+test('removing the only tile on a step closes the step up and joins the roads either side', async () => {
+  const { removeTileFromRoute, validateRoute } = await import('../src/lib/raceRoutes');
+  const line = [1, 2, 3, 4, 5].map((id, i) => ({ id, step: i, next: id < 5 ? [id + 1] : [] }));
+  const out = removeTileFromRoute(line, 3);
+  assert.deepEqual(out.find((e) => e.id === 2), { id: 2, step: 1, next: [4] });
+  assert.deepEqual(out.find((e) => e.id === 4), { id: 4, step: 2, next: [5] });
+  assert.deepEqual(out.find((e) => e.id === 3), { id: 3, step: null, next: [] });
+  assert.equal(validateRoute(out.filter((e) => e.id !== 3), String).length, 0);
+});
+
+test('removing one of two tiles on a step keeps the step', async () => {
+  const { removeTileFromRoute } = await import('../src/lib/raceRoutes');
+  const diamond = [
+    { id: 1, step: 0, next: [2, 3] },
+    { id: 2, step: 1, next: [4] },
+    { id: 3, step: 1, next: [4] },
+    { id: 4, step: 2, next: [] },
+  ];
+  const out = removeTileFromRoute(diamond, 3);
+  assert.deepEqual(out.find((e) => e.id === 1), { id: 1, step: 0, next: [2] });
+  assert.equal(out.find((e) => e.id === 4)?.step, 2);
+  // A sibling already taken off the map doesn't keep the step open.
+  const both = removeTileFromRoute(removeTileFromRoute(diamond, 3), 2, [3]);
+  assert.deepEqual(both.find((e) => e.id === 1), { id: 1, step: 0, next: [4] });
+  assert.equal(both.find((e) => e.id === 4)?.step, 1);
+});
