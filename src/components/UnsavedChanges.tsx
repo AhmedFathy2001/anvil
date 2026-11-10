@@ -13,7 +13,7 @@ import { stableKey } from '@/lib/unsavedChanges';
  * covers leaving the site.
  */
 
-const Ctx = createContext<{ set: (id: string, dirty: boolean) => void; guard: (action: () => void) => void } | null>(null);
+const Ctx = createContext<{ set: (id: string, dirty: boolean, pageOnly?: boolean) => void; guard: (action: () => void, everything?: boolean) => void } | null>(null);
 
 const LEAVE_PROMPT = {
   title: 'Leave without saving?',
@@ -25,28 +25,34 @@ const LEAVE_PROMPT = {
 
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const ids = useRef(new Set<string>());
+  // Dirty forms that stay on screen through in-page actions (the race map under an opening tile
+  // panel): they guard leaving the page, not `guard`.
+  const pageOnly = useRef(new Set<string>());
   const [any, setAny] = useState(false);
   const router = useRouter();
   const { confirm } = useDialog();
   const asking = useRef(false);
 
-  const set = useCallback((id: string, dirty: boolean) => {
+  const set = useCallback((id: string, dirty: boolean, onlyPage = false) => {
     if (dirty) ids.current.add(id);
     else ids.current.delete(id);
+    if (dirty && onlyPage) pageOnly.current.add(id);
+    else pageOnly.current.delete(id);
     setAny(ids.current.size > 0);
   }, []);
   // For in-page actions that throw an open form away (closing a panel, opening another item): runs
   // `action` at once when nothing is dirty, otherwise asks first.
   const guard = useCallback(
-    (action: () => void) => {
-      if (ids.current.size === 0) return action();
+    (action: () => void, everything = false) => {
+      const open = [...ids.current].filter((id) => everything || !pageOnly.current.has(id));
+      if (open.length === 0) return action();
       if (asking.current) return;
       asking.current = true;
       void confirm(LEAVE_PROMPT).then((leave) => {
         asking.current = false;
         if (leave) {
-          ids.current.clear();
-          setAny(false);
+          for (const id of open) ids.current.delete(id);
+          setAny(ids.current.size > 0);
           action();
         }
       });
@@ -93,12 +99,13 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 }
 
 /** Tell the guard this form has unsaved edits. Returns `dirty` so it can feed the indicator. */
-export function useUnsavedChanges(dirty: boolean): boolean {
+export function useUnsavedChanges(dirty: boolean, opts?: { pageOnly?: boolean }): boolean {
   const ctx = useContext(Ctx);
   const id = useId();
+  const onlyPage = !!opts?.pageOnly;
   useEffect(() => {
-    ctx?.set(id, dirty);
-  }, [ctx, id, dirty]);
+    ctx?.set(id, dirty, onlyPage);
+  }, [ctx, id, dirty, onlyPage]);
   useEffect(() => () => ctx?.set(id, false), [ctx, id]);
   return dirty;
 }
@@ -136,7 +143,7 @@ export function UnsavedIndicator({ dirty, className = '' }: { dirty: boolean; cl
 }
 
 /** Wrap an in-page action that discards an open form; asks "Leave without saving?" only while one is dirty. */
-export function useLeaveGuard(): (action: () => void) => void {
+export function useLeaveGuard(): (action: () => void, everything?: boolean) => void {
   const ctx = useContext(Ctx);
   return ctx ? ctx.guard : (action) => action();
 }

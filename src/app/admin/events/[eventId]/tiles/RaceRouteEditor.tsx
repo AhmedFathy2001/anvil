@@ -89,7 +89,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   const canAdd = !eventStarted;
   const [decision, setDecision] = useState<null | { preview: Preview; body: Record<string, unknown> }>(null);
   const branching = isBranchingRoute(board);
-  useUnsavedChanges(dirty);
+  // The map stays put while a tile panel opens beside it: only leaving the page asks.
+  useUnsavedChanges(dirty, { pageOnly: true });
 
   // The map follows the tile panel: "Add & another" there moves on to the next blank tile.
   const [prevOpen, setPrevOpen] = useState(openTileId);
