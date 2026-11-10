@@ -141,6 +141,21 @@ export interface CardOptions {
   above?: Node[];
 }
 
+const FLAME = '#ff8a3d' as const;
+const STREAK_MARK = { a: FLAME, r: '#7ae0ff', m: '#3a3a3a' } as const;
+
+/** Weekly activity streak (lib/activityStreak): weeks, the last weeks as a strip, this week's days. */
+function streakCard(s: NonNullable<PlayerCard['streak']>): Node {
+  const weeks = s.weeks > 0 ? `${s.weeks} week${s.weeks === 1 ? '' : 's'}` : 'No streak';
+  const marks = s.recent.split('').map((m) => STREAK_MARK[m as keyof typeof STREAK_MARK] ?? STREAK_MARK.m);
+  const week = s.safe ? 'This week counts' : `This week ${s.thisWeek} of ${s.needed} days`;
+  return section([
+    row(title('Activity streak'), undefined, text(weeks, s.weeks > 0 ? FLAME : 'muted', { font: 'bold', tip: s.milestone ? `${s.milestone} milestone` : undefined })),
+    marks.length ? { t: 'segs', c: marks, h: 6 } : null,
+    small(`${week} · best ${s.best}${s.restBanked && !s.safe ? ' · rest week banked' : ''}`, 'muted', { wrap: true }),
+  ]);
+}
+
 export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   const anvil = c.source !== 'hiscores';
   const parts: Node[] = [];
@@ -150,6 +165,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
     parts.push(button('Compare with me', { a: 'load', v: 'compare', args: { rsn: c.rsn } }, 'Side by side: levels, bosses and the log'));
   }
   parts.push(...(opts.afterTop ?? []));
+  if (anvil && c.streak && (c.streak.weeks > 0 || c.streak.thisWeek > 0 || c.streak.best > 0)) parts.push(streakCard(c.streak));
   if (anvil && c.displayCase?.length) parts.push(displayCase(c, opts.slots));
 
   // Stats | Bosses | Log (the collection log; the full words don't fit a third of 220px), the rest (Clues, Times, CAs) folded under them.

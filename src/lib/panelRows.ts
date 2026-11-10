@@ -8,6 +8,7 @@
 //   {t:'rowslock', feeds:[prefix…], locked}        grey a chat box out (paused / turned off), or null to reopen
 //   {t:'rowsreact', feeds:[id…], id, gz, gold, sad, sit, who?, mine…?}  a row's reaction counts (lib/reactionPushWire)
 
+import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -392,7 +393,8 @@ export function emitCompletionRow(tileId: number, teamId: number): void {
     // Never name a tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission).
     if (!c.tilesRevealed || !isTileRevealed(parseEventRules(c.rules), c)) return;
     const row = completionRow({ tileId, teamId, label: c.label, who: c.who ?? null, team: await teamOf(teamId), at: completionAt(c.at) });
-    const target = (await boardHidden(c.eventId)) ? { e: c.eventId, t: teamId } : { e: c.eventId };
+    // A race tile another team still sees as a locked "?" (lib/raceHideAhead) is the team's own news too.
+    const target = (await boardHidden(c.eventId)) || (await raceTileHiddenFromOthers(c.eventId, tileId, teamId)) ? { e: c.eventId, t: teamId } : { e: c.eventId };
     await notifyRows(target, { t: 'rows', feeds: completionFeedIds(c.eventId, teamId), rows: [row] });
   })().catch((err: unknown) => log.warn('panel-rows.completion-failed', { tileId, teamId, message: (err as Error).message }));
 }

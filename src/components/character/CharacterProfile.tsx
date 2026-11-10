@@ -56,6 +56,8 @@ import { mediaForCharacter } from '@/lib/profileMedia';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { profileConnectedAccounts } from '@/lib/connectedAccounts';
 import { profileSections } from '@/lib/characterProfileRules';
+import { streakForAccount } from '@/lib/activityStreaks';
+import type { Streak } from '@/lib/activityStreak';
 
 /** Max total level, derived from the skill list — 24 skills today, whatever Jagex adds tomorrow. */
 const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
@@ -194,6 +196,8 @@ export default async function CharacterProfile({
   const pubCtx = context.kind === 'public' ? context : null;
   const profile: AccountProfile = clanCtx ? clanCtx.seat : pubCtx!.profile;
   const accountId = profile.accountId;
+  // Started now, read after the big batch below: decoration, so a failed read is no chip.
+  const streakP = streakForAccount(accountId).catch(() => null);
   const rsn = profile.rsn;
   const viewerPlayerId = viewer?.playerId ?? null;
 
@@ -276,6 +280,7 @@ export default async function CharacterProfile({
     // ever the viewer's OWN list — it says these accounts are one person.
     show.publicSwitcher && !embedded ? characterList(viewerPlayerId) : Promise.resolve([]),
   ]);
+  const streak = await streakP;
 
   // In a clan, its drops / pets / deaths in "Lately" take the clan feed's reactions (lib/siteReactions).
   const reactions = clanCtx ? await siteReactions(moments, { clanId: clanCtx.clanId }, viewer?.userId ?? null).catch(() => undefined) : undefined;
@@ -316,7 +321,7 @@ export default async function CharacterProfile({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {!embedded && <ProfileAvatar avatar={media.avatar} size={44} eager className="border-2 border-gold/45" />}
         <Name className={`${embedded ? 'text-2xl' : 'text-3xl'} font-bold text-gold break-words`}>
-          <SupporterName name={rsn} tier={supporterLooks[rsn]?.tier} style={supporterLooks[rsn]?.style} />
+          <SupporterName name={rsn} tier={supporterLooks[rsn]?.tier} style={supporterLooks[rsn]?.style} tenure={supporterLooks[rsn]?.tenure} />
         </Name>
         {acct?.verifiedAt && (
           <span className="rounded-md border border-accent-green/35 bg-accent-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent-green-light">
@@ -428,6 +433,7 @@ export default async function CharacterProfile({
           {eff && <Placing label="Hours played" value={eff.ehp.toFixed(1)} standing={standings.ehp} />}
           {eff && <Placing label="Hours bossed" value={eff.ehb.toFixed(1)} standing={standings.ehb} />}
           <Placing label="XP" value={fmtXp(totalXp)} standing={standings.xp} />
+          {streak && streak.best > 0 && <StreakChip streak={streak} />}
           {eff && (
             <span className="text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted">
               {eff.ttm >= 1 ? (
@@ -654,5 +660,26 @@ function GameClanChip({ clan }: { clan: CharacterGameClan }) {
     >
       {body}
     </ClanLink>
+  );
+}
+
+/** The weekly activity streak (lib/activityStreak) as one chip, its last 12 weeks in the hover. */
+function StreakChip({ streak }: { streak: Streak }) {
+  const recent = streak.history.slice(-12);
+  const label = streak.weeks > 0 ? `${streak.weeks}-week streak` : 'No streak this week';
+  const detail = streak.safe ? 'this week counts' : `${streak.thisWeek} of ${streak.needed} days this week`;
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-full border border-card-border bg-brown-dark px-3 py-1 text-xs text-text-muted"
+      title={`Weeks with ${streak.needed}+ active days, in a row · ${detail}${streak.restBanked ? ' · rest week banked' : ''}`}
+    >
+      <span className={`font-semibold tabular-nums ${streak.weeks > 0 ? 'text-[#ff8a3d]' : ''}`}>{label}</span>
+      <span className="flex gap-[2px]" aria-hidden>
+        {recent.map((m, i) => (
+          <i key={i} className={`block h-2.5 w-1.5 rounded-[1px] ${m === 'active' ? 'bg-[#ff8a3d]' : m === 'rest' ? 'bg-[#7ae0ff]' : 'bg-card-border'}`} />
+        ))}
+      </span>
+      <span>best {streak.best}</span>
+    </span>
   );
 }

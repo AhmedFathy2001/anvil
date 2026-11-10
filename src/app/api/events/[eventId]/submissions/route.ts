@@ -5,6 +5,7 @@ import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { tilesForViewer } from '@/lib/tilesForViewer';
+import { isRaceHidden } from '@/lib/raceHideAhead';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, completions } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginTokenOnEvent, resolveTeamMembership } from '@/lib/auth';
@@ -77,7 +78,7 @@ export async function GET(
   const eventTiles = await tilesForViewer(
     scopedEvent,
     await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) }),
-  );
+  ).then((list) => list.filter((t) => !isRaceHidden(t)));
   const tileIds = eventTiles.map((t) => t.id);
 
   if (tileIds.length === 0) {

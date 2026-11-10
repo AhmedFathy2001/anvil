@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { clanTenureBadges } from '@/lib/clanCard';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
@@ -65,6 +66,8 @@ export default async function ClansPage() {
   // What each clan is running, in two queries rather than two per clan.
   const slugs = rows.map((r) => r.slug);
   const doing = slugs.length > 0 ? await liveBySlug(slugs) : new Map<string, string>();
+  // Clan tenure (lib/clanTenure): decoration, so a failed read is no badges.
+  const tenure = await clanTenureBadges(rows.map((r) => r.id).filter((x): x is number => x != null)).catch(() => new Map());
 
   const clans: LookupClan[] = rows.map((r) => ({
     slug: r.slug,
@@ -92,6 +95,7 @@ export default async function ClansPage() {
     boostLevel: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.level ?? 0) : 0,
     boostNameStyle: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.nameStyle ?? null) : null,
     recruitingLine: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.recruitingLine ?? null) : null,
+    tenure: r.id != null ? (tenure.get(r.id) ?? null) : null,
   }));
 
   return <ClanLookup clans={clans} />;

@@ -13,6 +13,7 @@ import { track } from '@/lib/analytics';
 import { clanAuditLog, clans } from '@/db/schema';
 import { nextChargeDue, trialEndWithGumroad, TRIAL_DAYS, type GumroadEvent } from '@/lib/gumroad';
 import { logBilling } from '@/lib/billingLapse';
+import { runOnPaid } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, entryTierFor, gumroadPurchase, type BillingTier } from '@/lib/billingCatalog';
 
 type Clan = typeof clans.$inferSelect;
@@ -146,6 +147,8 @@ export async function applyClanSale(
       trialEndsAt: trialRunning ? trialEnd : null,
       currentPeriodEnd: periodEnd,
       cancelAtPeriodEnd: false,
+      // Clan tenure: a new run, or the one it had when it comes back within the grace.
+      ...runOnPaid(clan),
       // Paying again lifts a suspension only when BILLING put it there (a refund or dispute).
       // A suspension staff applied is a judgement about the clan, and money does not overturn it.
       status: clan.status === 'suspended' && (await suspendedByBilling(clan.id)) ? 'active' : clan.status,

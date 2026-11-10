@@ -348,6 +348,13 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
     col([muted(where), text(x.name(id), 'white', { font: 'bold', wrap: 205 }), row(text(chip[0], chip[2], { chip: chip[1], font: 'small' }), prog, undefined, { gap: 6 })], { gap: 4 }),
   ];
 
+  // A locked "?" (lib/raceHideAhead): nothing to read until the team can reach it.
+  if ('raceHidden' in t && t.raceHidden) {
+    out.push(section([title('Locked'), text('This tile shows once your team can reach it.', SOFT, { wrap: CARD_W })]));
+    out.push(whereItGoes(g, route, id, x.name, (pid) => pane(`t:${pid}`)));
+    return out;
+  }
+
   // What counts: the tile's own words, then exactly what the plugin watches.
   const lines = trackingLines(t);
   const what = [t.description?.trim(), ...lines.filter((l) => l.trim() && l.trim() !== t.description?.trim())].filter((s): s is string => !!s);

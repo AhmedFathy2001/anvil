@@ -1,3 +1,5 @@
+import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
+import { maskRaceTile } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -30,6 +32,9 @@ export async function GET(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
+  // "Also hide from event staff" (lib/raceHideAhead): a tile past every team's reach is a "?" here too.
+  const ev = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
+  if (ev && (await raceTileHiddenForSession(ev, tile))) return NextResponse.json(maskRaceTile(tile));
   // A combo (lib/combo) comes with its parts, so the editor opens all of it from one fresh read.
   if (tile.tileType === 'combo') {
     const parts = await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id));
@@ -78,6 +83,7 @@ export async function DELETE(
   }
 
   const tile = await db.query.tiles.findFirst({ where: and(eq(tiles.id, tId), eq(tiles.eventId, eId)) });
+  if (tile && (await raceTileHiddenForSession(event, tile))) return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }

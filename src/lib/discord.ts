@@ -1,6 +1,7 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
+import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
 import { safeError } from '@/lib/webhookRedact';
 import { blockedWebhookIds, hasBlockedWebhook } from '@/lib/sharedWebhooks';
 import {
@@ -617,7 +618,8 @@ export async function sendEventBingoWebhook(
   // `post` names what this is (lib/discordPostPolicy): it decides, per clan, whether the post goes
   // out and who it pings, and which extra webhooks (lib/eventWebhooks) want it. `teamId` narrows
   // those to a team's own hooks.
-  opts: { post: DiscordPostType; teamId?: number | null },
+  // `tileId`: the tile the post names, when it isn't already on the post's ref (lib/discordPosts).
+  opts: { post: DiscordPostType; teamId?: number | null; tileId?: number | null; tileIds?: number[] },
 ): Promise<boolean> {
   const info = postTypeInfo(opts.post);
 
@@ -647,8 +649,20 @@ export async function sendEventBingoWebhook(
   // tells a reader how a team is doing never reaches a shared channel — the host's, a co-host's, a
   // whole-event hook. A team's OWN hook still hears about its own team. Dropped, not queued: the
   // reveal posts one summary of the standings instead (lib/standingsReveal).
+  //
+  // HIDDEN TILES (lib/raceHideAhead) ride the same route: a progress post naming a race tile that some
+  // OTHER team still sees as a locked "?" goes to the posting team's own channel only. The tile comes
+  // from the post's ref (lib/discordPosts) when the caller didn't name it.
+  const refTile = opts.tileId ?? currentPostRef()?.tileId ?? null;
+  const namedTiles = opts.tileIds ?? (refTile != null ? [refTile] : []);
   const route = PROGRESS_POST_KINDS.has(opts.post)
-    ? curtainRoute(opts.post, opts.teamId, await eventStandingsHidden(eventId))
+    ? curtainRoute(
+        opts.post,
+        opts.teamId,
+        await eventStandingsHidden(eventId),
+        namedTiles.length > 0 &&
+          (await Promise.all(namedTiles.map((id) => raceTileHiddenFromOthers(eventId, id, opts.teamId).catch(() => true)))).some(Boolean),
+      )
     : { shared: true, teamOnly: null };
   if (!route.shared) {
     if (route.teamOnly == null || !info.hook) return false;
@@ -1085,7 +1099,7 @@ export async function notifySubmissionDeleted(params: SubmissionDeletedParams): 
     fields,
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissionRemoved', teamId: params.teamId });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissionRemoved', teamId: params.teamId, tileId: params.tile?.id ?? null });
 }
 
 interface TileCompletionNotifyParams {
@@ -1175,9 +1189,9 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   // The other teams' in-game chat, on a board whose host turned the feed on (lib/chatFeed). Not for a
   // combo part: it scores nothing on its own, and its combo announces when it lands.
   if (eventId != null && !partOf) {
-    void emitTileCompletion({ eventId, teamId: params.teamId, teamName, tileLabel, finisher });
+    void emitTileCompletion({ eventId, teamId: params.teamId, teamName, tileLabel, finisher, tileId: tile?.id ?? null });
   }
-  const send = () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
+  const send = () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId, tileId: tile?.id ?? null });
   // Kept (lib/discordPosts) so a rolled-back completion can find its post. A combo part's progress
   // post isn't a completion; it isn't kept.
   return partOf ? send() : withPostRef({ kind: 'tileComplete', clanId: params.clanId, eventId: params.eventId, tileId: tile?.id ?? null, teamId: params.teamId }, send);

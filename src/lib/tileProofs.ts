@@ -1,3 +1,5 @@
+import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
+import { raceSeenFor, raceTileHidden } from '@/lib/raceHideAhead';
 import { and, desc, eq, inArray, or } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -38,7 +40,7 @@ export interface TileProof {
   canDelete: boolean;
 }
 
-type EventRow = LockableEvent & { id: number; clanId: number };
+type EventRow = LockableEvent & { id: number; clanId: number; format?: string | null; rules?: string | null };
 
 async function viewerGrant(event: EventRow, userId: number | null): Promise<HostGrant | null> {
   return userId == null ? null : clanGrant(event.clanId, userId);
@@ -68,6 +70,16 @@ export async function listTileProofs(
   if (!allTeams && viewer.teamId == null) return none;
   const found = await tileIds(event.id, tileId);
   if (!found) return none;
+  // A race tile this viewer only sees as a locked "?" (lib/raceHideAhead) has no proofs to show:
+  // a screenshot says what the tile is. Proof moderators see through while only players are hidden from.
+  const raceEvent = { ...event, format: event.format ?? null, rules: event.rules ?? null };
+  if (raceHideOn(raceEvent)) {
+    const veil = await loadRaceVeil(raceEvent);
+    const seen = allTeams && veil?.mode === 'players'
+      ? null
+      : raceSeenFor(veil, viewer.teamId != null ? { teamIds: [viewer.teamId] } : allTeams ? 'staff' : { teamIds: [] });
+    if (raceTileHidden(veil, seen, { id: tileId })) return none;
+  }
 
   const where = [inArray(submissions.tileId, found.ids)];
   if (!allTeams) where.push(eq(submissions.teamId, viewer.teamId!));

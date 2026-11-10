@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { clanStreaks } from '@/lib/activityStreaks';
 import { clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
@@ -84,6 +85,8 @@ export interface HomeView {
   /** Clan-wide XP per day for the current week, and how that compares with the week before. */
   clanWeek: { days: { day: string; xp: number }[]; total: number; deltaPct: number | null };
   milestones: { rsn: string; text: string; iconUrl: string | null; day: string }[];
+  /** Clan heat: members on a weekly activity streak (lib/activityStreaks); null when it can't say. */
+  heat: { on: number; total: number; pct: number; started: number; top: { rsn: string; weeks: number }[]; milestones: { rsn: string; weeks: number; name: string }[] } | null;
   weeklies: HomeWeekly[];
   events: HomeEvent[];
   /** The two cards at the top: what's live, or (when nothing is) what's next and what just ended. */
@@ -544,6 +547,9 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     competitionsRun,
     clanWeek: { days, total, deltaPct },
     milestones,
+    heat: await clanStreaks(clanId)
+      .then((h) => (h.total ? { on: h.on, total: h.total, pct: h.heat, started: h.started, top: h.top, milestones: h.milestones } : null))
+      .catch(() => null),
     weeklies,
     events: homeEvents,
     live: {

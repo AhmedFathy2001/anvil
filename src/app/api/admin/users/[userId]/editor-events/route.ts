@@ -5,6 +5,7 @@ import { events, users, clanAuditLog } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser, setUserAssignedEvents } from '@/lib/eventEditors';
+import { STAFF_HIDE_GRANT_ERROR, editorGrantBlocked } from '@/lib/raceHideAheadDb';
 import { atLeast, canModify } from '@/lib/clanRoles';
 import { clanGrant, hasClanPresence } from '@/lib/clanGrants';
 import { isBannedFromClan } from '@/lib/clanBans';
@@ -117,6 +118,13 @@ export async function PUT(
     : [];
   const validIds = new Set(existing.map((e) => e.id));
   const eventIds = requested.filter((id) => validIds.has(id));
+
+  // "Also hide from event staff" (lib/raceHideAhead): a board under it changes hands only by the owner.
+  const before = new Set(await assignedEventIdsForUser(uId, 'editor', clan.id));
+  const changed = [...eventIds.filter((id) => !before.has(id)), ...[...before].filter((id) => !eventIds.includes(id))];
+  if (await editorGrantBlocked(changed, session)) {
+    return NextResponse.json({ error: STAFF_HIDE_GRANT_ERROR }, { status: 403 });
+  }
 
   await setUserAssignedEvents(clan.id, uId, eventIds, session.userId > 0 ? session.userId : null);
 

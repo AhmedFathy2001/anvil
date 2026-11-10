@@ -32,7 +32,7 @@ function siteHeader(label: string, note: string, path: string): Node {
  * there and this card keeps only a short taste of it.
  * `tabLinks`: the plugin can open its Feed tab from a row, so the pointer is a link, not a hint.
  */
-export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false, images = false): Node {
+export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false, images = false, glyphs = false): Node {
   if (c.kind === 'creator') return spaceCardUi(c);
   const parts: Node[] = [];
   const sourceBoost = clanBoostInk(c.boostLevel ?? 0, c.boostNameStyle);
@@ -49,6 +49,10 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     row(muted(`${fmt(c.members)} members ·`), small(`${fmt(c.activeThisWeek)} active this week`, BLUE), undefined, { gap: 4 }),
   ];
   if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
+  // Clan tenure: how long it has backed Anvil, in the Supporter star's shapes (older plugins: the star).
+  if (c.tenure && c.tenure.months >= 1) {
+    id.push(row(icon({ glyph: glyphs ? c.tenure.glyph : 'star', w: 10, h: 10, color: '#ffd35c' }), small(c.tenure.line, '#ffd35c'), undefined, { gap: 4 }));
+  }
   if (c.competitions.length) {
     const running = c.competitions
       .map((x) => `${x.type === 'boss' ? 'BOTW ' : x.type === 'skill' ? 'SOTW ' : ''}${x.label}`)
@@ -69,6 +73,12 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     parts.push(
       section([
         siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
+        ...(c.heat && c.heat.on > 0
+          ? [
+              row(small('Clan heat', 'muted'), undefined, small(`${c.heat.pct}% · ${fmt(c.heat.on)} of ${fmt(c.heat.total)} on a streak`, '#ff8a3d'), { tip: 'Members with 3+ active days a week, week after week' }),
+              { t: 'bar' as const, pct: c.heat.pct, color: '#ff8a3d' as const, h: 4 },
+            ]
+          : []),
         ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
       ], { gap: 4 }),
     );
@@ -79,6 +89,21 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn)),
       // The clan's feed is one click from its card.
       ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
+    ], { gap: 4 }));
+  }
+  if (c.supporters && c.supporters.count > 0) {
+    // Who keeps Anvil running, where clanmates look every day. Names carry their own flair (`who`).
+    const names = c.supporters.names;
+    const pairs: Node[] = [];
+    for (let i = 0; i < names.length; i += 2) {
+      const one = (rsn: string | undefined) => (rsn ? text(rsn, 'white', { who: rsn, font: 'small', on: { a: 'lookup', rsn }, tip: `Look up ${rsn}` }) : undefined);
+      pairs.push(row(one(names[i]), undefined, one(names[i + 1]), { pad: 2 }));
+    }
+    const more = c.supporters.count - names.length;
+    parts.push(section([
+      row(title(`Supporters · ${fmt(c.supporters.count)}`, '#ffd35c'), undefined, small('keep Anvil running', 'muted')),
+      ...pairs,
+      ...(more > 0 ? [small(`+${fmt(more)} more`, 'muted')] : []),
     ], { gap: 4 }));
   }
   if (c.highlights.length) {

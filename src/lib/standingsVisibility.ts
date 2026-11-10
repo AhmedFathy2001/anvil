@@ -189,7 +189,14 @@ export interface CurtainRoute {
  * post about one team (it carries `teamId`) may still go to that team's own hooks; a progress post
  * about everyone (a digest, a halfway table) goes nowhere.
  */
-export function curtainRoute(post: string, teamId: number | null | undefined, hidden: boolean): CurtainRoute {
-  if (!hidden || !PROGRESS_POST_KINDS.has(post)) return { shared: true, teamOnly: null };
+export function curtainRoute(
+  post: string,
+  teamId: number | null | undefined,
+  hidden: boolean,
+  // The post names a race tile another team still sees as a locked "?" (lib/raceHideAhead): it goes
+  // to that team's own channel only, like a progress post behind the curtain.
+  tileHiddenFromOthers = false,
+): CurtainRoute {
+  if ((!hidden && !tileHiddenFromOthers) || !PROGRESS_POST_KINDS.has(post)) return { shared: true, teamOnly: null };
   return { shared: false, teamOnly: teamId ?? null };
 }

@@ -1,3 +1,4 @@
+import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -31,6 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   }
   const editor = await verifyTileEditorForEvent(eId, 'edit');
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (await staffHideBlocksEventId(eId)) return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
 
   const locked = await assertEventEditable(eId);
   if (locked) return locked;

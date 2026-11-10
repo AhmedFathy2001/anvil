@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -28,7 +29,7 @@ export default async function EventStatsPage({
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
   const [eventTiles, eventPlayers] = await Promise.all([
-    db.select().from(tiles).where(eq(tiles.eventId, id)),
+    db.select().from(tiles).where(eq(tiles.eventId, id)).then((list) => maskRaceTilesForSession(event, list)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id)),
   ]);
 

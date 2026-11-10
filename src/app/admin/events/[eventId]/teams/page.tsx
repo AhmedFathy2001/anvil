@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
@@ -22,7 +23,7 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
   if (!event) notFound();
 
   const [eventTiles, eventTeams, rawPlayers, profiles] = await Promise.all([
-    db.select().from(tiles).where(eq(tiles.eventId, id)),
+    db.select().from(tiles).where(eq(tiles.eventId, id)).then((list) => maskRaceTilesForSession(event, list)),
     db.select().from(teams).where(eq(teams.eventId, id)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id)),
     loadEventProfiles(id),

@@ -172,6 +172,10 @@ export const clans = pgTable('clans', {
   // Cancelled but still inside the paid term. Gumroad keeps serving it, so we do too: dropping them
   // to free the moment they cancel takes away time they already paid for.
   cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  // Clan tenure (drizzle/0254, lib/clanTenure): when the current unbroken PAID run began, and when it
+  // last dropped to free (a return within the grace keeps the run).
+  paidSince: text('paid_since'),
+  paidEndedAt: text('paid_ended_at'),
 
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [

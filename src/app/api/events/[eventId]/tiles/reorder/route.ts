@@ -1,3 +1,4 @@
+import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -27,6 +28,7 @@ export async function POST(
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (await staffHideBlocksEventId(eId)) return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
 
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);

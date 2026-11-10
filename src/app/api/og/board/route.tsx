@@ -1,3 +1,4 @@
+import { maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -23,7 +24,8 @@ export async function GET(request: Request) {
   // Board cells only (combo parts — lib/combo — aren't cells).
   const allTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
   // Never let a signed master-board image bypass per-tile staged reveals or hidden missions.
-  const shown = visibleTiles(parseEventRules(event.rules), allTiles);
+  // A race hiding tiles (lib/raceHideAhead): the public image shows what every team can see.
+  const shown = await maskRaceTilesForTeams(event, [], visibleTiles(parseEventRules(event.rules), allTiles));
   return boardRevealImage({
     eventName: event.name,
     format: event.format,

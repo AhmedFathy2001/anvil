@@ -1,3 +1,4 @@
+import { maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -55,7 +56,9 @@ export async function GET(
         .where(eventBoardTiles(id))
         .orderBy(tiles.position)
     : [];
-  const tileRows = visibleTiles(parseEventRules(event.rules), allTileRows);
+  // Anonymous preview: a race hiding the tiles past each team's next step (lib/raceHideAhead) shows
+  // only what every team can see; the rest are locked "?" cells.
+  const tileRows = await maskRaceTilesForTeams(event, [], visibleTiles(parseEventRules(event.rules), allTileRows));
 
   return NextResponse.json({
     id: event.id,

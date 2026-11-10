@@ -10,6 +10,8 @@ import { getChatFeedPrefs } from '@/lib/chatFeed';
 import { effectiveBrief, effectiveLook } from '@/lib/chatLook';
 import { listClanEvents } from '@/lib/clanEvents';
 import { goalsWithProgress } from '@/lib/goals';
+import { streakForAccount } from '@/lib/activityStreaks';
+import { streakBriefLine } from '@/lib/activityStreak';
 import { playedCharacter, resolvePluginCharacter } from '@/lib/pluginAccount';
 import { pluginRoster } from '@/lib/pluginRoster';
 import { briefNoticeLine } from '@/lib/notices';
@@ -115,6 +117,12 @@ export async function GET(request: Request) {
       .map((g) => ({ text: g.label, pct: ((g.current as number) / g.of) * 100 }))
       .sort((a, b) => b.pct - a.pct)[0];
     facts.goal = best ?? null;
+  }
+
+  if (items.includes('streak')) {
+    facts.streak = await streakForAccount(who.accountId)
+      .then(streakBriefLine)
+      .catch(() => null);
   }
 
   // A release this login hasn't seen goes first, once (lib/releases).
