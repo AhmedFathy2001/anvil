@@ -693,7 +693,14 @@ async function homeView(request: Request, a: Args): Promise<View> {
     raceBoard: (open === 'board' || focus) && live && cfg.event?.race ? await raceBoardFor(request, a, cfg.event ? `${clanPath}/events/${cfg.event.id}` : null, focus ? { eventId: focus.eventId, tiles: cfg.panel?.tiles ?? [] } : null) : null,
     notice,
   };
-  return { ui: (open && eventUi(data, open)) || homeUi(data) };
+  const page = open ? eventUi(data, open) : null;
+  if (page) return { ui: page };
+  if (open) {
+    // The page asked for is gone (its event just ended): the plain home, with what only it loads.
+    data.ownClan = slug ? await ownClanCard(request, slug).catch(() => null) : null;
+    data.notice = viewer ? await panelNoticeFor(viewer.userId).catch(() => null) : null;
+  }
+  return { ui: homeUi(data) };
 }
 
 /** At most this many pin ids are read from one request. */

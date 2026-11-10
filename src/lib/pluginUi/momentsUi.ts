@@ -70,7 +70,7 @@ function reactions(m: FeedItem, o: FeedOptions): Node {
  */
 export function dropLine(itemId: number | null, title: string, at: string, second: Node): Node {
   return row(
-    icon({ item: itemId ?? undefined, w: 24, h: 22 }),
+    icon({ item: itemId ?? undefined, w: 36, h: 32 }),
     col([row(undefined, text(title), muted('', { at, font: 'small' }), { gap: 6 }), gap(1), second]),
     undefined,
     { gap: 8 },

@@ -364,7 +364,7 @@ function pageRow(rsn: string, p: PlayerCardPage, kc: number | undefined, back: s
   const complete = p.total > 0 && p.obtained >= p.total;
   const name = text(p.name, complete ? 'done' : 'white');
   return row(
-    icon({ item: p.iconItemId ?? undefined, w: 26, h: 24 }),
+    icon({ item: p.iconItemId ?? undefined, w: 36, h: 32 }),
     kc != null ? col([name, muted(`${fmt(kc)} kc`)]) : name,
     row(undefined, muted(`${p.obtained}/${p.total}`), icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' })),
     { pad: 3, tip: 'See the items on this page', on: openPage(rsn, p.name, back, kc) },
@@ -399,7 +399,7 @@ function latest(c: PlayerCard): Node {
     ...c.latest.map((l) =>
       row(
         l.kind === 'item' && l.itemId != null
-          ? icon({ item: l.itemId, w: 24, h: 22 })
+          ? icon({ item: l.itemId, w: 36, h: 32 })
           : icon({ boss: milestoneSubject(l.label), w: 24, h: 22, or: icon({ glyph: 'check', w: 12, h: 12, color: 'brand' }) }),
         text(l.label),
         muted('', { at: l.at }),
