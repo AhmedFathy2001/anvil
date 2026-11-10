@@ -27,7 +27,10 @@ export default function MemberBreakdown({
   selectedPlayerId,
   onSelect,
   teamScore,
+  streaks = {},
 }: {
+  /** Weekly activity streak (weeks) by player name, those on one (lib/activityStreaks). */
+  streaks?: Record<string, number>;
   members: MemberContribution[];
   pointsMode: boolean;
   selectedPlayerId?: number | null;
@@ -134,6 +137,11 @@ export default function MemberBreakdown({
                     >
                       {m.name}
                     </span>
+                    {streaks[m.name] ? (
+                      <span className="shrink-0 font-mono text-[10.5px] font-semibold text-[#ff8a3d]" title={`${streaks[m.name]}-week activity streak`}>
+                        {streaks[m.name]}wk
+                      </span>
+                    ) : null}
                     {m.frozenAt && (
                       <span
                         className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"

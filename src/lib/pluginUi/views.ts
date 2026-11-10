@@ -32,6 +32,7 @@ import { pluginRsnHintOnly, resolvePluginMember } from '@/lib/auth';
 import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
 import type { RosterPersonOut, RosterTeamOut } from '@/lib/eventRoster';
+import { streakWeeksForRsns } from '@/lib/activityStreaks';
 import { rankMove, teamBaselineRanks } from '@/lib/rankMoves';
 import type { StandingsWindow } from '@/lib/standingsWindow';
 import { rateLimit } from '@/lib/rate-limit';
@@ -535,6 +536,15 @@ async function teamsView(request: Request, a: Args): Promise<View> {
   const state = { event, team: positive(a.team) ?? 0, page: positive(a.page) ?? 1, back: positive(a.back) ?? 1 };
   const q = (a.q ?? '').trim().slice(0, 40);
   const data = event ? await pluginRoster(request, event, { query: q, team: state.team || null, page: state.page, pageSize: 25 }) : null;
+  // Streak weeks beside the names this page lists: decoration, so a failed read is plain names.
+  const people = data && 'players' in data && Array.isArray(data.players) ? (data.players as RosterPersonOut[]) : [];
+  if (people.length) {
+    const weeks = await streakWeeksForRsns(people.map((p) => p.name)).catch(() => new Map<string, number>());
+    for (const p of people) {
+      const w = weeks.get(normalizeRsn(p.name));
+      if (w) p.streak = w;
+    }
+  }
   const players = !!data && (data.mode === 'players' || (data.mode === 'search' && !!data.ranked));
   return { ui: a.part === 'list' ? rosterUi(data, state) : withBack(a, players ? 'Players' : 'Teams', teamsUi(data, state, q)) };
 }

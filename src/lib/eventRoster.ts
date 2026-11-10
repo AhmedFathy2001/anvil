@@ -81,6 +81,8 @@ export interface RosterPersonOut {
   you: boolean;
   /** Places climbed since the day began (lib/rankMoves); absent or null = unchanged or unknown. */
   move?: number | null;
+  /** Their weekly activity streak (lib/activityStreaks), when on one. */
+  streak?: number;
 }
 
 interface Paged {

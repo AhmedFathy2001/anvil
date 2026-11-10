@@ -163,8 +163,6 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   // "Compare with me" is the one action, right under who this is. Between Anvil profiles only.
   if (anvil && opts.me && opts.me.trim().toLowerCase() !== c.rsn.trim().toLowerCase()) {
     parts.push(button('Compare with me', { a: 'load', v: 'compare', args: { rsn: c.rsn } }, 'Side by side: levels, bosses and the log'));
-    // Someone else's Anvil card: buy them Supporter on the site (one payment, never renews).
-    parts.push(button('Gift Supporter', { a: 'site', path: `/supporter/gift?to=${seg(c.rsn)}` }, `Buy ${c.rsn} Supporter time on anvilosrs.com`));
   }
   parts.push(...(opts.afterTop ?? []));
   if (anvil && c.streak && (c.streak.weeks > 0 || c.streak.thisWeek > 0 || c.streak.best > 0)) parts.push(streakCard(c.streak));
@@ -239,6 +237,10 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
     parts.push({ t: 'toggle', key, off: head(false), lit: col([head(true), gap(2), m.c]) });
   }
   if (anvil && c.latest.length) parts.push(latest(c));
+  // Someone else's Anvil card: a quiet way to buy them Supporter on the site, last, never a pitch.
+  if (anvil && opts.me && opts.me.trim().toLowerCase() !== c.rsn.trim().toLowerCase()) {
+    parts.push(row(undefined, undefined, text('Gift them Supporter \u203a', 'muted', { font: 'small' }), { pad: 2, tip: `Buy ${c.rsn} Supporter time on anvilosrs.com`, on: { a: 'site', path: `/supporter/gift?to=${seg(c.rsn)}` } }));
+  }
   const main = col([...(opts.above ?? []), ...parts, ...(opts.below ?? [])], { gap: 8 });
   // The log's categories and pages are pages of their own over the whole view (one ‹ Back at the top).
   return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills) }, c: gap(0) } : main;
