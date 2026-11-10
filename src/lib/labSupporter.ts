@@ -13,10 +13,11 @@ import { and, eq, inArray, like, lt } from 'drizzle-orm';
 import crypto from 'crypto';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, moments, supporterSubscriptions, users } from '@/db/schema';
+import { accounts, clanMemberships, clans, moments, supporterSubscriptions, users } from '@/db/schema';
+import { LAB_TENURE_SUBSCRIPTION } from '@/lib/clanTenure';
 import { ensureLabClan, labClanId } from '@/lib/lab';
 import { ensureTestUser } from '@/lib/labCast';
-import { LAB_DUMMY_LOGIN, LAB_KEEP_DAYS } from '@/lib/labRules';
+import { LAB_CLAN_SLUG, LAB_DUMMY_LOGIN, LAB_KEEP_DAYS } from '@/lib/labRules';
 import { supporterForUser } from '@/lib/supporter';
 import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -169,3 +170,21 @@ export async function sweepLabTestDrops(now: Date = new Date()): Promise<number>
 }
 
 export const LAB_TIERS = SUPPORTER_TIER_ORDER;
+
+/**
+ * Give the lab clan a clan tenure, as if it had paid for `months` (null = none), so the badge can be
+ * seen on beta. Only touches a subscription id that is empty or the lab's own marker: a real one is
+ * never overwritten.
+ */
+export async function setLabClanTenure(months: number | null): Promise<boolean> {
+  const clan = await db.query.clans.findFirst({ where: eq(clans.slug, LAB_CLAN_SLUG), columns: { id: true, gumroadSubscriptionId: true } });
+  if (!clan) return false;
+  if (clan.gumroadSubscriptionId && clan.gumroadSubscriptionId !== LAB_TENURE_SUBSCRIPTION) return false;
+  const since = new Date();
+  since.setUTCMonth(since.getUTCMonth() - Math.max(0, Math.min(48, Math.round(months ?? 0))));
+  await db
+    .update(clans)
+    .set(months == null ? { gumroadSubscriptionId: null, paidSince: null, paidEndedAt: null } : { gumroadSubscriptionId: LAB_TENURE_SUBSCRIPTION, paidSince: since.toISOString(), paidEndedAt: null })
+    .where(eq(clans.id, clan.id));
+  return true;
+}

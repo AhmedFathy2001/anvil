@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { clanStreaks } from '@/lib/activityStreaks';
 import RecordsBoard from '@/components/records/RecordsBoard';
 import { getClanRecordHolders } from '@/lib/records';
 import { RECORD_PERIODS } from '@/lib/recordsRules';
@@ -48,7 +49,7 @@ export const dynamic = 'force-dynamic';
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
   const clan = await requireClan();
   const requestedSort = (await searchParams).sort;
-  const initialSort = requestedSort === 'xp' ? 'xp' as const : 'week' as const;
+  const initialSort = requestedSort === 'xp' ? 'xp' as const : requestedSort === 'streak' ? 'streak' as const : 'week' as const;
   // A creator space has no roster (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS): its home instead.
   await creatorPublicAway('/members', clan);
   const members = await listMembers(clan.id);
@@ -69,7 +70,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
-  const [analytics, rosterLog, activities, movement, luck, moments, supporterLooks, boosters] = await Promise.all([
+  const [analytics, rosterLog, activities, movement, luck, moments, supporterLooks, boosters, streaks] = await Promise.all([
     getClanAnalytics(members, { countGuests }),
     getRosterLog(clan.id, 20),
     getClanActivityAnalytics(clan.id, { countGuests }),
@@ -85,6 +86,10 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     // The Booster mark: who boosts THIS clan, by the character the boost rides on. A stranger sees it
     // only where the clan shows strangers its members' names (the Clan Hall's switch), like the wall.
     boosterMarksFor(clan.id),
+    // Weekly activity streaks (lib/activityStreaks): decoration, so a failed read is no column values.
+    clanStreaks(clan.id)
+      .then((h) => Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks > 0).map(([rsn, s]) => [rsn, s.weeks])))
+      .catch(() => ({}) as Record<string, number>),
   ]);
   const recordHolders = (await Promise.all(RECORD_PERIODS.map((p) => getClanRecordHolders(clan.id, p))))
     .flat()
@@ -105,6 +110,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
 
       <MembersTabs
         initialSort={initialSort}
+        streaks={streaks}
         members={members}
         analytics={analytics}
         rosterLog={rosterLog}

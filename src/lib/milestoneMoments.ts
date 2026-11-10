@@ -70,6 +70,11 @@ export function milestoneTitle(m: Row): string {
       return `${cap(what)} ${n(m.quantity)}`;
     case 'ba':
       return `${n(m.quantity)} ${what}`;
+    // Supporter and streak news (lib/supporterMoments): the stored line already reads after the name.
+    case 'tenure':
+    case 'streak':
+    case 'gift':
+      return cap(what);
     default:
       return what;
   }
@@ -89,6 +94,10 @@ export function milestoneSentence(m: Row): string {
       return `reached ${n(m.quantity)} ${what}`;
     case 'ba':
       return `reached ${n(m.quantity)} ${what}`;
+    case 'tenure':
+    case 'streak':
+    case 'gift':
+      return what;
     default:
       return `saw “${what}”`;
   }

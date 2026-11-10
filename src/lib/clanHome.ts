@@ -6,6 +6,7 @@
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
+import { clanStreaks } from '@/lib/activityStreaks';
 import type { TenureStepId } from '@/lib/supporterTiers';
 import { normalizeHex } from '@/lib/artPalette';
 import { clanMoments } from '@/lib/clanMoments';
@@ -38,6 +39,8 @@ export interface PublicClanHome {
   verified: boolean;
   /** How long it has paid for Anvil without a break (lib/clanTenure), or null. */
   tenure: { id: TenureStepId; months: number; line: string } | null;
+  /** How active it is (lib/activityStreaks): share of members on a weekly streak, and the longest. */
+  heat: { pct: number; on: number; total: number; longest: number } | null;
   /** The clan's own image, or null for the generated crest. */
   logoUrl: string | null;
   /** The clan's wide 3:1 banner (may be animated) and its vertical focus, 0–100; null = none / centred. */
@@ -116,6 +119,9 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
     requirements: asRequirements(clan.requirements),
     verified: clan.ingameNameVerifiedAt != null,
     tenure: tenureOf(clan),
+    heat: await clanStreaks(clan.id)
+      .then((h) => (h.total >= 3 ? { pct: h.heat, on: h.on, total: h.total, longest: h.top[0]?.weeks ?? 0 } : null))
+      .catch(() => null),
     logoUrl: clan.logoUrl ?? null,
     bannerUrl: clan.bannerUrl ?? null,
     bannerPosition: clan.bannerPosition ?? null,

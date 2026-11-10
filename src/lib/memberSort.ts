@@ -4,7 +4,7 @@
 import type { MemberListRow, RosterMovement } from '@/lib/memberProfile';
 import { normalizeRank } from '@/lib/rankRules';
 
-export type MemberSortKey = 'name' | 'rank' | 'week' | 'ehp' | 'ehb' | 'xp';
+export type MemberSortKey = 'name' | 'rank' | 'week' | 'streak' | 'ehp' | 'ehb' | 'xp';
 
 export interface MemberSort {
   key: MemberSortKey;
@@ -13,6 +13,8 @@ export interface MemberSort {
   movement: Record<number, Pick<RosterMovement, 'week'>>;
   /** Ranks most senior first (lib/rankRules effectiveRankOrder). */
   rankOrder: string[];
+  /** Weekly activity streak by name (lib/activityStreaks); missing = none. */
+  streaks?: Record<string, number>;
 }
 
 type Row = Pick<MemberListRow, 'id' | 'rsn' | 'rank' | 'isGuest' | 'ehp' | 'ehb' | 'overallXp'>;
@@ -35,6 +37,8 @@ export function sortMembers<T extends Row>(rows: T[], s: MemberSort): T[] {
       }
       case 'week':
         return s.movement[m.id]?.week ?? 0;
+      case 'streak':
+        return s.streaks?.[m.rsn] ?? 0;
       case 'ehp':
         return m.ehp;
       case 'ehb':

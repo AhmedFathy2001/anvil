@@ -57,7 +57,7 @@ import { displayCaseForPlayer } from '@/lib/displayCase';
 import { profileConnectedAccounts } from '@/lib/connectedAccounts';
 import { profileSections } from '@/lib/characterProfileRules';
 import { streakForAccount } from '@/lib/activityStreaks';
-import type { Streak } from '@/lib/activityStreak';
+import { STREAK_MILESTONES, type Streak } from '@/lib/activityStreak';
 
 /** Max total level, derived from the skill list — 24 skills today, whatever Jagex adds tomorrow. */
 const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
@@ -540,6 +540,7 @@ export default async function CharacterProfile({
       {/* The owner's streams and their Supporter display case. */}
       <ConnectedAccounts links={connected} className="-mt-3 mb-6" />
       <DisplayCase entries={showcase} showRsn={false} className="mb-6" />
+      {streak && streak.best > 0 && !embedded && <StreakHistory streak={streak} />}
 
       {/* One human, several accounts. Null for a single linked account, and for a signed-out visitor. */}
       {/* Not on the owner's own /profile: the characters above already list them all, with switching. */}
@@ -681,5 +682,63 @@ function StreakChip({ streak }: { streak: Streak }) {
       </span>
       <span>best {streak.best}</span>
     </span>
+  );
+}
+
+/** The last 52 weeks of the activity streak, with the milestones it has passed and the next. */
+function StreakHistory({ streak }: { streak: Streak }) {
+  const weeks = streak.history.slice(-52);
+  return (
+    <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-5" aria-labelledby="streak-history">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="streak-history" className="flex items-center gap-2 font-semibold">
+          <span className="h-5 w-1 bg-gold" aria-hidden />
+          Activity streak
+        </h2>
+        <span className="text-[13px] text-text-muted">weeks with {streak.needed}+ active days · the week resets Wednesday</span>
+      </div>
+      <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
+        <div>
+          <dt className="text-[12px] text-text-muted">Current</dt>
+          <dd className="text-2xl font-bold tabular-nums text-[#ff8a3d]">{streak.weeks} wk</dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-text-muted">Best</dt>
+          <dd className="text-2xl font-bold tabular-nums">{streak.best} wk</dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-text-muted">This week</dt>
+          <dd className="text-2xl font-bold tabular-nums">
+            {streak.safe ? 'counts' : `${streak.thisWeek} of ${streak.needed}`}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[12px] text-text-muted">Rest week</dt>
+          <dd className="text-2xl font-bold text-[#7ae0ff]">{streak.restBanked ? 'banked' : 'used'}</dd>
+        </div>
+      </dl>
+      <div className="mt-4 grid gap-1" style={{ gridTemplateColumns: 'repeat(26, minmax(0, 1fr))' }} role="img" aria-label={`Last ${weeks.length} weeks: ${weeks.filter((w) => w === 'active').length} counted`}>
+        {weeks.map((w, i) => (
+          <i key={i} className={`block h-3.5 rounded-[2px] ${w === 'active' ? 'bg-[#ff8a3d]' : w === 'rest' ? 'bg-[#7ae0ff]' : 'bg-card-border'}`} />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-4 text-[12px] text-text-muted">
+        <span className="flex items-center gap-1.5"><i className="block h-2.5 w-2.5 rounded-[2px] bg-[#ff8a3d]" />counted</span>
+        <span className="flex items-center gap-1.5"><i className="block h-2.5 w-2.5 rounded-[2px] bg-[#7ae0ff]" />rest week</span>
+        <span className="flex items-center gap-1.5"><i className="block h-2.5 w-2.5 rounded-[2px] bg-card-border" />missed</span>
+      </div>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-4">
+        {STREAK_MILESTONES.map((m) => {
+          const got = streak.best >= m.weeks;
+          return (
+            <li key={m.weeks} className={`rounded-lg border px-3 py-2 ${got ? 'border-[#ff8a3d]/40' : 'border-card-border opacity-60'}`}>
+              <span className={`font-mono text-lg font-bold ${got ? 'text-[#ff8a3d]' : 'text-text-muted'}`}>{m.weeks}</span>{' '}
+              <span className="text-[13px] font-semibold">{m.name}</span>
+              <span className="block text-[11px] text-text-muted">{got ? 'reached' : `${m.weeks - streak.weeks} weeks to go`}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

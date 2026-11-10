@@ -41,8 +41,12 @@ export interface ClanTenure {
 }
 
 /** What the clan has earned right now, or null (free, comped, or never paid). */
+/** The staff lab's stand-in subscription (lib/labSupporter setLabClanTenure): tenure without a plan. */
+export const LAB_TENURE_SUBSCRIPTION = 'lab:tenure';
+
 export function clanTenure(clan: ClanRunLike, now = Date.now()): ClanTenure | null {
-  if (isFree(clan.plan) || !clan.gumroadSubscriptionId || !clan.paidSince) return null;
+  const lab = clan.gumroadSubscriptionId === LAB_TENURE_SUBSCRIPTION;
+  if ((!lab && isFree(clan.plan)) || !clan.gumroadSubscriptionId || !clan.paidSince) return null;
   const start = parseStamp(clan.paidSince);
   if (Number.isNaN(start)) return null;
   const months = wholeMonths(start, now);

@@ -2,7 +2,9 @@ import { normalizeHex } from '@/lib/artPalette';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, memberClog } from '@/db/schema';
+import { accounts, clans, memberClog } from '@/db/schema';
+import { normalizeRsn } from '@/lib/auth';
+import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
 import { SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
@@ -39,8 +41,11 @@ export interface ClanCard {
   tenure?: { id: TenureStepId; glyph: TenureGlyph; months: number; line: string } | null;
   /** Clan heat: members on a weekly activity streak (lib/activityStreaks). */
   heat?: { on: number; total: number; pct: number } | null;
+  /** Streak weeks of the names this card lists (This week, Top accounts), when on one. */
+  streaks?: Record<string, number>;
   /** Members who support Anvil, longest-supporting first (names only; their flair paints itself). */
-  supporters?: { names: string[]; count: number };
+  /** Supporting PEOPLE (one character each, the roster's first of theirs), longest support first. */
+  supporters?: { people: { rsn: string; tier: string; months: number }[]; count: number };
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -68,10 +73,30 @@ function clanAccent(clan: { accentColor?: string | null; artPalette?: unknown })
 }
 
 /** The roster's Supporters, longest unbroken support first. Decoration: a failed read is none. */
-async function clanSupporters(rsns: string[]): Promise<{ names: string[]; count: number }> {
+async function clanSupporters(rsns: string[]): Promise<NonNullable<ClanCard['supporters']>> {
   const looks = await supporterLooksByName(rsns).catch(() => ({}) as Awaited<ReturnType<typeof supporterLooksByName>>);
-  const names = Object.keys(looks).sort((a, b) => (looks[b].tenure?.months ?? 0) - (looks[a].tenure?.months ?? 0) || a.localeCompare(b));
-  return { names: names.slice(0, 10), count: names.length };
+  const names = Object.keys(looks);
+  if (names.length === 0) return { people: [], count: 0 };
+  // One person, several characters on the roster: they're one supporter, shown once.
+  const owners = await db
+    .select({ key: accounts.rsnNormalized, playerId: accounts.playerId })
+    .from(accounts)
+    .where(inArray(accounts.rsnNormalized, names.map(normalizeRsn)))
+    .catch(() => []);
+  const ownerOf = new Map(owners.map((o) => [o.key, o.playerId]));
+  const seen = new Set<string>();
+  const people: { rsn: string; tier: string; months: number }[] = [];
+  for (const rsn of rsns) {
+    const look = looks[rsn];
+    if (!look) continue;
+    const pid = ownerOf.get(normalizeRsn(rsn));
+    const key = pid != null ? `p${pid}` : `n${rsn}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    people.push({ rsn, tier: SUPPORTER_TIERS[look.tier].name, months: look.tenure?.months ?? 0 });
+  }
+  people.sort((a, b) => b.months - a.months || a.rsn.localeCompare(b.rsn));
+  return { people: people.slice(0, 10), count: people.length };
 }
 
 /** The clan's tenure badge, or null. Decoration: a failed read is no badge. */
@@ -151,7 +176,7 @@ export async function loadClanCard(clan: {
       /* no icons this time; the names still read */
     }
   }
-  return {
+  const card: ClanCard = {
     slug: clan.slug,
     name: clan.name,
     logoUrl: clan.logoUrl,
@@ -162,9 +187,12 @@ export async function loadClanCard(clan: {
     boostNameStyle,
     tenure: await loadClanTenure(clan.id),
     supporters: await clanSupporters(roster.map((m) => m.rsn)),
-    heat: await clanStreaks(clan.id)
-      .then((h) => (h.total ? { on: h.on, total: h.total, pct: h.heat } : null))
-      .catch(() => null),
+    ...(await clanStreaks(clan.id)
+      .then((h) => ({
+        heat: h.total ? { on: h.on, total: h.total, pct: h.heat } : null,
+        streaks: Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks > 0).map(([rsn, s]) => [rsn, s.weeks])),
+      }))
+      .catch(() => ({ heat: null, streaks: {} }))),
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
@@ -193,6 +221,10 @@ export async function loadClanCard(clan: {
       label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
     })),
   };
+  // Only the names the card lists: the whole roster's streaks don't belong in a public payload.
+  const listed = new Set([...card.topWeek.map((t) => t.rsn), ...card.topPlayers.map((t) => t.rsn)]);
+  card.streaks = Object.fromEntries(Object.entries(card.streaks ?? {}).filter(([rsn]) => listed.has(rsn)));
+  return card;
 }
 
 /** Many clans' tenure badges at once (the /clans directory), keyed by clan id; only clans that have one. */

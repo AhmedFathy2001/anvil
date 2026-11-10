@@ -93,3 +93,30 @@ async function loadClanStreaks(clanId: number): Promise<ClanStreaks> {
 export function clanStreaks(clanId: number): Promise<ClanStreaks> {
   return ttlMemo(`clan-streaks:${clanId}`, () => loadClanStreaks(clanId), 10 * 60_000);
 }
+
+export interface YearStreak {
+  /** The longest streak inside the year. */
+  best: number;
+  /** Weeks of the year that counted. */
+  activeWeeks: number;
+  /** The highest milestone that streak reached. */
+  milestone: string | null;
+}
+
+/** A character's streaks within one calendar year, for its yearly recap (lib/yearlyWrapped). */
+export async function yearStreak(accountId: number, year: string): Promise<YearStreak> {
+  const rows = await db
+    .select({ day: memberDailyStats.day })
+    .from(memberDailyStats)
+    .where(and(eq(memberDailyStats.accountId, accountId), gte(memberDailyStats.day, `${year}-01-01`), sql`${memberDailyStats.day} <= ${`${year}-12-31`}`, activeWhere()));
+  const today = todayUtc();
+  const end = today < `${year}-12-31` ? today : `${year}-12-31`;
+  // Only this year's days, judged as at its last day: a streak from last December starts fresh.
+  const s = streakFrom(
+    rows.map((r) => r.day),
+    end,
+  );
+  const activeWeeks = s.history.filter((m) => m === 'active').length;
+  const milestone = [...STREAK_MILESTONES].reverse().find((m) => s.best >= m.weeks)?.name ?? null;
+  return { best: s.best, activeWeeks, milestone };
+}
