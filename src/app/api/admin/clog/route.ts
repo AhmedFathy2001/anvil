@@ -8,7 +8,14 @@ import clogData from '@/data/clog.json';
 //   • GET ?activity=<name>   → { activity, items: [{ id, name }] } for the exclusion checklist
 // Admin-only (tile editors). The data is static and version-controlled, so it's cheap to import.
 
-const activities = clogData.activities as Record<string, { id: number; name: string }[]>;
+// A slot whose in-game name other slots share ("Decorative armour") is shown under its label, so an
+// admin can tell which of them they're keeping; `gameName` carries the in-game spelling.
+const activities = Object.fromEntries(
+  Object.entries(clogData.activities as Record<string, { id: number; name: string; label?: string }[]>).map(([page, items]) => [
+    page,
+    items.map((it) => ({ id: it.id, name: it.label ?? it.name, gameName: it.name })),
+  ]),
+);
 // Item IDs the plugin can't drop-track (shop/points/gamble rewards) — see build-clog-dataset.mjs.
 const manualOnly = new Set<number>((clogData as { manualOnlyIds?: number[] }).manualOnlyIds ?? []);
 

@@ -10,7 +10,7 @@
 // searches: the clan's own task library and the starter tasks (already fully configured), the item
 // catalogue, the collection-log pages, and which items a monster drops.
 
-import { getItemMapping, isDroppableItem, type MappingItem } from '@/lib/osrsItems';
+import { getItemMapping, isDroppableItem, itemsByName, type MappingItem } from '@/lib/osrsItems';
 import { listLibrary } from '@/lib/tileLibrary';
 import { listAnvilTasks } from '@/lib/libraryTasks';
 import { rowToTileConfig, splitAmount } from '@/lib/taskSuggestRows';
@@ -64,8 +64,7 @@ async function contextFor(clanId: number): Promise<MatchContext> {
     getItemMapping().catch(() => [] as MappingItem[]),
     getMonsterNames().catch(() => [] as string[]),
   ]);
-  const byName = new Map<string, MappingItem>();
-  for (const it of mapping) if (!byName.has(it.name.toLowerCase())) byName.set(it.name.toLowerCase(), it);
+  const byName = itemsByName(mapping);
 
   // The clan's own library first, then every Anvil task they haven't imported — so the box is useful
   // on a brand-new clan's first board too.

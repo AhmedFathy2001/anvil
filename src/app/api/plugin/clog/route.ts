@@ -7,8 +7,8 @@ import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
-import { resolveUnlock } from '@/lib/clogUnlock';
-import { creditClogUnlocks, recheckClogPageTiles } from '@/lib/clogTileCredit';
+import { carryGuessedStamps, resolveUnlock } from '@/lib/clogUnlock';
+import { creditClogUnlocks, reconcileGuessedClogCredits, recheckClogPageTiles } from '@/lib/clogTileCredit';
 import { track } from '@/lib/analytics';
 import { parseStamp } from '@/lib/dbTime';
 import { labQuarantine } from '@/lib/lab';
@@ -110,8 +110,12 @@ export async function POST(request: Request) {
       pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 32) ?? null,
       accountHash: request.headers.get('X-Account-Hash')?.slice(0, 128) ?? null,
     });
-    // A whole-page collection-log tile (lib/clogTiles) may have just been finished by this sync.
-    if (res.ok) await recheckClogPageTiles(member.accountId);
+    // Slots an unlock line could only guess (same-named slots) are settled against the log just
+    // stored, then a whole-page collection-log tile (lib/clogTiles) may have just been finished.
+    if (res.ok) {
+      await reconcileGuessedClogCredits(member.accountId);
+      await recheckClogPageTiles(member.accountId);
+    }
     return res;
   }
 
@@ -218,12 +222,23 @@ export async function POST(request: Request) {
     // New slots on a page we already held are unlocks we can date — from a moment, when one saw it.
     const fresh = previous.size > 0 ? rows.filter((r) => !previous.has(r.itemId)).map((r) => r.itemId) : [];
     const seenLive = await momentStamps(member.accountId, fresh);
+    // A live unlock guessed onto the wrong same-named slot hands its date and KC to the true one.
+    const carried = new Map(
+      carryGuessedStamps(
+        existing.filter((r) => !rows.some((x) => x.itemId === r.itemId)),
+        fresh.map((itemId) => ({ itemId, firstSeenAt: null as string | null, kcAtUnlock: null as number | null })),
+      )
+        .filter((r) => r.firstSeenAt)
+        .map((r) => [r.itemId, r]),
+    );
 
     if (rows.length > 0) {
       await db.insert(memberClogItems).values(
         rows.map((r) => {
           const before = previous.get(r.itemId);
-          const live = seenLive.get(r.itemId);
+          const live = carried.has(r.itemId)
+            ? { at: carried.get(r.itemId)!.firstSeenAt!, kc: carried.get(r.itemId)!.kcAtUnlock }
+            : seenLive.get(r.itemId);
           return {
             accountId: member.accountId,
             itemId: r.itemId,
@@ -459,7 +474,9 @@ async function ingestWholeLog(
   const held = new Map(existing.map((r) => [r.itemId, r]));
 
   const gone = [...held.keys()].filter((id) => !desired.has(id));
-  const added = rows.filter((r) => !held.has(r.itemId));
+  // A live unlock filed under the wrong same-named slot (lib/clogUnlock resolveUnlock) is replaced by
+  // the true one here; that one keeps the unlock's date and KC rather than the sync's.
+  const added = carryGuessedStamps(gone.map((id) => held.get(id)!), rows.filter((r) => !held.has(r.itemId)));
   // An item can move page between game updates, and a stackable one's count grows.
   const changed = rows.filter((r) => {
     const before = held.get(r.itemId);

@@ -11,6 +11,11 @@ export async function itemNameIndex() {
       names.set(m.id, m.name);
       const k = m.name.toLowerCase();
       ids.set(k, [...(ids.get(k) ?? []), m.id]);
+      // A labelled clog slot ("Decorative armour (gold platebody)") is still a "Decorative armour".
+      if (m.gameName) {
+        const g = m.gameName.toLowerCase();
+        ids.set(g, [...(ids.get(g) ?? []), m.id]);
+      }
     }
     lastMapping = mapping;
     index = { nameOf: (id: number) => names.get(id), idsByName: ids };

@@ -4,7 +4,7 @@ import { getSetting } from '@/lib/settings';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import { BOSSES } from '@/lib/constants';
-import { clogItemNames, clogPageIndex, clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { clogItemLabels, clogPageIndex, clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { getItemPrices } from '@/lib/itemPrices';
 import { LUCK_VALUE_FLOOR_SETTING_KEY, luckValueFloor, worthCounting } from '@/lib/luckWorth';
 import { aggregateLuck, assessLuckAt, bundleSize, dropsFromQuantity, type LuckTotal } from '@/lib/clogLuck';
@@ -96,7 +96,7 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
   }
   const trackedKey = (source: string) =>
     bossByLabel.get(source.toLowerCase()) ?? bossByLabel.get(norm(source));
-  const names = clogItemNames();
+  const names = clogItemLabels();
 
   // Index every drop table by ITEM first. An item is not owned by the page it displays under: a
   // dragon thrownaxe hangs on the Alchemical Hydra page but falls off six slayer bosses at two

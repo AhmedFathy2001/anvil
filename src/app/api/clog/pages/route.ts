@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { clogItemNames, clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { clogItemLabels, clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { canonicalClogPage } from '@/lib/clogTiles';
 
 // The collection-log catalogue, read-only, for anyone filing a collection-log tile slot by hand
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const cache = { 'Cache-Control': 'public, max-age=3600' };
   const ids = params.get('ids');
   if (ids != null) {
-    const names = clogItemNames();
+    const names = clogItemLabels();
     const items = [...new Set(ids.split(',').map(Number))].slice(0, 600)
       .filter((id) => names.has(id))
       .map((id) => ({ id, name: names.get(id)! }));

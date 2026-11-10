@@ -3,7 +3,7 @@ import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import type { ApexCharacter } from '@/lib/apexProfiles';
-import { clogItemNames } from '@/lib/clogDataset';
+import { clogItemLabels } from '@/lib/clogDataset';
 import { buildClogProfile, titleCaseActivity } from '@/lib/clogProfile';
 import { formatPersonalBest } from '@/lib/clogRead';
 import { getAccountProfile, getMilestones } from '@/lib/memberProfile';
@@ -52,7 +52,7 @@ export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
       : null,
     items,
   });
-  const names = clogItemNames();
+  const names = clogItemLabels();
 
   return shapePlayerCard({
     rsn: c.rsn,

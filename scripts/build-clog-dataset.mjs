@@ -13,6 +13,7 @@
 //
 // Run:  node scripts/build-clog-dataset.mjs        (or: npm run data:clog)
 //       node scripts/build-clog-dataset.mjs --tabs-only   (just the page → in-game tab map)
+//       node scripts/build-clog-dataset.mjs --labels-only (just the same-name slot labels)
 // Wire it into CI / a cron to keep the bundle fresh without manual edits.
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -138,6 +139,104 @@ async function computeManualOnlyIds(items) {
   return manual;
 }
 
+// SAME-NAME SLOTS. Some log slots share one in-game name: Castlewars has fifteen "Decorative armour"
+// slots (red/white/gold platebody, platelegs, plateskirt, the magic and ranged pieces), the Chompy
+// hats, the Ancient pages. Shown by name alone they read as one entry, so each gets the wiki's own
+// item page name as its `label` ("Decorative armour (gold platebody)"), read from the wiki's Bucket
+// `infobox_item` table. A page that versions several ids under one title ("Ancient page", versions
+// 1–26) gives "Ancient page (1)". `name` stays the in-game name: unlock lines and drop matching use it.
+const BUCKET_BATCH = 40;
+
+async function bucketQuery(query) {
+  const body = new URLSearchParams({ action: 'bucket', format: 'json', query });
+  const res = await fetch(WIKI_API, {
+    method: 'POST',
+    headers: { 'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  if (!res.ok) throw new Error(`bucket query HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(`bucket error: ${json.error}`);
+  return json.bucket ?? [];
+}
+
+const normName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Pure: the label for each id in one same-name group, from its infobox_item row (or none). */
+export function labelGroup(name, ids, rowOf) {
+  const out = new Map();
+  // A version anchor only tells ids apart when they share one page ("Ancient page#1"…"#26"). On a
+  // page of its own the anchor is just the infobox's inventory/equipped toggle, so the name stays.
+  const pageOf = (id) => (typeof rowOf.get(id)?.page_name === 'string' ? normName(rowOf.get(id).page_name) : '');
+  const sharedPage = (id) => ids.some((other) => other !== id && pageOf(other) === pageOf(id));
+  for (const id of ids) {
+    const row = rowOf.get(id);
+    const page = typeof row?.page_name === 'string' ? row.page_name.trim() : '';
+    const anchor = typeof row?.version_anchor === 'string' ? row.version_anchor.trim() : '';
+    let label = null;
+    if (page && normName(page) !== normName(name) && normName(page).startsWith(normName(name))) label = page;
+    else if (page && normName(page) !== normName(name)) label = `${name} (${page})`;
+    else if (anchor && sharedPage(id)) label = `${name} (${anchor.charAt(0).toLowerCase()}${anchor.slice(1)})`;
+    out.set(id, label);
+  }
+  // Two ids that still read the same (or several with no wiki row) fall back to the id itself, so
+  // every slot in the group is told apart; one plain name among labelled siblings stays plain.
+  const seen = new Map();
+  for (const id of ids) {
+    const key = normName(out.get(id) ?? name);
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  for (const id of ids) {
+    const label = out.get(id) ?? name;
+    if (seen.get(normName(label)) > 1) out.set(id, `${label} (#${id})`);
+  }
+  return out;
+}
+
+/** id → label for every clog id whose name another clog id also carries. */
+async function computeLabels(activities) {
+  const nameOf = new Map();
+  for (const list of Object.values(activities)) for (const { id, name } of list) if (!nameOf.has(id)) nameOf.set(id, name);
+  const idsByName = new Map();
+  for (const [id, name] of nameOf) {
+    const key = normName(name);
+    (idsByName.get(key) ?? idsByName.set(key, []).get(key)).push(id);
+  }
+  const groups = [...idsByName.values()].filter((ids) => ids.length > 1).map((ids) => ids.sort((a, b) => a - b));
+  const wanted = groups.flat();
+  const rowOf = new Map();
+  for (let i = 0; i < wanted.length; i += BUCKET_BATCH) {
+    const batch = wanted.slice(i, i + BUCKET_BATCH);
+    const where = batch.map((id) => `{"item_id","${id}"}`).join(',');
+    const rows = await bucketQuery(
+      `bucket("infobox_item").select("item_id","page_name","version_anchor").where(bucket.Or(${where})).limit(500).run()`,
+    );
+    for (const row of rows) {
+      for (const raw of [].concat(row.item_id ?? [])) {
+        const id = Number(raw);
+        if (batch.includes(id) && !rowOf.has(id)) rowOf.set(id, row);
+      }
+    }
+    await sleep(150);
+  }
+  const labels = new Map();
+  for (const ids of groups) {
+    for (const [id, label] of labelGroup(nameOf.get(ids[0]), ids, rowOf)) if (label) labels.set(id, label);
+  }
+  console.log(`Labelled ${labels.size} same-name slots across ${groups.length} names (${rowOf.size} wiki rows).`);
+  return labels;
+}
+
+function applyLabels(activities, labels) {
+  for (const list of Object.values(activities)) {
+    for (const item of list) {
+      const label = labels.get(item.id);
+      if (label) item.label = label;
+      else delete item.label;
+    }
+  }
+}
+
 // THE GAME'S OWN TABS. The data module above names each item's page but not which tab of the
 // collection log the page sits in, so the profile used to guess from page names — and guessed
 // wrong wherever a name looks like something else: Barrows Chests, The Fight Caves, Fortis
@@ -176,6 +275,13 @@ async function main() {
   // `--tabs-only`: refresh the page → tab map against the activities already in clog.json.
   if (process.argv.includes('--tabs-only')) {
     await buildTabs(Object.keys(JSON.parse(readFileSync(OUT_PATH, 'utf8')).activities));
+    return;
+  }
+  // `--labels-only`: refresh the same-name slot labels in the clog.json already on disk.
+  if (process.argv.includes('--labels-only')) {
+    const shipped = JSON.parse(readFileSync(OUT_PATH, 'utf8'));
+    applyLabels(shipped.activities, await computeLabels(shipped.activities));
+    writeFileSync(OUT_PATH, JSON.stringify(shipped, null, 2) + '\n');
     return;
   }
   console.log(`Fetching ${SOURCE_URL} …`);
@@ -225,6 +331,8 @@ async function main() {
     activities[name] = byActivity[name].sort((a, b) => a.id - b.id);
   }
 
+  applyLabels(activities, await computeLabels(activities));
+
   // Per-item drop-trackability, decided from each item's wiki page ({{Drop sources}} present or not).
   console.log('Classifying drop-trackability against the wiki…');
   const manualOnlyIds = await computeManualOnlyIds(items);
@@ -270,7 +378,10 @@ async function main() {
   console.log('Manual-only by activity:', perActivity);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Importable (tests read labelGroup) without running the build.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

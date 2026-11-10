@@ -4,7 +4,7 @@ import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from '
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
-import { clogItemNames } from '@/lib/clogDataset';
+import { clogItemLabels } from '@/lib/clogDataset';
 
 /** Rows the Milestones panel shows, and the per-source fetch cap feeding it. */
 const MILESTONE_LIMIT = 6;
@@ -386,7 +386,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     .orderBy(desc(memberClogItems.firstSeenAt))
     .limit(MILESTONE_LIMIT);
 
-  const itemNames = unlockRows.length ? clogItemNames() : new Map<number, string>();
+  const itemNames = unlockRows.length ? clogItemLabels() : new Map<number, string>();
 
   const milestones = [
     ...milestoneRows.map((m) => ({

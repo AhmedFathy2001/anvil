@@ -3,7 +3,7 @@ import hourRates from '@/data/hourRates.json'; // our wiki-built kill rates; reg
 import clogTabs from '@/data/clogTabs.json'; // the game's own log tabs; regenerate with `npm run data:clog`
 import { BOSSES } from '@/lib/constants';
 import { expectedKillsForItem, itemChance, killLuck, type KillLuckRead } from '@/lib/dropOdds';
-import { clogItemNames, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
+import { clogItemLabels, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
 
 // How rare is a collection log slot, and where did it come from.
 //
@@ -136,7 +136,7 @@ export function buildValueShowcase(
   prices: Map<number, number>,
   limit = 6,
 ): { items: ValuedItem[]; total: number } {
-  const names = clogItemNames();
+  const names = clogItemLabels();
   const pages = clogPageOfItem();
   let total = 0;
 
@@ -190,7 +190,7 @@ export function buildShowcase(
   limit = 6,
 ): ShowcaseItem[] {
   const rarity = clogItemRarity();
-  const names = clogItemNames();
+  const names = clogItemLabels();
   const pages = clogPageOfItem();
 
   return owned

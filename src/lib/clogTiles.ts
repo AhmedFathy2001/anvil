@@ -178,6 +178,62 @@ export function decideClogSlotByName(
   return decideClogSlot({ candidates: clogIdsForName(name), spec, ownedBefore, counted });
 }
 
+// ─── Guessed slots, settled by a sync ────────────────────────────────────────────────────────
+
+/** The note an unlock-line credit is filed with (lib/clogTileCredit); the name is the game's. */
+export const CLOG_UNLOCK_NOTE_PREFIX = '[Auto] New collection log slot: ';
+
+/**
+ * The item name an unlock-line credit was filed for (the live unlock push, or the plugin's own
+ * screenshot credit naming the slot by its line), or null for any other row — a web upload, an
+ * admin's credit. Only these were guessed, so only these are ever re-decided.
+ */
+export function guessedClogName(row: { note: string | null; source: string | null }): string | null {
+  if (row.source !== 'plugin' || !row.note?.startsWith(CLOG_UNLOCK_NOTE_PREFIX)) return null;
+  // A screenshot credit's note ends "— detected by RuneLite plugin" (lib/pluginFacts/plan).
+  return row.note.slice(CLOG_UNLOCK_NOTE_PREFIX.length).replace(/\s+—\s+detected by .*$/i, '').trim() || null;
+}
+
+export type GuessedSlotFix = { action: 'keep' } | { action: 'move'; itemId: number } | { action: 'remove' };
+
+/**
+ * Settle one unlock-line credit against the member's synced log.
+ *
+ * The line names the item, not the slot, so where several slots share the name ("Decorative armour"
+ * is fifteen of them) the credit went to the first that fitted — a guess. A whole-log sync says
+ * which one they actually hold:
+ *   • they hold the guessed id                          → keep it;
+ *   • they don't, but hold a same-named slot that fits  → move the credit there;
+ *   • neither                                           → remove it.
+ * A sibling fits when it is on the tile, not in the log before the event (a dated row from before
+ * the start) and not already counted for them. A dated-new row beats an undated one: an undated row
+ * is a first-ever sync, which can't say when a slot arrived — the line itself proved one did.
+ * A name only one slot carries was never a guess, so it is always kept.
+ */
+export function settleGuessedSlot(args: {
+  guessedId: number;
+  /** Every catalogue id carrying the unlock line's name (clogIdsForName). */
+  siblings: readonly number[];
+  spec: Pick<ClogTileSpec, 'pages' | 'itemIds'>;
+  /** Every item the synced log holds now. */
+  owned: ReadonlySet<number>;
+  /** Log rows dated before the event started. */
+  datedBefore: ReadonlySet<number>;
+  /** Log rows with no date (a first-ever sync). */
+  undated: ReadonlySet<number>;
+  /** Items already credited to this member on this tile, this row excluded. */
+  counted: ReadonlySet<number>;
+}): GuessedSlotFix {
+  if (args.siblings.length < 2 || !args.siblings.includes(args.guessedId)) return { action: 'keep' };
+  if (args.owned.has(args.guessedId)) return { action: 'keep' };
+  const pool = clogTileItemIds(args.spec);
+  const fits = args.siblings.filter(
+    (id) => id !== args.guessedId && args.owned.has(id) && (!pool || pool.has(id)) && !args.datedBefore.has(id) && !args.counted.has(id),
+  );
+  const pick = fits.find((id) => !args.undated.has(id)) ?? fits[0];
+  return pick != null ? { action: 'move', itemId: pick } : { action: 'remove' };
+}
+
 /** Why a slot was refused, said to the person who uploaded it. */
 export function clogSlotRefusal(reason: Exclude<ClogSlotVerdict, { ok: true }>['reason']): string {
   switch (reason) {

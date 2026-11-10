@@ -11,11 +11,11 @@ let byId: Map<number, string> | null = null;
 function index(): Map<number, string> {
   if (byId) return byId;
   byId = new Map();
-  const activities = (clog as { activities: Record<string, { id: number; name: string }[]> }).activities;
+  const activities = (clog as { activities: Record<string, { id: number; name: string; label?: string }[]> }).activities;
   for (const [activity, items] of Object.entries(activities)) {
     for (const item of items) {
       const prior = byId.get(item.id);
-      byId.set(item.id, prior ? `${prior} ${activity}` : `${item.name} ${activity}`);
+      byId.set(item.id, prior ? `${prior} ${activity}` : `${item.label ?? item.name} ${activity}`);
     }
   }
   return byId;

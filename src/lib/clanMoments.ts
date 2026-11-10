@@ -10,7 +10,7 @@ import { and, desc, eq, gte, isNotNull, isNull, lte } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, memberClogItems, memberMilestones } from '@/db/schema';
-import { clogItemNames } from '@/lib/clogDataset';
+import { clogItemLabels } from '@/lib/clogDataset';
 import { milestoneSentence } from '@/lib/homeView';
 import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
 import { momentLabel, orderMoments, type Moment } from '@/lib/clanMomentsRules';
@@ -57,7 +57,7 @@ export async function clanMoments(clanId: number, now = new Date(), limit = 9): 
       .limit(READ),
   ]);
 
-  const names = unlocks.length ? clogItemNames() : new Map<number, string>();
+  const names = unlocks.length ? clogItemLabels() : new Map<number, string>();
   const all: Moment[] = [
     ...milestones.map((m) => ({
       rsn: m.rsn ?? 'Someone',

@@ -10,19 +10,31 @@ import clogData from '@/data/clog.json';
 // Everything here is built once on first use and cached for the life of the process. The file is
 // ~146 KB of JSON, so parsing it per request would be the most expensive thing on a profile page.
 
-interface ClogItem {
+interface RawClogItem {
+  id: number;
+  /** The in-game name — what an unlock line and a drop say, so what matching keys on. */
+  name: string;
+  /** The wiki's item page name, only on slots whose in-game name another slot shares. */
+  label?: string;
+}
+
+/** One page entry for display: `name` is the slot's label, `gameName` what the game calls it. */
+export interface ClogItem {
   id: number;
   name: string;
+  gameName: string;
 }
 
 const raw = clogData as {
-  activities?: Record<string, ClogItem[]>;
+  activities?: Record<string, RawClogItem[]>;
   itemCount?: number;
   activityCount?: number;
 };
 
 let pageIndexCache: Map<string, Set<number>> | null = null;
 let itemNameCache: Map<number, string> | null = null;
+let itemLabelCache: Map<number, string> | null = null;
+let pageItemsCache: Map<string, ClogItem[]> | null = null;
 let pageOfItemCache: Map<number, string> | null = null;
 
 /** Page name → the ids that belong on it. The membership check every ingest needs. */
@@ -36,7 +48,11 @@ export function clogPageIndex(): Map<string, Set<number>> {
   return index;
 }
 
-/** Item id → display name, for anything rendering an item we hold. */
+/**
+ * Item id → in-game name, for MATCHING: unlock lines, drop names, the plugin's name lists. Several
+ * slots share one ("Decorative armour" is fifteen of them), so never show this where the slot itself
+ * matters; that is `clogItemLabels`.
+ */
 export function clogItemNames(): Map<number, string> {
   if (itemNameCache) return itemNameCache;
   const names = new Map<number, string>();
@@ -45,6 +61,31 @@ export function clogItemNames(): Map<number, string> {
   }
   itemNameCache = names;
   return names;
+}
+
+/**
+ * Item id → display label: the in-game name, or for a slot sharing its name with others the wiki's
+ * page name for that one ("Decorative armour (gold platebody)"), so each reads as its own entry.
+ */
+export function clogItemLabels(): Map<number, string> {
+  if (itemLabelCache) return itemLabelCache;
+  const labels = new Map<number, string>();
+  for (const items of Object.values(raw.activities ?? {})) {
+    for (const item of items) if (!labels.has(item.id)) labels.set(item.id, item.label ?? item.name);
+  }
+  itemLabelCache = labels;
+  return labels;
+}
+
+/** Ids of every slot that shares its in-game name with another slot, by that name (lowercased). */
+export function clogSameNameGroups(): Map<string, number[]> {
+  const groups = new Map<string, number[]>();
+  for (const [id, name] of clogItemNames()) {
+    const key = name.toLowerCase();
+    groups.set(key, [...(groups.get(key) ?? []), id]);
+  }
+  for (const [key, ids] of groups) if (ids.length < 2) groups.delete(key);
+  return groups;
 }
 
 /**
@@ -120,9 +161,17 @@ export function groupObtainedItems(
 }
 
 
-/** Items on one page, in the order the game lists them. Empty for an unknown page. */
+/**
+ * Items on one page, in the order the game lists them, each under its display label (`name`) with
+ * the in-game name alongside (`gameName`). Empty for an unknown page.
+ */
 export function clogPageItems(page: string): ClogItem[] {
-  return raw.activities?.[page] ?? [];
+  pageItemsCache ??= new Map();
+  const hit = pageItemsCache.get(page);
+  if (hit) return hit;
+  const items = (raw.activities?.[page] ?? []).map((i) => ({ id: i.id, name: i.label ?? i.name, gameName: i.name }));
+  if (raw.activities?.[page]) pageItemsCache.set(page, items);
+  return items;
 }
 
 /** Total obtainable slots in the whole log — the denominator on a profile header. */
