@@ -4555,6 +4555,9 @@ export const supporterGiftIntents = pgTable('supporter_gift_intents', {
   token: text('token').primaryKey(),
   buyerUserId: integer('buyer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   recipientUserId: integer('recipient_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // What the buyer picked on our page (drizzle/0257); the sale must be this option.
+  tier: text('tier'),
+  months: integer('months'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   usedSaleId: text('used_sale_id'),
 });

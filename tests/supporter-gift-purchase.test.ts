@@ -58,3 +58,29 @@ test('the sale check holds a gift to the variant Gumroad itself sold', async () 
     delete process.env.GUMROAD_ACCESS_TOKEN;
   }
 });
+
+test('a gift can upgrade someone, but not repeat what they already pay for', async () => {
+  const { giftBlocked } = await import('../src/lib/supporterGiftPurchase.ts');
+  const now = Date.parse('2026-11-11T00:00:00Z');
+  const patron = [{ tier: 'patron', status: 'active', recurrence: 'monthly', currentPeriodEnd: '2026-12-01T00:00:00Z' }];
+  assert.match(giftBlocked(patron, 'patron', now)!, /already have this tier or higher/);
+  assert.doesNotMatch(giftBlocked(patron, 'patron', now)!, /Patron/, 'never names their tier');
+  assert.ok(giftBlocked(patron, 'supporter', now));
+  const supporter = [{ tier: 'supporter', status: 'active', recurrence: 'yearly', currentPeriodEnd: null }];
+  assert.equal(giftBlocked(supporter, 'champion', now), null, 'an upgrade');
+  assert.ok(giftBlocked(supporter, 'supporter', now));
+  // A cancelled one that has run out, or only granted time: nothing they pay for.
+  assert.equal(giftBlocked([{ tier: 'patron', status: 'cancelling', currentPeriodEnd: '2026-11-01T00:00:00Z' }], 'patron', now), null);
+  assert.equal(giftBlocked([{ tier: 'patron', status: 'granted', recurrence: 'gift-paid', currentPeriodEnd: '2026-12-01T00:00:00Z' }], 'patron', now), null);
+});
+
+test('a gift on top of granted time starts when it runs out', async () => {
+  const { giftStartsAt } = await import('../src/lib/supporterGiftPurchase.ts');
+  const now = Date.parse('2026-11-11T00:00:00Z');
+  const end = Date.parse('2026-12-11T00:00:00Z');
+  const gifted = [{ tier: 'patron', status: 'granted', recurrence: 'gift-paid', currentPeriodEnd: new Date(end).toISOString() }];
+  assert.equal(giftStartsAt(gifted, 'patron', now), end, 'back to back');
+  assert.equal(giftStartsAt(gifted, 'champion', now), end, 'a lower gift waits for the higher one too');
+  assert.equal(giftStartsAt([{ tier: 'supporter', status: 'granted', currentPeriodEnd: new Date(end).toISOString() }], 'patron', now), now, 'an upgrade starts now');
+  assert.equal(giftStartsAt([], 'patron', now), now);
+});

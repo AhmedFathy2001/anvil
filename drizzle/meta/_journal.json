@@ -1359,6 +1359,13 @@
       "when": 1794540068226,
       "tag": "0256_supporter_paid_gifts",
       "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1794540069870,
+      "tag": "0257_gift_intent_choice",
+      "breakpoints": true
     }
   ]
 }
