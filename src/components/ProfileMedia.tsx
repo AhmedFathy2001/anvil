@@ -51,11 +51,11 @@ export function MotionImage({
   );
 }
 
-/** The banner across the top of a profile, cropped to a wide strip at the person's chosen focus. */
+/** The banner across the top of a profile, in the same 3:1 frame as every other banner (a 3:1 upload shows whole). */
 export function ProfileBanner({ banner, className = '' }: { banner: ShownProfileMedia['banner']; className?: string }) {
   if (!banner) return null;
   return (
-    <div className={`overflow-hidden rounded-2xl border border-card-border bg-card-bg aspect-[3/1] sm:aspect-[4/1] ${className}`}>
+    <div className={`overflow-hidden rounded-2xl border border-card-border bg-card-bg aspect-[3/1] ${className}`}>
       <MotionImage
         media={banner}
         eager

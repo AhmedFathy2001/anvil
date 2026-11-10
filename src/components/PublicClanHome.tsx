@@ -117,7 +117,7 @@ export default function PublicClanHome({
     <div className="mx-auto max-w-5xl" style={accentStyle(view.accent)}>
       {/* The clan's own banner (always 3:1, like an event's), or its colour as a board grid. Animated
           uploads stay animated. */}
-      <div className="relative aspect-[3/1] max-h-[300px] w-full overflow-hidden rounded-3xl border border-card-border bg-[var(--sa-deep)]">
+      <div className="relative aspect-[3/1] w-full overflow-hidden rounded-3xl border border-card-border bg-[var(--sa-deep)]">
         {view.bannerUrl ? (
           <MotionImg
             src={view.bannerUrl}
