@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { placementOf } from '@/lib/teamPlacement';
 import { requireClan } from '@/lib/clanContext';
@@ -161,7 +162,8 @@ export default async function MyTeamPage({
   const boardHidden = !event.tilesRevealed;
   // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
   // staff viewing their own team.
-  const eventTiles = boardHidden ? [] : visibleTiles(parseEventRules(event.rules), allEventTiles);
+  // A race hiding the tiles past each team's next step (lib/raceHideAhead): this team's view.
+  const eventTiles = boardHidden ? [] : await maskRaceTilesForTeams(event, [tId], visibleTiles(parseEventRules(event.rules), allEventTiles));
   // Attach each player's owner so MyTeamClient can roll a person's accounts into one contributor
   // for MVP + team size when the event is 'per-person' scored (no-op at maxAccounts=1).
   // A lab board pins stats with frozenAt — not a sub-out, so keep it off the roster's "Subbed out".

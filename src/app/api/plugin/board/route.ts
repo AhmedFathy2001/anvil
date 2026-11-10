@@ -1,3 +1,5 @@
+import { maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
+import { isRaceHidden } from '@/lib/raceHideAhead';
 import { missionTileState } from '@/lib/tileState';
 import { parseTileMissionRules } from '@/lib/eventRules';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
@@ -275,7 +277,10 @@ export async function buildBoard(
   // Board cells only: a combo's parts (lib/combo) ride inside their combo's entry below.
   const boardRows = withoutParts(allEventTiles);
   const partsOf = partsByParent(allEventTiles);
-  const eventTiles = visibleTiles(rules, boardRows);
+  // A race hiding the tiles past each team's next step (lib/raceHideAhead): the caller's team sees
+  // those as locked "?" cells (a spectator sees what every team can). The panel is a player's view,
+  // so it never sees through, staff included.
+  const eventTiles = await maskRaceTilesForTeams(event, callerTeamId != null ? [callerTeamId] : [], visibleTiles(rules, boardRows));
   // Board tiles only: a mission hidden until its drop isn't even a number here.
   const hiddenTileCount = boardRows.filter((t) => !isMissionTile(t)).length - eventTiles.filter((t) => !isMissionTile(t)).length;
 
@@ -629,6 +634,8 @@ export async function buildBoard(
             }
           : {}),
         ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
+        // A locked "?" past the team's next step (lib/raceHideAhead): nothing but where it sits.
+        ...(isRaceHidden(t) ? { raceHidden: true as const } : {}),
         ...(finishersByTile.get(t.id) ?? {}),
         ...(contributorsByTile.get(t.id) ?? {}),
       };

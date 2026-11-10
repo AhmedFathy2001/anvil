@@ -1,3 +1,4 @@
+import { maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -149,7 +150,8 @@ async function board(event: EventRow, curtain: OverlayCurtain) {
   // clan-scope: this clan -- the board of the event the overlay key opened.
   const all = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
   // The same gate the event page and its link card use: board cells only, revealed ones only.
-  const shown = visibleTiles(rules, boardTiles(all)).sort((a, b) => a.position - b.position);
+  // A stream is public: a race hiding tiles (lib/raceHideAhead) shows what every team can see.
+  const shown = (await maskRaceTilesForTeams(event, [], visibleTiles(rules, boardTiles(all)))).sort((a, b) => a.position - b.position);
   const claims = new Map<number, number[]>();
   const teamColors = new Map<number, string>();
   if (!curtain.hidden && shown.length) {

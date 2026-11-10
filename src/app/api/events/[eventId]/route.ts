@@ -12,7 +12,8 @@ import { eq, inArray, and, count, not } from 'drizzle-orm';
 import { writtenTile } from '@/lib/writtenTiles';
 import { deleteOwnedFiles, eventMediaUrls } from '@/lib/eventMediaRetention';
 import { cleanEventImageUrl } from '@/lib/eventImage';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyAdmin, verifyUser } from '@/lib/auth';
+import { mayChangeStaffHide } from '@/lib/raceHideAheadDb';
 import { tilesForViewer } from '@/lib/tilesForViewer';
 import { notifyBoardRevealed, notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 import { emptyTeamCount, getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
@@ -445,6 +446,13 @@ export async function PATCH(
       return NextResponse.json({ error: rulesResult.error }, { status: 400 });
     }
     const resolvedRules = rulesResult.rules;
+    {
+      const before = parseEventRules(event.rules).raceHideAhead;
+      const after = parseEventRules(resolvedRules).raceHideAhead;
+      if (before !== after && (before === 'staff' || after === 'staff') && !(await mayChangeStaffHide(await verifyUser()))) {
+        return NextResponse.json({ error: 'Only the clan owner can change whether event staff see hidden tiles.' }, { status: 403 });
+      }
+    }
     const allowsReveal = (format === 'bingo' && resolvedScoringMode === 'points') || format === 'ladder';
     if (resolvedRules && hasRevealPolicy(parseEventRules(resolvedRules)) && !allowsReveal) {
       return NextResponse.json(
@@ -536,6 +544,13 @@ export async function PATCH(
     const rulesResult = validateEventRules(mergeEventRulesPatch(stored?.rules, body.rules));
     if ('error' in rulesResult) {
       return NextResponse.json({ error: rulesResult.error }, { status: 400 });
+    }
+    // "Also hide from event staff" (lib/raceHideAhead) hides the board from the very staff who can
+    // edit this event: only the clan owner (or the platform owner) may put it on or take it off.
+    const hideBefore = parseEventRules(stored?.rules ?? null).raceHideAhead;
+    const hideAfter = parseEventRules(rulesResult.rules).raceHideAhead;
+    if (hideBefore !== hideAfter && (hideBefore === 'staff' || hideAfter === 'staff') && !(await mayChangeStaffHide(await verifyUser()))) {
+      return NextResponse.json({ error: 'Only the clan owner can change whether event staff see hidden tiles.' }, { status: 403 });
     }
     updates.rules = rulesResult.rules;
     // Hidden standings switched on: drop cached link cards now, or one drawn a minute ago keeps

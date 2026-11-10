@@ -11,6 +11,7 @@
 // READS respect exactly what the feed respects: the event must be the viewer's to see (the pages and
 // routes check canSeeEvent), and behind hidden standings only the viewer's own team's beats show.
 
+import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
 import { and, desc, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -466,7 +467,8 @@ export function queueTileHighlight(tileId: number, teamId: number): void {
           eventId: c.eventId,
           beat: 'tile',
           refKey: `tile:${tileId}:${teamId}`,
-          title: `${who ?? team?.name ?? 'A team'} completed ${c.label}`,
+          // Public, and kept: a race tile another team can't see yet (lib/raceHideAhead) stays unnamed.
+          title: `${who ?? team?.name ?? 'A team'} completed ${(await raceTileHiddenFromOthers(c.eventId, tileId, teamId)) ? 'a tile' : c.label}`,
           occurredAt: new Date(parseStamp(c.at) ?? Date.now()),
           teamId,
           tileId,

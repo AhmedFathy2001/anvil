@@ -1,3 +1,4 @@
+import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -26,6 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   if (!(await verifyTileEditorForEvent(id))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (await staffHideBlocksEventId(id)) return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
 
   const event = (await db.select().from(events).where(eq(events.id, id)).limit(1))[0];
   if (!event) {

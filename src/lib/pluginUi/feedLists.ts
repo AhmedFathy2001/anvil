@@ -1,3 +1,5 @@
+import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
+import { HIDDEN_RACE_TILE_LABEL, raceSeenFor, raceTileHidden } from '@/lib/raceHideAhead';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -89,7 +91,7 @@ export async function eventFeedList(
           .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0));
   // Finished tiles: in All, Tiles and My team (a drop filter is about drops).
   const tileItemsDone: EventFeedItem[] =
-    g != null ? [] : (await boardCompletions(eventId)).filter((c) => visible(c.teamId)).map((c) => ({ at: Date.parse(completionAt(c.at)), c }));
+    g != null ? [] : (await boardCompletions(eventId, teamId != null ? [teamId] : [])).filter((c) => visible(c.teamId)).map((c) => ({ at: Date.parse(completionAt(c.at)), c }));
   const merged: EventFeedItem[] = [...momentList.map((m) => ({ at: Date.parse(m.occurredAt), m })), ...tileItemsDone].sort((a, b) => (b.at || 0) - (a.at || 0));
   const items = collapseRuns(merged, (i) => (i.m ? runKey(i.m) : null), (i) => i.at).map((group): EventFeedItem => {
     const head = group[0];
@@ -105,9 +107,12 @@ function withRun<T extends MomentRow>(group: T[]): WithRun<T> {
 }
 
 /** A board's finished tiles, newest first (combo parts aren't board cells). */
-export async function boardCompletions(eventId: number) {
+export async function boardCompletions(eventId: number, viewerTeamIds: number[] = []) {
   // clan-scope: this clan -- by the board id the caller already resolved for this viewer
-  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
+  const ev = await db.query.events.findFirst({
+    where: eq(events.id, eventId),
+    columns: { id: true, clanId: true, format: true, tilesRevealed: true, rules: true, startDate: true, endDate: true, forceEndedAt: true },
+  });
   // A tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission) isn't named.
   if (!ev?.tilesRevealed) return [];
   const rules = parseEventRules(ev.rules);
@@ -129,5 +134,11 @@ export async function boardCompletions(eventId: number) {
     .where(and(eq(tiles.eventId, eventId), isNull(tiles.parentTileId)))
     .orderBy(desc(completions.completedAt))
     .limit(120);
-  return rows.filter((t) => isTileRevealed(rules, t)).slice(0, 80);
+  const shown = rows.filter((t) => isTileRevealed(rules, t)).slice(0, 80);
+  // A race tile the viewer's team (the public: every team) can't see yet (lib/raceHideAhead): who
+  // finished something stays, what it was doesn't.
+  if (!raceHideOn(ev)) return shown;
+  const veil = await loadRaceVeil(ev);
+  const seen = raceSeenFor(veil, { teamIds: viewerTeamIds });
+  return shown.map((c) => (raceTileHidden(veil, seen, { id: c.tileId }) ? { ...c, label: HIDDEN_RACE_TILE_LABEL } : c));
 }

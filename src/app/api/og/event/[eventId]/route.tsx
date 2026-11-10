@@ -1,3 +1,4 @@
+import { maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -76,7 +77,8 @@ async function load(_request: Request, { params }: { params: Promise<{ eventId: 
   const name = clanName || clan.name;
 
   const rules = parseEventRules(event.rules);
-  const shown = revealed ? visibleTiles(rules, boardTiles(allTiles)).sort((a, b) => a.position - b.position) : [];
+  // A link card is public: a race hiding tiles (lib/raceHideAhead) shows what every team can see.
+  const shown = revealed ? (await maskRaceTilesForTeams(event, [], visibleTiles(rules, boardTiles(allTiles)))).sort((a, b) => a.position - b.position) : [];
   const colorByTeam = new Map(standings.map((s, i) => [s.teamId, teamColor(s.color, i)]));
 
   // Who claimed each shown tile first. Earliest completion wins the colour, the way it does on the

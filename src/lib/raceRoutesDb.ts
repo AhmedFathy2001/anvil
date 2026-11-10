@@ -373,7 +373,7 @@ export async function applyLiveRouteEdit(args: {
       const correction = () =>
         sendEventBingoWebhook(event.clanId, event.id, {
           embeds: [{ title: 'Rolled back by an admin', description: `The race route for **${event.name}** changed. ${t.teamName}: ${lines} no longer count${t.tiles.length === 1 ? 's' : ''}.`, color: 0x7a5f18 }],
-        }, { post: 'tileComplete', teamId: t.teamId }).catch(() => false);
+        }, { post: 'tileComplete', teamId: t.teamId, tileIds: t.tiles.map((x) => x.id) }).catch(() => false);
       if (discord === 'correct') void correction();
       else if (discord === 'edit' || discord === 'delete') {
         // After the reply: the save never waits on Discord.

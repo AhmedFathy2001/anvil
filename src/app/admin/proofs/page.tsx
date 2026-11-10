@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { clanHref } from '@/lib/clanPath';
 import { requireClan } from '@/lib/clanContext';
@@ -75,6 +76,12 @@ export default async function AdminProofsPage() {
       tiles: tileRows.filter((t) => t.eventId === id) as unknown as Tile[],
     };
   });
+  // "Also hide from event staff" (lib/raceHideAhead): a race tile no team can see yet is a locked "?".
+  for (const b of boards) {
+    // clan-scope: this clan -- the board ids came from the clan-filtered flagged query above.
+    const ev = await db.query.events.findFirst({ where: eq(events.id, b.eventId) });
+    if (ev) b.tiles = await maskRaceTilesForSession(ev, b.tiles);
+  }
 
   return (
     <div>

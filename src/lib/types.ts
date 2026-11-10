@@ -69,6 +69,8 @@ export interface Tile extends TileRevealState {
   /** Tile race route (lib/raceRoutes): the tile's step and the next-step tile ids it leads to. */
   raceStep?: number | null;
   raceNext?: number[] | null;
+  /** "Hide tiles past the next step" (lib/raceHideAhead): this viewer sees a locked "?" here. */
+  raceHidden?: boolean;
   icon?: string | null;
   description?: string | null;
   tileType: string;

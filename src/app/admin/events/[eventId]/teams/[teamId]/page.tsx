@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { requireEventForPage } from '@/lib/eventScope';
@@ -37,7 +38,8 @@ export default async function AdminTeamBoardPage({
   });
   if (!team || team.eventId !== eId) notFound();
 
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
+  // "Also hide from event staff" (lib/raceHideAhead): staff who can't see through get locked "?" cells.
+  const eventTiles = await maskRaceTilesForSession(event, await db.select().from(tiles).where(eq(tiles.eventId, eId)));
   const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   const tierBands = await getTierBands(clan.id);
 

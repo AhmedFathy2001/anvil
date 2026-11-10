@@ -11,6 +11,7 @@ import { isBannedFromClan } from '@/lib/clanBans';
 import { personOf } from '@/lib/roster';
 import { getPeopleWithCharacters } from '@/lib/identity';
 import { grantEventEditor, revokeEventEditor, type BoardRole } from '@/lib/eventEditors';
+import { STAFF_HIDE_GRANT_ERROR, editorGrantBlocked } from '@/lib/raceHideAheadDb';
 
 // Board-scoped staff grants for one event. Admin-only — this hands out authoring or money access.
 // GET   → current grants (with their job) + assignable users
@@ -120,6 +121,11 @@ export async function POST(
     return NextResponse.json({ error: 'You cannot modify someone at or above your own role' }, { status: 403 });
   }
 
+  // "Also hide from event staff" (lib/raceHideAhead): a tile grant sees through it, so only the owner hands it out.
+  if (boardRole === 'editor' && (await editorGrantBlocked([eId], session))) {
+    return NextResponse.json({ error: STAFF_HIDE_GRANT_ERROR }, { status: 403 });
+  }
+
   await grantEventEditor(eId, userId, session.userId > 0 ? session.userId : null, boardRole);
 
   db.insert(clanAuditLog)
@@ -171,6 +177,10 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ ok: true });
   if (!canModify(session.role, (await clanGrant(scoped.clanId, userId))?.role ?? 'member')) {
     return NextResponse.json({ error: 'You cannot modify someone at or above your own role' }, { status: 403 });
+  }
+
+  if (boardRole !== 'treasurer' && (await editorGrantBlocked([eId], session))) {
+    return NextResponse.json({ error: STAFF_HIDE_GRANT_ERROR }, { status: 403 });
   }
 
   await revokeEventEditor(eId, userId, boardRole);

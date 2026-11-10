@@ -29,6 +29,7 @@ import {
   type RouteTemplate,
 } from '@/lib/raceRoutes';
 import type { Tile } from '@/lib/types';
+import type { RaceHideAhead } from '@/lib/eventRules';
 
 interface Props {
   eventId: number;
@@ -38,6 +39,14 @@ interface Props {
   isAdmin?: boolean;
   raceBank: boolean;
   raceRoad: RaceRoadMode;
+  /** "Hide tiles past the next step" (lib/raceHideAhead). */
+  raceHideAhead?: RaceHideAhead;
+  /** "Hide progress until…" is on for this board (the two settings stack). */
+  standingsHidden?: boolean;
+  /** "Also hide from event staff" keeps this viewer out: the map is read-only for them. */
+  staffHideLocked?: boolean;
+  /** The clan owner (or platform owner): may switch "Also hide from event staff". */
+  canChangeStaffHide?: boolean;
   /** A tile was created straight into a step (already saved as a blank tile). */
   onTileCreated: (tile: Tile) => void;
   /** The route was saved: each tile's new step / links / position. */
@@ -64,7 +73,7 @@ const goldBtn = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border 
  * Nothing about the roads is stored until Save, and Save refuses a route that can't be played.
  * Tiles themselves (new blank ones included) save at once, like anywhere else on the page.
  */
-export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, onTileCreated, onSaved, onRaceBankChanged, onOpenTile, openTileId = null, panelBeside = false, onTilesDeleted }: Props) {
+export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, raceHideAhead = 'off', standingsHidden = false, staffHideLocked = false, canChangeStaffHide = false, onTileCreated, onSaved, onRaceBankChanged, onOpenTile, openTileId = null, panelBeside = false, onTilesDeleted }: Props) {
   const { confirm, notify } = useDialog();
   const board = useMemo(() => tiles.filter((t) => t.parentTileId == null && !t.mission).sort((a, b) => a.position - b.position), [tiles]);
   const stored = useMemo(() => routeEntries(board), [board]);
@@ -83,8 +92,10 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   const [warning, setWarning] = useState<string | null>(null);
   const [bank, setBank] = useState(raceBank);
   const [road, setRoad] = useState(raceRoad);
+  const [hide, setHide] = useState<RaceHideAhead>(raceHideAhead);
   // Mid-race only an admin edits, and an edit that invalidates finishes asks what to do first.
-  const locked = eventStarted && !isAdmin;
+  // "Also hide from event staff" shuts the map for staff who can't see every tile.
+  const locked = (eventStarted && !isAdmin) || staffHideLocked;
   const liveEdit = eventStarted && isAdmin;
   // New tiles can only be made before the start (the tiles API refuses them after).
   const canAdd = !eventStarted;
@@ -340,6 +351,19 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     onRaceBankChanged(bank);
   }
 
+  async function changeHide(next: RaceHideAhead) {
+    if (next === hide) return;
+    const prev = hide;
+    setHide(next);
+    const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceHideAhead: next } }) });
+    if (!res.ok) {
+      setHide(prev);
+      const data = await res.json().catch(() => ({}));
+      return notify(data.error || 'Could not save that setting.', 'error');
+    }
+    onRaceBankChanged(bank);
+  }
+
   async function toggleBank(on: boolean) {
     setBank(on);
     const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceBank: on } }) });
@@ -407,7 +431,13 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         </div>
       )}
 
-      {locked && <p className="text-xs text-text-muted">The roads are locked once the race starts — only an admin can change them. Click a tile to open it.</p>}
+      {locked && (
+        <p className="text-xs text-text-muted">
+          {staffHideLocked
+            ? 'This race hides tiles from event staff, so the map is read-only for you. The clan owner and this board’s tile editors can change it.'
+            : 'The roads are locked once the race starts — only an admin can change them. Click a tile to open it.'}
+        </p>
+      )}
       {liveEdit && (
         <p className="text-xs rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 px-3 py-2">
           The race is live. Changes apply as soon as you save, and are recorded in the tile history. If an edit undoes progress a team already made, you’ll choose what happens to it before anything is saved.
@@ -590,6 +620,50 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         </div>
       </details>
 
+      {/* Hidden tiles (lib/raceHideAhead): saved the moment they change, any time. */}
+      <details className="group border border-card-border rounded-xl bg-card-bg">
+        <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm">
+            <span className="font-semibold">Hidden tiles</span>
+            <span className="text-text-muted"> · {hide === 'off' ? 'every tile shows' : hide === 'players' ? 'hidden from players' : 'hidden from players and event staff'}</span>
+          </span>
+          <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+        </summary>
+        <div className="px-4 pb-4 space-y-3">
+          <Checkbox
+            checked={hide !== 'off'}
+            onChange={(on) => void changeHide(on ? 'players' : 'off')}
+            disabled={hide === 'staff' && !canChangeStaffHide}
+            label="Hide tiles past the next step"
+            description="Players see the tiles their team has done, the step it’s on and the tiles it can move to next. Every tile further on shows as a locked “?” until their team can reach it. Admins and tile editors still see every tile."
+          />
+          {hide !== 'off' && (
+            <div className="pl-6">
+              <Checkbox
+                checked={hide === 'staff'}
+                onChange={(on) => void changeHide(on ? 'staff' : 'players')}
+                disabled={!canChangeStaffHide}
+                label="Also hide from event staff"
+                description={
+                  canChangeStaffHide
+                    ? 'Admins, moderators and team staff see the same locked tiles as players. Only you (the clan owner) and people you give tile editing on this board can see every tile.'
+                    : 'Admins, moderators and team staff see the same locked tiles as players. Only the clan owner can change this.'
+                }
+              />
+            </div>
+          )}
+          <HiddenTilesPreview />
+          <ul className="space-y-1.5 text-xs text-text-muted list-disc pl-4">
+            <li>The map keeps its shape: locked tiles keep their place and roads, with no name, picture or task.</li>
+            <li>Discord: a post that names a tile goes only to that team’s own Discord channel while another team can’t see the tile yet. Shared channels get no tile name.</li>
+            <li>The plugin, the website, link previews and stream overlays all show the same locked tiles.</li>
+            <li>Once the race ends, every tile shows.</li>
+            <li>This hides tiles on Anvil, not in conversation: once a team reaches a tile its players know it, and other teams can hear about it by word of mouth.</li>
+            {standingsHidden && <li>“Hide progress until…” is on too: other teams’ progress stays hidden as well, so players only see their own team’s tiles and place until it lifts.</li>}
+          </ul>
+        </div>
+      </details>
+
       {/* The old step-by-step controls, for moving whole steps around. */}
       {!locked && stepCount > 0 && (
         <details className="group border border-card-border rounded-xl bg-card-bg">
@@ -734,6 +808,31 @@ function LiveEditDecision({ preview, saving, onCancel, onApply }: { preview: Pre
           <button type="button" className={btn} onClick={onCancel} disabled={saving}>Cancel</button>
           <button type="button" className={goldBtn} onClick={() => onApply(policy, discord)} disabled={saving}>{saving ? 'Saving…' : policy === 'rollback' ? 'Roll back and save' : 'Keep and save'}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** What a player sees with tiles hidden: done, where they are, next, then locked ones. */
+function HiddenTilesPreview() {
+  const dot = 'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold border-2';
+  const stops: { key: string; cls: string; inner: string; label: string }[] = [
+    { key: 'done', cls: 'border-gold bg-gold/20 text-gold', inner: '✓', label: 'Done' },
+    { key: 'now', cls: 'border-gold bg-gold text-brown-dark', inner: '✓', label: 'You’re here' },
+    { key: 'next', cls: 'border-dashed border-gold text-foreground', inner: 'B', label: 'Next' },
+    { key: 'h1', cls: 'border-[#332a22] text-text-muted opacity-70', inner: '?', label: 'Locked' },
+    { key: 'h2', cls: 'border-[#332a22] text-text-muted opacity-70', inner: '?', label: 'Locked' },
+  ];
+  return (
+    <div className="rounded-lg border border-card-border bg-[#141010] px-3 py-2.5" aria-label="What a player sees">
+      <p className="text-[11px] text-text-muted mb-2">What a player sees</p>
+      <div className="flex items-start gap-3 overflow-x-auto">
+        {stops.map((st) => (
+          <span key={st.key} className="flex flex-col items-center gap-1 shrink-0">
+            <span className={cn(dot, st.cls)} aria-hidden>{st.inner}</span>
+            <span className="text-[10px] text-text-muted">{st.label}</span>
+          </span>
+        ))}
       </div>
     </div>
   );

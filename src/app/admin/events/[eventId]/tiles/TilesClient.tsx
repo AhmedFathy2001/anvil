@@ -121,6 +121,10 @@ interface Props {
   // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
   // authoring surface renders disabled.
   editLocked?: boolean;
+  /** "Also hide from event staff" keeps this viewer out (lib/raceHideAhead): locked tiles stay shut. */
+  staffHideLocked?: boolean;
+  /** The clan owner (or platform owner): may switch "Also hide from event staff" on or off. */
+  canChangeStaffHide?: boolean;
 }
 
 /**
@@ -139,7 +143,7 @@ function useHasRoomForInspector(): boolean {
   return wide;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true, missionsEnabled = true, cofferAvailable = null, canLab = false }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true, missionsEnabled = true, cofferAvailable = null, canLab = false, staffHideLocked = false, canChangeStaffHide = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The board itself.
@@ -148,7 +152,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
   // Opening another tile or closing the editor throws away an open tile's unsaved edits: ask first.
   const leaveGuard = useLeaveGuard();
-  const openTileGuarded = (id: number | null) => leaveGuard(() => setEditingTileId(id));
+  const openTileGuarded = (id: number | null) => {
+    // A tile this viewer only sees as a locked "?" (lib/raceHideAhead) has nothing to open.
+    if (id != null && tiles.some((t) => t.id === id && t.raceHidden)) {
+      notify('This tile is hidden from event staff until a team can reach it. The clan owner and this board’s tile editors can open it.', 'error');
+      return;
+    }
+    leaveGuard(() => setEditingTileId(id));
+  };
   const [importing, setImporting] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   // Which generator dialog the Add tiles menu has open, if any.
@@ -1223,6 +1234,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             isAdmin={isAdmin}
             raceBank={eventRules.raceBank}
             raceRoad={eventRules.raceRoad}
+            raceHideAhead={eventRules.raceHideAhead}
+            standingsHidden={eventRules.standings.visibility !== 'live'}
+            staffHideLocked={staffHideLocked}
+            canChangeStaffHide={canChangeStaffHide}
             onTileCreated={(tile) => setLocalTiles((prev) => [...prev, tile])}
             onSaved={(update) => {
               setLocalTiles((prev) =>
