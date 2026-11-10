@@ -207,7 +207,7 @@ export default function CreatorHome({
   return (
     <div className="mx-auto max-w-5xl" style={accentStyle(view.accent)}>
       {/* The banner, or the space's colour as a board grid when there is none. */}
-      <div className="relative aspect-[3/1] max-h-[320px] w-full overflow-hidden rounded-3xl border border-card-border bg-[var(--sa-deep)]">
+      <div className="relative aspect-[3/1] w-full overflow-hidden rounded-3xl border border-card-border bg-[var(--sa-deep)]">
         {view.bannerUrl ? (
           <MotionImg src={view.bannerUrl} className="h-full w-full object-cover" style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }} />
         ) : (
