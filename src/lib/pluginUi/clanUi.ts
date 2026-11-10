@@ -91,6 +91,21 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
     ], { gap: 4 }));
   }
+  if (c.supporters && c.supporters.count > 0) {
+    // Who keeps Anvil running, where clanmates look every day. Names carry their own flair (`who`).
+    const names = c.supporters.names;
+    const pairs: Node[] = [];
+    for (let i = 0; i < names.length; i += 2) {
+      const one = (rsn: string | undefined) => (rsn ? text(rsn, 'white', { who: rsn, font: 'small', on: { a: 'lookup', rsn }, tip: `Look up ${rsn}` }) : undefined);
+      pairs.push(row(one(names[i]), undefined, one(names[i + 1]), { pad: 2 }));
+    }
+    const more = c.supporters.count - names.length;
+    parts.push(section([
+      row(title(`Supporters · ${fmt(c.supporters.count)}`, '#ffd35c'), undefined, small('keep Anvil running', 'muted')),
+      ...pairs,
+      ...(more > 0 ? [small(`+${fmt(more)} more`, 'muted')] : []),
+    ], { gap: 4 }));
+  }
   if (c.highlights.length) {
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.
     const quick = col(
