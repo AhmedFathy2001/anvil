@@ -49,6 +49,8 @@ export async function endMembership(clan: { id: number; kind: string; plan: stri
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
       trialEndsAt: null,
+      // Clan tenure: the run waits out the grace (lib/clanTenure runOnPaid) before it's gone.
+      paidEndedAt: new Date().toISOString(),
     })
     .where(eq(clans.id, clan.id));
   await logBilling(clan.id, 'billing_ended', { from: clan.plan, to: free.id, ...(reason ? { reason } : {}) }, notes);
