@@ -16,10 +16,11 @@ import { normalizeRsn } from '@/lib/auth';
 import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { checkSaleWithGumroad, type GumroadEvent } from '@/lib/gumroad';
 import { ensureSupporterRef, flairCharacterWhere } from '@/lib/supporter';
-import { PAID_GIFT_RECURRENCE, giftOptionName, giverRank, parseGiftOption, type GiverRank } from '@/lib/supporterGiftPurchase';
+import { GIFT_OPTIONS, PAID_GIFT_RECURRENCE, giftBlocked, giftOptionName, giftStartsAt, giverRank, parseGiftOption, type GiftLength, type GiverRank } from '@/lib/supporterGiftPurchase';
+import { ttlMemo } from '@/lib/ttlMemo';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 import { announceGift } from '@/lib/supporterMoments';
-import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
+import { SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
 
 type Result = { status: number; body: Record<string, unknown> };
 const ok = (body: Record<string, unknown> = {}): Result => ({ status: 200, body: { received: true, ...body } });
@@ -59,16 +60,65 @@ export async function giftRecipient(rsn: string, buyerUserId: number): Promise<G
   return { userId: login.id, playerId: char.playerId, name: char.name };
 }
 
-/** The checkout for a gift to `recipient`, paid by `buyerUserId`. */
-export async function createGiftIntent(buyerUserId: number, recipient: GiftRecipient): Promise<string | null> {
+/** Everything the recipient holds or is owed, across all their logins (giftBlocked / giftStartsAt read it). */
+async function recipientRows(userId: number) {
+  const login = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { playerId: true } });
+  return db
+    .select({ tier: supporterSubscriptions.tier, status: supporterSubscriptions.status, recurrence: supporterSubscriptions.recurrence, currentPeriodEnd: supporterSubscriptions.currentPeriodEnd })
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
+    .where(login?.playerId != null ? eq(users.playerId, login.playerId) : eq(users.id, userId));
+}
+
+/** Each option on sale for this recipient: its price, and why it can't be bought for them (or null). */
+export async function giftOptionsFor(recipient: GiftRecipient): Promise<{ tier: SupporterTierId; months: GiftLength; name: string; usd: number; blocked: string | null }[]> {
+  const rows = await recipientRows(recipient.userId);
+  return GIFT_OPTIONS.map((o) => ({ ...o, blocked: giftBlocked(rows, o.tier) }));
+}
+
+/**
+ * The Gumroad id of each option, by name, read from the product's own variants (cached an hour), so
+ * the checkout opens on the option picked here. Empty when Gumroad can't be asked: the sale is still
+ * checked against the choice.
+ */
+function giftOptionIds(): Promise<Map<string, string>> {
+  return ttlMemo('gift-option-ids', async () => {
+    const token = process.env.GUMROAD_ACCESS_TOKEN;
+    const product = process.env.GUMROAD_PRODUCT_SUPPORTER_GIFT;
+    const out = new Map<string, string>();
+    if (!token || !product) return out;
+    const api = (path: string) =>
+      fetch(`https://api.gumroad.com/v2/products/${encodeURIComponent(product)}${path}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8_000) })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null) as Promise<Record<string, unknown> | null>;
+    const cats = (await api('/variant_categories'))?.variant_categories as { id: string }[] | undefined;
+    for (const c of cats ?? []) {
+      const vs = (await api(`/variant_categories/${encodeURIComponent(c.id)}/variants`))?.variants as { id: string; name: string }[] | undefined;
+      for (const v of vs ?? []) out.set(v.name, v.id);
+    }
+    return out;
+  }, 60 * 60_000);
+}
+
+/** The checkout for a gift of `tier` for `months` to `recipient`, paid by `buyerUserId`; or why not. */
+export async function createGiftIntent(
+  buyerUserId: number,
+  recipient: GiftRecipient,
+  tier: SupporterTierId,
+  months: GiftLength,
+): Promise<{ url: string } | { error: string } | null> {
   const base = process.env.GUMROAD_URL_SUPPORTER_GIFT;
   if (!base) return null;
+  const blocked = giftBlocked(await recipientRows(recipient.userId), tier);
+  if (blocked) return { error: blocked };
   const token = randomBytes(18).toString('base64url');
-  await db.insert(supporterGiftIntents).values({ token, buyerUserId, recipientUserId: recipient.userId });
+  await db.insert(supporterGiftIntents).values({ token, buyerUserId, recipientUserId: recipient.userId, tier, months });
   const url = new URL(base);
   url.searchParams.set('gift', token);
   url.searchParams.set('ref', await ensureSupporterRef(buyerUserId));
-  return url.toString();
+  const option = (await giftOptionIds().catch(() => new Map<string, string>())).get(giftOptionName(tier, months));
+  if (option) url.searchParams.set('option', option);
+  return { url: url.toString() };
 }
 
 /** Apply one gift-product notification. */
@@ -97,13 +147,17 @@ export async function handleGiftEvent(ev: GumroadEvent): Promise<Result> {
   const intent = ev.urlParams.gift
     ? await db.query.supporterGiftIntents.findFirst({ where: eq(supporterGiftIntents.token, ev.urlParams.gift) })
     : undefined;
-  if (!option || !intent || intent.usedSaleId) {
+  // Bought something other than what was picked here (the option is changeable on Gumroad): held, so a
+  // blocked choice can't sneak through.
+  const mismatch = !!intent?.tier && (!option || option.tier !== intent.tier || option.months !== intent.months);
+  if (!option || !intent || intent.usedSaleId || mismatch) {
     console.warn('[supporter-gift] cannot apply', { sale: ev.saleId, option: ev.tier, intent: !!intent, used: intent?.usedSaleId ?? null });
     await recordUnmatchedPurchase(ev, { kind: 'supporter', reason: 'no-buyer' }).catch(() => {});
     return ok({ note: 'gift held for staff' });
   }
 
-  const start = new Date();
+  // On top of time already granted to them at this tier or above, it starts when that runs out.
+  const start = new Date(giftStartsAt(await recipientRows(intent.recipientUserId), option.tier));
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + option.months);
   const created = await db.transaction(async (tx) => {

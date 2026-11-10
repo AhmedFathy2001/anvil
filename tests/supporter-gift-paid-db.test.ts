@@ -56,7 +56,9 @@ test('a gift lands on the recipient once, counts for the giver, and a refund tak
   const { giftRecipient, createGiftIntent, giftedMonthsFor } = await import('../src/lib/supporterGiftCheckout.ts');
   const who = await giftRecipient('lucky lad', buyer.id);
   assert.ok(!('error' in who));
-  const url = new URL((await createGiftIntent(buyer.id, who as Exclude<typeof who, { error: string }>))!);
+  const made = await createGiftIntent(buyer.id, who as Exclude<typeof who, { error: string }>, 'champion', 3);
+  assert.ok(made && 'url' in made);
+  const url = new URL((made as { url: string }).url);
   const token = url.searchParams.get('gift')!;
   assert.ok(token && url.searchParams.get('ref'));
 
@@ -96,4 +98,33 @@ test('a sale with no gift token or an unknown option is held, never granted', as
   await post({ sale_id: 'gift-sale-x', 'variants[Gift]': 'Champion · 3 months' });
   await post({ sale_id: 'gift-sale-y', 'url_params[gift]': 'nope', 'variants[Gift]': 'Gold · 1 month' });
   assert.equal((await db.select().from(s.supporterSubscriptions)).length, before);
+});
+
+test('a tier they pay for is blocked, an upgrade is not, a different option bought is held, and gifts stack', async () => {
+  const { db, schema: s } = await loadDb();
+  const buyer = await person('Stack Buyer');
+  const patron = await person('Pay Patron');
+  await db.insert(s.supporterSubscriptions).values({ userId: patron.id, tier: 'champion', status: 'active', recurrence: 'monthly', startedAt: new Date().toISOString() });
+  const { giftRecipient, giftOptionsFor, createGiftIntent } = await import('../src/lib/supporterGiftCheckout.ts');
+  const who = (await giftRecipient('pay patron', buyer.id)) as { userId: number; playerId: number; name: string };
+  const opts = await giftOptionsFor(who);
+  assert.ok(opts.find((o) => o.tier === 'champion')!.blocked, 'they pay for Champion');
+  assert.ok(opts.find((o) => o.tier === 'supporter')!.blocked);
+  assert.equal(opts.find((o) => o.tier === 'patron')!.blocked, null, 'Patron upgrades them');
+  assert.ok('error' in (await createGiftIntent(buyer.id, who, 'champion', 1))!);
+
+  // Chose Patron · 1 month here, bought Patron · 1 year on Gumroad: held, not granted.
+  const odd = new URL(((await createGiftIntent(buyer.id, who, 'patron', 1)) as { url: string }).url).searchParams.get('gift')!;
+  await post({ sale_id: 'gift-odd', 'url_params[gift]': odd, 'variants[Gift]': 'Patron · 1 year' });
+  const granted = async () => db.select().from(s.supporterSubscriptions).where(eq(s.supporterSubscriptions.userId, patron.id));
+  assert.equal((await granted()).filter((r) => r.status === 'granted').length, 0);
+
+  // Two Patron months: back to back.
+  for (const sale of ['gift-st1', 'gift-st2']) {
+    const tok = new URL(((await createGiftIntent(buyer.id, who, 'patron', 1)) as { url: string }).url).searchParams.get('gift')!;
+    await post({ sale_id: sale, 'url_params[gift]': tok, 'variants[Gift]': 'Patron · 1 month' });
+  }
+  const gifts = (await granted()).filter((r) => r.status === 'granted').sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  assert.equal(gifts.length, 2);
+  assert.equal(gifts[1].startedAt, gifts[0].currentPeriodEnd, 'the second starts when the first ends');
 });

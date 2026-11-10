@@ -57,3 +57,45 @@ export function giverRank(months: number): { rank: GiverRank | null; next: Giver
   const next = GIVER_RANKS.find((r) => months < r.months) ?? null;
   return { rank, next };
 }
+
+/** The rows that matter for a gift: the recipient's own memberships and time already granted to them. */
+export interface GiftTargetRow {
+  tier: string;
+  status: string;
+  recurrence?: string | null;
+  currentPeriodEnd: string | null;
+}
+
+const rankOf = (t: string) => (t in SUPPORTER_TIERS ? SUPPORTER_TIERS[t as SupporterTierId].rank : 0);
+const endOf = (r: GiftTargetRow) => (r.currentPeriodEnd ? Date.parse(r.currentPeriodEnd) : NaN);
+
+/**
+ * Why this gift can't be bought for them right now, or null. A tier they already PAY for (or a lower
+ * one) would do nothing while their subscription runs, and Gumroad can't move their billing date, so
+ * it waits until theirs ends. A gift above what they pay upgrades them for its length.
+ */
+export function giftBlocked(rows: GiftTargetRow[], tier: SupporterTierId, now = Date.now()): string | null {
+  let paying: SupporterTierId | null = null;
+  for (const r of rows) {
+    if (!(r.tier in SUPPORTER_TIERS)) continue;
+    const live = r.status === 'active' || (r.status === 'cancelling' && !(endOf(r) <= now));
+    if (!live) continue;
+    if (!paying || rankOf(r.tier) > rankOf(paying)) paying = r.tier as SupporterTierId;
+  }
+  if (!paying || rankOf(tier) > rankOf(paying)) return null;
+  return `They already pay for ${SUPPORTER_TIERS[paying].name}. Gift a higher tier to upgrade them, or this one once their subscription ends.`;
+}
+
+/**
+ * When a new gift starts: now, or, on top of time already granted to them at this tier or above (a
+ * gift, invite time), the moment that runs out. Two Patron months are back to back, not side by side.
+ */
+export function giftStartsAt(rows: GiftTargetRow[], tier: SupporterTierId, now = Date.now()): number {
+  let start = now;
+  for (const r of rows) {
+    if (r.status !== 'granted' || rankOf(r.tier) < rankOf(tier)) continue;
+    const end = endOf(r);
+    if (end > start) start = end;
+  }
+  return start;
+}
