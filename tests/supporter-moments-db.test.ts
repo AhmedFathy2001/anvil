@@ -46,6 +46,10 @@ test('a gift posts once in the clan both share, under the buyer, naming the reci
   assert.equal(rows[0].kind, 'milestone');
   assert.equal(rows[0].sourceKind, 'gift');
   assert.equal(rows[0].itemName, 'gifted Gift Friend 3 months of Anvil Champion');
+  // The recipient said "don't announce me": no post for a second gift.
+  const shy = await member(clan.id, 'Shy Friend', { announce: false });
+  await announceGift('sale-m2', buyer.user.id, shy.user.id, 1, 'Supporter');
+  assert.equal((await db.select().from(s.moments).where(eq(s.moments.clanMemberId, buyer.seat.id))).length, 1, 'recipient opted out');
   const { milestoneSentence } = await import('../src/lib/milestoneMoments.ts');
   assert.equal(milestoneSentence(rows[0] as Parameters<typeof milestoneSentence>[0]), 'gifted Gift Friend 3 months of Anvil Champion');
 });

@@ -172,7 +172,7 @@ export async function sweepSupporterMoments(): Promise<{ tenure: number; streaks
 
 /**
  * A gift just landed: "X gifted Y 3 months of Supporter" in every clan where both are members, and
- * in the Anvil Discord. Skipped for a buyer who turned off "announce me". Never throws.
+ * in the Anvil Discord. Skipped when either of them turned off "announce me" on any login. Never throws.
  */
 export async function announceGift(saleId: string, buyerUserId: number, recipientUserId: number, months: number, tierName: string): Promise<void> {
   try {
@@ -180,7 +180,14 @@ export async function announceGift(saleId: string, buyerUserId: number, recipien
       db.query.users.findFirst({ where: eq(users.id, buyerUserId), columns: { playerId: true, announceSupporter: true } }),
       db.query.users.findFirst({ where: eq(users.id, recipientUserId), columns: { playerId: true } }),
     ]);
-    if (!buyer?.playerId || !recipient?.playerId || !buyer.announceSupporter) return;
+    if (!buyer?.playerId || !recipient?.playerId) return;
+    // Both people's choice, on every one of their logins: either saying "don't announce me" is no post.
+    const optedOut = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(inArray(users.playerId, [buyer.playerId, recipient.playerId]), eq(users.announceSupporter, false)))
+      .limit(1);
+    if (optedOut.length) return;
     const seats = await publicSeatsOf([buyer.playerId, recipient.playerId]);
     const theirs = seats.get(recipient.playerId) ?? [];
     const length = months === 12 ? 'a year' : `${months} month${months === 1 ? '' : 's'}`;
