@@ -153,12 +153,16 @@ function fuzzyEdits(words: string[], qy: Query, dist: Map<string, number>[]): nu
   return total;
 }
 
+const MAX_QUERY = 64;
+const MAX_WORDS = 6;
+
 /** Ranked matches for `query` over a prebuilt index. */
 export function searchIndex<T>(index: SearchIndex<T>, query: string, opts: FuzzyOptions<T> = {}): FuzzyHit<T>[] {
   const limit = opts.limit ?? 20;
   const queries: Query[] = [];
   for (const raw of [query, ...(opts.alternates ?? [])]) {
-    const q = normalizeName(raw);
+    // Bounded work per request: no real name is longer than this, and the routes pass ?q= straight in.
+    const q = normalizeName(raw.slice(0, MAX_QUERY)).split(' ').slice(0, MAX_WORDS).join(' ');
     if (q && !queries.some((x) => x.q === q)) queries.push({ q, words: q.split(' ') });
   }
   if (queries.length === 0) return [];
