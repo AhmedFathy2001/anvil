@@ -59,6 +59,15 @@ async function loadWall(): Promise<SupporterWall> {
     const pid = list[0].playerId;
     if (pid != null && list.every((r) => r.wall)) shown.set(pid, state);
   }
+  // The opt-out is the PERSON's: any of their logins saying no takes them off, including a login
+  // with no subscription row of its own (the read above only sees logins that pay).
+  if (shown.size > 0) {
+    const out = await db
+      .select({ playerId: users.playerId })
+      .from(users)
+      .where(and(inArray(users.playerId, [...shown.keys()]), eq(users.supporterWall, false)));
+    for (const o of out) if (o.playerId != null) shown.delete(o.playerId);
+  }
   if (shown.size === 0) return { total, entries: [] };
 
   const chars = await db

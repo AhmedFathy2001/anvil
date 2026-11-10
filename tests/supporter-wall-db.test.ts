@@ -45,9 +45,15 @@ test('every supporter is on the wall by default, longest first; opted-out and hi
   await supporter('Newbie', { months: 0 });
   await supporter('Hidden One', { months: 10, shared: false });
   const quiet = await supporter('Quiet One', { months: 20, wall: false });
+  // Opted out on a SECOND login with no subscription of its own: still off the wall.
+  const two = await supporter('Two Logins', { months: 5 });
+  {
+    const { db, schema: s } = await loadDb();
+    await db.insert(s.users).values({ displayName: 'Two alt', discordId: 'wall-alt', playerId: two.playerId, supporterWall: false });
+  }
   const { supporterWall } = await import('../src/lib/supporterWall.ts');
   const w = await supporterWall();
-  assert.equal(w.total, 4);
+  assert.equal(w.total, 5);
   assert.deepEqual(w.entries.map((e) => e.name), ['Old Timer', 'Newbie']);
   assert.equal(w.entries[0].tenure?.id, 'legend');
   // Opting out is the users column; the wall is cached, so this only checks the column round-trips.
