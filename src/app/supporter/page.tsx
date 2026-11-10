@@ -1,5 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { supporterWall, type SupporterWall } from '@/lib/supporterWall';
+import { giftCheckoutConfigured, topGivers, type TopGiver } from '@/lib/supporterGiftCheckout';
 import { SupporterStar } from '@/components/SupporterName';
 import { TENURE_LADDER } from '@/lib/supporterTiers';
 import { REFERRAL_COOKIE } from '@/lib/referrals';
@@ -87,6 +88,11 @@ export default async function SupporterPage() {
   const configured = !!process.env.GUMROAD_URL_SUPPORTER;
   // Decoration: a failed read is a page without the wall.
   const wall = await supporterWall().catch(() => ({ total: 0, entries: [] }));
+  // "This season" = this calendar quarter, so the row resets and someone new can top it.
+  const now = new Date();
+  const seasonStart = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth() / 3) * 3, 1)).toISOString();
+  const givers = await topGivers(seasonStart).catch(() => []);
+  const gifts = giftCheckoutConfigured();
   // For a supporter: a note from Ahmed, and "Join the Anvil Discord" when they aren't in it yet.
   const [contactId, inAnvilServer] = current && session
     ? await Promise.all([
@@ -198,6 +204,16 @@ export default async function SupporterPage() {
         </table>
       </div>
 
+      {gifts && (
+        <p className="mt-6 text-center text-[14px]">
+          <ClanLink href="/supporter/gift" className="font-medium text-[#ff9cc8] hover:text-[#ffc2de]">
+            Gift Supporter to a clanmate. You pay once, it never renews →
+          </ClanLink>
+        </p>
+      )}
+
+      {givers.length > 0 && <TopGivers givers={givers} />}
+
       {wall.entries.length > 0 && <Wall wall={wall} />}
 
       <p className="mt-6 text-center text-[13px] text-text-dim">
@@ -303,6 +319,35 @@ function Wall({ wall }: { wall: SupporterWall }) {
       <p className="mt-2 text-[12px] text-text-dim">
         Supporters show under a character they share publicly. Anyone can leave the wall in Settings → Supporter.
       </p>
+    </section>
+  );
+}
+
+/** This season's biggest givers: months bought for other people, never money. */
+function TopGivers({ givers }: { givers: TopGiver[] }) {
+  return (
+    <section className="mt-12" aria-labelledby="top-givers">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="h-5 w-1 self-center rounded bg-[#ff7ab8]" aria-hidden />
+        <h2 id="top-givers" className="text-lg font-semibold">
+          Top givers this season
+        </h2>
+        <span className="text-[13px] text-text-muted">months gifted to other players</span>
+      </div>
+      <ol className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {givers.map((g, i) => (
+          <li key={g.name} className={`rounded-xl border bg-card-bg p-4 ${i === 0 ? 'border-[#ff7ab8]/60' : 'border-card-border'}`}>
+            <p className="text-[12px] text-text-muted">
+              #{i + 1}
+              {g.rank ? ` · ${g.rank.name}` : ''}
+            </p>
+            <p className="mt-1 truncate font-semibold">{g.name}</p>
+            <p className="mt-1 text-[13px]">
+              <span className="font-bold text-[#ff7ab8]">{g.months}</span> month{g.months === 1 ? '' : 's'} to {g.people} player{g.people === 1 ? '' : 's'}
+            </p>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

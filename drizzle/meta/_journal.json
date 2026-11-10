@@ -1352,6 +1352,13 @@
       "when": 1794540067077,
       "tag": "0255_supporter_wall",
       "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1794540068226,
+      "tag": "0256_supporter_paid_gifts",
+      "breakpoints": true
     }
   ]
 }

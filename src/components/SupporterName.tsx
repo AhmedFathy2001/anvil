@@ -49,7 +49,7 @@ export default function SupporterName({
       {!star ? null : plain ? (
         <SupporterStar stops={stops} color={solid} tenure={tenure?.id} />
       ) : (
-        <SupporterFlairPopover tier={tier} tenure={tenure}>
+        <SupporterFlairPopover tier={tier} tenure={tenure} name={name}>
           <SupporterStar decorative stops={stops} color={solid} tenure={tenure?.id} />
         </SupporterFlairPopover>
       )}

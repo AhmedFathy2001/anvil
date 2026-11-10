@@ -9,6 +9,7 @@ import SupporterWallToggle from '@/components/SupporterWallToggle';
 import SupporterStylePicker from '@/components/SupporterStylePicker';
 import SupporterCharacterStyles from '@/components/SupporterCharacterStyles';
 import type { SupporterStyle } from '@/lib/supporterStyle';
+import { giverRank } from '@/lib/supporterGiftPurchase';
 import { tenureFor, tenureLabel, type SupporterState, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
 
 /** What the profile needs to show someone's Supporter status (serialisable for client islands). */
@@ -73,6 +74,7 @@ export default function SupporterSection({
   announce = null,
   gameChat = null,
   wall = null,
+  gifted = 0,
   characters = [],
   bare = false,
 }: {
@@ -86,6 +88,8 @@ export default function SupporterSection({
   gameChat?: boolean | null;
   /** On the public supporters wall (users.supporter_wall); null hides the toggle. */
   wall?: boolean | null;
+  /** Months they've bought for other people (lib/supporterGiftCheckout): the giver ladder. */
+  gifted?: number;
   /** Linked RuneScape characters and their own flair overrides. */
   characters?: { accountId: number; rsn: string; style: SupporterStyle | null }[];
   /** Their own display name, previewed in each tier's flair. */
@@ -135,6 +139,7 @@ export default function SupporterSection({
           </div>
         </div>
         {invite && <InviteCard invite={invite} />}
+        <GiverCard months={gifted} />
         <DiscordCard announce={announce} />
       </section>
     );
@@ -201,6 +206,7 @@ export default function SupporterSection({
         {wall != null && <SupporterWallToggle initial={wall} />}
       </div>
       {invite && <InviteCard invite={invite} />}
+        <GiverCard months={gifted} />
       <DiscordCard announce={announce} />
     </section>
   );
@@ -303,6 +309,30 @@ function DiscordCard({ announce }: { announce: boolean | null }) {
         Join the Anvil Discord
       </a>
       {announce != null && <SupporterAnnounceToggle initial={announce} />}
+    </div>
+  );
+}
+
+/** Months given to other people, the giver rank they make, and the way to give more. */
+function GiverCard({ months }: { months: number }) {
+  const { rank, next } = giverRank(months);
+  return (
+    <div className="mt-4 rounded-xl border border-card-border bg-card-bg p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">
+          {rank ? <span className="text-[#ff9cc8]">{rank.name}</span> : 'Gift Supporter'}
+          {months > 0 && <span className="font-normal text-text-muted"> · {months} month{months === 1 ? '' : 's'} given</span>}
+        </p>
+        <ClanLink href="/supporter/gift" className="text-[13px] font-medium text-[#ff9cc8] hover:text-[#ffc2de]">
+          Gift a clanmate →
+        </ClanLink>
+      </div>
+      <p className="mt-1 text-[13px] text-text-muted">
+        {next
+          ? `${next.months - months} more month${next.months - months === 1 ? '' : 's'} given makes you ${next.name}.`
+          : 'The top giver rank. Thank you.'}{' '}
+        A gift is paid once and never renews.
+      </p>
     </div>
   );
 }

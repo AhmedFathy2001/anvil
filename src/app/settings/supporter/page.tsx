@@ -1,5 +1,6 @@
 import { desc, eq } from 'drizzle-orm';
 
+import { giftedMonthsFor } from '@/lib/supporterGiftCheckout';
 import { db } from '@/db';
 import { accounts, users } from '@/db/schema';
 import { supporterForUser } from '@/lib/supporter';
@@ -36,7 +37,7 @@ const TIER_NAME: Record<SupporterTierId, string> = { supporter: 'Supporter', cha
 
 export default async function SupporterSettingsPage() {
   const session = await settingsSession();
-  const [user, supporter, referral, boosts, characters] = await Promise.all([
+  const [user, supporter, referral, boosts, characters, gifted] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     supporterForUser(session.userId),
     referralSummary(session.userId).catch(() => null),
@@ -45,6 +46,7 @@ export default async function SupporterSettingsPage() {
       ? db.select({ accountId: accounts.id, rsn: accounts.rsn, style: accounts.supporterStyle })
           .from(accounts).where(eq(accounts.playerId, session.playerId)).orderBy(desc(accounts.isPrimary), accounts.rsn)
       : Promise.resolve([]),
+    giftedMonthsFor([session.userId]).then((m) => m.get(session.userId) ?? 0).catch(() => 0),
   ]);
   const tier = supporter?.tier.id ?? null;
 
@@ -91,6 +93,7 @@ export default async function SupporterSettingsPage() {
         announce={user?.announceSupporter ?? true}
         gameChat={user?.gameChatFlair ?? true}
         wall={user?.supporterWall ?? true}
+        gifted={gifted}
         characters={characters.map((c) => ({ ...c, style: parseSupporterStyle(c.style) }))}
         invite={
           referral && process.env.GUMROAD_URL_SUPPORTER
