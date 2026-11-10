@@ -1,4 +1,7 @@
 import { headers } from 'next/headers';
+import SupporterName from '@/components/SupporterName';
+import { clanHeats, streakWeeksFor } from '@/lib/activityStreaks';
+import { supporterLooksByName } from '@/lib/supporter';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -143,6 +146,13 @@ export default async function LeaderboardPage({
 
   const hasNext = playerRows.length > PER_PAGE;
   const players = hasNext ? playerRows.slice(0, PER_PAGE) : playerRows;
+  // Decoration on the rows: Supporter flair (with tenure), weekly streaks, clan heat. A failed read
+  // is a plain table, never a broken one.
+  const [looks, streaks, heats] = await Promise.all([
+    supporterLooksByName(players.map((p) => p.rsn)).catch(() => ({}) as Awaited<ReturnType<typeof supporterLooksByName>>),
+    streakWeeksFor(players.map((p) => p.accountId)).catch(() => new Map<number, number>()),
+    clanHeats(clanRows.map((c) => c.clanId)).catch(() => new Map<number, number>()),
+  ]);
 
   // Ordered by experience because a table needs an order, not because it is the most interesting
   // column — the other two axes are drawn on every row rather than sorted by.
@@ -264,7 +274,7 @@ export default async function LeaderboardPage({
                   href={`/p/${encodeURIComponent(p.rsn)}`}
                   className="relative min-w-0 truncate text-[14px] hover:text-gold"
                 >
-                  {p.rsn}
+                  <SupporterName name={p.rsn} tier={looks[p.rsn]?.tier} style={looks[p.rsn]?.style} tenure={looks[p.rsn]?.tenure} plain />
                 </ClanLink>
                 {accountTypeBadge(p.accountType) && (
                   <span
@@ -282,7 +292,12 @@ export default async function LeaderboardPage({
                     {p.clanName}
                   </ClanLink>
                 )}
-                <span className="relative ml-auto shrink-0 font-mono text-[13px] tabular-nums">
+                {streaks.get(p.accountId) && (
+                  <span className="relative ml-auto shrink-0 font-mono text-[11.5px] font-semibold text-[#ff8a3d] tabular-nums" title="Weekly activity streak">
+                    {streaks.get(p.accountId)}wk
+                  </span>
+                )}
+                <span className={`relative ${streaks.get(p.accountId) ? '' : 'ml-auto '}shrink-0 font-mono text-[13px] tabular-nums`}>
                   {compact(p.xpGained)}
                 </span>
               </li>
@@ -346,7 +361,7 @@ export default async function LeaderboardPage({
           it is; how much of the roster turned up, and how much of that was bossing, are what make two
           clans of the same size completely different places to be.
         </p>
-        <ClanShapes rows={clans} />
+        <ClanShapes rows={clans} heat={Object.fromEntries(heats)} />
       </section>
     </div>
   );

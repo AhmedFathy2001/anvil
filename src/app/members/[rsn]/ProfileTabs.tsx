@@ -205,6 +205,7 @@ export default function ProfileTabs({
   moments,
   reactions,
   accountProgress,
+  records,
   initial,
   bossPages,
 }: {
@@ -227,6 +228,8 @@ export default function ProfileTabs({
   reactions?: SiteReactions;
   /** Quests / diaries / combat achievements, drawn game-style. Rendered above the log. */
   accountProgress?: React.ReactNode;
+  /** Best day / week / month / year (components/records/RecordsCard), at the top of the Records tab. */
+  records?: React.ReactNode;
   /** Where to open — from the URL (`?tab=&stat=&page=`), so a tab, a stat view or a log page links. */
   initial?: ProfileLinkState;
   /** Boss key → its collection log page, so a boss in the stats links to its log. */
@@ -681,6 +684,7 @@ export default function ProfileTabs({
 
       {tab === 'records' && (
         <>
+        {records}
         {/* What they've done LATELY. A record only feels like one when you can see it happen: four
             static lists said what this player has ever managed and nothing about this week. */}
         {recentFeed.length > 0 && (

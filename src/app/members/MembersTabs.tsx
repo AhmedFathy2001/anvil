@@ -98,7 +98,7 @@ export default function MembersTabs({
 
       {tab === 'roster' && (
         <>
-          <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} />
+          <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} heat={heatOf(members, streaks)} />
           <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} initialSort={initialSort} streaks={streaks} />
         </>
       )}
@@ -111,4 +111,12 @@ export default function MembersTabs({
       {tab === 'lately' && lately}
     </>
   );
+}
+
+/** Clan heat from the streaks the page already has: members (not guests) on a weekly streak. */
+function heatOf(members: MemberListRow[], streaks: Record<string, number>): { on: number; pct: number } | null {
+  const roster = members.filter((m) => !m.isGuest);
+  if (roster.length === 0) return null;
+  const on = roster.filter((m) => (streaks[m.rsn] ?? 0) > 0).length;
+  return { on, pct: Math.round((on / roster.length) * 100) };
 }

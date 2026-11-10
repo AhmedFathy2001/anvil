@@ -71,12 +71,14 @@ async function loadWall(): Promise<SupporterWall> {
   if (shown.size === 0) return { total, entries: [] };
 
   const chars = await db
-    .select({ playerId: accounts.playerId, rsn: accounts.rsn })
+    .select({ playerId: accounts.playerId, rsn: accounts.rsn, status: accounts.status, isPrimary: accounts.isPrimary })
     .from(accounts)
     .where(and(inArray(accounts.playerId, [...shown.keys()]), isNotNull(accounts.playerId), flairCharacterWhere()));
-  // The first public character by name: a stable pick, so the wall doesn't shuffle names.
+  // Their main when it's in good standing, else any active character, a banned/unranked one only as a
+  // last resort; then by name, a stable pick so the wall doesn't shuffle.
+  const rank = (c: (typeof chars)[number]) => (c.status === 'active' ? 2 : 0) + (c.isPrimary ? 1 : 0);
   const nameOf = new Map<number, string>();
-  for (const c of chars.sort((a, b) => a.rsn.localeCompare(b.rsn))) if (!nameOf.has(c.playerId)) nameOf.set(c.playerId, c.rsn);
+  for (const c of chars.sort((a, b) => rank(b) - rank(a) || a.rsn.localeCompare(b.rsn))) if (!nameOf.has(c.playerId)) nameOf.set(c.playerId, c.rsn);
 
   const entries: WallEntry[] = [];
   for (const [pid, state] of shown) {
