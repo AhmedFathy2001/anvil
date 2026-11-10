@@ -54,3 +54,13 @@ test('wrap: proofs, then set prizes, then pay them, then done', () => {
   assert.match(nextStep({ ...base, stage: 'wrap', payoutCount: 3, surveyMissing: true }).body, /survey/);
   assert.doesNotMatch(nextStep({ ...base, stage: 'wrap', payoutCount: 3 }).body, /survey/);
 });
+
+test('a tile race is built on its map: the next step opens the race map, with the list beside it', () => {
+  const empty = nextStep({ ...base, tileCount: 0, race: true });
+  assert.equal(empty.title, 'Lay out your race');
+  assert.deepEqual(empty.action, { kind: 'link', label: 'Open the race map', tab: 'tiles?view=map' });
+  assert.equal(empty.alt?.tab, 'tiles?view=list');
+  assert.match(nextStep({ ...base, tileCount: 20, race: true }).title, /Write 5 more tiles/);
+  // A finished race board moves on like any other.
+  assert.equal(nextStep({ ...base, race: true }).title, nextStep(base).title);
+});

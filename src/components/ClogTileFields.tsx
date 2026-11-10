@@ -5,6 +5,8 @@ import { clanFetch } from '@/lib/clanFetch';
 import { clogTileSetupNote, type ClogTileMode } from '@/lib/clogTileWords';
 import { CheckboxBox } from '@/components/Checkbox';
 import { fuzzySearch } from '@/lib/fuzzySearch';
+import { bossIconUrl, itemIconUrl } from '@/lib/tileIcons';
+import ThingIcon from '@/components/ThingIcon';
 
 // The collection-log tile's own fields in the tile editor (lib/clogTiles). Pages are a shortcut for
 // picking items: adding a page ticks every item on it, untick any to leave it out, and items from
@@ -147,7 +149,8 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
           <ul className="mt-1 rounded border border-card-border bg-card-bg divide-y divide-card-border">
             {matches.map((p) => (
               <li key={p}>
-                <button type="button" onClick={() => addPage(p)} className="w-full min-h-10 text-left px-3 text-sm hover:bg-gold/10">
+                <button type="button" onClick={() => addPage(p)} className="w-full min-h-10 text-left px-3 text-sm hover:bg-gold/10 flex items-center gap-2.5">
+                  <ThingIcon src={bossIconUrl(p)} alt={p} />
                   {p}
                 </button>
               </li>
@@ -161,7 +164,8 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
           return (
             <div key={page} className="mt-2 rounded border border-card-border bg-brown-dark/40">
               <div className="flex items-center justify-between gap-2 px-3 min-h-10">
-                <button type="button" onClick={() => setOpen(open === page ? null : page)} className="text-sm font-medium text-left flex-1">
+                <button type="button" onClick={() => setOpen(open === page ? null : page)} className="text-sm font-medium text-left flex-1 flex items-center gap-2">
+                  <ThingIcon src={bossIconUrl(page)} alt={page} size={20} />
                   {page} <span className="text-xs text-text-muted">· {on}/{items.length} items</span>
                 </button>
                 <button type="button" disabled={locked} onClick={() => removePage(page)} className="text-xs text-red-400 hover:text-red-300" aria-label={`Remove ${page}`}>
@@ -179,6 +183,7 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
                       <li key={it.id}>
                         <label className="flex items-center gap-2 min-h-8 text-xs">
                           <CheckboxBox disabled={locked} checked={chosen.has(it.id)} onChange={() => toggle(it.id)} />
+                          <ThingIcon src={itemIconUrl(it.id)} alt={it.name} size={20} />
                           <span className={chosen.has(it.id) ? '' : 'text-text-muted line-through'}>{it.name}</span>
                         </label>
                       </li>

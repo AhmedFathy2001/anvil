@@ -17,7 +17,8 @@ import RaidStep from './RaidStep';
 import CoursesStep from './CoursesStep';
 import ItemStep from './ItemStep';
 import ClogStep from './ClogStep';
-import { CheckIcon, Eyebrow, KindBadge, SearchIcon, StepHeader } from './parts';
+import { CheckIcon, Eyebrow, KindBadge, SearchIcon, StepHeader, candidateIcon } from './parts';
+import ThingIcon from '@/components/ThingIcon';
 
 type Screen =
   | { name: 'start' }
@@ -277,8 +278,9 @@ export default function TileCreator(props: TileCreatorProps) {
                     key={s.key}
                     type="button"
                     onClick={() => pick(s)}
-                    className="min-h-11 px-3 rounded-full border border-card-border hover:border-gold/50 text-sm"
+                    className="min-h-11 pl-1.5 pr-3 rounded-full border border-card-border hover:border-gold/50 text-sm inline-flex items-center gap-2"
                   >
+                    <ThingIcon src={candidateIcon(s)} alt={s.title} size={22} />
                     {s.title}
                   </button>
                 ))}
@@ -296,10 +298,12 @@ function ResultRow({ c, best = false, onPick }: { c: TaskCandidate; best?: boole
     <button
       type="button"
       onClick={() => onPick(c)}
-      className={`w-full min-h-11 text-left rounded-xl border px-3 py-2.5 transition-colors ${
+      className={`w-full min-h-11 text-left rounded-xl border px-3 py-2.5 transition-colors flex items-start gap-3 ${
         best ? 'border-gold/60 bg-gold/[0.07] hover:bg-gold/[0.12]' : 'border-card-border bg-card-bg hover:border-gold/50'
       }`}
     >
+      <ThingIcon src={candidateIcon(c)} alt={c.title} size={best ? 32 : 24} className="mt-0.5" />
+      <span className="flex-1 min-w-0">
       <span className="flex items-start justify-between gap-2">
         <span className={`${best ? 'text-base' : 'text-sm'} font-semibold`}>{c.title}</span>
         <KindBadge>{c.badge}</KindBadge>
@@ -307,6 +311,7 @@ function ResultRow({ c, best = false, onPick }: { c: TaskCandidate; best?: boole
       <span className={`mt-1 flex items-start gap-1.5 text-xs ${c.engine === 'screenshot' ? 'text-amber-200' : 'text-accent-green-light'}`}>
         {c.engine !== 'screenshot' && <CheckIcon className="mt-0.5 shrink-0" />}
         {c.hint}
+      </span>
       </span>
     </button>
   );
@@ -396,9 +401,10 @@ function BrowseList({
             <button
               type="button"
               onClick={() => onPick(c)}
-              className="w-full min-h-11 text-left rounded-lg border border-card-border bg-card-bg hover:border-gold/50 px-3 py-2 flex items-center justify-between gap-2"
+              className="w-full min-h-11 text-left rounded-lg border border-card-border bg-card-bg hover:border-gold/50 px-3 py-2 flex items-center gap-2.5"
             >
-              <span className="text-sm">{c.titleOne && c.amount === 1 ? c.titleOne : c.title}</span>
+              <ThingIcon src={candidateIcon(c)} alt={c.title} />
+              <span className="text-sm flex-1 min-w-0">{c.titleOne && c.amount === 1 ? c.titleOne : c.title}</span>
               <KindBadge>{c.badge}</KindBadge>
             </button>
           </li>

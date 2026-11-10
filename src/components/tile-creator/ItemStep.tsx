@@ -1,5 +1,7 @@
 'use client';
 
+import ThingIcon from '@/components/ThingIcon';
+import { itemIconUrl } from '@/lib/tileIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { howItCountsLine, itemTileConfig, type ItemHow, type ItemNeed } from '@/lib/tileCreatorConfig';
@@ -135,7 +137,8 @@ export default function ItemStep({
       <div className="rounded-xl border border-card-border bg-brown-dark/40 p-2 mb-2">
         <ul aria-labelledby="items-label" className="flex flex-wrap gap-1.5 mb-1">
           {items.map((it) => (
-            <li key={it.id} className="flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 pl-3 pr-1 text-sm">
+            <li key={it.id} className="flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 pl-1.5 pr-1 text-sm">
+              <ThingIcon src={itemIconUrl(it.id)} alt={it.name} size={22} />
               <span>{it.name}</span>
               {info[it.id]?.pet && <span className="text-[10px] font-semibold text-gold">PET</span>}
               <button
@@ -168,8 +171,9 @@ export default function ItemStep({
                       setQ('');
                       setHits([]);
                     }}
-                    className="w-full min-h-11 text-left px-3 text-sm hover:bg-gold/10"
+                    className="w-full min-h-11 text-left px-3 text-sm hover:bg-gold/10 flex items-center gap-2.5"
                   >
+                    <ThingIcon src={itemIconUrl(h.id)} alt={h.name} />
                     {h.name}
                   </button>
                 </li>
@@ -185,7 +189,7 @@ export default function ItemStep({
       ))}
 
       <fieldset className="mt-5 mb-5">
-        <legend className="text-[11px] uppercase tracking-wide text-text-muted mb-2">How do players get them?</legend>
+        <legend className="text-sm font-semibold text-foreground/90 mb-2.5">How do players get them?</legend>
         <div className="space-y-2">
           <ChoiceButton pressed={effectiveHow === 'gain'} onClick={() => { setHow('gain'); setHowTouched(true); }} className="w-full text-left flex flex-col items-start">
             <span className="font-medium">They land in the inventory</span>
@@ -206,7 +210,7 @@ export default function ItemStep({
 
       {effectiveHow === 'drop' && allSources.length > 0 && (
         <fieldset className="mb-5">
-          <legend className="text-[11px] uppercase tracking-wide text-text-muted mb-2">Only from (optional — none ticked means any monster)</legend>
+          <legend className="text-sm font-semibold text-foreground/90 mb-2.5">Only from (optional — none ticked means any monster)</legend>
           <div className="flex flex-wrap gap-2">
             {allSources.map((s) => {
               const on = sources.includes(s);
@@ -221,7 +225,7 @@ export default function ItemStep({
       )}
 
       <fieldset className="mb-5">
-        <legend className="text-[11px] uppercase tracking-wide text-text-muted mb-2">Players must get</legend>
+        <legend className="text-sm font-semibold text-foreground/90 mb-2.5">Players must get</legend>
         <div className="grid grid-cols-3 gap-2">
           <ChoiceButton pressed={effectiveNeed === 'any'} onClick={() => setNeed('any')}>Any 1</ChoiceButton>
           <ChoiceButton pressed={effectiveNeed === 'total'} onClick={() => setNeed('total')}>N in total</ChoiceButton>

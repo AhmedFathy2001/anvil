@@ -48,8 +48,8 @@ interface Props {
   openTileId?: number | null;
   /** The tile panel sits beside the map (a wide screen): picking a tile opens it there at once. */
   panelBeside?: boolean;
-  /** Delete a tile (asks first when it has a task written). */
-  onDeleteTile?: (id: number) => void;
+  /** Tiles the map removed were deleted on Save (the page drops them from its list). */
+  onTilesDeleted?: (ids: number[]) => void;
 }
 
 const btn = 'text-xs font-medium px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
@@ -63,13 +63,16 @@ const goldBtn = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border 
  * Nothing about the roads is stored until Save, and Save refuses a route that can't be played.
  * Tiles themselves (new blank ones included) save at once, like anywhere else on the page.
  */
-export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, onTileCreated, onSaved, onRaceBankChanged, onOpenTile, openTileId = null, panelBeside = false, onDeleteTile }: Props) {
+export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, onTileCreated, onSaved, onRaceBankChanged, onOpenTile, openTileId = null, panelBeside = false, onTilesDeleted }: Props) {
   const { confirm, notify } = useDialog();
   const board = useMemo(() => tiles.filter((t) => t.parentTileId == null && !t.mission).sort((a, b) => a.position - b.position), [tiles]);
   const stored = useMemo(() => routeEntries(board), [board]);
   const [entries, setEntries] = useState<RouteEntry[]>(stored);
   // Every change pushes the route before it, so any edit (a template included) is one Undo away.
-  const [history, setHistory] = useState<RouteEntry[][]>([]);
+  const [history, setHistory] = useState<{ entries: RouteEntry[]; removed: number[] }[]>([]);
+  // Tiles "Remove" took off the map: deleted for real when the roads are saved, so Undo can bring
+  // them back until then.
+  const [removed, setRemoved] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
   const [selected, setSelected] = useState<number | null>(openTileId);
   // "Link to…": clicks on the neighbouring steps add or remove roads from the selected tile.
@@ -105,26 +108,29 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
       : entries;
 
   const tileOf = (id: number) => board.find((t) => t.id === id);
+  // What the map shows and saves: everything but the tiles waiting to be deleted.
+  const shown: RouteEntry[] = removed.length ? live.filter((e) => !removed.includes(e.id)).map((e) => ({ ...e, next: e.next.filter((n) => !removed.includes(n)) })) : live;
   const nameOf = (id: number) => tileOf(id)?.label ?? `Tile ${id}`;
   const labelOf = (id: number) => `“${nameOf(id)}”`;
-  const problems = validateRoute(live, labelOf);
+  const problems = validateRoute(shown, labelOf);
   const problemIds = new Set(problems.map((p) => p.tileId).filter((id): id is number => id != null));
-  const placed = live.filter((e) => e.step != null);
-  const unplaced = live.filter((e) => e.step == null);
+  const placed = shown.filter((e) => e.step != null);
+  const unplaced = shown.filter((e) => e.step == null);
   const lastStep = placed.reduce((m, e) => Math.max(m, e.step!), -1);
   const stepCount = lastStep + 1;
-  const sel = live.find((e) => e.id === selected) ?? null;
+  const sel = shown.find((e) => e.id === selected) ?? null;
   const linkable = new Set(
     linking && sel?.step != null ? placed.filter((e) => e.step === sel.step! + 1 || e.step === sel.step! - 1).map((e) => e.id) : [],
   );
-  const pending = dirty || missing.length > 0 || gone.length > 0;
+  const pending = dirty || missing.length > 0 || gone.length > 0 || removed.length > 0;
   const starts = placed.filter((e) => e.step === 0).length;
   const finishes = placed.filter((e) => e.step === lastStep).length;
   const playableLine = `${stepCount} step${stepCount === 1 ? '' : 's'}, ${starts} start${starts === 1 ? '' : 's'}, ${finishes} finish${finishes === 1 ? '' : 'es'}`;
 
-  function change(next: RouteEntry[], dropped = 0, what = '') {
-    setHistory((h) => [...h.slice(-40), live]);
+  function change(next: RouteEntry[], dropped = 0, what = '', nextRemoved = removed) {
+    setHistory((h) => [...h.slice(-40), { entries: live, removed }]);
     setEntries(next);
+    setRemoved(nextRemoved);
     setDirty(true);
     setWarning(dropped > 0 ? `${what} removed ${dropped} road${dropped === 1 ? '' : 's'} that no longer ran to the next step.` : null);
   }
@@ -133,13 +139,15 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     const prev = history[history.length - 1];
     if (!prev) return;
     setHistory((h) => h.slice(0, -1));
-    setEntries(prev);
+    setEntries(prev.entries);
+    setRemoved(prev.removed);
     setDirty(history.length > 1);
     setWarning(null);
   }
 
   function resetEdits(to: RouteEntry[]) {
     setEntries(to);
+    setRemoved([]);
     setHistory([]);
     setDirty(false);
     setWarning(null);
@@ -155,7 +163,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     if (locked) return onOpenTile(id);
     if (linking && selected != null) {
       if (id === selected) return setLinking(false);
-      if (linkable.has(id)) return change(toggleRouteLink(live, selected, id));
+      if (linkable.has(id)) return change(toggleRouteLink(shown, selected, id));
     }
     pick(id);
   }
@@ -163,7 +171,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   async function clickRoad(from: number, to: number) {
     if (locked) return;
     if (!(await confirm({ title: 'Remove this road?', body: `The road from ${labelOf(from)} to ${labelOf(to)} goes. Both tiles stay.`, confirmLabel: 'Remove road' }))) return;
-    change(toggleRouteLink(live, from, to));
+    change(toggleRouteLink(shown, from, to));
   }
 
   function applyTemplate(key: RouteTemplate) {
@@ -194,7 +202,20 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     if (problems.length) return;
     setSaving(true);
     try {
-      const routeBody = { route: live.map((e) => ({ id: e.id, step: e.step, next: e.next })) };
+      // Tiles taken off the map go first, so the route saved below no longer names them.
+      if (removed.length) {
+        const deleted: number[] = [];
+        for (const id of removed) {
+          const res = await clanFetch(`/api/events/${eventId}/tiles/${id}`, { method: 'DELETE' });
+          if (res.ok) deleted.push(id);
+        }
+        if (deleted.length) onTilesDeleted?.(deleted);
+        if (deleted.length < removed.length) {
+          setRemoved((r) => r.filter((id) => !deleted.includes(id)));
+          return notify('Some tiles could not be deleted, so the roads were not saved. Try again.', 'error');
+        }
+      }
+      const routeBody = { route: shown.map((e) => ({ id: e.id, step: e.step, next: e.next })) };
       if (liveEdit && !(await decideIfNeeded(routeBody))) return;
       const res = await clanFetch(`/api/events/${eventId}/race-route`, {
         method: 'PUT',
@@ -204,9 +225,9 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return notify(data.error || 'Could not save the roads.', 'error');
       const order: number[] = data.order ?? [];
-      const update = new Map(live.map((e) => [e.id, { raceStep: e.step, raceNext: e.next, position: order.indexOf(e.id) }]));
+      const update = new Map(shown.map((e) => [e.id, { raceStep: e.step, raceNext: e.next, position: order.indexOf(e.id) }]));
       onSaved(update);
-      resetEdits(live);
+      resetEdits(shown);
     } finally {
       setSaving(false);
     }
@@ -238,7 +259,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return notify(data.error || 'Could not save the roads.', 'error');
       const order: number[] = data.order ?? [];
-      const saved = decision.body.straight ? routeEntries(board.map((t) => ({ ...t, raceStep: null, raceNext: null }))) : live;
+      const saved = decision.body.straight ? routeEntries(board.map((t) => ({ ...t, raceStep: null, raceNext: null }))) : shown;
       onSaved(new Map(saved.map((e) => [e.id, { raceStep: e.step, raceNext: e.next, position: order.indexOf(e.id) }])));
       resetEdits(saved);
       setDecision(null);
@@ -268,17 +289,23 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   async function addTileToStep(step: number) {
     const t = await newTile();
     if (!t) return;
-    change([...live, { id: t.id, step, next: [] }]);
+    change([...shown, { id: t.id, step, next: [] }]);
     pick(t.id);
   }
 
-  /** "Add a road beside": a new tile on the same step with the same roads in and out (a split). */
+  /** "Remove": the tile leaves the map now and is deleted when the roads are saved (Undo brings it back). */
+  function removeTile(id: number) {
+    change(live, 0, '', [...removed, id]);
+    pick(null);
+  }
+
+  /** "Split into 2 roads": a new tile on the same step with the same roads in and out. */
   async function addBeside(id: number) {
-    const from = live.find((e) => e.id === id);
+    const from = shown.find((e) => e.id === id);
     if (from?.step == null) return;
     const t = await newTile();
     if (!t) return;
-    const next = live.map((e) => (e.next.includes(id) ? { ...e, next: [...e.next, t.id] } : e));
+    const next = shown.map((e) => (e.next.includes(id) ? { ...e, next: [...e.next, t.id] } : e));
     change([...next, { id: t.id, step: from.step, next: [...from.next] }]);
     pick(t.id);
   }
@@ -292,7 +319,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     const after = placed.filter((e) => e.step === at).map((e) => e.id);
     const t = await newTile();
     if (!t) return;
-    const shifted = insertStep(live, at).map((e) => (before.includes(e.id) ? { ...e, next: [...e.next, t.id] } : e));
+    const shifted = insertStep(shown, at).map((e) => (before.includes(e.id) ? { ...e, next: [...e.next, t.id] } : e));
     change([...shifted, { id: t.id, step: at, next: after }]);
     pick(t.id);
   }
@@ -393,20 +420,20 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
                   <span className="flex flex-wrap items-center gap-1.5 ml-auto">
                     {!panelBeside && <button type="button" className={goldBtn} onClick={() => onOpenTile(sel.id)}>Write the task</button>}
                     {sel.step != null && <button type="button" className={btn} onClick={() => setLinking(true)}>Link to…</button>}
-                    {sel.step != null && canAdd && <button type="button" className={btn} disabled={busy} onClick={() => void addBeside(sel.id)} title="A new tile next to this one, with the same roads in and out">Add a road beside</button>}
+                    {sel.step != null && canAdd && <button type="button" className={btn} disabled={busy} onClick={() => void addBeside(sel.id)} title="A new tile next to this one, with the same roads in and out">Split into 2 roads</button>}
                     <div className="w-44">
                       <Select
                         value={sel.step == null ? '' : String(sel.step)}
                         placeholder="Put it on a step…"
                         onChange={(v) => {
-                          const r = moveTileToStep(live, sel.id, Number(v));
+                          const r = moveTileToStep(shown, sel.id, Number(v));
                           change(r.entries, r.dropped, 'Moving it');
                         }}
                         options={stepOptions}
                         ariaLabel="Step for this tile"
                       />
                     </div>
-                    {onDeleteTile && canAdd && <button type="button" className={cn(btn, 'hover:text-red-300 hover:border-red-500/40')} onClick={() => onDeleteTile(sel.id)}>Delete tile</button>}
+                    {canAdd && <button type="button" className={cn(btn, 'hover:text-red-300 hover:border-red-500/40')} onClick={() => removeTile(sel.id)} title="Deletes the tile when you save the roads; Undo brings it back">Remove</button>}
                     <button type="button" className={btn} onClick={() => pick(null)} aria-label="Deselect the tile">✕</button>
                   </span>
                 </>
@@ -547,11 +574,11 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
                   <span className="text-xs font-semibold text-foreground w-24 shrink-0">Step {s + 1}{s === 0 ? ' · start' : s === lastStep ? ' · finish' : ''}</span>
                   <span className="text-[11px] text-text-muted w-14 shrink-0">{n} tile{n === 1 ? '' : 's'}</span>
                   <div className="flex flex-wrap gap-1.5 ml-auto">
-                    <button type="button" className={btn} disabled={s === 0} onClick={() => { const r = swapSteps(live, s, -1); change(r.entries, r.dropped, 'Moving the step'); }} aria-label={`Move step ${s + 1} earlier`}>◀</button>
-                    <button type="button" className={btn} disabled={s === lastStep} onClick={() => { const r = swapSteps(live, s, 1); change(r.entries, r.dropped, 'Moving the step'); }} aria-label={`Move step ${s + 1} later`}>▶</button>
-                    <button type="button" className={btn} onClick={() => { const next = insertStep(live, s); const lost = live.reduce((a, e) => a + e.next.length, 0) - next.reduce((a, e) => a + e.next.length, 0); change(next, lost, 'Adding the step'); }}>+ Empty step before</button>
+                    <button type="button" className={btn} disabled={s === 0} onClick={() => { const r = swapSteps(shown, s, -1); change(r.entries, r.dropped, 'Moving the step'); }} aria-label={`Move step ${s + 1} earlier`}>◀</button>
+                    <button type="button" className={btn} disabled={s === lastStep} onClick={() => { const r = swapSteps(shown, s, 1); change(r.entries, r.dropped, 'Moving the step'); }} aria-label={`Move step ${s + 1} later`}>▶</button>
+                    <button type="button" className={btn} onClick={() => { const next = insertStep(shown, s); const lost = shown.reduce((a, e) => a + e.next.length, 0) - next.reduce((a, e) => a + e.next.length, 0); change(next, lost, 'Adding the step'); }}>+ Empty step before</button>
                     {canAdd && <button type="button" className={btn} disabled={busy} onClick={() => void addTileToStep(s)}>+ Tile on this step</button>}
-                    <button type="button" className={btn} onClick={() => { const r = removeStep(live, s); change(r.entries, r.dropped, 'Removing the step'); }}>Remove step</button>
+                    <button type="button" className={btn} onClick={() => { const r = removeStep(shown, s); change(r.entries, r.dropped, 'Removing the step'); }}>Remove step</button>
                   </div>
                 </div>
               );
@@ -570,7 +597,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         >
           <div className="min-w-0 text-sm">
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-gold align-middle" aria-hidden />
-            <span className="text-text-muted">Unsaved road changes · </span>
+            <span className="text-text-muted">Unsaved road changes{removed.length ? ` (${removed.length} tile${removed.length === 1 ? '' : 's'} to delete)` : ''} · </span>
             {problems.length > 0 ? (
               <span className="text-red-300">{problems.length} thing{problems.length === 1 ? '' : 's'} to fix first</span>
             ) : (

@@ -417,7 +417,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }
 
   const editingTile = editingTileId != null && editingFresh?.id === editingTileId ? editingFresh : null;
-  const editingLoading = editingTileId != null && editingTile == null;
   // Leagues (bingo+points) and Tile-race boards are arbitrary-length task lists, so tiles can be
   // added/removed; a classic bingo grid is a fixed N×N square and stays locked to its size.
   const boardShape = model.axes.shape;
@@ -968,7 +967,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     onCreated={handleCreatorSaved}
     onOpenBulk={canAddTiles ? () => leaveGuard(() => { setEditingTileId(null); setBulkOpen(true); }) : undefined}
     canAddAnother={(dynamicBoard && !eventStarted) || localTiles.filter((t) => isPlaceholderTile(t) && !t.mission).length > 1}
-    onDuplicate={canEditTileSet && dynamicBoard && !eventStarted ? () => void duplicateTile(editingTile.id) : undefined}
+    onDuplicate={canEditTileSet ? () => void duplicateTile(editingTile.id) : undefined}
     onDelete={() => handleDeleteTile(editingTile.id, true)}
     onSaved={(updated) => {
       handleTileConfigSaved(editingTile.id, updated);
@@ -1241,7 +1240,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             openTileId={editingTileId}
             onOpenTile={(id) => openTileGuarded(id)}
             panelBeside={inspectorDocked}
-            onDeleteTile={canEditTileSet ? (id) => void handleDeleteTile(id) : undefined}
+            onTilesDeleted={(ids) => {
+              setLocalTiles((prev) => prev.filter((t) => !ids.includes(t.id)));
+              if (editingTileId != null && ids.includes(editingTileId)) setEditingTileId(null);
+            }}
           />
           )
         ) : viewMode === 'board' ? (

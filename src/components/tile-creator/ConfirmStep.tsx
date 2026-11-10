@@ -14,11 +14,10 @@ import {
   type TileDraft,
 } from '@/lib/tileCreatorConfig';
 import { tileTierKey, tierColor, type TierBand } from '@/lib/tileFilter';
-import { deriveTileIcon } from '@/lib/tileIcons';
 import { formatTileAmount } from '@/lib/tileKinds';
 import { clogTileSetupNote } from '@/lib/clogTileWords';
 import TileBeforeYouStart from '@/components/TileBeforeYouStart';
-import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, SecondaryButton, StepHeader } from './parts';
+import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, SecondaryButton, StepHeader, configIcon } from './parts';
 
 interface Suggestion {
   suggestedPoints: number | null;
@@ -152,15 +151,7 @@ function SingleConfirm({
     category: candidate.tileCategory ?? null,
   };
 
-  const icon = deriveTileIcon({
-    tileType: config.tileType ?? 'standard',
-    trackedStat: config.trackedStat ?? null,
-    statType: config.statType ?? null,
-    trackedItemIds: config.trackedItemIds ? JSON.stringify(config.trackedItemIds) : null,
-    itemRequirements: config.itemRequirements ? JSON.stringify(config.itemRequirements) : null,
-    timedActivity: config.timedActivity ?? null,
-    targetNpcs: config.targetNpcs ? JSON.stringify(config.targetNpcs) : null,
-  });
+  const icon = configIcon(config);
   const goal = (candidate.amountField ? config[candidate.amountField] : null) as number | null;
   const progress =
     goal == null ? null
@@ -173,15 +164,16 @@ function SingleConfirm({
     <div>
       <StepHeader title={detached ? 'Edit this line' : 'Check and add'} onBack={onBack} />
 
+      {/* The task as one sentence, big: the number and the name are the two things you change. */}
       <Eyebrow>Players must</Eyebrow>
-      <div className="flex flex-wrap items-center gap-2 text-base mb-3">
+      <div className="display flex flex-wrap items-center gap-x-2.5 gap-y-2 text-xl font-semibold leading-snug mb-4">
         <span>{candidate.verb}</span>
         {candidate.amountField && <AmountField value={amount} onChange={setAmount} label="Amount" />}
         <button
           type="button"
           onClick={onBack}
           title="Pick a different task"
-          className="min-h-11 px-3 rounded-lg border border-card-border hover:border-gold/50 text-left font-medium"
+          className="min-h-11 max-w-full px-3 py-1.5 rounded-lg border border-card-border hover:border-gold/50 text-left break-words"
         >
           {candidate.noun} <span aria-hidden="true" className="text-text-muted">▾</span>
         </button>
@@ -211,7 +203,7 @@ function SingleConfirm({
         </div>
       )}
 
-      <div className="mb-5">
+      <div className="mb-6">
         <CountsBanner engine={how.engine} text={how.text} />
         {candidate.config.tileType === 'clog' && (
           <p className="mt-2 text-xs leading-relaxed text-amber-200/90">{clogTileSetupNote(candidate.config.countMode === 'complete' ? 'complete' : 'slots')}</p>
@@ -222,14 +214,14 @@ function SingleConfirm({
       </div>
 
       {!pointsMode && original.points != null && (
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="pts-quiet" className="text-text-muted">Points</label>
           <AmountField id="pts-quiet" value={points} onChange={setPoints} label="Points" />
           <span className="text-xs text-text-muted">Saved with the tile; points only matter on a points-scoring board.</span>
         </div>
       )}
       {pointsMode && (
-        <div className="mb-5">
+        <div className="mb-6">
           <Eyebrow>Worth</Eyebrow>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {bands.map((b, i) => (
@@ -262,7 +254,7 @@ function SingleConfirm({
         </div>
       )}
 
-      <div className="mb-5">
+      <div className="mb-6">
         <Eyebrow>Shows on the board as</Eyebrow>
         <div className="flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-3">
           <div className="w-12 h-12 shrink-0 rounded-lg border border-card-border bg-brown-dark grid place-items-center overflow-hidden">
@@ -310,14 +302,15 @@ function SingleConfirm({
       )}
 
       {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
-      <div className="flex flex-wrap justify-end gap-2">
+      {/* Pinned to the bottom of the panel, so the button to add it never scrolls away. */}
+      <div className={detached ? 'flex flex-wrap justify-end gap-2' : 'sticky bottom-0 z-10 -mx-5 sm:-mx-6 px-5 sm:px-6 py-3 border-t border-card-border bg-card-bg/95 backdrop-blur flex flex-wrap justify-end gap-2'}>
         {detached ? (
           <PrimaryButton onClick={() => onSubmit(draft, false)}>Use this</PrimaryButton>
         ) : (
           <>
             {canAddAnother && (
               <SecondaryButton onClick={() => onSubmit(draft, true)} disabled={saving}>
-                Add &amp; another
+                Add &amp; next tile
               </SecondaryButton>
             )}
             <PrimaryButton onClick={() => onSubmit(draft, false)} disabled={saving}>
@@ -454,7 +447,7 @@ function ComboConfirm(props: ConfirmProps) {
         ))}
       </ul>
 
-      <div className="mb-5">
+      <div className="mb-6">
         <CountsBanner engine={how.engine} text={how.text} />
         <div className="mt-2">
           <TileBeforeYouStart tile={{ ...combo.config, comboRule: rule }} compact />
@@ -462,20 +455,20 @@ function ComboConfirm(props: ConfirmProps) {
       </div>
 
       {!pointsMode && original.points != null && (
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="combo-pts-quiet" className="text-text-muted">Points</label>
           <AmountField id="combo-pts-quiet" value={points} onChange={setPoints} label="Points" />
           <span className="text-xs text-text-muted">Saved with the tile; points only matter on a points-scoring board.</span>
         </div>
       )}
       {pointsMode && (
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="combo-pts" className="text-text-muted">Points</label>
           <AmountField id="combo-pts" value={points} onChange={setPoints} label="Points" />
         </div>
       )}
 
-      <div className="mb-5">
+      <div className="mb-6">
         <Eyebrow>Shows on the board as</Eyebrow>
         <input
           aria-label="Tile name"
@@ -496,14 +489,15 @@ function ComboConfirm(props: ConfirmProps) {
       )}
 
       {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
-      <div className="flex flex-wrap justify-end gap-2">
+      {/* Pinned to the bottom of the panel, so the button to add it never scrolls away. */}
+      <div className={detached ? 'flex flex-wrap justify-end gap-2' : 'sticky bottom-0 z-10 -mx-5 sm:-mx-6 px-5 sm:px-6 py-3 border-t border-card-border bg-card-bg/95 backdrop-blur flex flex-wrap justify-end gap-2'}>
         {detached ? (
           <PrimaryButton onClick={() => onSubmit(draft, false)}>Use this</PrimaryButton>
         ) : (
           <>
             {canAddAnother && (
               <SecondaryButton onClick={() => onSubmit(draft, true)} disabled={saving}>
-                Add &amp; another
+                Add &amp; next tile
               </SecondaryButton>
             )}
             <PrimaryButton onClick={() => onSubmit(draft, false)} disabled={saving}>
