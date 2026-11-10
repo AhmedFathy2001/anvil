@@ -98,3 +98,19 @@ test("Anvil's own lines show in their own section, never as game messages, and o
   assert.deepEqual(anvilLines(c), ['Tracked drop: Infernal cape (4/5)', 'Submitted: Infernal cape']);
   assert.ok(gameLines(c).every((l) => !l.text.includes('Tracked drop')));
 });
+
+test('roster sync and plan notices stay off the stamp', () => {
+  const at = 100;
+  const line = (text: string) => ({ tick: at + 1, type: 'GAMEMESSAGE', text: `[Anvil] ${text}` });
+  const got = anvilLines({
+    ...parseProofClaims({ tick: at }),
+    tick: at,
+    chat: [
+      line('Clan roster checked — nothing changed.'),
+      line('Not added (plan limit): ayman.'),
+      line('Your roster is over its 50-member plan (163 members) and the grace period has ended.'),
+      line('Tracked drop: Abyssal whip (2/3)'),
+    ],
+  });
+  assert.deepEqual(got, ['Tracked drop: Abyssal whip (2/3)']);
+});
