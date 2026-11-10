@@ -99,7 +99,10 @@ export default function ClanPulse({
   members,
   rosterLog,
   supporterLooks = {},
+  heat = null,
 }: {
+  /** Members on a weekly activity streak (lib/activityStreaks), as a share of the roster. */
+  heat?: { on: number; pct: number } | null;
   analytics: ClanAnalytics;
   members: MemberListRow[];
   rosterLog: RosterEvent[];
@@ -149,6 +152,7 @@ export default function ClanPulse({
           <div className="flex flex-wrap gap-2.5">
             <Chip value={(memberCount + guestCount).toLocaleString()} label="tracked" />
             <Chip value={activeThisWeek.toLocaleString()} label="active 7d" />
+            {heat && heat.on > 0 && <Chip value={`${heat.pct}%`} label="on a weekly streak" />}
             <Chip value={Math.round(totalEhp).toLocaleString()} label="clan hours played" />
             <Chip value={Math.round(totalEhb).toLocaleString()} label="clan hours bossed" />
           </div>
