@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BOSSES, COUNTER_TARGETS } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
-import { killPickLabel } from '@/lib/tileCreatorConfig';
+import { killPickHits, killPickLabel } from '@/lib/tileCreatorConfig';
 
 /**
  * "+ Add another boss (kills count together)": the monsters on a kills tile, as removable chips with
@@ -33,24 +32,8 @@ export default function KillPicksField({ picks, onChange }: { picks: string[]; o
     return () => clearTimeout(t);
   }, [q]);
 
-  const hits = useMemo(() => {
-    const f = q.trim().toLowerCase();
-    if (f.length < 2) return [];
-    const have = new Set(picks.map((p) => killPickLabel(p).toLowerCase()));
-    const out: { value: string; label: string; note: string }[] = [];
-    for (const b of BOSSES) {
-      if (b.label.toLowerCase().includes(f) || (b.aliases ?? []).some((a) => a.includes(f))) out.push({ value: b.key, label: b.label, note: 'Hiscores' });
-    }
-    for (const c of COUNTER_TARGETS) if (c.name.toLowerCase().includes(f)) out.push({ value: c.name, label: c.name, note: 'Plugin counter' });
-    for (const n of npcs) if (n.toLowerCase().includes(f)) out.push({ value: n, label: n, note: 'Plugin' });
-    const seen = new Set<string>();
-    return out.filter((o) => {
-      const k = o.label.toLowerCase();
-      if (have.has(k) || seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    }).slice(0, 8);
-  }, [q, npcs, picks]);
+  // Ranked and typo-tolerant (lib/fuzzySearch): "zulra" still offers Zulrah.
+  const hits = useMemo(() => killPickHits(q, npcs, picks), [q, npcs, picks]);
 
   return (
     <div className="mb-4">

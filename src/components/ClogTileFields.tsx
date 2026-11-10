@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { clogTileSetupNote, type ClogTileMode } from '@/lib/clogTileWords';
 import { CheckboxBox } from '@/components/Checkbox';
+import { fuzzySearch } from '@/lib/fuzzySearch';
 
 // The collection-log tile's own fields in the tile editor (lib/clogTiles). Pages are a shortcut for
 // picking items: adding a page ticks every item on it, untick any to leave it out, and items from
@@ -73,7 +74,8 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
 
   const chosen = useMemo(() => new Set(itemIds), [itemIds]);
   const f = filter.trim().toLowerCase();
-  const matches = f ? allPages.filter((p) => p.toLowerCase().includes(f) && !pages.includes(p)).slice(0, 8) : [];
+  // Ranked and typo-tolerant (lib/fuzzySearch): "barows" still offers Barrows Chests.
+  const matches = f ? fuzzySearch(allPages, f, pageName, { limit: 8, filter: (p) => !pages.includes(p) }) : [];
 
   async function addPage(page: string) {
     setFilter('');
@@ -211,3 +213,5 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
     </div>
   );
 }
+
+const pageName = (p: string) => p;

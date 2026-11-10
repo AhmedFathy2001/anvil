@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { libraryEditorUser } from '@/lib/guideAccess';
-import { getItemMapping, isDroppableItem } from '@/lib/osrsItems';
+import { getItemMapping, isDroppableItem, type MappingItem } from '@/lib/osrsItems';
+import { fuzzySearch } from '@/lib/fuzzySearch';
+import { expandShorthands } from '@/lib/taskMatch';
 
 export async function GET(request: Request) {
   // Tile-authoring support endpoint — editors configure drop/collection tiles too, not just admins.
@@ -34,19 +36,20 @@ export async function GET(request: Request) {
       return NextResponse.json(exact ? [exact] : []);
     }
 
-    // Prefix matches first (more relevant), then any substring match; cap at 20.
-    const matches = items.filter(
-      (item) => item.name.toLowerCase().includes(query) && (!dropsOnly || isDroppableItem(item)),
-    );
-    matches.sort((a, b) => {
-      const ap = a.name.toLowerCase().startsWith(query) ? 0 : 1;
-      const bp = b.name.toLowerCase().startsWith(query) ? 0 : 1;
-      return ap !== bp ? ap - bp : a.name.localeCompare(b.name);
+    // Exact, then prefix, then word-start, then substring, then typo-tolerant ("znyte" → Zenyte
+    // shard); OSRS shorthand rides along as a second reading ("tbow" → Twisted bow). Cap at 20.
+    const matches = fuzzySearch(items, query, itemName, {
+      limit: 20,
+      tieBreak: 'alpha',
+      alternates: [expandShorthands(query)],
+      filter: dropsOnly ? isDroppableItem : undefined,
     });
 
-    return NextResponse.json(matches.slice(0, 20).map((item) => ({ id: item.id, name: item.name })));
+    return NextResponse.json(matches.map((item) => ({ id: item.id, name: item.name })));
   } catch (err) {
     console.error('items-search failed:', err);
     return NextResponse.json({ error: 'Failed to fetch items' }, { status: 500 });
   }
 }
+
+const itemName = (item: MappingItem) => item.name;

@@ -32,6 +32,7 @@ import type { TileConfig } from '@/lib/types';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, capPhrase } from '@/lib/tileCaps';
 import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
 import { clogTileTitle } from '@/lib/clogTileWords';
+import { allowedEdits, editDistance, fuzzySearch } from '@/lib/fuzzySearch';
 import {
   RAID_OPTIONS,
   TRIAL_COURSE_OPTIONS,
@@ -1573,32 +1574,8 @@ function comboMatch(query: string, ctx: MatchContext): TaskCandidate[] | null {
 
 // ─── Typo tolerance ──────────────────────────────────────────────────────────────────────────
 
-/** Damerau-Levenshtein (optimal string alignment): a transposition costs 1. Stops early past `max`. */
-export function editDistance(a: string, b: string, max = 2): number {
-  if (Math.abs(a.length - b.length) > max) return max + 1;
-  const prev2: number[] = new Array(b.length + 1).fill(0);
-  let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const cur: number[] = [i];
-    let rowMin = i;
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
-      cur[j] = v;
-      if (v < rowMin) rowMin = v;
-    }
-    if (rowMin > max) return max + 1;
-    for (let j = 0; j <= b.length; j++) prev2[j] = prev[j];
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
-/** How many edits a word of this length may be off by: short words must be exact. */
-function allowedEdits(len: number): number {
-  return len <= 3 ? 0 : len <= 5 ? 1 : 2;
-}
+// editDistance / allowedEdits live in lib/fuzzySearch (shared with the authoring pickers).
+export { editDistance };
 
 interface Vocab {
   set: Set<string>;
@@ -1861,4 +1838,11 @@ export function browseCatalog(category: BrowseCategory, ctx: MatchContext = {}):
     .filter((d) => d.source !== 'diary' || d.key.startsWith('diary-Any ') || d.key.endsWith(' Any'))
     .filter((d) => d.source !== 'timed' || ['Inferno', 'Fight Caves', 'Fortis Colosseum', 'Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut', 'Hallowed Sepulchre'].includes(d.names[0]))
     .map((d) => finish(d, null, null));
+}
+
+const catalogNames = (c: TaskCandidate) => [c.title, c.noun];
+
+/** The browse list's "Filter…" box: ranked and typo-tolerant over each row's title and noun. */
+export function filterCatalog(list: TaskCandidate[], query: string): TaskCandidate[] {
+  return fuzzySearch(list, query, catalogNames, { limit: list.length });
 }
