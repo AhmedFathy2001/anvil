@@ -83,7 +83,8 @@ export function giftBlocked(rows: GiftTargetRow[], tier: SupporterTierId, now = 
     if (!paying || rankOf(r.tier) > rankOf(paying)) paying = r.tier as SupporterTierId;
   }
   if (!paying || rankOf(tier) > rankOf(paying)) return null;
-  return `They already pay for ${SUPPORTER_TIERS[paying].name}. Gift a higher tier to upgrade them, or this one once their subscription ends.`;
+  // Generic on purpose: this answers anyone who types a name, so it never says which tier they pay for.
+  return 'They already have this tier or higher. Gift a higher tier to upgrade them, or this one once theirs ends.';
 }
 
 /**

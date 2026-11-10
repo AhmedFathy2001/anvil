@@ -63,7 +63,8 @@ test('a gift can upgrade someone, but not repeat what they already pay for', asy
   const { giftBlocked } = await import('../src/lib/supporterGiftPurchase.ts');
   const now = Date.parse('2026-11-11T00:00:00Z');
   const patron = [{ tier: 'patron', status: 'active', recurrence: 'monthly', currentPeriodEnd: '2026-12-01T00:00:00Z' }];
-  assert.match(giftBlocked(patron, 'patron', now)!, /already pay for Patron/);
+  assert.match(giftBlocked(patron, 'patron', now)!, /already have this tier or higher/);
+  assert.doesNotMatch(giftBlocked(patron, 'patron', now)!, /Patron/, 'never names their tier');
   assert.ok(giftBlocked(patron, 'supporter', now));
   const supporter = [{ tier: 'supporter', status: 'active', recurrence: 'yearly', currentPeriodEnd: null }];
   assert.equal(giftBlocked(supporter, 'champion', now), null, 'an upgrade');
