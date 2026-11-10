@@ -26,8 +26,8 @@ export interface FlairStyle {
   s?: true;
   d?: FlairSurface;
   l?: FlairSurface;
-  /** Tenure chat icon (lib/supporterTiers TENURE_LADDER chat): 1 star, 2 ringed, 3 hex, 4 solid hex. Plugins that know it draw it instead of `s`, for every tier. */
-  t?: 1 | 2 | 3 | 4;
+  /** Tenure chat icon (lib/supporterTiers TENURE_LADDER chat), one per step 1-6. Plugins that know it draw it instead of `s`, for every tier. */
+  t?: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 /** What the server tracks per name: its look (as a key) and whose character it is (never sent). */
