@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { RaceTileState } from '@/lib/raceRoutes';
 import { TileStateIcon } from './TileState';
+import { H_COL, H_LANE, H_PAD, V_GUTTER, layoutFor } from '@/lib/raceMapLayout';
 
 /**
  * A tile race's route drawn as a map of ROADS (lib/raceRoutes): steps left to right, lanes as thick
@@ -61,8 +62,8 @@ interface Props {
   fit?: boolean;
   /** Under 640px, a list of steps (each road a row) instead of the sideways map. Off in the editor. */
   mobileList?: boolean;
-  /** Scale a long map DOWN to the width of its box (to half size at most), so it reads without a
-   *  sideways scroll. The editor uses it; past half size the map scrolls as before. */
+  /** Fit a long map to its box: shrink it a little (to 85%), and past that turn it to run top to
+   *  bottom with the roads as columns (lib/raceMapLayout), measured on the box's own width. */
   shrink?: boolean;
   /** Editor: things drawn over the map in screen pixels (the "+" between steps), placed from the
    *  map's geometry at its current scale. */
@@ -71,6 +72,8 @@ interface Props {
   onLinkClick?: (from: number, to: number) => void;
   /** Editor: tiles with no task written yet, drawn as dashed empty waypoints. */
   blankIds?: Set<number>;
+  /** The box width to lay out for before it is measured (server render, tests). */
+  initialWidth?: number;
 }
 
 /** Where things sit on the drawn map, in screen pixels (already scaled). */
@@ -83,16 +86,24 @@ export interface RouteMapGeometry {
   /** The y of the step names along the top. */
   headY: number;
   last: number;
+  /** Steps run top to bottom (a narrow box). Then the "+" between steps is a row at insertY(at),
+   *  spanning from rowLeft to the map's width. */
+  vertical: boolean;
+  insertY: (at: number) => number;
+  rowLeft: number;
 }
 
 const ROAD = '#251e18';
 const GOLD = '#e0aa1e';
-const COL = 168;
+const COL = H_COL;
 const ROW = 138;
 const HEAD = 30;
-const PAD_X = 70;
+const PAD_X = H_PAD;
 /** Room for the road names down the left edge, when the map has roads. */
-const LANE_W = 58;
+const LANE_W = H_LANE;
+/** Vertical map: the step pitch, the room above step 1 (road names, then a "+" row). */
+const V_ROW = 150;
+const V_TOP = 66;
 const R = 33;
 const R_FINISH = 42;
 /** Rows stand further apart when team pennants stack over the waypoints. */
@@ -133,6 +144,12 @@ export function shortLabel(label: string, max = 22): string {
   return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
 }
 
+/** A road running down the page (the vertical map); `dx` offsets a team's line beside it. */
+function vcurve(a: { x: number; y: number }, b: { x: number; y: number }, dx = 0): string {
+  const mid = (a.y + b.y) / 2;
+  return `M${a.x + dx},${a.y} C${a.x + dx},${mid} ${b.x + dx},${mid} ${b.x + dx},${b.y}`;
+}
+
 function curve(a: { x: number; y: number }, b: { x: number; y: number }, dy = 0): string {
   const mid = (a.x + b.x) / 2;
   return `M${a.x},${a.y + dy} C${mid},${a.y + dy} ${mid},${b.y + dy} ${b.x},${b.y + dy}`;
@@ -161,9 +178,10 @@ export default function RaceRouteMap({
   overlay,
   onLinkClick,
   blankIds,
+  initialWidth = 0,
 }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const [boxWidth, setBoxWidth] = useState(0);
+  const [boxWidth, setBoxWidth] = useState(initialWidth);
   const measure = fit || shrink;
   useEffect(() => {
     if (!measure || !boxRef.current) return;
@@ -185,13 +203,31 @@ export default function RaceRouteMap({
   const left = PAD_X + (roads ? LANE_W : 0);
   const multiStart = (columns[0]?.length ?? 0) > 1;
   const head = HEAD + (multiStart || youNotStarted ? 16 : 0);
-  const height = head + tallest * rowH + 10;
-  const width = left + PAD_X + last * COL;
   const rowY = (i: number) => head + i * rowH + 48;
+
+  // Horizontal (steps left to right) unless the box is too narrow to keep it near full size.
+  const layout = layoutFor(shrink ? boxWidth : 0, last + 1, tallest);
+  const vertical = layout.vertical;
+  const colW = layout.vertical ? layout.colW : COL;
+  const vPitch = V_ROW + (variant === 'few' && teams.length ? 34 : 0);
+  const vStepY = (s: number) => V_TOP + 28 + s * vPitch + (variant === 'few' && teams.length ? 34 : 0);
+  const vColX = (i: number) => V_GUTTER + colW * (i + 0.5);
+  const height = vertical ? vStepY(last) + (last > 0 ? R_FINISH : R) + 70 : head + tallest * rowH + 10;
+  const width = vertical ? V_GUTTER + tallest * colW + 8 : left + PAD_X + last * COL;
+  // A waypoint's box: its label wraps inside its road column on the vertical map.
+  const nodeW = vertical ? Math.min(128, colW - 6) : 128;
+  const draw = vertical ? vcurve : curve;
 
   const pos = new Map<number, { x: number; y: number }>();
   columns.forEach((col, s) => {
-    col.forEach((n, i) => pos.set(n.id, { x: left + s * COL, y: col.length === 1 ? head + ((tallest - 1) * rowH) / 2 + 48 : rowY(i) }));
+    col.forEach((n, i) =>
+      pos.set(
+        n.id,
+        vertical
+          ? { x: col.length === 1 ? V_GUTTER + (tallest * colW) / 2 : vColX(i), y: vStepY(s) }
+          : { x: left + s * COL, y: col.length === 1 ? head + ((tallest - 1) * rowH) / 2 + 48 : rowY(i) },
+      ),
+    );
   });
 
   // Crowd: each team's current tile, and how many teams travelled each link.
@@ -214,9 +250,21 @@ export default function RaceRouteMap({
   const openIds = state ? nodes.filter((n) => state.get(n.id) === 'open').map((n) => n.id) : [];
   const links = nodes.flatMap((n) => n.next.filter((to) => pos.has(to)).map((to) => ({ from: n.id, to })));
   const room = (boxWidth - 8) / width;
-  const scale = boxWidth > 0 ? (fit ? Math.min(1.75, Math.max(1, room)) : shrink ? Math.min(1, Math.max(0.5, room)) : 1) : 1;
+  const scale = boxWidth > 0 ? (fit ? Math.min(1.75, Math.max(1, room)) : !layout.vertical ? layout.scale : 1) : 1;
   const scaled = scale !== 1 || !!overlay;
-  const geo: RouteMapGeometry = { scale, width: width * scale, height: height * scale, stepX: (s) => (left + s * COL) * scale, headY: 14 * scale, last };
+  const geo: RouteMapGeometry = {
+    scale,
+    width: width * scale,
+    height: height * scale,
+    stepX: (s) => (left + s * COL) * scale,
+    headY: 14 * scale,
+    last,
+    vertical,
+    // Halfway between one step's label and the next step's waypoint; above step 1; under the finish.
+    // (A waypoint's name and "not written yet" end ~80px under its centre.)
+    insertY: (at) => (at === 0 ? vStepY(0) - R - 18 : at > last ? vStepY(last) + (last > 0 ? R_FINISH : R) + 52 : vStepY(at - 1) + (80 + vPitch - (at === last && last > 0 ? R_FINISH : R)) / 2),
+    rowLeft: V_GUTTER,
+  };
 
   return (
     <>
@@ -240,7 +288,7 @@ export default function RaceRouteMap({
     )}
     <div ref={boxRef} className={cn('w-full overflow-x-auto overscroll-x-contain rounded-xl border border-card-border bg-[#141010] pb-2', mobileList && 'hidden sm:block')} role="group" aria-label="Race route map">
       {/* The road names stay pinned to the left edge while a long map scrolls sideways under them. */}
-      {roads && (
+      {roads && !vertical && (
         <div className="sticky left-0 z-20 h-0 w-0" aria-hidden>
           {Array.from({ length: tallest }, (_, i) => (
             <div key={`road${i}`} className="absolute flex items-center gap-1 rounded-r bg-[#141010]/90 py-0.5 pl-2 pr-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted/80 whitespace-nowrap" style={{ left: 0, top: (rowY(i) - 9) * scale }}>
@@ -254,54 +302,62 @@ export default function RaceRouteMap({
       {/* Shrunk, the map is clipped to its scaled box so the unscaled layout never adds a scrollbar. */}
       <div className={scale < 1 ? 'absolute inset-0 overflow-hidden' : undefined}>
       <div className="relative mx-auto" style={{ width, height, minWidth: width, ...(scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: 'top left' } : {}) }}>
+        {/* Vertical: the road names head their columns. */}
+        {vertical && roads &&
+          Array.from({ length: tallest }, (_, i) => (
+            <div key={`vroad${i}`} aria-hidden className="absolute top-2 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted/80" style={{ left: vColX(i) - colW / 2, width: colW }}>
+              Road
+              <RoadBadge letter={String.fromCharCode(65 + i)} className="w-4 h-4 text-[9px]" />
+            </div>
+          ))}
         {columns.map((col, s) => (
           <div
             key={`h${s}`}
-            className="absolute top-2 text-center"
-            style={{ left: left + s * COL - COL / 2, width: COL }}
+            className={vertical ? 'absolute text-left leading-tight' : 'absolute top-2 text-center'}
+            style={vertical ? { left: 6, top: vStepY(s) - 8, width: V_GUTTER - 10 } : { left: left + s * COL - COL / 2, width: COL }}
           >
             <span className="block text-[10px] uppercase tracking-wide text-text-muted font-semibold">{stepLabel(s, last)}</span>
-            {s === 0 && col.length > 1 && <span className="block text-[10px] text-gold/90">pick any of these {col.length} to begin</span>}
+            {s === 0 && col.length > 1 && <span className="block text-[10px] text-gold/90">{vertical ? 'pick one' : `pick any of these ${col.length} to begin`}</span>}
             {s === 0 && youNotStarted && <span className="inline-block mt-0.5 rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You · not started</span>}
           </div>
         ))}
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height} aria-hidden>
           {links.map(({ from, to }) => (
-            <path key={`r${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={ROAD} strokeWidth={22} strokeLinecap="round"
+            <path key={`r${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={ROAD} strokeWidth={22} strokeLinecap="round"
               opacity={state && (state.get(from) === 'closed' || state.get(to) === 'closed') ? 0.55 : 1} />
           ))}
           {(variant === 'medium' || variant === 'huge') &&
             links.map(({ from, to }) => {
               const n = traffic.get(`${from}-${to}`) ?? 0;
               return n ? (
-                <path key={`t${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeOpacity={0.28} strokeLinecap="round" strokeWidth={4 + 14 * (n / maxTraffic)} />
+                <path key={`t${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeOpacity={0.28} strokeLinecap="round" strokeWidth={4 + 14 * (n / maxTraffic)} />
               ) : null;
             })}
           {variant === 'few' &&
             teams.map((t, i) =>
               t.path.slice(1).map((to, j) => (
-                <path key={`l${t.id}-${j}`} d={curve(pos.get(t.path[j])!, pos.get(to)!, (i - (teams.length - 1) / 2) * 4)} fill="none" stroke={t.color} strokeWidth={2.5} strokeLinecap="round" opacity={t.id === viewerTeamId ? 0 : 0.9} />
+                <path key={`l${t.id}-${j}`} d={draw(pos.get(t.path[j])!, pos.get(to)!, (i - (teams.length - 1) / 2) * 4)} fill="none" stroke={t.color} strokeWidth={2.5} strokeLinecap="round" opacity={t.id === viewerTeamId ? 0 : 0.9} />
               )),
             )}
           {links.filter(({ from, to }) => onPath.has(`${from}-${to}`)).map(({ from, to }) => (
-            <path key={`p${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={10} strokeLinecap="round" />
+            <path key={`p${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={10} strokeLinecap="round" />
           ))}
           {current != null &&
             openIds.map((to) =>
               pos.has(current) ? (
-                <path key={`o${to}`} d={curve(pos.get(current)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" className="race-road-flow" />
+                <path key={`o${to}`} d={draw(pos.get(current)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" className="race-road-flow" />
               ) : null,
             )}
           {selectedId != null &&
             links.filter(({ from, to }) => from === selectedId || to === selectedId).map(({ from, to }) => (
-              <path key={`e${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" />
+              <path key={`e${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" />
             ))}
           {/* Editor: each road is clickable (the svg itself lets clicks through to the tiles). */}
           {onLinkClick &&
             links.map(({ from, to }) => (
               <path
                 key={`c${from}-${to}`}
-                d={curve(pos.get(from)!, pos.get(to)!)}
+                d={draw(pos.get(from)!, pos.get(to)!)}
                 fill="none"
                 stroke={GOLD}
                 strokeOpacity={0}
@@ -333,7 +389,7 @@ export default function RaceRouteMap({
             <div
               key={n.id}
               className={cn('absolute flex flex-col items-center', matched && !matched.has(n.id) && 'opacity-30')}
-              style={{ left: p.x - 64, top: p.y - r, width: 128 }}
+              style={{ left: p.x - nodeW / 2, top: p.y - r, width: nodeW }}
             >
               {variant === 'few' && here.some((t) => t.id !== viewerTeamId) && (
                 <div className="absolute bottom-full mb-1 z-10 flex flex-col-reverse items-center gap-0.5">

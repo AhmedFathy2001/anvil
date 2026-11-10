@@ -134,6 +134,9 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
       )}
 
       <RaceRouteMap
+        // Fit the box (a narrow column turns the map to run top to bottom), except on the event
+        // page's track card, whose fullscreen view scales up instead.
+        shrink={raceLayout !== 'track' && !raceFit}
         nodes={nodes}
         state={shown?.state}
         path={shown?.path}

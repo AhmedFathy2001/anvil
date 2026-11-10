@@ -58,3 +58,24 @@ test('the Map view: the editable race map, blank tiles marked, shapes as cards, 
   // A "+" between every pair of steps, plus before the start and after the finish.
   assert.equal(html.match(/aria-label="Add a tile (before the start|after the finish|between step)/g)?.length, 11);
 });
+
+test('a narrow box (600px) draws the editable map top to bottom, with a full-width "+ Add a step here" row between steps', async () => {
+  const { default: RaceRouteMap } = await import('../src/components/board/RaceRouteMap.tsx');
+  const nodes = tiles.map((t, i) => ({ id: t.id, step: i, label: t.label, next: i < tiles.length - 1 ? [tiles[i + 1].id] : [] }));
+  const html = renderToString(
+    <RaceRouteMap
+      nodes={nodes}
+      shrink
+      mobileList={false}
+      initialWidth={600}
+      onTileClick={() => {}}
+      overlay={(g) => (g.vertical ? Array.from({ length: g.last + 2 }, (_, at) => <span key={at} data-y={g.insertY(at)}>+ Add a step here</span>) : null)}
+    />,
+  );
+  assert.equal(html.match(/\+ Add a step here/g)?.length, 11);
+  // Full size: no scale transform on the map.
+  assert.doesNotMatch(html, /transform:scale/);
+  // The map is no wider than its box.
+  const w = Number(html.match(/width:(\d+)px;height:\d+px;min-width/)?.[1]);
+  assert.ok(w > 0 && w <= 600, String(w));
+});

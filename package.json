@@ -216,6 +216,7 @@
     "test:digest": "npx tsx --test tests/event-digest.test.ts tests/event-stats.test.ts",
     "test:nextstep": "npx tsx --test tests/event-next-step.test.ts",
     "test:race-admin-preview": "npx tsx --test tests/race-admin-preview.test.tsx",
+    "test:race-map-layout": "npx tsx --test tests/race-map-layout.test.ts",
     "test:formats": "npx tsx --test tests/format-catalog.test.ts",
     "test:placement": "npx tsx --test tests/team-placement.test.ts tests/team-placement-db.test.ts",
     "test:paidpot": "npx tsx --test tests/prize-pool-paid.test.ts",
