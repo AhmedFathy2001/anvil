@@ -116,6 +116,14 @@ async function sweepTenure(): Promise<number> {
     if (Date.now() - at.getTime() > FRESH_MS) continue;
     reached.set(pid, { step: s.tenure.id, months: s.tenureMonths, tierName: s.tier.name });
   }
+  // "Don't announce me" on ANY of their logins, including one with no subscription row of its own.
+  if (reached.size > 0) {
+    const off = await db
+      .select({ p: users.playerId })
+      .from(users)
+      .where(and(inArray(users.playerId, [...reached.keys()]), eq(users.announceSupporter, false)));
+    for (const o of off) if (o.p != null) reached.delete(o.p);
+  }
   const seats = await publicSeatsOf([...reached.keys()]);
   let posted = 0;
   for (const [pid, r] of reached) {

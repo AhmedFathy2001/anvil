@@ -69,6 +69,11 @@ test('tenure steps post when fresh, never as a backlog, and respect "announce me
   for (const [u, start] of [[fresh.user, ago(12, 2)], [old.user, ago(12, 60)], [quiet.user, ago(12, 2)]] as const) {
     await db.insert(s.supporterSubscriptions).values({ userId: u.id, tier: 'supporter', status: 'active', startedAt: start, tenureStartedAt: start });
   }
+  // Opted out on a second login that has no subscription: still no post.
+  const alt = await member(clan.id, 'Alt Master');
+  const altStart = ago(12, 2);
+  await db.insert(s.supporterSubscriptions).values({ userId: alt.user.id, tier: 'supporter', status: 'active', startedAt: altStart, tenureStartedAt: altStart });
+  await db.insert(s.users).values({ displayName: 'Alt second', discordId: 'mom-alt2', playerId: alt.user.playerId, announceSupporter: false });
   const { sweepSupporterMoments } = await import('../src/lib/supporterMoments.ts');
   await sweepSupporterMoments();
   await sweepSupporterMoments();
@@ -79,4 +84,5 @@ test('tenure steps post when fresh, never as a backlog, and respect "announce me
   assert.match(f[0].itemName ?? '', /^reached Master: 1 year supporting Anvil$/);
   assert.equal((await of(old.seat.id)).length, 0, 'reached two months ago: not news');
   assert.equal((await of(quiet.seat.id)).length, 0, 'opted out of announcements');
+  assert.equal((await of(alt.seat.id)).length, 0, 'opted out on another login');
 });
