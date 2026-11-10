@@ -569,9 +569,8 @@ export default async function CharacterProfile({
 
       <GoalsCard accountId={accountId} goals={goals.goals} editable={show.ownerControls} options={goals.options} />
 
-      <RecordsCard accountId={accountId} />
-
       <ProfileTabs
+        records={<RecordsCard accountId={accountId} />}
         // A same-profile display-case link changes only the query. Keying its destination remounts
         // the tab state so the requested collection page opens instead of preserving a stale tab.
         key={`${progressTab && !link.tab ? 'collection' : link.tab ?? 'stats'}:${link.page ?? ''}`}
@@ -688,6 +687,17 @@ function StreakChip({ streak }: { streak: Streak }) {
 /** The last 52 weeks of the activity streak, with the milestones it has passed and the next. */
 function StreakHistory({ streak }: { streak: Streak }) {
   const weeks = streak.history.slice(-52);
+  // Each square's week: the newest is this week once it counts, else last week; one back each.
+  const thisWeek = Date.parse(streak.resetsAt) - 7 * 86_400_000;
+  const newest = streak.safe ? thisWeek : thisWeek - 7 * 86_400_000;
+  const startOf = (i: number) => new Date(newest - (weeks.length - 1 - i) * 7 * 86_400_000);
+  const day = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const MARK = { active: 'counted', rest: 'rest week used', missed: 'missed' } as const;
+  // A month name under the first week that starts in it, per row of 26.
+  const monthAt = (i: number) => {
+    const d = startOf(i);
+    return i % 26 === 0 || d.getUTCMonth() !== startOf(i - 1).getUTCMonth() ? d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) : '';
+  };
   return (
     <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-5" aria-labelledby="streak-history">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -715,11 +725,24 @@ function StreakHistory({ streak }: { streak: Streak }) {
         <div>
           <dt className="text-[12px] text-text-muted">Rest week</dt>
           <dd className="text-2xl font-bold text-[#7ae0ff]">{streak.restBanked ? 'banked' : 'used'}</dd>
+          <dd className="max-w-[14rem] text-[11.5px] leading-snug text-text-muted">
+            {streak.restBanked
+              ? 'Nothing to claim: it covers the next week that falls short, by itself.'
+              : 'Spent this month. A new one banks on the 1st.'}
+          </dd>
         </div>
       </dl>
       <div className="mt-4 grid gap-1" style={{ gridTemplateColumns: 'repeat(26, minmax(0, 1fr))' }} role="img" aria-label={`Last ${weeks.length} weeks: ${weeks.filter((w) => w === 'active').length} counted`}>
         {weeks.map((w, i) => (
-          <i key={i} className={`block h-3.5 rounded-[2px] ${w === 'active' ? 'bg-[#ff8a3d]' : w === 'rest' ? 'bg-[#7ae0ff]' : 'bg-card-border'}`} />
+          <span key={i} className="flex flex-col gap-0.5">
+            <i
+              title={`Week of ${day(startOf(i))}: ${MARK[w]}`}
+              className={`block h-3.5 rounded-[2px] ${w === 'active' ? 'bg-[#ff8a3d]' : w === 'rest' ? 'bg-[#7ae0ff]' : 'bg-card-border'}`}
+            />
+            <span className="h-3 overflow-visible whitespace-nowrap text-[9.5px] leading-3 text-text-muted" aria-hidden>
+              {monthAt(i)}
+            </span>
+          </span>
         ))}
       </div>
       <div className="mt-2 flex flex-wrap gap-4 text-[12px] text-text-muted">

@@ -275,6 +275,8 @@ export interface FeedRow {
   title?: string;
   who?: string;
   whoColor?: Color;
+  /** A Supporter's star after the name, in their tenure shape (star / star-ring / star-hex / hex). */
+  whoGlyph?: string;
   /** Supporter flair on `who`. */
   grad?: `#${string}`[];
   /** The gradient slides along the name (Patron), unless the player turned animation off. */

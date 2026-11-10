@@ -210,16 +210,20 @@ export interface MomentRowOptions {
   /** "Team Ruby" under the name on a board. */
   team?: { name: string; color: string | null } | null;
   /** A Supporter's name colours (lib/supporter supporterInksForRsns), the same as their chat lines. */
-  ink?: { color: string; grad?: string[]; move?: boolean } | null;
+  ink?: { color: string; grad?: string[]; move?: boolean; glyph?: string } | null;
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
 /** The name's colour: a Supporter's own, else their team's on a board, else muted. */
-function whoInk(o: MomentRowOptions): Pick<FeedRow, 'whoColor' | 'grad' | 'move'> {
+function whoInk(o: MomentRowOptions): Partial<Pick<FeedRow, 'whoColor' | 'grad' | 'move' | 'whoGlyph'>> {
   if (o.ink && HEX.test(o.ink.color)) {
     const grad = (o.ink.grad ?? []).filter((c) => HEX.test(c)) as `#${string}`[];
-    return { whoColor: o.ink.color as Color, ...(grad.length >= 2 ? { grad, ...(o.ink.move ? { move: true } : {}) } : {}) };
+    return {
+      whoColor: o.ink.color as Color,
+      ...(grad.length >= 2 ? { grad, ...(o.ink.move ? { move: true } : {}) } : {}),
+      whoGlyph: o.ink.glyph ?? 'star',
+    };
   }
   if (o.team?.color && HEX.test(o.team.color)) return { whoColor: o.team.color as Color };
   return { whoColor: 'muted' };

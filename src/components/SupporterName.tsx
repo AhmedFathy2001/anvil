@@ -85,10 +85,12 @@ export function SupporterStar({
   const grad = stops && stops.length >= 2 ? stops : null;
   const paint = grad ? `url(#${id})` : 'currentColor';
   const framed = tenure != null && tenure !== 'apprentice';
+  // A frame needs room to read: the framed star draws a third larger than the bare one.
+  const px = framed ? Math.round(size * 1.3) : size;
   return (
     <svg
-      width={size}
-      height={size}
+      width={px}
+      height={px}
       viewBox="0 0 24 24"
       fill={grad ? `url(#${id})` : 'currentColor'}
       className="shrink-0 text-gold-light"
