@@ -36,8 +36,10 @@ test('desktop widths stay horizontal; a one-step board never turns', () => {
   assert.equal(layoutFor(1600, 10, 2).vertical, false);
   assert.equal(layoutFor(1000, 6, 2).vertical, false);
   assert.equal(layoutFor(300, 1, 1).vertical, false);
-  // 1000px with a 10-step race (natural ~1650px) is under 85%: vertical.
-  assert.equal(layoutFor(1000, 10, 2).vertical, true);
+  // 1000px with a 10-step race (natural ~1650px): stays left to right at the 85% floor and scrolls.
+  assert.deepEqual(layoutFor(1000, 10, 2), { vertical: false, scale: 0.85 });
+  // Under the wide-box width the same race turns vertical.
+  assert.equal(layoutFor(700, 10, 2).vertical, true);
 });
 
 test('canTurn off only shrinks (the old behaviour)', () => {
