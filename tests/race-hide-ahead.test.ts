@@ -6,6 +6,7 @@ import {
   buildRaceVeil,
   hiddenFromAnotherTeam,
   isRaceHidden,
+  MASKED_TILE_KEYS,
   maskRaceTile,
   maskRaceTiles,
   raceSeenFor,
@@ -118,20 +119,25 @@ test('maskRaceTile keeps the slot and roads, drops every content field', () => {
     trackedStat: 'obor', statType: 'kc', statGoal: 5, category: 'Bosses', requiredAmount: 3, autoTrackDisabled: false,
     parts: [{ id: 7, label: 'part' }],
   };
-  const m = maskRaceTile(tile);
+  const m = maskRaceTile(tile) as Record<string, unknown>;
   assert.equal(m.id, 5);
   assert.equal(m.position, 4);
   assert.equal(m.raceStep, 4);
   assert.deepEqual(m.raceNext, [6]);
   assert.equal(m.label, HIDDEN_RACE_TILE_LABEL);
-  for (const k of ['icon', 'description', 'trackedItemIds', 'itemRequirements', 'sourceNpcs', 'trackedStat', 'statType', 'statGoal', 'category'] as const) {
-    assert.equal(m[k], null, k);
-  }
   assert.equal(m.tileType, 'standard');
   assert.equal(m.requiredAmount, 1);
   assert.equal(m.autoTrackDisabled, true);
   assert.deepEqual(m.parts, []);
+  // An allowlist: exactly these keys, nothing else from the row.
+  assert.deepEqual(
+    Object.keys(m).sort(),
+    ['autoTrackDisabled', 'eventId', 'id', 'label', 'parentTileId', 'parts', 'position', 'raceHidden', 'raceNext', 'raceStep', 'requiredAmount', 'tileType'],
+  );
+  for (const k of Object.keys(m)) assert.ok(MASKED_TILE_KEYS.includes(k), k);
   assert.ok(isRaceHidden(m));
+  // A field tiles gain later never rides along.
+  assert.equal('futureSecret' in maskRaceTile({ ...tile, futureSecret: 'Giant key' }), false);
   assert.ok(!JSON.stringify(m).toLowerCase().includes('giant'));
   assert.ok(!JSON.stringify(m).toLowerCase().includes('obor'));
 });

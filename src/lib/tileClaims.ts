@@ -9,6 +9,8 @@
 // Hidden tiles stay hidden: a claim can only be made on a tile members can currently see, and reads
 // drop claims on tiles that aren't visible (a board re-hidden after claims were made).
 
+import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
+import { raceSeenFor, raceTileHidden } from '@/lib/raceHideAhead';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { completions, eventParticipants, events, tileClaims, tiles, users } from '@/db/schema';
@@ -78,6 +80,11 @@ export async function claimTile(opts: {
   // Same answer for "no such tile" and "not visible yet", so a claim can't probe a hidden board.
   if (!tile || tile.parentTileId != null || !event.tilesRevealed || !isTileRevealed(parseEventRules(event.rules), tile)) {
     return { ok: false, error: 'Tile not found.', status: 404 };
+  }
+  // A race tile the team only sees as a locked "?" (lib/raceHideAhead) answers the same.
+  if (raceHideOn(event)) {
+    const veil = await loadRaceVeil(event);
+    if (raceTileHidden(veil, raceSeenFor(veil, { teamIds: [opts.teamId] }), tile)) return { ok: false, error: 'Tile not found.', status: 404 };
   }
   const done = await db.query.completions.findFirst({
     where: and(eq(completions.teamId, opts.teamId), eq(completions.tileId, opts.tileId)),

@@ -111,40 +111,37 @@ export function hiddenFromAnotherTeam(veil: RaceVeil | null, tileId: number, tea
   return false;
 }
 
-/** A tile's content fields, the ones a hidden tile must never carry. */
-const CONTENT_NULLS = {
-  icon: null,
-  description: null,
-  trackedStat: null,
-  statType: null,
-  statGoal: null,
-  statBasis: null,
-  trackedItemIds: null,
-  itemRequirements: null,
-  acceptedSources: null,
-  sourceNpcs: null,
-  targetNpcs: null,
-  timedActivity: null,
-  timeThresholdSeconds: null,
-  minRaidLevel: null,
-  pvpMinLootValue: null,
-  comboRule: null,
-  category: null,
-  effortConfig: null,
-  rules: null,
-} as const;
+/**
+ * What a locked "?" keeps: where it sits on the map and its roads, and the reveal timestamps the
+ * boards already read. An ALLOWLIST: a field added to tiles later stays off a hidden tile until
+ * someone decides it may show.
+ */
+export const MASKED_TILE_KEEP = ['id', 'eventId', 'position', 'raceStep', 'raceNext', 'parentTileId', 'mission', 'revealAt', 'revealedAt', 'closedAt'] as const;
+
+/** Fields a board needs to have, given a neutral value that says nothing about the tile. */
+const MASKED_TILE_NEUTRAL: Record<string, (v: unknown) => unknown> = {
+  label: () => HIDDEN_RACE_TILE_LABEL,
+  tileType: () => 'standard',
+  requiredAmount: () => 1,
+  points: () => 0,
+  optional: (v) => (typeof v === 'number' ? 0 : false),
+  autoTrackDisabled: (v) => (typeof v === 'number' ? 1 : true),
+  parts: () => [],
+};
+
+/** The keys a masked tile can carry: the allowlist, the neutral fields, and the flag. */
+export const MASKED_TILE_KEYS: readonly string[] = [...MASKED_TILE_KEEP, ...Object.keys(MASKED_TILE_NEUTRAL), 'raceHidden'];
 
 /**
  * The same tile as a locked "?": its id, place on the board and roads, and nothing that says what it
- * is. Fields the row doesn't have aren't added; `raceHidden` tells the boards to draw the "?".
+ * is. Every other field is dropped; `raceHidden` tells the boards to draw the "?".
  */
 export function maskRaceTile<T extends { id: number; label?: string | null }>(tile: T): T & { raceHidden: true } {
-  const out: Record<string, unknown> = { ...tile, label: HIDDEN_RACE_TILE_LABEL, raceHidden: true };
-  for (const [k, v] of Object.entries(CONTENT_NULLS)) if (k in out) out[k] = v;
-  if ('tileType' in out) out.tileType = 'standard';
-  if ('autoTrackDisabled' in out) out.autoTrackDisabled = true;
-  if ('requiredAmount' in out) out.requiredAmount = 1;
-  if ('parts' in out && Array.isArray(out.parts)) out.parts = [];
+  const src = tile as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of MASKED_TILE_KEEP) if (k in src) out[k] = src[k];
+  for (const [k, neutral] of Object.entries(MASKED_TILE_NEUTRAL)) if (k in src || k === 'label') out[k] = neutral(src[k]);
+  out.raceHidden = true;
   return out as T & { raceHidden: true };
 }
 

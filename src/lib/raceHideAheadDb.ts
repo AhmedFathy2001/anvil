@@ -227,3 +227,27 @@ export async function publicRaceLabels<R extends { tileId: number; label: string
   const veil = await loadRaceVeil(event);
   return rows.map((r) => (raceTileHidden(veil, veil?.everyone ?? null, { id: r.tileId }) ? { ...r, label: HIDDEN_RACE_TILE_LABEL } : r));
 }
+
+/** What the editor-grant routes say when "Also hide from event staff" keeps the caller out. */
+export const STAFF_HIDE_GRANT_ERROR =
+  'This race hides tiles from event staff. Only the clan owner can give or take away tile editing on it.';
+
+/**
+ * Tile editing on a board under "Also hide from event staff" sees through the hide
+ * (seesThroughStaffHide), so while it's on only the clan owner (or the platform owner) may hand it
+ * out or take it back. Any other board, or a treasurer grant: not blocked.
+ */
+export async function editorGrantBlocked(
+  eventIds: number[],
+  user: Pick<UserPayload, 'userId' | 'isOwner'> | null,
+): Promise<boolean> {
+  if (!eventIds.length) return false;
+  // clan-scope: global -- the callers already scoped every id to their clan.
+  const rows = await db
+    .select({ id: events.id, rules: events.rules, format: events.format })
+    .from(events)
+    .where(inArray(events.id, eventIds));
+  // The stored setting, whether or not the race has ended: a grant outlives the race.
+  const staffHidden = rows.some((e) => e.format === 'tilerace' && parseEventRules(e.rules).raceHideAhead === 'staff');
+  return staffHidden && !(await mayChangeStaffHide(user));
+}

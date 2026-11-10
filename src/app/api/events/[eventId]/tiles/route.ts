@@ -78,6 +78,15 @@ export async function PUT(
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
 
+  // "Also hide from event staff" (lib/raceHideAhead): a tile this caller only sees as a "?" can't be
+  // saved over (the editor would write the placeholder back), and nothing below may echo it back.
+  {
+    const hideEvent = await db.query.events.findFirst({ where: eq(events.id, eId) });
+    if (hideEvent && (await raceTileHiddenForSession(hideEvent, tile))) {
+      return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
+    }
+  }
+
   // Optimistic concurrency: the editor sends the updatedAt stamp it loaded. A mismatch means
   // someone else saved this tile in between — reject instead of silently clobbering their
   // edit, and return the current row so the client can reload it. Callers that don't send
@@ -93,11 +102,6 @@ export async function PUT(
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),
   });
-  // "Also hide from event staff" (lib/raceHideAhead): a tile this caller only sees as a "?" can't be
-  // saved over (the editor would write the placeholder back).
-  if (event && (await raceTileHiddenForSession(event, tile))) {
-    return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
-  }
 
   const now = new Date();
   const eventStarted = event?.startDate && new Date(event.startDate) <= now;

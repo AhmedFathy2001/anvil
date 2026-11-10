@@ -109,3 +109,18 @@ test('owner-only switch: a plain admin may not change "Also hide from event staf
   await db.insert(s.eventEditors).values({ eventId, userId: t.id, role: 'treasurer' });
   assert.equal(await hideDb.seesThroughStaffHide(eventId, { userId: t.id, isOwner: false }), false);
 });
+
+test('"Also hide from event staff": only the owner may give or take tile editing on the board', async () => {
+  const [u] = await db.insert(s.users).values({ discordId: 'hide-granter', displayName: 'granter' }).returning();
+  const admin = { userId: u.id, isOwner: false };
+  await setRules({ raceHideAhead: 'players' });
+  assert.equal(await hideDb.editorGrantBlocked([eventId], admin), false, 'players-only: admins grant as before');
+  await setRules({ raceHideAhead: 'staff' });
+  assert.equal(await hideDb.editorGrantBlocked([eventId], admin), true, 'an admin may not hand out a way through');
+  assert.equal(await hideDb.editorGrantBlocked([eventId], { userId: u.id, isOwner: true }), false, 'the clan owner may');
+  assert.equal(await hideDb.editorGrantBlocked([], admin), false, 'nothing changing, nothing blocked');
+  // The platform owner (users.isOwner) may too.
+  await db.update(s.users).set({ isOwner: true }).where(eq(s.users.id, u.id));
+  assert.equal(await hideDb.editorGrantBlocked([eventId], admin), false);
+  await setRules({ raceHideAhead: 'players' });
+});
