@@ -15,7 +15,10 @@ export const H_LANE = 58;
 export const V_GUTTER = 62;
 export const V_COL_MIN = 96;
 export const V_COL_MAX = 150;
-/** The smallest the horizontal map may shrink before it turns vertical. */
+/** A box at least this wide keeps the horizontal map at a readable size and scrolls sideways
+ *  rather than turning: a desktop reads a long race best left to right. */
+export const WIDE_BOX = 720;
+/** The smallest the horizontal map may shrink before it scrolls (wide box) or turns (narrow box). */
 export const MIN_SCALE = 0.85;
 
 export type RaceMapLayout =
@@ -35,7 +38,7 @@ export function naturalWidth(steps: number, roads: number): number {
 export function layoutFor(width: number, steps: number, roads: number, canTurn = true): RaceMapLayout {
   if (width <= 0) return { vertical: false, scale: 1 };
   const room = (width - 8) / naturalWidth(steps, roads);
-  if (room >= MIN_SCALE || !canTurn || steps <= 1) return { vertical: false, scale: Math.min(1, Math.max(MIN_SCALE, room)) };
+  if (room >= MIN_SCALE || !canTurn || steps <= 1 || width >= WIDE_BOX) return { vertical: false, scale: Math.min(1, Math.max(MIN_SCALE, room)) };
   const fill = (width - 8 - V_GUTTER) / Math.max(1, roads);
   const colW = Math.min(V_COL_MAX, Math.max(V_COL_MIN, Math.floor(fill)));
   return { vertical: true, colW, scrolls: V_GUTTER + roads * colW + 8 > width };
