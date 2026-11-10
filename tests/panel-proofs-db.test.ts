@@ -62,6 +62,9 @@ before(async () => {
 });
 
 after(async () => {
+  // Reopening a tile announces it in the background (not awaited by design); let that finish before
+  // the database goes, or its late query fails the run after the test that started it has passed.
+  await new Promise((r) => setTimeout(r, 750));
   await pool?.end();
   await dropDatabase(DB);
 });
