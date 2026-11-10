@@ -94,7 +94,8 @@ test('the tenure ladder: Apprentice → Journeyman 3 → Artisan 6 → Master 12
   assert.equal(tenureFor(36).next, null);
   assert.equal(tenureFor(13).next?.id, 'grandmaster');
   // Four chat shapes only: they must read apart at 11px.
-  assert.deepEqual([0, 3, 6, 12, 24, 36].map((m) => tenureFor(m).step.chat), [1, 1, 2, 3, 3, 4]);
+  // The first in-game change is at 3 months: every step past Apprentice looks different in game.
+  assert.deepEqual([0, 3, 6, 12, 24, 36].map((m) => tenureFor(m).step.chat), [1, 2, 2, 3, 3, 4]);
   assert.equal(tenureLabel(14), '1 year, 2 months');
   assert.equal(tenureLabel(1), '1 month');
   assert.equal(tenureLabel(0), 'under a month');

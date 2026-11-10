@@ -192,7 +192,7 @@ export interface TenureStep {
 
 export const TENURE_LADDER: readonly TenureStep[] = [
   { id: 'apprentice', name: 'Apprentice', months: 0, chat: 1, glyph: 'star' },
-  { id: 'journeyman', name: 'Journeyman', months: 3, chat: 1, glyph: 'star' },
+  { id: 'journeyman', name: 'Journeyman', months: 3, chat: 2, glyph: 'star-ring' },
   { id: 'artisan', name: 'Artisan', months: 6, chat: 2, glyph: 'star-ring' },
   { id: 'master', name: 'Master', months: 12, chat: 3, glyph: 'star-hex' },
   { id: 'grandmaster', name: 'Grandmaster', months: 24, chat: 3, glyph: 'star-hex' },
