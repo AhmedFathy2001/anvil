@@ -401,3 +401,8 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 @media (prefers-reduced-motion: reduce) {
   .race-road-flow { animation: none; }
 }
+
+/* Supporter tenure: Legend's rays turn slowly round the star (components/SupporterName TenureFrame). */
+.tenure-rays { transform-origin: 12px 12px; animation: tenure-spin 14s linear infinite; }
+@keyframes tenure-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tenure-rays { animation: none; } }

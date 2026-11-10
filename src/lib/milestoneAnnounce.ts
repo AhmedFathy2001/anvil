@@ -72,7 +72,7 @@ export async function announceMilestones(accountId: number, milestones: XpMilest
     const raw = embed as unknown as Record<string, unknown>;
     return clanId != null && boosted.has(clanId)
       ? withBoosterAuthor(raw, apexOrigin())
-      : withSupporterAuthor(raw, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null);
+      : withSupporterAuthor(raw, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null, supporter?.tenure.id ?? null);
   };
 
   // Same routing as the plugin's own posts (api/plugin/notify): the member's clans plus shared guest

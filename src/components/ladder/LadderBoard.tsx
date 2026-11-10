@@ -134,7 +134,7 @@ export function Podium({
               {first ? 'LEADER' : `#${i + 1}`}
             </div>
             <div className={`mt-2 break-words font-extrabold leading-tight ${first ? 'text-xl text-gold-light sm:text-2xl' : 'text-lg'}`}>
-              <SupporterName name={r.name} tier={supporterLooks[r.name]?.tier} style={supporterLooks[r.name]?.style} className="max-w-full" />
+              <SupporterName name={r.name} tier={supporterLooks[r.name]?.tier} style={supporterLooks[r.name]?.style} tenure={supporterLooks[r.name]?.tenure} className="max-w-full" />
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
               <span
@@ -221,7 +221,7 @@ export function Chase({
               >
                 <span className="font-mono text-xs text-text-muted">#{i + 4}</span>
                 <span className="min-w-0 truncate text-sm">
-                  <SupporterName name={r.name} tier={supporterLooks[r.name]?.tier} style={supporterLooks[r.name]?.style} className={isMe ? 'font-bold' : 'font-medium'} />
+                  <SupporterName name={r.name} tier={supporterLooks[r.name]?.tier} style={supporterLooks[r.name]?.style} tenure={supporterLooks[r.name]?.tenure} className={isMe ? 'font-bold' : 'font-medium'} />
                   {streaks[r.playerId] > 1 && <span className="ml-1.5 text-xs">🔥</span>}
                   {showTeam && (
                     <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-text-muted">

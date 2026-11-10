@@ -4522,6 +4522,8 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   gumroadSaleId: text('gumroad_sale_id'), // the last applied charge: the replay latch
   currentPeriodEnd: text('current_period_end'),
   startedAt: text('started_at').notNull(),
+  // When the current unbroken PAID run began (drizzle/0253): started_at can't show a resubscribe gap.
+  tenureStartedAt: text('tenure_started_at'),
   endedAt: text('ended_at'),
   // When this membership was posted to the Anvil Discord's "new supporters" channel (lib/anvilDiscord),
   // or skipped because the person opted out. Set once: the claim that stops a renewal posting again.

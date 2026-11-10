@@ -359,7 +359,7 @@ export async function POST(request: Request) {
   // posts without it.
   if (outEmbed?.author) {
     const s = (await supporterForUsers([auth.userId]).catch(() => new Map())).get(auth.userId) ?? null;
-    outEmbed = withSupporterAuthor(outEmbed, s?.tier.id ?? null, apexOrigin(), s?.style ?? null);
+    outEmbed = withSupporterAuthor(outEmbed, s?.tier.id ?? null, apexOrigin(), s?.style ?? null, s?.tenure.id ?? null);
   }
 
   // ── ROUTE BY PERSON, not by the clan in the URL ─────────────────────────────────────────────

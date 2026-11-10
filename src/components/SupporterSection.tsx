@@ -8,7 +8,7 @@ import SupporterGameChatToggle from '@/components/SupporterGameChatToggle';
 import SupporterStylePicker from '@/components/SupporterStylePicker';
 import SupporterCharacterStyles from '@/components/SupporterCharacterStyles';
 import type { SupporterStyle } from '@/lib/supporterStyle';
-import { tenureStep, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
+import { tenureFor, tenureLabel, type SupporterState, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
 
 /** What the profile needs to show someone's Supporter status (serialisable for client islands). */
 export interface SupporterView {
@@ -16,6 +16,8 @@ export interface SupporterView {
   tierName: string;
   since: string;
   months: number;
+  /** Unbroken paid months and the tenure step they make (the star's shape). */
+  tenure: { id: TenureStepId; months: number };
   renewsAt: string | null;
   endsAt: string | null;
   earned: boolean;
@@ -42,6 +44,7 @@ export function supporterView(state: SupporterState | null): SupporterView | nul
     tierName: state.tier.name,
     since: state.since,
     months: state.months,
+    tenure: { id: state.tenure.id, months: state.tenureMonths },
     renewsAt: state.renewsAt,
     endsAt: state.endsAt,
     earned: state.earned,
@@ -133,7 +136,7 @@ export default function SupporterSection({
     );
   }
 
-  const { next } = tenureStep(supporter.months);
+  const { step, next } = tenureFor(supporter.tenure.months);
   const renews = day(supporter.renewsAt);
   const ends = day(supporter.endsAt);
   return (
@@ -141,10 +144,9 @@ export default function SupporterSection({
       {!bare && <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>}
       <div className="rounded-xl border border-gold/40 bg-gold/[0.05] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} style={supporter.style} className="text-lg font-bold" plain />
+          <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} style={supporter.style} tenure={supporter.tenure} className="text-lg font-bold" plain />
           <span className="text-sm text-text-muted">
-            Since {day(supporter.since)}
-            {supporter.months > 0 && <> · {supporter.months} month{supporter.months === 1 ? '' : 's'}</>}
+            {step.name} · {tenureLabel(supporter.tenure.months)} supporting · since {day(supporter.since)}
           </span>
         </div>
         <p className="mt-2 text-sm text-text-muted">
@@ -159,7 +161,7 @@ export default function SupporterSection({
           ) : (
             <>Active.</>
           )}
-          {next != null && <> Your flair gets a new look at {next} months.</>} Thank you for keeping Anvil
+          {next != null && <> Your star becomes {next.name} at {next.months % 12 === 0 ? `${next.months / 12} year${next.months === 12 ? '' : 's'}` : `${next.months} months`}.</>} Thank you for keeping Anvil
           running.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">

@@ -26,6 +26,8 @@ export interface FlairStyle {
   s?: true;
   d?: FlairSurface;
   l?: FlairSurface;
+  /** Tenure chat icon (lib/supporterTiers TENURE_LADDER chat): 1 star, 2 ringed, 3 hex, 4 solid hex. Plugins that know it draw it instead of `s`, for every tier. */
+  t?: 1 | 2 | 3 | 4;
 }
 
 /** What the server tracks per name: its look (as a key) and whose character it is (never sent). */
@@ -73,19 +75,21 @@ function surfaceFromKey(k: SurfaceKey | undefined): FlairSurface | null {
 
 /**
  * A look as a palette/state key. Looks without a dark/light override keep the original 3-part key,
- * so stored states and logged versions from before overrides existed still match.
+ * so stored states and logged versions from before overrides existed still match. A tenure icon (t)
+ * goes sixth, after the (possibly null) overrides.
  */
 export function styleKey(s: FlairStyle): string {
   const base: unknown[] = [s.c, s.g ?? null, s.s ? 1 : 0];
-  if (s.d || s.l) base.push(surfaceKey(s.d), surfaceKey(s.l));
+  if (s.d || s.l || s.t) base.push(surfaceKey(s.d), surfaceKey(s.l));
+  if (s.t) base.push(s.t);
   return JSON.stringify(base);
 }
 
 export function styleFromKey(key: string): FlairStyle {
-  const [c, g, s, d, l] = JSON.parse(key) as [string, string[] | null, number, SurfaceKey?, SurfaceKey?];
+  const [c, g, s, d, l, t] = JSON.parse(key) as [string, string[] | null, number, SurfaceKey?, SurfaceKey?, FlairStyle['t']?];
   const dark = surfaceFromKey(d);
   const light = surfaceFromKey(l);
-  return { c, ...(g ? { g } : {}), ...(s ? { s: true as const } : {}), ...(dark ? { d: dark } : {}), ...(light ? { l: light } : {}) };
+  return { c, ...(g ? { g } : {}), ...(s ? { s: true as const } : {}), ...(dark ? { d: dark } : {}), ...(light ? { l: light } : {}), ...(t ? { t } : {}) };
 }
 
 /** Names with their looks as palette + parallel arrays, names sorted. */

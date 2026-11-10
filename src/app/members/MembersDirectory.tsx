@@ -221,7 +221,7 @@ export default function MembersDirectory({
                   }`}
                 >
                   <span className="min-w-0 truncate flex items-center gap-2">
-                    <SupporterName name={m.rsn} tier={supporterLooks[m.rsn]?.tier} style={supporterLooks[m.rsn]?.style} className="text-gold truncate" plain />
+                    <SupporterName name={m.rsn} tier={supporterLooks[m.rsn]?.tier} style={supporterLooks[m.rsn]?.style} tenure={supporterLooks[m.rsn]?.tenure} className="text-gold truncate" plain />
                     {boosters[m.rsn] ? <BoosterMark count={boosters[m.rsn]} /> : null}
                     {mv && <Delta places={mv.delta} />}
                     {m.status !== 'active' && (

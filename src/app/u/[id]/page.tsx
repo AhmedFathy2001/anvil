@@ -76,7 +76,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         <div className="relative flex items-center gap-3.5">
           <ProfileAvatar avatar={media.avatar} size={64} eager className="border-2 border-gold/45" />
           <h1 className="display display-lg text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-            <SupporterName name={person.label} tier={supporter?.tier.id} style={supporter?.style} />
+            <SupporterName name={person.label} tier={supporter?.tier.id} style={supporter?.style} tenure={supporter ? { id: supporter.tenure.id, months: supporter.tenureMonths } : null} />
           </h1>
         </div>
         <p className="relative mt-2 text-[14.5px] text-text-muted">

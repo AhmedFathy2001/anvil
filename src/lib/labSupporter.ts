@@ -42,6 +42,7 @@ export async function setLabTier(userId: number, tier: SupporterTierId | null, m
     recurrence: LAB_RECURRENCE,
     currentPeriodEnd: iso(Date.now() + LAB_GRANT_HOURS * 3_600_000),
     startedAt: start.toISOString(),
+    tenureStartedAt: start.toISOString(),
   });
 }
 

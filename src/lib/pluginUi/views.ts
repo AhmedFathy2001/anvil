@@ -57,7 +57,7 @@ import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
-import { hasFeedTab, hasPanelImages, hasTabArgs, hasTabLinks, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { hasFeedTab, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevels } from '@/lib/clanBoosts';
@@ -780,14 +780,17 @@ async function ownClanCard(request: Request, slug: string): Promise<Node | null>
 }
 
 /** Supporters' names in a finished view get their flair: one lookup for every name it shows. */
-async function flaired(view: View | null): Promise<View | null> {
+async function flaired(view: View | null, glyphs: boolean): Promise<View | null> {
   if (!view) return view;
   const names = namesIn(view.ui);
   // Each name in its owner's own colours (a Champion's preset, a Patron's custom stops).
   const inks = names.length ? await supporterInksForRsns(names).catch(() => new Map<string, SupporterInk>()) : new Map<string, SupporterInk>();
   applyFlair(view.ui, (name) => {
     const ink = inks.get(normalizeRsn(name));
-    return ink ? inkForSurface(ink, 'dark') : null;
+    if (!ink) return null;
+    // A plugin that can't draw the tenure shapes gets the plain star it always had.
+    const worn = inkForSurface(ink, 'dark') as ReturnType<typeof inkForSurface<SupporterInk>> & { glyph?: 'star' | 'star-ring' | 'star-hex' | 'hex' };
+    return glyphs ? worn : { ...worn, glyph: undefined };
   });
   return view;
 }
@@ -870,7 +873,7 @@ async function reactRowAct(request: Request, a: Args): Promise<View> {
 }
 
 export async function pluginView(request: Request, v: string, a: Args): Promise<View | null> {
-  return flaired(await viewFor(request, v, a));
+  return flaired(await viewFor(request, v, a), hasTenureGlyphs(request));
 }
 
 async function viewFor(request: Request, v: string, a: Args): Promise<View | null> {
@@ -916,7 +919,7 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
 
 /** An action from the panel: `args` as the view gave them, `fields` from its inputs. */
 export async function pluginAct(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
-  return flaired(await actFor(request, act, args, fields));
+  return flaired(await actFor(request, act, args, fields), hasTenureGlyphs(request));
 }
 
 async function actFor(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
