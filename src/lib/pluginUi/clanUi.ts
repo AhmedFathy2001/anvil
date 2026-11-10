@@ -50,6 +50,8 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
   const id: Node[] = [
     row(muted(`${fmt(c.members)} members ·`), small(`${fmt(c.activeThisWeek)} active this week`, BLUE), undefined, { gap: 4 }),
   ];
+  // Clan heat: one more fact under the name, not a block of its own.
+  if (c.heat && c.heat.on > 0) id.push(row(small(`${c.heat.pct}% on a weekly streak`, '#ff8a3d'), muted(`· ${fmt(c.heat.on)} of ${fmt(c.heat.total)}`, { font: 'small' }), undefined, { gap: 4, tip: 'Members with 3+ active days a week, week after week' }));
   if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
   // Clan tenure: how long it has backed Anvil, in the Supporter star's shapes (older plugins: the star).
   if (c.tenure && c.tenure.months >= 1) {
@@ -75,12 +77,6 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     parts.push(
       section([
         siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
-        ...(c.heat && c.heat.on > 0
-          ? [
-              row(small('Clan heat', 'muted'), undefined, small(`${c.heat.pct}% · ${fmt(c.heat.on)} of ${fmt(c.heat.total)} on a streak`, '#ff8a3d'), { tip: 'Members with 3+ active days a week, week after week' }),
-              { t: 'bar' as const, pct: c.heat.pct, color: '#ff8a3d' as const, h: 4 },
-            ]
-          : []),
         ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn, c.streaks?.[g.rsn])),
       ], { gap: 4 }),
     );
@@ -94,17 +90,13 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     ], { gap: 4 }));
   }
   if (c.supporters && c.supporters.count > 0) {
-    // Who keeps Anvil running, where clanmates look every day. Names carry their own flair (`who`).
-    const names = c.supporters.names;
-    const pairs: Node[] = [];
-    for (let i = 0; i < names.length; i += 2) {
-      const one = (rsn: string | undefined) => (rsn ? text(rsn, 'white', { who: rsn, font: 'small', on: { a: 'lookup', rsn }, tip: `Look up ${rsn}` }) : undefined);
-      pairs.push(row(one(names[i]), undefined, one(names[i + 1]), { pad: 2 }));
-    }
-    const more = c.supporters.count - names.length;
+    // Who keeps Anvil running, laid out like Top accounts: one person per row, their flair on the
+    // name (`who`), tier and how long on the right.
+    const more = c.supporters.count - c.supporters.people.length;
+    const since = (m: number) => (m >= 12 ? `${Math.floor(m / 12)} yr` : m > 0 ? `${m} mo` : 'new');
     parts.push(section([
-      row(title(`Supporters · ${fmt(c.supporters.count)}`, '#ffd35c'), undefined, small('keep Anvil running', 'muted')),
-      ...pairs,
+      siteHeader('Supporters', 'keep Anvil running', '/supporter'),
+      ...c.supporters.people.map((p) => nameLine(p.rsn, `${p.tier} · ${since(p.months)}`, p.rsn)),
       ...(more > 0 ? [small(`+${fmt(more)} more`, 'muted')] : []),
     ], { gap: 4 }));
   }
