@@ -173,7 +173,12 @@ export type SaleCheck = 'ok' | 'rejected' | 'unverified' | 'error';
  * Optional: with no GUMROAD_ACCESS_TOKEN it answers 'unverified' and the webhook carries on as before.
  * 'error' (Gumroad unreachable) tells the caller to 500 so Gumroad retries the notification later.
  */
-export async function checkSaleWithGumroad(saleId: string | null, productId: string | null): Promise<SaleCheck> {
+export async function checkSaleWithGumroad(
+  saleId: string | null,
+  productId: string | null,
+  /** Also require the sale's own variant to be this one (a gift's tier and length), when Gumroad reports it. */
+  expectVariant?: string | null,
+): Promise<SaleCheck> {
   const token = process.env.GUMROAD_ACCESS_TOKEN;
   if (!token) return 'unverified';
   if (!saleId) return 'rejected';
@@ -190,12 +195,19 @@ export async function checkSaleWithGumroad(saleId: string | null, productId: str
   if (res.status === 404) return 'rejected';
   if (!res.ok) return 'error';
   const body = (await res.json().catch(() => null)) as
-    | { success?: boolean; sale?: { id?: string; product_id?: string; refunded?: boolean; partially_refunded?: boolean; chargebacked?: boolean; disputed?: boolean } }
+    | { success?: boolean; sale?: { id?: string; product_id?: string; refunded?: boolean; partially_refunded?: boolean; chargebacked?: boolean; disputed?: boolean; variants?: unknown; variants_and_quantity?: unknown } }
     | null;
   const sale = body?.success ? body.sale : null;
   if (!sale || sale.id !== saleId) return 'rejected';
   if (productId && sale.product_id && sale.product_id !== productId) return 'rejected';
   if (sale.refunded || sale.partially_refunded || sale.chargebacked || sale.disputed) return 'rejected';
+  if (expectVariant) {
+    // What Gumroad itself says was bought, not what the notification says. Matched loosely (case and
+    // the separator), since the API words it "(Gift: Champion · 3 months)".
+    const flat = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v ?? '')).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+    const said = `${flat(sale.variants)} ${flat(sale.variants_and_quantity)}`;
+    if (said.trim() && !said.includes(flat(expectVariant).trim())) return 'rejected';
+  }
   return 'ok';
 }
 

@@ -4538,11 +4538,26 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   // A staff gift (recurrence 'gift') that also gives clan boost slots (drizzle/0219). Paid rows always
   // give slots and invite time never does, so only gifts read it (lib/clanBoostRules slotTier).
   grantsBoostSlots: boolean('grants_boost_slots').notNull().default(false),
+  // A gift someone PAID for (recurrence 'gift-paid', lib/supporterGiftPurchase, drizzle/0256): who
+  // bought it and how many months. The giver ladder sums gift_months by gifted_by_user_id.
+  giftedByUserId: integer('gifted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  giftMonths: integer('gift_months'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),
   index('supporter_subscriptions_user_idx').on(table.userId),
+  index('supporter_subscriptions_gifted_by_idx').on(table.giftedByUserId),
 ]);
+
+// A paid gift's checkout (drizzle/0256, lib/supporterGiftPurchase): Gumroad echoes `gift=<token>`
+// back on the sale, which names who pays and who receives. Used once.
+export const supporterGiftIntents = pgTable('supporter_gift_intents', {
+  token: text('token').primaryKey(),
+  buyerUserId: integer('buyer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  recipientUserId: integer('recipient_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  usedSaleId: text('used_sale_id'),
+});
 
 // Gumroad sales the webhook could not attach to anything (drizzle/0228), for staff to attach or
 // dismiss on /staff/subscriptions (lib/unmatchedPurchases). A clan/creator plan sale with no known

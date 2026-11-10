@@ -12,9 +12,12 @@ import { SUPPORTER_TIERS, TENURE_LADDER, tenureFor, tenureLabel, type SupporterT
 export default function SupporterFlairPopover({
   tier,
   tenure = null,
+  name: forName = null,
   children,
 }: {
   tier: SupporterTierId;
+  /** The name the star belongs to, for "Gift them a month". */
+  name?: string | null;
   /** Unbroken paid time, when the page knows it: "Master · supporting for 1 year, 2 months". */
   tenure?: { id: TenureStepId; months: number } | null;
   children: React.ReactNode;
@@ -89,12 +92,22 @@ export default function SupporterFlairPopover({
           <span className="mt-1 block text-[13px] leading-snug text-text-muted">
             They support Anvil. Supporters pay for the servers that keep it free for every clan.
           </span>
-          <ClanLink
-            href="/supporter"
-            className="mt-2 inline-block rounded-lg border border-gold/40 px-2.5 py-1 text-[13px] font-medium text-gold transition-colors hover:bg-gold/10"
-          >
-            Get this look
-          </ClanLink>
+          <span className="mt-2 flex flex-wrap gap-2">
+            <ClanLink
+              href="/supporter"
+              className="inline-block rounded-lg border border-gold/40 px-2.5 py-1 text-[13px] font-medium text-gold transition-colors hover:bg-gold/10"
+            >
+              Get this look
+            </ClanLink>
+            {forName && (
+              <ClanLink
+                href={`/supporter/gift?to=${encodeURIComponent(forName)}`}
+                className="inline-block rounded-lg border border-[#ff7ab8]/40 px-2.5 py-1 text-[13px] font-medium text-[#ff9cc8] transition-colors hover:bg-[#ff7ab8]/10"
+              >
+                Gift them a month
+              </ClanLink>
+            )}
+          </span>
         </span>
       )}
     </span>

@@ -11,6 +11,7 @@ import { applyClanSale, chargedAt, purchasedPlan } from '@/lib/clanSale';
 import { log } from '@/lib/logger';
 import { recordLedger } from '@/lib/moneyLedger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
+import { handleGiftEvent, isSupporterGiftEvent } from '@/lib/supporterGiftCheckout';
 import { planKindOf } from '@/lib/unmatchedPurchaseRules';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
@@ -138,6 +139,12 @@ export async function POST(req: NextRequest) {
   // Keep the money (owner page, lib/moneyLedger). Best-effort and before dispatch, so a notification
   // is recorded once whichever branch handles it; a replay is a no-op.
   await recordLedger(ev, raw);
+
+  // A one-time Supporter gift, bought by one person for another (lib/supporterGiftCheckout).
+  if (isSupporterGiftEvent(ev)) {
+    const result = await handleGiftEvent(ev);
+    return Response.json(result.body, { status: result.status });
+  }
 
   // The personal Supporter subscription rides the same webhook but is about a person, not a clan.
   if (isSupporterEvent(ev)) {

@@ -8,9 +8,11 @@ import type { GumroadEvent } from '@/lib/gumroad';
 import { ledgerRow } from '@/lib/moneyLedgerRules';
 import { log } from '@/lib/logger';
 import { isSupporterEvent } from '@/lib/supporterBilling';
+import { isSupporterGiftEvent } from '@/lib/supporterGiftCheckout';
 
 export function ledgerProduct(ev: GumroadEvent): 'supporter' | 'hosted' | 'creator' | 'other' {
-  if (isSupporterEvent(ev)) return 'supporter';
+  // A one-time gift is Supporter money too.
+  if (isSupporterEvent(ev) || isSupporterGiftEvent(ev)) return 'supporter';
   const bought = gumroadPurchase(ev);
   if (!bought) return 'other';
   return bought.catalog === 'creator' ? 'creator' : 'hosted';
