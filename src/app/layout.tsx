@@ -379,7 +379,9 @@ export default async function RootLayout({
             />
           </div>
         </nav>
-        <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
+        {/* A page that marks itself data-wide-page (the tile editor: board + tile panel side by side)
+            gets a wider column on big screens instead of leaving half the window empty. */}
+        <main className="max-w-7xl has-[[data-wide-page]]:max-w-[1720px] w-full mx-auto px-4 sm:px-6 py-8 flex-1">
           {clanReadable ? (
             children
           ) : (

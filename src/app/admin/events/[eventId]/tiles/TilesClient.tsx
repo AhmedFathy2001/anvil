@@ -50,8 +50,8 @@ import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 import { parseComboRule } from '@/lib/combo';
 import type { ComboPartConfig, TileConfig } from '@/lib/types';
 
-// Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
-// and the Quick Build two-pane editor so both drive the exact same complete config form.
+// Map a stored Tile to TileTrackingConfig's `initial` shape (the tile panel's full form, behind
+// "More options" on a new tile and the whole panel on a written one).
 function tileToTrackingInitial(tile: Tile): TileConfig {
   return {
     label: tile.label,
@@ -142,7 +142,7 @@ function useHasRoomForInspector(): boolean {
 export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true, missionsEnabled = true, cofferAvailable = null, canLab = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // The board itself, so the header's Quick build shortcut can jump straight to it.
+  // The board itself.
   const boardRef = useRef<HTMLDivElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
@@ -165,11 +165,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // views[0] is the format's home: a square and a track carry their meaning in their layout, so
   // editing them as a vertical list hides the one thing that makes them what they are. A pool has
   // no geometry to show, so it opens on the list.
-  const [viewMode, setViewMode] = useState<AuthoringView>(() => model.views[0]);
-  const [pasteOpen, setPasteOpen] = useState(false);
+  // ?view=map|list|board opens on that view (the event home's "Lay out roads" links to the map).
+  const searchParams = useSearchParams();
+  const [viewMode, setViewMode] = useState<AuthoringView>(() => {
+    const asked = VIEW_PARAM[searchParams.get('view') ?? ''];
+    return asked && model.views.includes(asked) ? asked : model.views[0];
+  });
   // "Quick add: paste your list" — the matcher-backed bulk add (components/tile-creator).
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [pasteText, setPasteText] = useState('');
 
   // Multi-select for bulk edits. Shift-click extends from the last tile you touched, so "these
   // twenty are all worth 5" is one gesture rather than twenty drawers. Only the fields that are
@@ -192,7 +195,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // ?tile=<id> opens straight into that tile's editor. It's how the live board's "fix something"
   // panel hands you the misconfigured tile — landing on a 150-tile list and hunting for #48 is the
   // difference between fixing it now and fixing it later.
-  const searchParams = useSearchParams();
   const requestedTileId = searchParams.get('tile');
   const openedFromUrl = useRef(false);
   useEffect(() => {
@@ -508,40 +510,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     else setEditingTileId(null);
   }
 
-  // Bulk-create N blank tiles (or one per pasted label) for the Quick Build list. Sequential so
-  // each POST computes the next board position server-side without racing. Selects the first new
-  // tile so the editor lands on it.
-  async function bulkCreate(labels: (string | null)[]) {
-    setAdding(true);
-    setImportMsg(null);
-    try {
-      const created: Tile[] = [];
-      for (const label of labels) {
-        const res = await clanFetch(`/api/events/${event.id}/tiles`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(label ? { label } : {}),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setImportMsg({ type: 'error', text: data.error || 'Could not add tiles.' });
-          break;
-        }
-        created.push(data as Tile);
-      }
-      if (created.length) {
-        setLocalTiles((prev) => [...prev, ...created]);
-        setEditingTileId(created[0].id);
-        // Freshly added "Tile N" rows won't match an active search — clear it so they show up.
-        setSearch('');
-      }
-      router.refresh();
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  // Copy a configured tile, whole. Quick Build's actual rhythm is "set one up properly, then make
+  // Copy a configured tile, whole (the tile panel's "Duplicate"). Building a board's actual rhythm is "set one up properly, then make
   // four more like it" — without this that means re-picking the kind, the item, the source list and
   // the points every time. The copy is made server-side from the stored row (see the tiles POST), so
   // it can't quietly miss a field this component doesn't know about.
@@ -568,13 +537,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     } finally {
       setAdding(false);
     }
-  }
-
-  function applyPasteLabels() {
-    const labels = pasteText.split('\n').map((s) => s.trim()).filter(Boolean);
-    setPasteOpen(false);
-    setPasteText('');
-    if (labels.length) void bulkCreate(labels);
   }
 
   // True when a tile carries anything beyond what a freshly-added blank row gets ("Tile N",
@@ -670,14 +632,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     });
   }, [boardOnly, deferredSearch, kindFilter, categoryFilter, tierFilter, tierBands]);
 
-  // Quick Build left-pane list honors the same search box, text-only — the kind/category/tier
-  // chips live in Cards view, so applying them here would be a hidden filter. Sharing `search`
-  // keeps the query alive across the Cards ⇄ Quick build toggle.
-  const gridFiltering = search.trim().length > 0;
-  const gridTiles = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    return q ? boardOnly.filter((t) => tileMatchesSearch(t, q)) : boardOnly;
-  }, [boardOnly, deferredSearch]);
+  const listFiltered = search.trim().length > 0 || kindFilter !== 'all' || categoryFilter !== 'all' || tierFilter !== 'all';
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
@@ -758,7 +713,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
-  // Quick-build drag-and-drop: the dragged tile takes the drop target's slot. Optimistic
+  // The list's drag-and-drop: the dragged tile takes the drop target's slot. Optimistic
   // local reorder for instant feedback, then the same reorder POST Shuffle uses (pre-start
   // only, enforced server-side; applyOrder re-syncs so positions always match the server).
   const [dragTileId, setDragTileId] = useState<number | null>(null);
@@ -1013,6 +968,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     onCreated={handleCreatorSaved}
     onOpenBulk={canAddTiles ? () => leaveGuard(() => { setEditingTileId(null); setBulkOpen(true); }) : undefined}
     canAddAnother={(dynamicBoard && !eventStarted) || localTiles.filter((t) => isPlaceholderTile(t) && !t.mission).length > 1}
+    onDuplicate={canEditTileSet && dynamicBoard && !eventStarted ? () => void duplicateTile(editingTile.id) : undefined}
     onDelete={() => handleDeleteTile(editingTile.id, true)}
     onSaved={(updated) => {
       handleTileConfigSaved(editingTile.id, updated);
@@ -1021,10 +977,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         />
   ) : null;
 
+  // The board (map, grid or list) on the left and the tile panel beside it, on a wide screen.
+  const dock = (content: React.ReactNode) => (
+    <div className={editingTile && inspectorDocked ? DOCKED_GRID : ''}>
+      <div className="min-w-0">{content}</div>
+      {editingTile && inspectorDocked && <div className="hidden xl:block">{renderInspector(true)}</div>}
+    </div>
+  );
+
   return (
     // Disabled fieldset natively disables every control inside — the locked (finished) event's
     // tile authoring goes read-only in one place. min-w-0 defeats fieldset's min-content default.
-    <fieldset disabled={editLocked} className="space-y-8 block min-w-0 border-0 p-0 m-0">
+    // data-wide-page: the site's main column widens for this page on big screens (app/layout).
+    <fieldset disabled={editLocked} data-wide-page className="space-y-8 block min-w-0 border-0 p-0 m-0">
       {/* Per-tile configuration */}
       <div ref={boardRef}>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -1097,8 +1062,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               onChange={handleImportFile}
               className="hidden"
             />
-            {/* Everything that isn't Quick build lives in one menu: generators first (what people
-                reach for), then the file and library round-trips. */}
+            {/* Every way to add tiles in bulk lives in one menu: generators first (what people reach
+                for), then the file and library round-trips. */}
             <ActionMenu
               label={`＋ Add ${model.nounPlural}`}
               items={[
@@ -1251,6 +1216,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             onRevealStateChanged={handleRevealStateChanged}
           />
         ) : viewMode === 'routes' ? (
+          dock(
           <RaceRouteEditor
             eventId={event.id}
             tiles={localTiles}
@@ -1272,14 +1238,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               router.refresh();
             }}
             onRaceBankChanged={() => router.refresh()}
+            openTileId={editingTileId}
             onOpenTile={(id) => openTileGuarded(id)}
+            panelBeside={inspectorDocked}
+            onDeleteTile={canEditTileSet ? (id) => void handleDeleteTile(id) : undefined}
           />
+          )
         ) : viewMode === 'board' ? (
+          dock(
           <div className="min-w-0">
             <p className="text-xs text-text-muted mb-3">
-              {boardShape === 'grid'
-                ? `Click any square to configure that ${model.noun}. This is exactly the board members will see.`
-                : `Click any ${model.noun} to configure it. Lay out branching routes (splits, merges, junctions) on the Route tab.`}
+              Click any square to write that {model.noun}. This is exactly the board members will see.
             </p>
             <EventBoard
               format={event.format}
@@ -1293,183 +1262,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               staffOnlyTileIds={hiddenTileIds}
             />
           </div>
-        ) : viewMode === 'grid' ? (
-          <div className="flex flex-col lg:flex-row gap-4 items-start">
-            {/* Left: tile list + bulk create */}
-            <div className="w-full lg:w-72 shrink-0 flex flex-col border border-card-border rounded-xl bg-card-bg overflow-hidden">
-              <div className="p-2.5 border-b border-card-border flex items-center gap-1.5 flex-wrap">
-                {canEditTileSet ? (
-                  <>
-                    <button onClick={() => bulkCreate([null])} disabled={adding} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50">+ Row</button>
-                    <button onClick={() => bulkCreate(Array(10).fill(null))} disabled={adding} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50">+ 10</button>
-                    <button onClick={() => setPasteOpen(true)} disabled={adding} className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50">Paste labels…</button>
-                  </>
-                ) : (
-                  <span className="text-[11px] text-text-muted px-1">{eventStarted ? 'Board locked — event started' : 'Fixed board'}</span>
-                )}
-                {adding && <span className="text-[11px] text-text-muted">working…</span>}
-              </div>
-              {localTiles.length > 0 && (
-                <div className="p-2.5 border-b border-card-border">
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder={`Search ${model.nounPlural}…`}
-                      className="w-full pl-3 pr-8 py-1.5 text-sm"
-                    />
-                    {search && (
-                      <button
-                        onClick={() => setSearch('')}
-                        aria-label="Clear search"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 grid place-items-center rounded text-text-muted hover:text-foreground"
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-              <ul className="overflow-y-auto max-h-[72vh]">
-                {gridTiles.map((t) => {
-                  const k = tileKindBadge(t);
-                  const sel = editingTileId === t.id;
-                  // Reordering a filtered list would move tiles by absolute slot while showing a
-                  // non-contiguous subset — confusing. Disable drag while a search is active.
-                  const draggable = !eventStarted && !reordering && !gridFiltering;
-                  const isDragging = dragTileId === t.id;
-                  const isDragOver = dragOverTileId === t.id && dragTileId !== t.id;
-                  return (
-                    <li
-                      key={t.id}
-                      draggable={draggable}
-                      onDragStart={(e) => {
-                        setDragTileId(t.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragOver={(e) => {
-                        if (dragTileId == null) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        setDragOverTileId(t.id);
-                      }}
-                      onDragLeave={() => setDragOverTileId((cur) => (cur === t.id ? null : cur))}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleTileDrop(t.id);
-                      }}
-                      onDragEnd={() => {
-                        setDragTileId(null);
-                        setDragOverTileId(null);
-                      }}
-                      className={`${isDragging ? 'opacity-40' : ''} ${isDragOver ? 'border-t-2 border-t-gold' : ''}`}
-                    >
-                      <button
-                        onClick={() => openTileGuarded(t.id)}
-                        className={`w-full text-left px-2.5 py-2 flex items-center gap-2 border-b border-card-border/40 transition-colors ${sel ? 'bg-gold/10' : 'hover:bg-card-bg-hover'}`}
-                      >
-                        {draggable && (
-                          <span className="text-text-muted/50 cursor-grab select-none shrink-0" title="Drag to reorder" aria-hidden>
-                            ⠿
-                          </span>
-                        )}
-                        <span className="text-[10px] font-mono text-text-muted w-7 shrink-0">#{t.position + 1}</span>
-                        <span className={`flex-1 truncate text-sm ${sel ? 'text-gold font-medium' : 'text-foreground'}`}>{t.label}</span>
-                        {(() => {
-                          const rc = revealChip(t);
-                          return rc ? (
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${rc.cls}`} title={rc.title}>
-                              {rc.label}
-                            </span>
-                          ) : null;
-                        })()}
-                        {isManualOnlyDropTile(t) && <ManualOnlyBadge compact className="shrink-0" />}
-                        <span title={k.blurb} className={`text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0 ${k.cls}`}>{k.label}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-                {localTiles.length === 0 && (
-                  <li className="px-3 py-8 text-center text-xs text-text-muted">No {model.nounPlural} yet. {canEditTileSet ? 'Use “+ Row” or “Paste labels”.' : ''}</li>
-                )}
-                {localTiles.length > 0 && gridTiles.length === 0 && (
-                  <li className="px-3 py-8 text-center text-xs text-text-muted">No {model.nounPlural} match your search.</li>
-                )}
-              </ul>
-            </div>
-
-            {/* Right: the full tile editor for the selected tile */}
-            <div className="flex-1 min-w-0 w-full border border-card-border rounded-xl bg-card-bg">
-              {editingTile ? (
-                <div className="p-5">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <h3 className="text-sm font-bold text-foreground">
-                      <span className="text-text-muted font-mono mr-1.5">#{editingTile.position + 1}</span>
-                      {editingTile.label}
-                    </h3>
-                    {canEditTileSet && (
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button
-                          onClick={() => duplicateTile(editingTile.id)}
-                          disabled={adding}
-                          title="Create a copy of this tile with the same configuration"
-                          className="text-xs text-text-muted hover:text-gold transition-colors disabled:opacity-50"
-                        >
-                          {adding ? 'Duplicating…' : 'Duplicate'}
-                        </button>
-                        <button onClick={() => handleDeleteTile(editingTile.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete {model.noun}</button>
-                      </div>
-                    )}
-                  </div>
-                  {lockHolder && (
-                    <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
-                      🔒 <span className="font-semibold">{lockHolder}</span> is editing this {model.noun} right now — if you both
-                      save, the second save is rejected instead of overwriting.
-                    </p>
-                  )}
-                  {showsReveal(editingTile) && (
-                    <RevealAtEditor
-                      key={`reveal-${editingTile.id}`}
-                      tile={editingTile}
-                      eventId={event.id}
-                      scheduled={timedTile(editingTile)}
-                      isAdmin={isAdmin}
-                      onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
-                      onStateChanged={handleRevealStateChanged}
-                    />
-                  )}
-                  <TileTrackingConfig
-                    key={editingTile.id}
-                    tileId={editingTile.id}
-                    eventId={event.id}
-                    initial={tileToTrackingInitial(editingTile)}
-                    onSaved={(updated) => {
-                      handleTileConfigSaved(editingTile.id, updated);
-                      router.refresh();
-                    }}
-                    eventStarted={eventStarted}
-                    isAdmin={isAdmin}
-                    pointsMode={pointsMode}
-                    tierBands={tierBands}
-                    categorySuggestions={categories}
-                    teamPlay={teamPlay}
-                    missionsAllowed={missionsAllowed}
-                    missionsEnabled={missionsEnabled}
-                    cofferAvailable={cofferAvailable}
-                  />
-                </div>
-              ) : editingLoading ? (
-                <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
-                  Loading {model.noun}…
-                </div>
-              ) : (
-                <div className="grid place-items-center text-sm text-text-muted py-24 px-6 text-center">
-                  Select a {model.noun} on the left to edit it — full config with item &amp; NPC autocomplete.
-                </div>
-              )}
-            </div>
-          </div>
+          )
         ) : (
           <>
 
@@ -1570,11 +1363,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             scrolling down to a tile, clicking it, and then scrolling all the way back up to edit it.
             Stretching the column (the grid default) is what lets the editor follow the list. */}
         <div
-          className={
-            editingTile && inspectorDocked
-              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5'
-              : ''
-          }
+          className={editingTile && inspectorDocked ? DOCKED_GRID : ''}
         >
         <div className="min-w-0">
 
@@ -1748,11 +1537,35 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             const k = tileKindBadge(tile);
             const isEditing = editingTileId === tile.id;
             const isSelected = selectedIds.has(tile.id);
+            // Drag a card onto another to move it there. Off while a filter shows only some tiles
+            // (a drop would move tiles by slots you can't see) and once the event has started.
+            const draggable = !eventStarted && !reordering && !listFiltered;
             return (
               <button
                 key={tile.id}
                 onClick={(e) => pickTile(tile.id, e)}
-                className={`group/tile relative text-left border rounded-xl bg-card-bg hover:bg-card-bg-hover transition-colors overflow-hidden ${
+                draggable={draggable}
+                title={draggable ? 'Click to edit · drag to move' : undefined}
+                onDragStart={(e) => {
+                  setDragTileId(tile.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  if (dragTileId == null) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDragOverTileId(tile.id);
+                }}
+                onDragLeave={() => setDragOverTileId((cur) => (cur === tile.id ? null : cur))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleTileDrop(tile.id);
+                }}
+                onDragEnd={() => {
+                  setDragTileId(null);
+                  setDragOverTileId(null);
+                }}
+                className={`group/tile relative text-left border rounded-xl bg-card-bg hover:bg-card-bg-hover transition-colors overflow-hidden ${dragTileId === tile.id ? 'opacity-40' : ''} ${dragOverTileId === tile.id && dragTileId !== tile.id ? 'ring-2 ring-gold' : ''} ${
                   isEditing
                     ? 'border-gold ring-1 ring-gold/40'
                     : isSelected
@@ -1950,11 +1763,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         </div>
       </details>
 
-      {/* The covering drawer: narrow screens (no room for two panes) and every view that isn't the
-          card list, which is the only one with a column to dock into. */}
-      {editingTile && (viewMode !== 'cards' ? viewMode !== 'grid' : !inspectorDocked) && renderInspector(false)}
+      {/* The covering drawer: narrow screens (no room for two panes) and the views with no column to
+          dock into (schedule, rotation). */}
+      {editingTile && (!inspectorDocked || !DOCKING_VIEWS.has(viewMode)) && renderInspector(false)}
 
-      {/* Paste-labels bulk create (Quick Build) */}
+      {/* "Quick add: paste your list" */}
       {bulkOpen && (
         <BulkQuickAdd
           eventId={event.id}
@@ -1973,26 +1786,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           }}
         />
       )}
-      {pasteOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPasteOpen(false)}>
-          <div className="w-full max-w-md bg-card-bg border border-card-border rounded-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-foreground">Paste labels</h3>
-            <p className="text-xs text-text-muted">One per line. Each becomes a new {model.noun} you can configure on the right.</p>
-            <textarea
-              autoFocus
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              rows={8}
-              className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-gold/50 focus:outline-none"
-              placeholder={'Cluck Norris\nBeefcake\nRat King'}
-            />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setPasteOpen(false)} className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground">Cancel</button>
-              <button onClick={applyPasteLabels} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25">Add tiles</button>
-            </div>
-          </div>
-        </div>
-      )}
     </fieldset>
   );
 }
@@ -2004,16 +1797,22 @@ const PAGE_SIZE = 120;
 // What each view is called on the tab strip. The board tab renames itself after the shape it's
 // showing, because "Board" is not what anyone calls a 5×5 square or a race track.
 const VIEW_LABELS: Record<AuthoringView, (shape: 'grid' | 'track' | 'list') => { label: string; title: string }> = {
-  board: (shape) =>
-    shape === 'grid'
-      ? { label: 'Grid', title: 'Edit tiles on the grid itself' }
-      : { label: 'Track', title: 'Edit tiles along the track, in running order' },
-  routes: () => ({ label: '⇄ Route', title: 'Steps and links: lay out branching routes, splits and junctions' }),
-  cards: () => ({ label: 'Cards', title: 'Every task as a card — search, filter and bulk edits' }),
+  board: () => ({ label: 'Board', title: 'The board as members see it: click a square to write it' }),
+  routes: () => ({ label: 'Map', title: 'The race map: lay out the roads and click a tile to write it' }),
+  cards: () => ({ label: 'List', title: 'Every tile in a list: search, drag to reorder, edit several at once' }),
   schedule: () => ({ label: '🕑 Schedule', title: 'The reveal plan: when each one opens' }),
   rotation: () => ({ label: '🎲 Rotation', title: 'The draw pool, in the order the engine pulls from it' }),
-  grid: () => ({ label: '⚡ Quick build', title: 'Spreadsheet-style bulk authoring' }),
 };
+
+/** ?view= words, as the event home links to them. */
+const VIEW_PARAM: Record<string, AuthoringView> = { map: 'routes', list: 'cards', board: 'board', schedule: 'schedule', rotation: 'rotation' };
+
+/** Board + tile panel columns. The panel gets real room (it is where tiles are written): 26rem on a
+ *  1280px screen, 34rem once the page has widened past 1536px. */
+const DOCKED_GRID = 'xl:grid xl:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_34rem] xl:gap-5';
+
+/** The views with room for the tile panel beside them on a wide screen. */
+const DOCKING_VIEWS = new Set<AuthoringView>(['board', 'routes', 'cards']);
 
 // The kind badge, its one-line config summary and the kind filter's options all live in
 // lib/tileKinds, next to the kind derivation they read — every authoring view needs the same
@@ -2242,9 +2041,11 @@ interface DrawerProps {
   onCreated?: (updated: Tile, another: boolean) => void;
   onOpenBulk?: () => void;
   canAddAnother?: boolean;
+  /** Copy this tile, whole, and open the copy. */
+  onDuplicate?: () => void;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
   // A blank placeholder before the start is a NEW tile: it opens on the tile creator ("what should
   // players do?") instead of the full editor, which stays one tap away under "More options".
   const creating = !eventStarted && isPlaceholderTile(tile) && !tile.mission && !!onCreated;
@@ -2276,14 +2077,14 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
         className={
           docked
             ? 'sticky top-[4.5rem] max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
-            : 'relative w-full max-w-md h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide'
+            : 'relative w-full sm:max-w-xl h-full bg-card-bg sm:border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide'
         }
       >
         {/* Header */}
-        <div className="shrink-0 bg-card-bg border-b border-card-border px-5 py-4 flex items-center justify-between gap-3">
+        <div className="shrink-0 bg-card-bg border-b border-card-border px-5 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wide text-text-muted">{noun} #{tile.position + 1}</p>
-            <h3 id={titleId} className="text-base font-bold text-foreground line-clamp-2 break-words">
+            <p className="text-xs text-text-muted">{noun} {tile.position + 1}</p>
+            <h3 id={titleId} className="text-lg font-bold text-foreground leading-snug line-clamp-2 break-words">
               {creating ? `New ${noun.toLowerCase()}` : tile.label}
             </h3>
           </div>
@@ -2297,7 +2098,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
         </div>
 
         {/* Form */}
-        <div ref={bodyRef} className="flex-1 min-h-0 p-5 overflow-y-auto">
+        <div ref={bodyRef} className="flex-1 min-h-0 px-5 sm:px-6 pt-5 pb-6 overflow-y-auto">
           {lockHolder && (
             <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
               🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both
@@ -2352,40 +2153,53 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
           />
           )}
 
-          {canLab && <TestInLabButton tileId={tile.id} mission={!!tile.mission} />}
-
-          {canDelete && onDelete && (
-            <div className="mt-5 pt-4 border-t border-card-border">
-              {confirmingDelete ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-text-muted flex-1">Delete this tile permanently?</span>
-                  <button
-                    onClick={() => setConfirmingDelete(false)}
-                    disabled={deleting}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDeleting(true);
-                      onDelete();
-                    }}
-                    disabled={deleting}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-50"
-                  >
-                    {deleting ? 'Deleting…' : 'Delete tile'}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmingDelete(true)}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                >
-                  Delete this tile
+          {/* The quiet things, below the task: copy it, try it in the lab, delete it. */}
+          {(onDuplicate || (canDelete && onDelete)) && (
+            <div className="mt-8 pt-4 border-t border-card-border/60 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+              {onDuplicate && !creating && (
+                <button type="button" onClick={onDuplicate} className="min-h-9 text-text-muted hover:text-gold transition-colors">
+                  Duplicate this {noun.toLowerCase()}
                 </button>
               )}
+              {canDelete && onDelete && (
+                confirmingDelete ? (
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="text-text-muted">Delete it for good?</span>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={deleting}
+                      className="px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleting(true);
+                        onDelete();
+                      }}
+                      disabled={deleting}
+                      className="font-semibold px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                    >
+                      {deleting ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => setConfirmingDelete(true)} className="ml-auto min-h-9 text-red-400/80 hover:text-red-300 transition-colors">
+                    Delete this {noun.toLowerCase()}
+                  </button>
+                )
+              )}
             </div>
+          )}
+          {canLab && (
+            <details className="mt-3 group/lab">
+              <summary className="cursor-pointer list-none text-xs text-text-muted hover:text-foreground">
+                <span className="inline-block transition-transform group-open/lab:rotate-90" aria-hidden>▸</span> Test it in the lab
+              </summary>
+              <TestInLabButton tileId={tile.id} mission={!!tile.mission} />
+            </details>
           )}
         </div>
       </div>
