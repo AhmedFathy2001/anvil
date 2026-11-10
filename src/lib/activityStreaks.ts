@@ -120,3 +120,25 @@ export async function yearStreak(accountId: number, year: string): Promise<YearS
   const milestone = [...STREAK_MILESTONES].reverse().find((m) => s.best >= m.weeks)?.name ?? null;
   return { best: s.best, activeWeeks, milestone };
 }
+
+/** Current streak weeks for many characters at once (a ranking's rows), keyed by account id; only those on one. */
+export async function streakWeeksFor(accountIds: number[]): Promise<Map<number, number>> {
+  const days = await activeDaysFor(accountIds);
+  const today = todayUtc();
+  const out = new Map<number, number>();
+  for (const [id, list] of days) {
+    const w = streakFrom(list, today).weeks;
+    if (w > 0) out.set(id, w);
+  }
+  return out;
+}
+
+/** Clan heat for several clans (a ranking), keyed by clan id; cached per clan like clanStreaks. */
+export async function clanHeats(clanIds: number[]): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  for (const id of [...new Set(clanIds)]) {
+    const h = await clanStreaks(id).catch(() => null);
+    if (h && h.total > 0) out.set(id, h.heat);
+  }
+  return out;
+}

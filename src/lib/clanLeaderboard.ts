@@ -178,6 +178,7 @@ function modeWhere(mode: PlayerMode) {
 }
 
 export interface LeaderboardPlayer {
+  accountId: number;
   rsn: string;
   /** lib/accountType's name for the mode, or null when the plugin has not said. */
   accountType: string | null;
@@ -215,6 +216,7 @@ export async function topPlayers(
   // clan-scope: global -- a cross-clan player table spans clans by definition.
   const rows = await db
     .select({
+      accountId: accounts.id,
       rsn: accounts.rsn,
       accountType: accounts.accountType,
       clanName: clans.name,
@@ -265,6 +267,7 @@ export async function topPlayers(
       r.clanShowcase,
     );
     return {
+      accountId: r.accountId,
       rsn: r.rsn,
       accountType: r.accountType ?? null,
       clanName: listed ? r.clanName : null,

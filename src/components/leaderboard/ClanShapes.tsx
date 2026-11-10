@@ -59,7 +59,7 @@ function leaders(rows: ClanStanding[]) {
   ].filter((l) => l.clan);
 }
 
-export default function ClanShapes({ rows }: { rows: ClanStanding[] }) {
+export default function ClanShapes({ rows, heat = {} }: { rows: ClanStanding[]; /** Clan heat by clan id (lib/activityStreaks): members on a weekly streak. */ heat?: Record<number, number> }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-text-muted">
@@ -96,12 +96,13 @@ export default function ClanShapes({ rows }: { rows: ClanStanding[] }) {
 
       <div className="overflow-hidden rounded-xl border border-card-border">
         {/* Column headings only once, so the rows below can be dense without being cryptic. */}
-        <div className="hidden grid-cols-[2rem_minmax(0,1fr)_9rem_9rem_9rem] gap-4 border-b border-card-border bg-black/20 px-4 py-2.5 font-mono text-[0.55rem] uppercase tracking-[0.14em] text-text-dim lg:grid">
+        <div className="hidden grid-cols-[2rem_minmax(0,1fr)_9rem_9rem_9rem_8rem] gap-4 border-b border-card-border bg-black/20 px-4 py-2.5 font-mono text-[0.55rem] uppercase tracking-[0.14em] text-text-dim lg:grid">
           <span />
           <span>Clan</span>
           <span>Experience</span>
           <span>Turnout</span>
           <span>Bossing share</span>
+          <span title="Members with 3+ active days a week, week after week">Heat</span>
         </div>
 
         {rows.map((c, i) => {
@@ -114,7 +115,7 @@ export default function ClanShapes({ rows }: { rows: ClanStanding[] }) {
             <ClanLink
               key={c.clanId}
               href={`/c/${c.slug}`}
-              className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-4 border-b border-card-border-soft px-4 py-3 last:border-b-0 transition-colors hover:bg-card-bg-hover lg:grid-cols-[2rem_minmax(0,1fr)_9rem_9rem_9rem]"
+              className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-4 border-b border-card-border-soft px-4 py-3 last:border-b-0 transition-colors hover:bg-card-bg-hover lg:grid-cols-[2rem_minmax(0,1fr)_9rem_9rem_9rem_8rem]"
             >
               <span className="text-right font-mono text-xs text-text-dim tabular-nums">{i + 1}</span>
 
@@ -144,6 +145,9 @@ export default function ClanShapes({ rows }: { rows: ClanStanding[] }) {
                 fill={c.ehpGained > 0 ? bossing : 0}
                 tone="ember"
               />
+
+              {/* WHO KEEPS COMING BACK: members on a weekly activity streak. */}
+              <Axis value={heat[c.clanId] != null ? `${heat[c.clanId]}%` : '—'} fill={heat[c.clanId] ?? 0} tone="green" />
             </ClanLink>
           );
         })}
