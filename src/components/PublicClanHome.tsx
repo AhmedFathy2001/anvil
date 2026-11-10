@@ -357,6 +357,22 @@ export default function PublicClanHome({
         </div>
 
         <div className="grid content-start gap-4">
+          {view.heat && view.heat.on > 0 && (
+            // The recruiting number: does anyone actually play here week after week?
+            <section className="rounded-xl border border-card-border bg-card-bg p-5" aria-labelledby="clan-heat">
+              <h2 id="clan-heat" className="mb-2 text-base font-semibold">How active</h2>
+              <p className="flex items-baseline gap-2">
+                <span className="font-mono text-3xl font-bold text-gold-light">{view.heat.pct}%</span>
+                <span className="text-[13px] text-text-muted">of members play every week</span>
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-card-border" aria-hidden>
+                <div className="h-full rounded-full bg-[#ff8a3d]" style={{ width: `${view.heat.pct}%` }} />
+              </div>
+              <p className="mt-2 text-[12.5px] text-text-muted">
+                {view.heat.on} of {view.heat.total} on a weekly streak{view.heat.longest > 0 ? ` · longest ${view.heat.longest} weeks` : ''}
+              </p>
+            </section>
+          )}
           {hasReqs && (
             <section className="rounded-xl border border-card-border bg-card-bg p-5">
               <h2 className="mb-3 text-base font-semibold">To join</h2>

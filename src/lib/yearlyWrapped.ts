@@ -5,7 +5,12 @@
 import { and, eq, like, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, eventParticipants, events, memberDailyStats } from '@/db/schema';
+import { accounts, clans, eventParticipants, events, memberDailyStats, users } from '@/db/schema';
+import { yearStreak } from '@/lib/activityStreaks';
+import { supporterLooksByName } from '@/lib/supporter';
+import { giftedMonthsInYear } from '@/lib/supporterGiftCheckout';
+import { giverRank } from '@/lib/supporterGiftPurchase';
+import { SUPPORTER_TIERS, TENURE_LADDER } from '@/lib/supporterTiers';
 import { getEventWrapped } from '@/lib/eventWrapped';
 import { visibilityOf } from '@/lib/eventVisibility';
 import { getMonthlyWrapped } from '@/lib/monthlyWrapped';
@@ -14,7 +19,7 @@ import { isEventEnded } from '@/lib/survey';
 import { notLabClan } from '@/lib/lab';
 
 export async function getYearlyWrapped(accountId: number, rsn: string, year: string): Promise<YearlyWrapped> {
-  const [base, firstDay, busiest, events] = await Promise.all([
+  const [base, firstDay, busiest, events, streak, extras] = await Promise.all([
     getMonthlyWrapped(accountId, rsn, year),
     db
       .select({ day: sql<string | null>`min(${memberDailyStats.day})` })
@@ -28,6 +33,8 @@ export async function getYearlyWrapped(accountId: number, rsn: string, year: str
       .orderBy(sql`sum(${memberDailyStats.xpGained}) desc`)
       .limit(1),
     yearEvents(accountId, year),
+    yearStreak(accountId, year).catch(() => null),
+    supporterExtras(accountId, rsn, year).catch(() => ({ supporter: null, gifted: null })),
   ]);
   const since = firstDay[0]?.day ?? null;
   return {
@@ -35,7 +42,33 @@ export async function getYearlyWrapped(accountId: number, rsn: string, year: str
     trackedSince: since && since > `${year}-01-01` ? since : null,
     busiestMonth: busiest[0] && Number(busiest[0].xp) > 0 ? { key: busiest[0].month, xp: Number(busiest[0].xp) } : null,
     events,
+    streak: streak && streak.best > 0 ? streak : null,
+    ...extras,
   };
+}
+
+/**
+ * The Supporter bits of a year: the star this character wears publicly (supporterLooksByName applies
+ * the same shared + verified rule as every name), and the months its person gave others, only when
+ * they're on the public wall (users.supporter_wall on every login).
+ */
+async function supporterExtras(accountId: number, rsn: string, year: string): Promise<Pick<YearlyWrapped, 'supporter' | 'gifted'>> {
+  const look = (await supporterLooksByName([rsn]))[rsn];
+  const supporter = look?.tenure
+    ? {
+        tier: look.tier,
+        tierName: SUPPORTER_TIERS[look.tier].name,
+        tenure: look.tenure.id,
+        tenureName: TENURE_LADDER.find((t) => t.id === look.tenure!.id)?.name ?? '',
+        months: look.tenure.months,
+      }
+    : null;
+  const acc = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { playerId: true, shared: true } });
+  if (!acc?.playerId || !acc.shared) return { supporter, gifted: null };
+  const optedOut = await db.select({ id: users.id }).from(users).where(and(eq(users.playerId, acc.playerId), eq(users.supporterWall, false))).limit(1);
+  if (optedOut.length) return { supporter, gifted: null };
+  const months = await giftedMonthsInYear(acc.playerId, year);
+  return { supporter, gifted: months > 0 ? { months, rank: giverRank(months).rank?.name ?? null } : null };
 }
 
 /**

@@ -13,8 +13,10 @@ import { BLUE, chip, section, small, title } from './sections';
 // Events in the Clan tab (your clan) and in Lookup (any listed clan). Pure.
 
 /** "Name ......... value" — the name opens that player's card. */
-function nameLine(label: string, value: string, rsn: string): Node {
-  return row(undefined, text(label, 'white', { who: rsn }), muted(value), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
+function nameLine(label: string, value: string, rsn: string, streak = 0): Node {
+  // A streak rides after the value: "+3.2h · 6wk" in the flame's orange.
+  const right = streak > 0 ? row(muted(value), undefined, small(`${streak}wk`, '#ff8a3d', { tip: `${streak}-week activity streak` }), { gap: 4 }) : muted(value);
+  return row(undefined, text(label, 'white', { who: rsn }), right, { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
 }
 
 function siteHeader(label: string, note: string, path: string): Node {
@@ -79,14 +81,14 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
               { t: 'bar' as const, pct: c.heat.pct, color: '#ff8a3d' as const, h: 4 },
             ]
           : []),
-        ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
+        ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn, c.streaks?.[g.rsn])),
       ], { gap: 4 }),
     );
   }
   if (c.topPlayers.length) {
     parts.push(section([
       siteHeader('Top accounts', 'by total XP', `/members?sort=xp`),
-      ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn)),
+      ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn, c.streaks?.[p.rsn])),
       // The clan's feed is one click from its card.
       ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
     ], { gap: 4 }));

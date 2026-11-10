@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { CAN_GRANT, CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
-import { LAB_TIERS, clearLabDrops, labSupporterState, seedLabDrops, setLabTier } from '@/lib/labSupporter';
+import { LAB_TIERS, clearLabDrops, labSupporterState, seedLabDrops, setLabClanTenure, setLabTier } from '@/lib/labSupporter';
 
 // /api/staff/lab/supporter — the Supporter test bench (lib/labSupporter). GET: your lab tier, the
 // test clanmates and how many test drops exist. POST {action}: 'tier' {tier|null, months},
@@ -35,6 +35,10 @@ export async function POST(request: Request) {
     await setLabTier(userId, tier, typeof body.months === 'number' ? body.months : 0);
   } else if (body.action === 'seed') {
     await seedLabDrops(userId, typeof body.count === 'number' ? body.count : 6);
+  } else if (body.action === 'clan-tenure') {
+    // The lab clan's "Backing Anvil for N" badge (lib/clanTenure), months or null to clear.
+    const ok = await setLabClanTenure(typeof body.months === 'number' ? body.months : null);
+    if (!ok) return NextResponse.json({ error: 'The lab clan has a real subscription; not touching it.' }, { status: 409 });
   } else if (body.action === 'clear') {
     await clearLabDrops();
   } else {

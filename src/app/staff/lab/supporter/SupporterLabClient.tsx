@@ -107,6 +107,26 @@ export default function SupporterLabClient() {
       </section>
 
       <section className="rounded-xl border border-card-border bg-card-bg p-4">
+        <h2 className="font-semibold">Lab clan tenure</h2>
+        <p className="mt-1 text-sm text-text-muted">
+          The lab clan&rsquo;s &ldquo;Backing Anvil for N&rdquo; badge, as if it had paid that long. Shows on its public home, the
+          /clans card and the plugin clan card. Never touches a real subscription.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => act({ action: 'clan-tenure', months: null })}
+            className={`${btn} border-card-border text-text-muted hover:border-gold/40`}>
+            None
+          </button>
+          {[1, 3, 6, 12, 24, 36].map((m) => (
+            <button key={m} type="button" disabled={busy} onClick={() => act({ action: 'clan-tenure', months: m })}
+              className={`${btn} border-card-border hover:border-gold/40`}>
+              {m < 12 ? `${m} mo` : `${m / 12} yr`}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-card-border bg-card-bg p-4">
         <h2 className="font-semibold">Test drops in the plugin</h2>
         <p className="mt-1 text-sm text-text-muted">
           Four test clanmates (one per tier, one free) in the hidden lab clan post drops. In the plugin: Lookup → search

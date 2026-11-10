@@ -39,6 +39,8 @@ export interface ClanCard {
   tenure?: { id: TenureStepId; glyph: TenureGlyph; months: number; line: string } | null;
   /** Clan heat: members on a weekly activity streak (lib/activityStreaks). */
   heat?: { on: number; total: number; pct: number } | null;
+  /** Streak weeks of the names this card lists (This week, Top accounts), when on one. */
+  streaks?: Record<string, number>;
   /** Members who support Anvil, longest-supporting first (names only; their flair paints itself). */
   supporters?: { names: string[]; count: number };
   members: number;
@@ -151,7 +153,7 @@ export async function loadClanCard(clan: {
       /* no icons this time; the names still read */
     }
   }
-  return {
+  const card: ClanCard = {
     slug: clan.slug,
     name: clan.name,
     logoUrl: clan.logoUrl,
@@ -162,9 +164,12 @@ export async function loadClanCard(clan: {
     boostNameStyle,
     tenure: await loadClanTenure(clan.id),
     supporters: await clanSupporters(roster.map((m) => m.rsn)),
-    heat: await clanStreaks(clan.id)
-      .then((h) => (h.total ? { on: h.on, total: h.total, pct: h.heat } : null))
-      .catch(() => null),
+    ...(await clanStreaks(clan.id)
+      .then((h) => ({
+        heat: h.total ? { on: h.on, total: h.total, pct: h.heat } : null,
+        streaks: Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks > 0).map(([rsn, s]) => [rsn, s.weeks])),
+      }))
+      .catch(() => ({ heat: null, streaks: {} }))),
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
@@ -193,6 +198,10 @@ export async function loadClanCard(clan: {
       label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
     })),
   };
+  // Only the names the card lists: the whole roster's streaks don't belong in a public payload.
+  const listed = new Set([...card.topWeek.map((t) => t.rsn), ...card.topPlayers.map((t) => t.rsn)]);
+  card.streaks = Object.fromEntries(Object.entries(card.streaks ?? {}).filter(([rsn]) => listed.has(rsn)));
+  return card;
 }
 
 /** Many clans' tenure badges at once (the /clans directory), keyed by clan id; only clans that have one. */

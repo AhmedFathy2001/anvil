@@ -63,3 +63,10 @@ test('in-game rank numbers order custom titles exactly; titles without one follo
   ).map((r) => r.rsn);
   assert.deepEqual(sorted, ['c', 'b', 'a']);
 });
+
+test('sorting by weekly streak: longest first, nobody-on-one last but still listed', async () => {
+  const { sortMembers } = await import('../src/lib/memberSort.ts');
+  const row = (id: number, rsn: string) => ({ id, rsn, rank: null, isGuest: false, ehp: 1, ehb: 0, overallXp: 1 });
+  const out = sortMembers([row(1, 'A'), row(2, 'B'), row(3, 'C')], { key: 'streak', desc: true, movement: {}, rankOrder: [], streaks: { B: 9, C: 2 } });
+  assert.deepEqual(out.map((r) => r.rsn), ['B', 'C', 'A']);
+});

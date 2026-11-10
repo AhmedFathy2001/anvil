@@ -106,3 +106,11 @@ test('yearlyHighlights returns the base sliced to 3 when there are no team finis
   assert.deepEqual(yearlyHighlights(y, ['a', 'b', 'c', 'd']), ['a', 'b', 'c']);
   assert.deepEqual(yearlyHighlights(yearWith([]), ['x']), ['x']);
 });
+
+test('a streak milestone makes the year card’s pills, after the best finish', async () => {
+  const { yearlyHighlights } = await import('../src/lib/yearlyWrappedRules.ts');
+  const y = { events: [], streak: { best: 27, activeWeeks: 40, milestone: 'Forged' } } as unknown as Parameters<typeof yearlyHighlights>[0];
+  assert.deepEqual(yearlyHighlights(y, ['99 Slayer']), ['27-week streak', '99 Slayer']);
+  const none = { events: [], streak: { best: 2, activeWeeks: 10, milestone: null } } as unknown as Parameters<typeof yearlyHighlights>[0];
+  assert.deepEqual(yearlyHighlights(none, ['99 Slayer']), ['99 Slayer']);
+});

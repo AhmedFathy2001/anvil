@@ -20,7 +20,7 @@ import type { SupporterLook } from '@/lib/supporterStyle';
 type Membership = 'all' | 'members' | 'guests';
 
 /** The way each column sorts on first click: names A→Z, everything else highest (or most senior) first. */
-const FIRST_DESC: Record<SortKey, boolean> = { name: false, rank: true, week: true, ehp: true, ehb: true, xp: true };
+const FIRST_DESC: Record<SortKey, boolean> = { name: false, rank: true, week: true, streak: true, ehp: true, ehb: true, xp: true };
 
 /** Rows are scrollable past this many — the page shouldn't grow a screen per twenty members. */
 const VISIBLE_ROWS = 12;
@@ -94,8 +94,11 @@ export default function MembersDirectory({
   rankOrder,
   supporterLooks = {},
   boosters = {},
+  streaks = {},
   initialSort = 'week',
 }: {
+  /** Weekly activity streak (weeks) by roster name; only members on one. */
+  streaks?: Record<string, number>;
   /** This clan's boosting characters by name (lib/clanBoosts boosterMarks). */
   boosters?: Record<string, number>;
   members: MemberListRow[];
@@ -123,8 +126,8 @@ export default function MembersDirectory({
       if (q && !m.rsn.toLowerCase().includes(q)) return false;
       return true;
     });
-    return sortMembers(filtered, { key: sort.key, desc: sort.desc, movement, rankOrder });
-  }, [members, query, membership, sort, movement, rankOrder]);
+    return sortMembers(filtered, { key: sort.key, desc: sort.desc, movement, rankOrder, streaks });
+  }, [members, query, membership, sort, movement, rankOrder, streaks]);
 
   const chip = (active: boolean) =>
     `px-3 py-1.5 text-xs rounded-md border transition-colors ${
@@ -153,7 +156,7 @@ export default function MembersDirectory({
   };
 
   const cols =
-    'grid-cols-[minmax(0,1fr)_4.5rem_5.5rem] sm:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_5.5rem_5rem_5.5rem_4rem]';
+    'grid-cols-[minmax(0,1fr)_4.5rem_5.5rem] sm:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_5.5rem_4.5rem_5rem_5.5rem_4rem]';
 
   return (
     <div>
@@ -194,6 +197,7 @@ export default function MembersDirectory({
           {sortable('rank', 'Rank', 'text-left hidden sm:block')}
           <span className="hidden sm:block">Last 7 days</span>
           {sortable('week', '7d')}
+          {sortable('streak', 'Streak', 'text-right hidden sm:block')}
           {sortable('ehp', 'Hours played', 'text-right hidden sm:block')}
           {sortable('ehb', 'Hours bossed', 'text-right hidden sm:block')}
           {sortable('xp', 'XP', 'text-right')}
@@ -257,6 +261,9 @@ export default function MembersDirectory({
                     )}
                   </span>
 
+                  <span className="hidden sm:block text-right tabular-nums" title="Weeks in a row with 3+ active days">
+                    {streaks[m.rsn] ? <span className="font-semibold text-[#ff8a3d]">{streaks[m.rsn]} wk</span> : <span className="text-text-muted/50">—</span>}
+                  </span>
                   <span className="hidden sm:block text-right tabular-nums text-text-muted">{formatHours(m.ehp)}</span>
                   <span className="hidden sm:block text-right tabular-nums text-text-muted">{formatHours(m.ehb)}</span>
                   <span className="text-right tabular-nums text-text-muted">{formatXp(m.overallXp)}</span>

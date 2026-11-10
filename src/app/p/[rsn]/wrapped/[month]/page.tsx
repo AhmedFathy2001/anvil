@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
+import { SupporterStar } from '@/components/SupporterName';
 import CopyLink from '@/app/events/[eventId]/wrapped/CopyLink';
 import { CardImage } from '@/app/events/[eventId]/wrapped/parts';
 import { apexCharacter } from '@/lib/apexProfiles';
@@ -216,7 +217,30 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
             {w.pets.length > 0 && <Stat label={w.pets.length === 1 ? 'Pet' : 'Pets'} value={w.pets.length.toLocaleString('en-US')} />}
             {year && year.events.length > 0 && <Stat label="Events played" value={year.events.length.toLocaleString('en-US')} />}
             {year?.busiestMonth && <Stat label="Busiest month" value={monthLabel(year.busiestMonth.key).split(' ')[0]} />}
+            {year?.streak && <Stat label="Best streak" value={`${year.streak.best} wk`} />}
+            {year?.streak && <Stat label="Active weeks" value={`${year.streak.activeWeeks} of 52`} />}
           </div>
+
+          {year && (year.supporter || year.gifted || year.streak?.milestone) && (
+            <div className="flex flex-wrap gap-2">
+              {year.streak?.milestone && (
+                <span className="rounded-full border border-[#ff8a3d]/50 bg-[#ff8a3d]/10 px-3 py-1 text-sm text-[#ffb27a]">
+                  {year.streak.milestone} · {year.streak.best}-week streak
+                </span>
+              )}
+              {year.supporter && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/10 px-3 py-1 text-sm text-gold-light">
+                  <SupporterStar size={14} tenure={year.supporter.tenure} decorative />
+                  Anvil {year.supporter.tierName} · {year.supporter.tenureName}
+                </span>
+              )}
+              {year.gifted && (
+                <span className="rounded-full border border-[#ff7ab8]/50 bg-[#ff7ab8]/10 px-3 py-1 text-sm text-[#ff9cc8]">
+                  Gifted {year.gifted.months} month{year.gifted.months === 1 ? '' : 's'} of Supporter{year.gifted.rank ? ` · ${year.gifted.rank}` : ''}
+                </span>
+              )}
+            </div>
+          )}
 
           {(w.maxed.length > 0 || w.milestones.length > 0) && (
             <div className="flex flex-wrap gap-2">

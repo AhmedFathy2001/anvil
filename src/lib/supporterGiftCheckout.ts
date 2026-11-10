@@ -18,6 +18,8 @@ import { checkSaleWithGumroad, type GumroadEvent } from '@/lib/gumroad';
 import { ensureSupporterRef, flairCharacterWhere } from '@/lib/supporter';
 import { PAID_GIFT_RECURRENCE, giftOptionName, giverRank, parseGiftOption, type GiverRank } from '@/lib/supporterGiftPurchase';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
+import { announceGift } from '@/lib/supporterMoments';
+import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
 
 type Result = { status: number; body: Record<string, unknown> };
 const ok = (body: Record<string, unknown> = {}): Result => ({ status: 200, body: { received: true, ...body } });
@@ -130,6 +132,8 @@ export async function handleGiftEvent(ev: GumroadEvent): Promise<Result> {
   });
   if (!created) return ok({ note: 'already applied' });
   afterSupporterChange([intent.recipientUserId, intent.buyerUserId]);
+  // "X gifted Y 3 months" in their shared clans and the Anvil Discord. Not awaited; never throws.
+  void announceGift(ev.saleId, intent.buyerUserId, intent.recipientUserId, option.months, SUPPORTER_TIERS[option.tier].name);
   return ok({ gift: option });
 }
 
@@ -197,4 +201,20 @@ export async function topGivers(sinceIso: string, limit = 5): Promise<TopGiver[]
     if (out.length >= limit) break;
   }
   return out;
+}
+
+/** Months a PERSON gave others in one calendar year (their yearly recap), across their logins. */
+export async function giftedMonthsInYear(playerId: number, year: string): Promise<number> {
+  const [r] = await db
+    .select({ months: sql<number>`coalesce(sum(${supporterSubscriptions.giftMonths}), 0)::int` })
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.giftedByUserId))
+    .where(
+      and(
+        eq(users.playerId, playerId),
+        ne(supporterSubscriptions.status, 'refunded'),
+        sql`substr(${supporterSubscriptions.startedAt}, 1, 4) = ${year}`,
+      ),
+    );
+  return Number(r?.months ?? 0);
 }

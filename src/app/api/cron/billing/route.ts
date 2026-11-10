@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 
 import { timingSafeStrEqual } from '@/lib/auth';
 import { sweepLapsedBilling } from '@/lib/billingLapse';
+import { sweepSupporterMoments } from '@/lib/supporterMoments';
 import { log } from '@/lib/logger';
 
 // One Gumroad call per overdue paying clan — a handful, nothing that needs the sweeps' budget.
@@ -31,6 +32,9 @@ export async function GET(request: Request) {
 
   const result = await sweepLapsedBilling();
   log.info('billing-cron.done', { ...result, ended: result.ended.length });
+  // Daily too, but after the answer: tenure steps and streak milestones walk every clan, and the
+  // cron call shouldn't wait on that (lib/supporterMoments, deduped, so a repeat run is harmless).
+  after(async () => log.info('supporter-moments.done', await sweepSupporterMoments()));
   // Gumroad unreachable for some rows 502s so the cron log carries it; tomorrow's run asks again.
   return NextResponse.json({ ok: result.errors === 0, ...result }, { status: result.errors > 0 ? 502 : 200 });
 }

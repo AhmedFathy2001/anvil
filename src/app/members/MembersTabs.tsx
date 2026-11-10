@@ -44,6 +44,7 @@ export default function MembersTabs({
   lately,
   records,
   initialSort = 'week',
+  streaks = {},
 }: {
   /** This clan's boosting characters by name, for the Booster mark (lib/clanBoosts boosterMarks). */
   boosters?: Record<string, number>;
@@ -70,6 +71,8 @@ export default function MembersTabs({
   /** Clan record holders (components/records). */
   records: React.ReactNode;
   initialSort?: MemberSortKey;
+  /** Weekly activity streak (weeks) by roster name (lib/activityStreaks). */
+  streaks?: Record<string, number>;
 }) {
   const [tab, setTab] = useState<Tab>('roster');
 
@@ -96,7 +99,7 @@ export default function MembersTabs({
       {tab === 'roster' && (
         <>
           <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} />
-          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} initialSort={initialSort} />
+          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} initialSort={initialSort} streaks={streaks} />
         </>
       )}
 
