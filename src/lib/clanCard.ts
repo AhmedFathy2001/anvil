@@ -77,22 +77,30 @@ async function clanSupporters(rsns: string[]): Promise<NonNullable<ClanCard['sup
   const looks = await supporterLooksByName(rsns).catch(() => ({}) as Awaited<ReturnType<typeof supporterLooksByName>>);
   const names = Object.keys(looks);
   if (names.length === 0) return { people: [], count: 0 };
-  // One person, several characters on the roster: they're one supporter, shown once.
+  // One person, several characters on the roster: they're one supporter, shown once, under their
+  // main when it's in good standing, else any active character; a banned or unranked one only when
+  // that's all they have here.
   const owners = await db
-    .select({ key: accounts.rsnNormalized, playerId: accounts.playerId })
+    .select({ key: accounts.rsnNormalized, playerId: accounts.playerId, status: accounts.status, isPrimary: accounts.isPrimary })
     .from(accounts)
     .where(inArray(accounts.rsnNormalized, names.map(normalizeRsn)))
     .catch(() => []);
-  const ownerOf = new Map(owners.map((o) => [o.key, o.playerId]));
-  const seen = new Set<string>();
-  const people: { rsn: string; tier: string; months: number }[] = [];
+  const ownerOf = new Map(owners.map((o) => [o.key, o]));
+  const rank = (rsn: string) => {
+    const o = ownerOf.get(normalizeRsn(rsn));
+    return (o?.status === 'active' ? 2 : 0) + (o?.isPrimary ? 1 : 0);
+  };
+  const best = new Map<string, string>();
   for (const rsn of rsns) {
-    const look = looks[rsn];
-    if (!look) continue;
-    const pid = ownerOf.get(normalizeRsn(rsn));
+    if (!looks[rsn]) continue;
+    const pid = ownerOf.get(normalizeRsn(rsn))?.playerId;
     const key = pid != null ? `p${pid}` : `n${rsn}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const had = best.get(key);
+    if (had == null || rank(rsn) > rank(had)) best.set(key, rsn);
+  }
+  const people: { rsn: string; tier: string; months: number }[] = [];
+  for (const rsn of best.values()) {
+    const look = looks[rsn];
     people.push({ rsn, tier: SUPPORTER_TIERS[look.tier].name, months: look.tenure?.months ?? 0 });
   }
   people.sort((a, b) => b.months - a.months || a.rsn.localeCompare(b.rsn));

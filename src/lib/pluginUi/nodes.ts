@@ -418,7 +418,9 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
         if (found.grad) t.grad = found.grad;
         if (found.move) t.move = true;
         if (!t.icon) {
-          t.icon = { t: 'icon', glyph: found.glyph ?? 'star', w: 10, h: 10, color: '#ffd35c' };
+          // The tenure shapes (ring, hex) need a little more room than the plain star to read.
+          const size = found.glyph && found.glyph !== 'star' ? 12 : 10;
+          t.icon = { t: 'icon', glyph: found.glyph ?? 'star', w: size, h: size, color: '#ffd35c' };
           t.iconAfter = true;
           // Whatever the name already explained stays, after who they are.
           const who = found.label ?? 'Anvil Supporter';
