@@ -1345,6 +1345,13 @@
       "when": 1794540065502,
       "tag": "0254_clan_paid_since",
       "breakpoints": true
+    },
+    {
+      "idx": 255,
+      "version": "7",
+      "when": 1794540067077,
+      "tag": "0255_supporter_wall",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { SITE } from '@/lib/site';
 import SupporterName from '@/components/SupporterName';
 import SupporterAnnounceToggle from '@/components/SupporterAnnounceToggle';
 import SupporterGameChatToggle from '@/components/SupporterGameChatToggle';
+import SupporterWallToggle from '@/components/SupporterWallToggle';
 import SupporterStylePicker from '@/components/SupporterStylePicker';
 import SupporterCharacterStyles from '@/components/SupporterCharacterStyles';
 import type { SupporterStyle } from '@/lib/supporterStyle';
@@ -71,6 +72,7 @@ export default function SupporterSection({
   name = null,
   announce = null,
   gameChat = null,
+  wall = null,
   characters = [],
   bare = false,
 }: {
@@ -82,6 +84,8 @@ export default function SupporterSection({
   announce?: boolean | null;
   /** Their "colours in game chat" choice; null hides the toggle. */
   gameChat?: boolean | null;
+  /** On the public supporters wall (users.supporter_wall); null hides the toggle. */
+  wall?: boolean | null;
   /** Linked RuneScape characters and their own flair overrides. */
   characters?: { accountId: number; rsn: string; style: SupporterStyle | null }[];
   /** Their own display name, previewed in each tier's flair. */
@@ -194,6 +198,7 @@ export default function SupporterSection({
           ) : null}
         </div>
         {gameChat != null && <SupporterGameChatToggle initial={gameChat} />}
+        {wall != null && <SupporterWallToggle initial={wall} />}
       </div>
       {invite && <InviteCard invite={invite} />}
       <DiscordCard announce={announce} />

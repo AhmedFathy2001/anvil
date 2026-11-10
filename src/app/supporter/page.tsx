@@ -1,4 +1,7 @@
 import { cookies, headers } from 'next/headers';
+import { supporterWall, type SupporterWall } from '@/lib/supporterWall';
+import { SupporterStar } from '@/components/SupporterName';
+import { TENURE_LADDER } from '@/lib/supporterTiers';
 import { REFERRAL_COOKIE } from '@/lib/referrals';
 import { isReferralCode } from '@/lib/referralRules';
 import { eq } from 'drizzle-orm';
@@ -82,6 +85,8 @@ export default async function SupporterPage() {
     ? (await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }))?.displayName ?? null
     : null;
   const configured = !!process.env.GUMROAD_URL_SUPPORTER;
+  // Decoration: a failed read is a page without the wall.
+  const wall = await supporterWall().catch(() => ({ total: 0, entries: [] }));
   // For a supporter: a note from Ahmed, and "Join the Anvil Discord" when they aren't in it yet.
   const [contactId, inAnvilServer] = current && session
     ? await Promise.all([
@@ -193,6 +198,8 @@ export default async function SupporterPage() {
         </table>
       </div>
 
+      {wall.entries.length > 0 && <Wall wall={wall} />}
+
       <p className="mt-6 text-center text-[13px] text-text-dim">
         Billed through Gumroad. Cancel any time and your perks last to the end of the term you paid for.
         Yearly plans get two months free.
@@ -257,5 +264,45 @@ function TierCard({
         </span>
       )}
     </div>
+  );
+}
+
+/** The supporters wall: every named Supporter, grouped by how long they've supported without a break. */
+function Wall({ wall }: { wall: SupporterWall }) {
+  const groups = [...TENURE_LADDER]
+    .reverse()
+    .map((step) => ({ step, names: wall.entries.filter((e) => e.tenure?.id === step.id) }))
+    .filter((g) => g.names.length > 0);
+  return (
+    <section className="mt-12" aria-labelledby="supporters-wall">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="h-5 w-1 self-center rounded bg-gold" aria-hidden />
+        <h2 id="supporters-wall" className="text-lg font-semibold">
+          Kept running by {wall.total.toLocaleString('en-US')} supporter{wall.total === 1 ? '' : 's'}
+        </h2>
+        <span className="text-[13px] text-text-muted">longest-standing first</span>
+      </div>
+      <div className="mt-4 rounded-xl border border-card-border bg-card-bg">
+        {groups.map(({ step, names }) => (
+          <div key={step.id} className="grid gap-3 border-t border-card-border px-4 py-3 first:border-t-0 sm:grid-cols-[11rem_minmax(0,1fr)]">
+            <div className="flex items-center gap-2">
+              <SupporterStar size={16} tenure={step.id} decorative />
+              <span className="font-semibold text-gold-light">{step.name}</span>
+              <span className="text-[12px] text-text-dim">{step.months === 0 ? 'new' : step.months < 12 ? `${step.months}+ mo` : `${step.months / 12}+ yr`}</span>
+            </div>
+            <ul className="flex flex-wrap gap-2">
+              {names.map((e) => (
+                <li key={e.name} className="rounded-full border border-card-border bg-background/40 px-3 py-1 text-[13px]">
+                  <SupporterName name={e.name} tier={e.tier} style={e.style} tenure={e.tenure} star={false} plain />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[12px] text-text-dim">
+        Supporters show under a character they share publicly. Anyone can leave the wall in Settings → Supporter.
+      </p>
+    </section>
   );
 }

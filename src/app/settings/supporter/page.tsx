@@ -90,6 +90,7 @@ export default async function SupporterSettingsPage() {
         name={user?.displayName ?? null}
         announce={user?.announceSupporter ?? true}
         gameChat={user?.gameChatFlair ?? true}
+        wall={user?.supporterWall ?? true}
         characters={characters.map((c) => ({ ...c, style: parseSupporterStyle(c.style) }))}
         invite={
           referral && process.env.GUMROAD_URL_SUPPORTER
