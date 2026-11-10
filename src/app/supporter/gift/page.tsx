@@ -75,7 +75,7 @@ export default async function GiftPage({ searchParams }: { searchParams: Promise
 
       <section className="mt-8">
         <h2 className="text-base font-semibold">Giver ranks</h2>
-        <p className="mt-1 text-[13px] text-text-muted">Counted in months given, never money. Shown on your name and on the supporters wall.</p>
+        <p className="mt-1 text-[13px] text-text-muted">Counted in months given, never money. Shown in your Settings and in the top givers on the supporters page.</p>
         <ul className="mt-3 flex flex-wrap gap-2">
           {GIVER_RANKS.map((r) => (
             <li key={r.id} className="rounded-full border border-card-border bg-card-bg px-3 py-1 text-[13px]">
