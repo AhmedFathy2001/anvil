@@ -73,6 +73,12 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     parts.push(
       section([
         siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
+        ...(c.heat && c.heat.on > 0
+          ? [
+              row(small('Clan heat', 'muted'), undefined, small(`${c.heat.pct}% · ${fmt(c.heat.on)} of ${fmt(c.heat.total)} on a streak`, '#ff8a3d'), { tip: 'Members with 3+ active days a week, week after week' }),
+              { t: 'bar' as const, pct: c.heat.pct, color: '#ff8a3d' as const, h: 4 },
+            ]
+          : []),
         ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
       ], { gap: 4 }),
     );
@@ -83,6 +89,21 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn)),
       // The clan's feed is one click from its card.
       ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
+    ], { gap: 4 }));
+  }
+  if (c.supporters && c.supporters.count > 0) {
+    // Who keeps Anvil running, where clanmates look every day. Names carry their own flair (`who`).
+    const names = c.supporters.names;
+    const pairs: Node[] = [];
+    for (let i = 0; i < names.length; i += 2) {
+      const one = (rsn: string | undefined) => (rsn ? text(rsn, 'white', { who: rsn, font: 'small', on: { a: 'lookup', rsn }, tip: `Look up ${rsn}` }) : undefined);
+      pairs.push(row(one(names[i]), undefined, one(names[i + 1]), { pad: 2 }));
+    }
+    const more = c.supporters.count - names.length;
+    parts.push(section([
+      row(title(`Supporters · ${fmt(c.supporters.count)}`, '#ffd35c'), undefined, small('keep Anvil running', 'muted')),
+      ...pairs,
+      ...(more > 0 ? [small(`+${fmt(more)} more`, 'muted')] : []),
     ], { gap: 4 }));
   }
   if (c.highlights.length) {

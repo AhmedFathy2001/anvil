@@ -12,6 +12,8 @@ import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevel } from '@/lib/clanBoosts';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
+import { clanStreaks } from '@/lib/activityStreaks';
+import { supporterLooksByName } from '@/lib/supporter';
 import type { TenureGlyph, TenureStepId } from '@/lib/supporterTiers';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
@@ -35,6 +37,10 @@ export interface ClanCard {
   boostNameStyle?: ClanBoostNameStyle | null;
   /** How long the clan has paid for Anvil without a break (lib/clanTenure); absent when it hasn't. */
   tenure?: { id: TenureStepId; glyph: TenureGlyph; months: number; line: string } | null;
+  /** Clan heat: members on a weekly activity streak (lib/activityStreaks). */
+  heat?: { on: number; total: number; pct: number } | null;
+  /** Members who support Anvil, longest-supporting first (names only; their flair paints itself). */
+  supporters?: { names: string[]; count: number };
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -59,6 +65,13 @@ export interface ClanCard {
 function clanAccent(clan: { accentColor?: string | null; artPalette?: unknown }): string | null {
   const first = (clan.artPalette as { colors?: unknown[] } | null)?.colors?.[0];
   return normalizeHex(clan.accentColor) ?? normalizeHex(first);
+}
+
+/** The roster's Supporters, longest unbroken support first. Decoration: a failed read is none. */
+async function clanSupporters(rsns: string[]): Promise<{ names: string[]; count: number }> {
+  const looks = await supporterLooksByName(rsns).catch(() => ({}) as Awaited<ReturnType<typeof supporterLooksByName>>);
+  const names = Object.keys(looks).sort((a, b) => (looks[b].tenure?.months ?? 0) - (looks[a].tenure?.months ?? 0) || a.localeCompare(b));
+  return { names: names.slice(0, 10), count: names.length };
 }
 
 /** The clan's tenure badge, or null. Decoration: a failed read is no badge. */
@@ -148,6 +161,10 @@ export async function loadClanCard(clan: {
     boostLevel,
     boostNameStyle,
     tenure: await loadClanTenure(clan.id),
+    supporters: await clanSupporters(roster.map((m) => m.rsn)),
+    heat: await clanStreaks(clan.id)
+      .then((h) => (h.total ? { on: h.on, total: h.total, pct: h.heat } : null))
+      .catch(() => null),
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,

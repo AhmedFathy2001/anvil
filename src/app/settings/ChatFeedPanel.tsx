@@ -25,6 +25,7 @@ const BRIEF_LABELS: Record<BriefItem, string> = {
   tiles: 'Names of the tiles nearly done',
   clanEvents: 'Clan events today',
   goals: 'Your closest goal',
+  streak: 'Your weekly activity streak',
 };
 
 const CA_OPTIONS = [

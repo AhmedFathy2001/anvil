@@ -63,8 +63,23 @@ export interface PlayerCardPage {
   iconItemId: number | null;
 }
 
+/** A character's weekly activity streak as the card shows it (lib/activityStreak). */
+export interface PlayerCardStreak {
+  weeks: number;
+  best: number;
+  thisWeek: number;
+  needed: number;
+  safe: boolean;
+  restBanked: boolean;
+  /** The last 12 weeks oldest → newest, then this week once it counts: a(ctive) r(est) m(issed). */
+  recent: string;
+  milestone: string | null;
+}
+
 export interface PlayerCard {
   rsn: string;
+  /** Weekly activity streak; absent on a hiscores-only card. */
+  streak?: PlayerCardStreak | null;
   /** Only presence/motion flags; panel image bytes stay behind same-origin authenticated routes. */
   panelMedia?: { avatar: boolean; avatarAnimated: boolean; banner: boolean; bannerAnimated: boolean; revision?: string };
   /** This character's visible pins from its owner's display case. */
