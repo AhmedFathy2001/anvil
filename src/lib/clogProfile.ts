@@ -1,4 +1,4 @@
-import { clogItemNames, clogPageItems, clogPageNames, clogTotalSlots } from '@/lib/clogDataset';
+import { clogItemLabels, clogPageItems, clogPageNames, clogTotalSlots } from '@/lib/clogDataset';
 import { assessLuckAt, chancePerKill, type LuckAssessment } from '@/lib/clogLuck';
 import { unlockLuck } from '@/lib/clogRarity';
 import type { KillLuckRead } from '@/lib/dropOdds';
@@ -99,7 +99,7 @@ export function buildClogProfile(args: {
     };
   });
 
-  const names = clogItemNames();
+  const names = clogItemLabels();
   const recent: RecentUnlock[] = items
     .filter((i): i is StoredClogItem & { firstSeenAt: string } => !!i.firstSeenAt)
     .sort((a, b) => b.firstSeenAt.localeCompare(a.firstSeenAt))
@@ -136,7 +136,7 @@ export function buildClogProfile(args: {
 /** The item grid for one page: everything the page holds, flagged by what they own. */
 export function buildPageItems(page: string, items: StoredClogItem[]): ClogItemView[] {
   const owned = new Map(items.map((i) => [i.itemId, i]));
-  const names = clogItemNames();
+  const names = clogItemLabels();
   return clogPageItems(page).map((entry) => {
     const mine = owned.get(entry.id);
     return {

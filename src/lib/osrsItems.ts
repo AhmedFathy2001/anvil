@@ -17,6 +17,11 @@ import droppableData from '@/data/droppableItems.json';
 export interface MappingItem {
   id: number;
   name: string;
+  /**
+   * The in-game name, only where `name` is a collection-log label that differs from it: slots that
+   * share one name ("Decorative armour" ×15) are listed one per id under the wiki's page name.
+   */
+  gameName?: string;
 }
 
 let cachedItems: MappingItem[] | null = null;
@@ -56,6 +61,7 @@ const UNTRADEABLE_SUPPLEMENT: MappingItem[] = [
 // placeholder, AND 21907, the actual drop). When that happens we keep the id the clog tracks, so the
 // picker surfaces the item players can actually get. Built once, lazily.
 let clogIdSet: Set<number> | null = null;
+let clogLabelled: MappingItem[] | null = null;
 function getClogItemIds(): Set<number> {
   if (clogIdSet) return clogIdSet;
   const ids = new Set<number>();
@@ -65,6 +71,56 @@ function getClogItemIds(): Set<number> {
   }
   clogIdSet = ids;
   return ids;
+}
+
+/**
+ * Every clog slot whose in-game name another slot shares, one entry per id under its label. The
+ * name-collapsing merge below keeps one id per name, which turned fifteen "Decorative armour" slots
+ * into a single pick; these replace that one entry.
+ */
+export function clogLabelledItems(): MappingItem[] {
+  if (clogLabelled) return clogLabelled;
+  const activities = (clogData as { activities?: Record<string, { id: number; name: string; label?: string }[]> }).activities ?? {};
+  const seen = new Set<number>();
+  const out: MappingItem[] = [];
+  for (const items of Object.values(activities)) {
+    for (const it of items) {
+      if (seen.has(it.id)) continue;
+      seen.add(it.id);
+      if (it.label) out.push({ id: it.id, name: it.label, gameName: it.name });
+    }
+  }
+  clogLabelled = out;
+  return out;
+}
+
+/**
+ * Name → item for exact-name lookups (CSV import, library tasks, chat names). A labelled entry
+ * answers to its label and, failing an entry actually named so, to its in-game name: the lowest id,
+ * as the old one-per-name list resolved it.
+ */
+export function itemsByName(mapping: MappingItem[]): Map<string, MappingItem> {
+  const byName = new Map<string, MappingItem>();
+  for (const it of mapping) {
+    const key = it.name.toLowerCase();
+    if (!byName.has(key)) byName.set(key, it);
+  }
+  for (const it of mapping) {
+    if (!it.gameName) continue;
+    const key = it.gameName.toLowerCase();
+    const cur = byName.get(key);
+    if (!cur || (cur.gameName && it.id < cur.id)) byName.set(key, it);
+  }
+  return byName;
+}
+
+/** Pure: the merged list with each same-name clog slot as its own labelled entry (see above). */
+export function withClogLabels(merged: MappingItem[], labelled: MappingItem[]): MappingItem[] {
+  if (labelled.length === 0) return merged;
+  const ids = new Set(labelled.map((it) => it.id));
+  // The collapsed entry for such a name carries one of the group's ids; a different id under the
+  // same name (a tradeable namesake) is a separate item and stays.
+  return [...merged.filter((it) => !ids.has(it.id)), ...labelled];
 }
 
 // "Is this item obtainable as loot?" — the filter behind the picker's Drops-only toggle. The
@@ -176,7 +232,7 @@ export async function getItemMapping(): Promise<MappingItem[]> {
     merged.push(it);
   }
 
-  cachedItems = merged;
+  cachedItems = withClogLabels(merged, clogLabelledItems());
   cacheTimestamp = Date.now();
   cacheTtl = wiki.length > 0 && rl.length > 0 ? CACHE_TTL : PARTIAL_CACHE_TTL;
   return cachedItems;

@@ -47,8 +47,15 @@ function clogIds(): Set<number> {
   return clogIdSet;
 }
 
+// Same-name slots ("Decorative armour" ×15) carry their wiki label, so each is its own pick.
+let activitiesCache: Record<string, MatchItem[]> | null = null;
 function clogActivities(): Record<string, MatchItem[]> {
-  return (clogData as { activities?: Record<string, MatchItem[]> }).activities ?? {};
+  if (activitiesCache) return activitiesCache;
+  const raw = (clogData as { activities?: Record<string, { id: number; name: string; label?: string }[]> }).activities ?? {};
+  activitiesCache = Object.fromEntries(
+    Object.entries(raw).map(([page, items]) => [page, items.map((it) => ({ id: it.id, name: it.label ?? it.name }))]),
+  );
+  return activitiesCache;
 }
 
 /** The collection-log pages, for "any GOTR reward" style tasks. "All Pets" is a page too. */

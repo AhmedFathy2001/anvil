@@ -7,7 +7,7 @@ import { SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
-import { getItemMapping } from '@/lib/osrsItems';
+import { getItemMapping, itemsByName } from '@/lib/osrsItems';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevel } from '@/lib/clanBoosts';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
@@ -146,7 +146,7 @@ export async function loadClanCard(clan: {
   const idByName = new Map<string, number>();
   if (highlightMoments.some((m) => m.itemId == null && m.itemName)) {
     try {
-      for (const it of await getItemMapping()) idByName.set(it.name.toLowerCase(), it.id);
+      for (const [name, it] of itemsByName(await getItemMapping())) idByName.set(name, it.id);
     } catch {
       /* no icons this time; the names still read */
     }

@@ -9,7 +9,7 @@ import { tiles, events } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit } from '@/lib/tile-audit';
-import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
+import { getItemMapping, itemsByName, type MappingItem } from '@/lib/osrsItems';
 import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 import { assertEventEditable } from '@/lib/eventLock';
 import { serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
@@ -700,7 +700,7 @@ export async function POST(
   // Item config is only applied pre-start (it sets the tile kind). Load the merged item mapping
   // once if any row carries items, index it by name + id, then fail loudly on any name that
   // doesn't resolve so nothing partial lands. (id-pinned entries skip name resolution.)
-  const byName = new Map<string, MappingItem>();
+  let byName = new Map<string, MappingItem>();
   const byId = new Map<number, MappingItem>();
   const hasAnyItems =
     !eventStarted &&
@@ -715,11 +715,10 @@ export async function POST(
         { status: 502 },
       );
     }
-    for (const it of mapping) {
-      const key = it.name.toLowerCase();
-      if (!byName.has(key)) byName.set(key, it);
-      if (!byId.has(it.id)) byId.set(it.id, it);
-    }
+    // Labels and in-game names both resolve ("Decorative armour (gold platebody)" is one slot;
+    // plain "Decorative armour" still lands on the lowest id, as it always did).
+    byName = itemsByName(mapping);
+    for (const it of mapping) if (!byId.has(it.id)) byId.set(it.id, it);
     // Collect name entries (those without an explicit id) that don't resolve.
     const missing = new Set<string>();
     for (const row of [...(rows.slice(0, processed) as ImportRow[]), ...allPartRows]) {

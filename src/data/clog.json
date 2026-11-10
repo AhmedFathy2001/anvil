@@ -1112,27 +1112,33 @@
       },
       {
         "id": 21061,
-        "name": "Graceful hood"
+        "name": "Graceful hood",
+        "label": "Graceful hood (Agility Arena)"
       },
       {
         "id": 21064,
-        "name": "Graceful cape"
+        "name": "Graceful cape",
+        "label": "Graceful cape (Agility Arena)"
       },
       {
         "id": 21067,
-        "name": "Graceful top"
+        "name": "Graceful top",
+        "label": "Graceful top (Agility Arena)"
       },
       {
         "id": 21070,
-        "name": "Graceful legs"
+        "name": "Graceful legs",
+        "label": "Graceful legs (Agility Arena)"
       },
       {
         "id": 21073,
-        "name": "Graceful gloves"
+        "name": "Graceful gloves",
+        "label": "Graceful gloves (Agility Arena)"
       },
       {
         "id": 21076,
-        "name": "Graceful boots"
+        "name": "Graceful boots",
+        "label": "Graceful boots (Agility Arena)"
       },
       {
         "id": 29482,
@@ -1234,79 +1240,98 @@
     "Castle Wars": [
       {
         "id": 4068,
-        "name": "Decorative sword"
+        "name": "Decorative sword",
+        "label": "Decorative sword (red)"
       },
       {
         "id": 4069,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (red platebody)"
       },
       {
         "id": 4070,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (red platelegs)"
       },
       {
         "id": 4071,
-        "name": "Decorative helm"
+        "name": "Decorative helm",
+        "label": "Decorative helm (red)"
       },
       {
         "id": 4072,
-        "name": "Decorative shield"
+        "name": "Decorative shield",
+        "label": "Decorative shield (red)"
       },
       {
         "id": 4503,
-        "name": "Decorative sword"
+        "name": "Decorative sword",
+        "label": "Decorative sword (white)"
       },
       {
         "id": 4504,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (white platebody)"
       },
       {
         "id": 4505,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (white platelegs)"
       },
       {
         "id": 4506,
-        "name": "Decorative helm"
+        "name": "Decorative helm",
+        "label": "Decorative helm (white)"
       },
       {
         "id": 4507,
-        "name": "Decorative shield"
+        "name": "Decorative shield",
+        "label": "Decorative shield (white)"
       },
       {
         "id": 4508,
-        "name": "Decorative sword"
+        "name": "Decorative sword",
+        "label": "Decorative sword (gold)"
       },
       {
         "id": 4509,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (gold platebody)"
       },
       {
         "id": 4510,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (gold platelegs)"
       },
       {
         "id": 4511,
-        "name": "Decorative helm"
+        "name": "Decorative helm",
+        "label": "Decorative helm (gold)"
       },
       {
         "id": 4512,
-        "name": "Decorative shield"
+        "name": "Decorative shield",
+        "label": "Decorative shield (gold)"
       },
       {
         "id": 4513,
-        "name": "Castlewars hood"
+        "name": "Castlewars hood",
+        "label": "Castlewars hood (Saradomin)"
       },
       {
         "id": 4514,
-        "name": "Castlewars cloak"
+        "name": "Castlewars cloak",
+        "label": "Castlewars cloak (Saradomin)"
       },
       {
         "id": 4515,
-        "name": "Castlewars hood"
+        "name": "Castlewars hood",
+        "label": "Castlewars hood (Zamorak)"
       },
       {
         "id": 4516,
-        "name": "Castlewars cloak"
+        "name": "Castlewars cloak",
+        "label": "Castlewars cloak (Zamorak)"
       },
       {
         "id": 11891,
@@ -1318,39 +1343,48 @@
       },
       {
         "id": 11893,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (red plateskirt)"
       },
       {
         "id": 11894,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (white plateskirt)"
       },
       {
         "id": 11895,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (gold plateskirt)"
       },
       {
         "id": 11896,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (magic top)"
       },
       {
         "id": 11897,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (magic legs)"
       },
       {
         "id": 11898,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (magic hat)"
       },
       {
         "id": 11899,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (ranged top)"
       },
       {
         "id": 11900,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (ranged legs)"
       },
       {
         "id": 11901,
-        "name": "Decorative armour"
+        "name": "Decorative armour",
+        "label": "Decorative armour (quiver)"
       },
       {
         "id": 12637,
@@ -1366,27 +1400,33 @@
       },
       {
         "id": 25163,
-        "name": "Decorative boots"
+        "name": "Decorative boots",
+        "label": "Decorative boots (red)"
       },
       {
         "id": 25165,
-        "name": "Decorative full helm"
+        "name": "Decorative full helm",
+        "label": "Decorative full helm (red)"
       },
       {
         "id": 25167,
-        "name": "Decorative boots"
+        "name": "Decorative boots",
+        "label": "Decorative boots (white)"
       },
       {
         "id": 25169,
-        "name": "Decorative full helm"
+        "name": "Decorative full helm",
+        "label": "Decorative full helm (white)"
       },
       {
         "id": 25171,
-        "name": "Decorative boots"
+        "name": "Decorative boots",
+        "label": "Decorative boots (gold)"
       },
       {
         "id": 25174,
-        "name": "Decorative full helm"
+        "name": "Decorative full helm",
+        "label": "Decorative full helm (gold)"
       }
     ],
     "Cerberus": [
@@ -1590,75 +1630,93 @@
     "Chompy Bird Hunting": [
       {
         "id": 2978,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre bowman)"
       },
       {
         "id": 2979,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (bowman)"
       },
       {
         "id": 2980,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre yeoman)"
       },
       {
         "id": 2981,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (yeoman)"
       },
       {
         "id": 2982,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre marksman)"
       },
       {
         "id": 2983,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (marksman)"
       },
       {
         "id": 2984,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre woodsman)"
       },
       {
         "id": 2985,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (woodsman)"
       },
       {
         "id": 2986,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre forester)"
       },
       {
         "id": 2987,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (forester)"
       },
       {
         "id": 2988,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre bowmaster)"
       },
       {
         "id": 2989,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (bowmaster)"
       },
       {
         "id": 2990,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre expert)"
       },
       {
         "id": 2991,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (expert)"
       },
       {
         "id": 2992,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (ogre dragon archer)"
       },
       {
         "id": 2993,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (dragon archer)"
       },
       {
         "id": 2994,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (expert ogre dragon archer)"
       },
       {
         "id": 2995,
-        "name": "Chompy bird hat"
+        "name": "Chompy bird hat",
+        "label": "Chompy bird hat (expert dragon archer)"
       },
       {
         "id": 13071,
@@ -1676,27 +1734,33 @@
       },
       {
         "id": 30045,
-        "name": "Graceful hood"
+        "name": "Graceful hood",
+        "label": "Graceful hood (Varlamore)"
       },
       {
         "id": 30048,
-        "name": "Graceful cape"
+        "name": "Graceful cape",
+        "label": "Graceful cape (Varlamore)"
       },
       {
         "id": 30051,
-        "name": "Graceful top"
+        "name": "Graceful top",
+        "label": "Graceful top (Varlamore)"
       },
       {
         "id": 30054,
-        "name": "Graceful legs"
+        "name": "Graceful legs",
+        "label": "Graceful legs (Varlamore)"
       },
       {
         "id": 30057,
-        "name": "Graceful gloves"
+        "name": "Graceful gloves",
+        "label": "Graceful gloves (Varlamore)"
       },
       {
         "id": 30060,
-        "name": "Graceful boots"
+        "name": "Graceful boots",
+        "label": "Graceful boots (Varlamore)"
       }
     ],
     "Commander Zilyana": [
@@ -3362,23 +3426,28 @@
       },
       {
         "id": 24763,
-        "name": "Mysterious page"
+        "name": "Mysterious page",
+        "label": "Mysterious page (1)"
       },
       {
         "id": 24765,
-        "name": "Mysterious page"
+        "name": "Mysterious page",
+        "label": "Mysterious page (2)"
       },
       {
         "id": 24767,
-        "name": "Mysterious page"
+        "name": "Mysterious page",
+        "label": "Mysterious page (3)"
       },
       {
         "id": 24769,
-        "name": "Mysterious page"
+        "name": "Mysterious page",
+        "label": "Mysterious page (4)"
       },
       {
         "id": 24771,
-        "name": "Mysterious page"
+        "name": "Mysterious page",
+        "label": "Mysterious page (5)"
       },
       {
         "id": 24844,
@@ -5704,107 +5773,133 @@
     "My Notes": [
       {
         "id": 11341,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (1)"
       },
       {
         "id": 11342,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (2)"
       },
       {
         "id": 11343,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (3)"
       },
       {
         "id": 11344,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (4)"
       },
       {
         "id": 11345,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (5)"
       },
       {
         "id": 11346,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (6)"
       },
       {
         "id": 11347,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (7)"
       },
       {
         "id": 11348,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (8)"
       },
       {
         "id": 11349,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (9)"
       },
       {
         "id": 11350,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (10)"
       },
       {
         "id": 11351,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (11)"
       },
       {
         "id": 11352,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (12)"
       },
       {
         "id": 11353,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (13)"
       },
       {
         "id": 11354,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (14)"
       },
       {
         "id": 11355,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (15)"
       },
       {
         "id": 11356,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (16)"
       },
       {
         "id": 11357,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (17)"
       },
       {
         "id": 11358,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (18)"
       },
       {
         "id": 11359,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (19)"
       },
       {
         "id": 11360,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (20)"
       },
       {
         "id": 11361,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (21)"
       },
       {
         "id": 11362,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (22)"
       },
       {
         "id": 11363,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (23)"
       },
       {
         "id": 11364,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (24)"
       },
       {
         "id": 11365,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (25)"
       },
       {
         "id": 11366,
-        "name": "Ancient page"
+        "name": "Ancient page",
+        "label": "Ancient page (26)"
       }
     ],
     "Nex": [
@@ -6352,35 +6447,43 @@
     "Sea Treasures": [
       {
         "id": 32388,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (1)"
       },
       {
         "id": 32389,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (2)"
       },
       {
         "id": 32390,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (3)"
       },
       {
         "id": 32391,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (4)"
       },
       {
         "id": 32392,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (5)"
       },
       {
         "id": 32393,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (6)"
       },
       {
         "id": 32394,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (7)"
       },
       {
         "id": 32395,
-        "name": "Medallion fragment"
+        "name": "Medallion fragment",
+        "label": "Medallion fragment (8)"
       },
       {
         "id": 32398,
@@ -7876,11 +7979,13 @@
     "Trouble Brewing": [
       {
         "id": 8940,
-        "name": "Rum"
+        "name": "Rum",
+        "label": "Rum (red)"
       },
       {
         "id": 8941,
-        "name": "Rum"
+        "name": "Rum",
+        "label": "Rum (blue)"
       },
       {
         "id": 8952,

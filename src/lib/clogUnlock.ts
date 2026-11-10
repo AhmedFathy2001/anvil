@@ -78,3 +78,35 @@ export function resolveUnlock(
       : null;
   return { itemId, page, kc };
 }
+
+export interface UnlockStampRow {
+  itemId: number;
+  firstSeenAt: string | null;
+  kcAtUnlock: number | null;
+}
+
+/**
+ * A sync replaced a guessed row: keep the unlock's date and KC on the slot it really was.
+ *
+ * resolveUnlock files a live unlock under the first same-named slot the account didn't hold, so a
+ * "Decorative armour" line can land on the red platebody when it was the gold one. The next sync
+ * drops the row it doesn't list and adds the one it does; without this the true slot would be dated
+ * to the sync and lose the KC the line was stamped with. Each dropped, dated row hands its stamp to
+ * the first added row sharing its name that hasn't had one. Mutates and returns `added`.
+ */
+export function carryGuessedStamps<T extends UnlockStampRow>(gone: UnlockStampRow[], added: T[]): T[] {
+  const names = clogItemNames();
+  const taken = new Set<number>();
+  for (const old of gone) {
+    if (!old.firstSeenAt) continue;
+    const name = names.get(old.itemId);
+    if (!name || clogIdsForName(name).length < 2) continue;
+    const key = norm(name);
+    const heir = added.find((r) => !taken.has(r.itemId) && r.itemId !== old.itemId && norm(names.get(r.itemId) ?? '') === key);
+    if (!heir) continue;
+    taken.add(heir.itemId);
+    heir.firstSeenAt = old.firstSeenAt;
+    heir.kcAtUnlock = old.kcAtUnlock ?? heir.kcAtUnlock;
+  }
+  return added;
+}

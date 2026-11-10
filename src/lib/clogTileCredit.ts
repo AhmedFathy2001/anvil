@@ -17,8 +17,11 @@ import { db } from '@/db';
 import { completions, eventParticipants, events, eventStartProofs, memberClog, memberClogItems, submissions, tiles } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
+  CLOG_UNLOCK_NOTE_PREFIX,
   clogTileSpec,
   decideClogSlotByName,
+  guessedClogName,
+  settleGuessedSlot,
   evaluateClogPages,
   ownedAtStart,
   type ClogMemberLog,
@@ -31,6 +34,7 @@ import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { startProofGate, NO_START_PROOF_FLAG } from '@/lib/startProof';
 import { parseStamp } from '@/lib/dbTime';
 import { countProgress, isPrimaryCredit } from '@/lib/countProgress';
+import { clogIdsForName } from '@/lib/clogUnlock';
 
 type TileRow = typeof tiles.$inferSelect;
 type EventRow = typeof events.$inferSelect;
@@ -181,7 +185,7 @@ export async function creditClogUnlocks(accountId: number, names: string[], opts
           amount: 1,
           itemId: verdict.itemId,
           imageUrl: null,
-          note: `[Auto] New collection log slot: ${name.slice(0, 120)}`,
+          note: `${CLOG_UNLOCK_NOTE_PREFIX}${name.slice(0, 120)}`,
           flaggedReason,
           source: 'plugin',
         });
@@ -241,4 +245,83 @@ export async function recheckClogPageTiles(accountId: number): Promise<void> {
   } catch (e) {
     console.error('[clog-tiles] page re-check failed', e);
   }
+}
+
+/**
+ * A whole-log sync landed: settle the slots unlock lines GUESSED (lib/clogTiles settleGuessedSlot).
+ * An unlock line names the item, and where several slots share that name the credit went to the
+ * first that fitted. The synced log says which one the member actually holds, so the credit moves
+ * there, or — when no same-named slot fits — is removed through the one removal path, which works
+ * the tile out again. Manual and admin credits are never touched. Never throws.
+ */
+export async function reconcileGuessedClogCredits(accountId: number): Promise<{ moved: number; removed: number }> {
+  const result = { moved: 0, removed: 0 };
+  try {
+    const targets = await liveClogTiles(accountId);
+    if (targets.length === 0) return result;
+    const log = await memberClogLog(accountId);
+    if (!log.synced) return result;
+    const owned = new Set(log.rows.map((r) => r.itemId));
+    const undated = new Set(log.rows.filter((r) => !r.firstSeenAt).map((r) => r.itemId));
+    const { syncDropTileCompletion } = await import('@/lib/submissions');
+    const { removeSubmission } = await import('@/lib/submissionRemoval');
+    for (const { event, teamId, playerId, tile } of targets) {
+      const rows = await db
+        .select()
+        .from(submissions)
+        .where(and(eq(submissions.tileId, tile.id), eq(submissions.teamId, teamId), isNull(submissions.goal), isNotNull(submissions.itemId)));
+      const mine = rows.filter((r) => (r.creditPlayerId ?? r.playerId) === playerId);
+      const guessed = mine.filter((r) => {
+        const name = guessedClogName(r);
+        return name != null && clogIdsForName(name).length > 1;
+      });
+      if (guessed.length === 0) continue;
+      const spec = clogTileSpec(tile);
+      const startMs = parseStamp(event.startDate) ?? Date.now();
+      const datedBefore = new Set(
+        log.rows.filter((r) => r.firstSeenAt && (parseStamp(r.firstSeenAt) ?? Infinity) < startMs).map((r) => r.itemId),
+      );
+      const counted = new Set(mine.map((r) => r.itemId!));
+      let moved = false;
+      for (const row of guessed) {
+        const others = new Set(counted);
+        // Another row for the same item keeps it counted; only this row's own claim is set aside.
+        if (mine.filter((r) => r.itemId === row.itemId).length < 2) others.delete(row.itemId!);
+        const fix = settleGuessedSlot({
+          guessedId: row.itemId!,
+          siblings: clogIdsForName(guessedClogName(row)!),
+          spec,
+          owned,
+          datedBefore,
+          undated,
+          counted: others,
+        });
+        if (fix.action === 'move') {
+          await db.update(submissions).set({ itemId: fix.itemId }).where(eq(submissions.id, row.id));
+          counted.delete(row.itemId!);
+          counted.add(fix.itemId);
+          row.itemId = fix.itemId;
+          moved = true;
+          result.moved++;
+        } else if (fix.action === 'remove') {
+          await removeSubmission({
+            submission: row,
+            tile,
+            clanId: event.clanId,
+            deletedBy: 'Anvil',
+            deletedByRole: 'system',
+            reason: 'Collection log sync: none of the slots with this name is a new one in their log.',
+          });
+          if (mine.filter((r) => r.itemId === row.itemId).length < 2) counted.delete(row.itemId!);
+          row.itemId = null;
+          result.removed++;
+        }
+      }
+      if (moved) await syncDropTileCompletion(tile.id, teamId);
+    }
+    if (result.moved || result.removed) console.info('[clog-tiles] settled guessed slots', { accountId, ...result });
+  } catch (e) {
+    console.error('[clog-tiles] settling guessed slots failed', e);
+  }
+  return result;
 }

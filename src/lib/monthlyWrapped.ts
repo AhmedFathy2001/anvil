@@ -7,7 +7,7 @@ import { and, desc, eq, gte, inArray, isNotNull, like, lt, sql } from 'drizzle-o
 
 import { db } from '@/db';
 import { clanMemberships, clans, memberClogItems, memberDailyStats, memberMilestones, memberPersonalBests, moments } from '@/db/schema';
-import { clogItemNames, clogPageIndex } from '@/lib/clogDataset';
+import { clogItemLabels, clogPageIndex } from '@/lib/clogDataset';
 import { clogItemRarity } from '@/lib/clogRarity';
 import { parseStamp } from '@/lib/dbTime';
 import { periodDays, shapeMonthlyWrapped, wrappedIsOpen, type MonthlyWrapped } from '@/lib/monthlyWrappedRules';
@@ -106,7 +106,7 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
     return t != null && p.achievedAt!.startsWith(monthKey) && (firstPush == null || t >= firstPush + FIRST_PUSH_GRACE_MS);
   });
 
-  const names = clogItemNames();
+  const names = clogItemLabels();
   return shapeMonthlyWrapped({
     rsn,
     monthKey,

@@ -26,7 +26,7 @@ import {
   moments,
   users,
 } from '@/db/schema';
-import { clogItemNames, clogPageOfItem } from '@/lib/clogDataset';
+import { clogItemLabels, clogPageOfItem } from '@/lib/clogDataset';
 import { getItemPrices } from '@/lib/itemPrices';
 import { activityImageUrl, bossIconForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import {
@@ -260,7 +260,7 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
     bestsOf(pbPins.map((p) => p.accountId)),
   ]);
 
-  const names = clogItemNames();
+  const names = clogItemLabels();
   const prices = await getItemPrices().catch(() => new Map<number, number>());
   const out: DisplayCaseEntry[] = [];
   for (const p of live) {
@@ -428,7 +428,7 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
     bestsOf(ids),
   ]);
 
-  const names = clogItemNames();
+  const names = clogItemLabels();
   const out: DisplayCaseCandidate[] = [];
   const statBase = { itemId: 0, momentId: null, valueGp: null, source: null };
   // One drop per character and item: the same unique twice is one thing to pin.
