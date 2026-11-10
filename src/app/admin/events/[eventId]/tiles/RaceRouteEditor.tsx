@@ -362,8 +362,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     <div className="space-y-4 min-w-0">
       {/* Start from a shape: one click lays every tile out; Undo puts the last layout back. */}
       {!locked && (
-        <div className="border border-card-border rounded-xl bg-card-bg p-3 sm:p-4 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="@container border border-card-border rounded-xl bg-card-bg p-3 sm:p-4 space-y-3">
+          <div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold flex items-center gap-2"><span className="w-1 h-4 bg-gold rounded-full" />Roads</h3>
               <p className="text-xs text-text-muted mt-1 max-w-2xl">
@@ -372,11 +372,10 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
                   : 'Right now the race is one straight road. Pick a shape to split it into roads that fork and meet again, or edit the map below.'}
               </p>
             </div>
-            <button type="button" className={btn} onClick={makeStraight} disabled={saving} title="Clears the layout and saves: every tile leads to the next">
-              Back to one straight road
-            </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" role="list" aria-label="Start from a shape">
+          {/* Sized by the card's own width (a container query), not the window's: two short cards a
+              row in a narrow column, four, then all seven in one row. */}
+          <div className="grid grid-cols-2 @md:grid-cols-4 @4xl:grid-cols-7 gap-2" role="list" aria-label="Start from a shape">
             {ROUTE_TEMPLATES.map((t) => (
               <button
                 key={t.key}
@@ -384,12 +383,23 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
                 role="listitem"
                 onClick={() => applyTemplate(t.key)}
                 title={t.help}
-                className="group text-left rounded-lg border border-card-border bg-brown-dark/40 hover:border-gold/50 hover:bg-gold/[0.06] transition-colors p-2"
+                className="group text-left rounded-lg border border-card-border bg-brown-dark/40 hover:border-gold/50 hover:bg-gold/[0.06] transition-colors p-1.5 @md:p-2"
               >
                 <TemplateThumb entries={applyRouteTemplate(t.key, templateIds)} />
-                <span className="block mt-1.5 text-xs font-semibold text-foreground group-hover:text-gold">{t.label}</span>
+                <span className="block mt-1 @md:mt-1.5 text-xs font-semibold text-foreground group-hover:text-gold">{t.label}</span>
               </button>
             ))}
+            {/* The way back, at the end of the shapes: clears the layout and saves at once. */}
+            <button
+              type="button"
+              role="listitem"
+              onClick={makeStraight}
+              disabled={saving}
+              title="Clears the layout and saves: every tile leads to the next"
+              className="rounded-lg border border-dashed border-card-border text-xs text-text-muted hover:text-foreground hover:border-gold/40 transition-colors p-1.5 @md:p-2 min-h-12 disabled:opacity-40"
+            >
+              Back to one straight road
+            </button>
           </div>
         </div>
       )}
@@ -404,7 +414,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
       <div className="space-y-2">
         {/* The selected tile's road actions, pinned to the top of the map. */}
         {!locked && (
-          <div className={cn('min-h-12 rounded-xl border px-3 py-2 flex flex-wrap items-center gap-2', sel ? 'border-gold/40 bg-gold/[0.06]' : 'border-card-border bg-card-bg')}>
+          // Sticky under the site nav, so a long (vertical) map keeps its actions in reach.
+          <div className={cn('sticky top-[4.5rem] z-20 min-h-12 rounded-xl border px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_8px_20px_rgba(0,0,0,.35)]', sel ? 'border-gold/40 bg-[#221c15]' : 'border-card-border bg-card-bg')}>
             {sel ? (
               linking ? (
                 <>
@@ -464,16 +475,33 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
                     // Between step at-1 and step at; before the start and after the finish too.
                     const x = at === 0 ? g.stepX(0) - 84 * g.scale : at > g.last ? g.stepX(g.last) + 84 * g.scale : (g.stepX(at - 1) + g.stepX(at)) / 2;
                     if (stepCount === 0 && at > 0) return null;
+                    const what = at === 0 ? 'Add a tile before the start' : at > g.last ? 'Add a tile after the finish' : `Add a tile between step ${at} and step ${at + 1}`;
+                    // Vertical map (a narrow box): a thin full-width row between the steps.
+                    if (g.vertical)
+                      return (
+                        <button
+                          key={`ins${at}`}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void insertTileStep(at)}
+                          title={what}
+                          aria-label={what}
+                          className="absolute z-10 -translate-y-1/2 h-7 rounded-md border border-dashed border-gold/30 bg-[#141010]/70 text-[11px] text-gold/80 hover:text-gold hover:border-gold/60 hover:bg-gold/10 transition-colors disabled:opacity-30"
+                          style={{ left: g.rowLeft, width: g.width - g.rowLeft - 8, top: g.insertY(at) }}
+                        >
+                          + Add a step here
+                        </button>
+                      );
                     return (
                       <button
                         key={`ins${at}`}
                         type="button"
                         disabled={busy}
                         onClick={() => void insertTileStep(at)}
-                        title={at === 0 ? 'Add a tile before the start' : at > g.last ? 'Add a tile after the finish' : `Add a tile between step ${at} and step ${at + 1}`}
-                        aria-label={at === 0 ? 'Add a tile before the start' : at > g.last ? 'Add a tile after the finish' : `Add a tile between step ${at} and step ${at + 1}`}
+                        title={what}
+                        aria-label={what}
                         className="absolute z-10 w-6 h-6 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gold/40 bg-[#141010] text-gold text-sm leading-none grid place-items-center opacity-60 hover:opacity-100 hover:bg-gold/15 focus-visible:opacity-100 transition-opacity disabled:opacity-30"
-                        style={{ left: Math.max(14, x), top: g.headY }}
+                        style={{ left: Math.min(g.width - 14, Math.max(14, x)), top: g.headY }}
                       >
                         +
                       </button>
@@ -484,7 +512,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-text-muted">
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-dashed border-text-muted/40" />Not written yet{blankCount ? ` (${blankCount})` : ''}</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-red-500" />Needs a fix before saving</span>
-          <span>Long maps shrink to fit; past half size they scroll sideways.</span>
+          <span>A long race runs top to bottom when the map hasn’t room to go across.</span>
         </div>
         {stepCount === 0 && canAdd && !locked && (
           <button type="button" className={goldBtn} disabled={busy} onClick={() => void addTileToStep(0)}>+ Add the first tile</button>
@@ -644,7 +672,7 @@ function TemplateThumb({ entries }: { entries: RouteEntry[] }) {
     c.forEach((id, i) => pos.set(id, { x: 6 + (last ? (s * (W - 12)) / last : (W - 12) / 2), y: c.length === 1 ? H / 2 : 6 + (i * (H - 12)) / Math.max(1, tall - 1) })),
   );
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-11" aria-hidden>
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="w-full h-7 @md:h-11" aria-hidden>
       {placedE.flatMap((e) =>
         e.next.filter((to) => pos.has(to)).map((to) => {
           const a = pos.get(e.id)!;
