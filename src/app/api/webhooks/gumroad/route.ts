@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, parseWebhook, verifySeller, verifyWebhookSecret } from '@/lib/gumroad';
 import { endMembership, logBilling } from '@/lib/billingLapse';
+import { runOnPaid, runOnRefund } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, withYearlyRecurrence, type BillingTier } from '@/lib/billingCatalog';
 import { applyClanSale, chargedAt, purchasedPlan } from '@/lib/clanSale';
 import { log } from '@/lib/logger';
@@ -216,6 +217,7 @@ export async function POST(req: NextRequest) {
           currentPeriodEnd: nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp)),
           cancelAtPeriodEnd: false,
           trialEndsAt: null, // a charge means the trial converted
+          ...runOnPaid(clan),
         })
         .where(eq(clans.id, clan.id));
       await logBilling(clan.id, 'billing_renewed', { plan: plan.id });
@@ -273,6 +275,7 @@ export async function POST(req: NextRequest) {
           memberCap: plan.memberCap,
           currentPeriodEnd: nextChargeDue(ev.recurrence, Date.now()),
           cancelAtPeriodEnd: false,
+          ...runOnPaid(clan),
         })
         .where(eq(clans.id, clan.id));
       await logBilling(clan.id, 'billing_restarted', { plan: plan.id, was: 'ended' });
@@ -292,6 +295,8 @@ export async function POST(req: NextRequest) {
           status: 'suspended',
           gumroadSubscriptionId: null,
           cancelAtPeriodEnd: false,
+          // Money taken back is not tenure.
+          ...runOnRefund(),
         })
         .where(eq(clans.id, clan.id));
       await logBilling(clan.id, `billing_${ev.kind}`, { from: clan.plan, sale: ev.saleId });

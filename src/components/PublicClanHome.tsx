@@ -10,6 +10,7 @@ import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
 import type { Moment } from '@/lib/clanMomentsRules';
 import { BoostedBadge, boostedClanNameStyle } from '@/components/ClanBoost';
+import { SupporterStar } from '@/components/SupporterName';
 import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
@@ -149,6 +150,12 @@ export default function PublicClanHome({
               {view.name}
             </h1>
             <BoostedBadge level={level} />
+            {view.tenure && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[11px] font-medium text-gold-light" title={`This clan has paid for Anvil without a break: ${view.tenure.line.toLowerCase()}.`}>
+                <SupporterStar size={13} decorative tenure={view.tenure.id} />
+                {view.tenure.line}
+              </span>
+            )}
             {view.verified && (
               <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
                 ✓ verified in-game

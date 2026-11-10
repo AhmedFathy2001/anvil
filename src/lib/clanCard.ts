@@ -1,8 +1,8 @@
 import { normalizeHex } from '@/lib/artPalette';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { memberClog } from '@/db/schema';
+import { clans, memberClog } from '@/db/schema';
 import { SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
@@ -11,6 +11,8 @@ import { getItemMapping } from '@/lib/osrsItems';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevel } from '@/lib/clanBoosts';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
+import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
+import type { TenureGlyph, TenureStepId } from '@/lib/supporterTiers';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
 export const FEED_KINDS = new Set(['pet', 'unique', 'loot']);
@@ -31,6 +33,8 @@ export interface ClanCard {
   accent?: string | null;
   boostLevel?: number;
   boostNameStyle?: ClanBoostNameStyle | null;
+  /** How long the clan has paid for Anvil without a break (lib/clanTenure); absent when it hasn't. */
+  tenure?: { id: TenureStepId; glyph: TenureGlyph; months: number; line: string } | null;
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -55,6 +59,18 @@ export interface ClanCard {
 function clanAccent(clan: { accentColor?: string | null; artPalette?: unknown }): string | null {
   const first = (clan.artPalette as { colors?: unknown[] } | null)?.colors?.[0];
   return normalizeHex(clan.accentColor) ?? normalizeHex(first);
+}
+
+/** The clan's tenure badge, or null. Decoration: a failed read is no badge. */
+async function loadClanTenure(clanId: number): Promise<ClanCard['tenure']> {
+  const row = await db
+    .select({ plan: clans.plan, paidSince: clans.paidSince, paidEndedAt: clans.paidEndedAt, gumroadSubscriptionId: clans.gumroadSubscriptionId })
+    .from(clans)
+    .where(eq(clans.id, clanId))
+    .then((r) => r[0])
+    .catch(() => undefined);
+  const t = row ? clanTenure(row) : null;
+  return t ? { id: t.step.id, glyph: t.step.glyph, months: t.months, line: clanTenureLine(t) } : null;
 }
 
 export async function loadClanCard(clan: {
@@ -131,6 +147,7 @@ export async function loadClanCard(clan: {
       accent: clanAccent(clan),
     boostLevel,
     boostNameStyle,
+    tenure: await loadClanTenure(clan.id),
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
@@ -159,4 +176,20 @@ export async function loadClanCard(clan: {
       label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
     })),
   };
+}
+
+/** Many clans' tenure badges at once (the /clans directory), keyed by clan id; only clans that have one. */
+export async function clanTenureBadges(ids: number[]): Promise<Map<number, { id: TenureStepId; months: number; line: string }>> {
+  const out = new Map<number, { id: TenureStepId; months: number; line: string }>();
+  const want = [...new Set(ids)].filter((n) => Number.isInteger(n) && n > 0);
+  if (want.length === 0) return out;
+  const rows = await db
+    .select({ cid: clans.id, plan: clans.plan, paidSince: clans.paidSince, paidEndedAt: clans.paidEndedAt, gumroadSubscriptionId: clans.gumroadSubscriptionId })
+    .from(clans)
+    .where(inArray(clans.id, want));
+  for (const r of rows) {
+    const t = clanTenure(r);
+    if (t && t.months >= 1) out.set(r.cid, { id: t.step.id, months: t.months, line: clanTenureLine(t) });
+  }
+  return out;
 }

@@ -5,6 +5,8 @@
 // read: the profile fields the clan wrote about itself, plus a few counts and its recent events to
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
+import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
+import type { TenureStepId } from '@/lib/supporterTiers';
 import { normalizeHex } from '@/lib/artPalette';
 import { clanMoments } from '@/lib/clanMoments';
 import type { Moment } from '@/lib/clanMomentsRules';
@@ -34,6 +36,8 @@ export interface PublicClanHome {
   focus: ClanFocus[];
   requirements: ClanRequirements;
   verified: boolean;
+  /** How long it has paid for Anvil without a break (lib/clanTenure), or null. */
+  tenure: { id: TenureStepId; months: number; line: string } | null;
   /** The clan's own image, or null for the generated crest. */
   logoUrl: string | null;
   /** The clan's wide 3:1 banner (may be animated) and its vertical focus, 0–100; null = none / centred. */
@@ -71,6 +75,11 @@ function asRequirements(raw: unknown): ClanRequirements {
  * Assemble the public home for one clan. `discordInvite` is passed in by the caller (it already reads
  * the clan's settings for the member view) rather than fetched twice.
  */
+function tenureOf(clan: Parameters<typeof clanTenure>[0]): PublicClanHome['tenure'] {
+  const t = clanTenure(clan);
+  return t && t.months >= 1 ? { id: t.step.id, months: t.months, line: clanTenureLine(t) } : null;
+}
+
 export async function publicClanHomeView(clanId: number, discordInvite: string | null = null): Promise<PublicClanHome | null> {
   // clan-scope: global -- addressed by clan id (the page's own clan); this reads that clan's own row.
   const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId) });
@@ -106,6 +115,7 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
     focus: asFocus(clan.focus),
     requirements: asRequirements(clan.requirements),
     verified: clan.ingameNameVerifiedAt != null,
+    tenure: tenureOf(clan),
     logoUrl: clan.logoUrl ?? null,
     bannerUrl: clan.bannerUrl ?? null,
     bannerPosition: clan.bannerPosition ?? null,

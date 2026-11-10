@@ -9,6 +9,8 @@ import MotionImg from '@/components/MotionImg';
 import type { ClanFocus } from '@/lib/clanHome';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { BoostedBadge, BoostedClanName } from '@/components/ClanBoost';
+import { SupporterStar } from '@/components/SupporterName';
+import type { TenureStepId } from '@/lib/supporterTiers';
 import { boostPerks, byBoostLevel } from '@/lib/clanBoostRules';
 
 export interface LookupClan {
@@ -32,6 +34,8 @@ export interface LookupClan {
   seat: 'member' | 'guest' | null;
   /** In-game name proven, so this is the clan it says it is. */
   verified: boolean;
+  /** How long it has paid for Anvil without a break (lib/clanTenure). */
+  tenure?: { id: TenureStepId; months: number; line: string } | null;
   /** 'approval' | 'open' | 'closed'. */
   guestPolicy: string;
   /** 'creator' for a creator space (lib/creatorSpaces): no members, so no member pulse. */
@@ -434,6 +438,12 @@ function Card({ clan }: { clan: LookupClan }) {
               className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-accent-green/80 text-[10px] font-bold text-brown-dark"
             >
               ✓
+            </span>
+          )}
+          {clan.tenure && (
+            <span title={clan.tenure.line} className="inline-flex shrink-0 text-gold-light">
+              <SupporterStar size={14} tenure={clan.tenure.id} decorative />
+              <span className="sr-only">{clan.tenure.line}</span>
             </span>
           )}
           {perks.badge && (

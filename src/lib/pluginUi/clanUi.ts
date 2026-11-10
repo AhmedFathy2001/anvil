@@ -32,7 +32,7 @@ function siteHeader(label: string, note: string, path: string): Node {
  * there and this card keeps only a short taste of it.
  * `tabLinks`: the plugin can open its Feed tab from a row, so the pointer is a link, not a hint.
  */
-export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false, images = false): Node {
+export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false, images = false, glyphs = false): Node {
   if (c.kind === 'creator') return spaceCardUi(c);
   const parts: Node[] = [];
   const sourceBoost = clanBoostInk(c.boostLevel ?? 0, c.boostNameStyle);
@@ -49,6 +49,10 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     row(muted(`${fmt(c.members)} members ·`), small(`${fmt(c.activeThisWeek)} active this week`, BLUE), undefined, { gap: 4 }),
   ];
   if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
+  // Clan tenure: how long it has backed Anvil, in the Supporter star's shapes (older plugins: the star).
+  if (c.tenure && c.tenure.months >= 1) {
+    id.push(row(icon({ glyph: glyphs ? c.tenure.glyph : 'star', w: 10, h: 10, color: '#ffd35c' }), small(c.tenure.line, '#ffd35c'), undefined, { gap: 4 }));
+  }
   if (c.competitions.length) {
     const running = c.competitions
       .map((x) => `${x.type === 'boss' ? 'BOTW ' : x.type === 'skill' ? 'SOTW ' : ''}${x.label}`)

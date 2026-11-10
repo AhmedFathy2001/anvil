@@ -256,7 +256,7 @@ async function clanView(request: Request, a: Args): Promise<View> {
   // The Feed tab is the plugin's own clan's feed, so pointing at it from someone else's card opened
   // the wrong clan. Any other clan gets its drops live in place instead.
   const own = mine === clan.slug;
-  return { ui: clanCardUi(await loadClanCard(clan), compare, own && hasFeedTab(request), own && hasTabLinks(request), hasPanelImages(request)) };
+  return { ui: clanCardUi(await loadClanCard(clan), compare, own && hasFeedTab(request), own && hasTabLinks(request), hasPanelImages(request), hasTenureGlyphs(request)) };
 }
 
 /** Is the place the plugin is pointed at a creator space? */
@@ -783,7 +783,7 @@ async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
 async function ownClanCard(request: Request, slug: string): Promise<Node | null> {
   const clan = await visibleClan(request, slug);
   if (!clan) return null;
-  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request), hasTabLinks(request), hasPanelImages(request));
+  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request), hasTabLinks(request), hasPanelImages(request), hasTenureGlyphs(request));
 }
 
 /** Supporters' names in a finished view get their flair: one lookup for every name it shows. */
