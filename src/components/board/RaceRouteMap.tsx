@@ -1,5 +1,6 @@
 'use client';
 
+import { HIDDEN_RACE_TILE_LABEL } from '@/lib/raceHideAhead';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { RaceTileState } from '@/lib/raceRoutes';
@@ -135,6 +136,8 @@ export function defaultStepLabel(step: number, last: number): string {
 
 /** What a node shows when its tile has no sprite: the tile's initials, never a number. */
 export function tileInitials(label: string): string {
+  // A tile hidden past the team's next step (lib/raceHideAhead) is a plain "?".
+  if (label === HIDDEN_RACE_TILE_LABEL) return '?';
   const words = label.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? '?').slice(0, 2)).toUpperCase();
 }

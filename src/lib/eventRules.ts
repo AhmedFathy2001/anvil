@@ -310,7 +310,17 @@ export interface EventRules {
    * the team has opened stays open and the furthest one counts.
    */
   raceRoad: 'achieve' | 'choose' | 'open';
+  /**
+   * Tile race "Hide tiles past the next step" (lib/raceHideAhead). 'off' (default): every tile shows.
+   * 'players': each team sees the tiles it finished, the step it's on and the tiles it can move to
+   * next; every tile further along is a locked "?" until the team can reach it. Event staff still
+   * see everything. 'staff': the same for event staff too — only the clan owner, the platform owner
+   * and this board's own tile editors see through it (and only the owner may switch it on or off).
+   */
+  raceHideAhead: RaceHideAhead;
 }
+
+export type RaceHideAhead = 'off' | 'players' | 'staff';
 
 /** The optional halves of the sign-up form. The account picker and the fee are never optional. */
 export interface SignupFields {
@@ -377,6 +387,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   sharingChecks: false,
   raceBank: false,
   raceRoad: 'achieve',
+  raceHideAhead: 'off',
 };
 
 /**
@@ -624,6 +635,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     sharingChecks: obj.sharingChecks === true,
     raceBank: obj.raceBank === true,
     raceRoad: obj.raceRoad === 'choose' || obj.raceRoad === 'open' ? obj.raceRoad : 'achieve',
+    raceHideAhead: obj.raceHideAhead === 'players' || obj.raceHideAhead === 'staff' ? obj.raceHideAhead : 'off',
   };
 }
 
@@ -769,6 +781,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.raceRoad !== undefined && o.raceRoad !== 'achieve' && o.raceRoad !== 'choose' && o.raceRoad !== 'open') {
     return { error: "rules.raceRoad must be 'achieve', 'choose' or 'open'" };
   }
+  if (o.raceHideAhead !== undefined && o.raceHideAhead !== 'off' && o.raceHideAhead !== 'players' && o.raceHideAhead !== 'staff') {
+    return { error: "rules.raceHideAhead must be 'off', 'players' or 'staff'" };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
@@ -829,6 +844,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     !canonical.sharingChecks &&
     !canonical.raceBank &&
     canonical.raceRoad === 'achieve' &&
+    canonical.raceHideAhead === 'off' &&
     // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
     // nothing loses nothing", and a board that has switched a sign-up section on or off has said
     // something that null cannot hold — so it has to be asked about like every other key.

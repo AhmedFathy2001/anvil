@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
@@ -150,7 +151,8 @@ export default async function TeamBoardPage({
   // Reveal-policy events (lib/eventRules): non-staff only receive the revealed subset —
   // hidden tile content must never reach the client.
   // Board cells, each combo carrying its parts (lib/combo); the completions keep the parts'.
-  const boardTiles = nestParts(visibleTiles(parseEventRules(event.rules), eventTiles));
+  // Tiles past the viewer's next step on a race that hides them (lib/raceHideAhead): locked "?" cells.
+  const boardTiles = await maskRaceTilesForSession(event, nestParts(visibleTiles(parseEventRules(event.rules), eventTiles)));
 
   return (
     <>

@@ -6,6 +6,7 @@
 // (lib/discord notifyTileCompletion). Nobody listening is not an error: a NOTIFY to users with no
 // socket open goes nowhere, and the plugin only opens one while its feed switch is on.
 
+import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
 import { hasChatStar } from '@/lib/chatLook';
 import { supporterForUser, supporterInk } from '@/lib/supporter';
 import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
@@ -289,6 +290,8 @@ export async function emitTileCompletion(args: {
   teamName: string;
   tileLabel: string;
   finisher?: string | null;
+  /** The tile, so a race tile another team can't see yet (lib/raceHideAhead) goes out unnamed. */
+  tileId?: number | null;
 }): Promise<void> {
   try {
     // clan-scope: global -- keyed by the event id the completion belongs to.
@@ -306,7 +309,10 @@ export async function emitTileCompletion(args: {
     const item: FeedItem = {
       kind: 'tile',
       who: args.teamName,
-      text: `completed ${args.tileLabel}${args.finisher ? ` (${args.finisher})` : ''}`,
+      // Heard by the OTHER teams only, so a tile one of them can't see yet stays unnamed.
+      text: args.tileId != null && (await raceTileHiddenFromOthers(args.eventId, args.tileId, args.teamId))
+        ? `completed a tile${args.finisher ? ` (${args.finisher})` : ''}`
+        : `completed ${args.tileLabel}${args.finisher ? ` (${args.finisher})` : ''}`,
     };
     await route(item, null, candidates);
   } catch (err) {

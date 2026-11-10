@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { nestParts } from '@/lib/combo';
@@ -36,10 +37,11 @@ export default async function PlayerDashboardPage() {
   if (!event) notFound();
 
   // Reveal-policy events (lib/eventRules): player dashboard only ever sees revealed tiles.
-  const eventTiles = visibleTiles(
+  // A race hiding the tiles past each team's next step (lib/raceHideAhead): this team's view.
+  const eventTiles = await maskRaceTilesForTeams(event, [team.id], visibleTiles(
     parseEventRules(event.rules),
     await db.select().from(tiles).where(eq(tiles.eventId, event.id)),
-  );
+  ));
   const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id));
 
   const tileIds = eventTiles.map((t) => t.id);

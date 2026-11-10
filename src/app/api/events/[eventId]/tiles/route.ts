@@ -6,9 +6,9 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
-import { verifyTileEditorForEvent, verifyAdminOrModerator } from '@/lib/auth';
+import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
-import { parseEventRules, hasRevealPolicy, visibleTiles, isMissionTile, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
+import { isMissionTile, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { assertEventEditable } from '@/lib/eventLock';
 import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
 import { atLeast } from '@/lib/clanRoles';
@@ -19,6 +19,8 @@ import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
 import { capEligible, serializeCapBy, validateCapBy } from '@/lib/tileCaps';
 import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, validateComboRule, validateComboWeight } from '@/lib/combo';
 import { syncPartRevealState } from '@/lib/comboSql';
+import { tilesForViewer } from '@/lib/tilesForViewer';
+import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 
 export async function GET(
   request: Request,
@@ -35,25 +37,12 @@ export async function GET(
   // moderator/editor) still get the full list so the admin tooling works pre-reveal;
   // everyone else gets an empty list. Mirrors the web board + plugin gates.
   // Reveal-policy events (lib/eventRules) trim members to the revealed subset the same way.
+  // One gate (lib/tilesForViewer): the reveal policy, and a race's tiles past each team's next step
+  // (lib/raceHideAhead) masked as locked "?" cells.
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
-  const rules = parseEventRules(event?.rules);
-  if (event && (!event.tilesRevealed || hasRevealPolicy(rules))) {
-    // Board-scoped editors aren't mod-tier (verifyAdminOrModerator excludes them), but they still
-    // need the FULL board for the event they're granted — so treat this event's tile editors as
-    // staff here too.
-    const staff = (await verifyAdminOrModerator()) || (await verifyTileEditorForEvent(eId));
-    if (!staff && !event.tilesRevealed) return NextResponse.json([]);
-    if (!staff) {
-      const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
-      return NextResponse.json(visibleTiles(rules, eventTiles));
-    }
-  }
-
-  const eventTiles = await db.query.tiles.findMany({
-    where: eq(tiles.eventId, eId),
-  });
-
-  return NextResponse.json(eventTiles);
+  if (!event) return NextResponse.json([]);
+  const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
+  return NextResponse.json(await tilesForViewer(event, eventTiles));
 }
 
 export async function PUT(
@@ -104,6 +93,11 @@ export async function PUT(
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),
   });
+  // "Also hide from event staff" (lib/raceHideAhead): a tile this caller only sees as a "?" can't be
+  // saved over (the editor would write the placeholder back).
+  if (event && (await raceTileHiddenForSession(event, tile))) {
+    return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
+  }
 
   const now = new Date();
   const eventStarted = event?.startDate && new Date(event.startDate) <= now;

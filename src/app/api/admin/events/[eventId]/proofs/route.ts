@@ -1,3 +1,5 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
 import { and, count, desc, eq, inArray, isNotNull, isNull, or, type SQL } from 'drizzle-orm';
 
@@ -31,7 +33,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const q = parseProofFeedQuery(new URL(request.url).searchParams);
 
   const [tileRows, teamRows, playerRows] = await Promise.all([
-    db.select({ id: tiles.id, label: tiles.label, parentTileId: tiles.parentTileId }).from(tiles).where(eq(tiles.eventId, eId)),
+    db
+      .select({ id: tiles.id, label: tiles.label, parentTileId: tiles.parentTileId })
+      .from(tiles)
+      .where(eq(tiles.eventId, eId))
+      // "Also hide from event staff" (lib/raceHideAhead): a tile no team can see yet is a locked "?".
+      .then((list) => maskRaceTilesForSession(event, list)),
     db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, eId)),
     db
       .select({ id: eventParticipants.id, name: eventParticipants.name, teamId: eventParticipants.teamId })
@@ -85,6 +92,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   ]);
 
   const tileLabel = new Map(tileRows.map((t) => [t.id, t.label]));
+  // Parts of a hidden combo were dropped with it; their proofs go with their combo's secret.
+  const hiddenTile = (id: number) => !tileLabel.has(id) || tileRows.some((t) => t.id === id && isRaceHidden(t));
   const teamName = new Map(teamRows.map((t) => [t.id, t.name]));
   const playerName = new Map(playerRows.map((p) => [p.id, p.name]));
 
@@ -92,8 +101,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   return NextResponse.json({
     rows: rows.map((r) => ({
       ...r,
-      attachments: extras.get(r.id) ?? [],
-      tileLabel: tileLabel.get(r.tileId) ?? 'Tile',
+      ...(hiddenTile(r.tileId) ? { imageUrl: null, note: null } : {}),
+      attachments: hiddenTile(r.tileId) ? [] : extras.get(r.id) ?? [],
+      tileLabel: hiddenTile(r.tileId) ? HIDDEN_RACE_TILE_LABEL : tileLabel.get(r.tileId) ?? 'Tile',
       teamName: teamName.get(r.teamId) ?? 'Team',
       playerName:
         (r.creditPlayerId ? playerName.get(r.creditPlayerId) : null) ??

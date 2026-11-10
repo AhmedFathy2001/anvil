@@ -1,3 +1,5 @@
+import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
+import { raceTileHidden } from '@/lib/raceHideAhead';
 import { db } from '@/db';
 import { clans, completions, eventHourSnapshots, eventParticipants, events, moments, submissions, teams, tiles } from '@/db/schema';
 import { boardCompletion } from '@/lib/comboSql';
@@ -330,6 +332,12 @@ export async function getEventStats(
   // Tile names stay behind the curtain the board itself draws: unrevealed boards and unrevealed
   // reveal-mode tiles read "Hidden tile" here too.
   const shown = new Set(event.tilesRevealed ? visibleTiles(rules, eventTiles).map((t) => t.id) : []);
+  // A race hiding tiles past each team's next step (lib/raceHideAhead): the stats page is for
+  // everyone, so a tile some team still sees as a locked "?" reads "Hidden tile" too.
+  if (raceHideOn(event)) {
+    const veil = await loadRaceVeil(event);
+    for (const id of [...shown]) if (raceTileHidden(veil, veil?.everyone ?? null, { id })) shown.delete(id);
+  }
   const tileById = new Map(eventTiles.map((t) => [t.id, t]));
   const playerName = new Map(eventPlayers.map((p) => [p.id, p.name]));
   const tileLines: TileLine[] = winCompletions

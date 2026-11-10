@@ -1,3 +1,5 @@
+import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
+import { raceSeenFor, raceTileHidden } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
 import { and, eq, inArray, ne } from 'drizzle-orm';
@@ -56,6 +58,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (event.tilesRevealed && !tile) return tileGone();
   if (!tile || !isTileRevealed(parseEventRules(event.rules), tile)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  // A race hiding the tiles past each team's next step (lib/raceHideAhead): a locked "?" has no tracker.
+  if (raceHideOn(event)) {
+    const veil = await loadRaceVeil(event);
+    if (raceTileHidden(veil, raceSeenFor(veil, { teamIds: mine ? [mine.teamId] : [] }), tile)) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
   }
 
   // Not open for THIS viewer (a closed mission/bounty they haven't finished, or a race step not reached):

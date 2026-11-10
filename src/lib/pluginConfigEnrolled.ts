@@ -1,3 +1,4 @@
+import { raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { pluginGameCounters } from '@/lib/gameCounters';
@@ -278,6 +279,14 @@ export async function buildEnrolledConfig(args: {
       atYourStep: ranked.filter((r) => r.teamId !== teamId && r.stepsDone === route.stepsDone).length,
       ahead: ranked.filter((r) => r.stepsDone > route.stepsDone).length,
     };
+  }
+  // "Hide tiles past the next step" (lib/raceHideAhead) on a straight race too: the rule table only
+  // watches the tiles open for the team now (and the ones it finished). A hidden tile can't be
+  // credited from the plugin, so its name never reaches the client, not even as a chat line.
+  if (raceVisible == null && raceGraphRows && raceGraphRows.nodes.length && raceHideOn(event)) {
+    const doneRows = await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId));
+    const route = teamRoute(raceGraphRows, doneRows.map((r) => r.tileId), await loadRacePicks(event, teamId), eventRaceOpts(event));
+    raceVisible = new Set([...route.open, ...[...route.state].filter(([, st]) => st === 'done').map(([id]) => id)]);
   }
   const onRoute = (t: (typeof fullEventTiles)[number]) =>
     raceVisible == null || isMissionTile(t) || raceVisible.has(t.parentTileId ?? t.id);

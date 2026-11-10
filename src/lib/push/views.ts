@@ -1,3 +1,5 @@
+import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
+import { raceTileHidden } from '@/lib/raceHideAhead';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -76,5 +78,11 @@ async function tileView(event: typeof events.$inferSelect, tileId: number) {
     : undefined;
   // The same gates the tracker route applies: nothing about an unrevealed tile leaves the server.
   if (!tile || !isTileRevealed(parseEventRules(event.rules), tile)) return null;
+  // Sent to every listener on the tile, whichever team: a race tile some team still sees as a locked
+  // "?" (lib/raceHideAhead) isn't pushed at all — its trackers poll the per-viewer route instead.
+  if (raceHideOn(event)) {
+    const veil = await loadRaceVeil(event);
+    if (raceTileHidden(veil, veil?.everyone ?? null, tile)) return null;
+  }
   return { t: 'tile', eventId: event.id, tileId, progress: await tileProgressView(event, tile, null) };
 }

@@ -1,3 +1,4 @@
+import { mayChangeStaffHide, maskRaceTilesForSession, staffHideBlocksSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -34,12 +35,17 @@ export default async function EventTilesPage({
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 
-  const [eventTiles, tierBands, user, eventPlayers] = await Promise.all([
+  const [rawTiles, tierBands, user, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     getTierBands(clan.id),
     verifyUser(),
     db.select({ teamId: eventParticipants.teamId }).from(eventParticipants).where(eq(eventParticipants.eventId, id)),
   ]);
+
+  // "Also hide from event staff" (lib/raceHideAhead): staff who don't see through get the locked
+  // "?" cells players get, and the whole-board tools (map save, bulk edits, import) refuse them.
+  const eventTiles = await maskRaceTilesForSession(event, rawTiles);
+  const [staffHideLocked, canChangeStaffHide] = await Promise.all([staffHideBlocksSession(event), mayChangeStaffHide(user)]);
 
   // Does this board actually have multi-person teams? Team-shaped tile options (Team Total vs Solo,
   // shared-kill credit, minimum teammates) describe nothing on an individual ladder, so the editor
@@ -95,6 +101,8 @@ export default async function EventTilesPage({
       cofferAvailable={coffer?.available ?? null}
       // Rendering only; the lab API reads the platform role live from the row.
       canLab={hasPlatformRole(user?.platformRole, CAN_WRITE)}
+      staffHideLocked={staffHideLocked}
+      canChangeStaffHide={canChangeStaffHide}
     />
     </>
   );

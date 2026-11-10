@@ -18,6 +18,7 @@
 //     what the invoker's site role is — the board is already visible to every member on the web.
 //     Unrevealed boards are the one exception and stay hidden here too.
 
+import { publicRaceLabels } from '@/lib/raceHideAheadDb';
 import { getSetting } from '@/lib/settings';
 import { COMMANDS_OFF_KEY, parseCommandsOff } from '@/lib/discordCommandToggles';
 import { db } from '@/db';
@@ -430,7 +431,9 @@ async function meEmbed(
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .where(and(eventBoardTiles(event.id), inArray(completions.creditPlayerId, playerIds)))
-      .orderBy(desc(completions.completedAt)),
+      .orderBy(desc(completions.completedAt))
+      // A race tile another team can't see yet (lib/raceHideAhead) isn't named in a channel.
+      .then((rows) => publicRaceLabels(event, rows)),
     getTeamStandings(event.id, event.scoringMode),
   ]);
 
@@ -537,12 +540,14 @@ async function teamEmbed(
       .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
       .where(eq(eventParticipants.teamId, team.id)),
     db
-      .select({ label: tiles.label, at: completions.completedAt })
+      .select({ tileId: completions.tileId, label: tiles.label, at: completions.completedAt })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .where(and(eq(completions.teamId, team.id), isNull(tiles.parentTileId)))
       .orderBy(desc(completions.completedAt))
-      .limit(5),
+      .limit(5)
+      // A race tile another team can't see yet (lib/raceHideAhead) isn't named in a channel.
+      .then((rows) => publicRaceLabels(event, rows)),
   ]);
 
   const standing = standings.find((s) => s.teamId === team.id);

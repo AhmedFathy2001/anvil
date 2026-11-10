@@ -1,3 +1,4 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
@@ -27,5 +28,9 @@ export async function loadSettings(rawId: string) {
 
 /** The board's own tiles (combo parts left out), for the tabs that read them. */
 export async function boardTiles(eventId: number) {
-  return withoutParts(await db.select().from(tiles).where(eq(tiles.eventId, eventId)));
+  const rows = withoutParts(await db.select().from(tiles).where(eq(tiles.eventId, eventId)));
+  // "Also hide from event staff" (lib/raceHideAhead): staff who can't see through get locked "?" cells.
+  // clan-scope: this clan -- every settings page scoped the id first (requireEventForPage in loadSettings).
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  return event ? maskRaceTilesForSession(event, rows) : rows;
 }

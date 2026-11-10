@@ -1,3 +1,5 @@
+import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
 import { raceViewData } from '@/lib/raceSummary';
 import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
@@ -163,7 +165,12 @@ export default async function EventScoreboardPage({
   // Every row (combo parts included — their completions and submissions are the combo's progress),
   // and the BOARD: cells only, each combo carrying its `parts` (lib/combo nestParts).
   const allTileRows = await db.select().from(tiles).where(eq(tiles.eventId, id));
-  const eventTiles = nestParts(allTileRows);
+  // "Hide tiles past the next step" (lib/raceHideAhead): the tiles past this viewer's team's next
+  // step arrive as locked "?" cells — same id and place on the map, no content.
+  const eventTiles = await maskRaceTilesForSession(event, nestParts(allTileRows));
+  const raceHiddenLabels = new Set(
+    allTileRows.filter((t) => eventTiles.some((c) => c.id === t.id && isRaceHidden(c))).map((t) => t.label),
+  );
   // The board's rules (mechanics + the host's rulebook) — the same words every clan's Discord gets.
   const rulesFacts = await loadRulesFacts(id).catch(() => null);
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
@@ -446,7 +453,9 @@ export default async function EventScoreboardPage({
   // The board's firsts — read in claim order, so they're a fact about the event rather than a
   // recomputation of the standings.
   // Hidden standings: the firsts name whichever team got there first, so they wait for the reveal.
-  const firsts = curtain ? [] : await loadEventFirsts(event.id, event.startDate);
+  const firsts = (curtain ? [] : await loadEventFirsts(event.id, event.startDate))
+    // A first on a tile this viewer can't see yet says who, not what.
+    .map((f) => (raceHiddenLabels.has(f.tileLabel) ? { ...f, tileLabel: HIDDEN_RACE_TILE_LABEL } : f));
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
   // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
