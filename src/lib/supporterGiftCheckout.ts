@@ -16,7 +16,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { checkSaleWithGumroad, type GumroadEvent } from '@/lib/gumroad';
 import { ensureSupporterRef, flairCharacterWhere } from '@/lib/supporter';
-import { PAID_GIFT_RECURRENCE, giverRank, parseGiftOption, type GiverRank } from '@/lib/supporterGiftPurchase';
+import { PAID_GIFT_RECURRENCE, giftOptionName, giverRank, parseGiftOption, type GiverRank } from '@/lib/supporterGiftPurchase';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
 type Result = { status: number; body: Record<string, unknown> };
@@ -82,13 +82,16 @@ export async function handleGiftEvent(ev: GumroadEvent): Promise<Result> {
     return ok({ note: 'gift refunded' });
   }
   if (ev.kind !== 'sale') return ok({ note: 'nothing to do for a one-time gift' });
+  // No sale id: nothing to check, latch or refund later. Never granted.
+  if (!ev.saleId) return ok({ note: 'gift sale without an id' });
   if (row) return ok({ note: 'already applied' });
 
-  const check = await checkSaleWithGumroad(ev.saleId, ev.productId);
+  const option = parseGiftOption(ev.tier);
+  // Gumroad is asked about the sale AND that it was this tier and length, so a body can't upgrade it.
+  const check = await checkSaleWithGumroad(ev.saleId, ev.productId, option ? giftOptionName(option.tier, option.months) : null);
   if (check === 'error') return { status: 503, body: { error: 'Could not confirm the sale with Gumroad' } };
   if (check === 'rejected') return ok({ note: 'sale not confirmed by Gumroad' });
 
-  const option = parseGiftOption(ev.tier);
   const intent = ev.urlParams.gift
     ? await db.query.supporterGiftIntents.findFirst({ where: eq(supporterGiftIntents.token, ev.urlParams.gift) })
     : undefined;

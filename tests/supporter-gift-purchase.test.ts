@@ -42,3 +42,19 @@ test('a paid gift wears the tier, reads as a gift, and never climbs the recipien
   assert.equal(s.earned, false);
   assert.equal(s.tenureMonths, 0);
 });
+
+test('the sale check holds a gift to the variant Gumroad itself sold', async () => {
+  const { checkSaleWithGumroad } = await import('../src/lib/gumroad.ts');
+  const real = globalThis.fetch;
+  process.env.GUMROAD_ACCESS_TOKEN = 'test-token';
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ success: true, sale: { id: 's1', product_id: 'p', variants_and_quantity: '(Gift: Supporter · 1 month)' } }), { status: 200 })) as typeof fetch;
+  try {
+    assert.equal(await checkSaleWithGumroad('s1', 'p', 'Supporter · 1 month'), 'ok');
+    assert.equal(await checkSaleWithGumroad('s1', 'p', 'Patron · 1 year'), 'rejected', 'a body claiming more than was sold');
+    assert.equal(await checkSaleWithGumroad('s1', 'p'), 'ok', 'no variant asked: the old check');
+  } finally {
+    globalThis.fetch = real;
+    delete process.env.GUMROAD_ACCESS_TOKEN;
+  }
+});
