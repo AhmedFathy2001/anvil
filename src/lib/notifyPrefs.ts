@@ -331,7 +331,9 @@ export function pluginMe(
   const caFrom = CA_TIERS.indexOf(prefs.ca as (typeof CA_TIERS)[number]);
   const questFrom = QUEST_TIERS.indexOf(prefs.quests as (typeof QUEST_TIERS)[number]);
   return {
-    drops: prefs.drops && !!f.rareDrops,
+    // A personal drop webhook needs no clan channel (like pets): the plugin still sends, and the site
+    // judges each destination, so a clan with no drop channel gets nothing and the hook gets its own.
+    drops: prefs.drops && (!!f.rareDrops || hooks.length > 0),
     dropMin: modeGate(loosest(each.map((g) => g.value)), mode?.dropMinValue),
     keyMin: prefs.keyMin,
     floor: modeGate(loosest(each.map((g) => g.rarity)), mode?.dropRarityFloor),
