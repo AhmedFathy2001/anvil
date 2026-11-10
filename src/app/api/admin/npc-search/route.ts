@@ -3,6 +3,8 @@ import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { libraryEditorUser } from '@/lib/guideAccess';
 import { BOSSES } from '@/lib/constants';
 import { getMonsterNames } from '@/lib/npcNames';
+import { fuzzySearch } from '@/lib/fuzzySearch';
+import { expandShorthands } from '@/lib/taskMatch';
 
 export async function GET(request: Request) {
   // Tile-authoring support endpoint — editors configure kill tiles too, not just admins.
@@ -24,29 +26,21 @@ export async function GET(request: Request) {
 
     // Boss aliases so "colosseum" finds Sol Heredit and "inferno" finds TzKal-Zuk. An alias
     // hit resolves to the boss label, which is then matched against the wiki monster list
-    // like any other query — labels that aren't real monster pages simply match nothing.
-    const queries = [
-      query,
-      ...BOSSES.filter((b) => b.aliases?.some((a) => a.includes(query))).map((b) =>
-        b.label.toLowerCase(),
-      ),
+    // like any other reading of the query — labels that aren't real monster pages match nothing.
+    const alternates = [
+      expandShorthands(query),
+      ...BOSSES.filter((b) => b.aliases?.some((a) => a.includes(query))).map((b) => b.label),
     ];
 
-    // Prefix matches first (more relevant), then any substring match; cap at 30 so a broad
-    // term like "nightmare" still surfaces every variant the admin might want to add.
-    const matches = names.filter((name) => {
-      const n = name.toLowerCase();
-      return queries.some((q) => n.includes(q));
-    });
-    matches.sort((a, b) => {
-      const ap = queries.some((q) => a.toLowerCase().startsWith(q)) ? 0 : 1;
-      const bp = queries.some((q) => b.toLowerCase().startsWith(q)) ? 0 : 1;
-      return ap !== bp ? ap - bp : a.localeCompare(b);
-    });
+    // Exact, prefix, word-start, substring, then typo-tolerant ("zulra" → Zulrah); cap at 30 so a
+    // broad term like "nightmare" still surfaces every variant the admin might want to add.
+    const matches = fuzzySearch(names, query, monsterName, { limit: 30, tieBreak: 'alpha', alternates });
 
-    return NextResponse.json(matches.slice(0, 30).map((name) => ({ name })));
+    return NextResponse.json(matches.map((name) => ({ name })));
   } catch (err) {
     console.error('npc-search failed:', err);
     return NextResponse.json({ error: 'Failed to fetch monster list' }, { status: 502 });
   }
 }
+
+const monsterName = (name: string) => name;

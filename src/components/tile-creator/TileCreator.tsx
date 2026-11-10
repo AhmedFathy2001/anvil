@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import {
   browseCatalog,
+  filterCatalog,
   screenshotCandidate,
   type BrowseCategory,
   type TaskCandidate,
@@ -366,7 +367,7 @@ function BrowseList({
   const [filter, setFilter] = useState('');
   const all = useMemo(() => browseCatalog(category), [category]);
   const f = filter.trim().toLowerCase();
-  const list = f ? all.filter((c) => c.title.toLowerCase().includes(f) || c.noun.toLowerCase().includes(f)) : all;
+  const list = f ? filterCatalog(all, f) : all;
   return (
     <div>
       <StepHeader title={BROWSE_TITLES[category]} onBack={onBack} />

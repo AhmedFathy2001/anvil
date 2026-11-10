@@ -13,6 +13,7 @@ import { howTileCounts, tileKindKey, type TileKindKey, type TileKindLike } from 
 import type { TileCsvRow } from '@/lib/csvTiles';
 import type { ComboPartConfig, TileConfig } from '@/lib/types';
 import { COMBO_TILE_TYPE, type ComboRule } from '@/lib/combo';
+import { fuzzySearch } from '@/lib/fuzzySearch';
 
 // ─── Raids ───────────────────────────────────────────────────────────────────────────────────
 
@@ -215,6 +216,40 @@ export const BOSS_FAMILIES: BossFamily[] = [
 /** Display label for one pick (a hiscores key or a count-line name). */
 export function killPickLabel(pick: string): string {
   return hiscoresKeyLabel(pick);
+}
+
+export interface KillPickHit {
+  value: string;
+  label: string;
+  note: string;
+  names: string[];
+}
+
+// Hiscores bosses (label + nicknames) and in-game counters, built once so the search index is too.
+const STATIC_KILL_PICKS: KillPickHit[] = [
+  ...BOSSES.map((b) => ({ value: b.key, label: b.label, note: 'Hiscores', names: [b.label, ...(b.aliases ?? [])] })),
+  ...COUNTER_TARGETS.map((c) => ({ value: c.name, label: c.name, note: 'Plugin counter', names: [c.name] })),
+];
+const killPickNames = (h: KillPickHit) => h.names;
+
+/**
+ * The "+ Add another boss" suggestions: hiscores bosses, plugin counters, then the wiki monsters
+ * the npc-search returned — ranked exact > prefix > substring > typo ("zulra" → Zulrah), without
+ * what's already picked, one row per name, at most `limit`.
+ */
+export function killPickHits(query: string, npcs: readonly string[], picks: readonly string[], limit = 8): KillPickHit[] {
+  if (query.trim().length < 2) return [];
+  const have = new Set(picks.map((p) => killPickLabel(p).toLowerCase()));
+  const pool = [...STATIC_KILL_PICKS, ...npcs.map((n) => ({ value: n, label: n, note: 'Plugin', names: [n] }))];
+  const seen = new Set<string>();
+  return fuzzySearch(pool, query, killPickNames, { limit: pool.length })
+    .filter((o) => {
+      const k = o.label.toLowerCase();
+      if (have.has(k) || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, limit);
 }
 
 /** The family whose members are exactly these picks, if any. */
