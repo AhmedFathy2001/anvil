@@ -1035,7 +1035,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 return (
                   <button
                     key={v}
-                    onClick={() => setViewMode(v)}
+                    onClick={() => leaveGuard(() => setViewMode(v), true)}
                     title={meta.title}
                     className={`text-xs px-3 py-1.5 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
                   >
@@ -1169,7 +1169,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <span className="text-sm text-amber-100">{formatJob.message}</span>
             <button
               type="button"
-              onClick={() => setViewMode(formatJob.view)}
+              onClick={() => leaveGuard(() => setViewMode(formatJob.view), true)}
               className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-amber-400/50 text-amber-100 hover:bg-amber-400/15 transition-colors"
             >
               {VIEW_LABELS[formatJob.view](boardShape).label} →
