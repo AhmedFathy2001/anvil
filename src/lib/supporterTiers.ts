@@ -5,7 +5,7 @@
 // superset of the one below. Prices live on Gumroad (one product, three tiers, monthly and yearly);
 // they are repeated here only for display.
 
-import { effectiveSupporterStyle, parseSupporterStyle, presetById, type SupporterStyle } from './supporterStyle.ts';
+import { SUPPORTER_INK, effectiveSupporterStyle, parseSupporterStyle, presetById, type SupporterStyle } from './supporterStyle.ts';
 
 export type SupporterTierId = 'supporter' | 'champion' | 'patron';
 
@@ -64,6 +64,9 @@ export interface SupporterRowLike {
   status: string;
   currentPeriodEnd: string | null;
   startedAt: string;
+  /** When the current unbroken paid run began (drizzle/0253); falls back to startedAt. */
+  tenureStartedAt?: string | null;
+  endedAt?: string | null;
   /** 'monthly' | 'yearly', 'referral…', 'gift' (staff, lib/supporterGifts), 'lab'. */
   recurrence?: string | null;
   /** The owning login's users.supporter_style (JSON), when the read joined it. */
@@ -78,6 +81,11 @@ export interface SupporterState {
   since: string;
   /** Months since `since`, whole months only. */
   months: number;
+  /** Whole months of unbroken PAID support (tenureStart): what the star's shape grows with. */
+  tenureMonths: number;
+  /** The tenure step that shape is, and the one after it (null at Legend). */
+  tenure: TenureStep;
+  nextTenure: TenureStep | null;
   /** The row in force is cancelled and ends at its period end. */
   endsAt: string | null;
   renewsAt: string | null;
@@ -143,10 +151,16 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
     .map((r) => parseStamp(r.startedAt))
     .filter((t) => !Number.isNaN(t));
   const sinceMs = starts.length ? Math.min(...starts) : parseStamp(best.startedAt);
+  const run = paidRunStart(rows, now);
+  const tenureMonths = run == null ? 0 : wholeMonths(run, now);
+  const { step, next } = tenureFor(tenureMonths);
   return {
     tier: SUPPORTER_TIERS[best.tier as SupporterTierId],
     since: new Date(sinceMs).toISOString(),
     months: wholeMonths(sinceMs, now),
+    tenureMonths,
+    tenure: step,
+    nextTenure: next,
     endsAt: best.status === 'cancelling' || best.status === 'granted' ? best.currentPeriodEnd : null,
     renewsAt: best.status === 'active' ? best.currentPeriodEnd : null,
     earned: best.status === 'granted' && best.recurrence !== GIFT_RECURRENCE,
@@ -155,14 +169,115 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
   };
 }
 
-/** Tenure flair steps: the look changes at these months. */
-export const TENURE_STEPS = [3, 6, 12] as const;
+/**
+ * Tenure: the Supporter star changes SHAPE with unbroken paid time (colour stays the tier's). Not
+ * supporter-specific, so a clan plan's time can climb the same ladder later.
+ *   chat:  the in-game chat icon (plugin chat-flair `t`): 1 star, 2 ringed, 3 hex, 4 solid hex. Four
+ *          shapes, because only four read apart at 11px.
+ *   glyph: the plugin panel's icon for the same four.
+ */
+export type TenureStepId = 'apprentice' | 'journeyman' | 'artisan' | 'master' | 'grandmaster' | 'legend';
+export type TenureGlyph = 'star' | 'star-ring' | 'star-hex' | 'hex';
 
-/** The highest tenure step reached (0 = none yet), and the next one to aim for (null at the top). */
-export function tenureStep(months: number): { reached: number; next: number | null } {
-  const reached = [...TENURE_STEPS].reverse().find((s) => months >= s) ?? 0;
-  const next = TENURE_STEPS.find((s) => months < s) ?? null;
-  return { reached, next };
+export interface TenureStep {
+  id: TenureStepId;
+  name: string;
+  months: number;
+  chat: 1 | 2 | 3 | 4;
+  glyph: TenureGlyph;
+}
+
+export const TENURE_LADDER: readonly TenureStep[] = [
+  { id: 'apprentice', name: 'Apprentice', months: 0, chat: 1, glyph: 'star' },
+  { id: 'journeyman', name: 'Journeyman', months: 3, chat: 1, glyph: 'star' },
+  { id: 'artisan', name: 'Artisan', months: 6, chat: 2, glyph: 'star-ring' },
+  { id: 'master', name: 'Master', months: 12, chat: 3, glyph: 'star-hex' },
+  { id: 'grandmaster', name: 'Grandmaster', months: 24, chat: 3, glyph: 'star-hex' },
+  { id: 'legend', name: 'Legend', months: 36, chat: 4, glyph: 'hex' },
+];
+
+/** The step `months` of unbroken time has reached, and the next one (null at the top). */
+export function tenureFor(months: number): { step: TenureStep; next: TenureStep | null } {
+  let i = 0;
+  while (i + 1 < TENURE_LADDER.length && months >= TENURE_LADDER[i + 1].months) i++;
+  return { step: TENURE_LADDER[i], next: TENURE_LADDER[i + 1] ?? null };
+}
+
+/** A lapse shorter than this (a failed card, a late renewal) doesn't break a paid run. */
+export const TENURE_GRACE_MS = 30 * 86_400_000;
+
+/** Time the person paid for: not refunded, not a staff gift, not time earned through invites. */
+function isPaidRow(r: SupporterRowLike): boolean {
+  if (r.status === 'refunded' || r.status === 'granted') return false;
+  const rec = r.recurrence ?? '';
+  return rec !== GIFT_RECURRENCE && !rec.startsWith('referral');
+}
+
+/**
+ * When the person's current unbroken paid run began, or null when they have none still within the
+ * grace period. Rows (several logins, several memberships) are merged into runs, joining any two
+ * less than TENURE_GRACE_MS apart; the run that ends last decides. Changing tier never breaks it.
+ */
+export function paidRunStart(rows: SupporterRowLike[], now = Date.now()): number | null {
+  const spans: [number, number][] = [];
+  for (const r of rows) {
+    if (!isPaidRow(r) || !(r.tier in SUPPORTER_TIERS)) continue;
+    const start = parseStamp(r.tenureStartedAt ?? r.startedAt);
+    if (Number.isNaN(start)) continue;
+    let end: number;
+    if (r.status === 'active') end = now;
+    else if (r.status === 'cancelling') {
+      const e = parseStamp(r.currentPeriodEnd);
+      end = Number.isNaN(e) ? now : Math.min(e, now);
+    } else {
+      const e = parseStamp(r.endedAt);
+      const p = parseStamp(r.currentPeriodEnd);
+      end = !Number.isNaN(e) ? e : !Number.isNaN(p) ? p : start;
+    }
+    spans.push([start, Math.max(start, end)]);
+  }
+  if (spans.length === 0) return null;
+  spans.sort((a, b) => a[0] - b[0]);
+  let best: [number, number] | null = null;
+  let cur = spans[0];
+  for (const s of spans.slice(1)) {
+    if (s[0] <= cur[1] + TENURE_GRACE_MS) cur = [cur[0], Math.max(cur[1], s[1])];
+    else {
+      if (!best || cur[1] >= best[1]) best = cur;
+      cur = s;
+    }
+  }
+  if (!best || cur[1] >= best[1]) best = cur;
+  return now - best[1] <= TENURE_GRACE_MS ? best[0] : null;
+}
+
+/**
+ * A membership row coming back to life. Its unbroken paid run (tenure, lib/supporterTiers) restarts
+ * when it was gone longer than the grace period, or its money was taken back; a short lapse keeps it.
+ */
+export function runStartOnReturn(
+  row: { status: string; endedAt: string | null; currentPeriodEnd: string | null },
+  now = Date.now(),
+): { tenureStartedAt?: string } {
+  if (row.status === 'refunded') return { tenureStartedAt: new Date(now).toISOString() };
+  if (row.status !== 'ended') return {};
+  const gone = now - parseStamp(row.endedAt ?? row.currentPeriodEnd);
+  return Number.isNaN(gone) || gone > TENURE_GRACE_MS ? { tenureStartedAt: new Date(now).toISOString() } : {};
+}
+
+/** "1 year, 2 months" / "7 months" / "under a month". */
+export function tenureLabel(months: number): string {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  const part = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (y && m) return `${part(y, 'year')}, ${part(m, 'month')}`;
+  if (y) return part(y, 'year');
+  return m ? part(m, 'month') : 'under a month';
+}
+
+/** Short form for tight rows: "1 yr" / "7 mo" / "new". */
+export function tenureShort(months: number): string {
+  return months >= 12 ? `${Math.floor(months / 12)} yr` : months > 0 ? `${months} mo` : 'new';
 }
 
 /**
@@ -170,25 +285,30 @@ export function tenureStep(months: number): { reached: number; next: number | nu
  * icon is the one place a small picture sits beside it). Only an embed with an author and no icon
  * of its own; returns a copy. `origin` is the apex, since Discord fetches the picture itself. A
  * Champion or Patron who picked their own colours gets a star drawn in them; everyone else the
- * tier's static star.
+ * tier's static star. Past Apprentice the star wears its tenure frame (lib/tenureStarSvg).
  */
 export function withSupporterAuthor<T extends Record<string, unknown>>(
   embed: T,
   tier: SupporterTierId | null | undefined,
   origin: string,
   style: SupporterStyle | null = null,
+  tenure: TenureStepId | null = null,
 ): T {
   const author = embed.author as { name?: unknown; icon_url?: unknown } | undefined;
   if (!tier || !author || typeof author.name !== 'string' || author.icon_url) return embed;
-  return { ...embed, author: { ...author, icon_url: supporterStarUrl(tier, style, origin) } };
+  return { ...embed, author: { ...author, icon_url: supporterStarUrl(tier, style, origin, tenure) } };
 }
 
 /** The star picture for a tier as this person wears it (see withSupporterAuthor). */
-export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | null, origin: string): string {
+export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | null, origin: string, tenure: TenureStepId | null = null): string {
   const eff = effectiveSupporterStyle(tier, style);
   // Discord is a dark surface: their own dark look when they set one, else the main look.
   const look = eff?.dark ?? eff;
-  const stops = look?.stops ?? (look?.preset ? presetById(look.preset)?.stops : undefined);
-  if (!stops) return `${origin}/icons/supporter-${tier}.png`;
-  return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}`;
+  const own = look?.stops ?? (look?.preset ? presetById(look.preset)?.stops : undefined);
+  const framed = tenure != null && tenure !== 'apprentice';
+  if (!own && !framed) return `${origin}/icons/supporter-${tier}.png`;
+  // A framed star in the tier's own colours when they chose none.
+  const ink = SUPPORTER_INK[tier];
+  const stops = own ?? ink.grad ?? [ink.color];
+  return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}${framed ? `?t=${tenure}` : ''}`;
 }

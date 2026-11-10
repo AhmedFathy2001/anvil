@@ -1331,6 +1331,13 @@
       "when": 1794530000000,
       "tag": "0252_whats_new_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1794540063991,
+      "tag": "0253_supporter_tenure_start",
+      "breakpoints": true
     }
   ]
 }

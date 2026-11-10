@@ -130,7 +130,7 @@ export type Node =
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'up' | 'down';
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'star-ring' | 'star-hex' | 'hex' | 'up' | 'down';
       color?: Color;
       w?: number;
       h?: number;
@@ -379,7 +379,7 @@ export const nameText = (rsn: string, color: Color = 'white', extra: Partial<Ext
 
 type TextNode = Extract<Node, { t: 'text' }>;
 /** `label` names the tier for the star's tooltip ("Anvil Patron"). */
-type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean; label?: string };
+type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean; label?: string; glyph?: 'star' | 'star-ring' | 'star-hex' | 'hex' };
 
 function eachChild(n: Node, f: (c: Node) => void): void {
   const any = n as unknown as Record<string, unknown>;
@@ -418,7 +418,7 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
         if (found.grad) t.grad = found.grad;
         if (found.move) t.move = true;
         if (!t.icon) {
-          t.icon = { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
+          t.icon = { t: 'icon', glyph: found.glyph ?? 'star', w: 10, h: 10, color: '#ffd35c' };
           t.iconAfter = true;
           // Whatever the name already explained stays, after who they are.
           const who = found.label ?? 'Anvil Supporter';

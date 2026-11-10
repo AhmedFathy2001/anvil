@@ -198,3 +198,15 @@ test('per-surface looks: d/l ride in the style table, dedupe on them, and are om
   assert.deepEqual(msg.styles, [{ ...plain, d: { c: '#eeeeee' } }]);
   assert.deepEqual(msg.names, ['alice']);
 });
+
+test('a tenure icon (t) round-trips, and looks without one keep their old keys', () => {
+  assert.equal(styleKey({ c: 'ffd700' }), JSON.stringify(['ffd700', null, 0]), 'no t: the old 3-part key');
+  for (const look of [
+    { c: 'ffd700', t: 3 as const },
+    { c: 'ff00ff', g: ['ff00ff', '00ffff'], s: true as const, t: 4 as const },
+    { c: 'ffd700', d: { c: 'ffee99' }, t: 1 as const },
+  ]) {
+    assert.deepEqual(styleFromKey(styleKey(look)), look);
+  }
+  assert.notEqual(styleKey({ c: 'ffd700', t: 2 }), styleKey({ c: 'ffd700', t: 3 }), 'a new step is a new look: the delta reaches plugins');
+});

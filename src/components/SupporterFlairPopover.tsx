@@ -3,13 +3,22 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
-import { SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
+import { SUPPORTER_TIERS, TENURE_LADDER, tenureFor, tenureLabel, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
 
 /**
  * The star beside a Supporter's name, as a button: it says what the flair is and how to get it.
  * Curiosity, not a pitch — the popover only opens when someone asks.
  */
-export default function SupporterFlairPopover({ tier, children }: { tier: SupporterTierId; children: React.ReactNode }) {
+export default function SupporterFlairPopover({
+  tier,
+  tenure = null,
+  children,
+}: {
+  tier: SupporterTierId;
+  /** Unbroken paid time, when the page knows it: "Master · supporting for 1 year, 2 months". */
+  tenure?: { id: TenureStepId; months: number } | null;
+  children: React.ReactNode;
+}) {
   // Fixed to the viewport at the star: a name often sits in a heading that clips its overflow.
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
   const open = at != null;
@@ -43,6 +52,8 @@ export default function SupporterFlairPopover({ tier, children }: { tier: Suppor
   }, [open]);
 
   const name = SUPPORTER_TIERS[tier].name;
+  const step = tenure ? TENURE_LADDER.find((t) => t.id === tenure.id) : null;
+  const next = tenure ? tenureFor(tenure.months).next : null;
   return (
     <span ref={box} className="inline-flex">
       <button
@@ -64,6 +75,17 @@ export default function SupporterFlairPopover({ tier, children }: { tier: Suppor
           className="fixed z-50 block w-64 font-sans rounded-xl border border-gold/40 bg-card-bg p-3 text-left text-sm font-normal normal-case tracking-normal text-foreground shadow-lg"
         >
           <span className={`block font-semibold supporter-name-${tier}`}>Anvil {name}</span>
+          {step && tenure && (
+            <span className="mt-1 block text-[13px] leading-snug">
+              <span className="font-medium">{step.name}</span>
+              <span className="text-text-muted"> · supporting for {tenureLabel(tenure.months)}</span>
+              {next && (
+                <span className="block text-[12px] text-text-muted">
+                  {next.name} at {next.months % 12 === 0 ? `${next.months / 12} year${next.months === 12 ? '' : 's'}` : `${next.months} months`}
+                </span>
+              )}
+            </span>
+          )}
           <span className="mt-1 block text-[13px] leading-snug text-text-muted">
             They support Anvil. Supporters pay for the servers that keep it free for every clan.
           </span>

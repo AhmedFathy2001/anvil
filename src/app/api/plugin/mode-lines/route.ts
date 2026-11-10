@@ -175,7 +175,7 @@ export async function POST(request: Request) {
   const decorate = (embed: Record<string, unknown>, clanId: number) => {
     const flaired = boosted.has(clanId)
       ? withBoosterAuthor(embed, apexOrigin())
-      : withSupporterAuthor(embed, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null);
+      : withSupporterAuthor(embed, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null, supporter?.tenure.id ?? null);
     return image ? { ...flaired, image: { url: `attachment://${image.filename}` } } : flaired;
   };
   let posted = 0;

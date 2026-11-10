@@ -8,13 +8,15 @@ import assert from 'node:assert/strict';
 import {
   rowInForce,
   supporterState,
+  paidRunStart,
   supporterTierForGumroad,
-  tenureStep,
+  tenureFor,
+  tenureLabel,
   wholeMonths,
 } from '../src/lib/supporterTiers.ts';
 
 const NOW = Date.parse('2026-11-02T12:00:00Z');
-const row = (o: Partial<{ tier: string; status: string; currentPeriodEnd: string | null; startedAt: string; style: string | null; userId: number }>) => ({
+const row = (o: Partial<{ tier: string; status: string; currentPeriodEnd: string | null; startedAt: string; tenureStartedAt: string | null; endedAt: string | null; recurrence: string | null; style: string | null; userId: number }>) => ({
   tier: 'supporter',
   status: 'active',
   currentPeriodEnd: null,
@@ -78,10 +80,79 @@ test('months are whole calendar months', () => {
   assert.equal(wholeMonths(NOW, NOW - 1), 0);
 });
 
-test('tenure flair steps at 3, 6 and 12 months', () => {
-  assert.deepEqual(tenureStep(0), { reached: 0, next: 3 });
-  assert.deepEqual(tenureStep(5), { reached: 3, next: 6 });
-  assert.deepEqual(tenureStep(12), { reached: 12, next: null });
+test('the tenure ladder: Apprentice → Journeyman 3 → Artisan 6 → Master 12 → Grandmaster 24 → Legend 36', () => {
+  const at = (m: number) => tenureFor(m).step.id;
+  assert.equal(at(0), 'apprentice');
+  assert.equal(at(2), 'apprentice');
+  assert.equal(at(3), 'journeyman');
+  assert.equal(at(6), 'artisan');
+  assert.equal(at(11), 'artisan');
+  assert.equal(at(12), 'master');
+  assert.equal(at(24), 'grandmaster');
+  assert.equal(at(36), 'legend');
+  assert.equal(at(120), 'legend');
+  assert.equal(tenureFor(36).next, null);
+  assert.equal(tenureFor(13).next?.id, 'grandmaster');
+  // Four chat shapes only: they must read apart at 11px.
+  assert.deepEqual([0, 3, 6, 12, 24, 36].map((m) => tenureFor(m).step.chat), [1, 1, 2, 3, 3, 4]);
+  assert.equal(tenureLabel(14), '1 year, 2 months');
+  assert.equal(tenureLabel(1), '1 month');
+  assert.equal(tenureLabel(0), 'under a month');
+});
+
+const DAY = 86_400_000;
+const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
+
+test('tenure counts unbroken PAID time: a live membership counts from its run start', () => {
+  assert.equal(paidRunStart([row({ startedAt: ago(400) })], NOW), NOW - 400 * DAY);
+  // A resubscribe moved the run start forward; started_at alone would overstate it.
+  assert.equal(paidRunStart([row({ startedAt: ago(400), tenureStartedAt: ago(30) })], NOW), NOW - 30 * DAY);
+  const s = supporterState([row({ startedAt: ago(400) })], NOW)!;
+  assert.equal(s.tenure.id, 'master');
+  assert.equal(s.tenureMonths, 13);
+  assert.equal(s.months, 13);
+});
+
+test('a lapse under 30 days keeps the run; a longer gap starts the climb again (since stays the first date)', () => {
+  const short = [
+    row({ status: 'ended', startedAt: ago(500), endedAt: ago(120) }),
+    row({ startedAt: ago(100) }),
+  ];
+  assert.equal(paidRunStart(short, NOW), NOW - 500 * DAY, '20-day gap is joined');
+  const long = [
+    row({ status: 'ended', startedAt: ago(500), endedAt: ago(200) }),
+    row({ startedAt: ago(100) }),
+  ];
+  assert.equal(paidRunStart(long, NOW), NOW - 100 * DAY, '100-day gap breaks it');
+  const s = supporterState(long, NOW)!;
+  assert.equal(s.tenure.id, 'journeyman');
+  assert.equal(s.since, new Date(NOW - 500 * DAY).toISOString(), '"Supporter since" is still the first date');
+});
+
+test('changing tier never resets tenure: rows of any tier join one run', () => {
+  const rows = [
+    row({ tier: 'supporter', status: 'ended', startedAt: ago(800), endedAt: ago(300) }),
+    row({ tier: 'patron', startedAt: ago(299) }),
+  ];
+  assert.equal(supporterState(rows, NOW)!.tenure.id, 'grandmaster');
+});
+
+test('invite-earned time, staff gifts and refunded money never climb the ladder', () => {
+  const end = new Date(NOW + 20 * DAY).toISOString();
+  const earned = [row({ status: 'granted', recurrence: 'referral', startedAt: ago(400), currentPeriodEnd: end })];
+  assert.equal(paidRunStart(earned, NOW), null);
+  const s = supporterState(earned, NOW)!;
+  assert.equal(s.tenure.id, 'apprentice', 'they still wear the star');
+  assert.equal(s.tenureMonths, 0);
+  const gift = [row({ status: 'granted', recurrence: 'gift', startedAt: ago(400), currentPeriodEnd: end })];
+  assert.equal(paidRunStart(gift, NOW), null);
+  assert.equal(paidRunStart([row({ status: 'refunded', startedAt: ago(400), endedAt: ago(1) })], NOW), null);
+});
+
+test('a cancelled membership counts until its term ends, then fades out after the grace', () => {
+  assert.equal(paidRunStart([row({ status: 'cancelling', startedAt: ago(400), currentPeriodEnd: new Date(NOW + 5 * DAY).toISOString() })], NOW), NOW - 400 * DAY);
+  assert.equal(paidRunStart([row({ status: 'ended', startedAt: ago(400), endedAt: ago(10) })], NOW), NOW - 400 * DAY);
+  assert.equal(paidRunStart([row({ status: 'ended', startedAt: ago(400), endedAt: ago(40) })], NOW), null);
 });
 
 test('a supporter\'s Discord post gets their star on the author line, and nothing else changes', async () => {
@@ -111,4 +182,29 @@ test('one person on several logins: equal tiers pick the login with chosen colou
   const a = row({ tier: 'patron', userId: 2, startedAt: '2026-01-01T00:00:00Z' });
   const b = row({ tier: 'patron', userId: 5, startedAt: '2026-02-01T00:00:00Z' });
   assert.equal(supporterState([a, b], NOW)?.since, supporterState([b, a], NOW)?.since);
+});
+
+test('a membership coming back restarts its run only after the grace, or after a refund', async () => {
+  const { runStartOnReturn } = await import('../src/lib/supporterTiers.ts');
+  assert.deepEqual(runStartOnReturn({ status: 'ended', endedAt: ago(10), currentPeriodEnd: null }, NOW), {});
+  assert.deepEqual(runStartOnReturn({ status: 'ended', endedAt: ago(45), currentPeriodEnd: null }, NOW), { tenureStartedAt: new Date(NOW).toISOString() });
+  assert.deepEqual(runStartOnReturn({ status: 'refunded', endedAt: ago(1), currentPeriodEnd: null }, NOW), { tenureStartedAt: new Date(NOW).toISOString() });
+  assert.deepEqual(runStartOnReturn({ status: 'active', endedAt: null, currentPeriodEnd: null }, NOW), {});
+});
+
+test('a framed tenure star on Discord: the tier colours drawn with the step, plain stars unchanged', async () => {
+  const { supporterStarUrl } = await import('../src/lib/supporterTiers.ts');
+  const o = 'https://anvilosrs.com';
+  assert.equal(supporterStarUrl('supporter', null, o), `${o}/icons/supporter-supporter.png`);
+  assert.equal(supporterStarUrl('supporter', null, o, 'apprentice'), `${o}/icons/supporter-supporter.png`);
+  assert.equal(supporterStarUrl('supporter', null, o, 'master'), `${o}/api/og/supporter-star/ffd35c?t=master`);
+  assert.equal(supporterStarUrl('champion', null, o, 'legend'), `${o}/api/og/supporter-star/ff9a5a-e05ad0-7a8cff?t=legend`);
+});
+
+test('the tenure star SVG frames every step past Apprentice and renders only checked colours', async () => {
+  const { tenureStarSvg } = await import('../src/lib/tenureStarSvg.ts');
+  assert.ok(!tenureStarSvg(['#ffd35c']).includes('polygon'));
+  assert.ok(tenureStarSvg(['#ffd35c'], 'master').includes('polygon'));
+  assert.ok(tenureStarSvg(['#ff9a5a', '#7a8cff'], 'journeyman').includes('<circle'));
+  assert.ok(tenureStarSvg(['#ff9a5a', '#7a8cff'], 'legend').includes('url(#g)'));
 });

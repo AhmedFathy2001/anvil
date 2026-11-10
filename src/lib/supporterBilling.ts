@@ -16,7 +16,7 @@ import { supporterSubscriptions, users } from '@/db/schema';
 import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { recordSupporterReferral, revokeReferrals } from '@/lib/referrals';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
-import { parseStamp, supporterTierForGumroad, type SupporterTierId } from '@/lib/supporterTiers';
+import { parseStamp, runStartOnReturn, supporterTierForGumroad, type SupporterTierId } from '@/lib/supporterTiers';
 import { noteUnmatchedFollowUp, recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
 /** Is this notification about the Supporter product (rather than a clan plan)? */
@@ -66,6 +66,7 @@ export async function startSupporterMembership(userId: number, ev: GumroadEvent,
     gumroadSaleId: ev.saleId,
     currentPeriodEnd: periodEnd,
     startedAt: nowIso(),
+    tenureStartedAt: nowIso(),
   }).returning({ id: supporterSubscriptions.id });
   if (created) track('supporter.purchased', { userId, clanId: null, props: { tier } });
   if (created) afterSupporterChange(userId, { announceRowId: isTrial ? null : created.id });
@@ -123,7 +124,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       if (row) {
         await db
           .update(supporterSubscriptions)
-          .set({ tier, status: 'active', recurrence: ev.recurrence, gumroadSaleId: ev.saleId, currentPeriodEnd: periodEnd, endedAt: null })
+          .set({ tier, status: 'active', recurrence: ev.recurrence, gumroadSaleId: ev.saleId, currentPeriodEnd: periodEnd, endedAt: null, ...runStartOnReturn(row) })
           .where(eq(supporterSubscriptions.id, row.id));
         afterSupporterChange(row.userId, { announceRowId: isTrial ? null : row.id });
         return ok({ tier });
@@ -192,6 +193,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         .set({
           status: 'active',
           endedAt: null,
+          ...runStartOnReturn(row),
           currentPeriodEnd: row.status === 'ended' ? nextChargeDue(ev.recurrence ?? row.recurrence, Date.now()) : row.currentPeriodEnd,
         })
         .where(eq(supporterSubscriptions.id, row.id));

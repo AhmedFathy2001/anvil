@@ -14,7 +14,7 @@ import { newCheckoutRef } from '@/lib/billing';
 import { hasChatStar } from '@/lib/chatLook';
 import { styleFromKey, styleKey, type FlairRecord, type FlairStyle, type FlairSurface } from '@/lib/chatFlairWire';
 import { effectiveSupporterStyle, parseSupporterStyle, supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
-import { SUPPORTER_TIERS, rowInForce, supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
+import { SUPPORTER_TIERS, rowInForce, supporterState, tenureShort, tiersByName, type SupporterState, type SupporterTierId, type TenureGlyph } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
 export * from '@/lib/supporterStyle';
@@ -25,6 +25,8 @@ const ROW_COLUMNS = {
   status: supporterSubscriptions.status,
   currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
   startedAt: supporterSubscriptions.startedAt,
+  tenureStartedAt: supporterSubscriptions.tenureStartedAt,
+  endedAt: supporterSubscriptions.endedAt,
   recurrence: supporterSubscriptions.recurrence,
   // The owning login's name colours ride along on the same read (every lookup joins users).
   style: users.supporterStyle,
@@ -154,11 +156,12 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
  * supporterTiersForRsns with each name's colours as worn (tier plus their gated style): what the
  * plugin panel paints. Same single query.
  */
-export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, SupporterInk & { label: string }>> {
-  const out = new Map<string, SupporterInk & { label: string }>();
+export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, SupporterInk & { label: string; glyph: TenureGlyph }>> {
+  const out = new Map<string, SupporterInk & { label: string; glyph: TenureGlyph }>();
   for (const [rsn, state] of await supporterStatesForRsns(rsns)) {
-    // The tier rides along for the star's tooltip in the panel.
-    out.set(rsn, { ...supporterInk(state.tier.id, state.style), label: `Anvil ${state.tier.name}` });
+    // The tier and tenure ride along for the star's tooltip in the panel, and its shape.
+    const label = `Anvil ${state.tier.name} · ${state.tenure.name}, ${tenureShort(state.tenureMonths)}`;
+    out.set(rsn, { ...supporterInk(state.tier.id, state.style), label, glyph: state.tenure.glyph });
   }
   return out;
 }
@@ -172,7 +175,7 @@ export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, 
 export async function supporterLooksByName(names: string[]): Promise<Record<string, SupporterLook>> {
   const states = await supporterStatesForRsns(names).catch(() => new Map<string, SupporterState>());
   const looks = new Map<string, SupporterLook>();
-  for (const [rsn, state] of states) looks.set(rsn, { tier: state.tier.id, style: state.style });
+  for (const [rsn, state] of states) looks.set(rsn, { tier: state.tier.id, style: state.style, tenure: { id: state.tenure.id, months: state.tenureMonths } });
   return tiersByName(names, looks, normalizeRsn);
 }
 
@@ -284,6 +287,7 @@ export async function gameChatFlairRecords(rsns?: string[]): Promise<Map<string,
         ...(star ? { s: true as const } : {}),
         ...(ink.dark ? { d: flairSurface(ink.dark) } : {}),
         ...(ink.light ? { l: flairSurface(ink.light) } : {}),
+        t: state.tenure.chat,
       }),
       p: playerId,
     });

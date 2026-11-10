@@ -171,7 +171,7 @@ export async function POST(request: Request) {
   const supporter = (await supporterForUsers([auth.userId]).catch(() => new Map())).get(auth.userId) ?? null;
   const embed = character && (await boostedClanIdsForAccount(character.accountId).catch(() => new Set<number>())).has(clan.id)
     ? withBoosterAuthor(rawEmbed, apexOrigin())
-    : withSupporterAuthor(rawEmbed, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null);
+    : withSupporterAuthor(rawEmbed, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null, supporter?.tenure.id ?? null);
   const ok = await forwardPluginNotification(url, {
     clanId: clan.id,
     embed,

@@ -2,7 +2,7 @@ import { useId } from 'react';
 
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
 import { inkForSurface, supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
-import type { SupporterTierId } from '@/lib/supporterTiers';
+import type { SupporterTierId, TenureStepId } from '@/lib/supporterTiers';
 
 /**
  * A name with its Anvil Supporter flair: a star and the tier's colour (gold, a gradient, a gradient
@@ -20,6 +20,7 @@ export default function SupporterName({
   style = null,
   star = true,
   surface = 'site',
+  tenure = null,
 }: {
   name: string;
   tier: SupporterTierId | null | undefined;
@@ -32,6 +33,8 @@ export default function SupporterName({
   star?: boolean;
   /** Preview the derived readable colours used over RuneScape's opaque chat background. */
   surface?: 'site' | 'opaque-chat';
+  /** How long they've supported without a break: the star's shape (lib/supporterTiers TENURE_LADDER). */
+  tenure?: { id: TenureStepId; months: number } | null;
 }) {
   if (!tier) return <span className={className}>{name}</span>;
   const sourceInk = supporterInk(tier, style);
@@ -44,10 +47,10 @@ export default function SupporterName({
   return (
     <span className={`supporter-flair inline-flex items-center gap-1.5 min-w-0 ${className}`}>
       {!star ? null : plain ? (
-        <SupporterStar stops={stops} color={solid} />
+        <SupporterStar stops={stops} color={solid} tenure={tenure?.id} />
       ) : (
-        <SupporterFlairPopover tier={tier}>
-          <SupporterStar decorative stops={stops} color={solid} />
+        <SupporterFlairPopover tier={tier} tenure={tenure}>
+          <SupporterStar decorative stops={stops} color={solid} tenure={tenure?.id} />
         </SupporterFlairPopover>
       )}
       <span
@@ -67,8 +70,11 @@ export function SupporterStar({
   decorative = false,
   stops = null,
   color = null,
+  tenure = null,
 }: {
   size?: number;
+  /** The tenure step's frame round the star; none (or Apprentice) is the bare star. */
+  tenure?: TenureStepId | null;
   decorative?: boolean;
   /** Paint the star with these gradient stops instead of gold. */
   stops?: readonly string[] | null;
@@ -77,6 +83,8 @@ export function SupporterStar({
 }) {
   const id = useId();
   const grad = stops && stops.length >= 2 ? stops : null;
+  const paint = grad ? `url(#${id})` : 'currentColor';
+  const framed = tenure != null && tenure !== 'apprentice';
   return (
     <svg
       width={size}
@@ -96,7 +104,48 @@ export function SupporterStar({
           </linearGradient>
         </defs>
       )}
-      <path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z" />
+      {framed && <TenureFrame step={tenure!} paint={paint} />}
+      <path
+        d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z"
+        transform={framed ? 'translate(12 12) scale(0.56) translate(-12 -11.6)' : undefined}
+      />
     </svg>
   );
+}
+
+const HEX = '12,1.4 21.2,6.7 21.2,17.3 12,22.6 2.8,17.3 2.8,6.7';
+
+/** The shape that grows round the star with tenure: ring, double ring, hex, double hex, Legend's rays. */
+function TenureFrame({ step, paint }: { step: TenureStepId; paint: string }) {
+  switch (step) {
+    case 'journeyman':
+      return <circle cx="12" cy="12" r="10.4" fill="none" stroke={paint} strokeWidth="1.7" />;
+    case 'artisan':
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" fill="none" stroke={paint} strokeWidth="1.6" />
+          <circle cx="12" cy="12" r="11.3" fill="none" stroke={paint} strokeWidth="1" strokeDasharray="1.6 2.2" />
+        </>
+      );
+    case 'master':
+      return <polygon points={HEX} fill="rgba(0,0,0,0.35)" stroke={paint} strokeWidth="1.7" strokeLinejoin="round" />;
+    case 'grandmaster':
+      return (
+        <>
+          <polygon points={HEX} fill="none" stroke={paint} strokeWidth="1" strokeLinejoin="round" />
+          <polygon points={HEX} transform="translate(12 12) scale(0.8) translate(-12 -12)" fill="rgba(0,0,0,0.35)" stroke={paint} strokeWidth="2" strokeLinejoin="round" />
+        </>
+      );
+    case 'legend':
+      return (
+        <>
+          <g className="tenure-rays" stroke={paint} strokeWidth="1.2" strokeLinecap="round" opacity="0.75">
+            <path d="M12 0v2.2M12 21.8V24M0 12h2.2M21.8 12H24M3.5 3.5l1.5 1.5M19 19l1.5 1.5M20.5 3.5L19 5M5 19l-1.5 1.5" />
+          </g>
+          <polygon points={HEX} transform="translate(12 12) scale(0.82) translate(-12 -12)" fill={paint} fillOpacity="0.28" stroke={paint} strokeWidth="1.8" strokeLinejoin="round" />
+        </>
+      );
+    default:
+      return null;
+  }
 }

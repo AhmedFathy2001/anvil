@@ -147,6 +147,11 @@ export async function pluginStaff(request: Request): Promise<boolean> {
 }
 
 /** The plugin draws the Feed tab (capability 'panel-rows'): the clan card can drop its long drop log. */
+/** The plugin draws the Supporter tenure shapes (glyphs 'star-ring', 'star-hex', 'hex'), not only 'star'. */
+export function hasTenureGlyphs(request: Request): boolean {
+  return request.headers.get('X-Anvil-Glyphs') === '1';
+}
+
 export function hasFeedTab(request: Request): boolean {
   return request.headers.get('X-Anvil-Feed-Tab') === '1';
 }

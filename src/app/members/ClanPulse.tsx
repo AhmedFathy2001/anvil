@@ -197,7 +197,7 @@ export default function ClanPulse({
                         {initials(t.rsn)}
                       </span>
                       <span className="block text-sm font-medium truncate group-hover:text-gold transition-colors">
-                        <SupporterName name={t.rsn} tier={supporterLooks[t.rsn]?.tier} style={supporterLooks[t.rsn]?.style} className="max-w-full" plain />
+                        <SupporterName name={t.rsn} tier={supporterLooks[t.rsn]?.tier} style={supporterLooks[t.rsn]?.style} tenure={supporterLooks[t.rsn]?.tenure} className="max-w-full" plain />
                       </span>
                       <span className={`block font-bold text-gold tabular-nums ${first ? 'text-xl' : 'text-base'}`}>
                         {t.hours.toFixed(1)}h
@@ -222,7 +222,7 @@ export default function ClanPulse({
                       className="grid grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,6rem)_3.25rem] items-center gap-3 text-sm hover:text-gold"
                     >
                       <span className="text-text-muted/60 tabular-nums text-xs">{i + 4}</span>
-                      <SupporterName name={t.rsn} tier={supporterLooks[t.rsn]?.tier} style={supporterLooks[t.rsn]?.style} className="truncate" plain />
+                      <SupporterName name={t.rsn} tier={supporterLooks[t.rsn]?.tier} style={supporterLooks[t.rsn]?.style} tenure={supporterLooks[t.rsn]?.tenure} className="truncate" plain />
                       <span className="h-1.5 rounded-full bg-tile-bg overflow-hidden">
                         <span
                           className="block h-full rounded-full"

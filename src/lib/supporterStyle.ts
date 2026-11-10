@@ -7,7 +7,7 @@
 // default on their own, with nothing to clean up.
 
 // Type-only import: supporterTiers re-exports SUPPORTER_INK from here, so no runtime cycle.
-import type { SupporterTierId } from './supporterTiers.ts';
+import type { SupporterTierId, TenureStepId } from './supporterTiers.ts';
 
 export type Hex = `#${string}`;
 
@@ -34,6 +34,8 @@ export interface SupporterStyle extends SupporterLookStyle {
 export interface SupporterLook {
   tier: SupporterTierId;
   style: SupporterStyle | null;
+  /** Unbroken paid time and the tenure step it makes (the star's shape). */
+  tenure?: { id: TenureStepId; months: number };
 }
 
 /** A surface's own look, raw: worn as-is on that surface (animation follows the main look). */

@@ -15,7 +15,7 @@ interface State {
   drops: number;
 }
 
-const MONTHS = [0, 3, 6, 12];
+const MONTHS = [0, 3, 6, 12, 24, 36];
 
 export default function SupporterLabClient() {
   const [state, setState] = useState<State | null>(null);
