@@ -233,14 +233,6 @@ export default function MembersDirectory({
                         {m.status}
                       </span>
                     )}
-                    {mv && mv.streak >= 3 && (
-                      <span
-                        className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full border border-orange-400/30 bg-orange-400/10 text-orange-300 tabular-nums shrink-0"
-                        title={`${mv.streak} days in a row with a gain`}
-                      >
-                        {mv.streak}d{mv.streak >= 7 ? ' 🔥' : ''}
-                      </span>
-                    )}
                   </span>
 
                   <span className="hidden sm:block">
