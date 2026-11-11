@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import ClanLink from '@/components/ClanLink';
+import { ModeChannelsQuickSetup } from '@/components/ModeChannelOverrides';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Select, { type SelectOption } from '@/components/Select';
@@ -111,12 +112,15 @@ export default function DiscordQuickSetup({
   siteUrl,
   onRoutingChanged,
   feedRulesHint = false,
+  modes = false,
 }: {
   channels: BroadcastChannel[];
   siteUrl: string;
   onRoutingChanged: () => void;
   /** Point at Rules & scoring for what the clan's own feed keeps (a clan; a creator space has no feed). */
   feedRulesHint?: boolean;
+  /** Offer each game mode's own channels, folded away (not in a creator space). */
+  modes?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -410,6 +414,8 @@ export default function DiscordQuickSetup({
             </div>
           </>
         )}
+        {/* Secondary: the game modes' own channels. Quick setup itself only writes the main game's. */}
+        {modes && <ModeChannelsQuickSetup />}
         {feedRulesHint && <FeedRulesHint />}
       </Card>
 
