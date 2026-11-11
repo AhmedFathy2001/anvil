@@ -19,8 +19,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ stop
   const parts = (await params).stops.slice(0, 64).split('-');
   const stops = parts.map(normalizeHex);
   const t = new URL(request.url).searchParams.get('t');
-  const step = t == null ? 'apprentice' : TENURE_LADDER.find((s) => s.id === t)?.id;
-  if (!step || stops.length < MIN_STOPS || stops.length > MAX_STOPS || stops.some((h) => !h)) {
+  // No ?t: the bare star in their stops (a supporter whose tenure isn't known here).
+  const step = t == null ? null : TENURE_LADDER.find((s) => s.id === t)?.id;
+  if (step === undefined || stops.length < MIN_STOPS || stops.length > MAX_STOPS || stops.some((h) => !h)) {
     return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
   }
   const svg = tenureStarSvg(stops as Hex[], step);
