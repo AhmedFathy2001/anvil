@@ -19,6 +19,7 @@ import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
 import { capEligible, serializeCapBy, validateCapBy } from '@/lib/tileCaps';
 import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, validateComboRule, validateComboWeight } from '@/lib/combo';
 import { syncPartRevealState } from '@/lib/comboSql';
+import { deriveTileIcon } from '@/lib/tileIcons';
 import { tilesForViewer } from '@/lib/tilesForViewer';
 import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 
@@ -272,6 +273,16 @@ async function saveCombo(ctx: TileUpdateCtx, tile: TileRow, body: Record<string,
     const res = await applyTileUpdate(ctx, row, p, { asPart: true });
     if (!res.ok) return NextResponse.json({ error: `Part: ${await errorOf(res)}` }, { status: res.status });
     savedParts.push((await res.json()) as TileRow);
+  }
+  // A combo shows its first part's picture (lib/tileIcons), unless someone set it one: no icon, or
+  // the one an earlier save took from a part, follows the parts as they are now.
+  const fromParts = new Set(existingParts.map((p) => deriveTileIcon(p)).filter(Boolean));
+  if (!comboRow.icon || fromParts.has(comboRow.icon)) {
+    const icon = savedParts.map((p) => deriveTileIcon(p)).find(Boolean) ?? null;
+    if (icon !== comboRow.icon) {
+      await db.update(tiles).set({ icon }).where(eq(tiles.id, comboRow.id));
+      comboRow.icon = icon;
+    }
   }
   // A part carries its combo's reveal state (lib/comboSql).
   await syncPartRevealState(ctx.eId);
