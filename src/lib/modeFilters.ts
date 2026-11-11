@@ -108,6 +108,25 @@ export function parseModeLevels(raw: unknown): LevelRules | null {
   return levelHalf(normalizeMilestoneRules(raw));
 }
 
+/**
+ * "Copy from main game" for drops: the clan's main-game gate as a mode's own thresholds. The rarity
+ * is the clan's default, never looser than its hard floor (a floor alone tightens Anvil's 1 in
+ * 1,000); a half the clan never set stays blank, which already means "the main game's". `both`
+ * follows the clan's 'and'.
+ */
+export function modeDropsFromMain(
+  main: { value: number | null; rarity: number | null; mode: string | null; hardFloor: number | null },
+  platformRarity = MAIN_GAME_RARITY_FLOOR,
+): { dropFloor: number | null; dropMinValue: number | null; dropBoth: boolean } {
+  const rarity =
+    main.rarity == null && main.hardFloor == null ? null : Math.max(main.rarity ?? platformRarity, main.hardFloor ?? 0);
+  return {
+    dropFloor: rarity == null ? null : (parseModeDropFloor(rarity) ?? null),
+    dropMinValue: main.value == null ? null : (parseModeDropValue(main.value) ?? null),
+    dropBoth: main.mode === 'and',
+  };
+}
+
 /** Same tolerance the plugin uses for "rate <= 1/floor" (MathUtils.lessThanOrEqual). */
 const EPS = 1e-9;
 

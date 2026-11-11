@@ -17,7 +17,59 @@ import {
   routeModePost,
   withSeenMode,
   MAX_SEEN_MODES,
+  MODE_CHANNELS,
+  MODE_EVENTS_CHANNEL,
+  modeChannelFromKey,
+  modeChannelKey,
+  modeKindDefaultsKey,
+  modeFunDeathsKey,
+  modeDeathTauntsKey,
 } from '../src/lib/worldModes.ts';
+
+test('per-kind mode channels: the kind, then the mode channel, then the kind it inherits, then normal', () => {
+  const base = { split: true, modeOff: false, kindsOff: new Set<string>(), modeHook: null, normalHook: 'N' };
+  // A clan with only the old single webhook keeps posting there for every kind.
+  assert.equal(routeModePost('pets', { ...base, modeHook: 'M' }), 'M');
+  assert.equal(routeModePost('pets', { ...base, modeHook: 'M', kindHooks: {} }), 'M');
+  // A kind's own channel wins over the mode channel.
+  assert.equal(routeModePost('deaths', { ...base, modeHook: 'M', kindHooks: { deaths: 'D' } }), 'D');
+  assert.equal(routeModePost('rareDrops', { ...base, modeHook: 'M', kindHooks: { deaths: 'D' } }), 'M');
+  // No mode channel: an unset kind asks its old home (pets → rare drops), as the main game does.
+  assert.equal(routeModePost('pets', { ...base, kindHooks: { rareDrops: 'R' } }), 'R');
+  assert.equal(routeModePost('pets', { ...base, modeHook: 'M', kindHooks: { rareDrops: 'R' } }), 'M', 'mode channel before inheritance');
+  // Nothing of the mode's own: the normal channel.
+  assert.equal(routeModePost('pets', { ...base, kindHooks: { deaths: 'D' } }), 'N');
+  // Master switch off: every mode post in the normal channels, own channels or not.
+  assert.equal(routeModePost('deaths', { ...base, split: false, kindHooks: { deaths: 'D' } }), 'N');
+  // Off is off, whatever channel is set.
+  assert.equal(routeModePost('deaths', { ...base, kindsOff: new Set(['deaths']), kindHooks: { deaths: 'D' } }), null);
+  assert.equal(routeModePost('deaths', { ...base, modeOff: true, kindHooks: { deaths: 'D' } }), null);
+});
+
+test('mode events: switched per kind, posted through the mode events channel', () => {
+  const base = { split: true, modeOff: false, kindsOff: new Set<string>(), modeHook: 'M', normalHook: 'CA', kindHooks: { [MODE_EVENTS_CHANNEL]: 'E' } };
+  assert.equal(routeModePost('modeRelic', base, MODE_EVENTS_CHANNEL), 'E');
+  assert.equal(routeModePost('modeRelic', { ...base, kindsOff: new Set(['modeRelic']) }, MODE_EVENTS_CHANNEL), null);
+  assert.equal(routeModePost('modeRelic', { ...base, kindHooks: {} }, MODE_EVENTS_CHANNEL), 'M');
+  // No events or mode channel: the mode's achievements channel, then the normal one.
+  assert.equal(routeModePost('modeRelic', { ...base, modeHook: null, kindHooks: { combatAchievements: 'C' } }, MODE_EVENTS_CHANNEL), 'C');
+  assert.equal(routeModePost('modeRelic', { ...base, modeHook: null, kindHooks: {} }, MODE_EVENTS_CHANNEL), 'CA');
+});
+
+test('per-mode setting keys are namespaced and parse back', () => {
+  assert.equal(modeChannelKey('deadman', 'rareDrops'), 'world_mode_hook_rareDrops_deadman');
+  assert.deepEqual(modeChannelFromKey('world_mode_hook_rareDrops_grid-master'), { mode: 'grid-master', channel: 'rareDrops' });
+  assert.deepEqual(modeChannelFromKey(modeChannelKey('leagues', MODE_EVENTS_CHANNEL)), { mode: 'leagues', channel: MODE_EVENTS_CHANNEL });
+  assert.equal(modeChannelFromKey('world_mode_hook_clips_deadman'), null, 'clips never route through a mode');
+  assert.equal(modeChannelFromKey('world_mode_hook_rareDrops_../x'), null);
+  assert.equal(modeChannelFromKey('webhook_mode_deadman'), null);
+  // The single mode webhook can never be mistaken for a per-kind one, or the other way round.
+  assert.equal(modeKeyFromWebhookKey(modeChannelKey('deadman', 'deaths')), null);
+  assert.ok(MODE_CHANNELS.every((ch) => modeChannelFromKey(modeChannelKey('hardcore', ch))?.channel === ch));
+  assert.equal(modeKindDefaultsKey('hardcore'), 'world_mode_kind_defaults_hardcore');
+  assert.equal(modeFunDeathsKey('hardcore'), 'world_mode_fun_deaths_hardcore');
+  assert.equal(modeDeathTauntsKey('hardcore'), 'world_mode_death_taunts_hardcore');
+});
 
 const key = (types: string, activity?: string) => resolveWorldMode(types, activity)?.key ?? null;
 

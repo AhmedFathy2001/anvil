@@ -9,8 +9,6 @@ import { liveBoardRows, recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
 import { pluginParticipantScope, requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
-  getDeathTaunts,
-  getFunDeathMessages,
   getNotificationWebhooks,
   NOTIFY_CHANNELS,
   type NotifyChannel,
@@ -23,7 +21,7 @@ import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
 import { FALLEN_MODE, fallenEmbed } from '@/lib/hardcoreFall';
 import { markMode, routeModePost, type WorldMode } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
-import { getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
+import { deathLinesForWorld, getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
 import { modeFilterAllows } from '@/lib/modeFilters';
 import { stripChatTags, stripChatTagsDeep } from '@/lib/chatTags';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -221,6 +219,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
   }
 
+  // The world the post was made on: a game mode (Leagues, Deadman, hardcore… lib/worldModes) has its
+  // own settings in each clan — milestone kinds, templates, death lines, thresholds, channels — read
+  // below wherever the main game reads its own. Null on the main game.
+  const mode = worldModeOf(request, { world, seasonal });
+
   // A drop the plugin's screenshot gate let through (capability 'notify-prefs'): whether it posts, and
   // what the post says about it, is decided here (lib/notifyDrops) — the person's floors live on the site.
   // Who takes it: the clan channels and/or some of the person's own webhooks (each judged by its own filters).
@@ -244,7 +247,7 @@ export async function POST(request: Request) {
     // The name on the post is the token's own character's, never the `rsn` the body names: a shared
     // line kind reaches clan channels, where a body name would put words in someone else's mouth.
     facts = factsAsPoster(facts, poster);
-    const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id)]);
+    const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id, mode?.key)]);
     newPost = vetNewKindPost(kind, facts, prefs.announce, clanKinds);
     if (channel !== 'milestones') return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
     if (!newPost) return NextResponse.json({ ok: true, declined: 1 });
@@ -269,14 +272,11 @@ export async function POST(request: Request) {
   if (kind === 'death' && facts && typeof facts === 'object' && !Array.isArray(facts)) {
     const f = facts as { rsn?: unknown };
     if (typeof f.rsn !== 'string' || !f.rsn.trim()) facts = { ...f, rsn: await posterRsn(request, auth.userId) };
-    const [prefs, funLines, taunts] = await Promise.all([
-      getNotifyPrefs(auth.userId),
-      getFunDeathMessages(clan.id),
-      getDeathTaunts(clan.id),
-    ]);
+    // A game mode's own death lines where the clan gave it some, else the main game's.
+    const [prefs, { funLines, taunts }] = await Promise.all([getNotifyPrefs(auth.userId), deathLinesForWorld(clan.id, mode?.key)]);
     // The death line: their own template, else their old Death message if they changed it, else the
     // clan's template, else Anvil's (lib/notifyTemplates). {player} / {name} and {killer}.
-    const clanTemplates = (await characterClanKinds(member?.accountId ?? null, clan.id)).templates;
+    const clanTemplates = (await characterClanKinds(member?.accountId ?? null, clan.id, mode?.key)).templates;
     const own = prefs.announce.templates?.deaths ?? (prefs.deathMsg !== NOTIFY_DEFAULTS.deathMsg ? prefs.deathMsg : undefined);
     const t = resolveTemplate('deaths', own ? { deaths: own } : {}, clanTemplates);
     const message = t.source === 'platform' ? prefs.deathMsg : renderTemplate('deaths', t.template, templateValues('deaths', facts, null));
@@ -328,7 +328,7 @@ export async function POST(request: Request) {
   // builder's own wording stands untouched. Deaths are worded above.
   const tKind = templateKindOf(kind, channel, facts);
   if (tKind && tKind !== 'deaths' && finalEmbed) {
-    const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id)]);
+    const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id, mode?.key)]);
     const t = resolveTemplate(tKind, prefs.announce.templates, clanKinds.templates);
     if (t.source !== 'platform' && t.template) {
       const rsn = tKind === 'pvp' ? await posterRsn(request, auth.userId) : null;
@@ -340,7 +340,6 @@ export async function POST(request: Request) {
   // about each one. The icon is a per-clan setting; the URL clan is a fine source for a cosmetic
   // mark that is the same across destinations. (A mode nobody catalogued is remembered below, per
   // clan the poster actually posts into — never the URL clan, which any token holder can name.)
-  const mode = worldModeOf(request, { world, seasonal });
   // A death on Hardcore Worlds ends the character (lib/hardcoreFall): its own post, and it goes to the
   // clan's main deaths channel as well as the mode's.
   const fallen = mode?.key === FALLEN_MODE && channel === 'deaths';

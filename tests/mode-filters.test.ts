@@ -22,8 +22,24 @@ import {
   storedModeDropValue,
   storedModeLevels,
   unionLevelRules,
+  modeDropsFromMain,
   type ModeFilters,
 } from '../src/lib/modeFilters.ts';
+
+test('copy from main game: drops take the clan gate, blanks stay blank', () => {
+  const none = { value: null, rarity: null, mode: null, hardFloor: null };
+  assert.deepEqual(modeDropsFromMain(none), { dropFloor: null, dropMinValue: null, dropBoth: false }, 'nothing set = follow the main game');
+  assert.deepEqual(modeDropsFromMain({ ...none, value: 5_000_000, rarity: 2_000, mode: 'and' }), {
+    dropFloor: 2_000,
+    dropMinValue: 5_000_000,
+    dropBoth: true,
+  });
+  // The hard floor tightens the default, never loosens it, and alone it tightens Anvil's 1 in 1,000.
+  assert.equal(modeDropsFromMain({ ...none, rarity: 2_000, hardFloor: 5_000 }).dropFloor, 5_000);
+  assert.equal(modeDropsFromMain({ ...none, rarity: 8_000, hardFloor: 5_000 }).dropFloor, 8_000);
+  assert.equal(modeDropsFromMain({ ...none, hardFloor: 500 }).dropFloor, 1_000);
+  assert.equal(modeDropsFromMain({ ...none, mode: 'or' }).dropBoth, false);
+});
 import { DEFAULT_LEVEL_RULES, skillLevelMatches, totalLevelMatches, type LevelRules } from '../src/lib/levelRules.ts';
 import { modeDropFloorKey, modeDropValueKey, modeLevelsKey } from '../src/lib/worldModes.ts';
 

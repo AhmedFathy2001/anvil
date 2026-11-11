@@ -261,8 +261,13 @@ export interface ModeRouting {
   modeOff: boolean;
   /** Notify channels this mode doesn't post. */
   kindsOff: ReadonlySet<string>;
-  /** The mode's own channel, if set. */
+  /** The mode's own channel, if set: its catch-all, every kind without a channel of its own. */
   modeHook: string | null;
+  /**
+   * The mode's own channel per kind of post (MODE_CHANNELS → webhook), only the ones set. Absent on
+   * a clan that never set one: every kind then goes to `modeHook`, as before per-kind channels.
+   */
+  kindHooks?: Readonly<Partial<Record<string, string>>>;
   /** Where the post would go on the main game. */
   normalHook: string | null;
 }
@@ -271,13 +276,90 @@ export interface ModeRouting {
  * Where one post from a game mode goes in one clan.
  *
  * Off (the mode, or this kind of post for it) means nowhere. With the master switch on, the mode's
- * own channel wins; without one — or with the switch off — it lands where the same post from the
- * main game would, so routing is an improvement and never the reason a post is lost.
+ * own channel for the kind wins, then the mode's channel (modeOwnHook); without one — or with the
+ * switch off — it lands where the same post from the main game would, so routing is an improvement
+ * and never the reason a post is lost. `hookChannel` is the channel the kind posts through when it
+ * differs from the kind itself (a mode event's kind is `modeRelic`, its channel `modeEvents`).
  */
-export function routeModePost(channel: string, r: ModeRouting): string | null {
+export function routeModePost(channel: string, r: ModeRouting, hookChannel: string = channel): string | null {
   if (r.modeOff || r.kindsOff.has(channel)) return null;
-  if (r.split && r.modeHook) return r.modeHook;
+  if (r.split) {
+    const own = modeOwnHook(hookChannel, r);
+    if (own) return own;
+  }
   return r.normalHook;
+}
+
+/**
+ * The mode's own destination for one kind of post, resolved the way the main game resolves its
+ * channels (lib/pluginConfig getNotificationWebhooks): the kind's own channel, then the mode's
+ * channel (its catch-all), then the channel the kind inherits from. Null = the mode has none for it,
+ * so the post goes where the main game would put it.
+ */
+export function modeOwnHook(hookChannel: string, r: Pick<ModeRouting, 'modeHook' | 'kindHooks'>): string | null {
+  const kinds = r.kindHooks ?? {};
+  const inherited = MODE_CHANNEL_INHERITS[hookChannel];
+  return kinds[hookChannel] || r.modeHook || (inherited ? kinds[inherited] : null) || null;
+}
+
+// ── Per-mode settings, mirroring the main game's in-game tab ─────────────────────────────────
+
+/**
+ * The kinds of post a mode can give a channel of its own: the in-game tab's (lib/discordFeeds; the
+ * notify channels by the same ids) plus the mode's own events (relics, areas, pacts, masteries,
+ * tasks), which share one channel.
+ */
+export const MODE_GAME_CHANNELS = [
+  'rareDrops',
+  'pets',
+  'collectionLog',
+  'levels',
+  'combatAchievements',
+  'quests',
+  'diaries',
+  'milestones',
+  'deaths',
+  'pvpKills',
+] as const;
+export const MODE_EVENTS_CHANNEL = 'modeEvents';
+export const MODE_CHANNELS: readonly string[] = [...MODE_GAME_CHANNELS, MODE_EVENTS_CHANNEL];
+
+/** The main game's fallbacks (lib/pluginConfig INHERITS_FROM); a mode's events land with its achievements. */
+export const MODE_CHANNEL_INHERITS: Readonly<Record<string, string>> = {
+  pets: 'rareDrops',
+  levels: 'combatAchievements',
+  quests: 'combatAchievements',
+  diaries: 'combatAchievements',
+  collectionLog: 'combatAchievements',
+  milestones: 'combatAchievements',
+  [MODE_EVENTS_CHANNEL]: 'combatAchievements',
+};
+
+/** Per mode and kind, its own channel (webhook URLs). Absent = the mode's channel, then the fallback. */
+export function modeChannelKey(modeKey: string, channel: string): string {
+  return `world_mode_hook_${channel}_${modeKey}`;
+}
+/** The mode and kind a per-kind channel setting belongs to, or null when it is not one. */
+export function modeChannelFromKey(settingKey: string): { mode: string; channel: string } | null {
+  const m = /^world_mode_hook_([A-Za-z]+)_(.+)$/.exec(settingKey);
+  if (!m || !MODE_CHANNELS.includes(m[1]) || !isModeKey(m[2])) return null;
+  return { mode: m[2], channel: m[1] };
+}
+/**
+ * Per mode, its defaults for the newer kinds, screenshots, chat patterns and message templates
+ * (lib/notifyKinds ClanKinds JSON, like the main game's `notify_kind_defaults`). Absent = the main
+ * game's, so a mode nobody configured posts exactly as it did.
+ */
+export function modeKindDefaultsKey(key: string): string {
+  return `world_mode_kind_defaults_${key}`;
+}
+/** Per mode, its death one-liners (one per line). Absent = the main game's. */
+export function modeFunDeathsKey(key: string): string {
+  return `world_mode_fun_deaths_${key}`;
+}
+/** Per mode, its death reaction lines (one per line). Absent = the main game's. */
+export function modeDeathTauntsKey(key: string): string {
+  return `world_mode_death_taunts_${key}`;
 }
 
 export function parseStringList(raw: string | null | undefined): string[] {

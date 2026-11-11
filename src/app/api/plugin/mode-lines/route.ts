@@ -11,7 +11,7 @@ import { classifyLine, cleanLine, modeEventEmbed, type ModeEventKind } from '@/l
 import { customPatterns, recordSample } from '@/lib/modeLineStore';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
-import { markMode, routeModePost } from '@/lib/worldModes';
+import { MODE_EVENTS_CHANNEL, markMode, routeModePost } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
 import { getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
 import { levelPostMatches } from '@/lib/levelRules';
@@ -212,7 +212,8 @@ export async function POST(request: Request) {
       for (const q of quests.slice(0, MAX_POSTS)) await send(url, `Quest complete: ${q}`, 'quest');
     }
     for (const e of fresh) {
-      const url = routeModePost(e.kind, { ...routing, normalHook });
+      // A mode's events share one channel of its own (lib/worldModes MODE_EVENTS_CHANNEL); each kind keeps its switch.
+      const url = routeModePost(e.kind, { ...routing, normalHook }, MODE_EVENTS_CHANNEL);
       if (!url) continue;
       const embed = decorate(markMode(modeEventEmbed(e.title, member.rsn), mode.label, icon)!, ec.clanId);
       const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };

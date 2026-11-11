@@ -25,8 +25,17 @@ import {
   modeKeyFromWebhookKey,
   modeWebhookKey,
   parseStringList,
+  MODE_CHANNELS,
+  MODE_EVENTS_CHANNEL,
+  modeChannelFromKey,
+  modeChannelKey,
+  modeDeathTauntsKey,
+  modeFunDeathsKey,
+  modeKindDefaultsKey,
 } from '@/lib/worldModes';
-import { clanModeRows, modeKindsOff, splitIsOn } from '@/lib/worldModeStore';
+import { clanModeRows, copyMainGameIntoMode, modeKindsOff, splitIsOn } from '@/lib/worldModeStore';
+import { normalizeClanKinds, parseClanKinds } from '@/lib/notifyKinds';
+import { DEATH_TAUNTS_SETTING_KEY, FUN_DEATHS_SETTING_KEY, NOTIFY_KIND_DEFAULTS_SETTING_KEY } from '@/lib/pluginConfig';
 import { MODE_EVENT_KINDS } from '@/lib/modeLines';
 import {
   MAX_MODE_DROP_FLOOR,
@@ -88,8 +97,13 @@ async function view(clanId: number) {
     modeDropValueKey(m.key),
     modeDropBothKey(m.key),
     modeLevelsKey(m.key),
+    modeKindDefaultsKey(m.key),
+    modeFunDeathsKey(m.key),
+    modeDeathTauntsKey(m.key),
   ]);
-  const allKeys = [...FEED_KEYS, ...modeHookKeys];
+  // Each mode's own channel per kind of post: webhook settings like the main game's.
+  const modeChannelKeys = modeRows.flatMap((m) => MODE_CHANNELS.map((ch) => modeChannelKey(m.key, ch)));
+  const allKeys = [...FEED_KEYS, ...modeHookKeys, ...modeChannelKeys];
   const [map, channels] = await Promise.all([
     getSettingMap(clanId, [
       ...allKeys,
@@ -98,6 +112,9 @@ async function view(clanId: number) {
       'discord_cohost_posts_enabled',
       WORLD_MODES_SPLIT_KEY,
       WORLD_MODES_OFF_KEY,
+      NOTIFY_KIND_DEFAULTS_SETTING_KEY,
+      FUN_DEATHS_SETTING_KEY,
+      DEATH_TAUNTS_SETTING_KEY,
     ]),
     listBotChannels(clanId).catch(() => ({ enabled: false, channels: [] })),
   ]);
@@ -135,7 +152,24 @@ async function view(clanId: number) {
         dropMinValue: storedModeDropValue(map.get(modeDropValueKey(m.key))),
         dropBoth: storedModeDropBoth(map.get(modeDropBothKey(m.key))),
         levels: storedModeLevels(map.get(modeLevelsKey(m.key))),
+        // Its own channel per kind (setting keys; `keys` says which are set and where they post).
+        channelKeys: Object.fromEntries(MODE_CHANNELS.map((ch) => [ch, modeChannelKey(m.key, ch)])),
+        // Its own milestone kinds, screenshots, patterns and templates; null = the main game's.
+        kindDefaults: map.get(modeKindDefaultsKey(m.key)) ? parseClanKinds(map.get(modeKindDefaultsKey(m.key))) : null,
+        // Its own death lines (one per line); '' = the main game's.
+        funDeaths: map.get(modeFunDeathsKey(m.key)) ?? '',
+        deathTaunts: map.get(modeDeathTauntsKey(m.key)) ?? '',
       })),
+      // What a mode follows until it has its own (and what "Copy from main game" copies).
+      main: {
+        kindDefaults: parseClanKinds(map.get(NOTIFY_KIND_DEFAULTS_SETTING_KEY)),
+        funDeaths: map.get(FUN_DEATHS_SETTING_KEY) ?? '',
+        deathTaunts: map.get(DEATH_TAUNTS_SETTING_KEY) ?? '',
+      },
+      channels: [
+        ...DISCORD_FEEDS.filter((f) => f.tab === 'game').map((f) => ({ id: f.id, label: f.label, help: f.help, filters: f.filters ?? null })),
+        { id: MODE_EVENTS_CHANNEL, label: 'Mode events', help: "Relics, areas, pacts, masteries and tasks: the mode's own unlocks.", filters: null },
+      ],
     },
     feeds: DISCORD_FEEDS,
     catchAlls: { site: SITE_CATCH_ALL, game: GAME_CATCH_ALL },
@@ -158,6 +192,11 @@ export async function GET() {
  *   { mode, kindsOff: string[] }            the kinds of post a game mode drops
  *   { mode, dropFloor?, dropMinValue? }     a game mode's own drop rarity (1 in N) and/or value (gp);
  *                                           null = the main game's. Either may be given, or both.
+ *   { mode, kindDefaults: ClanKinds | null } a game mode's own milestone kinds, screenshots, patterns
+ *                                           and templates (null = the main game's)
+ *   { mode, funDeaths?, deathTaunts? }      a game mode's own death lines ('' = the main game's)
+ *   { mode, copyFromMain: true, channels? } copy the main game's in-game settings into the mode;
+ *                                           its channels too only with channels: true
  *   { mode, levels: LevelRules | null }     a game mode's own level rules (null = no level-ups from it)
  *   { feed, off: boolean }                  switch a feed on or off
  *   { key, channelId }                      point a feed's (or a catch-all's) setting at a channel
@@ -218,6 +257,35 @@ export async function PUT(request: Request) {
       if ('dropBoth' in body) await setSetting(clan.id, modeDropBothKey(modeKey), body.dropBoth === true ? 'and' : null);
       return NextResponse.json(await view(clan.id));
     }
+    if (body.copyFromMain === true) {
+      // Channels are copied only when asked: a mode's own channels are usually the point of it.
+      await copyMainGameIntoMode(clan.id, modeKey, { channels: body.channels === true });
+      return NextResponse.json(await view(clan.id));
+    }
+    if ('kindDefaults' in body) {
+      // Same normalizing as the main game's (/api/admin/notify-kinds): private kinds and bad patterns dropped.
+      if (body.kindDefaults !== null && (typeof body.kindDefaults !== 'object' || Array.isArray(body.kindDefaults))) {
+        return NextResponse.json({ error: 'Those settings are not valid.' }, { status: 400 });
+      }
+      const next = body.kindDefaults === null ? null : normalizeClanKinds(body.kindDefaults);
+      await setSetting(clan.id, modeKindDefaultsKey(modeKey), next ? JSON.stringify(next) : null);
+      return NextResponse.json(await view(clan.id));
+    }
+    if ('funDeaths' in body || 'deathTaunts' in body) {
+      const lines = (v: unknown) =>
+        typeof v === 'string'
+          ? v
+              .split('\n')
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .slice(0, 200)
+              .map((s) => s.slice(0, 300))
+              .join('\n') || null
+          : null;
+      if ('funDeaths' in body) await setSetting(clan.id, modeFunDeathsKey(modeKey), lines(body.funDeaths));
+      if ('deathTaunts' in body) await setSetting(clan.id, modeDeathTauntsKey(modeKey), lines(body.deathTaunts));
+      return NextResponse.json(await view(clan.id));
+    }
     if ('levels' in body) {
       if (body.levels !== null && (typeof body.levels !== 'object' || Array.isArray(body.levels))) {
         return NextResponse.json({ error: 'Those level rules are not valid.' }, { status: 400 });
@@ -244,7 +312,8 @@ export async function PUT(request: Request) {
   }
 
   const key = typeof body.key === 'string' ? body.key : '';
-  const modeKey = modeKeyFromWebhookKey(key);
+  // A mode's own channel (`webhook_mode_<key>`) or its channel for one kind (lib/worldModes modeChannelKey).
+  const modeKey = modeKeyFromWebhookKey(key) ?? modeChannelFromKey(key)?.mode ?? null;
   const allowed =
     CATCH_ALLS.includes(key) ||
     DISCORD_FEEDS.some((f) => f.key === key) ||
