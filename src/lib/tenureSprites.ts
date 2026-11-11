@@ -34,17 +34,26 @@ function hsvToRgb(h: number, s: number, v: number): number {
   return (f(5) << 16) | (f(3) << 8) | f(1);
 }
 
+const mixRgb = (a: number, b: number, t: number) => {
+  const ch = (sh: number) => Math.round(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+};
+
 /**
- * The badge's colour from the name's: never a Jagex mod's colours. Greys, silver and white (a pmod's)
- * turn icy blue; gold and yellow (a jmod's) turn amber; everything else is kept. Same rule as the
- * plugin's AnvilPlugin.tenureInk.
+ * The badge's colour from the name's: never a Jagex mod's colours. Yellows (a jmod's gold) lean
+ * amber; light greys, silver and white (a pmod's) turn icy blue at the same brightness; both blend smoothly, never stepped (a
+ * moving gradient sweeps through them). Same rule as the plugin's AnvilPlugin.tenureInk.
  */
 export function tenureInk(color: string): number {
-  const n = /^#[0-9a-f]{6}$/i.test(color) ? parseInt(color.slice(1), 16) : 0xffd35c;
+  let n = /^#[0-9a-f]{6}$/i.test(color) ? parseInt(color.slice(1), 16) : 0xffd35c;
   const [h, s, v] = rgbToHsv((n >> 16) & 255, (n >> 8) & 255, n & 255);
-  if (s < 0.22) return hsvToRgb(0.58, Math.max(s, 0.55), Math.max(v, 0.85));
-  if (h >= 0.105 && h <= 0.175 && s > 0.3) return hsvToRgb(0.075, s, v);
-  return n;
+  if (h > 0.075 && h < 0.22) {
+    const u = (h - 0.075) / 0.145;
+    n = hsvToRgb(0.075 + 0.145 * u * u * u, s, v);
+  }
+  // Light greys only: dark greys and black are no mod's colour, and keep their brightness.
+  const w = Math.max(0, 1 - s / 0.3) * Math.max(0, Math.min(1, (v - 0.35) / 0.3));
+  return w > 0 ? mixRgb(n, hsvToRgb(0.58, 0.55, v), w) : n;
 }
 
 /** The colour of one sprite letter for a name's colour. */
@@ -52,5 +61,5 @@ export function tenurePixel(ink: number, letter: string): string {
   const f = TENURE_TONE[letter.charCodeAt(0) - 65];
   const to = f > 0 ? 255 : 0, t = Math.abs(f);
   const ch = (sh: number) => Math.round(((ink >> sh) & 255) + (to - ((ink >> sh) & 255)) * t);
-  return hex((ch(16) << 16) | (ch(8) << 8) | ch(0));
+  return hex((ch(16) << 16) | (ch(8) << 8) | ch(0) || 0x010101);
 }

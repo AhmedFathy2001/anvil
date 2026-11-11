@@ -213,6 +213,7 @@ test('the tenure star SVG frames every step past Apprentice and renders only che
   const hue = (n: number) => { const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); return { s: mx ? (mx - mn) / mx : 0, r, g, b }; };
   const gold = tenureInk('#ffd35c');
   assert.ok(((gold >> 8) & 255) < 0xb0, 'gold loses its yellow');
-  for (const grey of ['#ffffff', '#c0c0c0', '#808080']) { const c = hue(tenureInk(grey)); assert.ok(c.s > 0.3 && c.b > c.r, `${grey} turns blue`); }
+  assert.ok((tenureInk('#101010') & 0xff) < 0x30, 'black stays dark');
+  for (const grey of ['#ffffff', '#c0c0c0', '#a0a0a0']) { const c = hue(tenureInk(grey)); assert.ok(c.s > 0.3 && c.b > c.r, `${grey} turns blue`); }
   assert.equal(tenureInk('#e05ad0'), 0xe05ad0);
 });
