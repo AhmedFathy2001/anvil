@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { duplicateClogSlot } from '@/lib/notifyDedupe';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
@@ -240,6 +241,10 @@ export async function POST(request: Request) {
   // client post a drop, pet or level under someone else's name into clan channels.
   const poster = member?.rsn ?? (await posterRsn(request, auth.userId));
   if (kind !== undefined && facts && typeof facts === 'object' && !Array.isArray(facts)) facts = factsAsPoster(facts, poster);
+  // One unlock, one post (lib/notifyDedupe): the plugin's two sightings of a slot can both arrive.
+  if (kind === 'clogSlot' && facts && typeof facts === 'object' && duplicateClogSlot(auth.userId, (facts as Record<string, unknown>).item)) {
+    return NextResponse.json({ ok: true, declined: 1 });
+  }
   // The newer kinds (lib/notifyKinds): re-checked against the person's settings in force, so a client
   // can't post a line nobody turned on. Private kinds and own patterns go to own webhooks only.
   let newPost: NewKindPost | null = null;
