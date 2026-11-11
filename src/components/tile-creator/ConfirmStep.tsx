@@ -213,13 +213,6 @@ function SingleConfirm({
         </div>
       </div>
 
-      {!pointsMode && original.points != null && (
-        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
-          <label htmlFor="pts-quiet" className="text-text-muted">Points</label>
-          <AmountField id="pts-quiet" value={points} onChange={setPoints} label="Points" />
-          <span className="text-xs text-text-muted">Saved with the tile; points only matter on a points-scoring board.</span>
-        </div>
-      )}
       {pointsMode && (
         <div className="mb-6">
           <Eyebrow>Worth</Eyebrow>
@@ -454,13 +447,6 @@ function ComboConfirm(props: ConfirmProps) {
         </div>
       </div>
 
-      {!pointsMode && original.points != null && (
-        <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
-          <label htmlFor="combo-pts-quiet" className="text-text-muted">Points</label>
-          <AmountField id="combo-pts-quiet" value={points} onChange={setPoints} label="Points" />
-          <span className="text-xs text-text-muted">Saved with the tile; points only matter on a points-scoring board.</span>
-        </div>
-      )}
       {pointsMode && (
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
           <label htmlFor="combo-pts" className="text-text-muted">Points</label>

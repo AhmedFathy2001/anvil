@@ -211,7 +211,7 @@ export default function BulkQuickAdd({
                 placeholder={'25 Hunter rumours\n150 herbiboars\n5 CoX or ToB, no Entry Mode – 30 pts'}
                 className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm leading-6 font-mono focus:border-gold focus:outline-none"
               />
-              <p className="mt-1.5 text-xs text-text-muted">Tip: add “– 20 pts” to a line to set its points.</p>
+              {pointsMode && <p className="mt-1.5 text-xs text-text-muted">Tip: add “– 20 pts” to a line to set its points.</p>}
             </div>
 
             <div className="p-4 sm:p-5 lg:overflow-y-auto min-w-0">
@@ -238,12 +238,12 @@ export default function BulkQuickAdd({
                 <p className="text-sm text-text-muted">Paste your list on the left. Each line shows up here with how it will count.</p>
               ) : (
                 <div role="table" aria-label="Tiles to add" className="text-sm">
-                  <div role="row" className="hidden md:grid grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem] gap-2 px-2 pb-1.5 text-[11px] uppercase tracking-wide text-text-muted border-b border-card-border">
+                  <div role="row" className={`hidden md:grid ${pointsMode ? 'grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem]' : 'grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)]'} gap-2 px-2 pb-1.5 text-[11px] uppercase tracking-wide text-text-muted border-b border-card-border`}>
                     <span role="columnheader">Tile</span>
                     <span role="columnheader">Kind</span>
                     <span role="columnheader">Need</span>
                     <span role="columnheader">How it counts</span>
-                    <span role="columnheader" className="text-right" title={pointsMode ? undefined : 'Saved with the tile; points only matter on a points-scoring board.'}>Pts</span>
+                    {pointsMode && <span role="columnheader" className="text-right">Pts</span>}
                   </div>
                   {rows.map((r, i) => {
                     const c = r.chosen;
@@ -254,7 +254,7 @@ export default function BulkQuickAdd({
                       <div
                         role="row"
                         key={`${i}-${r.line}`}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem] gap-x-2 gap-y-1 items-center px-2 py-2 border-b border-card-border/60"
+                        className={`grid grid-cols-[minmax(0,1fr)_auto] ${pointsMode ? 'md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem]' : 'md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)]'} gap-x-2 gap-y-1 items-center px-2 py-2 border-b border-card-border/60`}
                       >
                         <span role="cell" className="min-w-0">
                           <button
@@ -309,19 +309,19 @@ export default function BulkQuickAdd({
                           {how && how.engine !== 'screenshot' && <CheckIcon className="mt-0.5 shrink-0" />}
                           {how ? (how.engine === 'hiscores' ? 'Hiscores' : how.engine === 'plugin' ? `Plugin${c?.source === 'gain' ? ', inventory' : c?.source === 'counter' ? ', chat line' : c?.source === 'trial' ? ', rank line' : ''}` : 'Staff approve a screenshot') : ''}
                         </span>
+                        {pointsMode && (
                         <span role="cell" className="text-right text-sm">
-                          {/* Editable; on a tiles-scored board it is kept with the tile but scores nothing. */}
                           <input
                             type="number"
                             min={0}
                             inputMode="numeric"
                             aria-label={`Points for ${r.draft?.label ?? r.text}`}
-                            value={pointsMode ? pts : (r.draft?.points ?? r.points ?? '')}
-                            placeholder={pointsMode ? undefined : '—'}
+                            value={pts}
                             onChange={(e) => setRowPoints(i, e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value))))}
-                            className={`w-16 min-h-11 px-1.5 rounded bg-brown-dark border border-card-border text-right focus:outline-none focus:border-gold ${pointsMode ? '' : 'text-text-muted'}`}
+                            className={`w-16 min-h-11 px-1.5 rounded bg-brown-dark border border-card-border text-right focus:outline-none focus:border-gold`}
                           />
                         </span>
+                        )}
                       </div>
                     );
                   })}

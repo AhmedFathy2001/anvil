@@ -20,7 +20,7 @@ set -eu
 
 DRY=""
 SILENT=""
-[ "${1:-}" = "--dry-run" ] && DRY=1
+for a in "$@"; do [ "$a" = "--dry-run" ] && DRY=1; done
 [ "${1:-}" = "--silent" ] && SILENT=1
 [ "${2:-}" = "--silent" ] && SILENT=1
 
@@ -161,12 +161,16 @@ for f in $(git ls-tree --name-only "$BETA" releases/ 2>/dev/null | sed -n 's#^re
   if ! git rev-parse -q --verify "refs/tags/v$f" >/dev/null; then RELEASE="$f"; break; fi
 done
 
-# Handle silent mode: if --silent flag is used, we either skip release notes or use a minimal one
+# Silent: no note to ship, so the version is the newest v* tag's next patch (1.20.0 -> 1.20.1). Never
+# an old untagged note: that once tagged new code as v1.19.1, moving self-hosters' :1.19 image.
 if [ -n "$SILENT" ]; then
-  if [ -z "$RELEASE" ]; then
-    # In silent mode, if there's no release note file, create an empty one for internal use only
-    echo "# Silent Release" > releases/silent-release.md
-    RELEASE="0.0.1"
+  NEWEST="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -t. -k1,1nr -k2,2nr -k3,3nr | head -1)"
+  [ -n "$NEWEST" ] || { echo "Refusing: no v* tag to count a silent patch from." >&2; exit 1; }
+  RELEASE="$(echo "$NEWEST" | awk -F. '{print $1"."$2"."$3+1}')"
+  echo "Silent release v$RELEASE ($(git rev-parse --short "$MAIN") -> $(git rev-parse --short "$BETA"))"
+  if [ -n "$DRY" ]; then
+    echo "(dry run — nothing pushed)"
+    exit 0
   fi
 else
   if [ -z "$RELEASE" ]; then

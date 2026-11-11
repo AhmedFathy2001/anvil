@@ -85,7 +85,7 @@ export function SupporterStar({
   const id = useId();
   const size = sizeProp ?? 14;
   const grad = stops && stops.length >= 2 ? stops : null;
-  if (tenure) return <TenureBadge step={tenure} color={color ?? grad?.[0] ?? '#ffd35c'} size={sizeProp != null ? Math.round(sizeProp * 1.3) : undefined} decorative={decorative} />;
+  if (tenure) return <TenureBadge step={tenure} color={color ?? grad?.[0] ?? '#ffd35c'} stops={color ? null : grad} size={sizeProp != null ? Math.round(sizeProp * 1.3) : undefined} decorative={decorative} />;
   return (
     <svg
       width={size}
@@ -115,10 +115,13 @@ export function SupporterStar({
  * tones of the name's colour (never a mod's gold or silver: tenureInk). A diamond that gets more
  * precious: a gem, a brilliant cut, light, a halo, then a laurel for Legend.
  */
-export function TenureBadge({ step, color, size, decorative = false }: { step: TenureStepId; color: string; size?: number; decorative?: boolean }) {
+export function TenureBadge({ step, color, stops = null, size, decorative = false }: { step: TenureStepId; color: string; stops?: readonly string[] | null; size?: number; decorative?: boolean }) {
   const k = TENURE_LADDER.findIndex((t) => t.id === step);
   const rows = TENURE_SPRITES[Math.max(0, k)];
-  const ink = tenureInk(color);
+  // A gradient name: each column takes its colour from the same stops, left to right like the text.
+  const inks = Array.from({ length: TENURE_SIZE }, (_, x) =>
+    tenureInk(stops && stops.length >= 2 ? stopAt(stops, TENURE_SIZE > 1 ? x / (TENURE_SIZE - 1) : 0) : color),
+  );
   const name = TENURE_LADDER[Math.max(0, k)].name;
   return (
     <svg
@@ -131,8 +134,19 @@ export function TenureBadge({ step, color, size, decorative = false }: { step: T
       {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': `Anvil Supporter · ${name}` })}
     >
       {rows.flatMap((r, y) =>
-        [...r].map((ch, x) => (ch === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={tenurePixel(ink, ch)} />)),
+        [...r].map((ch, x) => (ch === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={tenurePixel(inks[x], ch)} />)),
       )}
     </svg>
   );
+}
+
+/** The colour `t` (0–1) of the way along evenly spaced hex stops; a non-hex stop reads as gold. */
+function stopAt(stops: readonly string[], t: number): string {
+  const rgb = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? parseInt(c.slice(1), 16) : 0xffd35c);
+  const pos = Math.min(1, Math.max(0, t)) * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(pos));
+  const f = pos - i;
+  const a = rgb(stops[i]), b = rgb(stops[i + 1]);
+  const ch = (sh: number) => Math.round(((a >> sh) & 255) + (((b >> sh) & 255) - ((a >> sh) & 255)) * f);
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
 }
