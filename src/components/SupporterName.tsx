@@ -3,7 +3,8 @@ import { useId } from 'react';
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
 import { inkForSurface, supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
 import { TENURE_LADDER, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
-import { TENURE_SIZE, TENURE_SPRITES, tenureInk, tenurePixel } from '@/lib/tenureSprites';
+import { TENURE_SIZE, TENURE_SPRITES, tenurePixel } from '@/lib/tenureSprites';
+import { tenureColumnInks } from '@/lib/tenureInks';
 
 /**
  * A name with its Anvil Supporter flair: a star and the tier's colour (gold, a gradient, a gradient
@@ -119,9 +120,7 @@ export function TenureBadge({ step, color, stops = null, size, decorative = fals
   const k = TENURE_LADDER.findIndex((t) => t.id === step);
   const rows = TENURE_SPRITES[Math.max(0, k)];
   // A gradient name: each column takes its colour from the same stops, left to right like the text.
-  const inks = Array.from({ length: TENURE_SIZE }, (_, x) =>
-    tenureInk(stops && stops.length >= 2 ? stopAt(stops, TENURE_SIZE > 1 ? x / (TENURE_SIZE - 1) : 0) : color),
-  );
+  const inks = tenureColumnInks(stops, color);
   const name = TENURE_LADDER[Math.max(0, k)].name;
   return (
     <svg
@@ -140,13 +139,3 @@ export function TenureBadge({ step, color, stops = null, size, decorative = fals
   );
 }
 
-/** The colour `t` (0–1) of the way along evenly spaced hex stops; a non-hex stop reads as gold. */
-function stopAt(stops: readonly string[], t: number): string {
-  const rgb = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? parseInt(c.slice(1), 16) : 0xffd35c);
-  const pos = Math.min(1, Math.max(0, t)) * (stops.length - 1);
-  const i = Math.min(stops.length - 2, Math.floor(pos));
-  const f = pos - i;
-  const a = rgb(stops[i]), b = rgb(stops[i + 1]);
-  const ch = (sh: number) => Math.round(((a >> sh) & 255) + (((b >> sh) & 255) - ((a >> sh) & 255)) * f);
-  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
-}
