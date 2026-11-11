@@ -26,6 +26,12 @@ export interface LevelRules {
   skillStep: number;
   /** 1..99. */
   skillFrom: number;
+  /**
+   * More "from L, every N" steps beside skillStep/skillFrom, like the game's own ladder: every 5
+   * from 50, then every level from 90. A level posts when ANY step matches. Site-side only: the
+   * plugin gets one folded step (levelHalf), so its contract never changes.
+   */
+  skillBands?: SkillBand[];
   /** 0 = off; else post total-level milestone M (a multiple of totalStep) when M >= totalFrom. */
   totalStep: number;
   totalFrom: number;
@@ -34,6 +40,13 @@ export interface LevelRules {
 }
 
 /** The XP half — site-side only (the server detects XP steps off hiscores/pushes; no plugin part). */
+export interface SkillBand {
+  from: number;
+  step: number;
+}
+/** How many extra steps one rule set may carry. */
+export const MAX_SKILL_BANDS = 4;
+
 export interface XpRules {
   /** Total-XP step in MILLIONS; 0 = off. A multiple of TOTAL_XP_GRAIN_M. */
   totalXpStepM: number;
@@ -108,8 +121,18 @@ export function normalizeMilestoneRules(raw: unknown, defaults: MilestoneRules =
         .map((x) => (typeof x === 'number' ? Math.trunc(x) : Number(x)))
         .filter((x): x is number => (SKILL_XP_CHOICES_M as readonly number[]).includes(x))
     : defaults.skillXpM;
+  const bands = Array.isArray(o.skillBands)
+    ? o.skillBands
+        .map((b) => (typeof b === 'object' && b !== null ? (b as Record<string, unknown>) : {}))
+        .map((b) => ({ from: intIn(b.from, 0, MAX_SKILL_LEVEL, 0), step: intIn(b.step, 0, 98, 0) }))
+        .filter((b) => b.from > 0 && b.step > 0)
+        .filter((b, i, all) => all.findIndex((x) => x.from === b.from && x.step === b.step) === i)
+        .slice(0, MAX_SKILL_BANDS)
+    : (defaults.skillBands ?? []);
   return {
     ninetyNines: boolOr(o.ninetyNines, defaults.ninetyNines),
+    // Only when there are any: a rule without extra steps reads (and stores) exactly as before.
+    ...(bands.length ? { skillBands: bands } : {}),
     skillStep: intIn(o.skillStep, 0, 98, defaults.skillStep),
     skillFrom: intIn(o.skillFrom, 1, MAX_SKILL_LEVEL, defaults.skillFrom),
     totalStep: intIn(o.totalStep, 0, 2500, defaults.totalStep),
@@ -131,12 +154,37 @@ export function parseMilestoneRules(text: string | null | undefined): MilestoneR
   }
 }
 
-/** Just the plugin-contract half, in the exact shape `/api/plugin/config` ships. */
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/**
+ * One step/from pair that matches everything any of the given pairs match (a SUPERSET — each
+ * destination re-checks its own rules in /api/plugin/notify, so the plugin only has to not miss
+ * one). The shared step is the gcd, from the lowest start; when the starts don't line up on that
+ * step, every level from the lowest start.
+ */
+export function unionSteps(pairs: { step: number; from: number }[], startsMustAlign: boolean): { step: number; from: number } | null {
+  const on = pairs.filter((p) => p.step > 0);
+  if (on.length === 0) return null;
+  const step = on.map((p) => p.step).reduce(gcd);
+  const from = Math.min(...on.map((p) => p.from));
+  if (!startsMustAlign || on.every((p) => (p.from - from) % step === 0)) return { step, from };
+  return { step: 1, from };
+}
+
+/** The level half as stored and matched on the site: extra steps kept (levelHalf folds them for the plugin). */
+export function levelPart(r: LevelRules): LevelRules {
+  return { ...levelHalf(r), skillStep: r.skillStep, skillFrom: r.skillFrom, ...(r.skillBands?.length ? { skillBands: r.skillBands } : {}) };
+}
+
+/** Just the plugin-contract half, in the exact shape `/api/plugin/config` ships: extra steps folded in. */
 export function levelHalf(r: LevelRules): LevelRules {
+  const skill = r.skillBands?.length
+    ? unionSteps([{ step: r.skillStep, from: r.skillFrom }, ...r.skillBands], true)
+    : { step: r.skillStep, from: r.skillFrom };
   return {
     ninetyNines: r.ninetyNines,
-    skillStep: r.skillStep,
-    skillFrom: r.skillFrom,
+    skillStep: skill?.step ?? 0,
+    skillFrom: skill?.from ?? r.skillFrom,
     totalStep: r.totalStep,
     totalFrom: r.totalFrom,
     maxTotal: r.maxTotal,
@@ -154,7 +202,9 @@ export function effectiveClanRules(clan: MilestoneRules, choice: LevelPostsChoic
   if (choice === 'off') return null;
   if (choice === 'ninetyNinesAndMax') {
     // 99s and max stay exactly as the clan has them; everything else is switched off.
-    return { ...clan, skillStep: 0, totalStep: 0, totalXpStepM: 0, skillXpM: [] };
+    const rest = { ...clan };
+    delete rest.skillBands;
+    return { ...rest, skillStep: 0, totalStep: 0, totalXpStepM: 0, skillXpM: [] };
   }
   return clan;
 }
@@ -165,7 +215,8 @@ export function effectiveClanRules(clan: MilestoneRules, choice: LevelPostsChoic
 export function skillLevelMatches(rules: LevelRules, level: number): boolean {
   if (!Number.isInteger(level) || level < 1 || level > MAX_SKILL_LEVEL) return false;
   if (level === MAX_SKILL_LEVEL && rules.ninetyNines) return true;
-  return rules.skillStep > 0 && level >= rules.skillFrom && (level - rules.skillFrom) % rules.skillStep === 0;
+  const on = (step: number, from: number) => step > 0 && level >= from && (level - from) % step === 0;
+  return on(rules.skillStep, rules.skillFrom) || (rules.skillBands ?? []).some((b) => on(b.step, b.from));
 }
 
 /** Does a round total-level milestone post under these rules? (Maxing is `maxTotal`, not this.) */

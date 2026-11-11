@@ -134,19 +134,20 @@ test('an item upscale is generated once, PNG, immutable', async () => {
   assert.equal(upstreamCalls - before, 1);
 });
 
-test('Discord thumbnails ask for the 4× sprite; big pictures and odd URLs pass through', async () => {
+test('Discord thumbnails ask for the 2× sprite; big pictures and odd URLs pass through', async () => {
   const { scaledSpritePath } = await import('../src/lib/assetUrls.ts');
   const { discordAssetUrl } = await import('../src/lib/seo.ts');
-  assert.equal(scaledSpritePath('/img/item/20997.png'), '/img/item/20997.png?x=4');
-  assert.equal(scaledSpritePath('/img/wiki/Nex_icon.png'), '/img/wiki/Nex_icon.png?x=4');
-  assert.equal(scaledSpritePath('/img/wiki/Slayer_icon.png'), '/img/wiki/Slayer_icon.png?x=4');
+  assert.equal(scaledSpritePath('/img/item/20997.png'), '/img/item/20997.png?x=2');
+  assert.equal(scaledSpritePath('/img/wiki/Nex_icon.png'), '/img/wiki/Nex_icon.png?x=2');
+  assert.equal(scaledSpritePath('/img/wiki/Slayer_icon.png'), '/img/wiki/Slayer_icon.png?x=2');
   assert.equal(scaledSpritePath('/img/wiki/thumb/Nex.png/320px-Nex.png'), '/img/wiki/thumb/Nex.png/320px-Nex.png');
   assert.equal(scaledSpritePath('/img/item/20997.png?x=2'), '/img/item/20997.png?x=2');
   assert.equal(scaledSpritePath('https://cdn.example/x.png'), 'https://cdn.example/x.png');
-  assert.match(discordAssetUrl('/img/item/20997.png'), /^https?:\/\/[^/]+\/img\/item\/20997\.png\?x=4$/);
+  assert.match(discordAssetUrl('/img/item/20997.png'), /^https?:\/\/[^/]+\/img\/item\/20997\.png\?x=2$/);
 
   const { buildPluginEmbed } = await import('../src/lib/pluginEmbeds.ts');
   const out = buildPluginEmbed('drop', { rsn: 'Zezima', source: 'Chambers of Xeric', items: [{ id: 20997, name: 'Twisted bow', qty: 1, value: 1_200_000_000 }] });
   assert.ok(out.ok);
-  assert.match(out.ok ? out.embed.thumbnail?.url ?? '' : '', /\/img\/item\/20997\.png\?x=4$/);
+  // Item thumbnails stay native-sized (lib/pluginEmbeds); only other small sprites are scaled.
+  assert.match(out.ok ? out.embed.thumbnail?.url ?? '' : '', /\/img\/item\/20997\.png$/);
 });

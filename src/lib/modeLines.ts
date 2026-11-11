@@ -129,6 +129,13 @@ export function questLine(line: string): string | null {
   return name && name.length <= 80 ? name : null;
 }
 
+/** "Congratulations, you've reached a total level of 775." → 775. */
+export function totalLine(line: string): number | null {
+  const m = /reached a total level of ([\d,]{2,5})\b/i.exec(line);
+  const n = m ? Number(m[1].replace(/,/g, '')) : NaN;
+  return Number.isFinite(n) && n >= 32 && n <= 3000 ? n : null;
+}
+
 /** The generic shape of an unlock nobody has written a pattern for yet. */
 const GENERIC = /^(?:congratulations\b|you(?:'ve| have) (?:just )?(?:unlocked|completed|earned|reached|been awarded|achieved)\b)/i;
 
@@ -178,6 +185,7 @@ function renderTitle(template: string, groups: Record<string, string | undefined
 export type LineVerdict =
   | { kind: 'level'; skill: string; level: number }
   | { kind: 'quest'; name: string }
+  | { kind: 'total'; total: number }
   | { kind: ModeEventKind; title: string; patternId: string }
   | { kind: 'ignore'; patternId: string }
   | { kind: 'generic'; title: string }
@@ -193,6 +201,8 @@ export function classifyLine(line: string, mode: Pick<WorldMode, 'key'>, custom:
   if (lv) return { kind: 'level', ...lv };
   const quest = questLine(line);
   if (quest) return { kind: 'quest', name: quest };
+  const total = totalLine(line);
+  if (total) return { kind: 'total', total };
   for (const p of [...custom, ...BUILTIN_PATTERNS]) {
     if (p.modeKey !== null && p.modeKey !== mode.key) continue;
     const re = compilePattern(p.regex);

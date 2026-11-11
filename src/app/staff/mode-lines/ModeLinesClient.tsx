@@ -252,7 +252,9 @@ function Editor({
                         ? `level-up: ${v.skill} ${v.level} (the clan's level rules decide)`
                         : v.kind === 'quest'
                           ? `quest: "${v.name}"`
-                          : `${v.kind === 'generic' ? 'milestone (generic)' : v.kind}: "${v.title}"${ours || v.kind === 'generic' ? '' : ` (${v.patternId})`}`}
+                          : v.kind === 'total'
+                            ? `total level ${v.total} (the clan's level rules decide)`
+                            : `${v.kind === 'generic' ? 'milestone (generic)' : v.kind}: "${v.title}"${ours || v.kind === 'generic' ? '' : ` (${v.patternId})`}`}
                 </span>
               </li>
             );

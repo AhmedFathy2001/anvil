@@ -35,7 +35,12 @@ export function foughtBoss(name: unknown): string | null {
  * who talks to you in Death's Domain right after you die ("Died to Death" at Phosani's Nightmare).
  * Lower-case names; a death naming one of these reads plainly ("Died").
  */
-const NOT_A_KILLER = new Set(['death']);
+const NOT_A_KILLER = new Set([
+  'death',
+  // Kephri's scarabs despawn while still targeting you, and plugins before 1.16.1 kept the name:
+  // every later death in the raid (Zebak, Akkha…) read "Killed by Agile Scarab". Plain "Died" instead.
+  'agile scarab', 'arcane scarab', 'spitting scarab', 'soldier scarab', 'scarab swarm',
+]);
 
 /** A stored death's killer as it should read: null for one of the never-killers above. */
 export function shownKiller(source: string | null | undefined): string | null {
