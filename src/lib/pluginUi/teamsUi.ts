@@ -66,8 +66,10 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
   } else if (data.mode === 'players') {
     if (!data.players.length) parts.push(muted('Nobody has signed up yet.'));
     else {
-      // Your line(s) off this page — one per account of yours on the board, three at most.
-      if (!data.players.some((p) => p.you)) {
+      // Your line(s) on top of every page — one per account of yours on the board, three at most. It
+      // used to hide whenever one of them was on the page, so a second account only showed on the
+      // page it happened to sort onto.
+      {
         const yours = data.yours ?? (data.you ? [data.you] : []);
         if (yours.length) {
           parts.push(header(yours.length > 1 ? 'Your accounts' : 'You'), gap(3));
