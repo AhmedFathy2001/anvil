@@ -5,28 +5,18 @@ import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Textarea from '@/components/Textarea';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
+import {
+  ALWAYS_NOTIFY_LEGACY_KEY,
+  ALWAYS_NOTIFY_LIST_KEY,
+  DEFAULT_ALWAYS_NOTIFY,
+  effectiveAlwaysNotify,
+  parseItemLines,
+  storedAlwaysNotify,
+} from '@/lib/alwaysNotify';
 
-const SETTING_KEY = 'always_notify_items';
-
-// Baked into the plugin already — shown here so admins know they don't need to re-add them.
-// Mirrors ALWAYS_NOTIFY_FALLBACK in OsrsBingoPlugin.java (substring-matched).
-const BAKED_IN = [
-  'Infernal cape',
-  "Dizana's quiver",
-  'Radiant sigil',
-  'Ancient blood ornament kit',
-  'Sanguine ornament kit',
-  'Holy ornament kit',
-  'Sanguine dust',
-  'Metamorphic dust',
-  'Twisted ancestral colour kit',
-  'Menaphite ornament kit',
-  'DT2 vestiges + quartz',
-  "Soulreaper axe pieces (axe head, eye of the duke, leviathan's lure, siren's staff)",
-  'DT2 rings + Soulreaper axe',
-  'Boss jars',
-  'Champion scrolls',
-];
+// The clan's whole always-post list, defaults included, so admins can remove an item as well as add one.
+const DEFAULTS_TEXT = DEFAULT_ALWAYS_NOTIFY.join('\n');
+const same = (a: string, b: string) => parseItemLines(a).join('\n').toLowerCase() === parseItemLines(b).join('\n').toLowerCase();
 
 export default function AlwaysNotifyItems() {
   const [value, setValue] = useState('');
@@ -39,8 +29,9 @@ export default function AlwaysNotifyItems() {
     (async () => {
       try {
         const data = await loadSettings();
-        setValue(data[SETTING_KEY] || '');
-        setOriginal(data[SETTING_KEY] || '');
+        const text = effectiveAlwaysNotify(data[ALWAYS_NOTIFY_LIST_KEY], data[ALWAYS_NOTIFY_LEGACY_KEY]).join('\n');
+        setValue(text);
+        setOriginal(text);
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
@@ -53,14 +44,17 @@ export default function AlwaysNotifyItems() {
     setSaving(true);
     setMessage(null);
     try {
+      // The full list replaces the old extras, which are cleared so nothing is counted twice.
       const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [SETTING_KEY]: value }),
+        body: JSON.stringify({ [ALWAYS_NOTIFY_LIST_KEY]: storedAlwaysNotify(value), [ALWAYS_NOTIFY_LEGACY_KEY]: null }),
       });
       if (res.ok) {
         invalidateSettings();
-        setOriginal(value);
+        const saved = parseItemLines(value).join('\n');
+        setValue(saved);
+        setOriginal(saved);
         setMessage({ type: 'success', text: 'Saved! Members pick this up on their next login.' });
       } else {
         const data = await res.json();
@@ -73,8 +67,9 @@ export default function AlwaysNotifyItems() {
     }
   }
 
-  const hasChanges = value !== original;
+  const hasChanges = !same(value, original);
   useUnsavedChanges(hasChanges);
+  const isDefault = same(value, DEFAULTS_TEXT);
 
   if (loading) {
     return <div className="text-text-muted text-sm">Loading settings...</div>;
@@ -84,26 +79,21 @@ export default function AlwaysNotifyItems() {
     <div className="space-y-4">
       <div>
         <label htmlFor="always-notify-items" className="block text-sm font-medium mb-2">
-          Extra always-notify items
+          Items that always post
         </label>
         <Textarea
           id="always-notify-items"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          rows={5}
+          rows={10}
           placeholder={"One item name per line, e.g.\nTumeken's ornament kit\nVoidwaker"}
           className="w-full px-3 py-2 bg-bg border border-card-border rounded-lg text-sm font-mono focus:outline-none focus:border-gold"
         />
         <p className="text-xs text-text-muted mt-1">
-          One item name per line. Matching is case-insensitive and partial, so &quot;ornament kit&quot;
-          matches every kit. These are <em>added to</em> the plugin&apos;s built-in list — no need to
-          repeat the items below.
+          One item name per line. Matching is case-insensitive and partial, so &quot;ornament kit&quot; matches every
+          kit. The list starts with Anvil&apos;s defaults: remove any you don&apos;t want posted, or add your own. Leave it
+          empty and nothing posts on this list alone.
         </p>
-      </div>
-
-      <div className="text-xs text-text-muted">
-        <span className="font-medium text-text">Built-in (always on):</span>{' '}
-        {BAKED_IN.join(', ')}
       </div>
 
       {message && (
@@ -118,7 +108,7 @@ export default function AlwaysNotifyItems() {
         </div>
       )}
 
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <button
           onClick={handleSave}
           disabled={saving || !hasChanges}
@@ -126,7 +116,14 @@ export default function AlwaysNotifyItems() {
         >
           {saving ? 'Saving...' : 'Save'}
         </button>
-        {original && !hasChanges && <span className="text-xs text-green-400">Saved</span>}
+        <button
+          type="button"
+          onClick={() => setValue(DEFAULTS_TEXT)}
+          disabled={saving || isDefault}
+          className="px-4 py-2 border border-card-border rounded-lg text-sm text-text-muted hover:text-text hover:border-gold/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Reset to defaults
+        </button>
         <UnsavedIndicator dirty={hasChanges} />
       </div>
     </div>

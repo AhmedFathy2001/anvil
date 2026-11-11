@@ -169,7 +169,7 @@ export default function DiscordSettings({
                   placeholder="none"
                   helpText="Optional. A limit for your clan's own channels that a member's own number can't loosen, to keep spam out. Blank = no hard floor; members can go as loose as 1 in 1,000."
                 />
-                <Field title="Always post these items">Prestige items that post whatever their value.</Field>
+                <Field title="Always post these items">Items that post whatever their value or rarity. Starts with Anvil’s defaults; add or remove any.</Field>
                 <AlwaysNotifyItems />
                 <KillCountToggle />
                 <LineListSetting

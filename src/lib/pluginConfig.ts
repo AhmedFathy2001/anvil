@@ -17,6 +17,7 @@ import { parseClanKinds, type ClanKinds } from '@/lib/notifyKinds';
 import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 import { clanSeat } from '@/lib/seatScope';
 import { streamedEvent } from '@/lib/creatorSpaces';
+import { ALWAYS_NOTIFY_LIST_KEY, effectiveAlwaysNotify } from '@/lib/alwaysNotify';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -629,26 +630,15 @@ export async function getSpoonTaunts(clanId: number): Promise<string[]> {
   return getLineSetting(clanId, SPOON_TAUNTS_SETTING_KEY);
 }
 
-// Admin-managed list of item names that always post to the rare-drops channel (prestige drops
-// the value/rarity thresholds miss). EXTENDS the plugin's baked-in defaults — the plugin unions
-// both lists — so this only needs to hold extras (e.g. new ornament kits). One name per line.
+// The clan's full always-post list (lib/alwaysNotify): its own once an admin edits it, else the
+// defaults plus its old extras. Sent whole, so a plugin that has it uses it instead of its baked copy.
 export async function getAlwaysNotifyItems(clanId: number): Promise<string[]> {
-  return getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
+  const [list, legacy] = await Promise.all([getSetting(clanId, ALWAYS_NOTIFY_LIST_KEY), getSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY)]);
+  return effectiveAlwaysNotify(list, legacy);
 }
 
-// Prestige/notable items that ALWAYS post to the rare-drop channel — resolved to item ids so the plugin
-// matches by ID (reliable for untradeables like a ToA Cursed phalanx that have no GE value to gate on and
-// only ever matched by a fragile name compare). MIRRORS the plugin's baked-in ALWAYS_NOTIFY_FALLBACK
-// (AnvilPlugin.java) — keep the two in sync; admins extend it via the always_notify_items setting.
-const NOTABLE_ITEM_PATTERNS = [
-  'infernal cape', "dizana's quiver", 'purifying sigil',
-  'ancient blood ornament kit', 'sanguine ornament kit', 'holy ornament kit', 'sanguine dust',
-  'metamorphic dust', 'twisted ancestral colour kit',
-  'menaphite ornament kit', 'cursed phalanx', 'masori crafting kit',
-  'vestige', 'quartz', "executioner's axe head", 'eye of the duke', "leviathan's lure", "siren's staff",
-  'jar of', 'champion scroll', "champion's cape", 'enhanced crystal', 'blood shard', 'fire cape',
-];
-
+// The always-post list resolved to item ids, so the plugin matches by ID (reliable for untradeables like
+// a ToA Cursed phalanx that have no GE value to gate on and only ever matched by a fragile name compare).
 let notableIdCache: { ids: number[]; at: number; key: string } | null = null;
 const NOTABLE_ID_TTL_MS = 5 * 60_000;
 
@@ -668,8 +658,7 @@ export async function getAlwaysNotifyItemIds(clanId: number, racedBoss?: string 
   // Added FIRST and unconditionally: these are ids, not name patterns, so they bypass the substring
   // matching below entirely.
   const raced = racedBoss ? metricKeys(racedBoss).flatMap((k) => [...bossNotableIds(k)]) : [];
-  const admin = await getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
-  const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
+  const patterns = (await getAlwaysNotifyItems(clanId)).map((s) => s.toLowerCase());
   const key = patterns.join('');
   if (notableIdCache && notableIdCache.key === key && Date.now() - notableIdCache.at < NOTABLE_ID_TTL_MS) {
     return notableIdCache.ids;
