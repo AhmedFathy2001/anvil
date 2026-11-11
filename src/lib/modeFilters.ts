@@ -21,6 +21,8 @@ import {
   DEFAULT_XP_RULES,
   effectiveClanRules,
   levelHalf,
+  levelPart,
+  unionSteps,
   levelPostMatches,
   levelPostOf,
   normalizeMilestoneRules,
@@ -93,7 +95,7 @@ export function storedModeLevels(text: string | null | undefined): LevelRules | 
   try {
     const raw = JSON.parse(text);
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
-    return levelHalf(normalizeMilestoneRules(raw));
+    return levelPart(normalizeMilestoneRules(raw));
   } catch {
     return null;
   }
@@ -105,7 +107,7 @@ export const storedModeDropBoth = (text: string | null | undefined): boolean => 
 /** An API value → normalized level rules to store, or null to clear. Never throws. */
 export function parseModeLevels(raw: unknown): LevelRules | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
-  return levelHalf(normalizeMilestoneRules(raw));
+  return levelPart(normalizeMilestoneRules(raw));
 }
 
 /** Same tolerance the plugin uses for "rate <= 1/floor" (MathUtils.lessThanOrEqual). */
@@ -179,7 +181,7 @@ export function modeDropAllows(facts: unknown, filters: ModeFilters, mainRarityF
 export function modeLevelRules(levels: LevelRules | null, choice: LevelPostsChoice): LevelRules | null {
   if (!levels) return null;
   const eff = effectiveClanRules({ ...levels, ...DEFAULT_XP_RULES, skillXpM: [] }, choice);
-  return eff ? levelHalf(eff) : null;
+  return eff ? levelPart(eff) : null;
 }
 
 /**
@@ -237,26 +239,10 @@ export interface PluginModeThresholds {
   levelRules: LevelRules | null;
 }
 
-const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-
-/**
- * One step/from pair that matches everything any of the given pairs match (a SUPERSET — each
- * destination re-checks its own rules in /api/plugin/notify, so the plugin only has to not miss
- * one). The shared step is the gcd, from the lowest start; when the starts don't line up on that
- * step, every level from the lowest start.
- */
-function unionSteps(pairs: { step: number; from: number }[], startsMustAlign: boolean): { step: number; from: number } | null {
-  const on = pairs.filter((p) => p.step > 0);
-  if (on.length === 0) return null;
-  const step = on.map((p) => p.step).reduce(gcd);
-  const from = Math.min(...on.map((p) => p.from));
-  if (!startsMustAlign || on.every((p) => (p.from - from) % step === 0)) return { step, from };
-  return { step: 1, from };
-}
-
 /** Rules that post every level-up any of the given rule sets would (a superset, see unionSteps). */
 export function unionLevelRules(sets: (LevelRules | null | undefined)[]): LevelRules | null {
-  const rs = sets.filter((r): r is LevelRules => !!r);
+  // Each folded to one step first (levelHalf), so extra steps are covered by the union too.
+  const rs = sets.filter((r): r is LevelRules => !!r).map(levelHalf);
   if (rs.length === 0) return null;
   if (rs.length === 1) return levelHalf(rs[0]);
   const skill = unionSteps(rs.map((r) => ({ step: r.skillStep, from: r.skillFrom })), true);

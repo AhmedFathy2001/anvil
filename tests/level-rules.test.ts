@@ -219,3 +219,15 @@ test('detection at the 5M grain sees a custom step crossing', () => {
 // Typing check: LevelRules is the plugin-contract shape.
 const _contract: LevelRules = levelHalf(DEFAULT_MILESTONE_RULES);
 void _contract;
+
+test('extra steps: every 5 from 50, then every level from 90, like the game', () => {
+  const r = normalizeMilestoneRules({ ninetyNines: true, skillStep: 5, skillFrom: 50, skillBands: [{ from: 90, step: 1 }] });
+  const posts = [45, 50, 52, 55, 85, 89, 90, 91, 98].filter((l) => skillLevelMatches(r, l));
+  assert.deepEqual(posts, [50, 55, 85, 90, 91, 98]);
+  // The plugin gets one step that misses none of them; the site re-checks the exact rule.
+  assert.deepEqual([levelHalf(r).skillStep, levelHalf(r).skillFrom], [1, 50]);
+  assert.equal('skillBands' in levelHalf(r), false);
+  // Junk steps are dropped, and at most four kept.
+  const junk = normalizeMilestoneRules({ skillBands: [{ from: 0, step: 1 }, { from: 90, step: 'x' }, ...Array(9).fill({ from: 60, step: 2 })] });
+  assert.deepEqual(junk.skillBands, [{ from: 60, step: 2 }]);
+});
