@@ -169,6 +169,7 @@ export async function loadClanCard(clan: {
         heat: h.total ? { on: h.on, total: h.total, pct: h.heat, weeks: h.weeks, change: h.on - h.onLastWeek } : null,
         // A one-week streak is just "played this week": only 2+ weeks are worth a mark.
         streaks: Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks >= 2).map(([rsn, s]) => [rsn, s.weeks])),
+        // The clan's top three: already public, since /members shows (and sorts by) every member's streak.
         hottest: h.top.filter((t) => t.weeks >= 2).slice(0, 3),
       }))
       .catch(() => ({ heat: null, streaks: {}, hottest: [] }))),
@@ -201,7 +202,7 @@ export async function loadClanCard(clan: {
       ...(c.endDate ? { endsAt: c.endDate } : {}),
     })),
   };
-  // Only the names the card lists: the whole roster's streaks don't belong in a public payload.
+  // Only the names the card lists (plus `hottest`, above): not the whole roster's streak map.
   const listed = new Set([...card.topWeek.map((t) => t.rsn), ...card.topPlayers.map((t) => t.rsn)]);
   card.streaks = Object.fromEntries(Object.entries(card.streaks ?? {}).filter(([rsn]) => listed.has(rsn)));
   return card;
