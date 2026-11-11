@@ -193,6 +193,8 @@ export function pvpKeys(targets: string[], roster: { name: string; teamId: numbe
     else if (s.toLowerCase() === 'team:other') {
       if (myTeam != null) for (const r of roster) if (r?.name && r.teamId !== myTeam) out.add(rsnKey(r.name));
     } else if (s.toLowerCase().startsWith('rsn:')) out.add(rsnKey(s.slice(4)));
+    // A bare name (older lab boards stored one) is a named bounty too, never nothing.
+    else if (s) out.add(rsnKey(s));
   }
   out.delete('');
   return [...out];

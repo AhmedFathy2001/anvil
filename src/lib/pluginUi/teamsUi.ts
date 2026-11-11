@@ -1,7 +1,7 @@
 import type { RosterOverview, RosterPersonOut, RosterSearchPage, RosterTeamOut, RosterTeamPage } from '@/lib/eventRoster';
 
 import { type Action, type Color, type Node, button, card, col, gap, header, icon, muted, nameText, row, text } from './nodes';
-import { GOLD, SOFT, big, clip, section } from './sections';
+import { GOLD, SOFT, big, clip, section, streakChip } from './sections';
 
 // An event's Teams page in the plugin's side panel (was TeamsView.java): the teams ranked, a team's
 // members, or players found by name — a page at a time (lib/eventRoster does the ranking and paging).
@@ -141,7 +141,8 @@ function personRow(p: RosterPersonOut, ranked: boolean, showTeam: boolean, s: Te
     : null;
   const tag = p.captain && p.you ? 'Captain · you' : p.captain ? 'Captain' : p.you ? 'You' : null;
   // A weekly activity streak rides after the role, in the flame's orange.
-  const streak = p.streak ? text(`${p.streak}wk`, '#ff8a3d', { font: 'small', tip: `${p.streak}-week activity streak` }) : undefined;
+  // 2+ weeks only: one week is just "played this week".
+  const streak = p.streak && p.streak >= 2 ? streakChip(p.streak) : undefined;
   return row(
     ranked ? text(p.rank == null ? '–' : `#${p.rank}`, p.rank != null && p.rank <= 3 ? 'brand' : 'muted', { w: 34 }) : undefined,
     col([nameText(p.name, p.you ? 'brand' : 'white'), ...(line ? [line] : [])]),

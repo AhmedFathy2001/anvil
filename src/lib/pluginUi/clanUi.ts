@@ -3,20 +3,71 @@ import { clanBoostInk } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
 
 import { FEED_STEP, dropLine } from './momentsUi';
-import { type Node, backRow, badge, hero, nameTint, button, card, col, count, fmt, gap, icon, message, muted, nameText, row, seg, text } from './nodes';
+import { type Color, type Node, backRow, badge, hero, nameTint, button, card, col, count, fmt, gap, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
-import { BLUE, chip, section, small, title } from './sections';
+import { BLUE, FLAME, HOT, WARM, chip, clock, section, small, streakChip, title } from './sections';
 
 // A clan as the plugin's panel draws it (was ClanCardView.java): who the clan is, how hard it played
 // this week and who carried it, its strongest accounts, what dropped lately and what's running. Under
 // Events in the Clan tab (your clan) and in Lookup (any listed clan). Pure.
 
-/** "Name ......... value" — the name opens that player's card. */
-function nameLine(label: string, value: string, rsn: string, streak = 0): Node {
-  // A streak rides after the value: "+3.2h · 6wk" in the flame's orange.
-  const right = streak > 0 ? row(muted(value), undefined, small(`${streak}wk`, '#ff8a3d', { tip: `${streak}-week activity streak` }), { gap: 4 }) : muted(value);
-  return row(undefined, text(label, 'white', { who: rsn }), right, { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
+/** "Name [streak] ......... value" — the name opens that player's card. */
+function nameLine(name: Node, value: string, rsn: string, streak = 0): Node {
+  const left = streak >= 2 ? row(name, undefined, streakChip(streak), { gap: 4 }) : name;
+  return row(undefined, left, muted(value), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
+}
+
+/** A stat tile: the number big, what it counts under it. */
+const tile = (n: string, label: string, color: Color = 'white', tip?: string): Node =>
+  col([text(n, color, { font: 'bold', align: 'c' }), small(label, 'muted', { align: 'c' })], { bg: 'raised', rad: 5, inset: 3, gap: 0, ...(tip ? { tip } : {}) });
+
+/** The clan's heat card: the % big, the last weeks brightening into this one, the change. */
+function heatCard(h: NonNullable<ClanCard['heat']>): Node {
+  const weeks = h.weeks?.length ? h.weeks : [h.pct];
+  // Hotter weeks are brighter: the strip reads as the trend (segments are all one height).
+  const top = Math.max(1, ...weeks);
+  const shade = (p: number): `#${string}` => {
+    const t = Math.max(0.15, p / top);
+    const ch = (a: number, b: number) => Math.round(a + (b - a) * t).toString(16).padStart(2, '0');
+    return `#${ch(0x3a, 0xff)}${ch(0x2a, 0x8a)}${ch(0x22, 0x3d)}`;
+  };
+  const change = h.change ?? 0;
+  return section([
+    row(title('Clan heat'), undefined, text(`${h.pct}%`, FLAME, { font: 'bold' }), { tip: 'Members with 3+ active days a week, week after week' }),
+    weeks.length > 1 ? { t: 'segs', c: weeks.map(shade), h: 8, tip: `The last ${weeks.length} weeks` } : null,
+    row(muted(`${fmt(h.on)} of ${fmt(h.total)} keep 3+ days a week going`, { font: 'small', wrap: true }), undefined, undefined),
+    change ? small(change > 0 ? `up ${fmt(change)} from last week` : `down ${fmt(-change)} from last week`, change > 0 ? FLAME : 'muted') : null,
+  ], { gap: 5 });
+}
+
+/** The clan's longest streaks, a bar each against the longest. */
+function hottestCard(list: NonNullable<ClanCard['hottest']>): Node {
+  const top = Math.max(1, ...list.map((x) => x.weeks));
+  return section([
+    title('Hottest streaks'),
+    ...list.flatMap((x) => [
+      row(undefined, text(x.rsn, 'white', { who: x.rsn, font: 'small' }), streakChip(x.weeks), { pad: 1, tip: `Look up ${x.rsn}`, on: { a: 'lookup', rsn: x.rsn } }),
+      { t: 'bar', pct: Math.max(4, Math.round((x.weeks * 100) / top)), color: x.weeks >= 8 ? HOT : x.weeks >= 4 ? FLAME : WARM, h: 4, bg: 'panel' } as Node,
+    ]),
+  ], { gap: 4 });
+}
+
+const MEDAL: `#${string}`[] = ['#ffb347', '#d98c5f', '#a8714a'];
+
+/** The game's picture for a competition: the boss, else the skill. */
+function compIcon(c: ClanCard['competitions'][number]): Node | undefined {
+  if (c.type === 'boss') return icon({ boss: c.metric, w: 18, h: 18, alt: 'B' });
+  if (c.type === 'skill') return icon({ skill: c.metric, w: 16, h: 16, alt: 'S' });
+  return undefined;
+}
+
+/** A competition's end as the panel's countdown wants it (an ISO instant), or null. */
+function isoEnd(at?: string): string | null {
+  if (!at) return null;
+  const s = at.replace(' ', 'T');
+  const ms = Date.parse(/[zZ]|[+-]\d\d:\d\d$/.test(s) ? s : /T/.test(s) ? `${s}Z` : `${s}T23:59:59Z`);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
 function siteHeader(label: string, note: string, path: string): Node {
@@ -47,21 +98,29 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     ...(boost?.move ? { move: true } : {}),
   });
   const link = icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open the clan on the Anvil website', on: { a: 'site', path: `/c/${seg(c.slug)}` } });
+  // Three numbers as tiles: who's in it, who played this week, who's keeping a streak.
   const id: Node[] = [
-    row(muted(`${fmt(c.members)} members ·`), small(`${fmt(c.activeThisWeek)} active this week`, BLUE), undefined, { gap: 4 }),
+    {
+      t: 'grid',
+      cols: 3,
+      gap: 4,
+      c: [
+        tile(fmt(c.members), 'members'),
+        tile(fmt(c.activeThisWeek), 'active', BLUE, 'Gained anything in the last 7 days'),
+        tile(fmt(c.heat?.on ?? 0), 'on streak', FLAME, '3+ active days a week, week after week'),
+      ],
+    },
   ];
-  // Clan heat: one more fact under the name, not a block of its own.
-  if (c.heat && c.heat.on > 0) id.push(row(small(`${c.heat.pct}% on a weekly streak`, '#ff8a3d'), muted(`· ${fmt(c.heat.on)} of ${fmt(c.heat.total)}`, { font: 'small' }), undefined, { gap: 4, tip: 'Members with 3+ active days a week, week after week' }));
-  if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
+  if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`, { font: 'small' }));
   // Clan tenure: how long it has backed Anvil, in the Supporter star's shapes (older plugins: the star).
   if (c.tenure && c.tenure.months >= 1) {
     id.push(row(icon(glyphs ? { glyph: c.tenure.glyph, w: 22, h: 22, color: '#ffd35c' } : { glyph: 'star', w: 10, h: 10, color: '#ffd35c' }), small(c.tenure.line, '#ffd35c'), undefined, { gap: 4 }));
   }
-  if (c.competitions.length) {
-    const running = c.competitions
-      .map((x) => `${x.type === 'boss' ? 'BOTW ' : x.type === 'skill' ? 'SOTW ' : ''}${x.label}`)
-      .join(' · ');
-    id.push(row(text('Running:', 'white', { font: 'small' }), small(running, BLUE, { wrap: true }), undefined, { gap: 4 }));
+  // What's running: the boss's (or skill's) own picture, its name, and how long is left.
+  for (const x of c.competitions.slice(0, 2)) {
+    const kind = x.type === 'boss' ? 'BOTW' : x.type === 'skill' ? 'SOTW' : '';
+    const end = isoEnd(x.endsAt);
+    id.push(row(compIcon(x), row(kind ? small(kind, 'white') : undefined, small(x.label, BLUE), undefined, { gap: 4 }), end ? clock(end, 'ends in ', 'ending', Date.now(), { color: 'muted' }) : undefined, { gap: 5 }));
   }
   parts.push(hero(
     images && c.bannerUrl ? { src: rev('banner'), motion: !!boost?.move } : null,
@@ -73,18 +132,26 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
   // "Compare with my clan" is the one action, right under who the clan is.
   if (compare) parts.push(button('Compare with my clan', { a: 'load', v: 'clan-compare', args: { slug: c.slug } }));
 
+  if (c.heat && c.heat.on > 0) parts.push(heatCard(c.heat));
+  if (c.hottest?.length) parts.push(hottestCard(c.hottest));
+
   if (c.topWeek.length) {
+    const most = Math.max(0.1, ...c.topWeek.map((g) => g.hours));
     parts.push(
       section([
         siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
-        ...c.topWeek.map((g, i) => nameLine(`${i + 1}  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn, c.streaks?.[g.rsn])),
+        // A medal for the place, a bar for the hours against the week's best.
+        ...c.topWeek.flatMap((g, i) => [
+          nameLine(row(text(`${i + 1}`, '#1b1b1b', { chip: MEDAL[i] ?? '#7a7a7a', w: 15, align: 'c', font: 'small' }), text(g.rsn, 'white', { who: g.rsn }), undefined, { gap: 5 }), `+${g.hours.toFixed(1)}h`, g.rsn, c.streaks?.[g.rsn]),
+          { t: 'bar', pct: Math.max(4, Math.round((g.hours * 100) / most)), color: BLUE, h: 4, bg: 'panel' } as Node,
+        ]),
       ], { gap: 4 }),
     );
   }
   if (c.topPlayers.length) {
     parts.push(section([
       siteHeader('Top accounts', 'by total XP', `/members?sort=xp`),
-      ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn, c.streaks?.[p.rsn])),
+      ...c.topPlayers.map((p) => nameLine(text(p.rsn, 'white', { who: p.rsn }), `${count(p.overallXp)} xp`, p.rsn, c.streaks?.[p.rsn])),
       // The clan's feed is one click from its card.
       ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
     ], { gap: 4 }));

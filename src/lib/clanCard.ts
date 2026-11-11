@@ -37,9 +37,19 @@ export interface ClanCard {
   /** How long the clan has paid for Anvil without a break (lib/clanTenure); absent when it hasn't. */
   tenure?: { id: TenureStepId; glyph: TenureGlyph; months: number; line: string } | null;
   /** Clan heat: members on a weekly activity streak (lib/activityStreaks). */
-  heat?: { on: number; total: number; pct: number } | null;
-  /** Streak weeks of the names this card lists (This week, Top accounts), when on one. */
+  heat?: {
+    on: number;
+    total: number;
+    pct: number;
+    /** The last weeks' heat, oldest first, this week last (lib/activityStreaks HEAT_WEEKS). */
+    weeks?: number[];
+    /** On a streak now minus at the end of last week. */
+    change?: number;
+  } | null;
+  /** Streak weeks of the names this card lists (This week, Top accounts), when on one of 2+ weeks. */
   streaks?: Record<string, number>;
+  /** The clan's longest streaks now (2+ weeks), longest first. */
+  hottest?: { rsn: string; weeks: number }[];
   /** Members who support Anvil, longest-supporting first (names only; their flair paints itself). */
   members: number;
   /** Members who gained anything in the last 7 days. */
@@ -58,7 +68,7 @@ export interface ClanCard {
   /** The last few pets and notable drops in the clan. */
   highlights: { rsn: string; label: string; itemId: number | null; kind: string; at: string }[];
   /** SOTW / BOTW running right now. */
-  competitions: { type: string; metric: string; label: string }[];
+  competitions: { type: string; metric: string; label: string; endsAt?: string }[];
 }
 
 
@@ -156,10 +166,13 @@ export async function loadClanCard(clan: {
     tenure: await loadClanTenure(clan.id),
     ...(await clanStreaks(clan.id)
       .then((h) => ({
-        heat: h.total ? { on: h.on, total: h.total, pct: h.heat } : null,
-        streaks: Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks > 0).map(([rsn, s]) => [rsn, s.weeks])),
+        heat: h.total ? { on: h.on, total: h.total, pct: h.heat, weeks: h.weeks, change: h.on - h.onLastWeek } : null,
+        // A one-week streak is just "played this week": only 2+ weeks are worth a mark.
+        streaks: Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks >= 2).map(([rsn, s]) => [rsn, s.weeks])),
+        // The clan's top three: already public, since /members shows (and sorts by) every member's streak.
+        hottest: h.top.filter((t) => t.weeks >= 2).slice(0, 3),
       }))
-      .catch(() => ({ heat: null, streaks: {} }))),
+      .catch(() => ({ heat: null, streaks: {}, hottest: [] }))),
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
@@ -186,9 +199,10 @@ export async function loadClanCard(clan: {
       type: c.type,
       metric: c.metric,
       label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
+      ...(c.endDate ? { endsAt: c.endDate } : {}),
     })),
   };
-  // Only the names the card lists: the whole roster's streaks don't belong in a public payload.
+  // Only the names the card lists (plus `hottest`, above): not the whole roster's streak map.
   const listed = new Set([...card.topWeek.map((t) => t.rsn), ...card.topPlayers.map((t) => t.rsn)]);
   card.streaks = Object.fromEntries(Object.entries(card.streaks ?? {}).filter(([rsn]) => listed.has(rsn)));
   return card;

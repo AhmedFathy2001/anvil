@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 
 import { LAB_TILE_SET } from '../src/lib/labPlan.ts';
 import { matchFacts, type Fact, type Tracked } from '../src/lib/pluginFacts/match.ts';
+import { pvpKeys } from '../src/lib/pluginFacts/rules.ts';
 
 const patterns = (() => {
   const raw = JSON.parse(readFileSync(new URL('../src/data/chatPatterns.json', import.meta.url), 'utf8'));
@@ -113,7 +114,10 @@ test('Vorkath under 2:00 ← ::anvil run boss-pb', () => {
 
 test('PK Some Pker ← ::anvil run pvp-kill', () => {
   const s = spec('PK Some Pker');
-  assert.deepEqual(arr(s.targetNpcs), ['Some Pker']);
+  assert.deepEqual(arr(s.targetNpcs), ['rsn:Some Pker']);
+  // The plugin rule gets a victim key from it (and from a bare name an older lab board stored).
+  assert.equal(pvpKeys(arr(s.targetNpcs).map(String), [], 1).length, 1);
+  assert.equal(pvpKeys(['Some Pker'], [], 1).length, 1);
   const { t, idOf } = tracked();
   assert.equal(matchFacts([{ k: 'tile', t: idOf(s.label), n: 1, what: 'Some Pker' }], t).credits.length, 1);
 });

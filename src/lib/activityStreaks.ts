@@ -61,8 +61,15 @@ export interface ClanStreaks {
   milestones: { rsn: string; weeks: number; name: string }[];
   /** Started a new streak this week (nothing last week, this week counts). */
   started: number;
+  /** Heat over the last HEAT_WEEKS weeks, oldest first, this week last (0–100, of today's roster). */
+  weeks: number[];
+  /** Members on a streak at the end of last week. */
+  onLastWeek: number;
   byRsn: Map<string, Streak>;
 }
+
+/** How many weeks of clan heat the card shows. */
+export const HEAT_WEEKS = 8;
 
 async function loadClanStreaks(clanId: number): Promise<ClanStreaks> {
   const members = (await listMembers(clanId)).filter((m) => !m.isGuest);
@@ -72,9 +79,13 @@ async function loadClanStreaks(clanId: number): Promise<ClanStreaks> {
   let on = 0;
   let started = 0;
   const milestones: ClanStreaks['milestones'] = [];
+  // Past weeks: on a streak at a week's end = that week counted (or was a rest week).
+  const past = new Array<number>(HEAT_WEEKS - 1).fill(0);
   for (const m of members) {
     const s = streakFrom(days.get(m.accountId) ?? [], today);
     byRsn.set(m.rsn, s);
+    const done = s.safe ? s.history.slice(0, -1) : s.history;
+    for (let i = 0; i < past.length; i++) if ((done[done.length - past.length + i] ?? 'missed') !== 'missed') past[i]++;
     if (onStreak(s)) on++;
     if (s.safe && s.weeks === 1) started++;
     const hit = s.safe ? STREAK_MILESTONES.find((x) => x.weeks === s.weeks) : undefined;
@@ -86,7 +97,9 @@ async function loadClanStreaks(clanId: number): Promise<ClanStreaks> {
     .slice(0, 5)
     .map(([rsn, s]) => ({ rsn, weeks: s.weeks }));
   const total = members.length;
-  return { on, total, heat: total ? Math.round((on / total) * 100) : 0, top, milestones, started, byRsn };
+  const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0);
+  const weeks = [...past.map(pct), pct(on)];
+  return { on, total, heat: pct(on), top, milestones, started, weeks, onLastWeek: past[past.length - 1] ?? 0, byRsn };
 }
 
 /** A clan's streaks, cached a few minutes: the sweep only moves the days a few times an hour. */

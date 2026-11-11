@@ -274,7 +274,8 @@ test('clans: members open in Lookup, compare only when offered, search rows open
   assert.ok(!JSON.stringify(ui).includes('http'), 'the clan logo URL never reaches the plugin');
   assert.ok(actions(ui).some((a) => a.a === 'lookup' && a.rsn === 'Zezima'));
   assert.ok(!walk(ui).some((x) => x.t === 'button'));
-  assert.ok(texts(ui).includes('Running:') && texts(ui).includes('BOTW Vorkath'));
+  assert.ok(texts(ui).includes('BOTW') && texts(ui).includes('Vorkath'));
+  assert.ok(walk(ui).some((x) => x.t === 'icon' && x.boss === 'vorkath'), 'the boss in its own picture');
   const mark = walk(ui).find((n) => n.t === 'img' && n.src.includes('kind=logo')) as Extract<Node, { t: 'img' }>;
   assert.equal(mark.rad, 8);
   assert.equal(mark.motion, true, 'an uploaded clan logo may animate without the banner boost gate');
@@ -308,7 +309,7 @@ test('a creator space in the panel: its name and page, never members, a week or 
   assert.ok(actions(ui).some((a) => a.a === 'site' && a.path === '/c/cool-streamer'));
   // An ordinary clan's card is unchanged: members line and the compare button when offered.
   const clan = clanCardUi({ ...card, kind: 'clan', slug: 'afk', name: 'The AFK Spot', members: 12 }, true);
-  assert.ok(texts(clan).some((t) => t.startsWith('12 members')));
+  assert.ok(texts(clan).includes('12') && texts(clan).includes('members'), 'the members tile');
   assert.ok(walk(clan).some((x) => x.t === 'button' && x.label === 'Compare with my clan'));
 });
 
@@ -612,4 +613,25 @@ test('goals: name on its own line, progress and due muted, days left only when c
   assert.ok(runsOf(goalsUi([g(2, 'Barrows', 3)], null)).join('').includes('3 days left'));
   const done = goalsUi([{ ...g(3, 'Fire cape', 0), done: true } as GoalView], null);
   assert.ok(walk(done).some((n) => n.t === 'text' && n.s === 'Done' && n.chip));
+});
+
+test('clan card: heat gets its own card, the hottest streaks a bar each, and only 2+ week streaks wear a chip', () => {
+  const ui = clanCardUi(
+    {
+      slug: 'afk', name: 'The AFK Spot', logoUrl: null, members: 174, activeThisWeek: 83, weekHours: 692, totalEhp: 0, totalEhb: 0,
+      topWeek: [{ rsn: 'Taurak', hours: 68.6 }, { rsn: '1p Sweet', hours: 36.3 }],
+      topPlayers: [{ rsn: 'SPOOKZ', overallXp: 555_200_000 }],
+      clog: null, highlights: [], competitions: [],
+      heat: { on: 76, total: 174, pct: 44, weeks: [30, 35, 40, 44], change: 6 },
+      streaks: { '1p Sweet': 3, SPOOKZ: 13 },
+      hottest: [{ rsn: 'SPOOKZ', weeks: 13 }, { rsn: '1p Sweet', weeks: 3 }],
+    },
+    false,
+  );
+  const all = texts(ui);
+  assert.ok(all.includes('Clan heat') && all.includes('44%') && all.includes('up 6 from last week'));
+  assert.ok(walk(ui).some((x) => x.t === 'segs' && x.c.length === 4), 'the last weeks as a strip');
+  assert.ok(all.includes('Hottest streaks') && all.includes('13 wk') && all.includes('3 wk'));
+  assert.ok(!all.some((t) => /^1 ?wk$/.test(t)), 'no one-week marks');
+  assert.ok(walk(ui).filter((x) => x.t === 'bar').length >= 4, 'a bar per hottest streak and per player this week');
 });
