@@ -185,7 +185,8 @@ export default function TileTargets({ tile, hideItems }: Props) {
   }
   if (kind === 'pvp' && targetNpcs.length > 0) {
     // Selectors: 'any' = any player, 'team:other' = any rival team member, 'rsn:<name>' = named bounty.
-    const bounties = targetNpcs.filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4));
+    // A bare name is a bounty too (pluginFacts/rules pvpKeys).
+    const bounties = targetNpcs.filter((s) => s !== 'any' && s !== 'team:other').map((s) => (s.startsWith('rsn:') ? s.slice(4) : s));
     const anyone = targetNpcs.includes('any');
     rows.push(
       <Row key="pvp" label="Counts kills of">

@@ -159,7 +159,7 @@ export const LAB_TILE_SET: LabTileSpec[] = [
   spec('Tanzanite fang', 'drop', 'Bosses', { trackedItemIds: list(12922) }),
   spec('1m+ loot haul', 'value', 'Loot', { requiredAmount: 1_000_000 }),
   spec('Vorkath under 2:00', 'timed', 'Bosses', { timedActivity: 'Vorkath', timeThresholdSeconds: 120 }),
-  spec('PK Some Pker', 'pvp', 'PvP', { targetNpcs: list('Some Pker') }),
+  spec('PK Some Pker', 'pvp', 'PvP', { targetNpcs: list('rsn:Some Pker') }),
   spec('Hard Ardougne diary', 'diary', 'Diaries', { targetNpcs: list('Ardougne Hard') }),
   spec('Whack-a-Mole (Elite CA)', 'ca', 'Combat achievements', { targetNpcs: list('Whack-a-Mole') }),
   spec('Fighter torso slot', 'clog', 'Collection log', { trackedItemIds: list(10551) }),
