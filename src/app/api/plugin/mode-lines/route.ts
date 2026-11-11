@@ -8,6 +8,7 @@ import { emitPersonalItem } from '@/lib/chatFeed';
 import { labQuarantine } from '@/lib/lab';
 import { log } from '@/lib/logger';
 import { classifyLine, cleanLine, modeEventEmbed, type ModeEventKind } from '@/lib/modeLines';
+import { pluginEmbed, type PluginEmbedFacts } from '@/lib/pluginEmbeds';
 import { customPatterns, recordSample } from '@/lib/modeLineStore';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -113,11 +114,16 @@ export async function POST(request: Request) {
   // A plugin that posts mode level-ups itself (lib/modeFilters) would announce each one twice.
   const lineLevels = !pluginPostsModeLevels(pluginVersionHeader(request));
   const quests: string[] = [];
+  const totals: number[] = [];
   for (const line of lines) {
     const verdict = classifyLine(line, mode, patterns);
     if (verdict.kind === 'ignore') continue;
     if (verdict.kind === 'level') {
       if (lineLevels && !seenRecently(`${member.userId}:lv:${verdict.skill}:${verdict.level}`, now)) levelUps.push(verdict);
+      continue;
+    }
+    if (verdict.kind === 'total') {
+      if (!seenRecently(`${member.userId}:tl:${verdict.total}`, now)) totals.push(verdict.total);
       continue;
     }
     if (verdict.kind === 'quest') {
@@ -185,9 +191,11 @@ export async function POST(request: Request) {
     const routing = await getModeRouting(ec.clanId, mode.key, pickWebhookUrl(webhooks.leagues, 'plugin:leagues'));
     const normalHook = pickWebhookUrl(webhooks.combatAchievements, 'plugin:combatAchievements');
     const asGuest = ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId));
-    const send = async (url: string | null, title: string, kind: string) => {
+    // Levels, totals and quests read like the normal posts (lib/pluginEmbeds), tagged with the mode,
+    // not as the game's own sentence ("[Hardcore] Congratulations, you've reached a total level of 775.").
+    const send = async (url: string | null, facts: PluginEmbedFacts, kind: string) => {
       if (!url) return;
-      const embed = decorate(markMode(modeEventEmbed(title, member.rsn), mode.label, icon)!, ec.clanId);
+      const embed = decorate(markMode(pluginEmbed(facts) as unknown as Record<string, unknown>, mode.label, icon)!, ec.clanId);
       const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };
       const ok = await forwardPluginNotification(url, {
         embed: post.embed ?? null,
@@ -204,12 +212,23 @@ export async function POST(request: Request) {
       const rules = modeLevelRules((await getModeFilters(ec.clanId, mode.key)).levels, levelPrefs.clanChoice);
       const url = routeModePost('levels', { ...routing, normalHook: pickWebhookUrl(webhooks.levels, 'plugin:levels') });
       for (const lv of levelUps.slice(0, MAX_POSTS)) {
-        if (levelPostMatches({ type: 'skill', level: lv.level }, rules)) await send(url, `Reached level ${lv.level} ${lv.skill}`, 'level');
+        if (levelPostMatches({ type: 'skill', level: lv.level }, rules)) {
+          await send(url, { kind: 'level', facts: { rsn: member.rsn, skill: lv.skill, level: lv.level, at99: 0, skills: 0 } }, 'level');
+        }
+      }
+    }
+    if (totals.length && levelPrefs) {
+      // The game prints a total-level line at the milestones it chooses; the mode's level rules
+      // still decide which of them post.
+      const rules = modeLevelRules((await getModeFilters(ec.clanId, mode.key)).levels, levelPrefs.clanChoice);
+      const url = routeModePost('levels', { ...routing, normalHook: pickWebhookUrl(webhooks.levels, 'plugin:levels') });
+      for (const t of totals.slice(0, MAX_POSTS)) {
+        if (levelPostMatches({ type: 'total', milestone: t, maxed: false }, rules)) await send(url, { kind: 'totalLevel', facts: { rsn: member.rsn, total: t } }, 'total');
       }
     }
     if (quests.length) {
       const url = routeModePost('quests', { ...routing, normalHook: pickWebhookUrl(webhooks.quests, 'plugin:quests') });
-      for (const q of quests.slice(0, MAX_POSTS)) await send(url, `Quest complete: ${q}`, 'quest');
+      for (const q of quests.slice(0, MAX_POSTS)) await send(url, { kind: 'quest', facts: { rsn: member.rsn, quest: q } }, 'quest');
     }
     for (const e of fresh) {
       const url = routeModePost(e.kind, { ...routing, normalHook });
