@@ -4,7 +4,7 @@
 // Run: npx tsx --test tests/death-source.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { foughtBoss, settleDeathSource } from '../src/lib/deathSource';
+import { foughtBoss, settleDeathSource, shownKiller } from '../src/lib/deathSource';
 
 test('a fought boss is kept under its own name', () => {
   const raw: Record<string, unknown> = { kind: 'death', source: 'Alchemical Hydra', sourceKind: 'fought' };
@@ -45,4 +45,11 @@ test('Death (the NPC in Death\'s Domain) is never the killer', async () => {
   const real: Record<string, unknown> = { kind: 'death', source: 'Vorkath', sourceKind: 'npc' };
   settleDeathSource(real);
   assert.equal(real.source, 'Vorkath');
+});
+
+test("a lingering Kephri scarab is never named as the killer", () => {
+  assert.equal(shownKiller('Agile Scarab'), null);
+  const raw: Record<string, unknown> = { kind: 'death', source: 'Agile Scarab', sourceKind: 'npc' };
+  settleDeathSource(raw);
+  assert.equal(raw.source, null);
 });
