@@ -423,9 +423,9 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
         if (found.move) t.move = true;
         if (!t.icon) {
           // A tenure badge is the plugin's pixel sprite, shaded in the name's own colour; else the star.
-          // 24px: our panel, so the badge can be big enough to read (the plugin scales the 13px art).
+          // 20px: our panel, a little over the 13px art (the plugin scales it).
           t.icon = found.glyph
-            ? { t: 'icon', glyph: found.glyph, w: 24, h: 24, color: (found.grad?.[0] ?? found.color) as `#${string}` }
+            ? { t: 'icon', glyph: found.glyph, w: 20, h: 20, color: (found.grad?.[0] ?? found.color) as `#${string}` }
             : { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
           t.iconAfter = true;
           // Whatever the name already explained stays, after who they are.
