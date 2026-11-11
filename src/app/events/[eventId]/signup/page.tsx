@@ -65,6 +65,7 @@ export default async function EventSignupPage({
       signupOpensAt: event.signupOpensAt,
       signupDeadline: event.signupDeadline,
       startDate: event.startDate,
+      signupsEnabled: event.signupsEnabled,
       hostKind: friendsKind,
     });
     if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: window.open }).ok && row) {
@@ -159,6 +160,7 @@ export default async function EventSignupPage({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
         hostKind: friendsKind,
       });
 

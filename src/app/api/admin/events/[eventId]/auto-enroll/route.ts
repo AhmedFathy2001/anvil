@@ -31,10 +31,14 @@ export async function GET(
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }
-  const eligible = await listEligiblePluginMembers(id);
+  const [eligible, ev] = await Promise.all([
+    listEligiblePluginMembers(id),
+    db.query.events.findFirst({ where: eq(events.id, id), columns: { autoEnroll: true } }),
+  ]);
   return NextResponse.json({
     eligible: eligible.length,
     notEnrolled: eligible.filter((m) => m.enrolledPlayerId == null).length,
+    keep: ev?.autoEnroll ?? null,
   });
 }
 
@@ -64,7 +68,12 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => null)) as { placement?: string } | null;
+  const body = (await request.json().catch(() => null)) as { placement?: string; keep?: boolean } | null;
+  // "Keep adding new plugin members" (lib/enroll autoEnrollTick): just the switch, or with a run.
+  if (body?.keep === false) {
+    await db.update(events).set({ autoEnroll: null }).where(eq(events.id, id));
+    if (!body.placement) return NextResponse.json({ keep: null });
+  }
   const placement = body?.placement as EnrollPlacement | undefined;
   if (!placement || !PLACEMENTS.includes(placement)) {
     return NextResponse.json(
@@ -92,7 +101,8 @@ export async function POST(
   const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
   try {
     const result = await autoEnrollActivePluginMembers(id, placement, slotMode);
-    return NextResponse.json(result);
+    if (body?.keep === true) await db.update(events).set({ autoEnroll: placement }).where(eq(events.id, id));
+    return NextResponse.json({ ...result, keep: body?.keep === true ? placement : body?.keep === false ? null : event.autoEnroll });
   } catch (e) {
     // The plan's cap on players at once across the host's overlapping events (lib/creatorPlansDb).
     if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });

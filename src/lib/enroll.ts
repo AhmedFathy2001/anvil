@@ -2,7 +2,8 @@ import crypto from 'crypto';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, events, teams, eventSignups, accounts } from '@/db/schema';
+import { clanRoster, eventParticipants, events, teams, eventSignups, accounts, signupFees } from '@/db/schema';
+import { standardFeeForAccount } from '@/lib/entryFee';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
@@ -127,6 +128,11 @@ export async function backfillApprovedSignups(eventId: number, clanMemberIds: nu
   // Resolved outside the transaction: logins are read-only lookups.
   const logins = new Map<number, number | null>();
   for (const m of members) logins.set(m.id, m.claimedAt ? await loginOf(m.playerId) : null);
+  // Added counts as signed up, fee included: a board that charges one owes it the same as a form
+  // sign-up (signUpOnBehalf), so the fee ledger, the prize pool and the coffer's withheld prize see it.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { id: true, clanId: true, signupFee: true, guestSignupFee: true } });
+  const fees = new Map<number, number | null>();
+  if (event && (event.signupFee || event.guestSignupFee)) for (const m of members) fees.set(m.id, await standardFeeForAccount(event, m.accountId));
   // A friends host's Supporter tier or a creator plan — one host, one gate (lib/friendEvents).
   await withHostEventRoom({ eventId, audience: 'host' }, async (tx) => {
     for (const m of members) {
@@ -145,7 +151,7 @@ export async function backfillApprovedSignups(eventId: number, clanMemberIds: nu
         )
         .limit(1);
       if (existing) continue;
-      await tx
+      const [made] = await tx
         .insert(eventSignups)
         // `login`, not the person id. The comment above says exactly this and the dedup check three
         // lines up already uses it — the insert did not, so it wrote a PERSON id into a column that is
@@ -154,7 +160,10 @@ export async function backfillApprovedSignups(eventId: number, clanMemberIds: nu
         .values({ eventId, userId: login, clanMemberId: m.id, status: 'approved', profileData: '{}' })
         // A unique (event, seat) race: the row that won is the one we wanted. Not a .catch — a failed
         // statement would abort the whole transaction.
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({ id: eventSignups.id });
+      const fee = fees.get(m.id);
+      if (made && fee) await tx.insert(signupFees).values({ signupId: made.id, amount: fee, status: 'pending' });
     }
   });
 }
@@ -507,4 +516,36 @@ async function findOrCreateTeam(
   const id = await insertTeam(eventId, name, color);
   onResolve(true);
   return id;
+}
+
+/**
+ * The cron's half of "Keep adding new plugin members" (events.auto_enroll): every board with it on that
+ * hasn't started re-runs Add them all with the saved placement, so a member who installs the plugin or
+ * links their character joins on the next tick. Members only (eligibleWhere), never guests; each one
+ * gets the same approved sign-up and fee row as a hand-added player. Stops at the start: once a board
+ * is running, late joiners are the host's call.
+ */
+export async function autoEnrollTick(now = new Date()): Promise<number> {
+  // clan-scope: global -- the cron walks every board that switched it on; each run is keyed by its own event id.
+  const rows = await db
+    .select({ id: events.id, autoEnroll: events.autoEnroll, startDate: events.startDate, draftStatus: events.draftStatus, slot: events.accountSlotMode })
+    .from(events)
+    .where(isNotNull(events.autoEnroll));
+  let added = 0;
+  for (const e of rows) {
+    const placement = e.autoEnroll as EnrollPlacement;
+    if (!['draft_pool', 'one_team', 'individual'].includes(placement)) continue;
+    const starts = e.startDate ? Date.parse(e.startDate.includes('T') ? e.startDate : `${e.startDate.replace(' ', 'T')}Z`) : NaN;
+    if (Number.isFinite(starts) && starts <= now.getTime()) continue;
+    if (e.draftStatus === 'active' || e.draftStatus === 'paused') continue;
+    if (placement !== 'draft_pool' && e.draftStatus !== 'none') continue;
+    const eligible = await listEligiblePluginMembers(e.id);
+    if (!eligible.some((m) => m.enrolledPlayerId == null)) continue;
+    try {
+      added += (await autoEnrollActivePluginMembers(e.id, placement, e.slot === 'per-account' ? 'per-account' : 'per-person')).added;
+    } catch {
+      // A full creator plan or a race with an admin's edit: try again next tick.
+    }
+  }
+  return added;
 }

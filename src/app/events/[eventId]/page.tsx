@@ -320,6 +320,7 @@ export default async function EventScoreboardPage({
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    signupsEnabled: event.signupsEnabled,
     // A friends host's undated event is open to its invite link's people (lib/signup).
     hostKind: (await resolveClanById(event.clanId))?.kind,
   });

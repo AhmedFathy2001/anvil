@@ -243,8 +243,11 @@ export function signupWindowState(event: {
    * when the host starts it" is how a group of friends plays. Every other undated event is a draft.
    */
   hostKind?: string | null;
-}): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | null } {
+  /** events.signups_enabled: false = no sign-up form at all; staff add the players. */
+  signupsEnabled?: boolean | null;
+}): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | 'off' | null } {
   const now = Date.now();
+  if (event.signupsEnabled === false) return { open: false, reason: 'off' };
   if (!event.startDate && event.hostKind !== 'friends') return { open: false, reason: 'not_open_yet' };
   if (event.startDate && new Date(event.startDate).getTime() <= now) {
     return { open: false, reason: 'event_started' };
@@ -270,7 +273,7 @@ export function signupEditState(event: {
   paymentDeadline: string | null;
   /** As signupWindowState: a friends host's undated event is open. */
   hostKind?: string | null;
-}): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | null } {
+}): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | 'off' | null } {
   const base = signupWindowState(event);
   // Before the window opens at all, nothing's editable yet.
   if (base.reason === 'not_open_yet') return base;

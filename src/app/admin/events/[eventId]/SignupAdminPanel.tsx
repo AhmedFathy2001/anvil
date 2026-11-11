@@ -551,8 +551,28 @@ export default function SignupAdminPanel({
   const approvedFeesGp = approvedEntries.reduce((sum, s) => sum + (s.fee?.amount ?? 0), 0);
   const livePrizePool = (Number(addedPrizeInput) || 0) + approvedFeesGp;
 
+  // Some boards need a form (questions, fees, approval), some don't (everyone in the clan plays):
+  // off, players come only from staff — by hand, Add them all, or "keep adding" — and each one still
+  // gets an approved sign-up, so fees, prizes and placements work the same.
+  async function setSignupsEnabled(on: boolean) {
+    const res = await clanFetch(`/api/events/${event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signupsEnabled: on }),
+    });
+    if (res.ok) onEventUpdated({ ...event, signupsEnabled: on });
+  }
+
   return (
     <div className="space-y-6">
+      <div className="border border-card-border rounded-xl p-5 bg-card-bg">
+        <Checkbox
+          checked={event.signupsEnabled !== false}
+          onChange={(on) => void setSignupsEnabled(on)}
+          label="Players sign up with a form"
+          description="Off: no sign-up form. You add players on the Teams tab (by hand, Add them all, or keep adding as members get the plugin); each still counts as signed up, so fees, prizes, placements and the coffer work the same."
+        />
+      </div>
       {/* Configuration */}
       <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
         <div className="flex items-center justify-between">
