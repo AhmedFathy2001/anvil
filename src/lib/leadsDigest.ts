@@ -60,6 +60,7 @@ export const PEOPLE_SHOWN = 5;
 export interface LeadRow {
   id: number;
   slug: string;
+  kind?: string | null;
   name: string;
   inGameName: string | null;
   createdAt: string | null;

@@ -51,6 +51,7 @@ import {
   type WallRow,
 } from '@/lib/clanBoostRules';
 import type { SupporterTierId } from '@/lib/supporterTiers';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 export * from '@/lib/clanBoostRules';
 
@@ -780,14 +781,14 @@ export async function setRecruitingLine(clanId: number, raw: unknown, actorUserI
 
 /** The Anvil Discord embed for a clan's recruitment post. No person named: it's the clan's post. */
 export function recruitPostEmbed(
-  clan: { name: string; slug: string; logoUrl: string | null; accent: string | null },
+  clan: { name: string; slug: string; kind?: string | null; logoUrl: string | null; accent: string | null },
   text: string,
   origin: string,
 ): Record<string, unknown> {
   const color = clan.accent && /^#[0-9a-f]{6}$/i.test(clan.accent) ? parseInt(clan.accent.slice(1), 16) : 0xf2c14e;
   return {
     title: `${clan.name} is recruiting`.slice(0, 256),
-    url: `${origin}/c/${clan.slug}`,
+    url: `${origin}${clanBasePath(clan)}`,
     description: text,
     color,
     ...(clan.logoUrl ? { thumbnail: { url: clan.logoUrl } } : {}),
@@ -814,7 +815,7 @@ export async function sendRecruitPost(clanId: number, raw: unknown, actorUserId:
   // clan-scope: this clan's own row.
   const clan = await db.query.clans.findFirst({
     where: eq(clans.id, clanId),
-    columns: { name: true, slug: true, logoUrl: true, accentColor: true },
+    columns: { name: true, slug: true, kind: true, logoUrl: true, accentColor: true },
   });
   if (!clan) return { ok: false, status: 404, error: 'No such clan.' };
 
@@ -853,7 +854,7 @@ export async function sendRecruitPost(clanId: number, raw: unknown, actorUserId:
     await audit();
     return { ok: true, note: 'Saved. This is beta, so nothing was posted to the Anvil Discord.' };
   }
-  const embed = recruitPostEmbed({ name: clan.name, slug: clan.slug, logoUrl: clan.logoUrl, accent: clan.accentColor }, text.text, apexOrigin());
+  const embed = recruitPostEmbed({ name: clan.name, slug: clan.slug, kind: clan.kind, logoUrl: clan.logoUrl, accent: clan.accentColor }, text.text, apexOrigin());
   const res = await fetch(hook!, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

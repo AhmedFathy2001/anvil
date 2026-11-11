@@ -69,8 +69,8 @@ export default function HostClient({
       const made = j.slug ?? slug;
       window.location.assign(
         plan
-          ? `/c/${made}/admin/dashboard${billing === 'yearly' ? '?billing=yearly' : ''}#plan`
-          : (j.next ?? `/c/${made}/admin/events/first`),
+          ? `/s/${made}/admin/dashboard${billing === 'yearly' ? '?billing=yearly' : ''}#plan`
+          : (j.next ?? `/s/${made}/admin/events/first`),
       );
     } finally {
       setBusy(false);

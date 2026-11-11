@@ -21,6 +21,7 @@ import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyUser } from '@/lib/auth';
 import { labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 
 export type ScopedEvent = typeof events.$inferSelect;
 
@@ -169,7 +170,7 @@ export async function requireEventForParticipantPage(
   let apiPrefix: string | null = null;
   if (!event && Number.isInteger(eventId)) {
     const [row] = await db
-      .select({ event: events, hostSlug: clans.slug })
+      .select({ event: events, hostSlug: clans.slug, hostKind: clans.kind })
       .from(eventCohosts)
       .innerJoin(events, eq(events.id, eventCohosts.eventId))
       .innerJoin(clans, eq(clans.id, events.clanId))
@@ -179,7 +180,7 @@ export async function requireEventForParticipantPage(
       .limit(1);
     if (row) {
       event = row.event;
-      apiPrefix = `/c/${row.hostSlug}`;
+      apiPrefix = clanBasePath({ slug: row.hostSlug, kind: row.hostKind });
     }
   }
   if (!event) notFound();
@@ -206,7 +207,7 @@ async function redirectToEventAddress(eventId: number): Promise<never> {
   if (!Number.isInteger(eventId)) notFound();
   // clan-scope: global -- the address names no clan; the event's own row says which one it is.
   const [row] = await db
-    .select({ id: events.id, hostSlug: clans.slug })
+    .select({ id: events.id, hostSlug: clans.slug, hostKind: clans.kind })
     .from(events)
     .innerJoin(clans, eq(clans.id, events.clanId))
     .where(eq(events.id, eventId))
@@ -215,11 +216,11 @@ async function redirectToEventAddress(eventId: number): Promise<never> {
   const session = await verifyUser();
   if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
 
-  let slug = row.hostSlug;
+  let target = { slug: row.hostSlug, kind: row.hostKind };
   if (session?.playerId != null) {
     // clan-scope: global -- the viewer's own accepted co-host clans for this one event.
     const [mine] = await db
-      .select({ slug: clans.slug })
+      .select({ slug: clans.slug, kind: clans.kind })
       .from(eventCohosts)
       .innerJoin(clans, eq(clans.id, eventCohosts.clanId))
       .innerJoin(clanMemberships, eq(clanMemberships.clanId, eventCohosts.clanId))
@@ -234,13 +235,13 @@ async function redirectToEventAddress(eventId: number): Promise<never> {
         ),
       )
       .limit(1);
-    if (mine) slug = mine.slug;
+    if (mine) target = mine;
   }
 
   const h = await headers();
   const path = h.get('x-anvil-pathname') ?? `/events/${eventId}`;
   const qs = h.get('x-anvil-search') ?? '';
-  redirect(`/c/${slug}${path.startsWith('/events/') ? path : `/events/${eventId}`}${qs}`);
+  redirect(`${clanPathOf(target, path.startsWith('/events/') ? path : `/events/${eventId}`)}${qs}`);
 }
 
 // ── Weekly competitions, same story ──────────────────────────────────────────────────────────

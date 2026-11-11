@@ -12,6 +12,7 @@ import NoticeBell from '@/components/NoticeBell';
 import PendingBadge from '@/components/PendingBadge';
 import CreatorChip from '@/components/CreatorChip';
 import { adminMenuLabel, groupClansAndSpaces, outsiderWord, placeWord } from '@/lib/creatorSpaces';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 interface NavUser {
   displayName: string;
@@ -94,8 +95,11 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
   const switcherRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
-  const current = clan ? myClans.find((c) => c.slug === clan.slug) ?? null : null;
-  const otherClans = myClans.filter((c) => c.slug !== clan?.slug);
+  // Same slug AND same namespace: a clan and a creator space may share a slug (/c/x vs /s/x).
+  const isCurrent = (c: NavClan) =>
+    !!clan && c.slug === clan.slug && (c.kind === 'creator') === (clan.kind === 'creator');
+  const current = myClans.find(isCurrent) ?? null;
+  const otherClans = myClans.filter((c) => !isCurrent(c));
   // Creator spaces are not clans: they get their own "Your spaces" group (lib/creatorSpaces).
   const otherGroups = groupClansAndSpaces(otherClans, (c) => c.kind);
 
@@ -147,7 +151,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
     ? [
         // The clan's own home, spelled out rather than '/'. A bare '/' is the APEX, so "Home" from
         // inside a clan used to throw you out to the directory — you could not stay anywhere.
-        { href: `/c/${clan.slug}`, label: 'Home' },
+        { href: clanBasePath(clan), label: 'Home' },
         // One entry for competitions. A Skill of the Week is an event, and having two links meant
         // knowing which table the clan filed something under before you could find it. In a creator
         // space /events is the space's own list (app/events), not the clan hub.
@@ -227,7 +231,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                         {g.items.map((o) => (
                           <ClanLink
                             key={o.slug}
-                            href={`/c/${o.slug}`}
+                            href={clanBasePath(o)}
                             role="menuitem"
                             className="flex items-center gap-2.5 px-3 py-2 hover:bg-brown-light transition-all"
                           >
@@ -442,7 +446,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     {g.items.map((o) => (
                       <ClanLink
                         key={o.slug}
-                        href={`/c/${o.slug}`}
+                        href={clanBasePath(o)}
                         onClick={() => setOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
                       >

@@ -1,6 +1,7 @@
 'use client';
 
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 import { useEffect, useState } from 'react';
 import Select from '@/components/Select';
@@ -18,6 +19,7 @@ interface Item {
   /** Which clan it came from — the column that makes a platform-wide list readable. */
   clanName: string | null;
   clanSlug: string | null;
+  clanKind?: string | null;
   createdAt: string;
   reporter: string | null;
 }
@@ -111,10 +113,10 @@ export default function FeedbackClient() {
                   <div className="text-xs text-text-muted mt-0.5">
                     {i.clanName ? (
                       <>
-                        {/* ClanLink, not a raw anchor. `/c/<slug>` is already a clan's absolute
+                        {/* ClanLink, not a raw anchor. `/c|s/<slug>` is already a clan's absolute
                             address so nothing gets prefixed onto it — and going from /staff into a
                             clan CHANGES the shell, which ClanLink knows to do as a document load. */}
-                        <ClanLink href={`/c/${i.clanSlug}`} className="text-gold hover:underline">
+                        <ClanLink href={clanBasePath({ slug: i.clanSlug!, kind: i.clanKind })} className="text-gold hover:underline">
                           {i.clanName}
                         </ClanLink>
                         {' · '}

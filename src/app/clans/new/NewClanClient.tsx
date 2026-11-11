@@ -1,5 +1,6 @@
 'use client';
 
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import { useEffect, useState } from 'react';
 import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
@@ -124,7 +125,7 @@ export default function NewClanClient({
     // 301s it — but it is the old address, and this is the exact moment somebody forms their idea of
     // where their clan lives. Teaching them a URL that only redirects means every link they paste
     // into Discord for the next year costs a round trip and reads as the deprecated shape.
-    const home = `/c/${done}`;
+    const home = clanBasePath({ slug: done }); // this page only creates clans
     return (
       <div className="rounded-xl border border-card-border bg-card-bg p-6">
         <h2 className="text-xl font-semibold text-gold">Your clan is live.</h2>

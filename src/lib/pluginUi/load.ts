@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, users } from '@/db/schema';
+import { accounts, clanMemberships, users } from '@/db/schema';
 import { apexCharacter, apexClan, type ApexCharacter } from '@/lib/apexProfiles';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { hasPlatformRole } from '@/lib/clanRoles';
@@ -19,6 +19,7 @@ import { pinLuck } from '@/lib/pinLuck';
 import { supporterForPlayer } from '@/lib/supporter';
 import { canAnimateProfileMedia } from '@/lib/profileMediaRules';
 import { mediaRevision } from '@/lib/pluginUi/mediaRevision';
+import { clanBeforeSpace, namespaceOf, parseTypedSlug, slugWhere } from '@/lib/clanSlugLookup';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
 // /api/clans/<slug>/card) and the panel's views (/api/plugin/ui), so both answer the same.
@@ -112,17 +113,22 @@ export async function panelDiscordAvatar(playerId: number): Promise<{ src: strin
  * Token, so a member sees their clan's card even when it keeps itself off the directory.
  */
 export async function visibleClan(request: Request, rawSlug: string) {
-  const slug = rawSlug.trim().toLowerCase();
-  if (!slug || slug.length > 64) return null;
+  if (rawSlug.length > 128) return null;
+  // The plugin echoes slugs bare, so a bare one means the clan (else the space); a card for a space
+  // that shares its slug with a clan hands back `s/<slug>` to say which.
+  const typed = parseTypedSlug(rawSlug);
+  if (!typed) return null;
+  const slug = typed.slug;
   // clan-scope: global -- resolving a clan by slug is what this is.
   const clan = await db.query.clans.findFirst({
-    where: eq(clans.slug, slug),
+    where: slugWhere(slug, typed.kind),
+    orderBy: [clanBeforeSpace],
     columns: { id: true, slug: true, name: true, logoUrl: true, bannerUrl: true, bannerPosition: true, status: true, kind: true },
   });
   if (!clan || clan.status === 'suspended') return null;
-  if ((await apexClan(slug)) != null) return clan;
+  if ((await apexClan(slug, namespaceOf(clan.kind))) != null) return clan;
   // The hidden lab clan opens for platform staff, so its test drops can be tried in the panel.
-  if (clan.slug === LAB_CLAN_SLUG) return (await pluginStaff(request)) ? clan : null;
+  if (clan.slug === LAB_CLAN_SLUG && namespaceOf(clan.kind) === 'clan') return (await pluginStaff(request)) ? clan : null;
 
   const playerId = await viewerPlayerId(request);
   if (playerId == null) return null;

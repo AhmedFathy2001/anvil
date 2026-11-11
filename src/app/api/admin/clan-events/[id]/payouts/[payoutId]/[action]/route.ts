@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const clan = await requireClan();
   const { proofUrl } = (await request.json().catch(() => ({}))) as { proofUrl?: unknown };
   const proof = typeof proofUrl === 'string' && proofUrl ? proofUrl : null;
-  if (proof && !isClanMediaUrl(proof, clan.slug)) return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
+  if (proof && !isClanMediaUrl(proof, clan)) return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
   const r = await movePayout(clan.id, Number(id), Number(payoutId), action, user.userId, proof);
   return r.ok ? NextResponse.json({ payout: r.value }) : NextResponse.json({ error: r.error }, { status: r.status });
 }

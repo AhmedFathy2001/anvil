@@ -122,7 +122,7 @@ export async function sendPurgeNotice(
   }
 
   const [clan] = await db.select({ name: clans.name, slug: clans.slug, kind: clans.kind }).from(clans).where(eq(clans.id, e.clanId));
-  const archiveUrl = absoluteUrl(clanCanonicalPath(clan?.slug ?? '', `/admin/events/${e.id}`));
+  const archiveUrl = absoluteUrl(clanCanonicalPath({ slug: clan?.slug ?? '', kind: clan?.kind }, `/admin/events/${e.id}`));
   const { subject, lines } = purgeNoticeText({
     stage: e.stage,
     eventName: e.name,

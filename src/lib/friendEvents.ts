@@ -52,6 +52,7 @@ import {
 } from '@/lib/friendEventRules';
 import { setSetting } from '@/lib/settings';
 import { supporterForUser, type SupporterTierId } from '@/lib/supporter';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 /** A transaction handle: every guarded write runs on the one that holds the host's lock. */
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -406,7 +407,7 @@ export async function friendsRailEntry(userId: number): Promise<FriendsRailEntry
     live: list
       .filter((e) => eventStage(e) === 'run')
       .slice(0, 4)
-      .map((e) => ({ id: e.id, name: e.name, href: `/c/${host.slug}/events/${e.id}` })),
+      .map((e) => ({ id: e.id, name: e.name, href: clanPathOf({ slug: host.slug, kind: FRIENDS_KIND }, `/events/${e.id}`) })),
   };
 }
 

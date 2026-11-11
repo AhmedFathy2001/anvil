@@ -81,7 +81,7 @@ export async function DELETE(
   if (removed.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   // Best-effort: a stranded object costs pennies, a failed delete shouldn't fail the action. Only if
   // this event owns the file and no row anywhere still shows it (lib/eventMediaRetention).
-  const clanSlug = (await db.query.clans.findFirst({ where: eq(clans.id, scoped.clanId), columns: { slug: true } }))?.slug ?? null;
-  await deleteOwnedFiles(eId, clanSlug, { proofRows: [{ url: removed[0].imageUrl }] }, { anyRowKeeps: true }).catch(() => 0);
+  const clanRow = (await db.query.clans.findFirst({ where: eq(clans.id, scoped.clanId), columns: { slug: true, kind: true } })) ?? null;
+  await deleteOwnedFiles(eId, clanRow, { proofRows: [{ url: removed[0].imageUrl }] }, { anyRowKeeps: true }).catch(() => 0);
   return NextResponse.json({ ok: true });
 }

@@ -36,7 +36,7 @@ export async function POST(
   // Our upload, under this clan's prefix — the old proof is deleted when replaced, so a link to
   // anything else would have the server delete somebody else's file.
   const clan = await currentClan();
-  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan.slug))) {
+  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan))) {
     return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
   }
 

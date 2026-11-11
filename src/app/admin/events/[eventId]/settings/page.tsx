@@ -34,7 +34,7 @@ export default async function EventSettingsPage({
             {uninvited.length === 1 ? 'One clan was not invited' : `${uninvited.length} clans were not invited`}
           </div>
           <div className="mt-0.5 text-[12.5px] text-text-muted">
-            The board was created, but {uninvited.map((u) => `/c/${u}`).join(', ')} could not be reached. This event is
+            The board was created, but {uninvited.join(', ')} could not be reached. This event is
             invite-only, so until somebody is invited, nobody outside your clan can see it.{' '}
             <ClanLink href={`${tabHref(id, 'access')}#access`} className="text-gold hover:underline">
               Invite them

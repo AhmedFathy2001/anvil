@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, events } from '@/db/schema';
+import { parseTypedSlug, slugIn } from '@/lib/clanSlugLookup';
 import { eventForRequest } from '@/lib/eventScope';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
@@ -109,7 +110,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const clanSlug = typeof body?.clanSlug === 'string' ? body.clanSlug.trim().toLowerCase() : '';
   if (!clanSlug) return NextResponse.json({ error: 'Which clan?' }, { status: 400 });
 
-  const target = await db.query.clans.findFirst({ where: eq(clans.slug, clanSlug) });
+  // Typed by a person: an explicit /c/ or /s/ wins, a bare slug means the clan and then the space
+  // (which coHostKindRefusal below then turns down with its own reason).
+  const typed = parseTypedSlug(clanSlug);
+  const find = (kind: 'clan' | 'creator') => db.query.clans.findFirst({ where: slugIn(typed!.slug, kind) });
+  const target = typed ? await (typed.kind ? find(typed.kind) : find('clan').then((c) => c ?? find('creator'))) : undefined;
   if (!target) return NextResponse.json({ error: 'No clan with that address' }, { status: 404 });
   if (target.id === event.clanId) return NextResponse.json({ error: 'That clan is the host' }, { status: 400 });
   // Co-hosting is between in-game clans: not from a creator space, and not to one.

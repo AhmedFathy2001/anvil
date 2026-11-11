@@ -13,7 +13,7 @@
 //     and a main plus an alt is genuinely two seats.
 //   - `leftAt IS NULL` everywhere: a clan's size is who is there now, not who ever was.
 
-import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, not, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
@@ -21,10 +21,14 @@ import { apexDomain } from '@/lib/clanContext';
 import { subscriptionFacts } from '@/lib/clanBilling';
 import { LAB_CLAN_SLUG, LAB_DUMMY_LOGIN } from '@/lib/labRules';
 import { clanSeat } from '@/lib/seatScope';
+import { clanBasePath } from '@/lib/clanScopedPaths';
+import { slugIn } from '@/lib/clanSlugLookup';
 
 // THE LAB IS NOT A CLAN. Staff test boards in a hidden clan (lib/lab) with dummy logins; counting
 // either here put "Anvil Tile Lab" under "No owner" and "Unverified" and inflated every total.
-const notLab = (clanIdCol: unknown) => sql`${clanIdCol} is distinct from (select id from clans where slug = ${LAB_CLAN_SLUG})`;
+const notLab = (clanIdCol: unknown) => sql`${clanIdCol} is distinct from (select id from clans where slug = ${LAB_CLAN_SLUG} and kind <> 'creator')`;
+// The lab is a clan; a creator space may legitimately hold the same slug.
+const notLabRow = not(slugIn(LAB_CLAN_SLUG, 'clan'));
 const labDummyPlayers = sql`(select u.player_id from users u where u.discord_id like ${LAB_DUMMY_LOGIN + '%'} and u.player_id is not null)`;
 
 export interface PlatformTotals {
@@ -60,10 +64,10 @@ export async function platformTotals(): Promise<PlatformTotals> {
     [bannedRow],
     [staffRow],
   ] = await Promise.all([
-    db.select({ n: count() }).from(clans).where(ne(clans.slug, LAB_CLAN_SLUG)),
-    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'active'), ne(clans.slug, LAB_CLAN_SLUG))),
-    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'suspended'), ne(clans.slug, LAB_CLAN_SLUG))),
-    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'archived'), ne(clans.slug, LAB_CLAN_SLUG))),
+    db.select({ n: count() }).from(clans).where(notLabRow),
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'active'), notLabRow)),
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'suspended'), notLabRow)),
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'archived'), notLabRow)),
     db.select({ n: count() }).from(players).where(sql`${players.id} not in ${labDummyPlayers}`),
     db.select({ n: count() }).from(accounts).where(sql`${accounts.playerId} not in ${labDummyPlayers}`),
     // Roster seats: an event player's seat is not on a roster.
@@ -229,7 +233,7 @@ export async function allClans(): Promise<ClanRow[]> {
       )`,
     })
     .from(clans)
-    .where(ne(clans.slug, LAB_CLAN_SLUG))
+    .where(notLabRow)
     .orderBy(clans.name);
 
   return rows.map((r) => ({
@@ -240,7 +244,7 @@ export async function allClans(): Promise<ClanRow[]> {
     // clans live at `<apex>/c/<slug>` and the subdomain only survives as a 301 for old plugins. So
     // the operator table described every clan by a URL that redirects, and the "subdomain" reading
     // of a clan leaked back out of here into how the product looked from the inside.
-    host: r.customDomain || `${apexDomain()}/c/${r.slug}`,
+    host: r.customDomain || `${apexDomain()}${clanBasePath(r)}`,
     status: r.status,
     plan: r.plan,
     kind: r.kind,
@@ -493,7 +497,7 @@ export interface PlatformAction {
    */
   hadActor: boolean;
   /** The clan it was done to, when it was done to one. */
-  clan: { id: number; slug: string; name: string } | null;
+  clan: { id: number; slug: string; name: string; kind: string } | null;
   before: string | null;
   after: string | null;
   notes: string | null;
@@ -567,6 +571,7 @@ export async function platformActions(
       actorUserId: clanAuditLog.actorUserId,
       clanId: clans.id,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
       clanName: clans.name,
       before: clanAuditLog.oldValue,
       after: clanAuditLog.newValue,
@@ -606,7 +611,7 @@ export async function platformActions(
     eventType: r.eventType,
     actor: r.actor,
     hadActor: r.actorUserId != null,
-    clan: r.clanId != null ? { id: r.clanId, slug: r.clanSlug!, name: r.clanName! } : null,
+    clan: r.clanId != null ? { id: r.clanId, slug: r.clanSlug!, name: r.clanName!, kind: r.clanKind! } : null,
     before: r.before,
     after: r.after,
     notes: r.notes,
@@ -662,7 +667,7 @@ export async function nameCollisions(): Promise<NameCollision[]> {
       verifiedAt: clans.ingameNameVerifiedAt,
     })
     .from(clans)
-    .where(and(sql`${clans.inGameName} is not null and ${clans.inGameName} <> ''`, ne(clans.slug, LAB_CLAN_SLUG)));
+    .where(and(sql`${clans.inGameName} is not null and ${clans.inGameName} <> ''`, notLabRow));
 
   const byName = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -1040,7 +1045,7 @@ export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
       id: row.id,
       slug: row.slug,
       name: row.name,
-      host: row.customDomain || `${apexDomain()}/c/${row.slug}`,
+      host: row.customDomain || `${apexDomain()}${clanBasePath(row)}`,
       status: row.status,
       plan: row.plan,
       kind: row.kind,

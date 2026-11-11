@@ -34,6 +34,7 @@ import { resolveClanById } from '@/lib/clanContext';
 import { renderGuideForDiscord, type DiscordGuideMessage } from '@/lib/guideDiscord';
 import { discordBody } from '@/lib/dps/summary';
 import { effectiveGearIndex } from '@/lib/dps/store';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 const CH_TEXT = 0;
 const CH_ANNOUNCEMENT = 5;
@@ -163,18 +164,18 @@ export async function listGuideChannels(
   return { enabled: true, bot, channels, categories };
 }
 
-/** Where a guide reads on the site — the canonical /c/<slug> address for a clan's own guide. */
-export function guideSiteUrl(clanSlug: string | null, slug: string): string | null {
+/** Where a guide reads on the site — the canonical /c/<slug> (or /s/<slug>) address for a clan's own guide. */
+export function guideSiteUrl(clan: { slug: string; kind?: string | null } | null, slug: string): string | null {
   const origin = configuredOrigin();
   if (!origin) return null;
-  return clanSlug ? `${origin}/c/${clanSlug}/guides/${slug}` : `${origin}/guides/${slug}`;
+  return clan ? `${origin}${clanPathOf(clan, `/guides/${slug}`)}` : `${origin}/guides/${slug}`;
 }
 
 /** The messages a guide becomes in this clan's Discord. */
 export async function guideMessages(guide: Guide): Promise<DiscordGuideMessage[]> {
   const clan = guide.clanId != null ? await resolveClanById(guide.clanId) : null;
   const byline = guide.clanId == null ? 'Anvil guide library' : guide.followsSource ? `${clan?.name ?? 'Clan'} · from the Anvil library` : clan?.name ?? null;
-  const siteUrl = guideSiteUrl(clan?.slug ?? null, guide.slug);
+  const siteUrl = guideSiteUrl(clan, guide.slug);
   return renderGuideForDiscord(
     {
       title: guide.title,

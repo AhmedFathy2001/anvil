@@ -42,6 +42,7 @@ export interface Arena {
   metric: string;
   clanName: string;
   clanSlug: string;
+  clanKind?: string | null;
   endDate: string;
   rsn: string;
   gained: number;
@@ -87,6 +88,7 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
       endDate: weeklyCompetitions.endDate,
       clanName: clans.name,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
     })
     .from(weeklyParticipants)
     .innerJoin(weeklyCompetitions, eq(weeklyCompetitions.id, weeklyParticipants.competitionId))
@@ -195,6 +197,7 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
     metric: best.metric,
     clanName: best.clanName,
     clanSlug: best.clanSlug,
+    clanKind: best.clanKind,
     endDate: best.endDate,
     rsn: best.rsn,
     gained: best.gained,

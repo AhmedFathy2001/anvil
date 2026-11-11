@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import { useDialog } from '@/components/Confirm';
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
@@ -20,7 +21,7 @@ interface Report {
   createdAt: string;
   resolvedAt: string | null;
   account: { id: number; rsn: string; playerId: number; ownerName: string | null; claimed: boolean; verificationMethod: string | null; provisional: boolean };
-  clan: { id: number; name: string; slug: string } | null;
+  clan: { id: number; name: string; slug: string; kind?: string | null } | null;
   reporter: string | null;
   claimant: { id: number; name: string } | null;
   /** A player's wrong-clan report (lib/wrongClan): can it be carried out from here? */
@@ -142,7 +143,7 @@ export default function ReportsClient() {
                 {r.clan && (
                   <>
                     {r.kind === 'wrong_clan' ? ' · says they’re really in ' : ' · raised by '}
-                    <ClanLink href={`/c/${r.clan.slug}`} className="text-gold hover:underline">
+                    <ClanLink href={clanBasePath(r.clan)} className="text-gold hover:underline">
                       {r.clan.name}
                     </ClanLink>
                   </>

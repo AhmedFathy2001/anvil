@@ -86,6 +86,7 @@ async function yearEvents(accountId: number, year: string): Promise<YearEvent[]>
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
       clanVisibility: clans.visibility,
     })
     .from(eventParticipants)
@@ -109,6 +110,7 @@ async function yearEvents(accountId: number, year: string): Promise<YearEvent[]>
       eventId,
       name: list[0].name,
       clanSlug: list[0].clanSlug,
+      clanKind: list[0].clanKind,
       cardKey: me ? Math.min(...me.playerIds) : null,
       team: me?.team && me.team.of > 1 ? { name: me.team.name, rank: me.team.rank, of: me.team.of } : null,
       placeInTeam: me?.placeInTeam ?? null,

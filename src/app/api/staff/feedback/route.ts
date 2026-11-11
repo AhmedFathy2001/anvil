@@ -37,6 +37,7 @@ export async function GET() {
       reporter: users.displayName,
       clanName: clans.name,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
     })
     .from(feedback)
     .leftJoin(users, eq(feedback.userId, users.id))

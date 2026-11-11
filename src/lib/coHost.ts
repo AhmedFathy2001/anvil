@@ -18,6 +18,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { db } from '@/db';
 import { clanStaff, clans, eventCohosts, eventParticipants, events, teams, teamStaff } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { cohostBoardEventIds, grantedCohostedEventIds } from '@/lib/eventEditors';
 
 /** A stable team colour per clan, matched to the nav/profile crest hue. */
@@ -43,6 +44,7 @@ export interface CohostRow {
   teamId: number | null;
   clanName: string;
   clanSlug: string;
+  clanKind?: string | null;
   /** The co-host's own image, or null for the generated crest. */
   clanLogoUrl: string | null;
   eventName: string;
@@ -57,6 +59,8 @@ export interface CohostRow {
    */
   hostClanName: string;
   hostClanSlug: string;
+  /** The host's kind: a space is addressed at /s/, not /c/. */
+  hostClanKind?: string | null;
   eventStartDate: string | null;
   eventEndDate: string | null;
   eventSignupFee: number | null;
@@ -77,11 +81,13 @@ const COHOST_COLUMNS = {
   teamId: eventCohosts.teamId,
   clanName: clans.name,
   clanSlug: clans.slug,
+  clanKind: clans.kind,
   clanLogoUrl: clans.logoUrl,
   eventName: events.name,
   hostClanId: events.clanId,
   hostClanName: hostClan.name,
   hostClanSlug: hostClan.slug,
+  hostClanKind: hostClan.kind,
   eventStartDate: events.startDate,
   eventEndDate: events.endDate,
   eventSignupFee: events.signupFee,
@@ -618,7 +624,8 @@ export async function coHostedBoardLinks(
         // team, Discord, and a link to the tiles when allowed). Someone who only holds a board grant
         // goes straight to the tiles they were given, at the host's.
         href: scopedEditor
-          ? `/c/${b.hostSlug}/admin/events/${b.eventId}/tiles`
+          ? // Co-hosting is clan-to-clan only (the query above), so the host is always a /c/ clan.
+            clanPathOf({ slug: b.hostSlug, kind: 'clan' }, `/admin/events/${b.eventId}/tiles`)
           : `/admin/cohosted/${b.eventId}`,
       };
     })

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // pages, panels and highlights exist only on spaces: always /s/
 import LocalTime from '@/components/LocalTime';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
@@ -283,7 +284,7 @@ export default function PromotionsClient({ canWrite }: { canWrite: boolean }) {
               {hidden.spaces.map((s) => (
                 <li key={s.clanId} className="flex flex-wrap items-center gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-sm">
                   <span>
-                    Page promotions: <ClanLink href={`/c/${s.clanSlug}`} className="text-gold">{s.clanName}</ClanLink>
+                    Page promotions: <ClanLink href={clanBasePath({ slug: s.clanSlug, kind: 'creator' })} className="text-gold">{s.clanName}</ClanLink>
                   </span>
                   {canWrite && (
                     <button type="button" disabled={busy} className={`${btn} ml-auto`} onClick={() => act({ action: 'showSpace', clanId: s.clanId })}>
@@ -299,7 +300,7 @@ export default function PromotionsClient({ canWrite }: { canWrite: boolean }) {
               {hidden.panels.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-sm">
                   <span>
-                    Panel “{p.title}” on <ClanLink href={`/c/${p.clanSlug}`} className="text-gold">{p.clanName}</ClanLink>
+                    Panel “{p.title}” on <ClanLink href={clanBasePath({ slug: p.clanSlug, kind: 'creator' })} className="text-gold">{p.clanName}</ClanLink>
                   </span>
                   {canWrite && (
                     <button type="button" disabled={busy} className={`${btn} ml-auto`} onClick={() => act({ action: 'showPanel', panelId: p.id })}>
@@ -315,7 +316,7 @@ export default function PromotionsClient({ canWrite }: { canWrite: boolean }) {
               {hidden.highlights.map((h) => (
                 <li key={h.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-sm">
                   <span>
-                    Highlight “{h.title}” on <ClanLink href={`/c/${h.clanSlug}`} className="text-gold">{h.clanName}</ClanLink>
+                    Highlight “{h.title}” on <ClanLink href={clanBasePath({ slug: h.clanSlug, kind: 'creator' })} className="text-gold">{h.clanName}</ClanLink>
                   </span>
                   {canWrite && (
                     <button type="button" disabled={busy} className={`${btn} ml-auto`} onClick={() => act({ action: 'showHighlight', highlightId: h.id })}>

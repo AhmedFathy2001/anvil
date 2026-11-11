@@ -19,6 +19,7 @@ import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { homeTitleSuffix } from '@/lib/creatorSpaces';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { canonicalPathFor, socialMetadata } from '@/lib/seo';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 /**
  * Title, description, canonical and card for one section of one clan.
@@ -59,8 +60,8 @@ export async function clanSectionMetadata(opts: {
     // A creator space is not a clan (lib/creatorSpaces): its home says "Events on Anvil" instead.
     title: opts.title ?? (opts.section ? `${opts.section} — ${clanName}` : `${clanName} — ${homeTitleSuffix(clan.kind)}`),
     description: opts.description,
-    canonical: canonicalPathFor({ prefix, pathname, clanSlug: clan.slug }),
-    image: opts.image ?? `/api/og/clan/${clan.slug}`,
+    canonical: canonicalPathFor({ prefix, pathname, clanSlug: clan.slug, clanKind: clan.kind }),
+    image: opts.image ?? `/api/og/clan/${clan.slug}${clan.kind === 'creator' ? '?k=s' : ''}`,
     noIndex: opts.noIndex,
   });
 }
@@ -73,8 +74,8 @@ export async function clanSectionMetadata(opts: {
  * the one word that does not help them.
  */
 export function clanTrail(
-  clan: { slug: string; name: string },
+  clan: { slug: string; name: string; kind?: string | null },
   rest: { name: string; path: string }[] = [],
 ): { name: string; path: string }[] {
-  return [{ name: clan.name, path: `/c/${clan.slug}` }, ...rest];
+  return [{ name: clan.name, path: clanBasePath(clan) }, ...rest];
 }

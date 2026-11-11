@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
+import { parseTypedSlug, slugIn } from '@/lib/clanSlugLookup';
 import { resolveClanFromRequest } from '@/lib/clanContext';
 import { blockClanAsUser, isAdminOf, listBlockedClans, listBlockedClansAsUser, unblockClan } from '@/lib/clanBlocks';
 
@@ -40,7 +39,10 @@ export async function POST(request: Request) {
   if ('error' in s) return s.error;
   const body = await request.json().catch(() => null);
   const slug = typeof body?.slug === 'string' ? body.slug.trim().toLowerCase() : '';
-  const target = slug ? await db.query.clans.findFirst({ where: eq(clans.slug, slug), columns: { id: true } }) : null;
+  // Typed by a person: an explicit /c/ or /s/ wins, a bare slug means the clan and then the space.
+  const typed = parseTypedSlug(slug);
+  const find = (kind: 'clan' | 'creator') => db.query.clans.findFirst({ where: slugIn(typed!.slug, kind), columns: { id: true } });
+  const target = typed ? await (typed.kind ? find(typed.kind) : find('clan').then((c) => c ?? find('creator'))) : null;
   if (!target) return NextResponse.json({ error: 'No clan with that address' }, { status: 404 });
   if (target.id === s.clanId) return NextResponse.json({ error: 'That is your own clan' }, { status: 400 });
   if (!(await blockClanAsUser(s.clanId, target.id, s.userId))) return forbidden();

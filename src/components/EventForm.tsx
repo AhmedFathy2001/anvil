@@ -336,11 +336,17 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
     setCoHostChecking(true);
     setError('');
     try {
+      // A slug is unique per namespace, so "free" in /c/ can still be a creator space at /s/.
+      // Only report it missing when neither namespace holds it.
       const res = await fetch(`/api/clans?slug=${encodeURIComponent(slug)}`);
       const data = await res.json().catch(() => null);
       if (res.ok && data?.slug?.ok === true) {
-        setError(`No clan at /c/${slug}.`);
-        return;
+        const asSpace = await fetch(`/api/clans?slug=${encodeURIComponent(slug)}&kind=creator`);
+        const spaceData = await asSpace.json().catch(() => null);
+        if (asSpace.ok && spaceData?.slug?.ok === true) {
+          setError(`No clan or space called "${slug}".`);
+          return;
+        }
       }
     } catch {
       // The lookup is a courtesy, not a gate — if it cannot run, fall through and let the invite

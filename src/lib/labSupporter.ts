@@ -10,6 +10,7 @@
 //     never be a real character's, and they are found by their login's marker, never by name. Staff can open the lab clan in the plugin's Lookup.
 
 import { and, eq, inArray, like, lt } from 'drizzle-orm';
+import { slugIn } from '@/lib/clanSlugLookup';
 import crypto from 'crypto';
 
 import { db } from '@/db';
@@ -177,7 +178,7 @@ export const LAB_TIERS = SUPPORTER_TIER_ORDER;
  * never overwritten.
  */
 export async function setLabClanTenure(months: number | null): Promise<boolean> {
-  const clan = await db.query.clans.findFirst({ where: eq(clans.slug, LAB_CLAN_SLUG), columns: { id: true, gumroadSubscriptionId: true } });
+  const clan = await db.query.clans.findFirst({ where: slugIn(LAB_CLAN_SLUG, 'clan'), columns: { id: true, gumroadSubscriptionId: true } });
   if (!clan) return false;
   if (clan.gumroadSubscriptionId && clan.gumroadSubscriptionId !== LAB_TENURE_SUBSCRIPTION) return false;
   const since = new Date();

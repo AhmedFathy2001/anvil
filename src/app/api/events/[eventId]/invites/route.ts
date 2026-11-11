@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { clans, eventInvites, events, players } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
+import { parseTypedSlug, slugIn } from '@/lib/clanSlugLookup';
 import { eventForRequest } from '@/lib/eventScope';
 import { isEntry, isVisibility } from '@/lib/eventAccess';
 import { forgetLinkCards } from '@/lib/ogKit';
@@ -122,7 +123,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 
   let inviteClanId: number | null = null;
   if (clanSlug) {
-    const target = await db.query.clans.findFirst({ where: eq(clans.slug, clanSlug) });
+    // Typed by a person: an explicit /c/ or /s/ wins, a bare slug means the clan and then the space.
+    const typed = parseTypedSlug(clanSlug);
+    const find = (kind: 'clan' | 'creator') => db.query.clans.findFirst({ where: slugIn(typed!.slug, kind) });
+    const target = typed ? await (typed.kind ? find(typed.kind) : find('clan').then((c) => c ?? find('creator'))) : undefined;
     if (!target) return NextResponse.json({ error: 'No clan with that address' }, { status: 404 });
     if (target.id === event.clanId) {
       return NextResponse.json({ error: 'That is the clan hosting this event' }, { status: 400 });

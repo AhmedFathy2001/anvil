@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import crypto from 'crypto';
 import { headers } from 'next/headers';
 import { verifyUser } from '@/lib/auth';
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
   const then = new URL(request.url).searchParams.get('then') === 'setup' ? 'setup' : '';
   if (!isApexHost((await headers()).get('host'))) {
     return NextResponse.redirect(
-      new URL(`/c/${clan.slug}/api/admin/discord/bot/connect${then ? `?then=${then}` : ''}`, originForHost(apexDomain())),
+      new URL(clanPathOf(clan, `/api/admin/discord/bot/connect${then ? `?then=${then}` : ''}`), originForHost(apexDomain())),
     );
   }
 

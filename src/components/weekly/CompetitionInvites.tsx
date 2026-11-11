@@ -8,6 +8,7 @@ import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import type { CompetitionInviteRow } from '@/lib/competitionTeamsDb';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 function dateRange(start: string, end: string): string {
   const fmt = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -147,7 +148,7 @@ export default function CompetitionInvites({ initial }: { initial: CompetitionIn
                     </ClanLink>
                   ) : (
                     <a
-                      href={`/c/${i.hostSlug}/weekly/${i.competitionId}`}
+                      href={clanPathOf({ slug: i.hostSlug, kind: i.hostKind }, `/weekly/${i.competitionId}`)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-1 inline-block text-[12.5px] text-gold hover:text-gold-light"

@@ -20,6 +20,7 @@ import { SKILL_LABELS } from '@/lib/constants';
 import { bossIconForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // a character's clan is its in-game clan, never a space
 import { accountTypeLabel } from '@/lib/accountType';
 import { CompareForm, HeadlineTable, SectionTitle, Sprite, leadClass, MirrorRow, Scoreboard, SIDE } from './CompareParts';
 
@@ -375,7 +376,7 @@ function Side({ card, align }: { card: PlayerCard; align: 'left' | 'right' }) {
       </ClanLink>
       <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-muted ${right ? 'justify-end' : ''}`}>
         {card.clan ? (
-          <ClanLink href={`/c/${card.clan.slug}`} className="flex items-center gap-1.5 hover:text-gold">
+          <ClanLink href={clanBasePath(card.clan)} className="flex items-center gap-1.5 hover:text-gold">
             <ClanCrest name={card.clan.name} logoUrl={card.clan.logoUrl ?? null} size={16} />
             {card.clan.name}
           </ClanLink>

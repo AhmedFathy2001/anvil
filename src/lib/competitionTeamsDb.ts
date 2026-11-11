@@ -7,6 +7,7 @@
  *    visibility rule: a clan sees a competition it owns, or one it ACCEPTED an invite into — and an
  *    accepted partner only reads; every write stays with the owning clan.
  */
+import { clanBeforeSpace, parseTypedSlug, slugWhere } from '@/lib/clanSlugLookup';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, or } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -310,7 +311,11 @@ export async function inviteClanToCompetition(
   if (comp.clanId !== hostClanId) return { ok: false, error: 'Not your competition', status: 404 };
   if (competitionMode(comp.mode) !== 'clans') return { ok: false, error: 'Switch the competition to clan vs clan first', status: 400 };
   if (comp.status === 'completed') return { ok: false, error: 'This competition has ended', status: 400 };
-  const target = await db.query.clans.findFirst({ where: eq(clans.slug, slug.trim().toLowerCase()) });
+  // Typed by a person: `/s/x` or `/c/x` says which; a bare slug is the clan, else the space.
+  const typed = parseTypedSlug(slug);
+  const target = typed
+    ? await db.query.clans.findFirst({ where: slugWhere(typed.slug, typed.kind), orderBy: [clanBeforeSpace] })
+    : undefined;
   if (!target) return { ok: false, error: 'No clan with that address', status: 404 };
   if (target.id === hostClanId) return { ok: false, error: 'That is your own clan', status: 400 };
   const existing = await db.query.weeklyCompetitionClans.findFirst({
@@ -579,6 +584,8 @@ export interface CompetitionInviteRow {
   endDate: string;
   hostName: string;
   hostSlug: string;
+  /** 'clan' | 'creator' — which address the host slug is under. */
+  hostKind: string;
   /** This clan's side: 'all' members or 'selected' people. */
   entrants: string;
   /** Who this clan entered, when 'selected' (to prefill the picker). */
@@ -602,6 +609,7 @@ export async function competitionInvitesForClan(clanId: number): Promise<Competi
       compStatus: weeklyCompetitions.status,
       hostName: clans.name,
       hostSlug: clans.slug,
+      hostKind: clans.kind,
     })
     .from(weeklyCompetitionClans)
     .innerJoin(weeklyCompetitions, eq(weeklyCompetitions.id, weeklyCompetitionClans.competitionId))

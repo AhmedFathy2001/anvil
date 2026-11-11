@@ -1,10 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { slugIn } from '@/lib/clanSlugLookup';
 import { NextResponse } from 'next/server';
 
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
-import { clans } from '@/db/schema';
 import { type BriefFacts, composeBrief } from '@/lib/chatBrief';
 import { getChatFeedPrefs } from '@/lib/chatFeed';
 import { effectiveBrief, effectiveLook } from '@/lib/chatLook';
@@ -103,7 +102,12 @@ export async function GET(request: Request) {
 
   if (items.includes('clanEvents') && cfg?.activeClan?.slug) {
     // clan-scope: global -- the clan this caller's own config named.
-    const clan = await db.query.clans.findFirst({ where: eq(clans.slug, cfg.activeClan.slug), columns: { id: true } });
+    // The plugin sees a bare slug, and config reports a friends host as 'creator' though it sits in
+    // the clan namespace: so a 'creator' hint is tried first, then the other namespace.
+    const slug = cfg.activeClan.slug;
+    const find = (kind: 'clan' | 'creator') => db.query.clans.findFirst({ where: slugIn(slug, kind), columns: { id: true } });
+    const first = cfg.activeClan.kind === 'creator' ? 'creator' : 'clan';
+    const clan = (await find(first)) ?? (first === 'clan' ? null : await find('clan'));
     if (clan) {
       const list = await listClanEvents(clan.id, { userId: who.userId, now, withinDays: 1 });
       facts.clanEvents = list.map((e) => ({ title: e.title, startsInMin: Math.round((Date.parse(e.occurrence.start) - now) / 60_000) }));

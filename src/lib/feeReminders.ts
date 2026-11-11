@@ -159,7 +159,7 @@ export async function remindUnpaidFees(p: {
     return { ok: false, status: 429, error: 'This event was reminded recently.', waitMs: claim.waitMs };
   }
 
-  const url = absoluteUrl(clanCanonicalPath(p.clan.slug, `/events/${p.event.id}/signup`));
+  const url = absoluteUrl(clanCanonicalPath(p.clan, `/events/${p.event.id}/signup`));
   let sent = 0;
   let failed = 0;
   // One at a time: Discord rate-limits DM channel creation, and a clan's unpaid list is short.

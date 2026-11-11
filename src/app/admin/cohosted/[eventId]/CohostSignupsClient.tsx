@@ -1,5 +1,6 @@
 'use client';
 
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { useCallback, useEffect, useState } from 'react';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
@@ -26,9 +27,9 @@ const STATUS: Record<string, string> = {
  * The routes are the host's (the event and its sign-ups live there), so they're called at the host's
  * address. They answer a co-host's staff with only the sign-ups held through this clan's seats.
  */
-export default function CohostSignupsClient({ eventId, hostSlug }: { eventId: number; hostSlug: string }) {
+export default function CohostSignupsClient({ eventId, hostSlug, hostKind }: { eventId: number; hostSlug: string; hostKind?: string | null }) {
   const { confirm } = useDialog();
-  const base = `/c/${hostSlug}/api/admin/events/${eventId}/signups`;
+  const base = clanPathOf({ slug: hostSlug, kind: hostKind }, `/api/admin/events/${eventId}/signups`);
   const [rows, setRows] = useState<SignupRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);

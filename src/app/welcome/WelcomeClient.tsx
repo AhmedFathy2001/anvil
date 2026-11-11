@@ -7,6 +7,7 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import ConnectCard from '@/app/profile/ConnectCard';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
+import { clanPathOf } from '@/lib/clanScopedPaths'; // page.tsx passes clans only, never spaces
 import type { OnboardingIntent, OnboardingState, StepKey } from '@/lib/onboarding';
 
 interface Props {
@@ -133,8 +134,8 @@ export default function WelcomeClient({
       return;
     }
     const clan = clans[0];
-    if (state.intent === 'owner' && clan) router.push(`/c/${clan.slug}/admin/setup`);
-    else if (state.intent === 'member' && clan) router.push(`/c/${clan.slug}`);
+    if (state.intent === 'owner' && clan) router.push(clanPathOf({ slug: clan.slug }, '/admin/setup'));
+    else if (state.intent === 'member' && clan) router.push(clanPathOf({ slug: clan.slug }));
     else router.push('/profile'); // clan-prefix: platform -- apex-only flow, apex person page
   }
 

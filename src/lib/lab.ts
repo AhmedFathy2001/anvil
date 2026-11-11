@@ -36,6 +36,7 @@
 //    Routes that credit every board a character is on (a clog unlock, a tile submission per board)
 //    reach the lab board the ordinary way, with nothing extra.
 
+import { slugIn } from '@/lib/clanSlugLookup';
 import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -89,7 +90,7 @@ let labClanIdMemo: number | null = null;
 export async function labClanId(): Promise<number | null> {
   if (labClanIdMemo != null) return labClanIdMemo;
   // clan-scope: global -- resolving the lab clan itself, by its reserved slug.
-  const [row] = await db.select({ id: clans.id }).from(clans).where(eq(clans.slug, LAB_CLAN_SLUG)).limit(1);
+  const [row] = await db.select({ id: clans.id }).from(clans).where(slugIn(LAB_CLAN_SLUG, 'clan')).limit(1);
   if (row) labClanIdMemo = row.id;
   return row?.id ?? null;
 }
@@ -164,7 +165,7 @@ export async function isLabClan(clanId: number | null | undefined): Promise<bool
  * on the account rather than a clan (yearly Wrapped), which would otherwise count lab boards.
  */
 export function notLabClan(clanIdColumn: SQLWrapper): SQL {
-  return sql`${clanIdColumn} is distinct from (select "id" from "clans" where "slug" = ${LAB_CLAN_SLUG})`;
+  return sql`${clanIdColumn} is distinct from (select "id" from "clans" where "slug" = ${LAB_CLAN_SLUG} and "kind" <> 'creator')`;
 }
 
 /** The live-event condition, as SQL. Mirrors lib/pluginEventPick. */

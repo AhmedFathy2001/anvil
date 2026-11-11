@@ -24,9 +24,9 @@ const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
  * itself keeps behind sign-in. A clan that keeps to itself, or an RSN that isn't on its roster, gets
  * the plain Anvil card rather than a 404 that would answer "is this person in that clan?".
  */
-async function load(_request: Request, { params }: { params: Promise<{ slug: string; rsn: string }> }): Promise<Response> {
+async function load(request: Request, { params }: { params: Promise<{ slug: string; rsn: string }> }): Promise<Response> {
   const { slug, rsn } = await params;
-  const clan = await resolveClanBySlug(slug);
+  const clan = await resolveClanBySlug(slug, new URL(request.url).searchParams.get('k') === 's' ? 'creator' : 'clan'); // `?k=s`: a creator space
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
 
   const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
@@ -86,5 +86,5 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
 
 export function GET(request: Request, ctx: { params: Promise<{ slug: string; rsn: string }> }) {
   // Keyed by path alone: the card never depends on who is asking.
-  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+  return cachedCard(`${new URL(request.url).pathname}${new URL(request.url).searchParams.get('k') === 's' ? '?k=s' : ''}`, () => load(request, ctx));
 }

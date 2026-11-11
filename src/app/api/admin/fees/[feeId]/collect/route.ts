@@ -48,7 +48,7 @@ export async function POST(
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
   // Our upload, under this clan's prefix — reset deletes the proof, so it must be this clan's file.
   const clan = await currentClan();
-  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan.slug))) {
+  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan))) {
     return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
   }
 

@@ -56,7 +56,7 @@ export async function wrappedMetadata(
   return socialMetadata({
     title: meta.title,
     description: meta.description,
-    canonical: canonicalPathFor({ prefix, pathname: meta.path, clanSlug: clan.slug }),
+    canonical: canonicalPathFor({ prefix, pathname: meta.path, clanSlug: clan.slug, clanKind: clan.kind }),
     image: meta.image,
   });
 }

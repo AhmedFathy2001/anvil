@@ -1,6 +1,7 @@
 
 import ClanLink from '@/components/ClanLink';
 import type { ClanFocus } from '@/lib/clanHome';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 export interface DirectoryClan {
   /** clans.id, for joining per-clan extras (boost levels) without another lookup by slug. */
@@ -62,8 +63,8 @@ export default function ApexDirectory({ clans }: { clans: DirectoryClan[] }) {
             you do. */}
         {clans.map((c) => (
           <ClanLink
-            key={c.slug}
-            href={`/c/${c.slug}`}
+            key={`${c.kind}:${c.slug}`}
+            href={clanBasePath(c)}
             className="block border border-card-border rounded-xl bg-card-bg p-5 hover:border-gold/40 transition-colors"
           >
             {/* The hostname used to sit here in monospace, which told the reader these were three

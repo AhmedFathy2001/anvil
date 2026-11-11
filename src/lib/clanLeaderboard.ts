@@ -24,6 +24,7 @@ import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, memberDailyStats, settings } from '@/db/schema';
 import { isClanListed, listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
+import { slugIn } from '@/lib/clanSlugLookup';
 import { apexDomain } from '@/lib/clanContext';
 
 export type LeaderboardWindow = '7d' | '30d' | 'all';
@@ -246,7 +247,8 @@ export async function topPlayers(
       and(
         eq(accounts.shared, true),
         since ? gte(memberDailyStats.day, since) : sql`true`,
-        clanSlug ? eq(clans.slug, clanSlug) : sql`true`,
+        // Only a clan has members to rank; a same-slug space must not pull its namesake's rows in.
+        clanSlug ? slugIn(clanSlug, 'clan') : sql`true`,
         modeWhere(mode),
       ),
     )

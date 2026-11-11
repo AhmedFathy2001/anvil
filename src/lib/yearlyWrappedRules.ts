@@ -8,6 +8,7 @@ export interface YearEvent {
   eventId: number;
   name: string;
   clanSlug: string;
+  clanKind?: string | null;
   /** Their card in that event's Wrapped. */
   cardKey: number | null;
   team: { name: string; rank: number; of: number } | null;

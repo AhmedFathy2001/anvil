@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = (await request.json().catch(() => ({}))) as { proofUrl?: unknown; force?: unknown; note?: unknown };
   const proofUrl = typeof body.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
   // Our upload, under this clan's prefix — a reset deletes the proof, so it must be this clan's file.
-  if (proofUrl && !isClanMediaUrl(proofUrl, clan.slug)) return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
+  if (proofUrl && !isClanMediaUrl(proofUrl, clan)) return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
   const r = await moveFee(clan.id, Number(id), Number(signupId), action as FeeAction, allowed.userId, {
     proofUrl,
     force: body.force === true,

@@ -80,6 +80,7 @@ export default function ClanShapes({ rows, heat = {} }: { rows: ClanStanding[]; 
           {board.map((l) => (
             <ClanLink
               key={l.label}
+              // Always a clan: the standings only count verified in-game clans, which a space never is.
               href={`/c/${l.clan!.slug}`}
               className="group bg-card-bg p-3.5 transition-colors hover:bg-card-bg-hover"
             >
@@ -114,6 +115,7 @@ export default function ClanShapes({ rows, heat = {} }: { rows: ClanStanding[]; 
           return (
             <ClanLink
               key={c.clanId}
+              // Always a clan (see above), so /c/ is the right namespace.
               href={`/c/${c.slug}`}
               className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-4 border-b border-card-border-soft px-4 py-3 last:border-b-0 transition-colors hover:bg-card-bg-hover lg:grid-cols-[2rem_minmax(0,1fr)_9rem_9rem_9rem_8rem]"
             >

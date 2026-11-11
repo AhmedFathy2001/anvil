@@ -14,6 +14,7 @@ import type { Metadata } from 'next';
 
 import { apexDomain, isApexHost, originForHost, slugFromHost } from '@/lib/apexHost';
 import { scaledSpritePath } from '@/lib/assetUrls';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 export const SITE_NAME = 'Anvil';
 
@@ -62,10 +63,13 @@ export function discordAssetUrl(url: string | null | undefined): string | null {
   return absoluteAssetUrl(scaledSpritePath(url));
 }
 
-/** A clan's canonical PATH. `/c/theafkspot/events/5`. The address every link should carry. */
-export function clanCanonicalPath(slug: string, inner = '/'): string {
+/**
+ * A tenant's canonical PATH: `/c/theafkspot/events/5` for a clan, `/s/drenvox/events/5` for a creator
+ * space. The address every link should carry. A bare slug string means a clan.
+ */
+export function clanCanonicalPath(clan: string | { slug: string; kind?: string | null }, inner = '/'): string {
   const rest = !inner || inner === '/' ? '' : inner.startsWith('/') ? inner : `/${inner}`;
-  return `/c/${slug}${rest}`;
+  return clanPathOf(typeof clan === 'string' ? { slug: clan } : clan, rest);
 }
 
 /**
@@ -84,10 +88,11 @@ export function canonicalPathFor(opts: {
   prefix: string;
   pathname: string;
   clanSlug?: string | null;
+  clanKind?: string | null;
 }): string {
   const inner = opts.pathname || '/';
   if (opts.prefix) return `${opts.prefix}${inner === '/' ? '' : inner}`;
-  if (opts.clanSlug) return clanCanonicalPath(opts.clanSlug, inner);
+  if (opts.clanSlug) return clanCanonicalPath({ slug: opts.clanSlug, kind: opts.clanKind }, inner);
   return inner;
 }
 

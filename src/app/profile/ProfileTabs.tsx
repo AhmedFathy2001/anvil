@@ -1,4 +1,5 @@
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import type { MyClan } from '@/lib/myClans';
 import CreatorChip from '@/components/CreatorChip';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -21,10 +22,11 @@ export function profileClans(clans: MyClan[]): MyClan[] {
 
 /**
  * One profile, a tab per clan. The locker is assembled per clan (boards, teams, this week), so each
- * tab is that clan's /c/<slug>/profile; "Everywhere" is the apex view of the person. Opening the
+ * tab is that clan's /c/<slug>/profile (/s/ for a space); "Everywhere" is the apex view of the person. Opening the
  * profile from inside a clan lands on that clan's tab, and opening it on the apex lands on the home
  * clan (app/profile/page.tsx) — so it is always one page, whichever door you came in by.
  */
+/** `current`: the open tenant's base path (`/c/x` or `/s/x`) — a clan and a space may share a slug. */
 export default function ProfileTabs({ clans, current }: { clans: MyClan[]; current: string | null }) {
   const tabs = profileClans(clans);
   if (tabs.length === 0) return null;
@@ -35,7 +37,7 @@ export default function ProfileTabs({ clans, current }: { clans: MyClan[]; curre
   return (
     <nav aria-label="Your clans and spaces" className="mb-5 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-card-border">
       {tabs.map((c) => (
-        <ClanLink key={c.id} href={`/c/${c.slug}/profile`} className={tab(current === c.slug)} aria-current={current === c.slug ? 'page' : undefined}>
+        <ClanLink key={c.id} href={clanPathOf({ slug: c.slug, kind: c.clanKind }, '/profile')} className={tab(current === clanBasePath({ slug: c.slug, kind: c.clanKind }))} aria-current={current === clanBasePath({ slug: c.slug, kind: c.clanKind }) ? 'page' : undefined}>
           {c.name}
           {isCreatorSpace({ kind: c.clanKind }) ? (
             <CreatorChip />

@@ -1,4 +1,5 @@
 import { cohostsForEvent } from '@/lib/coHost';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { sendCohostWebhook } from '@/lib/discord';
 import { ANVIL_SITE_URL, EMBED_COLOR, clamp, LIMIT } from '@/lib/discordEmbeds';
 
@@ -20,8 +21,8 @@ export async function requestCohostDiscordSetup(
   const cohosts = (await cohostsForEvent(eventId)).filter((cohost) => cohost.status === 'accepted');
   return Promise.all(
     cohosts.map(async (cohost) => {
-      const eventSetupUrl = `${ANVIL_SITE_URL}/c/${cohost.clanSlug}/admin/events/${eventId}/teams?step=3`;
-      const integrationUrl = `${ANVIL_SITE_URL}/c/${cohost.clanSlug}/admin/integrations`;
+      const eventSetupUrl = `${ANVIL_SITE_URL}${clanPathOf({ slug: cohost.clanSlug, kind: cohost.clanKind }, `/admin/events/${eventId}/teams?step=3`)}`;
+      const integrationUrl = `${ANVIL_SITE_URL}${clanPathOf({ slug: cohost.clanSlug, kind: cohost.clanKind }, '/admin/integrations')}`;
       const status = await sendCohostWebhook(cohost.clanId, {
         embeds: [
           {

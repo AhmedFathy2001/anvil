@@ -77,7 +77,7 @@ export async function sendOnboardingNudges(
     const t = nudgeText({
       clanName: lead.name,
       reason,
-      setupUrl: absoluteUrl(clanCanonicalPath(lead.slug, '/admin/setup')),
+      setupUrl: absoluteUrl(clanCanonicalPath(lead, '/admin/setup')),
       guideUrl: absoluteUrl('/guide/plugin'),
     });
 

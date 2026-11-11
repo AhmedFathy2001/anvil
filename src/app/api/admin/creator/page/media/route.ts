@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const processed = await processProfileMedia(Buffer.from(await file.arrayBuffer()), lim, SPACE_MEDIA_ANIMATED[kind]);
   if (!processed.ok) return NextResponse.json({ error: processed.error }, { status: 400 });
 
-  const key = clanMediaKey(g.clan.slug, `space/${crypto.randomUUID()}.webp`);
+  const key = clanMediaKey(g.clan, `space/${crypto.randomUUID()}.webp`);
   const { url } = await put(key, processed.animated ?? processed.still, 'image/webp');
 
   if (kind === 'panel') return NextResponse.json({ url });

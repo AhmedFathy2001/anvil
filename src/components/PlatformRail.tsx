@@ -11,6 +11,7 @@ import { groupClansAndSpaces } from '@/lib/creatorSpaces';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 export interface RailClan {
   slug: string;
@@ -170,8 +171,8 @@ export default function PlatformRail({
           <div className="flex max-h-[40vh] flex-col gap-0.5 overflow-y-auto lg:max-h-[min(34vh,320px)]">
             {g.items.map((c) => (
               <ClanLink
-                key={c.slug}
-                href={`/c/${c.slug}`}
+                key={`${c.kind}:${c.slug}`}
+                href={clanBasePath(c)}
                 className="flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13.5px] text-text-muted transition-colors hover:bg-brown-light hover:text-foreground"
               >
                 <ClanCrest name={c.name} logoUrl={c.logoUrl} size={18} />

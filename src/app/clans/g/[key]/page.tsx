@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -28,7 +29,7 @@ export default async function GhostClanPage({ params }: { params: Promise<{ key:
 
   const page = await ghostClanPage(decodeURIComponent((await params).key));
   if (!page) notFound();
-  if (page.kind === 'anvil') redirect(`/c/${page.slug}`);
+  if (page.kind === 'anvil') redirect(clanBasePath({ slug: page.slug })) // a ghost page names an in-game clan;
 
   return (
     <div className="mx-auto w-full max-w-3xl">

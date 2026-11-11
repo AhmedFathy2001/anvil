@@ -4,7 +4,7 @@
 // same slug (clans_namespace_slug_unique, drizzle/0259). So `eq(clans.slug, x)` alone can match two
 // rows; every lookup says which namespace it means, or asks for both and decides.
 
-import { and, eq, ne, type SQL } from 'drizzle-orm';
+import { and, eq, ne, sql, type SQL } from 'drizzle-orm';
 import { clans } from '@/db/schema';
 import type { AddressKind } from '@/lib/clanScopedPaths';
 
@@ -43,3 +43,14 @@ export function parseTypedSlug(raw: string | null | undefined): { slug: string; 
   const bare = /^\/?([a-z0-9-]{2,32})$/.exec(s);
   return bare ? { slug: bare[1], kind: null } : null;
 }
+
+/**
+ * `slug = x`, in the namespace the caller knows or — when a person typed a bare slug — in both,
+ * paired with {@link clanBeforeSpace} so the clan wins when two rows share it.
+ */
+export function slugWhere(slug: string, kind: AddressKind | null): SQL {
+  return kind ? slugIn(slug, kind) : eq(clans.slug, slug);
+}
+
+/** ORDER BY that puts a clan ahead of a same-slug space: a bare slug has always meant a clan. */
+export const clanBeforeSpace = sql`(${clans.kind} = 'creator')`;

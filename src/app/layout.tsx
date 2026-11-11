@@ -107,7 +107,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // already the rewritten path, so `/c/x/events/5` and `x.anvilosrs.com/events/5` both arrive here
   // as `/events/5`. That is what lets one canonical rule serve both addressing schemes.
   const pathname = h.get('x-anvil-pathname') || '/';
-  const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug });
+  const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug, clanKind: clan?.kind });
 
   // WHAT MAY BE INDEXED. Two separate refusals, and they fail in the same safe direction:
   // a gated or personal path is never indexed anywhere, and a clan that is not `public` is not
@@ -130,7 +130,7 @@ export async function generateMetadata(): Promise<Metadata> {
       canonical,
       // The card a link becomes when it is pasted into Discord, which is where nearly every link to
       // this site is pasted. Until this existed, a clan's board arrived as a bare grey URL.
-      image: clan ? `/api/og/clan/${clan.slug}` : '/api/og/site',
+      image: clan ? `/api/og/clan/${clan.slug}${clan.kind === 'creator' ? '?k=s' : ''}` : '/api/og/site',
       noIndex: !indexable,
     }),
   };
@@ -370,7 +370,7 @@ export default async function RootLayout({
             {/* The wordmark goes to the clan you are in, not the apex. Pointing it at '/' made the
                 one control every site puts you "home" with the one that ejected you from the clan. */}
             {/* The same lockup the rail wears: the real icon, and the wordmark in the display face. */}
-            <ClanLink href={clan ? `/c/${clan.slug}` : '/'} className="group flex items-center gap-2.5">
+            <ClanLink href={clan ? clanPathOf(clan) : '/'} className="group flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icon-48.png" alt="" width={26} height={26} className="shrink-0 rounded-md" />
               <span className="display text-[18px] font-semibold text-gold transition-colors group-hover:text-gold-light">

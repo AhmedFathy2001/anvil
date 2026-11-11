@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import FriendsInviteLink from '@/components/FriendsInviteLink';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
@@ -131,15 +132,15 @@ function FriendsEventRow({ e, hostSlug }: { e: FriendsEventSummary; hostSlug: st
         <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {!over && e.inviteToken && <FriendsInviteLink eventId={e.id} token={e.inviteToken} apiBase={`/c/${hostSlug}`} compact />}
+        {!over && e.inviteToken && <FriendsInviteLink eventId={e.id} token={e.inviteToken} apiBase={clanBasePath({ slug: hostSlug, kind: 'friends' })} compact />}
         <ClanLink
-          href={`/c/${hostSlug}/admin/events/${e.id}`}
+          href={clanPathOf({ slug: hostSlug, kind: 'friends' }, `/admin/events/${e.id}`)}
           className="rounded-lg border border-card-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-gold"
         >
           Manage
         </ClanLink>
         <ClanLink
-          href={`/c/${hostSlug}/events/${e.id}`}
+          href={clanPathOf({ slug: hostSlug, kind: 'friends' }, `/events/${e.id}`)}
           className="rounded-lg border border-card-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-gold"
         >
           Board

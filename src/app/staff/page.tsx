@@ -2,6 +2,7 @@
 import { platformTotals, multiClanPeople, nameCollisions, allClans } from '@/lib/platformView';
 import { billingStatus, liveness, QUIET_SYNC_DAYS, TRIAL_WARN_DAYS } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // in-game name disputes are always clans
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
@@ -158,7 +159,7 @@ export default async function StaffOverview() {
                 <ul className="mt-2.5 flex flex-col gap-1.5">
                   {c.clans.map((cl) => (
                     <li key={cl.id} className="flex flex-wrap items-baseline gap-x-2.5 text-sm">
-                      <ClanLink href={`/c/${cl.slug}`} className="text-gold hover:underline">
+                      <ClanLink href={clanBasePath({ slug: cl.slug })} className="text-gold hover:underline">
                         {cl.name}
                       </ClanLink>
                       {cl.verified ? (

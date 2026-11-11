@@ -24,6 +24,7 @@ import { apexDomain } from '@/lib/apexHost';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { log } from '@/lib/logger';
 import { sendOpsWebhook, type OpsEmbed } from '@/lib/opsWebhook';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 /** Whoever the notification is about, as much of them as we happen to know. */
 export interface OpsPerson {
@@ -80,12 +81,12 @@ export function notifyClanCreated(input: {
   fire(
     {
       title: `${input.creator ? 'New creator space' : 'New clan'}: ${input.name}`,
-      description: `[Operator page](${apexUrl(`/staff/clans/${input.clanId}`)}) · [Their site](${apexUrl(`/c/${input.slug}`)})`,
+      description: `[Operator page](${apexUrl(`/staff/clans/${input.clanId}`)}) · [Their site](${apexUrl(clanBasePath({ slug: input.slug, kind: input.creator ? 'creator' : 'clan' }))})`,
       color: EMBED_COLOR.green,
       fields: [
         { name: 'Owner', value: describePerson(input.owner), inline: false },
         { name: 'In game', value: input.inGameName ? `\`${input.inGameName}\`` : '_not given_', inline: true },
-        { name: 'Address', value: `\`/c/${input.slug}\``, inline: true },
+        { name: 'Address', value: `\`${clanBasePath({ slug: input.slug, kind: input.creator ? 'creator' : 'clan' })}\``, inline: true },
       ],
       footer: { text: input.creator ? 'Creator space — no in-game clan to verify' : 'Unverified until somebody pushes a roster from in game' },
     },

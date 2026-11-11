@@ -16,6 +16,8 @@
 // Everything here is therefore opt-in, and mostly empty until people opt in. That is the correct
 // resting state for cross-clan visibility, not a defect.
 
+import { clanBeforeSpace, slugWhere } from '@/lib/clanSlugLookup';
+import type { AddressKind } from '@/lib/clanScopedPaths';
 import { and, count, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -47,10 +49,10 @@ export interface ApexClan {
  * the existing opt-out and is reused deliberately — inventing a second flag for "may the apex show
  * this" would leave two switches that must agree, and they would eventually not.
  */
-export async function apexClan(slug: string): Promise<ApexClan | null> {
+export async function apexClan(slug: string, kind: AddressKind | null = null): Promise<ApexClan | null> {
   // clan-scope: global -- resolving a clan BY slug is what this page is; there is no other clan to
-  // scope it to.
-  const clan = await db.query.clans.findFirst({ where: eq(clans.slug, slug.toLowerCase()) });
+  // scope it to. `kind` is the namespace the address named (/c/ vs /s/); without one the clan wins.
+  const clan = await db.query.clans.findFirst({ where: slugWhere(slug.toLowerCase(), kind), orderBy: [clanBeforeSpace] });
   if (!clan || clan.status === 'suspended') return null;
   // NOT READABLE BY STRANGERS ⇒ NOT NAMED TO THEM. This asked only about the showcase opt-out, so a
   // clan set to `members` was still described here — name, member count, what it was running — on a
@@ -115,7 +117,7 @@ export interface ApexCharacter {
   overallXp: number | null;
   lastSeenAt: string | null;
   /** The clan this character is a MEMBER of — at most one, and only if that clan is listed. */
-  clan: { slug: string; name: string; logoUrl: string | null; joinedOn: string | null } | null;
+  clan: { slug: string; kind?: string | null; name: string; logoUrl: string | null; joinedOn: string | null } | null;
   /**
    * The person, ONLY if they have agreed to be shown as one — and named by another of their shared
    * RSNs, never by anything from Discord.
@@ -175,7 +177,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
   // page whose entire audience is people with no seat in it. The shared predicate is the same one
   // the directory and the leaderboard use; see lib/clanListing.
   const seat = await db
-    .select({ slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, clanId: clans.id, joinedOn: clanMemberships.ingameJoinedOn })
+    .select({ slug: clans.slug, kind: clans.kind, name: clans.name, logoUrl: clans.logoUrl, clanId: clans.id, joinedOn: clanMemberships.ingameJoinedOn })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     .leftJoin(settings, showcaseJoinOn())
@@ -228,7 +230,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     verified: acct.verifiedAt != null,
     overallXp: acct.statsOverallXp,
     lastSeenAt: acct.liveStatsAt,
-    clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, name: seat.name, logoUrl: seat.logoUrl ?? null, joinedOn: seat.joinedOn ?? null } : null,
+    clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, kind: seat.kind, name: seat.name, logoUrl: seat.logoUrl ?? null, joinedOn: seat.joinedOn ?? null } : null,
     owner: ownerOut,
     privateToViewer: !acct.shared && ownedByViewer,
     viewerOwns: ownedByViewer,

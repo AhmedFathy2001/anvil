@@ -12,6 +12,7 @@ import { BoostedBadge, BoostedClanName } from '@/components/ClanBoost';
 import { SupporterStar } from '@/components/SupporterName';
 import type { TenureStepId } from '@/lib/supporterTiers';
 import { boostPerks, byBoostLevel } from '@/lib/clanBoostRules';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 export interface LookupClan {
   slug: string;
@@ -382,7 +383,7 @@ function Card({ clan }: { clan: LookupClan }) {
 
   return (
     <ClanLink
-      href={`/c/${clan.slug}`}
+      href={clanBasePath(clan)}
       className="group flex flex-col overflow-hidden rounded-xl border border-card-border bg-card-bg shadow-[0_1px_0_rgba(255,255,255,0.02)_inset] transition-all hover:-translate-y-0.5 hover:border-gold/40 hover:shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)]"
     >
       <div className="relative h-24 shrink-0 overflow-hidden">

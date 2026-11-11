@@ -227,7 +227,7 @@ export interface CharacterReportView {
   createdAt: string;
   resolvedAt: string | null;
   account: { id: number; rsn: string; playerId: number; ownerName: string | null; claimed: boolean; verificationMethod: string | null; provisional: boolean };
-  clan: { id: number; name: string; slug: string } | null;
+  clan: { id: number; name: string; slug: string; kind?: string | null } | null;
   reporter: string | null;
   claimant: { id: number; name: string } | null;
 }
@@ -246,6 +246,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
       ownerName: players.displayName,
       clanName: clans.name,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
       reporter: users.displayName,
     })
     .from(characterReports)
@@ -281,7 +282,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
       verificationMethod: x.verificationMethod,
       provisional: x.provisional === 1,
     },
-    clan: x.clanSlug && x.r.clanId != null ? { id: x.r.clanId, name: x.clanName ?? x.clanSlug, slug: x.clanSlug } : null,
+    clan: x.clanSlug && x.r.clanId != null ? { id: x.r.clanId, name: x.clanName ?? x.clanSlug, slug: x.clanSlug, kind: x.clanKind } : null,
     reporter: x.reporter,
     claimant: x.r.claimantPlayerId != null ? { id: x.r.claimantPlayerId, name: claimantName.get(x.r.claimantPlayerId) ?? `#${x.r.claimantPlayerId}` } : null,
   }));

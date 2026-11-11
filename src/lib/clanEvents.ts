@@ -15,6 +15,7 @@ import { type DiscordEmbed, EMBED_COLOR, LIMIT, clamp, field } from '@/lib/disco
 import { log } from '@/lib/logger';
 import { isValidTimeZone } from '@/lib/zonedTime';
 import { cleanEventImageUrl, discordIconUrl } from '@/lib/eventImage';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 // Clan events: what a clan hosts that nothing tracks — a weekly boss mass, a skilling hangout. Staff
 // schedule one (one-off or weekly, in their own zone); it's announced in Discord and edited in place,
@@ -368,8 +369,8 @@ export async function setClanEventModules(clanId: number, id: number, raw: unkno
 
 async function eventLink(clanId: number, id: number): Promise<string | null> {
   const base = siteBaseUrl();
-  const clan = await db.query.clans.findFirst({ columns: { slug: true }, where: eq(clans.id, clanId) });
-  return base && clan?.slug ? `${base}/c/${clan.slug}/clan-events/${id}` : null;
+  const clan = await db.query.clans.findFirst({ columns: { slug: true, kind: true }, where: eq(clans.id, clanId) });
+  return base && clan?.slug ? `${base}${clanPathOf(clan, `/clan-events/${id}`)}` : null;
 }
 
 const when = (iso: string, style: 'F' | 'R') => `<t:${Math.floor(Date.parse(iso) / 1000)}:${style}>`;

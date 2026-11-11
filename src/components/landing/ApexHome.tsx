@@ -5,6 +5,7 @@ import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
 import type { FoundSeat } from '@/lib/foundYou';
 import DiscoverToggle from '@/components/home/DiscoverToggle';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import {
   ArenaHero,
   CareerWell,
@@ -175,7 +176,7 @@ export default function ApexHome({
                   c.live.map((l) => (
                     <ClanLink
                       key={`${c.id}-${l.kind}-${l.id}`}
-                      href={l.kind === 'weekly' ? `/c/${c.slug}/weekly/${l.id}` : `/c/${c.slug}/events/${l.id}`}
+                      href={clanPathOf({ slug: c.slug, kind: c.clanKind }, l.kind === 'weekly' ? `/weekly/${l.id}` : `/events/${l.id}`)}
                       className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
                     >
                       <span className="h-2 w-2 shrink-0 rounded-full bg-accent-green-light shadow-[0_0_0_3px_rgba(52,208,88,0.14)]" />
@@ -203,7 +204,7 @@ export default function ApexHome({
                 {view.openSignups.map((s) => (
                   <ClanLink
                     key={s.eventId}
-                    href={`/c/${s.clanSlug}/events/${s.eventId}`}
+                    href={clanPathOf({ slug: s.clanSlug, kind: s.clanKind }, `/events/${s.eventId}`)}
                     className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
                   >
                     <ClanCrest name={s.clanName} logoUrl={s.clanLogoUrl} size={26} />
@@ -234,7 +235,7 @@ export default function ApexHome({
                 {view.discover.map((d) => (
                   <ClanLink
                     key={d.eventId}
-                    href={`/c/${d.clanSlug}/events/${d.eventId}`}
+                    href={clanPathOf({ slug: d.clanSlug, kind: d.clanKind }, `/events/${d.eventId}`)}
                     className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
                   >
                     <ClanCrest slug={d.clanSlug} name={d.clanName} logoUrl={d.iconUrl} size={26} />
@@ -261,7 +262,7 @@ export default function ApexHome({
                 {needsYou.map((c) => (
                   <ClanLink
                     key={c.id}
-                    href={`/c/${c.slug}/admin/dashboard`}
+                    href={clanPathOf({ slug: c.slug, kind: c.clanKind }, '/admin/dashboard')}
                     className="flex items-center gap-3.5 rounded-xl border border-gold-dark bg-gold/[0.06] px-4 py-3.5 transition-colors hover:bg-gold/[0.1] sm:px-5"
                   >
                     <ClanCrest name={c.name} logoUrl={c.logoUrl} size={26} />
