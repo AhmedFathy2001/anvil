@@ -15,6 +15,7 @@ import https from 'node:https';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('proofafter');
 // Next's request storage wants the runtime's AsyncLocalStorage on globalThis (the server sets it).
@@ -68,7 +69,7 @@ async function inRequest<T>(req: Request, fn: () => Promise<T>): Promise<T> {
   return workAsyncStorage.run({ route: '/test' } as never, () => workUnitAsyncStorage.run(store as never, fn));
 }
 
-const headers = (tok = 'tok-pa', rsn = 'Proofer') => ({ Authorization: `Bearer ${tok}`, 'X-RSN': rsn, 'X-Account-Hash': `hash-${rsn}`, 'x-anvil-clan-slug': 'alpha' });
+const headers = (tok = 'tok-pa', rsn = 'Proofer') => ({ Authorization: `Bearer ${tok}`, 'X-RSN': rsn, 'X-Account-Hash': `hash-${rsn}`, ...clanHeaders('alpha') });
 
 async function credit(item: number, extra: Record<string, unknown> = { proofPending: true }, facts?: unknown[]) {
   const { POST } = await import('../src/app/api/plugin/facts/route.ts');

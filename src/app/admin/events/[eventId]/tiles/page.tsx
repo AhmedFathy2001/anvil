@@ -18,6 +18,7 @@ import { CAN_WRITE } from '@/lib/platformAccess';
 import { getCofferBalance } from '@/lib/coffer';
 import { withSearchText } from '@/lib/tileSearchText';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function EventTilesPage({
 }) {
   const clan = await requireClan();
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
 
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);

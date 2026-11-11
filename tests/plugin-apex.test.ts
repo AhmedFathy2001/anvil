@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-apex');
 const TOKEN = 'apex-test-token';
@@ -111,7 +112,7 @@ test('a /c/<slug> path names the clan, even against a live event elsewhere', asy
   await liveEventFor(bravo, seatBravo, 'Bravo Bingo', 1);
 
   const clan = await A.resolvePluginClan(
-    apexRequest({ 'x-anvil-clan-slug': 'alpha' }),
+    apexRequest({ ...clanHeaders('alpha') }),
   );
   assert.equal(clan?.id, alpha, 'the typed address wins over the token heuristic');
 });

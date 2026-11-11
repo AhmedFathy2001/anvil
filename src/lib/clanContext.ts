@@ -5,7 +5,8 @@ import { and, eq, ne, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, retiredClanSlugs } from '@/db/schema';
 import { apexDomain, normalizeHost, slugFromHost } from '@/lib/apexHost';
-import type { AddressKind } from '@/lib/clanScopedPaths';
+import { clanBasePath, type AddressKind } from '@/lib/clanScopedPaths';
+import { provenClan } from '@/lib/requestHeaderProof';
 
 // Which clan is this request for?
 //
@@ -197,7 +198,10 @@ export function addressKindOf(raw: string | null | undefined): AddressKind {
  */
 export const currentClan = cache(async (): Promise<ClanContext | null> => {
   const h = await headers();
-  const fromPath = await resolveClanBySlug(h.get('x-anvil-clan-slug'), addressKindOf(h.get('x-anvil-clan-kind')));
+  // Only a slug middleware signed (lib/requestHeaderProof): on a path its matcher skips, the header
+  // is whatever the caller wrote. The kind is under the same proof.
+  const proven = await provenClan(h);
+  const fromPath = proven ? await resolveClanBySlug(proven.slug, proven.kind) : null;
   if (fromPath) return fromPath;
   return resolveClanByHost(h.get('host'));
 });
@@ -210,8 +214,9 @@ export const currentClan = cache(async (): Promise<ClanContext | null> => {
  * prefixing its links would send people somewhere they aren't.
  */
 export const clanPrefix = cache(async (): Promise<string> => {
-  const h = await headers();
-  return h.get('x-anvil-clan-prefix') ?? '';
+  // Derived from the proven slug and kind, never read from the prefix header: only those are signed.
+  const proven = await provenClan(await headers());
+  return proven ? clanBasePath(proven) : '';
 });
 
 /**
@@ -241,10 +246,8 @@ export async function resolveClanFromRequest(request: Request): Promise<ClanCont
   // Same order as currentClan: the prefixed path is the canonical address, the Host is the
   // fallback that keeps every installed plugin working. A route handler reached at
   // `/c/<slug>/api/...` sees the slug here because middleware put it on the request.
-  const fromPath = await resolveClanBySlug(
-    request.headers.get('x-anvil-clan-slug'),
-    addressKindOf(request.headers.get('x-anvil-clan-kind')),
-  );
+  const proven = await provenClan(request.headers);
+  const fromPath = proven ? await resolveClanBySlug(proven.slug, proven.kind) : null;
   if (fromPath) return fromPath;
   return resolveClanByHost(request.headers.get('host'));
 }

@@ -16,6 +16,8 @@ import { getEventRecap } from '@/lib/eventRecap';
 import { getStageCounts } from '@/lib/eventStageCounts';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { withSearchText } from '@/lib/tileSearchText';
+import { idParam } from '@/lib/routeIds';
+import { requireAdminPath } from '@/lib/adminGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +28,8 @@ export default async function EventOverviewPage({
 }) {
   const clan = await requireClan();
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
+  await requireAdminPath(`/admin/events/${id}`);
 
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);

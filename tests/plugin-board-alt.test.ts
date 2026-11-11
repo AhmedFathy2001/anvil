@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-board-alt');
 
@@ -56,7 +57,7 @@ after(async () => {
 test('playing an alt shows the main’s board read-only instead of failing', async () => {
   const { GET } = await import('../src/app/api/plugin/board/route.ts');
   const res = await GET(new Request('https://example.test/api/plugin/board', {
-    headers: { Authorization: 'Bearer board-alt-token', 'X-RSN': 'Alt RSN', 'x-anvil-clan-slug': 'alt' },
+    headers: { Authorization: 'Bearer board-alt-token', 'X-RSN': 'Alt RSN', ...clanHeaders('alt') },
   }));
   assert.equal(res.status, 200);
   const board = (await res.json()) as { eventId: number; readOnly: boolean; tiles: unknown[] };
@@ -67,6 +68,6 @@ test('playing an alt shows the main’s board read-only instead of failing', asy
 
 test('no token is still refused', async () => {
   const { GET } = await import('../src/app/api/plugin/board/route.ts');
-  const res = await GET(new Request('https://example.test/api/plugin/board', { headers: { 'x-anvil-clan-slug': 'alt' } }));
+  const res = await GET(new Request('https://example.test/api/plugin/board', { headers: { ...clanHeaders('alt') } }));
   assert.equal(res.status, 401);
 });

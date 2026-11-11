@@ -312,7 +312,7 @@ export interface EventRules {
   raceRoad: 'achieve' | 'choose' | 'open';
   /**
    * Tile race "Hide tiles past the next step" (lib/raceHideAhead). 'off' (default): every tile shows.
-   * 'players': each team sees the tiles it finished, the step it's on and the tiles it can move to
+   * 'players': each team sees only its own road: the tiles it walked or finished and the tiles it can move to
    * next; every tile further along is a locked "?" until the team can reach it. Event staff still
    * see everything. 'staff': the same for event staff too — only the clan owner, the platform owner
    * and this board's own tile editors see through it (and only the owner may switch it on or off).

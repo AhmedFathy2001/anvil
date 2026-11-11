@@ -634,8 +634,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             checked={hide !== 'off'}
             onChange={(on) => void changeHide(on ? 'players' : 'off')}
             disabled={hide === 'staff' && !canChangeStaffHide}
-            label="Hide tiles past the next step"
-            description="Players see the tiles their team has done, the step it’s on and the tiles it can move to next. Every tile further on shows as a locked “?” until their team can reach it. Admins and tile editors still see every tile."
+            label="Hide every tile but your own road"
+            description="Players see only their own road: the tiles their team has done and the ones it can play now. Every other tile, including other roads on the same step, shows as a locked “?” until their team can reach it. Admins and tile editors still see every tile."
           />
           {hide !== 'off' && (
             <div className="pl-6">

@@ -137,7 +137,6 @@ export interface LockerLiveEvent {
   status: 'live' | 'upcoming';
   startDate: string | null;
   endDate: string | null;
-  playerToken: string | null;
   team: { id: number; name: string; color: string } | null;
   /** Team score against the whole board, and where that puts them. */
   score: number;
@@ -385,7 +384,6 @@ export async function buildLocker(
       clanMemberId: eventParticipants.clanMemberId,
       teamId: eventParticipants.teamId,
       eventId: eventParticipants.eventId,
-      playerToken: eventParticipants.playerToken,
       eventName: events.name,
       eventStartDate: events.startDate,
       eventEndDate: events.endDate,
@@ -501,7 +499,6 @@ export async function buildLocker(
       status: (started ? 'live' : 'upcoming') as LockerLiveEvent['status'],
       startDate: lead.eventStartDate,
       endDate: lead.eventEndDate,
-      playerToken: lead.playerToken,
     };
     // No team yet, or no board yet: there is nothing of theirs to score, so don't imply there is.
     if (!lead.teamId || !started) {

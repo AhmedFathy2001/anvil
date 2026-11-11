@@ -8,11 +8,12 @@ import { liveActAs } from '@/lib/actAs';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { addressKindOf, resolveBothBySlug, resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
+import { resolveBothBySlug, resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
 import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
+import { provenClan } from '@/lib/requestHeaderProof';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
 import { claimAccountForPerson } from '@/lib/accountClaim';
@@ -28,6 +29,7 @@ import { admit } from '@/lib/guestAdmission';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { clanSeat, rosterClanSeat, rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { isEventSeat } from '@/lib/seatKinds';
+import { parsePlayerSessionPayload, playerSessionMatchesRow } from '@/lib/playerSession';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -574,10 +576,6 @@ export function generatePlayerToken(): string {
   return crypto.randomUUID();
 }
 
-export function signPlayerToken(playerId: number, teamId: number): string {
-  return sign(JSON.stringify({ role: 'player', playerId, teamId, iat: Date.now() }), PLAYER_SESSION_SECRET);
-}
-
 // Lightweight token validation: returns user info if the bearer token matches a
 // per-user plugin token, regardless of whether the user has an active event.
 // Use this for endpoints that should succeed for any valid token (e.g. "is my
@@ -642,8 +640,10 @@ async function tokenUserId(request: Request): Promise<number | null> {
  * keeps the clan, which is what the address says. Null when the slug is not shared.
  */
 async function sharedSlugPick(request: Request, userId?: number | null): Promise<ClanContext | null> {
-  if (addressKindOf(request.headers.get('x-anvil-clan-kind')) === 'creator') return null;
-  const both = await resolveBothBySlug(request.headers.get('x-anvil-clan-slug'));
+  // Only a slug middleware signed (lib/requestHeaderProof), and only one addressed as a clan.
+  const addressed = await provenClan(request.headers);
+  if (!addressed || addressed.kind === 'creator') return null;
+  const both = await resolveBothBySlug(addressed.slug);
   if (!both) return null;
   const id = userId ?? (await tokenUserId(request));
   if (id == null) return both.clan;
@@ -2316,19 +2316,30 @@ export function isPlausibleRsn(rsn: string): boolean {
   return /^[A-Za-z0-9 _-]{1,12}$/.test(rsn);
 }
 
-export async function verifyPlayer(): Promise<{ playerId: number; teamId: number } | null> {
+/**
+ * The legacy player-link session. Signature, a 7-day age cap, and a re-read of the participant row:
+ * a player since moved to another team, removed from the event, or whose link was regenerated no
+ * longer passes (lib/playerSession). Memoised per render like verifyUser; a pass-through in route handlers.
+ */
+export const verifyPlayer = cache(verifyPlayerUncached);
+
+async function verifyPlayerUncached(): Promise<{ playerId: number; teamId: number } | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('player_session')?.value;
   if (!token) return null;
   const payload = verify(token, PLAYER_SESSION_SECRET);
   if (!payload) return null;
+  let session;
   try {
-    const data = JSON.parse(payload);
-    if (data.role === 'player' && typeof data.playerId === 'number' && typeof data.teamId === 'number' && isFreshIat(data.iat)) {
-      return { playerId: data.playerId, teamId: data.teamId };
-    }
-    return null;
+    session = parsePlayerSessionPayload(JSON.parse(payload));
   } catch {
     return null;
   }
+  if (!session) return null;
+  const row = await db.query.eventParticipants.findFirst({
+    columns: { teamId: true, playerToken: true },
+    where: eq(eventParticipants.id, session.playerId),
+  });
+  if (!playerSessionMatchesRow(session, row)) return null;
+  return { playerId: session.playerId, teamId: session.teamId };
 }

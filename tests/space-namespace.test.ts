@@ -87,11 +87,29 @@ test('a typed slug accepts every shape people paste, and says when it named no k
   assert.equal(parseTypedSlug(''), null);
 });
 
-test('middleware proves the kind together with the slug', () => {
-  // A proof over the slug alone would let a caller keep a valid /c/x proof and flip the kind header
-  // to reach /s/x. The kind is inside the signed string, and the strip rebuilds the prefix from both.
+test('the header proof covers the kind, and a clan proof keeps its pre-/s/ format', async () => {
+  // A proof over the slug alone would let a caller keep a valid /c/x proof and add a kind header to
+  // reach /s/x. A creator proof signs a different message; a clan's is byte-for-byte the old one, so
+  // a blue/green swap between versions keeps every /c/ request's clan.
+  process.env.ADMIN_SESSION_SECRET = 'test-secret';
+  const P = await import('../src/lib/requestHeaderProof.ts');
+  const h = new Headers();
+  await P.setProvenClan(h, 'drenvox', 'creator');
+  assert.equal(h.get('x-anvil-clan-prefix'), '/s/drenvox');
+  assert.deepEqual(await P.provenClan(h), { slug: 'drenvox', kind: 'creator' });
+
+  // Drop the kind header and the same proof no longer checks out.
+  h.delete('x-anvil-clan-kind');
+  assert.equal(await P.provenClan(h), null);
+
+  const c = new Headers();
+  await P.setProvenClan(c, 'drenvox');
+  assert.equal(c.get('x-anvil-clan-prefix'), '/c/drenvox');
+  assert.equal(c.get('x-anvil-clan-proof'), await P.clanHeaderProof('drenvox'));
+  c.set('x-anvil-clan-kind', 'creator');
+  assert.equal(await P.provenClan(c), null, 'a kind header added beside a clan proof is refused');
+
   const src = readFileSync(join(import.meta.dirname, '../src/middleware.ts'), 'utf8');
-  assert.match(src, /hmacSign\(`anvil-clan-header:\$\{kind\}:\$\{slug\}`/);
-  assert.match(src, /downstream\.delete\('x-anvil-clan-kind'\)/);
+  assert.match(src, /downstream\.delete\(CLAN_KIND_HEADER\)/);
   assert.match(src, /\/\^\\\/\(\[cs\]\)\\\//);
 });

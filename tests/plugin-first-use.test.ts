@@ -13,6 +13,7 @@ import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-first-use');
 
@@ -49,7 +50,7 @@ function play(token: string, rsn: string, hash: string | null, slug: string | nu
     Authorization: `Bearer ${token}`,
     'X-RSN': rsn,
   };
-  if (slug) headers['x-anvil-clan-slug'] = slug;
+  if (slug) Object.assign(headers, clanHeaders(slug));
   if (hash) headers['X-Account-Hash'] = hash;
   return A.resolvePluginMember(new Request('https://example.test/api/plugin/config', { headers }));
 }

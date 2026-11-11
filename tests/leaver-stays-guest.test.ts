@@ -20,6 +20,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('leaver-stays-guest');
 
@@ -36,7 +37,7 @@ const RSN = 'IMPURITY';
 /** A plugin request as middleware hands it on: the token, the character, and the clan by slug. */
 const play = (slug: string, rsn = RSN, token = TOKEN) =>
   new Request('https://example.test/api/plugin/config', {
-    headers: { Authorization: `Bearer ${token}`, 'X-RSN': rsn, 'x-anvil-clan-slug': slug },
+    headers: { Authorization: `Bearer ${token}`, 'X-RSN': rsn, ...clanHeaders(slug) },
   });
 
 const seatIn = async (clan: number, rsn: string) => {

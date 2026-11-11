@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { supporterForUser } from '@/lib/supporter';
+import { provenClan, provenPath } from '@/lib/requestHeaderProof';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import { headers } from 'next/headers';
 import { permanentRedirect } from 'next/navigation';
@@ -106,7 +107,9 @@ export async function generateMetadata(): Promise<Metadata> {
   // The INNER path — middleware forwards it on every request, and on a clan-prefixed one it is
   // already the rewritten path, so `/c/x/events/5` and `x.anvilosrs.com/events/5` both arrive here
   // as `/events/5`. That is what lets one canonical rule serve both addressing schemes.
-  const pathname = h.get('x-anvil-pathname') || '/';
+  // Only a path middleware signed: unknown renders as `/` but is never indexed.
+  const proven = await provenPath(h);
+  const pathname = proven?.pathname || '/';
   const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug, clanKind: clan?.kind });
 
   // WHAT MAY BE INDEXED. Two separate refusals, and they fail in the same safe direction:
@@ -114,6 +117,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // indexed at all — its name, its roster and the fact that it exists are its own.
   const indexable =
     !isNoIndexDeployment() &&
+    proven != null &&
     !isNoIndexPath(pathname) &&
     (!clan || clanVisibilityOf(clan.visibility) === 'public');
 
@@ -166,10 +170,12 @@ export default async function RootLayout({
   // /s/ (lib/clanContext resolveClanBySlug falls back to it). Move the reader to the real address, so
   // every link the page builds from the prefix is a /s/ one too.
   if (clan && isCreatorSpace(clan)) {
+    // Proven values only (lib/requestHeaderProof): this echoes the path into a Location header.
     const h = await headers();
-    if (h.get('x-anvil-clan-slug') && h.get('x-anvil-clan-kind') !== 'creator') {
-      const inner = h.get('x-anvil-pathname') ?? '/';
-      permanentRedirect(`${clanPathOf(clan, inner)}${h.get('x-anvil-search') ?? ''}`);
+    const addressed = await provenClan(h);
+    if (addressed?.kind === 'clan') {
+      const path = await provenPath(h);
+      permanentRedirect(`${clanPathOf(clan, path?.pathname ?? '/')}${path?.search ?? ''}`);
     }
   }
   const session = await verifyUser();
@@ -253,7 +259,8 @@ export default async function RootLayout({
     ? isFriendsHost(clan)
       ? await friendsPageReadable({
           clanId: clan.id,
-          pathname: (await headers()).get('x-anvil-pathname') || '/',
+          // Unproven is '' — no public path — so a forged header cannot open a members-only host.
+          pathname: (await provenPath(await headers()))?.pathname ?? '',
           playerId: session?.playerId ?? null,
           userId: session?.userId ?? null,
         })

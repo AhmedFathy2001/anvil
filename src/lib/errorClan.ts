@@ -12,9 +12,9 @@
 // NULL IS A REAL ANSWER, not a failure. The apex has no clan, and a request that died before one
 // could be resolved genuinely belongs to none.
 
-import { addressKindOf, resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
+import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
 import { parseClanPrefix } from '@/lib/clanScopedPaths';
-
+import { provenClan } from '@/lib/requestHeaderProof';
 
 
 function firstHeader(headers: NodeJS.Dict<string | string[]>, name: string): string | null {
@@ -37,11 +37,10 @@ export async function clanIdForError(
     // against a running server, because the proxy rewrites it away before routing and it would have
     // been equally plausible for the rewritten one to arrive here. The header is the fallback for a
     // failure raised after the rewrite, where only middleware's copy of the slug survives.
-    const parsed = parseClanPrefix(path);
-    const slug = parsed?.slug ?? firstHeader(headers, 'x-anvil-clan-slug');
-    const kind = parsed?.kind ?? addressKindOf(firstHeader(headers, 'x-anvil-clan-kind'));
-    if (slug) {
-      const clan = await resolveClanBySlug(slug, kind);
+    // Only a slug middleware signed: an unproven one would just mislabel the error.
+    const parsed = parseClanPrefix(path) ?? (await provenClan({ get: (n) => firstHeader(headers, n) ?? null }));
+    if (parsed) {
+      const clan = await resolveClanBySlug(parsed.slug, parsed.kind);
       if (clan) return clan.id;
     }
     const clan = await resolveClanByHost(firstHeader(headers, 'host'));

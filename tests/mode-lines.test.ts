@@ -101,3 +101,10 @@ test('main-game milestones from a mode world are recognised and never posted raw
   assert.equal(line('Congratulations, you have unlocked a new relic: Endless Harvest!'), 'modeRelic');
   assert.equal(line('Congratulations, you have completed a hard task: Defeat Vorkath.'), 'modeTask');
 });
+
+test('a single diary step on a mode world is not a mode task', () => {
+  assert.equal(verdict('Well done! You have completed an easy task in the Karamja area. Your Achievement Diary has been updated.').kind, 'ignore');
+  assert.equal(verdict('Well done! You have completed a hard task in the Western Provinces area. Your Achievement Diary has been updated.').kind, 'ignore');
+  // A league task with "area" in its name still counts.
+  assert.equal(verdict("Congratulations, you've completed a hard task: Unlock the Kandarin area.").kind, 'modeTask');
+});

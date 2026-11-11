@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-batched-writes');
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
@@ -24,7 +25,7 @@ function req(path: string, body: object) {
       Authorization: 'Bearer tok-batch',
       'X-RSN': 'Batcher',
       'X-Account-Hash': 'hash-batch',
-      'x-anvil-clan-slug': 'alpha',
+      ...clanHeaders('alpha'),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),

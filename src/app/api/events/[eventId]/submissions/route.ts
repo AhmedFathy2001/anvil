@@ -9,6 +9,7 @@ import { isRaceHidden } from '@/lib/raceHideAhead';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, completions } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginTokenOnEvent, resolveTeamMembership } from '@/lib/auth';
+import { decideDeleteAccess, decideSubmitAccess, teamCredentialCovers } from '@/lib/submissionAccess';
 import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
@@ -41,6 +42,7 @@ import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { claimUploads } from '@/lib/uploadClaims';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
+import { provenClanSlug } from '@/lib/requestHeaderProof';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -197,30 +199,29 @@ export async function POST(
   const foreign = await refuseForeignCharacter(request);
   if (foreign) return foreign;
   const isAdmin = viaCohost ? false : await verifyAdmin();
-  const captain = viaCohost ? null : await verifyCaptain();
-  const player = viaCohost ? null : await verifyPlayer();
+  const captainCookie = viaCohost ? null : await verifyCaptain();
+  const playerCookie = viaCohost ? null : await verifyPlayer();
   // THIS board's seat for the character, not only its live pick: a character on two live boards has
   // one drop credit both, so a newer plugin posts board B's tiles here directly. No seat here keeps
   // the live pick, and the team check below refuses it as before.
-  const pluginAuth = await verifyPluginTokenOnEvent(request, eId);
-  const membership =
-    !viaCohost && !isAdmin && !captain && !player && !pluginAuth ? await resolveTeamMembership(eId, teamId) : null;
+  const pluginToken = await verifyPluginTokenOnEvent(request, eId);
+  // The web session is looked up whenever no other credential already covers this team — a stale
+  // cookie for some other team must not hide a real membership of this one (lib/submissionAccess).
+  const webMembership =
+    !viaCohost && !isAdmin && !teamCredentialCovers(teamId, captainCookie, playerCookie, pluginToken)
+      ? await resolveTeamMembership(eId, teamId)
+      : null;
 
-  if (!isAdmin && !captain && !player && !pluginAuth && !membership) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Non-admin must be on the correct team
+  // Non-admin must be on the correct team: each credential counts only for its own team, any one
+  // that fits grants, and the ones for another team are dropped so nothing below credits them.
+  let captain = captainCookie;
+  let player = playerCookie;
+  let pluginAuth = pluginToken;
+  let membership = webMembership;
   if (!isAdmin) {
-    if (captain && captain.teamId !== teamId) {
-      return NextResponse.json({ error: 'Cannot submit for another team' }, { status: 403 });
-    }
-    if (player && player.teamId !== teamId) {
-      return NextResponse.json({ error: 'Cannot submit for another team' }, { status: 403 });
-    }
-    if (pluginAuth && pluginAuth.teamId !== teamId) {
-      return NextResponse.json({ error: 'Cannot submit for another team' }, { status: 403 });
-    }
+    const access = decideSubmitAccess(teamId, { captain, player, pluginAuth, membership });
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+    ({ captain, player, pluginAuth, membership } = access);
   }
 
   // Get event and check start date
@@ -723,7 +724,7 @@ export async function POST(
         ? {
             proofKey: pendingKey,
             proofDueAt: proofDueAt(receivedAt),
-            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug'), announce: null, sender: pluginAuth?.userId ?? null }),
+            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: await provenClanSlug(request.headers), announce: null, sender: pluginAuth?.userId ?? null }),
           }
         : {}),
     })
@@ -792,7 +793,7 @@ export async function POST(
       [submission] = await db.update(submissions)
         .set({ proofPending: encodePendingProof({
           claims, receivedAt, completed: !!syncResult?.isComplete, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null,
-          clan: request.headers.get('x-anvil-clan-slug'), announce: syncResult?.heldTileId ?? null, sender: pluginAuth?.userId ?? null,
+          clan: await provenClanSlug(request.headers), announce: syncResult?.heldTileId ?? null, sender: pluginAuth?.userId ?? null,
         }) })
         .where(eq(submissions.id, inserted.id)).returning();
     } else {
@@ -886,8 +887,10 @@ export async function DELETE(
   // which is how a visiting clan's moderator can pull a bad submission from their own side. The
   // resolver keys on the team alone, so re-check the team is in THIS event — the submission id came
   // from the caller.
+  // Looked up regardless of the player cookie: a stale link for another team must not hide a real
+  // captain/staff/member seat on this one (lib/submissionAccess).
   const resolved =
-    !isAdmin && !captain && !player ? await resolveTeamManagement(submission.teamId) : null;
+    !isAdmin && !teamCredentialCovers(submission.teamId, captain) ? await resolveTeamManagement(submission.teamId) : null;
   const membership = resolved && resolved.eventId === eId ? resolved : null;
   if (!isAdmin && !captain && !player && !membership) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -916,11 +919,12 @@ export async function DELETE(
       deletedByRole = actingUser.role || 'admin';
     }
   } else {
-    if (captain) {
+    // Name the credential that actually grants on this team; one for another team plays no part.
+    if (captain && captain.teamId === submission.teamId) {
       deletedByName = team?.name ? `${team.name} Captain` : 'Captain';
       deletedByRole = 'captain';
     }
-    if (player) {
+    if (player && player.teamId === submission.teamId) {
       const playerRecord = await db.query.eventParticipants.findFirst({
         where: eq(eventParticipants.id, player.playerId),
       });
@@ -944,17 +948,8 @@ export async function DELETE(
 
   // Auth checks: admin can delete any, captain their team, player their own.
   // Captaincy and player-ownership come from either the legacy cookies or the web session.
-  if (!isAdmin) {
-    const captainOfTeam = (captain && captain.teamId === submission.teamId) || (membership?.canManage ?? false);
-    if (captainOfTeam) {
-      // Allowed — captain can delete any of their team's submissions.
-    } else {
-      const myPlayerId =
-        membership?.playerId ?? (player && player.teamId === submission.teamId ? player.playerId : null);
-      if (myPlayerId == null || myPlayerId !== submission.playerId) {
-        return NextResponse.json({ error: 'Can only delete your own submissions' }, { status: 403 });
-      }
-    }
+  if (!isAdmin && decideDeleteAccess(submission, { captain, player, membership }) === 'denied') {
+    return NextResponse.json({ error: 'Can only delete your own submissions' }, { status: 403 });
   }
 
   // The shared removal (lib/submissionRemoval): delete, recompute the completion, tell Discord.

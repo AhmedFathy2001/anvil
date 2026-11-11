@@ -659,7 +659,7 @@ export async function getAlwaysNotifyItemIds(clanId: number, racedBoss?: string 
   // matching below entirely.
   const raced = racedBoss ? metricKeys(racedBoss).flatMap((k) => [...bossNotableIds(k)]) : [];
   const patterns = (await getAlwaysNotifyItems(clanId)).map((s) => s.toLowerCase());
-  const key = patterns.join('');
+  const key = patterns.join('\u0001');
   if (notableIdCache && notableIdCache.key === key && Date.now() - notableIdCache.at < NOTABLE_ID_TTL_MS) {
     return notableIdCache.ids;
   }

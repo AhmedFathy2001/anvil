@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { supporterForUser } from '@/lib/supporter';
-import { redirectFor } from '@/lib/adminAccess';
+import { adminGateTarget, redirectFor } from '@/lib/adminAccess';
+import { provenPath } from '@/lib/requestHeaderProof';
 import { atLeast, isStaffRole } from '@/lib/clanRoles';
 import { clanPrefix, requireClan } from '@/lib/clanContext';
 import { clanHrefs } from '@/lib/clanPath';
@@ -48,7 +49,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // them away to the home page. The gate was right about them every time; it just answered at the
   // wrong address. Admins never saw it, because an admin is the one grant this function lets
   // through without redirecting at all. See lib/clanPath.
-  const pathname = (await headers()).get('x-anvil-pathname') ?? '';
+  // Only a path middleware signed; null when it is unknown (see lib/adminAccess adminGateTarget).
+  const proven = (await provenPath(await headers()))?.pathname ?? null;
+  const pathname = proven ?? '';
   const href = await clanHrefs();
   if (!session) redirect('/login?return=' + encodeURIComponent(href(pathname || '/admin')));
 
@@ -59,8 +62,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     canEditGuides: session.canEditGuides,
     treasurerScope: session.treasurerScope,
   };
-  const target = redirectFor(pathname || '/admin/dashboard', access);
-  if (target && target !== pathname) redirect(href(target));
+  const target = adminGateTarget(proven, access);
+  if (target) redirect(href(target));
 
   // Moderator-or-better, or the authoring capability: anything less was turned away above. Sent to
   // THIS clan's home rather than the apex: they were looking at this clan, and being told "not for

@@ -415,7 +415,7 @@ async function ingestWholeLog(
     })
     .from(memberClogItems)
     .where(eq(memberClogItems.accountId, member.accountId));
-  const previous = new Map(existing.map((r) => [`${r.pageName} ${r.itemId}`, r]));
+  const previous = new Map(existing.map((r) => [`${r.pageName}\u0000${r.itemId}`, r]));
   // Whether we held ANY log before decides how a new row is dated: on a first-ever sync we can't
   // know when anything was obtained, so it stays NULL rather than dating years-old items to today.
   const hadLog = existing.length > 0;
@@ -443,7 +443,7 @@ async function ingestWholeLog(
 
   const rows = [...pages.entries()].flatMap(([pageName, items]) =>
     items.map((r) => {
-      const before = previous.get(`${pageName} ${r.itemId}`);
+      const before = previous.get(`${pageName}\u0000${r.itemId}`);
       const bossKey = bossKeyForPage(pageName);
       // The one moment this is knowable: they didn't have it, now they do, so their current KC is
       // the KC it dropped at. Every later sync copies the stamp rather than re-reading it — after

@@ -208,9 +208,13 @@ export function kickAppToken(cfg: KickConfig, f: FetchLike = fetch): Promise<Kic
 }
 
 /** Best-effort revoke. Never throws. */
-export async function revokeKickToken(token: string, f: FetchLike = fetch): Promise<void> {
+export async function revokeKickToken(
+  token: string,
+  f: FetchLike = fetch,
+  hint: 'access_token' | 'refresh_token' = 'access_token',
+): Promise<void> {
   try {
-    const q = new URLSearchParams({ token, token_hint_type: 'access_token' });
+    const q = new URLSearchParams({ token, token_hint_type: hint });
     await f(`${ID_HOST}/oauth/revoke?${q}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
   } catch {
     // ignore — it expires on its own

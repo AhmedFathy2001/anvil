@@ -66,6 +66,9 @@ export const BUILTIN_PATTERNS: readonly ModeLinePattern[] = [
   { id: 'builtin:skip-level', modeKey: null, kind: 'ignore', regex: String.raw`advanced (?:your|a) [\w ]+? level`, title: '' },
   { id: 'builtin:skip-ca', modeKey: null, kind: 'ignore', regex: String.raw`completed an? \w+ combat task`, title: '' },
   { id: 'builtin:skip-diary', modeKey: null, kind: 'ignore', regex: String.raw`completed all of the \w+ tasks in the`, title: '' },
+  // One diary step ("completed an easy task in the Karamja area. Your Achievement Diary has been
+  // updated"): not a mode task, though the task rule below would read it as one on every mode world.
+  { id: 'builtin:skip-diary-step', modeKey: null, kind: 'ignore', regex: String.raw`completed an? \w+ task in the .+ area`, title: '' },
   {
     id: 'builtin:task',
     modeKey: null,

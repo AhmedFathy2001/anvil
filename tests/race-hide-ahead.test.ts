@@ -47,11 +47,12 @@ test('a finished team sees the whole board', () => {
   assert.equal(raceTeamSeen(g, teamRoute(g, [1, 2, 3, 4, 5, 6])), null);
 });
 
-test('at a fork both roads show; past the fork only steps up to the next one', () => {
+test('at a fork both roads show; past it only the team\'s own road', () => {
   const g = raceGraph(fork);
   assert.deepEqual(sorted(raceTeamSeen(g, teamRoute(g, [10]))), [10, 20, 21]);
-  // Took road 20: step 2 is next, both of its tiles are in view (31 sits there too); the finish is not.
-  assert.deepEqual(sorted(raceTeamSeen(g, teamRoute(g, [10, 20]))), [10, 20, 21, 30, 31]);
+  // Took road 20: its next tile shows; the road passed up (21) and the other road's tile on the same
+  // step (31) stay hidden, and so does the finish.
+  assert.deepEqual(sorted(raceTeamSeen(g, teamRoute(g, [10, 20]))), [10, 20, 30]);
 });
 
 test('"Choose and lock in": the fork the team picks from is in view before any pick', () => {

@@ -10,6 +10,7 @@ import EventDiscordClient from './EventDiscordClient';
 import EventDiscordInventory from './EventDiscordInventory';
 import { requireClan } from '@/lib/clanContext';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export const dynamic = 'force-dynamic';
  * channels that get a copy.
  */
 export default async function EventDiscordPage({ params }: { params: Promise<{ eventId: string }> }) {
-  const id = parseInt((await params).eventId, 10);
+  const id = idParam((await params).eventId);
   await requireEventForPage(id);
   const creator = isCreatorSpace(await requireClan());
   const [eventTeams, cohosts] = await Promise.all([

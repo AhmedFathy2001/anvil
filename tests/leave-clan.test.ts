@@ -16,6 +16,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('leave-clan');
 
@@ -119,7 +120,7 @@ test('and playing again does not quietly put them back', async () => {
   // The seat-keeping added for people the roster dropped must not undo a person's own decision.
   await A.resolvePluginMember(
     new Request('https://example.test/api/plugin/config', {
-      headers: { Authorization: `Bearer ${TOKEN}`, 'X-RSN': 'Drop In', 'x-anvil-clan-slug': 'afk' },
+      headers: { Authorization: `Bearer ${TOKEN}`, 'X-RSN': 'Drop In', ...clanHeaders('afk') },
     }),
   );
   assert.equal((await liveSeats(visitor)).length, 0, 'still gone, because they meant it');
