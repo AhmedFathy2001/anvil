@@ -201,9 +201,12 @@ async function participantOf(
 export async function chatAccess(eventId: number, userId: number, pick?: ChatSeatPick | null): Promise<ChatAccess | null> {
   const ev = await db.query.events.findFirst({
     where: eq(events.id, eventId),
-    columns: { id: true, clanId: true, chatEnabled: true, chatPaused: true, teamPlacement: true },
+    columns: { id: true, clanId: true, chatEnabled: true, chatPaused: true, teamPlacement: true, startDate: true, startNotified: true },
   });
   if (!ev) return null;
+  // Players chat once the board is live: before that the teams aren't final (a pool still filling,
+  // a draft to run) and a held start keeps moving. Staff can talk (and post announcements) any time.
+  const started = ev.startNotified === 1 || (!!ev.startDate && Date.parse(ev.startDate) <= Date.now());
   const [platformOn, part, grant, platformRole] = await Promise.all([
     platformChatOn(),
     participantOf(eventId, userId, pick),
@@ -214,7 +217,7 @@ export async function chatAccess(eventId: number, userId: number, pick?: ChatSea
   const platformStaff = hasPlatformRole(platformRole, 'staff');
   const staff = clanStaff || platformStaff;
   const role = grant && atLeast(grant.role, 'admin') ? 'host' : clanStaff ? 'mod' : null;
-  const open = platformOn && ev.chatEnabled;
+  const open = platformOn && ev.chatEnabled && (started || staff);
   const staffKind: ChatStaffKind | null = clanStaff ? 'event' : platformStaff ? 'platform' : null;
   const solo = ev.teamPlacement === 'solo';
   const teamId = part?.teamId ?? null;
@@ -223,7 +226,13 @@ export async function chatAccess(eventId: number, userId: number, pick?: ChatSea
     clanId: ev.clanId,
     open,
     paused: ev.chatPaused,
-    closedWhy: !platformOn ? 'Event chat is switched off on Anvil right now.' : !ev.chatEnabled ? 'The host hasn’t turned chat on for this event.' : null,
+    closedWhy: !platformOn
+      ? 'Event chat is switched off on Anvil right now.'
+      : !ev.chatEnabled
+        ? 'The host hasn’t turned chat on for this event.'
+        : !started && !staff
+          ? 'Chat opens when the event starts.'
+          : null,
     member: part != null || staff,
     staff,
     staffKind,
