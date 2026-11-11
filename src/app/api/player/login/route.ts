@@ -24,11 +24,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid player token' }, { status: 401 });
   }
 
-  if (!player.teamId) {
+  if (!player.teamId || !player.playerToken) {
     return NextResponse.json({ error: 'Player is not assigned to a team yet' }, { status: 403 });
   }
 
-  const token = signPlayerToken(player.id, player.teamId);
+  const token = signPlayerToken(player.id, player.teamId, player.playerToken);
   const cookieStore = await cookies();
   cookieStore.set('player_session', token, {
     httpOnly: true,
