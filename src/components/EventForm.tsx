@@ -1208,7 +1208,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between text-sm">
               <span>
                 <span className="font-medium">More options</span>
-                <span className="text-text-muted"> · {maxAccounts > 1 ? `${maxAccounts} accounts per person` : 'one account per person'}{useMultiClan ? ', with other clans' : ', just this clan'}</span>
+                <span className="text-text-muted"> · {maxAccounts === 0 ? 'any number of accounts per person' : maxAccounts > 1 ? `${maxAccounts} accounts per person` : 'one account per person'}{useMultiClan ? ', with other clans' : ', just this clan'}</span>
               </span>
               <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden="true">›</span>
             </summary>
@@ -1219,7 +1219,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           <Section title="Entries">
             <div>
               <label className="block text-sm font-medium text-foreground/70 mb-1.5">Accounts per person</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                {maxAccounts !== 0 && (
                 <NumberInput
                   value={maxAccounts}
                   onChange={setMaxAccounts}
@@ -1228,15 +1229,19 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   fallback={1}
                   className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
                 />
+                )}
+                <Checkbox checked={maxAccounts === 0} onChange={(on) => setMaxAccounts(on ? 0 : 2)} label="No limit" />
                 <span className="text-sm text-text-muted">
-                  {maxAccounts <= 1
-                    ? 'One account each (classic).'
-                    : `Each person may enter up to ${maxAccounts} of their accounts — all on the same team.`}
+                  {maxAccounts === 0
+                    ? 'Each person may enter every account they have.'
+                    : maxAccounts <= 1
+                      ? 'One account each (classic).'
+                      : `Each person may enter up to ${maxAccounts} of their accounts — all on the same team.`}
                 </span>
               </div>
             </div>
 
-            {maxAccounts > 1 && (
+            {(maxAccounts > 1 || maxAccounts === 0) && (
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground/70 mb-1.5">Team-size &amp; MVP counting</label>

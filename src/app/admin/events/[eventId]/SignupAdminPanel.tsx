@@ -1,5 +1,6 @@
 'use client';
 
+import { accountCap } from '@/lib/accountCap';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import { eventStage } from '@/lib/eventStage';
@@ -1337,7 +1338,7 @@ export default function SignupAdminPanel({
             .filter((s) => s.status !== 'withdrawn' && s.user != null)
             .map((s) => s.user!.id)}
           signedUpMemberIds={signups.filter((s) => s.status !== 'withdrawn').map((s) => s.account.id)}
-          maxAccountsPerPerson={event.maxAccountsPerPerson ?? 1}
+          maxAccountsPerPerson={accountCap(event.maxAccountsPerPerson)}
           teams={boardTeams}
           creator={creator}
           onClose={() => setAnswersModal(null)}

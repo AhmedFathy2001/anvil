@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
@@ -101,11 +102,10 @@ export async function POST(request: Request) {
     resolvedFormat === 'tilerace' ? 'tiles' : resolvedFormat === 'ladder' ? 'points' : scoringMode === 'points' ? 'points' : 'tiles';
 
   // Multi-account enrollment knobs — all optional; the defaults reproduce one-account-per-person.
-  const MAX_ACCOUNTS_CAP = 10;
   let resolvedMaxAccounts = 1;
   if (maxAccountsPerPerson !== undefined) {
-    if (!Number.isInteger(maxAccountsPerPerson) || maxAccountsPerPerson < 1 || maxAccountsPerPerson > MAX_ACCOUNTS_CAP) {
-      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}` }, { status: 400 });
+    if (!validAccountLimit(maxAccountsPerPerson)) {
+      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}, or 0 for no limit` }, { status: 400 });
     }
     resolvedMaxAccounts = maxAccountsPerPerson;
   }

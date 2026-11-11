@@ -9,6 +9,7 @@
 // characters-per-person rule, and it mirrors the self-serve side effects: a fee row when the board
 // charges one, and the draft-pool player row.
 
+import { accountCap } from '@/lib/accountCap';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -122,7 +123,7 @@ export async function signUpOnBehalf(input: {
       .where(
         and(eq(eventSignups.eventId, event.id), eq(eventSignups.userId, userId), ne(eventSignups.status, 'withdrawn')),
       );
-    const cap = event.maxAccountsPerPerson ?? 1;
+    const cap = accountCap(event.maxAccountsPerPerson);
     if (theirs.length >= cap) {
       return {
         ok: false,
