@@ -116,12 +116,12 @@ test('prefixing is applied exactly once', () => {
 test('middleware strips the clan headers before it trusts anything', () => {
   const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
 
-  const del = src.indexOf("downstream.delete('x-anvil-clan-slug')");
-  const delPrefix = src.indexOf("downstream.delete('x-anvil-clan-prefix')");
+  const del = src.indexOf('downstream.delete(CLAN_SLUG_HEADER)');
+  const delPrefix = src.indexOf('downstream.delete(CLAN_PREFIX_HEADER)');
   assert.ok(del > 0, 'the slug header must be deleted');
   assert.ok(delPrefix > 0, 'and the prefix header with it');
 
-  const set = src.indexOf("downstream.set('x-anvil-clan-slug'");
+  const set = src.indexOf('setProvenClan(downstream');
   assert.ok(set > del, 'the delete has to come first, or it undoes nothing');
 });
 
@@ -172,7 +172,7 @@ test('middleware redirects a prefixed platform PAGE and only rewrites a prefixed
   const guard = src.indexOf('isPlatformPath(inner)');
   assert.ok(guard > 0, 'the guard must exist');
 
-  const set = src.indexOf("downstream.set('x-anvil-clan-slug'");
+  const set = src.indexOf('setProvenClan(downstream');
   assert.ok(guard < set, 'and must come before the clan header is ever set');
 
   const branch = src.slice(guard, set);
@@ -188,7 +188,7 @@ test('the redirect is built from the forwarded host, not the one the container s
   // and the URL reaching this process is the internal one. So: absolute, from the Host header.
   const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
   const guard = src.indexOf('isPlatformPath(inner)');
-  const branch = src.slice(guard, src.indexOf("downstream.set('x-anvil-clan-slug'"));
+  const branch = src.slice(guard, src.indexOf('setProvenClan(downstream'));
 
   assert.match(branch, /x-forwarded-proto/, 'scheme from the proxy, not the socket');
   assert.match(branch, /headers\.get\('host'\)/, 'host from the request, not nextUrl');

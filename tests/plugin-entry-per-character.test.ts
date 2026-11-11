@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('entrypercharacter');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -18,7 +19,7 @@ let mainEntry: number;
 function play(rsn: string, hash: string) {
   return A.verifyPluginToken(
     new Request('https://example.test/api/plugin/config', {
-      headers: { Authorization: 'Bearer tok-two', 'X-RSN': rsn, 'X-Account-Hash': hash, 'x-anvil-clan-slug': 'twoacc' },
+      headers: { Authorization: 'Bearer tok-two', 'X-RSN': rsn, 'X-Account-Hash': hash, ...clanHeaders('twoacc') },
     }),
   );
 }

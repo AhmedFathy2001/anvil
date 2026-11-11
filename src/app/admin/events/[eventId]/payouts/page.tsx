@@ -6,6 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 import { verifyEventTreasurer } from '@/lib/auth';
 import PayoutsClient from './PayoutsClient';
 import { clanHref } from '@/lib/clanPath';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ export default async function EventPayoutsPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
 
   // Per board, not per clan: this is the page a treasurer granted one event actually comes for.
   const session = await verifyEventTreasurer(id);

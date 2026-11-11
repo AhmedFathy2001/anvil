@@ -11,6 +11,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('mode-board-credit');
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
@@ -33,7 +34,7 @@ function req(path: string, body: object, world: Record<string, string> = {}) {
       Authorization: 'Bearer tok-mode',
       'X-RSN': 'Hcguy',
       'X-Account-Hash': 'hash-mode',
-      'x-anvil-clan-slug': 'alpha',
+      ...clanHeaders('alpha'),
       'Content-Type': 'application/json',
       ...world,
     },

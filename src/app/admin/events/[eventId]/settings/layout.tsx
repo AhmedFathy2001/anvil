@@ -4,6 +4,7 @@ import { requireEventForPage } from '@/lib/eventScope';
 import { tabsFor } from '@/lib/eventSettingsTabs';
 import SettingsNav from './SettingsNav';
 import { SaveBarProvider } from './SaveBar';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
  * width, for every tab: the old single page stacked panels of three different widths.
  */
 export default async function EventSettingsLayout({ children, params }: { children: React.ReactNode; params: Promise<{ eventId: string }> }) {
-  const id = parseInt((await params).eventId, 10);
+  const id = idParam((await params).eventId);
   await requireEventForPage(id);
   const clan = await requireClan();
   const kind = { creator: isCreatorSpace(clan), streams: streamsEvents(clan) };

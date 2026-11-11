@@ -9,6 +9,7 @@ import { LAB_CLAN_SLUG } from '@/lib/labRules';
 import { newProofKey } from '@/lib/proofAfter';
 import { afterReply, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
+import { setProvenClan } from '@/lib/requestHeaderProof';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,7 +98,8 @@ export async function POST(request: Request) {
         // Address the board's own clan — except the hidden lab clan, which holds no seats: the token
         // would resolve no member there and every lab credit came back 401. A lab board is reached
         // from the caller's own address instead (lib/eventScope labEventForPluginRequest).
-        if (p.board.clan && p.board.clan !== LAB_CLAN_SLUG) headers.set('x-anvil-clan-slug', p.board.clan);
+        // Signed like middleware's own: lib/clanContext only reads a proven slug.
+        if (p.board.clan && p.board.clan !== LAB_CLAN_SLUG) await setProvenClan(headers, p.board.clan);
         const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
         const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),

@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('clog-same-name');
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
@@ -32,7 +33,7 @@ function req(body: object) {
       Authorization: 'Bearer tok-cw',
       'X-RSN': 'Cwguy',
       'X-Account-Hash': 'hash-cw',
-      'x-anvil-clan-slug': 'alpha',
+      ...clanHeaders('alpha'),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),

@@ -97,6 +97,22 @@ const MODERATOR_PATHS = [
  * being promoted, and a plain member author on granted boards without reaching any moderator
  * surface. Both cases are expressed by combining the two axes rather than by inventing a role.
  */
+/**
+ * The admin layout's gate, as a pure decision: where to send this person, or null to render.
+ *
+ * `pathname` is the path middleware PROVED (lib/requestHeaderProof), or null when it is unknown —
+ * middleware did not run for the request, or the header is a caller's. Unknown used to fall back to
+ * `/admin/dashboard`, which every moderator may open, so the layout waved through whatever page was
+ * actually requested (`/admin/events/5.png` reached admin/events/[eventId]). Now unknown proceeds
+ * only for an admin, who may open every admin page anyway; anyone else goes to their own landing,
+ * whose address middleware does see.
+ */
+export function adminGateTarget(pathname: string | null, access: AdminAccess): string | null {
+  if (pathname == null) return atLeast(access.role, 'admin') ? null : adminLanding(access);
+  const target = redirectFor(pathname, access);
+  return target && target !== pathname ? target : null;
+}
+
 export function redirectFor(pathname: string, access: AdminAccess | null): string | null {
   // No grant in this clan means no admin area in this clan, whatever they hold elsewhere.
   if (!access) return '/';

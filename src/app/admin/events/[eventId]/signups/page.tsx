@@ -18,6 +18,7 @@ import { holdsModeratorTier } from '@/lib/clanRoles';
 import { pendingRequests } from '@/lib/guestAdmission';
 import JoinRequests from '../../../people/JoinRequests';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export default async function EventSignupsPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
 
   // Clan staff, or whoever runs THIS board's money — the fees they were granted live on this tab.
   const session = (await verifyAdminOrModerator()) ?? (await verifyEventTreasurer(id));
