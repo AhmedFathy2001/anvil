@@ -357,12 +357,15 @@ export default async function CharacterProfile({
       {show.platformHeader && character && (
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-text-muted">
           {character.clan && (
-            <ClanLink href={`/c/${character.clan.slug}`} className="flex items-center gap-2 transition-colors hover:text-gold">
+            <ClanLink href={`/c/${character.clan.slug}`} className="flex min-w-0 items-center gap-2 transition-colors hover:text-gold">
               <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
-              {character.clan.name}
-              {seatIsGameClan && gameClan?.title && <span className="text-text-dim">· {gameClan.title}</span>}
-              {/* The roster sync's date, else the one the player's own plugin reported. */}
-              {clanJoinedOn && <span className="text-text-dim">· since {formatJoinDate(clanJoinedOn)}</span>}
+              {/* One inline run, so a narrow screen wraps it as a line, not as columns. */}
+              <span className="min-w-0">
+                {character.clan.name}
+                {seatIsGameClan && gameClan?.title && <span className="whitespace-nowrap text-text-dim"> · {gameClan.title}</span>}
+                {/* The roster sync's date, else the one the player's own plugin reported. */}
+                {clanJoinedOn && <span className="whitespace-nowrap text-text-dim"> · since {formatJoinDate(clanJoinedOn)}</span>}
+              </span>
             </ClanLink>
           )}
           {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
@@ -377,6 +380,11 @@ export default async function CharacterProfile({
             </ClanLink>
           ) : gameClan ? null : (
             <span className="text-text-dim">No clan</span>
+          )}
+          {show.ownerControls && (
+            <ClanLink href={`/settings/characters/${accountId}`} className="text-text-muted hover:text-gold" aria-label={`Settings for ${rsn}`}>
+              ⚙ Settings
+            </ClanLink>
           )}
           {/* Only present when its owner turned linking on, and named by another RSN they
               shared — never by anything from Discord (apexCharacter). */}
@@ -655,9 +663,11 @@ function GameClanChip({ clan }: { clan: CharacterGameClan }) {
       {!clan.anvilClanUnlisted && (
         <ClanCrest name={clan.anvilClan?.name ?? clan.name} logoUrl={clan.anvilClan?.logoUrl ?? null} size={18} />
       )}
-      {clan.name}
-      {clan.title && <span className="text-text-dim">· {clan.title}</span>}
-      {clan.joinedOn && <span className="text-text-dim">· since {formatJoinDate(clan.joinedOn)}</span>}
+      <span className="min-w-0">
+        {clan.name}
+        {clan.title && <span className="whitespace-nowrap text-text-dim"> · {clan.title}</span>}
+        {clan.joinedOn && <span className="whitespace-nowrap text-text-dim"> · since {formatJoinDate(clan.joinedOn)}</span>}
+      </span>
     </>
   );
   if (clan.anvilClanUnlisted) return <span className="flex items-center gap-2">{body}</span>;
@@ -682,13 +692,13 @@ function StreakChip({ streak }: { streak: Streak }) {
       className="inline-flex items-center gap-2 rounded-full border border-card-border bg-brown-dark px-3 py-1 text-xs text-text-muted"
       title={`Weeks with ${streak.needed}+ active days, in a row · ${detail}${streak.restBanked ? ' · rest week banked' : ''}`}
     >
-      <span className={`font-semibold tabular-nums ${streak.weeks > 0 ? 'text-[#ff8a3d]' : ''}`}>{label}</span>
+      <span className={`whitespace-nowrap font-semibold tabular-nums ${streak.weeks > 0 ? 'text-[#ff8a3d]' : ''}`}>{label}</span>
       <span className="flex gap-[2px]" aria-hidden>
         {recent.map((m, i) => (
           <i key={i} className={`block h-2.5 w-1.5 rounded-[1px] ${m === 'active' ? 'bg-[#ff8a3d]' : m === 'rest' ? 'bg-[#7ae0ff]' : 'bg-card-border'}`} />
         ))}
       </span>
-      <span>best {streak.best}</span>
+      <span className="whitespace-nowrap">best {streak.best}</span>
     </span>
   );
 }

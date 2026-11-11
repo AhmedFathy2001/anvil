@@ -7,13 +7,12 @@ import { accountMedia, accounts, profileMedia, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { del, put } from '@/lib/storage';
-import { supporterForUser } from '@/lib/supporter';
-import { accountMediaRow, canUseProfileMedia, isProfileMediaUrl, MEDIA_LIMITS, profileMediaRow, type ProfileMediaKind } from '@/lib/profileMedia';
+import { accountMediaRow, isProfileMediaUrl, MEDIA_LIMITS, profileMediaRow, type ProfileMediaKind } from '@/lib/profileMedia';
 import { processProfileMedia } from '@/lib/profileMediaProcess';
 
 export const dynamic = 'force-dynamic';
 
-// Your own avatar and banner (Anvil Supporter: Champion and Patron).
+// Your own avatar and banner. Anyone may upload; only Champion and Patron see theirs move (shownProfileMedia).
 //
 // Its own route rather than /api/upload, because the rules are stricter and different: a hard size
 // cap per kind, the type sniffed from the bytes, dimension and frame budgets checked from the header
@@ -21,7 +20,7 @@ export const dynamic = 'force-dynamic';
 // still beside it. The URL is written here too, so a client never sends one — there is nothing to
 // point at somebody else's server.
 //
-// Uploading needs Champion+ NOW. Removing never does: a lapsed supporter can always take theirs down.
+// The animated copy is kept for everyone, so upgrading brings the motion without a re-upload.
 //
 // PER CHARACTER: every verb also takes an `accountId` (POST: a form field; PATCH: in the JSON body;
 // DELETE: ?accountId=) to act on that character's OWN override (account_media) instead of the
@@ -84,11 +83,6 @@ export async function POST(request: Request) {
   // Decoding is the expensive part of any upload; a person changes their look a few times, not often.
   const rl = await rateLimit(request, 'profile-media', { limit: 10, windowMs: 10 * 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many uploads — try again in a few minutes.' }, { status: 429, headers: rateLimitHeaders(rl) });
-
-  const supporter = await supporterForUser(session.userId);
-  if (!canUseProfileMedia(supporter?.tier.id)) {
-    return NextResponse.json({ error: 'Your own avatar and banner come with Anvil Champion and Patron.' }, { status: 403 });
-  }
 
   // Refuse an oversized body before buffering it (the multipart envelope adds a little).
   const declared = Number(request.headers.get('content-length') ?? '0');

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 
 import {
-  canUseProfileMedia,
+  canAnimateProfileMedia,
   checkMediaHeader,
   displayCaseSlots,
   isProfileMediaUrl,
@@ -183,11 +183,11 @@ test('refused: SVG, oversize bytes, a lying header, a decompression bomb, a fram
 
 // ── Tier gates on read ─────────────────────────────────────────────────────────────────────────────
 
-test('own pictures and motion are Champion and Patron', () => {
-  assert.equal(canUseProfileMedia(null), false);
-  assert.equal(canUseProfileMedia('supporter'), false);
-  assert.equal(canUseProfileMedia('champion'), true);
-  assert.equal(canUseProfileMedia('patron'), true);
+test('motion on your own pictures is Champion and Patron', () => {
+  assert.equal(canAnimateProfileMedia(null), false);
+  assert.equal(canAnimateProfileMedia('supporter'), false);
+  assert.equal(canAnimateProfileMedia('champion'), true);
+  assert.equal(canAnimateProfileMedia('patron'), true);
 });
 
 test('only our own profile objects are ever rendered', () => {

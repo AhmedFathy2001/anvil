@@ -3636,7 +3636,7 @@ export const en = {
           { area: 'Name colours', cells: ['—', 'Gold', 'Presets or one colour of your own', 'Presets or up to four colours, moving'] },
           { area: 'Star by your name', cells: ['—', 'Yes', 'Yes', 'Yes'] },
           { area: 'Gold GZ', cells: ['—', 'Yes', 'Yes', 'Yes'] },
-          { area: 'Own avatar and banner, animated', cells: ['—', '—', 'Yes', 'Yes'] },
+          { area: 'Animated avatar and banner', cells: ['—', '—', 'Yes', 'Yes'] },
           { area: 'Display case', cells: ['—', '4 slots', '8 slots', '12 slots'] },
           { area: 'Friend events (at once · players)', cells: ['Join only', '1 · 10', '1 · 25', '2 · 50'] },
           { area: 'Head-to-head challenges', cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },

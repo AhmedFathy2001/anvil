@@ -102,8 +102,8 @@ function rank(tier: SupporterTierId | null | undefined): number {
   return tier ? SUPPORTER_TIERS[tier]?.rank ?? 0 : 0;
 }
 
-/** Uploading your own avatar and banner, and having them move: Champion and Patron. */
-export function canUseProfileMedia(tier: SupporterTierId | null | undefined): boolean {
+/** Your own avatar and banner MOVING: Champion and Patron. Uploading a picture is open to everyone. */
+export function canAnimateProfileMedia(tier: SupporterTierId | null | undefined): boolean {
   return rank(tier) >= SUPPORTER_TIERS.champion.rank;
 }
 
@@ -189,7 +189,7 @@ export function shownProfileMedia(
 ): ShownProfileMedia {
   const out: ShownProfileMedia = { avatar: null, banner: null };
   if (!row) return out;
-  const motion = canUseProfileMedia(tier) && !opts.still;
+  const motion = canAnimateProfileMedia(tier) && !opts.still;
   const pick = (full: string | null, still: string | null): ShownMedia | null => {
     const s = isProfileMediaUrl(still, opts.publicBase) ? still : null;
     if (!s) return null;
