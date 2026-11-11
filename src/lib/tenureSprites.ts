@@ -7,7 +7,7 @@ export const TENURE_SIZE = 13;
 
 export const TENURE_SPRITES: readonly (readonly string[])[] = [
   ['.............', '......A......', '.....ACA.....', '....ACBCA....', '...ACBBBCA...', '..ACBBBBBCA..', '.ACBBBBBBBCA.', '..ACBBBBBDA..', '...ACBBBDA...', '....ACBDA....', '.....ACA.....', '......A......', '.............'],
-  ['.............', '.............', '...AAAAAAA...', '.AALLLLLLLAA.', 'ACCCCCFFFFFFA', '.ACBBDFEEEGA.', '..ACBDFEEGA..', '...ACDFEGA...', '....ACFGA....', '.....AFA.....', '......A......', '.............', '.............'],
+  ['.............', '.............', '....AAAAA....', '...ALLLLLA...', '..ALMMMMMLA..', '.ACCCCCFFFFA.', '..ACBBDFEGA..', '...ACBDFGA...', '....ACDFA....', '.....AFA.....', '......A......', '.............', '.............'],
   ['.............', 'LA...ALA...AL', 'ALA..ALA..ALA', '.A.AAAAAAA.A.', '..ACLLLLLCA..', '.ACDLMMMMCCA.', 'ACDDFFFFFCDCA', 'AFFLLLLLLLFFA', '.AFFFLKMFFGA.', '..AFGLKMFGA..', '...AFFLFGA...', '....AFLFA....', '.....AFA.....'],
   ['.............', '....IIIII....', '..IIJ...III..', '.IJ.AAAAA.II.', '.I.ALLLLLA.I.', 'I.ALMMMMMLA.I', 'I.ACCCCFFFA.I', 'I..ACDFEGA..I', 'I...ACFGA...I', '.I...AFA...I.', '.II...A...IJ.', '..III...IIJ..', '....IIIIJ....'],
   ['.............', '....IILII....', '..IIJALAIII..', '.IJ.AAAAA.II.', '.I.ALLLLLA.I.', 'IAALMMMMMLAAI', 'LLACCCCFFFALL', 'IA.ACDFEGA.AI', 'I...ACFGA...I', '.I...AFA...I.', '.II...A...IJ.', '..IIIALAIIJ..', '....IILIJ....'],
