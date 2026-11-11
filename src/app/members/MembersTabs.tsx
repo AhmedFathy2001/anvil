@@ -21,7 +21,9 @@ import type { MemberSortKey } from '@/lib/memberSort';
 //
 // Both tabs render from data the server already sent, so switching costs nothing.
 
+// Each tab is linkable as ?tab=<key> (the roster, the default, drops it), so a link can open on Luck.
 type Tab = 'roster' | 'activities' | 'luck' | 'records' | 'lately';
+const isTab = (v: unknown): v is Tab => typeof v === 'string' && ['roster', 'activities', 'luck', 'records', 'lately'].includes(v);
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'roster', label: 'Roster' },
@@ -45,7 +47,10 @@ export default function MembersTabs({
   records,
   initialSort = 'week',
   streaks = {},
+  initialTab,
 }: {
+  /** ?tab= from the URL; anything unknown is the roster. */
+  initialTab?: string;
   /** This clan's boosting characters by name, for the Booster mark (lib/clanBoosts boosterMarks). */
   boosters?: Record<string, number>;
   members: MemberListRow[];
@@ -74,7 +79,15 @@ export default function MembersTabs({
   /** Weekly activity streak (weeks) by roster name (lib/activityStreaks). */
   streaks?: Record<string, number>;
 }) {
-  const [tab, setTab] = useState<Tab>('roster');
+  const [tab, setTabState] = useState<Tab>(isTab(initialTab) ? initialTab : 'roster');
+  // The URL follows the tab without a navigation, keeping ?sort and anything else already there.
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    const url = new URL(window.location.href);
+    if (t === 'roster') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', t);
+    window.history.replaceState(window.history.state, '', url);
+  };
 
   return (
     <>
