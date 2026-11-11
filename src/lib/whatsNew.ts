@@ -79,13 +79,45 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-11-feed-chat-page',
+    date: '2026-11-11',
+    title: 'Follow an event from your phone',
+    body: 'Every event has a Feed & chat page on the website that updates live, so you can follow the board and talk to your team away from the game. The event page now has tabs for Board, Stats, Feed & chat, Rules and Moderate.',
+  },
+  {
+    id: '2026-11-11-race-hidden-tiles',
+    date: '2026-11-11',
+    title: 'Hide what’s ahead in a tile race',
+    body: 'A tile race can hide tiles past each team’s next step, from players or from event staff too. Discord posts that would name a hidden tile only go to a team’s own channel.',
+    audience: ['clanStaff'],
+  },
+  {
+    id: '2026-11-11-streaks-heat',
+    date: '2026-11-11',
+    title: 'Weekly streaks and clan heat',
+    body: 'Play in a week and your streak grows; your clan gets a heat rating from everyone’s streaks. See them on Members, Hall of Records and event rosters.',
+    links: [{ label: 'Members', href: '/c/{clan}/members' }],
+  },
+  {
+    id: '2026-11-11-supporter-tenure-gifts',
+    date: '2026-11-11',
+    title: 'Tenure badges and Supporter gifts',
+    body: 'Your Supporter star grows the longer you stay, and clans that keep paying get a tenure badge too. You can now gift Supporter to a friend, and gifts stack.',
+    links: [{ label: 'Gift Supporter', href: '/supporter/gift', apexOnly: true }],
+  },
+  {
+    id: '2026-11-11-same-name-clogs',
+    date: '2026-11-11',
+    title: 'Every collection log slot, even same-named ones',
+    body: 'Slots that share a name, like each Decorative armour piece, are now listed separately with their own icon, on your profile and on tiles.',
+  },
+  {
     id: '2026-11-09-side-panel',
     date: '2026-11-09',
     title: 'A new side panel',
     body: 'Every tab in the RuneLite side panel has been rebuilt: where you stand at a glance, what to do next, your profile with a banner and display case, a searchable collection log, and every live board you’re on tracked at once.',
     audience: ['pluginUser'],
     links: [{ label: 'The side panel, tab by tab', href: '/guide/side-panel' }],
-    pluginUpdate: 'next',
   },
   {
     id: '2026-11-09-team-competitions',
