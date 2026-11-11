@@ -26,7 +26,7 @@ import { absoluteAssetUrl, discordAssetUrl } from '../src/lib/seo.ts';
 // One more intentional difference: the plugin hotlinked game art from the wiki and RuneLite's static
 // host, and the site now serves the same images through its own asset cache (lib/assetUrls), so the
 // fixture's sprite URLs are mapped onto those addresses before comparing. The fixture stays verbatim.
-// Item thumbnails intentionally remain native-sized; other small sprites retain the legacy 4×
+// Item thumbnails intentionally remain native-sized; other small sprites are asked for at 2× (DISCORD_SPRITE_SCALE)
 // treatment. Event/boss artwork owns the larger visual treatment in current embeds.
 const legacy = JSON.parse(
   readFileSync(new URL('./fixtures/legacy-plugin-embeds.json', import.meta.url), 'utf8'),
@@ -335,7 +335,7 @@ test('a level below 99 reads in the same voice, with the skill wiki page and ico
     description: 'Zezima just reached **level 85 Slayer**!',
     color: 4886745,
     url: 'https://oldschool.runescape.wiki/w/Slayer',
-    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Slayer_icon.png?x=4' },
+    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Slayer_icon.png?x=2' },
     fields: [{ name: 'Progress', value: '12 of 23 skills at 99', inline: true }],
     image: { url: 'attachment://anvil-achievement.png' },
   });
