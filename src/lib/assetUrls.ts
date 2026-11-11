@@ -155,8 +155,11 @@ export function itemAssetUrl(itemId: number, scale = 1): string {
   return `${ITEM_ASSET_PREFIX}${Math.trunc(itemId)}.png${scale !== 1 && ASSET_SCALES.includes(scale) ? `?x=${scale}` : ''}`;
 }
 
-/** The scale Discord embed thumbnails ask sprites for: a 25-36px sprite → a crisp 100-144px one. */
-export const DISCORD_SPRITE_SCALE = 4;
+/**
+ * The scale Discord embed thumbnails ask sprites for: a 25-36px sprite → a crisp 50-72px one. At 4x
+ * every sprite filled Discord's 80px thumbnail box and towered over the post's text.
+ */
+export const DISCORD_SPRITE_SCALE = 2;
 
 /** Wiki files known to be small sprites (≤ MAX_SCALE_SOURCE_PX), so safe to ask an upscale of. */
 const SMALL_WIKI_SPRITES: ReadonlySet<string> = new Set([
