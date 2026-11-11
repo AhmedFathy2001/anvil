@@ -27,6 +27,7 @@ import FriendsInviteLink from '@/components/FriendsInviteLink';
 import { db } from '@/db';
 import { clans } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,7 @@ export default async function EventLayout({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
 
   // WHOSE EVENT IS THIS? Ids are global and this one came from the URL. The scope checks below ask
   // whether a board-scoped editor or treasurer may open this event, and `verifyUser` resolves their

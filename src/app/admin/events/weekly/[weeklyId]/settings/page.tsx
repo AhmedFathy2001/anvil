@@ -8,6 +8,7 @@ import WeeklySettingsPanel from '../WeeklySettingsPanel';
 import WeeklyRepeatToggle from '../WeeklyRepeatToggle';
 import { getWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function WeeklySettingsPage({ params }: { params: Promise<{ weeklyId: string }> }) {
   const { weeklyId } = await params;
-  const id = parseInt(weeklyId, 10);
+  const id = idParam(weeklyId);
 
   // Whose competition is this? The id came from the URL.
   const clan = await requireClan();

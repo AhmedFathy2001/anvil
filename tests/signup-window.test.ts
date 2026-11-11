@@ -74,3 +74,10 @@ test('editing follows the same rule, and a payment deadline extends it', () => {
     true,
   );
 });
+
+test('sign-ups switched off stay closed, even inside the payment grace', () => {
+  const future = new Date(Date.now() + 86_400_000).toISOString();
+  const base = { signupOpensAt: null, signupDeadline: null, startDate: future, signupsEnabled: false };
+  assert.deepEqual(signupWindowState(base), { open: false, reason: 'off' });
+  assert.deepEqual(signupEditState({ ...base, paymentDeadline: future }), { open: false, reason: 'off' });
+});

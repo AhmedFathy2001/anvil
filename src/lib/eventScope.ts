@@ -21,6 +21,7 @@ import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyUser } from '@/lib/auth';
 import { labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { provenPath } from '@/lib/requestHeaderProof';
 
 export type ScopedEvent = typeof events.$inferSelect;
 
@@ -237,9 +238,11 @@ async function redirectToEventAddress(eventId: number): Promise<never> {
     if (mine) slug = mine.slug;
   }
 
-  const h = await headers();
-  const path = h.get('x-anvil-pathname') ?? `/events/${eventId}`;
-  const qs = h.get('x-anvil-search') ?? '';
+  // Only what middleware proved: an unproven path or query is the caller's own text, and this
+  // echoes it into a Location header. Unknown means the bare event address.
+  const proven = await provenPath(await headers());
+  const path = proven?.pathname ?? `/events/${eventId}`;
+  const qs = proven?.search ?? '';
   redirect(`/c/${slug}${path.startsWith('/events/') ? path : `/events/${eventId}`}${qs}`);
 }
 

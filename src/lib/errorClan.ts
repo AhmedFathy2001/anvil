@@ -13,6 +13,7 @@
 // could be resolved genuinely belongs to none.
 
 import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
+import { provenClanSlug } from '@/lib/requestHeaderProof';
 
 /** The `/c/<slug>` prefix a path carries, if any. Same shape the proxy matches on. */
 function slugFromPath(path: string): string | null {
@@ -39,7 +40,8 @@ export async function clanIdForError(
     // against a running server, because the proxy rewrites it away before routing and it would have
     // been equally plausible for the rewritten one to arrive here. The header is the fallback for a
     // failure raised after the rewrite, where only middleware's copy of the slug survives.
-    const fromPath = slugFromPath(path) ?? firstHeader(headers, 'x-anvil-clan-slug');
+    // Only a slug middleware signed: an unproven one would just mislabel the error.
+    const fromPath = slugFromPath(path) ?? (await provenClanSlug({ get: (n) => firstHeader(headers, n) ?? null }));
     if (fromPath) {
       const clan = await resolveClanBySlug(fromPath);
       if (clan) return clan.id;

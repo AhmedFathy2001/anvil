@@ -9,13 +9,14 @@ import { buildGroupStandings, competitionInvites, listTeams } from '@/lib/compet
 import { verifyAdmin } from '@/lib/auth';
 import { getWeeklyRow } from '@/lib/weeklyWorkspace';
 import WeeklyFormatClient from './WeeklyFormatClient';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
 /** Solo / teams / clan vs clan for one weekly competition, and the teams or clans that go with it. */
 export default async function WeeklyFormatPage({ params }: { params: Promise<{ weeklyId: string }> }) {
   const { weeklyId } = await params;
-  const id = parseInt(weeklyId, 10);
+  const id = idParam(weeklyId);
 
   // Whose competition is this? The id came from the URL — the owning clan only.
   const clan = await requireClan();

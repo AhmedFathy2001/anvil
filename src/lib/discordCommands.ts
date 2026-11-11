@@ -624,6 +624,7 @@ async function applyEmbed(
     signupOpensAt: row?.signupOpensAt ?? null,
     signupDeadline: row?.signupDeadline ?? null,
     startDate: row?.startDate ?? null,
+    signupsEnabled: row?.signupsEnabled,
   });
 
   // Where THEY stand comes first: someone already approved doesn't need the sign-up pitch. But a
