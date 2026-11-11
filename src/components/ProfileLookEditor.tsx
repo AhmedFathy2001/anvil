@@ -145,7 +145,7 @@ export default function ProfileLookEditor({
 
       <div className="mb-2 text-[13px] font-medium">Banner</div>
       <div className="mb-2 flex items-stretch gap-3">
-        <div className="aspect-[4/1] min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
+        <div className="aspect-[3/1] min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
           {shownBanner && (
             <MotionImage
               media={shownBanner}
@@ -173,7 +173,7 @@ export default function ProfileLookEditor({
       {forCharacter && !banner && <p className="mb-2 text-[12px] text-text-dim">{shownBanner ? 'Using your default banner.' : 'Using your default (none set).'}</p>}
       <Controls kind="banner" has={!!banner} busy={busy} canUpload={canUpload} onFile={upload} onRemove={remove} removeLabel={forCharacter ? 'Use my default' : 'Remove'} />
       <p className="mt-1 text-[12px] text-text-dim">
-        PNG, JPEG, GIF or WebP, up to {MEDIA_LIMITS.banner.maxBytes / (1024 * 1024)} MB — a wide picture works best (about 1500×500).
+        PNG, JPEG, GIF or WebP, up to {MEDIA_LIMITS.banner.maxBytes / (1024 * 1024)} MB — wide, 3:1 (e.g. 1500×500), shows whole.
       </p>
 
       <div className="mb-2 mt-5 text-[13px] font-medium">Avatar</div>
