@@ -16,7 +16,7 @@ import { and, count, eq, inArray, max } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, completions, eventChatMessages, eventChatMutes, eventParticipants, events, momentReactions, moments, teams, tiles, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
-import { chatAccess, myChatNames, platformChatOn, type ChatAccess } from '@/lib/eventChat';
+import { chatAccess, markChannelRead, myChatNames, platformChatOn, type ChatAccess } from '@/lib/eventChat';
 import { MAX_BODY, ownTeamChatLabel, parseChannel, type ChatLock } from '@/lib/eventChatRules';
 import { completionAt } from '@/lib/panelRows';
 import { eventFeedList } from '@/lib/pluginUi/feedLists';
@@ -104,7 +104,12 @@ export async function liveChat(access: ChatAccess, userId: number, args: { f?: s
     return { ...base, channel: 'all', channels: [], team: null, teamPicks: null, ownTeam: null, lock: null, prompt: '', pace: '', lines: [], empty: '', mine: [] };
   }
   const st = await chatPaneState(access, userId, access.eventId, args);
-  const [pace, mine] = await Promise.all([chatPaceFor(access, userId, access.eventId), myChatNames(userId)]);
+  // The open channel counts as read: what's on screen shouldn't light the event page's unread dot.
+  const [pace, mine] = await Promise.all([
+    chatPaceFor(access, userId, access.eventId),
+    myChatNames(userId),
+    markChannelRead(access.eventId, userId, st.channel),
+  ]);
   return {
     ...base,
     channel: st.channel,

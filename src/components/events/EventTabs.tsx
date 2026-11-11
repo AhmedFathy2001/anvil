@@ -2,74 +2,112 @@
 
 import { useState, type ReactNode } from 'react';
 import ClanLink from '@/components/ClanLink';
+import type { EventTabsData } from '@/lib/eventTabs';
+
+type Active = 'board' | 'stats' | 'live' | 'chat';
 
 /**
- * The event's own pages as one tab bar under the hero: Board (this page), Stats, Feed & chat, Rules,
- * and Moderate on the far right for chat staff. Replaces the stack of full-width link rows that pushed
- * the board below the fold. Rules has no page of its own: its tab opens the rules panel under the bar
- * (`rules` is that panel's content). `?rules=1#rules` links (the Discord rules post) open it on load via `rulesOpen`.
+ * The event's own pages as one tab bar: Board, Stats, Feed & chat, Rules, and Moderate on the far
+ * right for chat staff. The same bar sits on the event page and on its Stats, Feed & chat and
+ * Moderate pages (which tabs show: lib/eventTabs eventTabsFor), so people move between them.
+ *
+ * Rules has no page of its own. On the event page (`rules` given) its tab opens the rules panel under
+ * the bar; `?rules=1#rules` links (the Discord rules post) open it on load via `rulesOpen`. On the
+ * other pages it links to exactly that.
  */
 export default function EventTabs({
   eventId,
-  stats,
-  live,
-  moderate,
-  rules,
+  active,
+  tabs,
+  rules = null,
+  hasRules = false,
   rulesOpen = false,
 }: {
   eventId: number;
-  stats: boolean;
-  live: boolean;
-  moderate: boolean;
-  rules: ReactNode | null;
+  active: Active;
+  tabs: EventTabsData;
+  /** The rules panel's content: the event page only. */
+  rules?: ReactNode | null;
+  /** Elsewhere: whether to show a Rules tab linking back to the event page's panel. */
+  hasRules?: boolean;
   rulesOpen?: boolean;
 }) {
   const [open, setOpen] = useState(rulesOpen);
-  if (!stats && !live && !moderate && !rules) return null;
+  const showRules = !!rules || hasRules;
+  if (!tabs.stats && !tabs.live && !tabs.moderate && !showRules) return null;
 
   const tab =
     'flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-semibold transition-colors';
+  const on = `${tab} border-gold text-gold`;
   const idle = `${tab} border-transparent text-text-muted hover:text-foreground`;
+  const base = `/events/${eventId}`;
 
   return (
-    <div id="rules" className="mb-6 scroll-mt-20">
+    <div id={rules ? 'rules' : undefined} className="mb-6 scroll-mt-20">
       <nav
         aria-label="Event pages"
         className="flex items-stretch gap-0.5 overflow-x-auto border-b border-card-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <span className={`${tab} ${open ? 'border-transparent text-foreground' : 'border-gold text-gold'}`} aria-current="page">
-          <Icon d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
-          Board
-        </span>
-        {stats && (
-          <ClanLink href={`/events/${eventId}/stats`} className={idle}>
+        {active === 'board' ? (
+          rules && open ? (
+            <button type="button" onClick={() => setOpen(false)} className={idle}>
+              <Icon d={BOARD} />
+              Board
+            </button>
+          ) : (
+            <span className={on} aria-current="page">
+              <Icon d={BOARD} />
+              Board
+            </span>
+          )
+        ) : (
+          <ClanLink href={base} className={idle}>
+            <Icon d={BOARD} />
+            Board
+          </ClanLink>
+        )}
+        {tabs.stats && (
+          <ClanLink href={`${base}/stats`} className={active === 'stats' ? on : idle} aria-current={active === 'stats' ? 'page' : undefined}>
             <Icon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
             Stats
           </ClanLink>
         )}
-        {live && (
-          <ClanLink href={`/events/${eventId}/live`} className={idle}>
+        {tabs.live && (
+          <ClanLink href={`${base}/live`} className={active === 'live' ? on : idle} aria-current={active === 'live' ? 'page' : undefined}>
             <Icon d="M4 5h16v11H9l-5 4z" />
             Feed &amp; chat
+            {tabs.unread && (
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" role="img" aria-label="new messages" />
+            )}
           </ClanLink>
         )}
-        {rules && (
+        {rules ? (
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             aria-controls="event-rules-panel"
-            className={open ? `${tab} border-gold text-gold` : idle}
+            className={open ? on : idle}
           >
-            <Icon d="M4 6h16M4 12h10M4 18h7" />
+            <Icon d={RULES} />
             Rules
           </button>
+        ) : (
+          hasRules && (
+            <ClanLink href={`${base}?rules=1#rules`} className={idle}>
+              <Icon d={RULES} />
+              Rules
+            </ClanLink>
+          )
         )}
-        {moderate && (
+        {tabs.moderate && (
           <ClanLink
-            href={`/events/${eventId}/chat`}
+            href={`${base}/chat`}
             title="Staff only: delete messages, time out or ban players, pause the chat"
-            className={`${tab} ml-auto border-transparent text-sky-300/80 hover:text-sky-200`}
+            aria-current={active === 'chat' ? 'page' : undefined}
+            className={`${tab} ml-auto ${
+              active === 'chat' ? 'border-sky-300 text-sky-200' : 'border-transparent text-sky-300/80 hover:text-sky-200'
+            }`}
           >
             <Icon d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
             Moderate
@@ -84,6 +122,9 @@ export default function EventTabs({
     </div>
   );
 }
+
+const BOARD = 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z';
+const RULES = 'M4 6h16M4 12h10M4 18h7';
 
 function Icon({ d }: { d: string }) {
   return (

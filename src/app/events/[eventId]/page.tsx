@@ -65,6 +65,7 @@ import { buildLadderView } from '@/lib/ladderView';
 import LadderClient from './LadderClient';
 import EventRulesCard from '@/components/events/EventRulesCard';
 import EventTabs from '@/components/events/EventTabs';
+import { eventTabsFor } from '@/lib/eventTabs';
 import { loadRulesFacts } from '@/lib/eventRulebook';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
@@ -72,7 +73,6 @@ import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
-import { eventHasStarted as boardHasStarted } from '@/lib/completionGate';
 import { atLeast } from '@/lib/clanRoles';
 import { chatAccess } from '@/lib/eventChat';
 import ClanLink from '@/components/ClanLink';
@@ -538,15 +538,8 @@ export default async function EventScoreboardPage({
   // when there's actually something to show. `mvp` is non-null exactly when someone scored/completed a
   // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
   const showRecapCta = isEventEnded(event) && !!mvp;
-  // The stats page counts from the start; before it there's nothing to show.
-  const showStatsLink = boardHasStarted(event);
-  // The chat moderation page, for the host clan's mods and up and Anvil staff (lib/eventChat chatAccess),
-  // only at the host's own address: a co-host's role says nothing about this event.
+  // The viewer's chat seat, for the tab bar's Feed & chat / Moderate tabs and unread dot (lib/eventTabs).
   const viewerChat = session ? await chatAccess(event.id, session.userId) : null;
-  const canModerateChat = !apiPrefix && event.chatEnabled && !!viewerChat?.staff;
-  // The board's Feed and chat on the website (app/events/[eventId]/live), for its players and staff:
-  // the plugin panel's Feed tab for someone on a phone or away from the game.
-  const canOpenLive = !!viewerChat?.member;
 
   // The pot counts fees actually in (lib/prizePool countPaidEntries), not every approved sign-up.
   const [paid, cofferFunded] = await Promise.all([countPaidEntries(id), eventPoolGp(id)]);
@@ -746,9 +739,8 @@ export default async function EventScoreboardPage({
       />
       <EventTabs
         eventId={event.id}
-        stats={showStatsLink && !curtain}
-        live={canOpenLive}
-        moderate={canModerateChat}
+        active="board"
+        tabs={await eventTabsFor(event, { userId: session?.userId ?? null, apiPrefix, active: 'board', access: viewerChat, curtained: !!curtain })}
         rules={rulesFacts ? <EventRulesCard facts={rulesFacts} /> : null}
         rulesOpen={showRules}
       />

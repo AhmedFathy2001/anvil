@@ -420,7 +420,10 @@ export async function markChannelRead(eventId: number, userId: number, channel: 
     .values({ eventId, userId, channel, lastId: upTo })
     .onConflictDoUpdate({
       target: [eventChatReads.eventId, eventChatReads.userId, eventChatReads.channel],
-      set: { lastId: sql`greatest(${eventChatReads.lastId}, excluded.last_id)` },
+      set: { lastId: sql`excluded.last_id` },
+      // Only when it moves forward: an already-current marker writes nothing (the web page marks
+      // its open channel on every load, lib/liveData liveChat).
+      setWhere: lt(eventChatReads.lastId, upTo),
     });
 }
 

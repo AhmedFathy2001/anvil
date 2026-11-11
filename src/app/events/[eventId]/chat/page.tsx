@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 
-import ClanLink from '@/components/ClanLink';
+import EventPageHeader from '@/components/events/EventPageHeader';
 import { verifyUser } from '@/lib/auth';
 import { chatAccess } from '@/lib/eventChat';
 import { requireEventForPage } from '@/lib/eventScope';
@@ -23,14 +23,10 @@ export default async function EventChatModerationPage({ params }: { params: Prom
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <ClanLink href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</ClanLink>
-        <h1 className="text-2xl font-bold text-gold mt-1">Event chat moderation</h1>
-        <p className="text-sm text-text-muted mt-1">
-          The chat players use in the Anvil plugin&apos;s Feed tab. Deleting, timeouts and bans here are the same ones mods use by
-          right-clicking a line in the plugin, and every action goes in the clan&apos;s audit log.
-        </p>
-      </div>
+      <EventPageHeader event={event} apiPrefix={null} active="chat" title="Event chat moderation" access={access}>
+        The chat players use in the Anvil plugin&apos;s Feed tab. Deleting, timeouts and bans here are the same ones mods use by
+        right-clicking a line in the plugin, and every action goes in the clan&apos;s audit log.
+      </EventPageHeader>
       <ChatModClient eventId={id} />
     </div>
   );
