@@ -23,6 +23,7 @@ export const HOOK_KIND_LABELS = {
   trade: 'Trades',
   storage: 'Group storage',
   ext: 'Other plugins',
+  challenges: 'Challenges',
 } as const;
 export type HookKind = keyof typeof HOOK_KIND_LABELS;
 export const HOOK_KINDS = Object.keys(HOOK_KIND_LABELS) as HookKind[];

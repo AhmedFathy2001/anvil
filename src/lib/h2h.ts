@@ -19,7 +19,8 @@ import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, accountStatSnapshots, clanMemberships, clans, h2hChallenges, h2hPrefs, users } from '@/db/schema';
-import { sendChallengesWebhook } from '@/lib/discord';
+import { sendChallengesWebhook, sendPersonalWebhook } from '@/lib/discord';
+import { personalWebhookTargets } from '@/lib/emissionRouting';
 import { normalizeRsn } from '@/lib/auth';
 import { discordRest, sharedBotToken } from '@/lib/discord-roles';
 import {
@@ -321,6 +322,7 @@ export async function respondToChallenge(args: {
   void tellPerson(row.challengerPlayerId, `${theirName} accepted: ${describe(row.kind as H2hKind, row.label, row.durationMin)}. Go!`, 'near');
   if (isPublic({ challengerPublic: row.challengerPublic, opponentPublic: !!args.public })) {
     void postToClans(row, 'start').catch((err) => log.warn('h2h.clan-post-failed', { id: row.id, message: (err as Error).message }));
+    void postToPlayers(row, 'start').catch((err) => log.warn('h2h.personal-post-failed', { id: row.id, message: (err as Error).message }));
   }
   return { ok: true, id: row.id };
 }
@@ -800,6 +802,7 @@ async function announceResult(r: Row): Promise<void> {
   const own = new Set(players.map((p) => p.id));
   await pushLine(audience.filter((id) => !own.has(id)), line(`${sentence}.`, 'feed'));
   await postToClans(r, 'result', sentence).catch((err) => log.warn('h2h.clan-post-failed', { id: r.id, message: (err as Error).message }));
+  await postToPlayers(r, 'result', sentence).catch((err) => log.warn('h2h.personal-post-failed', { id: r.id, message: (err as Error).message }));
 }
 
 /**
@@ -833,6 +836,26 @@ async function postToClans(r: Pick<Row, 'id' | 'kind' | 'label' | 'durationMin' 
         ? { title: '⚔️ Challenge on', description: `**${a}** vs **${b}**\n${describe(r.kind as H2hKind, r.label, r.durationMin)}.`, color: 0xe0aa1e, url }
         : { title: '🏆 Challenge over', description: `${sentence}.`, color: 0x23a55a, url };
     await sendChallengesWebhook(clanId, { embeds: [embed] });
+  }
+}
+
+/** Each player's own webhooks that take 'challenges' (Settings → Your webhooks), once per URL. */
+async function postToPlayers(r: Pick<Row, 'kind' | 'label' | 'durationMin' | 'challengerAccountId' | 'opponentAccountId' | 'challengerPlayerId' | 'opponentPlayerId'>, phase: 'start' | 'result', sentence?: string): Promise<void> {
+  const names = await rsnsOf([r.challengerAccountId, r.opponentAccountId]);
+  const a = names.get(r.challengerAccountId) ?? '?';
+  const b = names.get(r.opponentAccountId) ?? '?';
+  const url = absoluteUrl('/challenges');
+  const embed =
+    phase === 'start'
+      ? { title: '⚔️ Challenge on', description: `**${a}** vs **${b}**\n${describe(r.kind as H2hKind, r.label, r.durationMin)}.`, color: 0xe0aa1e, url }
+      : { title: '🏆 Challenge over', description: `${sentence}.`, color: 0x23a55a, url };
+  const sent = new Set<string>();
+  for (const u of await loginsOf([r.challengerPlayerId, r.opponentPlayerId])) {
+    for (const t of await personalWebhookTargets(u.id, 'challenges')) {
+      if (sent.has(t.url)) continue;
+      sent.add(t.url);
+      await sendPersonalWebhook(t.url, { embeds: [embed] });
+    }
   }
 }
 

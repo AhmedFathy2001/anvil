@@ -721,6 +721,11 @@ export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookP
   return sendToWebhook(webhookUrl, payload, clanId);
 }
 
+/** A person's own webhook (lib/emissionRouting personalWebhookTargets): no clan identity, no fallback. */
+export async function sendPersonalWebhook(url: string, payload: DiscordWebhookPayload): Promise<boolean> {
+  return sendToWebhook(url, payload);
+}
+
 /** Members' head-to-heads (lib/h2h): its own channel only, so a clan that never set one hears nothing. */
 export async function sendChallengesWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'challenges')) return false;
