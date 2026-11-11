@@ -127,7 +127,9 @@ export default async function EventLayout({
       {/* The event's hero (from the settings mockups): its banner, its icon over it, the name and
           what kind of board it is, and a way to see it as players do. */}
       <header className="mb-6 overflow-hidden rounded-2xl border border-card-border bg-card-bg">
-        <div className="relative h-24 bg-brown-dark sm:h-28" aria-hidden>
+        {/* A banner gets its own 3:1 frame, the shape the upload asks for (and the settings preview
+            shows), so it is seen whole; without one, a short strip of grid. */}
+        <div className={`relative bg-brown-dark ${event.bannerUrl ? 'aspect-[3/1]' : 'h-24 sm:h-28'}`} aria-hidden>
           {event.bannerUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- the event's own upload
             <img src={event.bannerUrl} alt="" className="h-full w-full object-cover" style={{ objectPosition: `50% ${event.bannerPosition ?? 50}%` }} />
