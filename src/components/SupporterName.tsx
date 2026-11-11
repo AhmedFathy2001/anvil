@@ -67,14 +67,14 @@ export default function SupporterName({
 }
 
 export function SupporterStar({
-  size = 14,
+  size: sizeProp,
   decorative = false,
   stops = null,
   color = null,
   tenure = null,
 }: {
   size?: number;
-  /** The tenure step's frame round the star; none (or Apprentice) is the bare star. */
+  /** The tenure step: its badge replaces the star (a given size, else the text's size). */
   tenure?: TenureStepId | null;
   decorative?: boolean;
   /** Paint the star with these gradient stops instead of gold. */
@@ -83,8 +83,9 @@ export function SupporterStar({
   color?: string | null;
 }) {
   const id = useId();
+  const size = sizeProp ?? 14;
   const grad = stops && stops.length >= 2 ? stops : null;
-  if (tenure) return <TenureBadge step={tenure} color={color ?? grad?.[0] ?? '#ffd35c'} size={Math.round(size * 1.3)} decorative={decorative} />;
+  if (tenure) return <TenureBadge step={tenure} color={color ?? grad?.[0] ?? '#ffd35c'} size={sizeProp != null ? Math.round(sizeProp * 1.3) : undefined} decorative={decorative} />;
   return (
     <svg
       width={size}
@@ -113,15 +114,16 @@ export function SupporterStar({
  * A tenure badge: the step's pixel sprite (lib/tenureSprites, the plugin's own art), crisp squares in
  * three tones of the name's colour. A gem that grows, gains wings, then a laurel for Legend.
  */
-export function TenureBadge({ step, color, size = 18, decorative = false }: { step: TenureStepId; color: string; size?: number; decorative?: boolean }) {
+export function TenureBadge({ step, color, size, decorative = false }: { step: TenureStepId; color: string; size?: number; decorative?: boolean }) {
   const k = TENURE_LADDER.findIndex((t) => t.id === step);
   const rows = TENURE_SPRITES[Math.max(0, k)];
   const tones = tenureTones(/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffd35c');
   const name = TENURE_LADDER[Math.max(0, k)].name;
   return (
     <svg
-      width={size}
-      height={size}
+      // No size: 1.3em, so the badge grows with the name it sits beside (a heading gets a big one).
+      width={size ?? '1.3em'}
+      height={size ?? '1.3em'}
       viewBox="0 0 11 11"
       shapeRendering="crispEdges"
       className="shrink-0"
