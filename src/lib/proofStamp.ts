@@ -142,8 +142,12 @@ export function anvilLines(claims: ProofClaims): string[] {
     .map((c) => plainText(c.text))
     .filter((t) => t.startsWith('[Anvil] '))
     .map((t) => t.slice('[Anvil] '.length))
+    .filter((t) => !OFF_TOPIC_ANVIL.some((re) => re.test(t)))
     .slice(-MAX_ANVIL_LINES);
 }
+
+/** Anvil lines that happen to land near a credit but say nothing about it: roster sync and plan notices. */
+const OFF_TOPIC_ANVIL = [/\broster\b/i, /^Not added\b/i, /\bgrace period\b/i];
 
 const ANVIL_WINDOW_AFTER = 4;
 const MAX_ANVIL_LINES = 3;
