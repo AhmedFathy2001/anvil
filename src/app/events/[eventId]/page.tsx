@@ -64,6 +64,7 @@ import { deriveTileIcon } from '@/lib/tileIcons';
 import { buildLadderView } from '@/lib/ladderView';
 import LadderClient from './LadderClient';
 import EventRulesCard from '@/components/events/EventRulesCard';
+import EventTabs from '@/components/events/EventTabs';
 import { loadRulesFacts } from '@/lib/eventRulebook';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
@@ -743,6 +744,14 @@ export default async function EventScoreboardPage({
         placementPrizes={placementPrizes}
         startProof={!!parseEventRules(event.rules).startProof}
       />
+      <EventTabs
+        eventId={event.id}
+        stats={showStatsLink && !curtain}
+        live={canOpenLive}
+        moderate={canModerateChat}
+        rules={rulesFacts ? <EventRulesCard facts={rulesFacts} /> : null}
+        rulesOpen={showRules}
+      />
       {myStartProofs.length > 0 && (
         <section id="starting-shot" className="mb-6 scroll-mt-20">
           <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 mb-3">
@@ -850,46 +859,6 @@ export default async function EventScoreboardPage({
         signupClosesAt={event.signupDeadline ?? event.startDate}
       />
       )}
-      {rulesFacts && <EventRulesCard facts={rulesFacts} defaultOpen={showRules} />}
-      {showStatsLink && !curtain && !isEventEnded(event) && (
-        <ClanLink
-          href={`/events/${id}/stats`}
-          className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
-        >
-          <span className="text-xl leading-none" aria-hidden>📊</span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-semibold">Live event stats</span>
-            <span className="block text-sm text-text-muted">Drops, deaths, XP and tiles per player — by day and hour by hour.</span>
-          </span>
-          <span className="text-sm text-gold shrink-0">Open →</span>
-        </ClanLink>
-      )}
-      {canOpenLive && (
-        <ClanLink
-          href={`/events/${id}/live`}
-          className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
-        >
-          <span className="text-xl leading-none" aria-hidden>💬</span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-semibold">Feed &amp; chat</span>
-            <span className="block text-sm text-text-muted">The board’s drops and finished tiles, and its chat. Talk to your team from your phone; it reaches them in game.</span>
-          </span>
-          <span className="text-sm text-gold shrink-0">Open →</span>
-        </ClanLink>
-      )}
-      {canModerateChat && (
-        <ClanLink
-          href={`/events/${id}/chat`}
-          className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
-        >
-          <span className="text-xl leading-none" aria-hidden>🛡️</span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-semibold">Moderate event chat</span>
-            <span className="block text-sm text-text-muted">Staff only: delete messages, time out or ban players, pause the chat.</span>
-          </span>
-          <span className="text-sm text-gold shrink-0">Open →</span>
-        </ClanLink>
-      )}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}
       {(showRecapCta || showSurveyCta) && (
@@ -922,14 +891,6 @@ export default async function EventScoreboardPage({
                 className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
               >
                 🎁 Your Wrapped card →
-              </ClanLink>
-            )}
-            {showStatsLink && (
-              <ClanLink
-                href={`/events/${id}/stats`}
-                className="text-sm font-medium text-text-muted border border-card-border px-4 py-2 rounded-lg hover:text-gold hover:border-gold/30 transition-colors"
-              >
-                📊 Event stats →
               </ClanLink>
             )}
             {showSurveyCta && (
