@@ -7,11 +7,11 @@ export const TENURE_SIZE = 13;
 
 export const TENURE_SPRITES: readonly (readonly string[])[] = [
   ['.............', '......A......', '.....ACA.....', '....ACBCA....', '...ACBBBCA...', '..ACBBBBBCA..', '.ACBBBBBBBCA.', '..ACBBBBBDA..', '...ACBBBDA...', '....ACBDA....', '.....ACA.....', '......A......', '.............'],
-  ['.............', '...AAAAAAA...', '..ALLLLLLLA..', '.ALMMMMMMMLA.', 'ACCCCCFFFFFFA', '.ACBBDFEEEGA.', '..ACBDFEEGA..', '...ACDFEGA...', '....ACFGA....', '.....AFA.....', '......A......', '.............', '.............'],
-  ['LA...ALA...AL', 'ALA..ALA..ALA', '.A.AAAAAAA.A.', '..ACLLLLLCA..', '.ACDLMMMMCCA.', 'ACBDFFFFFCBCA', 'ACDLLLLLLLCDA', 'AFFLMKKKMMFFA', '.AFFFLKMFFGA.', '..AFGLKMFGA..', '...AFFLFGA...', '....AFLFA....', '.....AFA.....'],
-  ['...AIIIIIA...', '..AIAAAAAIA..', '.AIAAAAAAAIA.', 'AIAALLLLLAAIA', 'IAALMMMMMLAAI', 'IACCCCFFFFFAI', 'IAACBDFEEGAAI', 'IA.ACDFEGA.AI', 'IA..ACFGA..AI', 'AIA..AFA..AIA', '.AIA..A..AIA.', '..AIAAAAAIA..', '...AIIIIIA...'],
-  ['...AIILIIA...', '..AIAALAAIA..', '.AIAAAAAAAIA.', 'AIAALLLLLAAIA', 'IAALMMMMMLAAI', 'LLCCCCFFFFFLL', 'IAACBDFEEGAAI', 'IA.ACDFEGA.AI', 'IA..ACFGA..AI', 'AIA..AFA..AIA', '.AIA..A..AIA.', '..AIAALAAIA..', '...AIILIIA...'],
-  ['.............', '.A..AAAAA..A.', 'AIAALLLLLAAIA', 'IJALMMMMMLAII', 'IACCCCFFFFFAI', 'IAACBDFEEGAAI', 'IIAACDFEGAAIJ', 'AIIAACFGAAIJA', '.AIIAAFAAIJA.', '..AIIIAIIJA..', '...AAIAIAA...', '.....A.A.....', '.............'],
+  ['.............', '.............', '...AAAAAAA...', '.AALLLLLLLAA.', 'ACCCCCFFFFFFA', '.ACBBDFEEEGA.', '..ACBDFEEGA..', '...ACDFEGA...', '....ACFGA....', '.....AFA.....', '......A......', '.............', '.............'],
+  ['.............', 'LA...ALA...AL', 'ALA..ALA..ALA', '.A.AAAAAAA.A.', '..ACLLLLLCA..', '.ACDLMMMMCCA.', 'ACDDFFFFFCDCA', 'AFFLLLLLLLFFA', '.AFFFLKMFFGA.', '..AFGLKMFGA..', '...AFFLFGA...', '....AFLFA....', '.....AFA.....'],
+  ['.............', '..AAIIIIIAA..', '.AIIJAAAIIIA.', 'AIJALLLLLAIIA', 'AIALMMMMMLAIA', 'IACCCCFFFFFAI', 'IAACBDFEEGAAI', 'IA.ACDFEGA.AI', 'IA..ACFGA..AI', 'AIA..AFA..AIA', 'AIIAA.A.AAIJA', '.AIIIAAAIIJA.', '..AAIIIIJAA..'],
+  ['.............', '..AAIILIIAA..', '.AIIJALAIIIA.', 'AIJALLKLLAIIA', 'AIALMMMMMLAIA', 'IACCCCFFFFFAI', 'LLACBDFEEGALL', 'IA.ACDFEGA.AI', 'IA..ACFGA..AI', 'AIA..AFA..AIA', 'AIIAA.A.AAIJA', '.AIIIALAIIJA.', '..AAIILIJAA..'],
+  ['.............', 'LA...ALA...AL', 'ALA..ALA..ALA', '.A..AAAAA..A.', 'AIAALLLLLAAIA', 'IJALMMMMMLAII', 'IACCCCFFFFFAI', 'IAACBDFEEGAAI', 'IIAACDFEGAAIJ', 'AIIAACFGAAIJA', '.AIIAAFAAIJA.', '..AIIIAIIJA..', '...AAIAIAA...'],
 ];
 
 /** Per letter (A = 1): mix the colour towards white (> 0) or black (< 0) by this much. */
