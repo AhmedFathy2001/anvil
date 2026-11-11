@@ -357,6 +357,41 @@ async function groupAccountsByPerson(
   return [...groups.values()].map(({ personKey, teamName, accounts }) => ({ personKey, teamName, accounts }));
 }
 
+/**
+ * The board's "max accounts per person" (events.max_accounts_per_person, set when it was created),
+ * which Add them all used to skip: every plugin character went in, so a person's alts piled onto
+ * their team on a one-per-person board. Keeps what is already enrolled, then adds each person's main
+ * first and further characters only while they are under the cap. Unlinked seats are their own person.
+ */
+export async function withinAccountCap(eventId: number, eligible: EligibleMember[]): Promise<EligibleMember[]> {
+  // clan-scope: this clan -- one event by id; the caller already resolved it within the clan.
+  const [ev] = await db.select({ max: events.maxAccountsPerPerson }).from(events).where(eq(events.id, eventId)).limit(1);
+  const max = ev?.max ?? 1;
+  const meta = await loadMemberMeta(eligible.map((m) => m.id));
+  // Everyone a person already has on the board counts, plugin or not.
+  const owners = [...new Set([...meta.values()].map((m) => m.userId).filter((u): u is number => u != null))];
+  const taken = new Map<number, number>();
+  if (owners.length) {
+    // clan-scope: global -- keyed by SEATS of this event's eligible members; a seat belongs to one clan.
+    const rows = await db
+      .select({ owner: clanRoster.playerId })
+      .from(eventParticipants)
+      .innerJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
+      .where(and(eq(eventParticipants.eventId, eventId), inArray(clanRoster.playerId, owners)));
+    for (const r of rows) if (r.owner != null) taken.set(r.owner, (taken.get(r.owner) ?? 0) + 1);
+  }
+  const mainsFirst = [...eligible].sort((a, b) => Number(!!meta.get(b.id)?.isPrimary) - Number(!!meta.get(a.id)?.isPrimary));
+  return mainsFirst.filter((m) => {
+    if (m.enrolledPlayerId != null) return true;
+    const owner = meta.get(m.id)?.userId;
+    if (owner == null) return true;
+    const n = taken.get(owner) ?? 0;
+    if (n >= max) return false;
+    taken.set(owner, n + 1);
+    return true;
+  });
+}
+
 // Enroll every plugin-active clan member into the event, idempotently. `one_team` puts everyone on a
 // single shared team; `individual` gives each member their own team (or one team per person when
 // slotMode is 'per-person'); `draft_pool` leaves them unassigned for a later draft. Re-running only
@@ -366,7 +401,7 @@ export async function autoEnrollActivePluginMembers(
   placement: EnrollPlacement,
   slotMode: SlotMode = 'per-person',
 ): Promise<AutoEnrollResult> {
-  const eligible = await listEligiblePluginMembers(eventId);
+  const eligible = await withinAccountCap(eventId, await listEligiblePluginMembers(eventId));
   const newlyEnrolled = eligible.filter((m) => m.enrolledPlayerId == null).length;
   let teamsCreated = 0;
 
@@ -539,7 +574,7 @@ export async function autoEnrollTick(now = new Date()): Promise<number> {
     if (Number.isFinite(starts) && starts <= now.getTime()) continue;
     if (e.draftStatus === 'active' || e.draftStatus === 'paused') continue;
     if (placement !== 'draft_pool' && e.draftStatus !== 'none') continue;
-    const eligible = await listEligiblePluginMembers(e.id);
+    const eligible = await withinAccountCap(e.id, await listEligiblePluginMembers(e.id));
     if (!eligible.some((m) => m.enrolledPlayerId == null)) continue;
     try {
       added += (await autoEnrollActivePluginMembers(e.id, placement, e.slot === 'per-account' ? 'per-account' : 'per-person')).added;
