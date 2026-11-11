@@ -1012,7 +1012,7 @@ const DETAILS: readonly SettingEntry[] = [
   {
     id: 'discord-always-post',
     label: 'Always post these items',
-    description: 'Prestige items that post whatever their value, plus your own extra items.',
+    description: 'Items that post whatever their value or rarity: Anvil’s defaults to start, add or remove any.',
     keywords: ['always notify', 'prestige', 'items', 'whitelist', 'always post', 'drops'],
     href: `${DISCORD}#always-notify-items`,
     section: `${S.feeds} → Rare drops`,

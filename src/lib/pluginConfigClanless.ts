@@ -16,6 +16,7 @@
 // clan name renders nothing odd) is answered, and only while the race runs. When it ends the 404
 // comes back and the plugin returns to exactly today's state.
 
+import { DEFAULT_ALWAYS_NOTIFY } from '@/lib/alwaysNotify';
 import { serverInfo } from '@/lib/serverInfo';
 import { NOTIFY_CHANNELS, personalBestActivities } from '@/lib/pluginConfig';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -85,7 +86,8 @@ export function clanlessConfigBody(luckItemIds: number[]): Record<string, unknow
     funDeathMessages: [],
     deathTaunts: [],
     spoonTaunts: [],
-    alwaysNotifyItems: [],
+    // The defaults, so a plugin that takes the site's list in place of its own still has one.
+    alwaysNotifyItems: [...DEFAULT_ALWAYS_NOTIFY],
     alwaysNotifyItemIds: [],
     showKillCount: true,
     dropRarityFloor: 0,

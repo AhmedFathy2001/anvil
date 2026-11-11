@@ -41,6 +41,8 @@ const EXPOSED_KEYS = [
   // Role pinged on bingo event start/finish posts. Blank = no ping.
   'discord_member_ping_role_id',
   'always_notify_items',
+  // The full always-post list (lib/alwaysNotify); replaces the extras above once saved.
+  'always_notify_list',
   // The moments feed's floors (lib/moments). The board one is per-event context; the three clan
   // ones decide what the always-on feed keeps when no competition and no board are running, which
   // is the difference between a page worth opening and a log of everyone's Tuesday.
