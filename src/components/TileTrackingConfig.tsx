@@ -859,12 +859,13 @@ function TileTrackingEditor({
     if (initial.tileType !== 'pvp') return 'other-team';
     const t = initial.targetNpcs || [];
     if (t.includes('any')) return 'anyone';
-    if (t.some((s) => s.startsWith('rsn:'))) return 'rsn';
+    // A bare name (older lab boards) is a named player too, never "rival team".
+    if (t.some((s) => s !== 'team:other')) return 'rsn';
     return 'other-team';
   });
   const [pvpRsnsText, setPvpRsnsText] = useState<string>(
     initial.tileType === 'pvp'
-      ? (initial.targetNpcs || []).filter((s) => s.startsWith('rsn:')).map((s) => s.slice(4)).join(', ')
+      ? (initial.targetNpcs || []).filter((s) => s !== 'any' && s !== 'team:other').map((s) => (s.startsWith('rsn:') ? s.slice(4) : s)).join(', ')
       : '',
   );
   // The course currently highlighted in the lap picker's dropdown (Add commits it to lapCourses).
