@@ -42,14 +42,24 @@ const NOT_A_KILLER = new Set([
   'agile scarab', 'arcane scarab', 'spitting scarab', 'soldier scarab', 'scarab swarm',
 ]);
 
-/** A stored death's killer as it should read: null for one of the never-killers above. */
+/**
+ * A follower's NPC name: pets target their owner to follow them, and a plugin that doesn't know the
+ * pet is the player's own follower (another player's pet, older plugins) names it ("Died to Lil'
+ * Xarp"). No monster that can kill you is called Lil' …; the rest are the odd-named pets.
+ */
+// "Lil'" needs its apostrophe: no RSN can hold one, so a PvP killer called "Lil Bob" is never hidden.
+const PET_NAME = /^(?:lil'|little (?:nightmare|parasite)$|tiny tempor$|smol heredit$|(?:corrupted )?youngllef$)/i;
+
+const neverKiller = (name: string) => NOT_A_KILLER.has(name.trim().toLowerCase()) || PET_NAME.test(name.trim());
+
+/** A stored death's killer as it should read: null for one of the never-killers above, or a pet. */
 export function shownKiller(source: string | null | undefined): string | null {
-  return source && !NOT_A_KILLER.has(source.trim().toLowerCase()) ? source : null;
+  return source && !neverKiller(source) ? source : null;
 }
 
 export function settleDeathSource(raw: Record<string, unknown>): void {
   if (raw.kind !== 'death') return;
-  if (typeof raw.source === 'string' && NOT_A_KILLER.has(raw.source.trim().toLowerCase())) {
+  if (typeof raw.source === 'string' && raw.sourceKind !== 'player' && neverKiller(raw.source)) {
     raw.source = null;
     raw.sourceKind = null;
     return;

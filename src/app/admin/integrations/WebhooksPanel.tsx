@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhookField from '@/components/WebhookField';
+import ModeChannelOverrides, { modeChannelForField } from '@/components/ModeChannelOverrides';
 import PlainSetting from '@/components/PlainSetting';
 import ToggleSetting from '@/components/ToggleSetting';
 import Input from '@/components/Input';
@@ -23,20 +24,26 @@ import { useRevealTarget } from '@/components/HashReveal';
 interface Props {
   channels: BroadcastChannel[];
   botEnabled: boolean;
+  /** Offer each game mode's own channel under the plugin fields (not in a creator space). */
+  modes?: boolean;
 }
 
 // One field, rendered by the component its kind calls for. The catalogue carries the words; this
 // only decides which control they go into.
-function Field({ field, channels, botEnabled }: { field: SettingField } & Props) {
+function Field({ field, channels, botEnabled, modes }: { field: SettingField } & Props) {
   if (field.kind === 'webhook') {
     return (
-      <WebhookField
-        settingKey={field.key}
-        label={field.label}
-        helpText={field.help}
-        channels={channels}
-        botEnabled={botEnabled}
-      />
+      <div className="space-y-3">
+        <WebhookField
+          settingKey={field.key}
+          label={field.label}
+          helpText={field.help}
+          channels={channels}
+          botEnabled={botEnabled}
+        />
+        {/* Secondary: the game modes' own channel for the same kind (Admin → Discord → Game modes). */}
+        {modes && modeChannelForField(field.key) && <ModeChannelOverrides settingKey={field.key} />}
+      </div>
     );
   }
   if (field.kind === 'plain') {
@@ -58,12 +65,12 @@ function Card({ children }: { children: React.ReactNode }) {
 
 // Fields inside a card are separated rather than merely stacked — several of them are three-part
 // controls (picker, create, paste) and without a rule it reads as one enormous form.
-function Stack({ fields, channels, botEnabled }: { fields: readonly SettingField[] } & Props) {
+function Stack({ fields, channels, botEnabled, modes }: { fields: readonly SettingField[] } & Props) {
   return (
     <>
       {fields.map((f, i) => (
         <div key={f.key} className={i > 0 ? 'border-t border-card-border pt-4' : undefined}>
-          <Field field={f} channels={channels} botEnabled={botEnabled} />
+          <Field field={f} channels={channels} botEnabled={botEnabled} modes={modes} />
         </div>
       ))}
     </>
@@ -170,7 +177,7 @@ export default function WebhooksPanel({ channels, botEnabled, creator = false }:
                   <p className="text-[11px] uppercase tracking-wide text-text-muted mb-2">
                     {groupLabel(section.group)} · {section.title}
                   </p>
-                  <Field field={field} channels={channels} botEnabled={botEnabled} />
+                  <Field field={field} channels={channels} botEnabled={botEnabled} modes={!creator} />
                 </div>
               ))}
             </Card>
@@ -183,7 +190,7 @@ export default function WebhooksPanel({ channels, botEnabled, creator = false }:
               <p className="text-sm font-medium mb-1">{section.title}</p>
               <p className="text-xs text-text-muted">{section.blurb}</p>
             </div>
-            <Stack fields={section.fields} channels={channels} botEnabled={botEnabled} />
+            <Stack fields={section.fields} channels={channels} botEnabled={botEnabled} modes={!creator} />
           </Card>
         ))
       )}

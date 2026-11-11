@@ -6,6 +6,7 @@ import { parseKinds } from '@/lib/emissionRouting';
 import { isDropMode, NO_CLAN_DROPS, PLATFORM_DROP_DEFAULTS, type ClanDropSettings, type HookDropFilter } from '@/lib/notifyPrefs';
 import { getClanDropDefaults, getClanKindDefaults } from '@/lib/pluginConfig';
 import { NO_CLAN_KINDS, type ClanKinds } from '@/lib/notifyKinds';
+import { clanKindsForWorld } from '@/lib/worldModeStore';
 
 /**
  * The drop settings in force for ONE character. The default comes from the clan that character is a
@@ -35,10 +36,15 @@ export async function characterClanId(accountId: number | null, addressedClanId:
   return seat?.clanId ?? null;
 }
 
-/** The newer kinds' defaults in force for ONE character: its member clan's, else none (Anvil's apply). */
-export async function characterClanKinds(accountId: number | null, addressedClanId: number): Promise<ClanKinds> {
+/**
+ * The newer kinds' defaults in force for ONE character: its member clan's, else none (Anvil's apply).
+ * On a game-mode world (`modeKey`), that clan's settings for the mode when it gave the mode its own
+ * (Admin → Discord → Game modes), else its main-game ones.
+ */
+export async function characterClanKinds(accountId: number | null, addressedClanId: number, modeKey?: string | null): Promise<ClanKinds> {
   const clanId = await characterClanId(accountId, addressedClanId);
-  return clanId != null ? getClanKindDefaults(clanId) : NO_CLAN_KINDS;
+  if (clanId == null) return NO_CLAN_KINDS;
+  return modeKey ? clanKindsForWorld(clanId, modeKey) : getClanKindDefaults(clanId);
 }
 
 /** The person's own webhooks that take rare drops, with their own filters (null = follow the person). */

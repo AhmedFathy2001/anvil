@@ -95,6 +95,7 @@ export default function DiscordSettings({
           channels={channels}
           siteUrl={siteUrl}
           feedRulesHint={!creator}
+          modes={!creator}
           onRoutingChanged={() => {
             invalidateSettings();
             setPanelKey((k) => k + 1);

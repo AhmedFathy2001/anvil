@@ -53,3 +53,10 @@ test("a lingering Kephri scarab is never named as the killer", () => {
   settleDeathSource(raw);
   assert.equal(raw.source, null);
 });
+
+test('a pet is never the killer', () => {
+  for (const pet of ["Lil' Xarp", "Lil' Zik", "Lil'viathan", 'Little nightmare', 'Youngllef']) assert.equal(shownKiller(pet), null, pet);
+  assert.equal(shownKiller('Baby blue dragon'), 'Baby blue dragon');
+  assert.equal(shownKiller('Lil Bob'), 'Lil Bob'); // a player
+  assert.equal(shownKiller('Vorkath'), 'Vorkath');
+});

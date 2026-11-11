@@ -20,7 +20,8 @@ import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
 import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
-import { pluginModeThresholds } from '@/lib/worldModeStore';
+import { modeAwareNotifyFlags, pluginModeThresholds } from '@/lib/worldModeStore';
+import { worldModeOf } from '@/lib/worldModeRequest';
 import { clanBoostLevel } from '@/lib/clanBoosts';
 
 /** Item ids of this (owned) character's running head-to-head drop races. Never fails the config. */
@@ -196,7 +197,8 @@ export async function GET(request: Request) {
         rollTables: pluginRollTables,
         schedule,
         activeWeekly,
-        notify: notifyFlags(webhooks),
+        // On a game-mode world a channel also counts when the mode has one of its own (lib/worldModeStore).
+        notify: await modeAwareNotifyFlags(request, clan.id, notifyFlags(webhooks)),
         funDeathMessages,
         deathTaunts,
         spoonTaunts,
@@ -229,7 +231,7 @@ export async function GET(request: Request) {
       // switches, floors applied. Capability 'notify-prefs'; the plugin reads only this.
       const played = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
       const clanDrops = await characterClanDrops(played?.accountId ?? null, clan.id, dropRarityFloor);
-      body.me = pluginMe(await getNotifyPrefs(userOnly.userId), notifyFlags(webhooks), clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId), await characterClanKinds(played?.accountId ?? null, clan.id));
+      body.me = pluginMe(await getNotifyPrefs(userOnly.userId), body.notify as never, clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId), await characterClanKinds(played?.accountId ?? null, clan.id, worldModeOf(request)?.key));
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
       // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
       // login screen beyond what the launcher hint already names.
@@ -271,7 +273,8 @@ export async function GET(request: Request) {
     const b = built.body as unknown as Record<string, unknown>;
     const prefs = auth.userId != null ? await getNotifyPrefs(auth.userId) : normalizeNotifyPrefs(null);
     const clanDrops = await characterClanDrops(auth.accountId, clan.id, (b.dropRarityFloor as number | undefined) ?? null);
-    b.me = pluginMe(prefs, b.notify as never, clanDrops, b.modeThresholds as never, auth.userId != null ? await dropHookFilters(auth.userId) : [], await characterClanKinds(auth.accountId, clan.id));
+    b.notify = await modeAwareNotifyFlags(request, clan.id, b.notify as Record<string, boolean>);
+    b.me = pluginMe(prefs, b.notify as never, clanDrops, b.modeThresholds as never, auth.userId != null ? await dropHookFilters(auth.userId) : [], await characterClanKinds(auth.accountId, clan.id, worldModeOf(request)?.key));
   }
   // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
   // an older one would file board B's tiles against board A, so it keeps exactly today's answer.
