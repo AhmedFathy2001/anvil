@@ -3,7 +3,7 @@ import { useId } from 'react';
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
 import { inkForSurface, supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
 import { TENURE_LADDER, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
-import { TENURE_SPRITES, tenureTones } from '@/lib/tenureSprites';
+import { TENURE_SPRITES, TENURE_TONES } from '@/lib/tenureSprites';
 
 /**
  * A name with its Anvil Supporter flair: a star and the tier's colour (gold, a gradient, a gradient
@@ -85,7 +85,7 @@ export function SupporterStar({
   const id = useId();
   const size = sizeProp ?? 14;
   const grad = stops && stops.length >= 2 ? stops : null;
-  if (tenure) return <TenureBadge step={tenure} color={color ?? grad?.[0] ?? '#ffd35c'} size={sizeProp != null ? Math.round(sizeProp * 1.3) : undefined} decorative={decorative} />;
+  if (tenure) return <TenureBadge step={tenure} size={sizeProp != null ? Math.round(sizeProp * 1.3) : undefined} decorative={decorative} />;
   return (
     <svg
       width={size}
@@ -112,13 +112,13 @@ export function SupporterStar({
 
 /**
  * A tenure badge: the step's pixel sprite (lib/tenureSprites, the plugin's own art), crisp squares in
- * three tones of the name's colour. A gem that grows, gains wings, then a laurel for Legend.
+ * the step's own OSRS gem colours (never the name's): sapphire up to a zenyte laurel for Legend.
  */
-export function TenureBadge({ step, color, size, decorative = false }: { step: TenureStepId; color: string; size?: number; decorative?: boolean }) {
-  const k = TENURE_LADDER.findIndex((t) => t.id === step);
-  const rows = TENURE_SPRITES[Math.max(0, k)];
-  const tones = tenureTones(/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffd35c');
-  const name = TENURE_LADDER[Math.max(0, k)].name;
+export function TenureBadge({ step, size, decorative = false }: { step: TenureStepId; size?: number; decorative?: boolean }) {
+  const k = Math.max(0, TENURE_LADDER.findIndex((t) => t.id === step));
+  const rows = TENURE_SPRITES[k];
+  const tones = TENURE_TONES[k];
+  const name = TENURE_LADDER[k].name;
   return (
     <svg
       // No size: 1.3em, so the badge grows with the name it sits beside (a heading gets a big one).

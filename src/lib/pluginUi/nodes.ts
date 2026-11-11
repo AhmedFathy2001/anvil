@@ -422,7 +422,8 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
         if (found.grad) t.grad = found.grad;
         if (found.move) t.move = true;
         if (!t.icon) {
-          // A tenure badge is the plugin's pixel sprite, shaded in the name's own colour; else the star.
+          // A tenure badge is the plugin's pixel sprite in its step's gem colours (older plugins tint it
+          // to this colour); else the star.
           // 22 = the 11px art at 2x: our panel, so the badge can be big enough to read.
           t.icon = found.glyph
             ? { t: 'icon', glyph: found.glyph, w: 22, h: 22, color: (found.grad?.[0] ?? found.color) as `#${string}` }

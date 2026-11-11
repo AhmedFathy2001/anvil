@@ -207,5 +207,6 @@ test('the tenure star SVG frames every step past Apprentice and renders only che
   assert.ok(tenureStarSvg(['#ffd35c']).includes('<path'), 'no step: the bare star');
   assert.ok(tenureStarSvg(['#ffd35c'], 'master').includes('<rect'), 'a step: its pixel badge');
   assert.notEqual(tenureStarSvg(['#ffd35c'], 'master'), tenureStarSvg(['#ffd35c'], 'legend'));
+  assert.equal(tenureStarSvg(['#ffd35c'], 'master'), tenureStarSvg(['#e05ad0'], 'master'), 'the gem has its own colours, not the name\'s');
   assert.ok(!tenureStarSvg(['#ffd35c'], 'legend').includes('script'));
 });
