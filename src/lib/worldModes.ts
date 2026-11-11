@@ -23,6 +23,11 @@ export interface WorldModeDef {
   activity?: RegExp;
   /** Matches the world's flags. */
   flags?: (types: ReadonlySet<string>) => boolean;
+  /**
+   * The mode's own event kinds (lib/modeLines MODE_EVENT_KINDS ids) its settings offer. Each mode has
+   * its own: Leagues has relics and pacts, a Hardcore world has none. Unset = none.
+   */
+  events?: readonly string[];
 }
 
 export interface WorldMode {
@@ -34,18 +39,27 @@ export interface WorldMode {
 }
 
 const WIKI = 'https://oldschool.runescape.wiki/images/';
+/** Everything a league has. Also what a mode we have no entry for is offered: new temporary modes are league-like. */
+const LEAGUE_EVENTS = ['modeRelic', 'modeArea', 'modePact', 'modeMastery', 'modeTask', 'modeTaskMinor', 'modeMilestone'] as const;
+
+/** The event kinds a mode's settings offer (WorldModeDef.events); a mode we don't know gets the league set. */
+export function modeEventKinds(key: string): readonly string[] {
+  const def = WORLD_MODES.find((m) => m.key === key);
+  return def ? (def.events ?? []) : LEAGUE_EVENTS;
+}
 
 /** Order matters: the first match wins, so the more specific entries come first. */
 export const WORLD_MODES: readonly WorldModeDef[] = [
-  { key: 'grid-master', label: 'Grid Master', icon: `${WIKI}Grid_Master_icon.png`, activity: /grid\s*master/i },
+  { key: 'grid-master', label: 'Grid Master', icon: `${WIKI}Grid_Master_icon.png`, activity: /grid\s*master/i, events: ['modeTask', 'modeTaskMinor', 'modeMilestone'] },
   {
     key: 'seasonal-deadman',
     label: 'Seasonal Deadman',
     icon: `${WIKI}Deadman_world_icon.png`,
     flags: (t) => t.has('DEADMAN') && t.has('SEASONAL'),
+    events: ['modeMilestone'],
   },
-  { key: 'deadman', label: 'Deadman', icon: `${WIKI}Deadman_world_icon.png`, activity: /deadman/i, flags: (t) => t.has('DEADMAN') },
-  { key: 'leagues', label: 'Leagues', icon: `${WIKI}Leagues_icon.png`, activity: /\bleagues?\b/i, flags: (t) => t.has('SEASONAL') },
+  { key: 'deadman', label: 'Deadman', icon: `${WIKI}Deadman_world_icon.png`, activity: /deadman/i, flags: (t) => t.has('DEADMAN'), events: ['modeMilestone'] },
+  { key: 'leagues', label: 'Leagues', icon: `${WIKI}Leagues_icon.png`, activity: /\bleagues?\b/i, flags: (t) => t.has('SEASONAL'), events: LEAGUE_EVENTS },
   { key: 'hardcore', label: 'Hardcore', icon: null, activity: /\bhardcore\b/i, flags: (t) => t.has('HARDCORE_MAIN') },
   { key: 'fresh-start', label: 'Fresh Start', icon: `${WIKI}Fresh_Start_Worlds_icon.png`, activity: /fresh\s*start/i, flags: (t) => t.has('FRESH_START_WORLD') },
   { key: 'tournament', label: 'Tournament', icon: `${WIKI}Tournament_world_icon.png`, flags: (t) => t.has('TOURNAMENT_WORLD') },
@@ -212,6 +226,10 @@ export function modeDropFloorKey(key: string): string {
 /** Per mode, its own drop minimum value in gp (lib/modeFilters). Absent = the main-game value gate. */
 export function modeDropValueKey(key: string): string {
   return `world_mode_drop_value_${key}`;
+}
+/** Per mode, 'and' = a drop needs both its rarity and its value bar (lib/modeFilters). Absent = either. */
+export function modeDropBothKey(key: string): string {
+  return `world_mode_drop_both_${key}`;
 }
 /** Per mode, its own level rules (JSON, lib/modeFilters). Absent = the mode posts no level-ups. */
 export function modeLevelsKey(key: string): string {

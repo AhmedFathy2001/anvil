@@ -26,10 +26,14 @@ interface ModeRow {
   /** Leagues was switched off on the old row: its channel stays unused until it's switched on. */
   ownChannelIgnored: boolean;
   kindsOff: string[];
+  /** The event kinds this mode has (its own, not every mode's). */
+  events: string[];
   /** The mode's own drop rarity (1 in N); null = the main-game setting. */
   dropFloor: number | null;
   /** The mode's own drop minimum value (gp); null = the main-game setting. */
   dropMinValue: number | null;
+  /** A drop needs both bars (blank ones aren't asked for); false = either. */
+  dropBoth: boolean;
   /** The mode's own level rules; null = no level-ups from this mode. */
   levels: LevelRules | null;
 }
@@ -54,9 +58,11 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
   const clean = (t: string) => t.trim().replace(/[,_\s]/g, '');
   const [floor, setFloor] = useState(shown(mode.dropFloor));
   const [value, setValue] = useState(shown(mode.dropMinValue));
+  const [both, setBoth] = useState(mode.dropBoth);
   const [levels, setLevels] = useState<MilestoneRules>({ ...DEFAULT_LEVEL_RULES, ...DEFAULT_XP_RULES, ...(mode.levels ?? {}) });
   const tag = `${mode.id}:filters`;
-  const dropsChanged = clean(floor) !== clean(shown(mode.dropFloor)) || clean(value) !== clean(shown(mode.dropMinValue));
+  const dropsChanged =
+    clean(floor) !== clean(shown(mode.dropFloor)) || clean(value) !== clean(shown(mode.dropMinValue)) || both !== mode.dropBoth;
   // Two independent Save buttons, so two guards. Drops compare against the server view (refreshed by put).
   const [savedLevels, setSavedLevels] = useState<MilestoneRules>(levels);
   const levelsDirty = mode.levels != null && !valuesEqual(levels, savedLevels);
@@ -105,12 +111,19 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
           </p>
         </div>
       </div>
+      <Checkbox
+        checked={both}
+        disabled={disabled}
+        onChange={setBoth}
+        label="Drops need both bars"
+        description={`Off = a drop posts if it clears either bar. On = it must clear both, the rarity and the value (a bar left blank isn't asked for).`}
+      />
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           disabled={disabled || !dropsChanged}
           onClick={() =>
-            void put(mode.id, { mode: mode.key, dropFloor: clean(floor) || null, dropMinValue: clean(value) || null })
+            void put(mode.id, { mode: mode.key, dropFloor: clean(floor) || null, dropMinValue: clean(value) || null, dropBoth: both })
           }
           className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50"
         >
@@ -118,7 +131,7 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
         </button>
         <UnsavedIndicator dirty={dropsChanged} />
         <p className="text-[11.5px] text-text-muted">
-          Blank = same as the main game. A drop posts if it clears either bar; always-post items still post.
+          Blank = same as the main game. Always-post items post whatever the bars say.
         </p>
       </div>
 
@@ -371,7 +384,9 @@ export default function DiscordFeedsPanel({
       <ul className="rounded-xl border border-card-border bg-card-bg">
         {modes.map((m) => {
           const ownSet = isSet(m.hookKey) && !m.ownChannelIgnored;
-          const posting = kinds.length - m.kindsOff.length;
+          // Only this mode's kinds: the usual posts plus the events it actually has.
+          const mine = kinds.filter((k) => !k.event || m.events.includes(k.id));
+          const posting = mine.filter((k) => !m.kindsOff.includes(k.id)).length;
           const where = m.off
             ? 'Off'
             : posting === 0
@@ -406,7 +421,7 @@ export default function DiscordFeedsPanel({
                   onClick={() => setOpen(open === m.id ? null : m.id)}
                   className="min-h-9 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
                 >
-                  Posts {posting}/{kinds.length}
+                  Posts {posting}/{mine.length}
                   {m.dropFloor != null || m.levels != null ? ' · filtered' : ''} {open === m.id ? '▴' : '▾'}
                 </button>
               </div>
@@ -416,11 +431,11 @@ export default function DiscordFeedsPanel({
                   {[
                     { event: false, title: 'The usual posts' },
                     { event: true, title: `${m.label}'s own events` },
-                  ].map((group) => (
+                  ].filter((group) => mine.some((k) => k.event === group.event)).map((group) => (
                     <div key={group.title}>
                       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">{group.title}</div>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {kinds
+                        {mine
                           .filter((k) => k.event === group.event)
                           .map((k) => (
                             <Checkbox
@@ -440,7 +455,7 @@ export default function DiscordFeedsPanel({
                     </div>
                   ))}
                   <div className="border-t border-card-border-soft pt-4">
-                    <ModeFilters key={`${m.dropFloor}:${m.dropMinValue}:${JSON.stringify(m.levels)}`} mode={m} put={put} disabled={busy !== null} />
+                    <ModeFilters key={`${m.dropFloor}:${m.dropMinValue}:${m.dropBoth}:${JSON.stringify(m.levels)}`} mode={m} put={put} disabled={busy !== null} />
                   </div>
                 </div>
               )}

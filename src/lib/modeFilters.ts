@@ -34,6 +34,8 @@ export interface ModeFilters {
   dropFloor: number | null;
   /** Post drops worth at least this many gp. */
   dropMinValue: number | null;
+  /** True = a drop needs BOTH bars (a bar left blank isn't required); false/absent = either one. */
+  dropBoth?: boolean;
   /** Which level-ups the mode posts. Null = none (its stats are not the player's main progression). */
   levels: LevelRules | null;
 }
@@ -96,6 +98,9 @@ export function storedModeLevels(text: string | null | undefined): LevelRules | 
     return null;
   }
 }
+
+/** The stored 'both' switch: 'and' = both bars. */
+export const storedModeDropBoth = (text: string | null | undefined): boolean => text?.trim() === 'and';
 
 /** An API value → normalized level rules to store, or null to clear. Never throws. */
 export function parseModeLevels(raw: unknown): LevelRules | null {
@@ -162,6 +167,8 @@ export function modeDropAllows(facts: unknown, filters: ModeFilters, mainRarityF
       : !modeOnly && rareEnough(f, Math.max(MAIN_GAME_RARITY_FLOOR, mainRarityFloor));
   const worth = dropWorth(f);
   const value = filters.dropMinValue != null ? worth >= filters.dropMinValue : !modeOnly && worth >= MAIN_GAME_MIN_VALUE;
+  // Both: each bar the mode set must clear; a blank one isn't asked for (like the main game's 'and').
+  if (filters.dropBoth) return (filters.dropFloor == null || rarity) && (filters.dropMinValue == null || value);
   return rarity || value;
 }
 
