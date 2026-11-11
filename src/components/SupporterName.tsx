@@ -3,7 +3,7 @@ import { useId } from 'react';
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
 import { inkForSurface, supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
 import { TENURE_LADDER, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
-import { TENURE_SPRITES, tenureTones } from '@/lib/tenureSprites';
+import { TENURE_SIZE, TENURE_SPRITES, tenureInk, tenurePixel } from '@/lib/tenureSprites';
 
 /**
  * A name with its Anvil Supporter flair: a star and the tier's colour (gold, a gradient, a gradient
@@ -112,25 +112,26 @@ export function SupporterStar({
 
 /**
  * A tenure badge: the step's pixel sprite (lib/tenureSprites, the plugin's own art), crisp squares in
- * three tones of the name's colour. A gem that grows, gains wings, then a laurel for Legend.
+ * tones of the name's colour (never a mod's gold or silver: tenureInk). A diamond that gets more
+ * precious: a gem, a brilliant cut, light, a halo, then a laurel for Legend.
  */
 export function TenureBadge({ step, color, size, decorative = false }: { step: TenureStepId; color: string; size?: number; decorative?: boolean }) {
   const k = TENURE_LADDER.findIndex((t) => t.id === step);
   const rows = TENURE_SPRITES[Math.max(0, k)];
-  const tones = tenureTones(/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffd35c');
+  const ink = tenureInk(color);
   const name = TENURE_LADDER[Math.max(0, k)].name;
   return (
     <svg
       // No size: 1.3em, so the badge grows with the name it sits beside (a heading gets a big one).
       width={size ?? '1.3em'}
       height={size ?? '1.3em'}
-      viewBox="0 0 11 11"
+      viewBox={`0 0 ${TENURE_SIZE} ${TENURE_SIZE}`}
       shapeRendering="crispEdges"
       className="shrink-0"
       {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': `Anvil Supporter · ${name}` })}
     >
       {rows.flatMap((r, y) =>
-        [...r].map((ch, x) => (ch === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={tones[ch as 'k' | '#' | '+']} />)),
+        [...r].map((ch, x) => (ch === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={tenurePixel(ink, ch)} />)),
       )}
     </svg>
   );
