@@ -24,6 +24,8 @@ export interface Event {
   signupFee: number | null;
   guestSignupFee: number | null;
   addedPrizePool?: number | null;
+  /** events.signups_enabled (0259): false = no public form; staff add players. */
+  signupsEnabled?: boolean;
   signupOpensAt: string | null;
   signupDeadline: string | null;
   paymentDeadline?: string | null;

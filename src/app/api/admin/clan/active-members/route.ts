@@ -80,6 +80,7 @@ export async function GET(request: Request) {
       id: clanRoster.id,
       rsn: clanRoster.rsn,
       rank: clanRoster.rank,
+      kind: clanRoster.kind,
       isPrimary: clanRoster.isPrimary,
       verifiedAt: clanRoster.verifiedAt,
       verificationMethod: clanRoster.verificationMethod,
@@ -130,6 +131,8 @@ export async function GET(request: Request) {
       id: r.id,
       rsn: r.rsn,
       rank: r.rank,
+      // A guest's seat (another clan's player let in), shown behind the picker's Guests filter.
+      isGuest: r.kind === 'guest',
       isPrimary: r.isPrimary === 1,
       verifiedAt: r.verifiedAt,
       verificationMethod: r.verificationMethod,

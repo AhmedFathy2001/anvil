@@ -584,6 +584,10 @@ export async function PATCH(
     if (n === 'invalid') return NextResponse.json({ error: 'Players per team must be a whole number from 1 to 1000, or blank' }, { status: 400 });
     updates.teamCap = n;
   }
+  if ('signupsEnabled' in body) {
+    if (typeof body.signupsEnabled !== 'boolean') return NextResponse.json({ error: 'signupsEnabled must be true or false' }, { status: 400 });
+    updates.signupsEnabled = body.signupsEnabled;
+  }
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;
   if ('paymentDeadline' in body) updates.paymentDeadline = body.paymentDeadline;

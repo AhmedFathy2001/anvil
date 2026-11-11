@@ -1,6 +1,6 @@
 // Creator spaces at /s/<slug>, clans at /c/<slug>: one slug, two possible tenants.
 //
-// A slug is unique per namespace (drizzle/0259), so `/c/drenvox` and `/s/drenvox` can be different
+// A slug is unique per namespace (drizzle/0260), so `/c/drenvox` and `/s/drenvox` can be different
 // tenants. Everything that reads or writes an address has to keep the kind, or a link quietly lands
 // on the other one. These pin the pure halves: building, parsing, and the beacon/typed-input shapes.
 //

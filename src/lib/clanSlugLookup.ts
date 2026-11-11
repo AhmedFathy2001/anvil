@@ -1,7 +1,7 @@
 // Looking a tenant up by slug, now that a slug is unique per NAMESPACE rather than globally.
 //
 // Clans (and friends hosts) live at /c/<slug>, creator spaces at /s/<slug>, and the two may hold the
-// same slug (clans_namespace_slug_unique, drizzle/0259). So `eq(clans.slug, x)` alone can match two
+// same slug (clans_namespace_slug_unique, drizzle/0260). So `eq(clans.slug, x)` alone can match two
 // rows; every lookup says which namespace it means, or asks for both and decides.
 
 import { and, eq, ne, sql, type SQL } from 'drizzle-orm';

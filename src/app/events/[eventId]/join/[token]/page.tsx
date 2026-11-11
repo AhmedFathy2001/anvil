@@ -65,6 +65,7 @@ export default async function JoinPage({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
       })
     : { open: false, reason: 'closed' as const };
 

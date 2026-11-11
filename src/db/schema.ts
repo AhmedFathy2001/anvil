@@ -179,7 +179,7 @@ export const clans = pgTable('clans', {
 
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
-  // A slug is unique PER ADDRESS NAMESPACE, not globally (drizzle/0259): clans (and friends hosts)
+  // A slug is unique PER ADDRESS NAMESPACE, not globally (drizzle/0260): clans (and friends hosts)
   // live at /c/<slug>, creator spaces at /s/<slug>, so a streamer's space no longer squats the slug a
   // real in-game clan of the same name wants. Every lookup by slug has to say which namespace it means
   // (lib/clanContext resolveClanBySlug).
@@ -668,6 +668,11 @@ export const events = pgTable('events', {
   addedPrizePool: integer('added_prize_pool'),
   signupOpensAt: text('signup_opens_at'),
   signupDeadline: text('signup_deadline'),
+  // Off = no public sign-up form; staff add players (by hand, Add them all, or autoEnroll). 0259.
+  signupsEnabled: boolean('signups_enabled').notNull().default(true),
+  // "Keep adding new plugin members": autoEnrollActivePluginMembers' placement, re-run by the cron
+  // until the event starts (lib/enroll autoEnrollTick). Null = off. 0259.
+  autoEnroll: text('auto_enroll'),
   // Grace cutoff for paying the fee. While unpassed, players may keep editing their
   // sign-up answers (and pay) even after signupDeadline / event start. Null = no grace;
   // editing then follows the normal sign-up window. See lib/signup.ts signupEditState.
