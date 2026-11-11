@@ -3,6 +3,8 @@ import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import AccessPanel from '../../teams/AccessPanel';
 import CoHostPanel from '../../teams/CoHostPanel';
+import AccountsPanel from '../AccountsPanel';
+import { eventHasStarted } from '@/lib/completionGate';
 import EntryGatePanel from '../EntryGatePanel';
 import { loadSettings } from '../load';
 
@@ -21,6 +23,18 @@ export default async function AccessSettingsPage({ params }: { params: Promise<{
       <div id="access" className="scroll-mt-28 rounded-xl">
         <AccessPanel eventId={id} creator={kind.creator} />
       </div>
+      {/* Not for weekly competitions: they enter the roster as it stands. */}
+      {!['sotw', 'botw', 'eff'].includes(event.format ?? '') && (
+        <div id="accounts" className="scroll-mt-28 rounded-xl">
+          <AccountsPanel
+            eventId={id}
+            initialMax={event.maxAccountsPerPerson}
+            initialSlot={event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person'}
+            started={eventHasStarted(event)}
+            solo={event.teamPlacement === 'solo' || event.format === 'individual'}
+          />
+        </div>
+      )}
       {kind.streams && (
         <div id="gate" className="scroll-mt-28 rounded-xl">
           <EntryGatePanel eventId={id} />
