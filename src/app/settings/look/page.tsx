@@ -3,7 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, users } from '@/db/schema';
 import { supporterForUser } from '@/lib/supporter';
-import { accountMediaRows, canUseProfileMedia, displayCaseSlots, profileMediaForUser, shownProfileMedia } from '@/lib/profileMedia';
+import { accountMediaRows, canAnimateProfileMedia, displayCaseSlots, profileMediaForUser, shownProfileMedia } from '@/lib/profileMedia';
 import { readDisplayCase } from '@/lib/displayCase';
 import ClanLink from '@/components/ClanLink';
 import ProfileLookEditor from '@/components/ProfileLookEditor';
@@ -37,13 +37,13 @@ export default async function LookSettingsPage() {
     ? await accountMediaRows(characters.map((c) => c.accountId), session.playerId).catch(() => new Map())
     : new Map();
   const characterLooks = characters.map((c) => ({ ...c, own: shownProfileMedia(overrides.get(c.accountId), tier) }));
-  const showPerCharacter = characterLooks.length > 0 && (canUseProfileMedia(tier) || characterLooks.some((c) => c.own.avatar || c.own.banner));
+  const showPerCharacter = characterLooks.length > 0;
   const slots = displayCaseSlots(tier);
 
   return (
     <>
       <SettingsTitle title="Profile look">
-        How your profile looks to everyone else. These are Supporter perks;{' '}
+        How your profile looks to everyone else. Motion and the display case are Supporter perks;{' '}
         <ClanLink href="/settings/supporter" className="text-gold hover:text-gold-light">
           see the tiers →
         </ClanLink>
@@ -55,12 +55,12 @@ export default async function LookSettingsPage() {
         note="Shown on your card, your person page and every character of yours, on the site and in the plugin."
       >
         <SettingsBlock>
-          {!canUseProfileMedia(tier) && (
+          {!canAnimateProfileMedia(tier) && (
             <p className="mb-3 flex items-center gap-2 text-[12.5px] text-text-muted">
-              Uploading your own, animated, is a <TierChip tier="Champion" /> perk.
+              Any picture works. GIFs and animated WebP move with <TierChip tier="Champion" />.
             </p>
           )}
-          <ProfileLookEditor initial={media} canUpload={canUseProfileMedia(tier)} name={user?.displayName ?? 'You'} />
+          <ProfileLookEditor initial={media} canUpload name={user?.displayName ?? 'You'} />
         </SettingsBlock>
       </SettingsGroup>
 
@@ -71,7 +71,7 @@ export default async function LookSettingsPage() {
           note="Give a character its own banner or avatar (or both). It replaces your default on that character’s pages and plugin card only."
         >
           <SettingsBlock>
-            <CharacterLookOverrides characters={characterLooks} fallback={media} canUpload={canUseProfileMedia(tier)} />
+            <CharacterLookOverrides characters={characterLooks} fallback={media} canUpload />
           </SettingsBlock>
         </SettingsGroup>
       )}

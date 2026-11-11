@@ -17,7 +17,7 @@ import { displayCaseForPlayer } from '@/lib/displayCase';
 import { luckCandidates } from '@/lib/clogLuckBoard';
 import { pinLuck } from '@/lib/pinLuck';
 import { supporterForPlayer } from '@/lib/supporter';
-import { canUseProfileMedia } from '@/lib/profileMediaRules';
+import { canAnimateProfileMedia } from '@/lib/profileMediaRules';
 import { mediaRevision } from '@/lib/pluginUi/mediaRevision';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
@@ -99,7 +99,7 @@ export async function panelDiscordAvatar(playerId: number): Promise<{ src: strin
     ]);
     if (!row?.discordId) return null;
     const src = avatarUrl(row.discordId, row.discordAvatar);
-    const mayMove = canUseProfileMedia(supporter?.tier.id ?? null);
+    const mayMove = canAnimateProfileMedia(supporter?.tier.id ?? null);
     return src ? { src, animated: mayMove && !!row.discordAvatar?.startsWith('a_') } : null;
   } catch {
     return null;
