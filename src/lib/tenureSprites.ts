@@ -41,7 +41,7 @@ const mixRgb = (a: number, b: number, t: number) => {
 
 /**
  * The badge's colour from the name's: never a Jagex mod's colours. Yellows (a jmod's gold) lean
- * amber; greys, silver and white (a pmod's) turn icy blue; both blend smoothly, never stepped (a
+ * amber; light greys, silver and white (a pmod's) turn icy blue at the same brightness; both blend smoothly, never stepped (a
  * moving gradient sweeps through them). Same rule as the plugin's AnvilPlugin.tenureInk.
  */
 export function tenureInk(color: string): number {
@@ -51,8 +51,9 @@ export function tenureInk(color: string): number {
     const u = (h - 0.075) / 0.145;
     n = hsvToRgb(0.075 + 0.145 * u * u * u, s, v);
   }
-  const w = Math.max(0, 1 - s / 0.3);
-  return w > 0 ? mixRgb(n, hsvToRgb(0.58, 0.55, Math.max(v, 0.85)), w) : n;
+  // Light greys only: dark greys and black are no mod's colour, and keep their brightness.
+  const w = Math.max(0, 1 - s / 0.3) * Math.max(0, Math.min(1, (v - 0.35) / 0.3));
+  return w > 0 ? mixRgb(n, hsvToRgb(0.58, 0.55, v), w) : n;
 }
 
 /** The colour of one sprite letter for a name's colour. */
