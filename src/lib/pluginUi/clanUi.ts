@@ -6,7 +6,7 @@ import { FEED_STEP, dropLine } from './momentsUi';
 import { type Color, type Node, backRow, badge, hero, nameTint, button, card, col, count, fmt, gap, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
-import { BLUE, FLAME, HOT, WARM, chip, clock, section, small, streakChip, title } from './sections';
+import { BAR_BLUE, BLUE, FLAME, chip, clock, section, small, streakBar, streakChip, title } from './sections';
 
 // A clan as the plugin's panel draws it (was ClanCardView.java): who the clan is, how hard it played
 // this week and who carried it, its strongest accounts, what dropped lately and what's running. Under
@@ -48,7 +48,7 @@ function hottestCard(list: NonNullable<ClanCard['hottest']>): Node {
     title('Hottest streaks'),
     ...list.flatMap((x) => [
       row(undefined, text(x.rsn, 'white', { who: x.rsn, font: 'small' }), streakChip(x.weeks), { pad: 1, tip: `Look up ${x.rsn}`, on: { a: 'lookup', rsn: x.rsn } }),
-      { t: 'bar', pct: Math.max(4, Math.round((x.weeks * 100) / top)), color: x.weeks >= 8 ? HOT : x.weeks >= 4 ? FLAME : WARM, h: 4, bg: 'panel' } as Node,
+      { t: 'bar', pct: Math.max(4, Math.round((x.weeks * 100) / top)), color: streakBar(x.weeks), h: 3, bg: 'panel' } as Node,
     ]),
   ], { gap: 4 });
 }
@@ -143,7 +143,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
         // A medal for the place, a bar for the hours against the week's best.
         ...c.topWeek.flatMap((g, i) => [
           nameLine(row(text(`${i + 1}`, '#1b1b1b', { chip: MEDAL[i] ?? '#7a7a7a', w: 15, align: 'c', font: 'small' }), text(g.rsn, 'white', { who: g.rsn }), undefined, { gap: 5 }), `+${g.hours.toFixed(1)}h`, g.rsn, c.streaks?.[g.rsn]),
-          { t: 'bar', pct: Math.max(4, Math.round((g.hours * 100) / most)), color: BLUE, h: 4, bg: 'panel' } as Node,
+          { t: 'bar', pct: Math.max(4, Math.round((g.hours * 100) / most)), color: BAR_BLUE, h: 3, bg: 'panel' } as Node,
         ]),
       ], { gap: 4 }),
     );

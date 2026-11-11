@@ -182,6 +182,14 @@ export function weeklyKind(type: string): string {
   return type === 'efficiency' ? 'Efficiency of the Week' : 'Boss of the Week';
 }
 
+/** The game's picture for a weekly's metric: the boss, else the skill (none for efficiency). */
+function weeklyIcon(w: ScheduleWeekly): Node | undefined {
+  if (!w.metric) return undefined;
+  if (w.type === 'skill') return icon({ skill: w.metric, w: 14, h: 14, alt: 'S' });
+  if (w.type === 'boss') return icon({ boss: w.metric, w: 16, h: 16, alt: 'B' });
+  return undefined;
+}
+
 function weeklyGain(w: ScheduleWeekly, gained: number): string {
   const safe = Math.max(0, gained);
   if (w.type === 'efficiency') return `${(safe / EFFICIENCY_SCALE).toFixed(2)} hrs`;
@@ -537,7 +545,7 @@ function firstText(n: Node): string | null {
 function weeklyRow(d: HomeData, w: ScheduleWeekly): Node {
   const upcoming = w.status !== 'active';
   const s = d.weekly.get(w.id);
-  const lines: Node[] = [row(muted(clip(w.metricLabel, 16)), undefined, upcoming ? clock(w.startDate, 'Starts in ', 'Starting…', d.now) : clock(w.endDate, 'Ends in ', 'Ended', d.now))];
+  const lines: Node[] = [row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, upcoming ? clock(w.startDate, 'Starts in ', 'Starting…', d.now) : clock(w.endDate, 'Ends in ', 'Ended', d.now))];
   if (!upcoming) lines.push(withMove(small(clip(yourWeeklyLine(w, s), 32), s?.you ? GOLD : FAINT), s?.you?.move));
   return openRow(text(clip(w.title || weeklyKind(w.type), 24), '#e6e6e6'), undefined, lines, home(`weekly:${w.id}`), w.title || weeklyKind(w.type));
 }
@@ -1117,9 +1125,9 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const parts: Node[] = [pageHead(home(), 'All events', weeklyKind(w.type), w.title || `${w.metricLabel} week`)];
   const you = s?.you;
   const top: Node[] = upcoming
-    ? [row(undefined, clock(w.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }), text(clip(w.metricLabel, 14), SOFT)), muted('No standings until it starts.')]
+    ? [row(undefined, clock(w.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })), muted('No standings until it starts.')]
     : [
-        row(undefined, withMove(big(you && you.gained > 0 ? `#${you.rank} · +${weeklyGain(w, you.gained)}` : you ? `+${weeklyGain(w, 0)} so far` : 'Not on the board'), you?.move), text(clip(w.metricLabel, 14), SOFT)),
+        row(undefined, withMove(big(you && you.gained > 0 ? `#${you.rank} · +${weeklyGain(w, you.gained)}` : you ? `+${weeklyGain(w, 0)} so far` : 'Not on the board'), you?.move), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
