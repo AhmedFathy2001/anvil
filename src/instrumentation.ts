@@ -79,13 +79,14 @@ export async function onRequestError(
   try {
     const { captureError } = await import('@/lib/errorEvents');
     const { clanIdForError } = await import('@/lib/errorClan');
+    const { redactPathQuery } = await import('@/lib/redactPath');
 
     const err = error instanceof Error ? error : new Error(String(error));
     captureError({
       name: err.name,
       message: messageWithCause(err),
       stack: err.stack,
-      path: request.path,
+      path: redactPathQuery(request.path),
       method: request.method,
       // "render/app" reads better in a digest than the object Next hands over, and the render source
       // distinguishes an RSC failure from an SSR one, which fail for different reasons.
