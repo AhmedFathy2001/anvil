@@ -1,5 +1,6 @@
 'use client';
 
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
@@ -73,7 +74,7 @@ export default function PendingCoHostInvites({ initial }: { initial: CohostRow[]
                 players’ fees.
               </div>
               <a
-                href={`/c/${i.hostClanSlug}/events/${i.eventId}`}
+                href={clanPathOf({ slug: i.hostClanSlug, kind: i.hostClanKind }, `/events/${i.eventId}`)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-1 inline-block text-[12.5px] text-gold hover:text-gold-light"

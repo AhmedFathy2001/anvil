@@ -2,6 +2,8 @@
 import { platformTotals, multiClanPeople, nameCollisions, allClans } from '@/lib/platformView';
 import { billingStatus, liveness, QUIET_SYNC_DAYS, TRIAL_WARN_DAYS } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // in-game name disputes are always clans
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +50,8 @@ export default async function StaffOverview() {
   // nothing said so, because nothing was looking. A dashboard of totals is a report; this is the
   // part that is a tool.
   const ownerless = clans.filter((c) => c.status === 'active' && !c.owner);
-  const unverified = clans.filter((c) => c.status === 'active' && !c.verified);
+  // A creator space has no in-game clan to prove, so it can never verify — it is not waiting on anyone.
+  const unverified = clans.filter((c) => c.status === 'active' && !c.verified && !isCreatorSpace(c));
   const overCap = clans.filter((c) => c.memberCap != null && c.members > c.memberCap);
 
   // MONEY, WHICH THIS PAGE COULD NOT SEE. Every one of these facts was already on the clan row and
@@ -156,7 +159,7 @@ export default async function StaffOverview() {
                 <ul className="mt-2.5 flex flex-col gap-1.5">
                   {c.clans.map((cl) => (
                     <li key={cl.id} className="flex flex-wrap items-baseline gap-x-2.5 text-sm">
-                      <ClanLink href={`/c/${cl.slug}`} className="text-gold hover:underline">
+                      <ClanLink href={clanBasePath({ slug: cl.slug })} className="text-gold hover:underline">
                         {cl.name}
                       </ClanLink>
                       {cl.verified ? (

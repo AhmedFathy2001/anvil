@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -36,7 +37,7 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
 
   // clan-scope: global -- the seat row below proves this clan co-hosts it; nothing renders otherwise.
   const [row] = await db
-    .select({ event: events, seat: eventCohosts, hostSlug: clans.slug, hostName: clans.name })
+    .select({ event: events, seat: eventCohosts, hostSlug: clans.slug, hostKind: clans.kind, hostName: clans.name })
     .from(eventCohosts)
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .innerJoin(clans, eq(clans.id, events.clanId))
@@ -47,7 +48,7 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
   // as one. A board-only editor has its own route in (the Tiles link), not this page.
   if ((await cohostSignupClanFor(id, session.userId)) !== clan.id) redirect(await clanHref('/admin/events'));
 
-  const { event, seat, hostSlug, hostName } = row;
+  const { event, seat, hostSlug, hostKind, hostName } = row;
   const [ownTeam] = seat.teamId
     ? await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.id, seat.teamId)).limit(1)
     : [];
@@ -67,7 +68,7 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
 
       <section className="rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-3 text-lg font-bold">Your clan’s sign-ups</h2>
-        <CohostSignupsClient eventId={id} hostSlug={hostSlug} />
+        <CohostSignupsClient eventId={id} hostSlug={hostSlug} hostKind={hostKind} />
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
@@ -78,7 +79,7 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
               <p className="mb-3 text-sm text-text-muted">
                 {hostName} lets your staff {[access.create !== 'nobody' && 'add', access.edit !== 'nobody' && 'edit', access.delete !== 'nobody' && 'delete'].filter(Boolean).join(', ')} tiles with them.
               </p>
-              <ClanLink href={`/c/${hostSlug}/admin/events/${id}/tiles`} className="text-sm font-semibold text-gold hover:underline">
+              <ClanLink href={clanPathOf({ slug: hostSlug, kind: hostKind }, `/admin/events/${id}/tiles`)} className="text-sm font-semibold text-gold hover:underline">
                 Edit the board →
               </ClanLink>
             </>

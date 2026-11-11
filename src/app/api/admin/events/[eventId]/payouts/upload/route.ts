@@ -61,7 +61,7 @@ export async function POST(
 
   const finalExt = ALLOWED_EXTENSIONS.includes(ext) ? ext : 'jpg';
   const clan = await currentClan();
-  const filename = clanMediaKey(clan?.slug, `payouts/${crypto.randomUUID()}.${finalExt}`);
+  const filename = clanMediaKey(clan, `payouts/${crypto.randomUUID()}.${finalExt}`);
   const { url } = await put(filename, file);
 
   return NextResponse.json({ url });

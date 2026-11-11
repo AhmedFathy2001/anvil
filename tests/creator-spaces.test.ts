@@ -340,9 +340,11 @@ test('what a space calls itself: "Events on Anvil", never "OSRS Clan" or a roste
 
 test('a first sign-in into a creator space goes straight back to the event, not to clan onboarding', async () => {
   const { firstLoginDestination, spaceSlugOf } = await import('../src/lib/firstLogin.ts');
-  assert.equal(spaceSlugOf('/c/Cool-Streamer/events/5'), 'cool-streamer');
+  // Spaces live at /s/ now; an old /c/ link still names the tenant (the resolver falls back to the space).
+  assert.deepEqual(spaceSlugOf('/s/Cool-Streamer/events/5'), { slug: 'cool-streamer', kind: 'creator' });
+  assert.deepEqual(spaceSlugOf('/c/Cool-Streamer/events/5'), { slug: 'cool-streamer', kind: 'clan' });
   assert.equal(spaceSlugOf('/events/5'), null);
-  assert.equal(firstLoginDestination('/c/cool-streamer/events/5', false, true), '/c/cool-streamer/events/5');
+  assert.equal(firstLoginDestination('/s/cool-streamer/events/5', false, true), '/s/cool-streamer/events/5');
   // A clan's deep link still goes through onboarding, carrying the target along.
   assert.equal(firstLoginDestination('/c/afk/events/5', false), `/welcome?next=${encodeURIComponent('/c/afk/events/5')}`);
 });

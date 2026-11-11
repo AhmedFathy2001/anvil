@@ -1,5 +1,6 @@
 import { allClans, platformActions, type PlatformAction } from '@/lib/platformView';
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 export const dynamic = 'force-dynamic';
 
@@ -149,7 +150,7 @@ function Row({ action }: { action: PlatformAction }) {
       </span>
 
       {action.clan && (
-        <ClanLink href={`/c/${action.clan.slug}`} className="text-[13.5px] text-gold hover:underline">
+        <ClanLink href={clanBasePath(action.clan)} className="text-[13.5px] text-gold hover:underline">
           {action.clan.name}
         </ClanLink>
       )}

@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   if (limited) return limited;
   // A slug is short; anything longer is not one, and is not worth a lookup.
   const slug = cardParam((await params).slug, 64);
-  const clan = slug ? await resolveClanBySlug(slug) : null;
+  const clan = slug ? await resolveClanBySlug(slug, new URL(request.url).searchParams.get('k') === 's' ? 'creator' : 'clan') : null; // `?k=s`: a creator space
   const name = clan ? await getClanDisplayName(clan.id, clan.name) : 'Anvil';
   return clanMark(name, clan?.logoUrl ?? null);
 }

@@ -15,6 +15,7 @@
 // build yet gets `pluginUpdate: 'next'`, which the page shows as "Coming in the next plugin update".
 
 import type { SupporterTierId } from './supporterTiers.ts';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 /** A condition on one of the viewer's clans. Every field given must hold for the same clan. */
 export interface ClanReq {
@@ -421,7 +422,11 @@ function needsClan(link: WhatsNewLink): boolean {
 
 function fill(s: string, c: ViewerClan): string {
   // {clanName} first: replacing {clan} first would eat the start of it.
-  return s.replaceAll('{clanName}', c.name).replaceAll('{clan}', encodeURIComponent(c.slug));
+  // The templates say `/c/{clan}`; a creator space lives at /s/, so the prefix is filled with the slug.
+  return s
+    .replaceAll('/c/{clan}', clanBasePath({ slug: encodeURIComponent(c.slug), kind: c.kind }))
+    .replaceAll('{clanName}', c.name)
+    .replaceAll('{clan}', encodeURIComponent(c.slug));
 }
 
 /** "7 Nov 2026" */

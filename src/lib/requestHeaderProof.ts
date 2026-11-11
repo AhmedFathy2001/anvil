@@ -15,13 +15,18 @@
 // The clan proof's message (`anvil-clan-header:<slug>`) and key (ADMIN_SESSION_SECRET) must stay
 // byte-for-byte what middleware signed before this module existed. During a blue/green swap the old
 // slot's proofs reach the new slot's handlers and vice versa; a changed format would drop every
-// clan-prefixed request's clan for the length of the swap.
+// clan-prefixed request's clan for the length of the swap. A creator space (`/s/<slug>`) signs
+// `anvil-clan-header:creator:<slug>` instead: the kind is inside the proof, because `/c/x` and `/s/x`
+// can be two tenants, and a slug cannot contain `:` so the two messages never collide.
 
 import { requireSecret } from '@/lib/env';
+import { clanBasePath, type AddressKind } from '@/lib/clanScopedPaths';
 
 export const CLAN_SLUG_HEADER = 'x-anvil-clan-slug';
 export const CLAN_PREFIX_HEADER = 'x-anvil-clan-prefix';
 export const CLAN_PROOF_HEADER = 'x-anvil-clan-proof';
+/** 'creator' for a `/s/<slug>` request; absent (a clan) otherwise. Covered by CLAN_PROOF_HEADER. */
+export const CLAN_KIND_HEADER = 'x-anvil-clan-kind';
 export const PATHNAME_HEADER = 'x-anvil-pathname';
 export const SEARCH_HEADER = 'x-anvil-search';
 export const PATH_PROOF_HEADER = 'x-anvil-path-proof';
@@ -53,9 +58,9 @@ export function constantTimeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** The proof that middleware set this clan slug. Domain-separated from session tokens. */
-export function clanHeaderProof(slug: string): Promise<string> {
-  return hmacHex(`anvil-clan-header:${slug}`);
+/** The proof that middleware set this clan slug (and kind). Domain-separated from session tokens. */
+export function clanHeaderProof(slug: string, kind: AddressKind = 'clan'): Promise<string> {
+  return hmacHex(kind === 'creator' ? `anvil-clan-header:creator:${slug}` : `anvil-clan-header:${slug}`);
 }
 
 /** The proof that middleware set this path + query. The newline keeps the two fields apart. */
@@ -65,12 +70,18 @@ export function pathHeaderProof(pathname: string, search: string): Promise<strin
 
 type HeaderBag = { get(name: string): string | null };
 
-/** The clan slug middleware put on this request, or null when there is none or it is unproven. */
-export async function provenClanSlug(headers: HeaderBag): Promise<string | null> {
+/** The tenant middleware put on this request — slug and namespace — or null when none or unproven. */
+export async function provenClan(headers: HeaderBag): Promise<{ slug: string; kind: AddressKind } | null> {
   const slug = headers.get(CLAN_SLUG_HEADER);
   const proof = headers.get(CLAN_PROOF_HEADER);
   if (!slug || !proof) return null;
-  return constantTimeEqual(proof, await clanHeaderProof(slug)) ? slug : null;
+  const kind: AddressKind = headers.get(CLAN_KIND_HEADER) === 'creator' ? 'creator' : 'clan';
+  return constantTimeEqual(proof, await clanHeaderProof(slug, kind)) ? { slug, kind } : null;
+}
+
+/** The clan slug middleware put on this request, or null when there is none or it is unproven. */
+export async function provenClanSlug(headers: HeaderBag): Promise<string | null> {
+  return (await provenClan(headers))?.slug ?? null;
 }
 
 /**
@@ -88,9 +99,11 @@ export async function provenPath(headers: HeaderBag): Promise<{ pathname: string
   return constantTimeEqual(proof, await pathHeaderProof(pathname, search)) ? { pathname, search } : null;
 }
 
-/** Sets a proven clan slug (and the prefix derived from it) on headers being forwarded inward. */
-export async function setProvenClan(headers: Headers, slug: string): Promise<void> {
+/** Sets a proven tenant (and the prefix derived from it) on headers being forwarded inward. */
+export async function setProvenClan(headers: Headers, slug: string, kind: AddressKind = 'clan'): Promise<void> {
   headers.set(CLAN_SLUG_HEADER, slug);
-  headers.set(CLAN_PREFIX_HEADER, `/c/${slug}`);
-  headers.set(CLAN_PROOF_HEADER, await clanHeaderProof(slug));
+  if (kind === 'creator') headers.set(CLAN_KIND_HEADER, 'creator');
+  else headers.delete(CLAN_KIND_HEADER);
+  headers.set(CLAN_PREFIX_HEADER, clanBasePath({ slug, kind }));
+  headers.set(CLAN_PROOF_HEADER, await clanHeaderProof(slug, kind));
 }

@@ -58,6 +58,7 @@ import { profileConnectedAccounts } from '@/lib/connectedAccounts';
 import { profileSections } from '@/lib/characterProfileRules';
 import { streakForAccount } from '@/lib/activityStreaks';
 import { STREAK_MILESTONES, type Streak } from '@/lib/activityStreak';
+import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 
 /** Max total level, derived from the skill list — 24 skills today, whatever Jagex adds tomorrow. */
 const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
@@ -357,7 +358,7 @@ export default async function CharacterProfile({
       {show.platformHeader && character && (
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-text-muted">
           {character.clan && (
-            <ClanLink href={`/c/${character.clan.slug}`} className="flex min-w-0 items-center gap-2 transition-colors hover:text-gold">
+            <ClanLink href={clanBasePath(character.clan)} className="flex min-w-0 items-center gap-2 transition-colors hover:text-gold">
               <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
               {/* One inline run, so a narrow screen wraps it as a line, not as columns. */}
               <span className="min-w-0">
@@ -373,7 +374,7 @@ export default async function CharacterProfile({
           {character.clan ? (
             // The same character, seen by its clan: standings, competition history, moments.
             <ClanLink
-              href={`/c/${character.clan.slug}/members/${encodeURIComponent(rsn)}`}
+              href={clanPathOf(character.clan, `/members/${encodeURIComponent(rsn)}`)}
               className="text-gold hover:underline"
             >
               Clan profile →
@@ -673,6 +674,7 @@ function GameClanChip({ clan }: { clan: CharacterGameClan }) {
   if (clan.anvilClanUnlisted) return <span className="flex items-center gap-2">{body}</span>;
   return (
     <ClanLink
+      // anvilClan comes from the in-game clan's key, so it is always a clan, never a space.
       href={clan.anvilClan ? `/c/${clan.anvilClan.slug}` : `/clans/g/${encodeURIComponent(clan.key)}`}
       className="flex items-center gap-2 transition-colors hover:text-gold"
       title={clan.joinedOn ? `In-game clan · joined ${clan.joinedOn}` : 'In-game clan'}

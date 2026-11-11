@@ -40,7 +40,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
   // Our upload, under the prefix of the clan this was filed from (it was uploaded there too).
   const clan = await currentClan();
-  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan.slug))) {
+  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan))) {
     return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
   }
 

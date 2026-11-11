@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { clans, settings } from '@/db/schema';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
+import { parseTypedSlug, slugIn } from '@/lib/clanSlugLookup';
 import { listedClanWhere, showcaseJoinOn, isClanListed, PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
 
 /**
@@ -32,13 +33,17 @@ export async function GET(request: Request) {
     .orderBy(clans.name)
     .limit(8);
 
-  const slug = q.toLowerCase();
-  if (!listed.some((c) => c.slug === slug)) {
+  const typed = parseTypedSlug(q);
+  const slug = typed?.slug ?? q.toLowerCase();
+  if (typed && !listed.some((c) => c.slug === slug)) {
     // clan-scope: global -- exact address lookup, see the note above.
-    const exact = await db.query.clans.findFirst({
-      where: and(eq(clans.slug, slug), ne(clans.id, own.id)),
-      columns: { id: true, slug: true, name: true, logoUrl: true, status: true, visibility: true, platformHidden: true, kind: true },
-    });
+    // A slug is unique per namespace, so a bare one means the clan and only then the space.
+    const findExact = (kind: 'clan' | 'creator') =>
+      db.query.clans.findFirst({
+        where: and(slugIn(slug, kind), ne(clans.id, own.id)),
+        columns: { id: true, slug: true, name: true, logoUrl: true, status: true, visibility: true, platformHidden: true, kind: true },
+      });
+    const exact = typed.kind ? await findExact(typed.kind) : ((await findExact('clan')) ?? (await findExact('creator')));
     if (exact && exact.status === 'active') {
       const showcase = await db.query.settings.findFirst({
         where: and(eq(settings.clanId, exact.id), eq(settings.key, PUBLIC_SHOWCASE_KEY)),

@@ -21,7 +21,7 @@ export default async function AdminGuidePage({ params }: { params: Promise<{ id:
       listHref="/admin/guides"
       origin={configuredOrigin()}
       siteHref={`/guides/${guide.slug}`}
-      siteUrl={guideSiteUrl(actor.clan.slug, guide.slug)}
+      siteUrl={guideSiteUrl(actor.clan, guide.slug)}
     />
   );
 }

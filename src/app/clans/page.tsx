@@ -9,6 +9,7 @@ import { clans, events, weeklyCompetitions } from '@/db/schema';
 import { directoryClans } from '@/lib/apexDirectory';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
+import { namespaceOf } from '@/lib/clanSlugLookup';
 import { clansOfPerson } from '@/lib/myClans';
 import ClanLookup, { type LookupClan } from '@/components/ClanLookup';
 import { clanBoostDisplays, type ClanBoostDisplay } from '@/lib/clanBoosts';
@@ -61,11 +62,13 @@ export default async function ClansPage() {
     clanBoostDisplays('all').catch(() => new Map<number, ClanBoostDisplay>()),
   ]);
 
-  const seatBySlug = new Map(mine.map((c) => [c.slug, c.seat]));
+  // Keyed by namespace too: a clan and a space may share a slug.
+  const seatKey = (slug: string, kind: string | null | undefined) => `${namespaceOf(kind)}:${slug}`;
+  const seatBySlug = new Map(mine.map((c) => [seatKey(c.slug, c.clanKind), c.seat]));
 
   // What each clan is running, in two queries rather than two per clan.
-  const slugs = rows.map((r) => r.slug);
-  const doing = slugs.length > 0 ? await liveBySlug(slugs) : new Map<string, string>();
+  const liveIds = rows.map((r) => r.id).filter((x): x is number => x != null);
+  const doing = liveIds.length > 0 ? await liveByClanId(liveIds) : new Map<number, string>();
   // Clan tenure (lib/clanTenure): decoration, so a failed read is no badges.
   const tenure = await clanTenureBadges(rows.map((r) => r.id).filter((x): x is number => x != null)).catch(() => new Map());
 
@@ -83,8 +86,8 @@ export default async function ClansPage() {
     openToChallenges: r.openToChallenges ?? false,
     events: r.events,
     members: r.members,
-    doing: doing.get(r.slug) ?? null,
-    seat: seatBySlug.get(r.slug) ?? null,
+    doing: (r.id != null ? doing.get(r.id) : null) ?? null,
+    seat: seatBySlug.get(seatKey(r.slug, r.kind)) ?? null,
     verified: r.verified,
     guestPolicy: r.guestPolicy,
     kind: r.kind,
@@ -102,33 +105,33 @@ export default async function ClansPage() {
 }
 
 /** The name of one live thing per clan, preferring a competition over a board. */
-async function liveBySlug(slugs: string[]): Promise<Map<string, string>> {
+async function liveByClanId(ids: number[]): Promise<Map<number, string>> {
   const nowIso = new Date().toISOString();
-  const out = new Map<string, string>();
+  const out = new Map<number, string>();
 
   // clan-scope: global -- the lookup lists every clan by definition; there is no single clan here.
   const [evs, weeks] = await Promise.all([
     db
-      .select({ slug: clans.slug, name: events.name })
+      .select({ clanId: clans.id, name: events.name })
       .from(events)
       .innerJoin(clans, eq(clans.id, events.clanId))
       .where(
         and(
-          inArray(clans.slug, slugs),
+          inArray(clans.id, ids),
           isNull(events.forceEndedAt),
           sql`${events.startDate} is not null and ${events.startDate} <= ${nowIso}`,
           or(isNull(events.endDate), gt(events.endDate, nowIso)),
         ),
       ),
     db
-      .select({ slug: clans.slug, name: weeklyCompetitions.title })
+      .select({ clanId: clans.id, name: weeklyCompetitions.title })
       .from(weeklyCompetitions)
       .innerJoin(clans, eq(clans.id, weeklyCompetitions.clanId))
-      .where(and(inArray(clans.slug, slugs), eq(weeklyCompetitions.status, 'active'))),
+      .where(and(inArray(clans.id, ids), eq(weeklyCompetitions.status, 'active'))),
   ]);
 
-  for (const e of evs) out.set(e.slug, e.name);
+  for (const e of evs) out.set(e.clanId, e.name);
   // Weeklies win: a skill or boss week is the thing most people are actually in right now.
-  for (const w of weeks) out.set(w.slug, w.name);
+  for (const w of weeks) out.set(w.clanId, w.name);
   return out;
 }

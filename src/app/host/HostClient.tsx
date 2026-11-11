@@ -44,7 +44,7 @@ export default function HostClient({
     }
     const t = setTimeout(async () => {
       // Apex-only availability check, shared with the create-a-clan form.
-      const res = await fetch(`/api/clans?slug=${encodeURIComponent(slug)}`);
+      const res = await fetch(`/api/clans?kind=creator&slug=${encodeURIComponent(slug)}`);
       if (res.ok) setCheck((await res.json()).slug ?? null);
     }, 350);
     return () => clearTimeout(t);
@@ -69,8 +69,8 @@ export default function HostClient({
       const made = j.slug ?? slug;
       window.location.assign(
         plan
-          ? `/c/${made}/admin/dashboard${billing === 'yearly' ? '?billing=yearly' : ''}#plan`
-          : (j.next ?? `/c/${made}/admin/events/first`),
+          ? `/s/${made}/admin/dashboard${billing === 'yearly' ? '?billing=yearly' : ''}#plan`
+          : (j.next ?? `/s/${made}/admin/events/first`),
       );
     } finally {
       setBusy(false);

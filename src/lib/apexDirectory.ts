@@ -9,6 +9,7 @@ import { and, count, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-or
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, events as eventsTable, memberDailyStats, settings } from '@/db/schema';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import { apexDomain } from '@/lib/clanContext';
 import { asFocus } from '@/lib/clanHome';
 import { featuredListing } from '@/lib/creatorPlans';
@@ -124,7 +125,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
     openToChallenges: r.openToChallenges,
     createdAt: r.createdAt,
     // The path form, not the retired subdomain — `<slug>.<apex>` only 301s now.
-    host: r.customDomain || `${apexDomain()}/c/${r.slug}`,
+    host: r.customDomain || `${apexDomain()}${clanBasePath(r)}`,
     members: Number(r.members ?? 0),
     events: eventsByClan.get(r.id) ?? 0,
     verified: r.verified != null,

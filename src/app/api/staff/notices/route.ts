@@ -2,7 +2,8 @@ import { eq, or } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
-import { clans, users } from '@/db/schema';
+import { users } from '@/db/schema';
+import { parseTypedSlug, slugIn } from '@/lib/clanSlugLookup';
 import { createNotice, staffNoticeList, withdrawNotice } from '@/lib/notices';
 import { noticeFieldsFrom } from '@/lib/noticeRules';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
@@ -32,7 +33,10 @@ export async function POST(request: Request) {
   if (audience === 'clan') {
     const slug = String(body.clanSlug ?? '').trim().toLowerCase();
     // clan-scope: global -- platform staff picking any clan by its address.
-    const clan = slug ? await db.query.clans.findFirst({ where: eq(clans.slug, slug), columns: { id: true } }) : null;
+    // Typed by staff: an explicit /c/ or /s/ wins, a bare slug means the clan and then the space.
+    const typed = parseTypedSlug(slug);
+    const find = (kind: 'clan' | 'creator') => db.query.clans.findFirst({ where: slugIn(typed!.slug, kind), columns: { id: true } });
+    const clan = typed ? await (typed.kind ? find(typed.kind) : find('clan').then((c) => c ?? find('creator'))) : null;
     if (!clan) return NextResponse.json({ error: 'No clan at that address.' }, { status: 400 });
     audience = `clan:${clan.id}`;
   } else if (audience === 'user') {

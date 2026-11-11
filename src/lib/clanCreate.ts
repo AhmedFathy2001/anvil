@@ -25,6 +25,7 @@ import { setSetting } from '@/lib/settings';
 import { FEATURES, FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan, serializeFeaturesOff, type FeatureKey } from '@/lib/features';
 import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
 import { MAX_CREATOR_SPACES, mayCreateCreatorSpace } from '@/lib/creatorSpaces';
+import type { AddressKind } from '@/lib/clanScopedPaths';
 import {
   availabilityMessage,
   domainRuleFailure,
@@ -36,21 +37,35 @@ import {
 export { availabilityMessage } from '@/lib/clanNames';
 export type { AvailabilityResult } from '@/lib/clanNames';
 
-/** Is this address free? Format and reserved list first, then not already a clan. */
-export async function checkSlug(slug: string, exceptClanId?: number): Promise<AvailabilityResult> {
+/**
+ * Is this address free? Format and reserved list first, then not already taken IN ITS NAMESPACE.
+ *
+ * `kind` is the namespace: clans (and friends hosts) at /c/<slug>, creator spaces at /s/<slug>. A
+ * space and a clan may hold the same slug (clans_namespace_slug_unique).
+ */
+export async function checkSlug(
+  slug: string,
+  exceptClanId?: number,
+  kind: AddressKind = 'clan',
+): Promise<AvailabilityResult> {
   const s = normalizeSlug(slug);
   const ruleFailure = slugRuleFailure(s);
   if (ruleFailure) return ruleFailure;
 
+  const inNamespace = kind === 'creator' ? eq(clans.kind, 'creator') : ne(clans.kind, 'creator');
   const existing = await db.query.clans.findFirst({
-    where: exceptClanId ? and(eq(clans.slug, s), ne(clans.id, exceptClanId)) : eq(clans.slug, s),
+    where: exceptClanId
+      ? and(eq(clans.slug, s), inNamespace, ne(clans.id, exceptClanId))
+      : and(eq(clans.slug, s), inNamespace),
   });
   // No "reclaimable reservation" case any more: there are no unpaid placeholder rows to reclaim,
   // because a clan is never created pending a payment. A slug that exists is taken.
   if (existing) return { ok: false, reason: 'taken' };
   // So is one a clan gave up (renamed away from, or deleted): old links still point at it. Only the
   // clan that gave it up may take it back.
-  const retired = await db.query.retiredClanSlugs.findFirst({ where: eq(retiredClanSlugs.slug, s) });
+  const retired = await db.query.retiredClanSlugs.findFirst({
+    where: and(eq(retiredClanSlugs.slug, s), eq(retiredClanSlugs.kind, kind)),
+  });
   if (retired && (exceptClanId == null || retired.clanId !== exceptClanId)) return { ok: false, reason: 'taken' };
   return { ok: true };
 }
@@ -285,7 +300,7 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
   if (!name) return { ok: false, error: 'Give your space a name.' };
 
   const slug = normalizeSlug(input.slug);
-  const avail = await checkSlug(slug);
+  const avail = await checkSlug(slug, undefined, 'creator');
   if (!avail.ok) return { ok: false, error: availabilityMessage('Address', avail) };
 
   try {

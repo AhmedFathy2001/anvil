@@ -25,6 +25,7 @@
 
 import { withBilling, type BillingInterval } from '@/lib/billingInterval';
 import { CREATOR_PLANS, creatorPlanRank, type CreatorPlan, type CreatorPlanId } from '@/lib/creatorCatalog';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 export type CreatorCta =
   | { kind: 'link'; label: string; href: string; primary: boolean }
@@ -85,7 +86,7 @@ export function creatorPricingCta(plan: CreatorPlan, viewer: CreatorCtaViewer, o
     if (noYearly) return soon;
     const checkout = opts.checkoutFor(plan);
     if (checkout) return { kind: 'external', label, href: checkout, primary: true };
-    return { kind: 'link', label, href: withBilling(`/c/${space.slug}/admin/dashboard`, interval) + '#plan', primary: true };
+    return { kind: 'link', label, href: withBilling(clanPathOf(space, '/admin/dashboard'), interval) + '#plan', primary: true };
   }
 
   const paidStart = plan.priceUsd !== 0 && opts.enforced;

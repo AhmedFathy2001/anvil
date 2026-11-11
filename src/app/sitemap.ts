@@ -80,17 +80,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .orderBy(clans.slug);
 
   const clanUrls: MetadataRoute.Sitemap = listed.flatMap((c) => [
-    { url: absoluteUrl(clanCanonicalPath(c.slug)), lastModified: now, changeFrequency: 'daily' as const, priority: 0.8 },
+    { url: absoluteUrl(clanCanonicalPath(c)), lastModified: now, changeFrequency: 'daily' as const, priority: 0.8 },
     // A creator space has no roster page (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS).
     ...CLAN_SUBPAGES.filter((p) => !(isCreatorSpace(c) && creatorHidesPublicPath(p))).map((p) => ({
-      url: absoluteUrl(clanCanonicalPath(c.slug, p)),
+      url: absoluteUrl(clanCanonicalPath(c, p)),
       lastModified: now,
       changeFrequency: 'daily' as const,
       priority: 0.6,
     })),
   ]);
 
-  const slugById = new Map(listed.map((c) => [c.id, c.slug]));
+  const slugById = new Map(listed.map((c) => [c.id, { slug: c.slug, kind: c.kind }]));
   const eventUrls: MetadataRoute.Sitemap = [];
 
   if (slugById.size > 0) {
@@ -114,14 +114,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     for (const row of rows) {
       if (Number(row.rank) > EVENTS_PER_CLAN) continue;
-      const slug = slugById.get(row.clanId);
-      if (!slug) continue;
+      const tenant = slugById.get(row.clanId);
+      if (!tenant) continue;
       // `endDate` and `createdAt` are stored two ways in these columns (see lib/dbTime); an
       // unparseable one is left off rather than sent as Invalid Date, which serialises to null and
       // makes the whole entry unusable.
       const stamp = new Date((row.endDate ?? row.createdAt ?? '').replace(' ', 'T'));
       eventUrls.push({
-        url: absoluteUrl(clanCanonicalPath(slug, `/events/${row.id}`)),
+        url: absoluteUrl(clanCanonicalPath(tenant, `/events/${row.id}`)),
         ...(Number.isNaN(stamp.getTime()) ? {} : { lastModified: stamp }),
         changeFrequency: 'daily',
         priority: 0.7,
@@ -144,11 +144,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     for (const row of weeks) {
       if (Number(row.rank) > WEEKLIES_PER_CLAN) continue;
-      const slug = slugById.get(row.clanId);
-      if (!slug) continue;
+      const tenant = slugById.get(row.clanId);
+      if (!tenant) continue;
       const stamp = new Date((row.endDate ?? '').replace(' ', 'T'));
       eventUrls.push({
-        url: absoluteUrl(clanCanonicalPath(slug, `/weekly/${row.id}`)),
+        url: absoluteUrl(clanCanonicalPath(tenant, `/weekly/${row.id}`)),
         ...(Number.isNaN(stamp.getTime()) ? {} : { lastModified: stamp }),
         changeFrequency: 'weekly',
         priority: 0.5,

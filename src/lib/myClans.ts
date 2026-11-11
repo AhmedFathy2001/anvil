@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, ne, not } from 'drizzle-orm';
+import { slugIn } from '@/lib/clanSlugLookup';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans } from '@/db/schema';
@@ -58,7 +59,7 @@ export async function clansOfPerson(
       .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
       // An event player's seat is not belonging to the clan — it opens one event, not a switcher entry.
       // A friends host (lib/friendEventRules) is no clan of anybody's: it has its own entry (/host/friends).
-      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), ne(clans.slug, LAB_CLAN_SLUG), ne(clans.kind, 'friends'), clanSeat()));
+      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), not(slugIn(LAB_CLAN_SLUG, 'clan')), ne(clans.kind, 'friends'), clanSeat()));
 
     for (const r of seats) {
       const seat = r.kind === 'member' ? 'member' : 'guest';
@@ -77,7 +78,7 @@ export async function clansOfPerson(
       .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, clanKind: clans.kind, role: clanStaff.role })
       .from(clanStaff)
       .innerJoin(clans, eq(clans.id, clanStaff.clanId))
-      .where(and(eq(clanStaff.userId, userId), ne(clans.slug, LAB_CLAN_SLUG), ne(clans.kind, 'friends')));
+      .where(and(eq(clanStaff.userId, userId), not(slugIn(LAB_CLAN_SLUG, 'clan')), ne(clans.kind, 'friends')));
 
     for (const r of grants) {
       const existing = byId.get(r.id);

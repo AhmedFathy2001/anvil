@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   return clanSectionMetadata({
     title: `${profile?.rsn ?? name} — ${clanName}`,
     description: profile ? memberLinkDescription(profile, clanName) : `Skills, bosses, efficient hours and competition history for ${name} of ${clanName}.`,
-    image: `/api/og/member/${clan.slug}/${encodeURIComponent(profile?.rsn ?? name)}`,
+    image: `/api/og/member/${clan.slug}/${encodeURIComponent(profile?.rsn ?? name)}${clan.kind === 'creator' ? '?k=s' : ''}`,
   });
 }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, users } from '@/db/schema';
@@ -144,8 +145,8 @@ async function handleBotConnect(
   q: { code: string | null; state: string | null; error: string | null },
   toSetup = false,
 ) {
-  const back = (slug: string | null, outcome: string) => {
-    const path = slug ? `/c/${slug}/admin/${toSetup ? 'setup' : 'integrations'}` : '/';
+  const back = (clan: { slug: string; kind: string } | null, outcome: string) => {
+    const path = clan ? clanPathOf(clan, `/admin/${toSetup ? 'setup' : 'integrations'}`) : '/';
     const res = NextResponse.redirect(new URL(`${path}?discord=${encodeURIComponent(outcome)}`, originForHost(apexDomain())));
     const gone = { path: '/', maxAge: 0, ...(sessionCookieDomain() ? { domain: sessionCookieDomain()! } : {}) };
     res.cookies.set(STATE_COOKIE, '', gone);
@@ -156,8 +157,8 @@ async function handleBotConnect(
   const slugFor = async () => {
     const id = Number(clanIdCookie);
     if (!Number.isInteger(id) || id <= 0) return null;
-    const row = await db.query.clans.findFirst({ where: eq(clans.id, id), columns: { slug: true } });
-    return row?.slug ?? null;
+    const row = await db.query.clans.findFirst({ where: eq(clans.id, id), columns: { slug: true, kind: true } });
+    return row ?? null;
   };
 
   if (q.error) return back(await slugFor(), q.error === 'access_denied' ? 'cancelled' : 'discord-error');
@@ -169,7 +170,8 @@ async function handleBotConnect(
     const discordUser = await fetchDiscordUser(tokenSet.accessToken);
     const result = await finishBotConnect({ clanIdCookie, tokenSet, discordUserId: discordUser.id });
     if (result.ok) track('discord.connected', { clanId: Number(clanIdCookie) });
-    return back(result.clanSlug, result.ok ? 'connected' : result.error);
+    // Looked up again for its kind: the result only carries the slug, and a space is at /s/.
+    return back(await slugFor(), result.ok ? 'connected' : result.error);
   } catch (e) {
     log.warn('oauth.bot-connect-fail', {}, e);
     return back(await slugFor(), 'discord-error');

@@ -40,7 +40,8 @@ export async function GET(request: Request) {
 
   const out: Record<string, unknown> = {};
   if (slug) {
-    const r = await checkSlug(slug);
+    // `kind=creator` asks about the space namespace (/s/<slug>): a space and a clan may share a slug.
+    const r = await checkSlug(slug, undefined, url.searchParams.get('kind') === 'creator' ? 'creator' : 'clan');
     out.slug = { ok: r.ok, message: r.ok ? '' : availabilityMessage('Address', r) };
   }
   if (domain) {

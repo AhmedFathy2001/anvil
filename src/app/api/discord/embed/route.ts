@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans } from '@/db/schema';
 import { currentClan } from '@/lib/clanContext';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { clanHallView, hallConfig } from '@/lib/clanHall';
 import { renderEmbedHtml } from '@/lib/discordEmbedRender';
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
   const bannerStill = row?.bannerUrl && !animates ? await ourImageAsDataUrl(row.bannerUrl, { width: 840, height: 280 }, 'jpeg') : null;
 
   const origin = configuredOrigin() ?? new URL(request.url).origin;
-  const clanUrl = `${origin}/c/${encodeURIComponent(clan.slug)}`;
+  const clanUrl = `${origin}${clanBasePath({ slug: encodeURIComponent(clan.slug), kind: clan.kind })}`;
   const html = renderEmbedHtml({
     clan: {
       name: clan.name,

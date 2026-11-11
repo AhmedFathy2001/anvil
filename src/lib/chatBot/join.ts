@@ -6,6 +6,7 @@ import { canSeeEvent } from '@/lib/eventAccess';
 import { streamedEvent } from '@/lib/creatorSpaces';
 import { absoluteUrl } from '@/lib/seo';
 import { NOTHING_OPEN_REPLY, joinReplyText, pickJoinEvent } from '@/lib/twitchBot/wire';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 // `!join` — the platform-neutral half. Whichever chat asked (Twitch through bot/twitchChat.ts, Kick
 // through its webhook), the answer for a creator space is the same: its open event's link. The
@@ -43,7 +44,7 @@ export async function joinEventFor(clanId: number, now = Date.now()): Promise<{ 
   const pick = pickJoinEvent(visible, now);
   if (!pick) return null;
   if (!host) return null;
-  return { id: pick.id, name: pick.name, url: absoluteUrl(`/c/${host.slug}/events/${pick.id}`) };
+  return { id: pick.id, name: pick.name, url: absoluteUrl(clanPathOf(host, `/events/${pick.id}`)) };
 }
 
 /** What `!join` says for this space, on any platform. */

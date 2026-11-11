@@ -1,6 +1,6 @@
 'use client';
 
-import { withClanPrefix } from '@/lib/clanScopedPaths';
+import { parseClanPrefix, withClanPrefix } from '@/lib/clanScopedPaths';
 
 /**
  * `fetch`, for an API path that belongs to a clan.
@@ -23,8 +23,7 @@ export function clanPrefixFromLocation(): string {
   // so this is defensive rather than load-bearing — but a crash during SSR would take the page with
   // it, which is a poor trade for one `typeof`.
   if (typeof window === 'undefined') return '';
-  const m = /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(window.location.pathname);
-  return m ? m[0] : '';
+  return parseClanPrefix(window.location.pathname)?.prefix ?? '';
 }
 
 /**

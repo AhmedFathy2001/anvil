@@ -15,6 +15,7 @@ import { eventLinkDescription } from '@/lib/linkText';
 import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
 import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { eventIconUrl } from '@/lib/eventImage';
@@ -126,7 +127,7 @@ export async function generateMetadata({
   return socialMetadata({
     title: `${event.name} — ${clanName || clan.name}`,
     description: eventLinkDescription(event, standings, Date.now(), { standingsHidden: curtained }),
-    canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug }),
+    canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug, clanKind: clan.kind }),
     image: `/api/og/event/${id}`,
   });
 }
@@ -704,7 +705,7 @@ export default async function EventScoreboardPage({
       {!apiPrefix && <JsonLd
         data={eventLd({
           name: event.name,
-          url: `/c/${clan.slug}/events/${event.id}`,
+          url: clanPathOf(clan, `/events/${event.id}`),
           startDate: event.startDate,
           // A force-ended board really ended then, whatever its planned end said.
           endDate: event.forceEndedAt ?? event.endDate,
@@ -716,8 +717,8 @@ export default async function EventScoreboardPage({
       {!apiPrefix && <JsonLd
         data={breadcrumbLd(
           clanTrail(clan, [
-            { name: isCreatorSpace(clan) ? 'Events' : 'Competitions', path: `/c/${clan.slug}/events` },
-            { name: event.name, path: `/c/${clan.slug}/events/${event.id}` },
+            { name: isCreatorSpace(clan) ? 'Events' : 'Competitions', path: clanPathOf(clan, '/events') },
+            { name: event.name, path: clanPathOf(clan, `/events/${event.id}`) },
           ]),
         )}
       />}

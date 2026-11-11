@@ -7,6 +7,7 @@ import { type Color, type Node, backRow, badge, hero, nameTint, button, card, co
 import { namesRow, vsRow } from './playerMoreUi';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
 import { BAR_BLUE, BLUE, FLAME, chip, clock, section, small, streakBar, streakChip, title } from './sections';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 // A clan as the plugin's panel draws it (was ClanCardView.java): who the clan is, how hard it played
 // this week and who carried it, its strongest accounts, what dropped lately and what's running. Under
@@ -97,7 +98,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     ...(boost?.grad ? { grad: boost.grad } : {}),
     ...(boost?.move ? { move: true } : {}),
   });
-  const link = icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open the clan on the Anvil website', on: { a: 'site', path: `/c/${seg(c.slug)}` } });
+  const link = icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open the clan on the Anvil website', on: { a: 'site', path: clanBasePath({ slug: seg(c.slug), kind: c.kind }) } });
   // Three numbers as tiles: who's in it, who played this week, who's keeping a streak.
   const id: Node[] = [
     {
@@ -185,7 +186,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
  * A creator space (lib/creatorSpaces) where a clan's card would go: its name and a way to its page.
  * No member count, week, top accounts or "Compare with my clan" — a space has no members.
  */
-export function spaceCardUi(c: Pick<ClanCard, 'slug' | 'name'>): Node {
+export function spaceCardUi(c: Pick<ClanCard, 'slug' | 'name'> & { kind?: string | null }): Node {
   return col([
     card([
       row(undefined, text(c.name, 'white', { font: 'bold' }), icon({
@@ -194,7 +195,7 @@ export function spaceCardUi(c: Pick<ClanCard, 'slug' | 'name'>): Node {
         h: 12,
         color: 'muted',
         tip: 'Open this space on the Anvil website',
-        on: { a: 'site', path: `/c/${seg(c.slug)}` },
+        on: { a: 'site', path: clanBasePath({ slug: seg(c.slug), kind: c.kind ?? 'creator' }) },
       })),
       gap(2),
       muted(`Events by ${c.name} on Anvil`, { wrap: true }),
@@ -226,8 +227,13 @@ export function clanCompareUi(a: ClanCard, b: ClanCard): Node {
   ]);
 }
 
+/** A space that shares its slug with a clan says so (`s/<slug>`; visibleClan reads it); everything else stays bare. */
+function searchArgSlug(f: { slug: string; kind?: string | null }): string {
+  return f.kind === 'creator' ? `s/${f.slug}` : f.slug;
+}
+
 /** Lookup's clan search: a row per listed clan that matches, each opening its card. */
-export function clanSearchUi(q: string, found: { slug: string; name: string; boostLevel?: number; boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null }[]): Node {
+export function clanSearchUi(q: string, found: { slug: string; kind?: string | null; name: string; boostLevel?: number; boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null }[]): Node {
   if (!found.length) return message(`No listed clan matches "${q}".`).ui;
   return col(
     found.flatMap((f) => {
@@ -237,7 +243,7 @@ export function clanSearchUi(q: string, found: { slug: string; name: string; boo
         row(undefined, text(f.name, boost?.color ?? 'white', {
           ...(boost?.grad ? { grad: boost.grad } : {}),
           ...(boost?.move ? { move: true } : {}),
-        }), row((f.boostLevel ?? 0) > 0 ? chip(`Boost ${f.boostLevel}`, 'purple') : undefined, undefined, icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }), { gap: 6 }), { bg: 'raised', pad: 7, inset: 8, on: { a: 'load', v: 'clan', args: { slug: f.slug } } }),
+        }), row((f.boostLevel ?? 0) > 0 ? chip(`Boost ${f.boostLevel}`, 'purple') : undefined, undefined, icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }), { gap: 6 }), { bg: 'raised', pad: 7, inset: 8, on: { a: 'load', v: 'clan', args: { slug: searchArgSlug(f) } } }),
         gap(4),
       ];
     }),

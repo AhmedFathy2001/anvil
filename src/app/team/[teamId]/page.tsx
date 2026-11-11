@@ -24,6 +24,7 @@ import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import { idParam } from '@/lib/routeIds';
 import AccountChangeCard from '@/components/AccountChangeCard';
 import EventApiHost from '@/components/EventApiHost';
@@ -59,11 +60,11 @@ export default async function MyTeamPage({
 
   // A co-host's members open their team from their OWN clan's address. The event's API still lives
   // at the host's, so its calls are sent there (components/EventApiHost).
-  const hostSlug =
+  const hostClanRow =
     event.clanId === clan.id
       ? null
-      : (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true } }))?.slug ?? null;
-  const apiHost = <EventApiHost eventId={event.id} prefix={hostSlug ? `/c/${hostSlug}` : null} />;
+      : (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true, kind: true } })) ?? null;
+  const apiHost = <EventApiHost eventId={event.id} prefix={hostClanRow ? clanBasePath(hostClanRow) : null} />;
 
   // Origin-aware back link: reaching your own team via the scoreboard redirects here (see the view-
   // board page), so honour where you came from — back to the scoreboard, not the My Teams hub.

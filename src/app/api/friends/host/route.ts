@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 import { verifyUser } from '@/lib/auth';
 import { ensureFriendsHost, friendsHostOf, renameFriendsHost } from '@/lib/friendEvents';
@@ -18,7 +19,7 @@ export async function POST() {
 
   const r = await ensureFriendsHost(session.userId);
   if (!r.ok) return NextResponse.json({ error: r.error, reason: r.reason }, { status: 403 });
-  return NextResponse.json({ ok: true, slug: r.host.slug, next: `/c/${r.host.slug}/admin/events/first` });
+  return NextResponse.json({ ok: true, slug: r.host.slug, next: clanPathOf({ slug: r.host.slug, kind: 'friends' }, '/admin/events/first') });
 }
 
 /** Rename the person's own friends host: { name }. What their boards say as "Hosted by …". */

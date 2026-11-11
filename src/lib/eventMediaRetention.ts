@@ -2,7 +2,7 @@ import { and, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { db } from '@/db';
 import { clans, eventSignups, eventStartProofs, events, payouts, signupFees, submissionAttachments, submissions, tiles } from '@/db/schema';
-import { del, isClanMediaUrl, isManagedMediaUrl } from '@/lib/storage';
+import { del, isClanMediaUrl, isManagedMediaUrl, type MediaTenant } from '@/lib/storage';
 import { uploadOwnership } from '@/lib/uploadClaims';
 import { log } from '@/lib/logger';
 import { EXPIRED_PROOF_URL, deletableMedia, effectivePurgeAt, isPurgeDue } from '@/lib/eventMediaRetentionRules';
@@ -90,7 +90,7 @@ export interface PurgeResult {
 export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean } = {}): Promise<PurgeResult | null> {
   // clan-scope: global -- the retention job walks every clan's ended events; that is what it is for.
   const [event] = await db
-    .select({ id: events.id, name: events.name, clanSlug: clans.slug })
+    .select({ id: events.id, name: events.name, clanSlug: clans.slug, clanKind: clans.kind })
     .from(events)
     .leftJoin(clans, eq(clans.id, events.clanId))
     .where(eq(events.id, eventId));
@@ -136,7 +136,7 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
     await tx.update(events).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(events.id, eventId));
   });
 
-  await deleteOwnedFiles(eventId, event.clanSlug, {
+  await deleteOwnedFiles(eventId, event.clanSlug ? { slug: event.clanSlug, kind: event.clanKind } : null, {
     proofRows: [...media.submissions, ...media.cleanFrames, ...media.startProofs, ...media.attachments],
     moneyRows: [...media.fees, ...media.payouts],
   });
@@ -202,7 +202,7 @@ async function urlsUsedElsewhere(eventId: number | null, urls: string[]): Promis
  */
 export async function deleteOwnedFiles(
   eventId: number,
-  clanSlug: string | null,
+  clan: MediaTenant | null,
   rows: { proofRows: { url: string }[]; moneyRows?: { url: string }[] },
   opts: { anyRowKeeps?: boolean } = {},
 ): Promise<number> {
@@ -225,7 +225,7 @@ export async function deleteOwnedFiles(
     owner,
     unrecorded,
     purgedEvents,
-    inClanFolder: (u) => !!clanSlug && isClanMediaUrl(u, clanSlug),
+    inClanFolder: (u) => !!clan && isClanMediaUrl(u, clan),
     usedElsewhere: await urlsUsedElsewhere(opts.anyRowKeeps ? null : eventId, [...proofUrls, ...moneyUrls]),
   });
   const kept = proofUrls.length + moneyUrls.length - urls.length;

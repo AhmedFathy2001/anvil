@@ -157,7 +157,7 @@ export async function POST(request: Request) {
   const safeContentType = contentType ?? EXT_CONTENT_TYPE[finalExt] ?? 'application/octet-stream';
 
   const clan = await currentClan();
-  const filename = clanMediaKey(clan?.slug, `submissions/${crypto.randomUUID()}.${finalExt}`);
+  const filename = clanMediaKey(clan, `submissions/${crypto.randomUUID()}.${finalExt}`);
   const bytes = Buffer.isBuffer(body) ? body : Buffer.from(await body.arrayBuffer());
   const { url } = await put(filename, bytes, safeContentType);
 

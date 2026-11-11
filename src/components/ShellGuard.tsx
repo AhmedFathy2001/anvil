@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { parseClanPrefix } from '@/lib/clanScopedPaths';
 
 /**
  * Reload when the shell on screen belongs to a different clan than the URL does.
@@ -27,7 +28,8 @@ import { usePathname } from 'next/navigation';
  * carries no slug — compares null to null and does nothing.
  */
 function clanOf(path: string): string | null {
-  return /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(path)?.[1] ?? null;
+  // The whole prefix, not just the slug: /c/x and /s/x are different tenants.
+  return parseClanPrefix(path)?.prefix ?? null;
 }
 
 export default function ShellGuard({ prefix }: { prefix: string }) {

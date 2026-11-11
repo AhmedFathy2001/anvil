@@ -1380,6 +1380,13 @@
       "when": 1794540071870,
       "tag": "0259_event_signups_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 260,
+      "version": "7",
+      "when": 1794540131870,
+      "tag": "0260_space_slug_namespace",
+      "breakpoints": true
     }
   ]
 }

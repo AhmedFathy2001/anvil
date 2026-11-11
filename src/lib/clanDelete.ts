@@ -61,8 +61,8 @@ export async function deleteClan(clanId: number, actorUserId: number | null, rea
       // null with the clan (ON DELETE SET NULL), as do those of any addresses it had moved away from.
       await tx
         .insert(retiredClanSlugs)
-        .values({ slug: clan.slug, clanId })
-        .onConflictDoUpdate({ target: retiredClanSlugs.slug, set: { clanId } });
+        .values({ slug: clan.slug, kind: clan.kind === 'creator' ? 'creator' : 'clan', clanId })
+        .onConflictDoUpdate({ target: [retiredClanSlugs.kind, retiredClanSlugs.slug], set: { clanId } });
       await tx.delete(clans).where(eq(clans.id, clanId));
 
       await tx.insert(clanAuditLog).values({

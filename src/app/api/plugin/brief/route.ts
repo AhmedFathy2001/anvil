@@ -1,10 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { resolvePluginClan } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
-import { db } from '@/db';
-import { clans } from '@/db/schema';
 import { type BriefFacts, composeBrief } from '@/lib/chatBrief';
 import { getChatFeedPrefs } from '@/lib/chatFeed';
 import { effectiveBrief, effectiveLook } from '@/lib/chatLook';
@@ -102,8 +100,11 @@ export async function GET(request: Request) {
   }
 
   if (items.includes('clanEvents') && cfg?.activeClan?.slug) {
-    // clan-scope: global -- the clan this caller's own config named.
-    const clan = await db.query.clans.findFirst({ where: eq(clans.slug, cfg.activeClan.slug), columns: { id: true } });
+    // The tenant /config just answered for, resolved the same way from the same request and token —
+    // not re-guessed from the slug, which a clan and a creator space may share (and /config reports a
+    // friends host as 'creator', so its display kind is no namespace either).
+    const resolved = await resolvePluginClan(request, who.userId);
+    const clan = resolved && resolved.slug === cfg.activeClan.slug ? resolved : null;
     if (clan) {
       const list = await listClanEvents(clan.id, { userId: who.userId, now, withinDays: 1 });
       facts.clanEvents = list.map((e) => ({ title: e.title, startsInMin: Math.round((Date.parse(e.occurrence.start) - now) / 60_000) }));

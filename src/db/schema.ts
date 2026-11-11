@@ -179,7 +179,14 @@ export const clans = pgTable('clans', {
 
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
-  uniqueIndex('clans_slug_unique').on(table.slug),
+  // A slug is unique PER ADDRESS NAMESPACE, not globally (drizzle/0260): clans (and friends hosts)
+  // live at /c/<slug>, creator spaces at /s/<slug>, so a streamer's space no longer squats the slug a
+  // real in-game clan of the same name wants. Every lookup by slug has to say which namespace it means
+  // (lib/clanContext resolveClanBySlug).
+  uniqueIndex('clans_namespace_slug_unique').on(
+    sql`(case when ${table.kind} = 'creator' then 'creator' else 'clan' end)`,
+    table.slug,
+  ),
   uniqueIndex('clans_custom_domain_unique').on(table.customDomain),
   index('clans_status_idx').on(table.status),
   // One VERIFIED clan per in-game name, case-insensitively. First claim wins; a second is refused
@@ -231,10 +238,13 @@ export const clans = pgTable('clans', {
  * (clanId set); a deleted clan's stays reserved with clanId null.
  */
 export const retiredClanSlugs = pgTable('retired_clan_slugs', {
-  slug: text('slug').primaryKey(),
+  slug: text('slug').notNull(),
+  // The namespace it was retired from: 'clan' (/c/) or 'creator' (/s/). A clan giving up /c/x says
+  // nothing about the space at /s/x.
+  kind: text('kind').notNull().default('clan'),
   clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
   retiredAt: text('retired_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
-});
+}, (t) => [primaryKey({ columns: [t.kind, t.slug] })]);
 
 export const clanStaff = pgTable('clan_staff', {
   id: serial('id').primaryKey(),

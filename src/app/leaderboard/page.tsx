@@ -7,6 +7,7 @@ import type { Metadata } from 'next';
 
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // the table lists in-game clans only; `?from=` can fall back to a space
 import { isApexHost, resolveClanBySlug } from '@/lib/clanContext';
 import {
   clanStandings,
@@ -176,7 +177,7 @@ export default async function LeaderboardPage({
         {fromClan && (
           <p className="relative mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.2em] text-gold/85">
             All clans ·{' '}
-            <ClanLink href={`/c/${fromClan.slug}`} className="normal-case tracking-normal text-text-muted hover:text-gold">
+            <ClanLink href={clanBasePath(fromClan)} className="normal-case tracking-normal text-text-muted hover:text-gold">
               back to {fromClan.name}
             </ClanLink>
           </p>
@@ -286,7 +287,7 @@ export default async function LeaderboardPage({
                 )}
                 {p.clanSlug && (
                   <ClanLink
-                    href={`/c/${p.clanSlug}`}
+                    href={clanBasePath({ slug: p.clanSlug })}
                     className="relative hidden shrink-0 text-[12px] text-text-dim hover:text-gold sm:block"
                   >
                     {p.clanName}

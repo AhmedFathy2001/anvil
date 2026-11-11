@@ -33,9 +33,10 @@ const FOCUS_LABEL: Record<string, string> = {
  * "does this clan exist and is it private?" to anybody who can spell a slug, which is the question
  * the setting exists to refuse. A plain Anvil card answers nothing.
  */
-async function load(_request: Request, { params }: { params: Promise<{ slug: string }> }): Promise<Response> {
+async function load(request: Request, { params }: { params: Promise<{ slug: string }> }): Promise<Response> {
   const { slug } = await params;
-  const clan = await resolveClanBySlug(slug);
+  // `?k=s` names a creator space; a bare slug is the clan (and falls back to the space).
+  const clan = await resolveClanBySlug(slug, new URL(request.url).searchParams.get('k') === 's' ? 'creator' : 'clan');
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
 
   // A creator space (lib/creatorSpaces): no members, focus, recruiting or clan table — its name, its
@@ -102,5 +103,5 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
 
 export function GET(request: Request, ctx: { params: Promise<{ slug: string }> }) {
   // Keyed by path alone: the card never depends on who is asking.
-  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+  return cachedCard(`${new URL(request.url).pathname}${new URL(request.url).searchParams.get('k') === 's' ? '?k=s' : ''}`, () => load(request, ctx));
 }

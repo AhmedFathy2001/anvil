@@ -8,6 +8,7 @@ import { db } from '@/db';
 import { clans } from '@/db/schema';
 import { apexClan } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // compared entities are in-game clans
 import { loadClanCard, type ClanCard } from '@/lib/clanCard';
 import { compactNumber, compareClans, queryName } from '@/lib/compare';
 import { headToHeadDescription } from '@/lib/linkText';
@@ -215,7 +216,7 @@ function ClanSide({ card, align }: { card: ClanCard; align: 'left' | 'right' }) 
   const right = align === 'right';
   return (
     <ClanLink
-      href={`/c/${card.slug}`}
+      href={clanBasePath(card)}
       className={`flex min-w-0 items-center gap-3 hover:text-gold ${right ? 'flex-row-reverse text-right' : ''}`}
     >
       <ClanCrest variant="letter" slug={card.slug} name={card.name} logoUrl={card.logoUrl} size={40} />

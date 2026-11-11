@@ -238,7 +238,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
       {canWrite && (
         <Section title="Edit clan">
           <ClanEditor
-            clan={{ id: clan.id, name: clan.name, slug: clan.slug, events: clan.events, members: clan.members + clan.guests }}
+            clan={{ id: clan.id, name: clan.name, slug: clan.slug, kind: clan.kind, events: clan.events, members: clan.members + clan.guests }}
             canDelete={canDelete}
           />
         </Section>

@@ -75,8 +75,8 @@ export async function stampAndPost(i: StampAndPost): Promise<void> {
           claims: i.claims, rsn: i.rsn, team: i.team.name, event: i.event.name,
           receivedAt: i.receivedAt, submissionId: i.submissionId, sha256: i.upload.sha256,
         }));
-        const slug = (await db.query.clans.findFirst({ where: eq(clans.id, i.clanId), columns: { slug: true } }))?.slug;
-        const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
+        const tenant = await db.query.clans.findFirst({ where: eq(clans.id, i.clanId), columns: { slug: true, kind: true } });
+        const { url } = await put(clanMediaKey(tenant, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
         // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign.
         await db.insert(proofUploads).values({
           url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: i.upload.userId, eventId: i.event.id,

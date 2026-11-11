@@ -13,12 +13,9 @@
 // could be resolved genuinely belongs to none.
 
 import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
-import { provenClanSlug } from '@/lib/requestHeaderProof';
+import { parseClanPrefix } from '@/lib/clanScopedPaths';
+import { provenClan } from '@/lib/requestHeaderProof';
 
-/** The `/c/<slug>` prefix a path carries, if any. Same shape the proxy matches on. */
-function slugFromPath(path: string): string | null {
-  return /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(path)?.[1] ?? null;
-}
 
 function firstHeader(headers: NodeJS.Dict<string | string[]>, name: string): string | null {
   const raw = headers[name];
@@ -41,9 +38,9 @@ export async function clanIdForError(
     // been equally plausible for the rewritten one to arrive here. The header is the fallback for a
     // failure raised after the rewrite, where only middleware's copy of the slug survives.
     // Only a slug middleware signed: an unproven one would just mislabel the error.
-    const fromPath = slugFromPath(path) ?? (await provenClanSlug({ get: (n) => firstHeader(headers, n) ?? null }));
-    if (fromPath) {
-      const clan = await resolveClanBySlug(fromPath);
+    const parsed = parseClanPrefix(path) ?? (await provenClan({ get: (n) => firstHeader(headers, n) ?? null }));
+    if (parsed) {
+      const clan = await resolveClanBySlug(parsed.slug, parsed.kind);
       if (clan) return clan.id;
     }
     const clan = await resolveClanByHost(firstHeader(headers, 'host'));

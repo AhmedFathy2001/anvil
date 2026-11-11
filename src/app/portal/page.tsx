@@ -12,6 +12,7 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import CreatorChip from '@/components/CreatorChip';
 import SupporterName from '@/components/SupporterName';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,7 +152,7 @@ function PlanCard({ card }: { card: BillingCardModel }) {
           </p>
         </div>
         <ClanLink
-          href={`/c/${card.slug}/admin`}
+          href={clanPathOf({ slug: card.slug, kind: card.creator ? 'creator' : 'clan' }, '/admin')}
           className="shrink-0 rounded-lg border border-card-border px-3 py-1.5 text-[13px] transition-colors hover:border-gold/45"
         >
           Open admin

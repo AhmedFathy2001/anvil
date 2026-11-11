@@ -57,10 +57,16 @@ function s3Config(): S3Config {
  * uploaded before this keep resolving exactly where they are. Only NEW keys gain the clan segment.
  * The env prefix, if set, still applies on top (deployment-level); on the merged app it is empty.
  */
-export function clanMediaKey(clanSlug: string | null | undefined, key: string): string {
+export function clanMediaKey(clan: string | MediaTenant | null | undefined, key: string): string {
   const clean = key.replace(/^\/+/, '');
-  return clanSlug ? `c/${clanSlug}/${clean}` : clean;
+  const t = typeof clan === 'string' ? { slug: clan, kind: null } : clan;
+  // A space gets its own `s/` folder: a clan and a space may share a slug, and one folder would mix
+  // their files (and let one delete the other's).
+  return t?.slug ? `${t.kind === 'creator' ? 's' : 'c'}/${t.slug}/${clean}` : clean;
 }
+
+/** A tenant for media purposes: its slug, and its kind when known (missing = clan). */
+export type MediaTenant = { slug: string; kind?: string | null };
 
 function prefixedKey(cfg: S3Config, key: string): string {
   const clean = key.replace(/^\/+/, '');
@@ -228,7 +234,11 @@ export function isManagedMediaUrl(raw: string): boolean {
  * record at another clan's image and have the server delete it. Money proofs are uploaded and filed
  * from the same clan address, so the upload already lives under `c/<slug>/`; require it.
  */
-export function isClanMediaUrl(raw: string, clanSlug: string): boolean {
+export function isClanMediaUrl(raw: string, clan: string | MediaTenant): boolean {
+  const t = typeof clan === 'string' ? { slug: clan, kind: null } : clan;
+  // A space owns `s/<slug>/` plus the `c/<slug>/` its uploads used before spaces had a namespace;
+  // a clan owns only `c/<slug>/`, so it can never reach a space's files.
+  const folders = t.kind === 'creator' ? ['s', 'c'] : ['c'];
   if (!isManagedMediaUrl(raw)) return false;
   let segs: string[];
   try {
@@ -238,7 +248,7 @@ export function isClanMediaUrl(raw: string, clanSlug: string): boolean {
   }
   if (segs.some((seg) => seg === '..' || seg === '.')) return false;
   for (let i = 0; i < segs.length - 1; i++) {
-    if (segs[i] === 'c' && segs[i + 1] === clanSlug) return true;
+    if (folders.includes(segs[i]) && segs[i + 1] === t.slug) return true;
   }
   return false;
 }

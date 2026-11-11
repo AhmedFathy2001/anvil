@@ -71,7 +71,7 @@ export const SPACE_MEDIA_ANIMATED: Record<SpaceMediaKind, boolean> = { logo: tru
 
 /**
  * Is this one of this space's own page images: our media host, under the space's own prefix
- * (`c/<slug>/space/<uuid>.webp`)? Anything else is never rendered — a row that somehow holds another
+ * (`s/<slug>/space/<uuid>.webp`, or `c/<slug>/` for images uploaded before spaces had their own namespace)? Anything else is never rendered — a row that somehow holds another
  * server's URL shows no picture rather than pointing every visitor's browser at it.
  */
 export function isSpaceMediaUrl(raw: string | null | undefined, slug: string, publicBase = process.env.S3_PUBLIC_BASE_URL ?? ''): raw is string {
@@ -95,8 +95,8 @@ export function isSpaceMediaUrl(raw: string | null | undefined, slug: string, pu
     return false;
   }
   const esc = slug.replace(/[^a-z0-9-]/g, '');
-  // Exactly the key the upload route mints: c/<slug>/space/<uuid>.webp.
-  return new RegExp(`/c/${esc}/space/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$`).test(u.pathname);
+  // Exactly the key the upload route mints: s/<slug>/space/<uuid>.webp (legacy: c/<slug>/…).
+  return new RegExp(`/[sc]/${esc}/space/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$`).test(u.pathname);
 }
 
 export type Checked<T> = { ok: true; value: T } | { ok: false; error: string };

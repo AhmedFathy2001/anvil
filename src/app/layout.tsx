@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { supporterForUser } from '@/lib/supporter';
-import { provenPath } from '@/lib/requestHeaderProof';
+import { provenClan, provenPath } from '@/lib/requestHeaderProof';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import { headers } from 'next/headers';
+import { permanentRedirect } from 'next/navigation';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
@@ -108,7 +110,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Only a path middleware signed: unknown renders as `/` but is never indexed.
   const proven = await provenPath(h);
   const pathname = proven?.pathname || '/';
-  const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug });
+  const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug, clanKind: clan?.kind });
 
   // WHAT MAY BE INDEXED. Two separate refusals, and they fail in the same safe direction:
   // a gated or personal path is never indexed anywhere, and a clan that is not `public` is not
@@ -132,7 +134,7 @@ export async function generateMetadata(): Promise<Metadata> {
       canonical,
       // The card a link becomes when it is pasted into Discord, which is where nearly every link to
       // this site is pasted. Until this existed, a clan's board arrived as a bare grey URL.
-      image: clan ? `/api/og/clan/${clan.slug}` : '/api/og/site',
+      image: clan ? `/api/og/clan/${clan.slug}${clan.kind === 'creator' ? '?k=s' : ''}` : '/api/og/site',
       noIndex: !indexable,
     }),
   };
@@ -164,6 +166,18 @@ export default async function RootLayout({
   // Null on the apex, which is a legitimate place to be: the directory and the platform surfaces
   // belong to no clan. The shell renders without clan branding rather than failing.
   const clan = await currentClan();
+  // A creator space reached through the CLAN prefix — an old `/c/<space>` link from before spaces got
+  // /s/ (lib/clanContext resolveClanBySlug falls back to it). Move the reader to the real address, so
+  // every link the page builds from the prefix is a /s/ one too.
+  if (clan && isCreatorSpace(clan)) {
+    // Proven values only (lib/requestHeaderProof): this echoes the path into a Location header.
+    const h = await headers();
+    const addressed = await provenClan(h);
+    if (addressed?.kind === 'clan') {
+      const path = await provenPath(h);
+      permanentRedirect(`${clanPathOf(clan, path?.pathname ?? '/')}${path?.search ?? ''}`);
+    }
+  }
   const session = await verifyUser();
   let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string; platformGuideEditor: boolean } | null = null;
   if (session?.userId) {
@@ -363,7 +377,7 @@ export default async function RootLayout({
             {/* The wordmark goes to the clan you are in, not the apex. Pointing it at '/' made the
                 one control every site puts you "home" with the one that ejected you from the clan. */}
             {/* The same lockup the rail wears: the real icon, and the wordmark in the display face. */}
-            <ClanLink href={clan ? `/c/${clan.slug}` : '/'} className="group flex items-center gap-2.5">
+            <ClanLink href={clan ? clanPathOf(clan) : '/'} className="group flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icon-48.png" alt="" width={26} height={26} className="shrink-0 rounded-md" />
               <span className="display text-[18px] font-semibold text-gold transition-colors group-hover:text-gold-light">

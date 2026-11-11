@@ -343,7 +343,9 @@ export async function completeDiscordLogin(
   // entirely. Now every first sign-in goes through it, carrying the original target as `next`
   // (lib/firstLogin, which also lists the few targets that must not be detoured).
   const spaceSlug = isNewUser ? spaceSlugOf(returnTo) : null;
-  const intoCreatorSpace = spaceSlug ? isCreatorSpace(await resolveClanBySlug(spaceSlug).catch(() => null)) : false;
+  const intoCreatorSpace = spaceSlug
+    ? isCreatorSpace(await resolveClanBySlug(spaceSlug.slug, spaceSlug.kind).catch(() => null))
+    : false;
   const destination = isNewUser ? firstLoginDestination(returnTo, returningToClan, intoCreatorSpace) : returnTo;
 
   // Back to the clan they started from. `returnHost` has already been resolved against the clans

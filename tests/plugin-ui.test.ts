@@ -306,7 +306,7 @@ test('a creator space in the panel: its name and page, never members, a week or 
   assert.ok(all.includes('Events by Cool Streamer on Anvil'));
   assert.ok(!/member|clan|this week/i.test(all), all);
   assert.ok(!walk(ui).some((x) => x.t === 'button'), 'no compare button');
-  assert.ok(actions(ui).some((a) => a.a === 'site' && a.path === '/c/cool-streamer'));
+  assert.ok(actions(ui).some((a) => a.a === 'site' && a.path === '/s/cool-streamer'));
   // An ordinary clan's card is unchanged: members line and the compare button when offered.
   const clan = clanCardUi({ ...card, kind: 'clan', slug: 'afk', name: 'The AFK Spot', members: 12 }, true);
   assert.ok(texts(clan).includes('12') && texts(clan).includes('members'), 'the members tile');

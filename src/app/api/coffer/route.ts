@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   // Our upload, under this clan's prefix: staff open it from the coffer queue, and a rejected
   // donation deletes it — so it can be neither an outside link nor another clan's file.
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
-  if (proofUrl && !isClanMediaUrl(proofUrl, clan.slug)) {
+  if (proofUrl && !isClanMediaUrl(proofUrl, clan)) {
     return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
   }
 

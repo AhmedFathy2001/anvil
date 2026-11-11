@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 import { track } from '@/lib/analytics';
 import { verifyUser } from '@/lib/auth';
@@ -22,5 +23,5 @@ export async function POST(request: Request) {
   const target = await acceptInvite({ token: String(body?.token ?? ''), playerId: session.playerId, userId: session.userId });
   if (!target) return NextResponse.json({ error: 'This invite link doesn’t work any more. Ask your friend for a new one.' }, { status: 404 });
   track('invite.joined', { userId: session.userId, clanId: null });
-  return NextResponse.json({ ok: true, next: `/c/${target.hostSlug}/events/${target.eventId}` });
+  return NextResponse.json({ ok: true, next: clanPathOf({ slug: target.hostSlug, kind: 'friends' }, `/events/${target.eventId}`) });
 }

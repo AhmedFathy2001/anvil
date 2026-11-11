@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { headers } from 'next/headers';
 import { eq } from 'drizzle-orm';
 
@@ -58,5 +59,5 @@ export async function POST(request: Request) {
   });
   track('creator.created', { clanId: result.clanId, userId: session.userId });
 
-  return NextResponse.json({ ok: true, slug: result.slug, next: `/c/${result.slug}/admin/events/first` });
+  return NextResponse.json({ ok: true, slug: result.slug, next: clanPathOf({ slug: result.slug, kind: 'creator' }, '/admin/events/first') });
 }

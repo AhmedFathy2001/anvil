@@ -10,14 +10,25 @@
 // "the member profile was opened 4,000 times" is a feature signal, "Zezima's profile was opened 3
 // times" is not.
 
-/** Matches the `/c/<slug>` prefix the proxy matches on (middleware.ts). */
-const CLAN_PREFIX = /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/;
+/** Matches the `/c/<slug>` (clan) or `/s/<slug>` (creator space) prefix the proxy matches on. */
+const CLAN_PREFIX = /^\/([cs])\/([a-z0-9-]{2,32})(?=\/|$)/;
 
 const MAX_PATTERN = 200;
 
-/** The clan slug a browser path names, if any. Used only as a lookup key, never stored. */
+/**
+ * The tenant a browser path names, if any: `slug` for a clan, `s/slug` for a creator space (the beacon's
+ * `c` field). Used only as a lookup key, never stored.
+ */
 export function clanSlugOf(pathname: string): string | null {
-  return CLAN_PREFIX.exec(pathname)?.[1] ?? null;
+  const m = CLAN_PREFIX.exec(pathname);
+  if (!m) return null;
+  return m[1] === 's' ? `s/${m[2]}` : m[2];
+}
+
+/** The beacon's `c` field back into a slug and namespace. A bare slug (older pages) is a clan. */
+export function tenantOfBeacon(c: string): { slug: string; kind: 'clan' | 'creator' } | null {
+  const m = /^(?:(s)\/)?([a-z0-9-]{2,32})$/.exec(c);
+  return m ? { slug: m[2], kind: m[1] ? 'creator' : 'clan' } : null;
 }
 
 /**
@@ -39,8 +50,8 @@ export function routePattern(
   const segments = path.split('/').filter(Boolean);
   const out: string[] = [];
   let i = 0;
-  if (segments[0] === 'c' && segments[1] && CLAN_PREFIX.test(`/c/${segments[1]}`)) {
-    out.push('c', '[clan]');
+  if ((segments[0] === 'c' || segments[0] === 's') && segments[1] && CLAN_PREFIX.test(`/${segments[0]}/${segments[1]}`)) {
+    out.push(segments[0], '[clan]');
     i = 2;
   }
 

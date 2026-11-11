@@ -10,6 +10,7 @@ import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import type { ShownProfileMedia } from '@/lib/profileMediaRules';
 import { BoostBadgeChips, BoostGem } from '@/components/ClanBoost';
 import type { MyBoosts } from '@/lib/clanBoosts';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 export interface PersonCharacter {
   id: number;
@@ -146,7 +147,7 @@ export default function PersonProfile({
               {g.items.map((c) => (
                 <li key={c.id}>
                   <ClanLink
-                    href={c.seat ? `/c/${c.slug}/profile` : `/c/${c.slug}`}
+                    href={clanPathOf({ slug: c.slug, kind: c.clanKind }, c.seat ? '/profile' : '')}
                     className="block rounded-lg border border-card-border bg-brown-dark/40 p-4 transition-colors hover:border-gold/40"
                   >
                     <span className="flex items-center gap-2">
@@ -220,6 +221,7 @@ export default function PersonProfile({
                     const idle = group.filter((q) => q.state !== 'active');
                     return (
                       <li key={p.clanSlug} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                        {/* Boosts ride on in-game clan seats, so this is always a clan, never a space. */}
                         <ClanLink href={`/c/${p.clanSlug}`} className="font-medium hover:text-gold">
                           {p.clanName}
                         </ClanLink>

@@ -1,5 +1,6 @@
 import { MAX_SLOTS, myBoosts, SEAT_MIN_DAYS, MOVE_COOLDOWN_DAYS, PER_PERSON_CAP, LEVEL_AT } from '@/lib/clanBoosts';
 import ClanLink from '@/components/ClanLink';
+import { clanBasePath } from '@/lib/clanScopedPaths'; // boosts ride in-game clans, never a space
 import { BoostBadgeChips, BoostGem } from '@/components/ClanBoost';
 import { Pill, SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 import { BoostActions, PlaceBoost } from './_client';
@@ -70,7 +71,7 @@ export default async function BoostsSettingsPage() {
               label={
                 <>
                   <BoostGem size={13} />
-                  <ClanLink href={`/c/${p.clanSlug}`} className="hover:text-gold">
+                  <ClanLink href={clanBasePath({ slug: p.clanSlug })} className="hover:text-gold">
                     {p.clanName}
                   </ClanLink>
                   <Pill tone={STATE[p.state].tone}>{STATE[p.state].text}</Pill>
@@ -131,7 +132,7 @@ export default async function BoostsSettingsPage() {
               key={c.clanId}
               label={
                 <>
-                  <ClanLink href={`/c/${c.clanSlug}`} className="hover:text-gold">
+                  <ClanLink href={clanBasePath({ slug: c.clanSlug })} className="hover:text-gold">
                     {c.clanName}
                   </ClanLink>
                   {c.mine > 0 && <Pill tone="gold">{c.mine === 1 ? 'boosted by you' : `${c.mine} of yours`}</Pill>}

@@ -44,7 +44,7 @@ export function normalizePath(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const path = raw.split('?')[0];
   return path
-    .replace(/^\/c\/[a-z0-9-]{2,32}(?=\/|$)/, '/c/<clan>')
+    .replace(/^\/([cs])\/[a-z0-9-]{2,32}(?=\/|$)/, '/$1/<clan>')
     .replace(/\/\d+(?=\/|$)/g, '/<n>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<uuid>');
 }

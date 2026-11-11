@@ -1,6 +1,7 @@
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
 import type { TenureGlyph } from '@/lib/supporterTiers';
 import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { clanBeforeSpace, slugWhere } from '@/lib/clanSlugLookup';
 import { type PinRow, revealedTileIds, trackedCard } from './trackedUi';
 
 import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
@@ -71,6 +72,7 @@ import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './
 import { rosterUi, teamsUi } from './teamsUi';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
 import { curtainInfo, standingsHiddenNotice } from '@/lib/standingsVisibility';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 // Every view the panel can ask for, by name, and every action it can send. The plugin passes the
 // view's args as query parameters, plus `clan` (the clan it is pointed at) on every call.
@@ -282,7 +284,7 @@ async function clansView(request: Request, q: string): Promise<View> {
   const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   // clan-scope: global -- searching the public directory is a platform question.
   const found = await db
-    .select({ id: clans.id, slug: clans.slug, name: clans.name })
+    .select({ id: clans.id, slug: clans.slug, name: clans.name, kind: clans.kind })
     .from(clans)
     .leftJoin(settings, showcaseJoinOn())
     .where(and(listedClanWhere(), or(ilike(clans.name, like), ilike(clans.slug, like))))
@@ -290,7 +292,7 @@ async function clansView(request: Request, q: string): Promise<View> {
     .limit(8);
   // Staff can find the hidden lab clan (its test drops, /staff/lab/supporter); nobody else ever sees it.
   if ('anvil tile lab'.includes(query.toLowerCase()) || LAB_CLAN_SLUG.includes(query.toLowerCase())) {
-    if (await pluginStaff(request)) found.unshift({ id: -1, slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)' });
+    if (await pluginStaff(request)) found.unshift({ id: -1, slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)', kind: 'clan' });
   }
   const levels = await clanBoostLevels(found.filter((c) => c.id > 0).map((c) => c.id)).catch(() => new Map());
   return { ui: clanSearchUi(query, found.map((c) => ({
@@ -357,6 +359,17 @@ async function joinToClaim(eventId: number): Promise<string> {
   return joinToClaimLine(gated ? gatesShortLabel(gated.gates) : null);
 }
 
+/**
+ * `/c/<slug>` or `/s/<slug>` for a bare slug the plugin echoed back. A clan and a space may share it,
+ * so the one that owns the event wins; otherwise the clan.
+ */
+async function siteBaseFor(slug: string, ownerClanId: number | null): Promise<string> {
+  // clan-scope: global -- a slug the plugin echoed; only its id and kind are read, to pick the prefix.
+  const rows = await db.select({ id: clans.id, kind: clans.kind }).from(clans).where(slugWhere(slug.toLowerCase(), null)).orderBy(clanBeforeSpace);
+  const hit = rows.find((r) => r.id === ownerClanId) ?? rows[0];
+  return clanBasePath({ slug: encodeURIComponent(slug), kind: hit?.kind });
+}
+
 async function boardView(request: Request, a: Args, error: string | null = null): Promise<View> {
   const state = boardState(a);
   const scope = await pluginBoardScope(request, state.event || null);
@@ -372,7 +385,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     // The plugin says which tiles it has pinned, and whether it can pin here at all (in game, tracker on).
     pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
     progress,
-    boardPath: `${clan ? `/c/${encodeURIComponent(clan)}` : ''}/events/${scope.event.id}`,
+    boardPath: `${clan ? await siteBaseFor(clan, scope.event.clanId) : ''}/events/${scope.event.id}`,
     // The feed opens in this tab: it needs the same way back this page has.
     feedBack: { open: a.back || 'board', label: a.backLabel || 'Back' },
     feedTab: hasTabArgs(request),
@@ -621,7 +634,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
   const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
   const live = !!ev && !ev.forceEndedAt && !(at(ev.startDate) > now) && !(at(ev.endDate) <= now);
   const slug = cfg.activeClan?.slug ?? (a.clan ?? '').trim();
-  const clanPath = slug ? `/c/${encodeURIComponent(slug)}` : '';
+  // A site path, so it carries the right prefix; `a.clan` alone has no kind and means a clan.
+  const clanPath = slug ? clanBasePath({ slug: encodeURIComponent(slug), kind: cfg.activeClan?.slug ? cfg.activeClan.kind : null }) : '';
   const me = playedCharacter(request);
   const open = a.open ?? '';
 

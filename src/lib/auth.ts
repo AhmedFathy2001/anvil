@@ -8,11 +8,12 @@ import { liveActAs } from '@/lib/actAs';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
+import { resolveBothBySlug, resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
 import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
+import { provenClan } from '@/lib/requestHeaderProof';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
 import { claimAccountForPerson } from '@/lib/accountClaim';
@@ -611,21 +612,51 @@ export async function resolvePluginClan(
   userId?: number | null,
   opts?: { inGameClanName?: string | null },
 ): Promise<ClanContext | null> {
+  const shared = await sharedSlugPick(request, userId);
+  if (shared) return shared;
   const addressed = await resolveClanFromRequest(request);
   if (addressed) return addressed;
 
-  let id = userId ?? null;
-  if (id == null) {
-    const header = request.headers.get('Authorization');
-    if (!header?.startsWith('Bearer ')) return null;
-    const token = header.slice(7).trim();
-    if (!token) return null;
-    const user = await userByPluginToken(token);
-    if (!user) return null;
-    id = user.id;
-  }
-
+  const id = userId ?? (await tokenUserId(request));
+  if (id == null) return null;
   return clanOfPerson(id, opts?.inGameClanName ?? null);
+}
+
+async function tokenUserId(request: Request): Promise<number | null> {
+  const header = request.headers.get('Authorization');
+  if (!header?.startsWith('Bearer ')) return null;
+  const token = header.slice(7).trim();
+  if (!token) return null;
+  const user = await userByPluginToken(token);
+  return user?.id ?? null;
+}
+
+/**
+ * `/c/<slug>` when a clan AND a creator space both hold that slug.
+ *
+ * Every released plugin builds `"/c/" + slug` itself, so it addresses a space at /c/ too — and once a
+ * clan of the same name exists, the address alone resolves the clan. The token knows better: the
+ * person is in one of them. A seat in the space (and none in the clan) means the space; anything else
+ * keeps the clan, which is what the address says. Null when the slug is not shared.
+ */
+async function sharedSlugPick(request: Request, userId?: number | null): Promise<ClanContext | null> {
+  // Only a slug middleware signed (lib/requestHeaderProof), and only one addressed as a clan.
+  const addressed = await provenClan(request.headers);
+  if (!addressed || addressed.kind === 'creator') return null;
+  const both = await resolveBothBySlug(addressed.slug);
+  if (!both) return null;
+  const id = userId ?? (await tokenUserId(request));
+  if (id == null) return both.clan;
+  const seatIn = async (clanId: number) =>
+    (
+      await db
+        .select({ clanId: clanRoster.clanId })
+        .from(clanRoster)
+        .where(and(await seatsOwnedByAnywhere(id), isNull(clanRoster.leftAt), eq(clanRoster.clanId, clanId)))
+        .limit(1)
+    ).length > 0;
+  const [inClan, inSpace] = await Promise.all([seatIn(both.clan.id), seatIn(both.space.id)]);
+  return inSpace && !inClan ? both.space : both.clan;
 }
 
 /** As resolvePluginClan, but throws when nothing names a clan — the same standing requireClanFromRequest had. */

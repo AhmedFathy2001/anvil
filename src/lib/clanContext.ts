@@ -1,11 +1,12 @@
 import { cache } from 'react';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { eq, or } from 'drizzle-orm';
+import { and, eq, ne, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, retiredClanSlugs } from '@/db/schema';
 import { apexDomain, normalizeHost, slugFromHost } from '@/lib/apexHost';
-import { provenClanSlug } from '@/lib/requestHeaderProof';
+import { clanBasePath, type AddressKind } from '@/lib/clanScopedPaths';
+import { provenClan } from '@/lib/requestHeaderProof';
 
 // Which clan is this request for?
 //
@@ -82,7 +83,9 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     guestPolicy: row.guestPolicy,
     kind: row.kind ?? 'clan',
     streaming: row.streaming === true,
-    host: row.customDomain || `${row.slug}.${apexDomain()}`,
+    // A creator space has no subdomain: `<slug>.<apex>` is a CLAN's legacy address (clans and spaces
+    // may share a slug), so a space without its own domain lives on the apex at /s/<slug>.
+    host: row.customDomain || (row.kind === 'creator' ? apexDomain() : `${row.slug}.${apexDomain()}`),
   };
 }
 
@@ -98,18 +101,24 @@ export const resolveClanByHost = cache(async (rawHost: string | null | undefined
   const slug = slugFromHost(host);
 
   const row = await db.query.clans.findFirst({
-    where: slug ? or(eq(clans.customDomain, host), eq(clans.slug, slug)) : eq(clans.customDomain, host),
+    // The subdomain form only ever named a clan — spaces were born path-addressed, and a space may
+    // share its slug with a clan, which is the one the subdomain has always meant.
+    where: slug
+      ? or(eq(clans.customDomain, host), and(eq(clans.slug, slug), eq(clans.kind, 'clan')))
+      : eq(clans.customDomain, host),
   });
   if (row) return toContext(row);
-  return slug ? resolveRetiredSlug(slug) : null;
+  return slug ? resolveRetiredSlug(slug, 'clan') : null;
 });
 
 /**
  * An address the clan has moved away from still reaches it — plugins and old Discord posts carry it
  * for years. A deleted clan's address reaches nothing (and is never reissued; retiredClanSlugs).
  */
-async function resolveRetiredSlug(slug: string): Promise<ClanContext | null> {
-  const retired = await db.query.retiredClanSlugs.findFirst({ where: eq(retiredClanSlugs.slug, slug) });
+async function resolveRetiredSlug(slug: string, kind: AddressKind): Promise<ClanContext | null> {
+  const retired = await db.query.retiredClanSlugs.findFirst({
+    where: and(eq(retiredClanSlugs.slug, slug), eq(retiredClanSlugs.kind, kind)),
+  });
   return retired?.clanId != null ? resolveClanById(retired.clanId) : null;
 }
 
@@ -126,13 +135,56 @@ export const resolveClanById = cache(async (id: number | null | undefined): Prom
   return row ? toContext(row) : null;
 });
 
-/** Look a clan up by slug — the path-addressed half of the same question. */
-export const resolveClanBySlug = cache(async (slug: string | null | undefined): Promise<ClanContext | null> => {
+/** The row holding a slug in one namespace — clans and creator spaces each have their own. */
+async function exactBySlug(slug: string, kind: AddressKind): Promise<ClanContext | null> {
+  const row = await db.query.clans.findFirst({
+    // 'friends' hosts are addressed as clans (/c/), so "not a creator space" rather than "= clan".
+    where: and(eq(clans.slug, slug), kind === 'creator' ? eq(clans.kind, 'creator') : ne(clans.kind, 'creator')),
+  });
+  return row ? toContext(row) : resolveRetiredSlug(slug, kind);
+}
+
+/**
+ * Look a clan up by slug — the path-addressed half of the same question.
+ *
+ * `kind` is the namespace the address named: `/c/<slug>` a clan, `/s/<slug>` a creator space
+ * (lib/clanScopedPaths). A slug is unique per kind, so the two can be different tenants.
+ *
+ * `/c/<slug>` FALLS BACK to a space when no clan holds the slug. Spaces lived under /c/ until they got
+ * their own prefix, and those links are in Discord posts, OBS sources and every released plugin
+ * (which builds `"/c/" + slug` itself). The root layout redirects such a page to /s/; an API call is
+ * simply answered. The fallback only ever fills a gap — a clan that holds the slug always wins it.
+ */
+export const resolveClanBySlug = cache(
+  async (slug: string | null | undefined, kind: AddressKind = 'clan'): Promise<ClanContext | null> => {
+    const s = slug?.trim().toLowerCase();
+    if (!s) return null;
+    const exact = await exactBySlug(s, kind);
+    if (exact || kind === 'creator') return exact;
+    return exactBySlug(s, 'creator');
+  },
+);
+
+/**
+ * Both tenants a slug names, when it names two.
+ *
+ * Only for a caller that can tell them apart better than the address can — the plugin, whose
+ * released builds address a space as `/c/<slug>` and whose token says which of the two the person
+ * belongs to (lib/auth resolvePluginClan).
+ */
+export async function resolveBothBySlug(
+  slug: string | null | undefined,
+): Promise<{ clan: ClanContext; space: ClanContext } | null> {
   const s = slug?.trim().toLowerCase();
   if (!s) return null;
-  const row = await db.query.clans.findFirst({ where: eq(clans.slug, s) });
-  return row ? toContext(row) : resolveRetiredSlug(s);
-});
+  const [clan, space] = await Promise.all([exactBySlug(s, 'clan'), exactBySlug(s, 'creator')]);
+  return clan && space ? { clan, space } : null;
+}
+
+/** The namespace a request's prefix named (middleware sets it beside the slug, under one proof). */
+export function addressKindOf(raw: string | null | undefined): AddressKind {
+  return raw === 'creator' ? 'creator' : 'clan';
+}
 
 /**
  * The clan for the CURRENT request. Null on the apex, or on a host and path that name none.
@@ -147,8 +199,9 @@ export const resolveClanBySlug = cache(async (slug: string | null | undefined): 
 export const currentClan = cache(async (): Promise<ClanContext | null> => {
   const h = await headers();
   // Only a slug middleware signed (lib/requestHeaderProof): on a path its matcher skips, the header
-  // is whatever the caller wrote.
-  const fromPath = await resolveClanBySlug(await provenClanSlug(h));
+  // is whatever the caller wrote. The kind is under the same proof.
+  const proven = await provenClan(h);
+  const fromPath = proven ? await resolveClanBySlug(proven.slug, proven.kind) : null;
   if (fromPath) return fromPath;
   return resolveClanByHost(h.get('host'));
 });
@@ -161,9 +214,9 @@ export const currentClan = cache(async (): Promise<ClanContext | null> => {
  * prefixing its links would send people somewhere they aren't.
  */
 export const clanPrefix = cache(async (): Promise<string> => {
-  // Derived from the proven slug, never read from the prefix header: only the slug is signed.
-  const slug = await provenClanSlug(await headers());
-  return slug ? `/c/${slug}` : '';
+  // Derived from the proven slug and kind, never read from the prefix header: only those are signed.
+  const proven = await provenClan(await headers());
+  return proven ? clanBasePath(proven) : '';
 });
 
 /**
@@ -193,7 +246,8 @@ export async function resolveClanFromRequest(request: Request): Promise<ClanCont
   // Same order as currentClan: the prefixed path is the canonical address, the Host is the
   // fallback that keeps every installed plugin working. A route handler reached at
   // `/c/<slug>/api/...` sees the slug here because middleware put it on the request.
-  const fromPath = await resolveClanBySlug(await provenClanSlug(request.headers));
+  const proven = await provenClan(request.headers);
+  const fromPath = proven ? await resolveClanBySlug(proven.slug, proven.kind) : null;
   if (fromPath) return fromPath;
   return resolveClanByHost(request.headers.get('host'));
 }

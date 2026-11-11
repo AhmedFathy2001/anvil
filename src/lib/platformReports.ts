@@ -40,6 +40,7 @@ import {
   TARGET_ACTIONS,
 } from '@/lib/platformReportRules';
 import type { Checked } from '@/lib/spacePage/rules';
+import { clanBasePath,clanPathOf } from '@/lib/clanScopedPaths';
 
 // ── Rate limits ──────────────────────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ async function resolveTarget(type: ReportTarget, id: number, playerId: number | 
         snapshot: buildSnapshot(
           [
             ['Name', c.name],
-            ['Address', `/c/${c.slug}`],
+            ['Address', clanBasePath(c)],
             ['Tagline', c.tagline],
             ['About', c.description],
           ],
@@ -123,7 +124,7 @@ async function resolveTarget(type: ReportTarget, id: number, playerId: number | 
       if (!(await canSeeEvent({ eventId: id, playerId }))) return null;
       // clan-scope: global -- the reported event by its own id, already access-checked above.
       const [e] = await db
-        .select({ id: events.id, name: events.name, bannerUrl: events.bannerUrl, clanId: events.clanId, hostName: clans.name, hostSlug: clans.slug })
+        .select({ id: events.id, name: events.name, bannerUrl: events.bannerUrl, clanId: events.clanId, hostName: clans.name, hostSlug: clans.slug, hostKind: clans.kind })
         .from(events)
         .innerJoin(clans, eq(clans.id, events.clanId))
         .where(eq(events.id, id))
@@ -134,8 +135,8 @@ async function resolveTarget(type: ReportTarget, id: number, playerId: number | 
         snapshot: buildSnapshot(
           [
             ['Event', e.name],
-            ['Host', `${e.hostName} (/c/${e.hostSlug})`],
-            ['Address', `/c/${e.hostSlug}/events/${e.id}`],
+            ['Host', `${e.hostName} (${clanBasePath({ slug: e.hostSlug, kind: e.hostKind })})`],
+            ['Address', clanPathOf({ slug: e.hostSlug, kind: e.hostKind }, `/events/${e.id}`)],
           ],
           [['Banner', e.bannerUrl]],
         ),
@@ -374,20 +375,20 @@ export async function listReports(filter: ReportFilter = {}, limit = 200): Promi
       case 'space':
       case 'clan':
         title = clan?.name ?? null;
-        href = clan ? `/c/${clan.slug}` : null;
+        href = clan ? clanBasePath(clan) : null;
         hidden = t === 'space' ? !!x.spaceHiddenAt : !!clan?.platformHidden;
         break;
       case 'creator_panel': {
         const p = tid != null ? panelBy.get(tid) : undefined;
         title = p ? `“${p.title}” on ${clan?.name ?? 'a creator page'}` : null;
-        href = clan ? `/c/${clan.slug}` : null;
+        href = clan ? clanBasePath(clan) : null;
         hidden = !!p?.hidden;
         break;
       }
       case 'event': {
         const e = tid != null ? eventBy.get(tid) : undefined;
         title = e?.name ?? null;
-        href = clan && tid != null ? `/c/${clan.slug}/events/${tid}` : null;
+        href = clan && tid != null ? clanPathOf(clan, `/events/${tid}`) : null;
         hidden = !!clan?.platformHidden;
         break;
       }
@@ -403,7 +404,7 @@ export async function listReports(filter: ReportFilter = {}, limit = 200): Promi
       case 'highlight': {
         const h = tid != null ? clipBy.get(tid) : undefined;
         title = h?.title ?? null;
-        href = h?.clipUrl ?? h?.vodUrl ?? (clan && h ? `/c/${clan.slug}/events/${h.eventId}` : null);
+        href = h?.clipUrl ?? h?.vodUrl ?? (clan && h ? clanPathOf(clan, `/events/${h.eventId}`) : null);
         hidden = !!h?.hidden;
         break;
       }

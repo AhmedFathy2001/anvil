@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { slugIn } from '@/lib/clanSlugLookup';
 import { notFound } from 'next/navigation';
 
 import { apexDomain, isApexHost } from '@/lib/clanContext';
@@ -45,7 +46,7 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
       .select({ slug: clans.slug })
       .from(clans)
       .innerJoin(clanStaff, and(eq(clanStaff.clanId, clans.id), eq(clanStaff.userId, session.userId), eq(clanStaff.role, 'owner')))
-      .where(eq(clans.slug, createdParam))
+      .where(slugIn(createdParam, 'clan')) // this page only makes clans
       .limit(1);
     created = own?.slug ?? null;
   }

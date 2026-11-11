@@ -7,6 +7,7 @@ import { track } from '@/lib/analytics';
 import { isBotUserAgent } from '@/lib/analyticsPattern';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { inviteTarget } from '@/lib/friendEvents';
 import { isInviteToken } from '@/lib/friendEventRules';
@@ -35,7 +36,7 @@ export default async function FriendsInvitePage({ params }: { params: Promise<{ 
   if (target && !isBotUserAgent((await headers()).get('user-agent'))) track('invite.opened', { userId: session?.userId ?? null, clanId: null });
 
   if (target && session?.playerId != null && (await canSeeEvent({ eventId: target.eventId, playerId: session.playerId }))) {
-    redirect(`/c/${target.hostSlug}/events/${target.eventId}`);
+    redirect(clanPathOf({ slug: target.hostSlug, kind: 'friends' }, `/events/${target.eventId}`));
   }
 
   return (

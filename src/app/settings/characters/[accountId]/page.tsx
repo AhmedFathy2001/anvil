@@ -1,4 +1,5 @@
 import ClanLink from '@/components/ClanLink';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import CreatorChip from '@/components/CreatorChip';
 import { groupClansAndSpaces, isCreatorSpace } from '@/lib/creatorSpaces';
 import { notFound } from 'next/navigation';
@@ -95,7 +96,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             {' · '}
             {/* The full character page as its home clan sees it (falls back to any seat). */}
             <ClanLink
-              href={`/c/${fullProfileSeat.clanSlug}/members/${encodeURIComponent(c.rsn)}`}
+              href={clanPathOf({ slug: fullProfileSeat.clanSlug, kind: fullProfileSeat.clanKind }, `/members/${encodeURIComponent(c.rsn)}`)}
               className="text-gold hover:text-gold-light"
             >
               View full profile →
@@ -180,7 +181,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             key={s.seatId}
             label={
               <>
-                <ClanLink href={`/c/${s.clanSlug}/profile`} className="hover:text-gold">
+                <ClanLink href={clanPathOf({ slug: s.clanSlug, kind: s.clanKind }, '/profile')} className="hover:text-gold">
                   {s.clanName}
                 </ClanLink>
                 {g.key === 'spaces' ? (

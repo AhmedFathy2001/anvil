@@ -68,6 +68,9 @@ export const PLATFORM_ROOTS = [
   // a link to it from inside one must lose the prefix rather than 404 under it.
   '/compare',
   '/c/',
+  // A creator space's address (clanBasePath). Its own namespace, so a space and a clan can share a
+  // slug without one shadowing the other.
+  '/s/',
   '/u/',
   '/p/',
   '/e/',
@@ -199,6 +202,57 @@ export function withClanPrefix(prefix: string, path: string): string {
  * Only for that shape. Everything else takes the prefix from the request via `clanHref`, or it
  * quietly links one clan's pages out of another's.
  */
-export function clanHrefFor(slug: string | null | undefined, path: string): string {
-  return withClanPrefix(slug ? `/c/${slug}` : '', path);
+export function clanHrefFor(
+  target: string | { slug: string; kind?: string | null } | null | undefined,
+  path: string,
+): string {
+  if (!target) return withClanPrefix('', path);
+  return withClanPrefix(typeof target === 'string' ? `/c/${target}` : clanBasePath(target), path);
+}
+
+// ── Two namespaces: clans at /c/<slug>, creator spaces at /s/<slug> ─────────────────────────────
+//
+// Both live in the `clans` table and a slug is unique PER KIND (clans_kind_slug_unique), so the
+// address has to say which kind it means — `/c/drenvox` and `/s/drenvox` can be two different
+// tenants. Spaces used to sit under /c/ too, which meant a streamer's space squatted the slug a real
+// in-game clan of the same name would want.
+//
+// Old `/c/<space>` links keep working: the resolver falls back to the space when no clan holds that
+// slug, and a page request there is redirected to /s/ (app/layout).
+
+/** The kind an address names. Anything that is not a creator space is addressed as a clan. */
+export type AddressKind = 'clan' | 'creator';
+
+/** `c` or `s` — the first path segment for a tenant of this kind. */
+export function prefixSegment(kind: string | null | undefined): 'c' | 's' {
+  return kind === 'creator' ? 's' : 'c';
+}
+
+/** The kind an address segment names. */
+export function kindOfSegment(segment: string): AddressKind {
+  return segment === 's' ? 'creator' : 'clan';
+}
+
+/** `/c/<slug>` for a clan, `/s/<slug>` for a creator space. Every link to a tenant goes through here. */
+export function clanBasePath(c: { slug: string; kind?: string | null }): string {
+  return `/${prefixSegment(c.kind)}/${c.slug}`;
+}
+
+/** A tenant's path: `clanPathOf(space, '/events/5')` → `/s/drenvox/events/5`. */
+export function clanPathOf(c: { slug: string; kind?: string | null }, path = ''): string {
+  return `${clanBasePath(c)}${path === '/' ? '' : path}`;
+}
+
+/** Matches either prefix at the start of a path. Group 1 is `c`/`s`, group 2 the slug. */
+export const TENANT_PREFIX_RE = /^\/([cs])\/([a-z0-9-]{2,32})(?=\/|\?|#|$)/;
+
+/** The tenant a path is under, or null for an unprefixed one. */
+export function parseClanPrefix(path: string): { kind: AddressKind; slug: string; prefix: string } | null {
+  const m = TENANT_PREFIX_RE.exec(path);
+  return m ? { kind: kindOfSegment(m[1]), slug: m[2], prefix: m[0] } : null;
+}
+
+/** The path with its tenant prefix removed (`/s/x/events` → `/events`). */
+export function stripClanPrefix(path: string): string {
+  return path.replace(TENANT_PREFIX_RE, '') || '/';
 }

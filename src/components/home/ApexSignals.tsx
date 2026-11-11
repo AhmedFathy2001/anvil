@@ -8,6 +8,7 @@ import type { SupporterTierId } from '@/lib/supporterTiers';
 import { milestoneMetricLabel } from '@/lib/constants';
 import { activityFor } from '@/lib/hiscoresActivities';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
+import { clanPathOf, clanBasePath } from '@/lib/clanScopedPaths';
 
 /**
  * The apex home's "how am I doing" half.
@@ -106,7 +107,7 @@ export function ArenaHero({ arena, flair }: { arena: Arena; flair?: OwnFlair | n
           <h2 className="display display-lg mt-2 text-[clamp(1.7rem,4vw,2.4rem)] font-semibold leading-[1.05]">
             {/* The whole card opens the competition: the link's ::after covers it. */}
             <ClanLink
-              href={`/c/${arena.clanSlug}/weekly/${arena.competitionId}`}
+              href={clanPathOf({ slug: arena.clanSlug, kind: arena.clanKind }, `/weekly/${arena.competitionId}`)}
               className="after:absolute after:inset-0 after:content-[''] hover:text-gold-light"
             >
               {arena.title}
@@ -298,7 +299,7 @@ export function Roster({ characters, flair }: { characters: RosterCharacter[]; f
                 {/* The full character page as the home clan sees it — records, placings, goals. */}
                 {home && (
                   <ClanLink
-                    href={`/c/${home.clanSlug}/members/${encodeURIComponent(c.rsn)}`}
+                    href={clanPathOf({ slug: home.clanSlug, kind: home.clanKind }, `/members/${encodeURIComponent(c.rsn)}`)}
                     className="mt-0.5 block text-[0.74rem] text-gold-dark hover:text-gold"
                   >
                     View full profile →
@@ -318,10 +319,10 @@ export function Roster({ characters, flair }: { characters: RosterCharacter[]; f
                 {c.seats.map((s) => (
                   <ClanLink
                     key={s.clanId}
-                    // The canonical clan address. `/c/` is a platform root, so ClanLink passes it
+                    // The canonical address (/c/ clan, /s/ space). Both are platform roots, so ClanLink passes it
                     // through untouched — which is what makes it right here: this page is the apex,
                     // and the clan being linked to is frequently not the one the reader is "in".
-                    href={`/c/${s.clanSlug}`}
+                    href={clanBasePath({ slug: s.clanSlug, kind: s.clanKind })}
                     className={
                       s.clanKind === 'creator'
                         ? 'inline-flex items-center gap-1.5 rounded-md border border-gold/30 bg-gold/[0.06] px-2 py-0.5 text-xs text-text-muted'

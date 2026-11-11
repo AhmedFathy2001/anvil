@@ -8,6 +8,7 @@ import { users } from '@/db/schema';
 import { apexDomain, isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { ownedCreatorSpace } from '@/lib/clanCreate';
+import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import { suggestSlug } from '@/lib/creatorSpaces';
 import ClanLink from '@/components/ClanLink';
 import { FRIENDS_CAPS } from '@/lib/friendEventRules';
@@ -134,13 +135,13 @@ export default async function HostPage({ searchParams }: { searchParams: Promise
               <p className="mt-2 text-sm text-text-muted">Make your next event there.</p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <ClanLink
-                  href={`/c/${existing.slug}/admin/events/first`}
+                  href={clanPathOf({ slug: existing.slug, kind: 'creator' }, '/admin/events/first')}
                   className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
                 >
                   New event
                 </ClanLink>
                 <ClanLink
-                  href={`/c/${existing.slug}`}
+                  href={clanBasePath({ slug: existing.slug, kind: 'creator' })}
                   className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold transition-colors hover:border-gold"
                 >
                   Your page

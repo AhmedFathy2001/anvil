@@ -12,6 +12,7 @@ const teamClan = alias(clans, 'team_clan');
 // Spelled with sql.raw: inside .select() Drizzle renders `${alias.col}` BARE, and both aliases have
 // a `slug` — Postgres would refuse the ambiguity.
 const HOME_CLAN_SLUG = sql<string>`coalesce(${sql.raw('"team_clan"."slug"')}, ${sql.raw('"host_clan"."slug"')})`;
+const HOME_CLAN_KIND = sql<string>`coalesce(${sql.raw('"team_clan"."kind"')}, ${sql.raw('"host_clan"."kind"')})`;
 const HOME_CLAN_NAME = sql<string>`coalesce(${sql.raw('"team_clan"."name"')}, ${sql.raw('"host_clan"."name"')})`;
 import { redirect } from 'next/navigation';
 import LocalTime from '@/components/LocalTime';
@@ -21,6 +22,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import StartProofCard from '@/components/StartProofCard';
 import ClanLink from '@/components/ClanLink';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +34,7 @@ interface Involvement {
   eventName: string;
   /** The clan whose board this is — named on the card, and the address its link crosses to. */
   clanSlug: string;
+  clanKind: string;
   clanName: string;
   format: string;
   startDate: string | null;
@@ -131,6 +134,7 @@ export default async function MyTeamsHubPage() {
         eventName: events.name,
         format: events.format,
         clanSlug: HOME_CLAN_SLUG,
+        clanKind: HOME_CLAN_KIND,
         clanName: HOME_CLAN_NAME,
         startDate: events.startDate,
         endDate: events.endDate,
@@ -156,6 +160,7 @@ export default async function MyTeamsHubPage() {
       eventName: events.name,
       format: events.format,
       clanSlug: HOME_CLAN_SLUG,
+      clanKind: HOME_CLAN_KIND,
       clanName: HOME_CLAN_NAME,
       startDate: events.startDate,
       endDate: events.endDate,
@@ -180,6 +185,7 @@ export default async function MyTeamsHubPage() {
       eventName: events.name,
       format: events.format,
       clanSlug: HOME_CLAN_SLUG,
+      clanKind: HOME_CLAN_KIND,
       clanName: HOME_CLAN_NAME,
       startDate: events.startDate,
       endDate: events.endDate,
@@ -399,11 +405,11 @@ export default async function MyTeamsHubPage() {
 function TeamLink({ i, past, showClan }: { i: Involvement; past?: boolean; showClan?: boolean }) {
   return (
     <ClanLink
-      // `/c/<slug>/…`, not `/team/<id>`. A bare team path resolves against whichever clan's page
+      // `/c|s/<slug>/…`, not `/team/<id>`. A bare team path resolves against whichever clan's page
       // this happens to be read from, so a team belonging to another clan got a link into the wrong
-      // one — the routing half of what made this page confusing. `/c/` is a platform root, so
+      // one — the routing half of what made this page confusing. `/c/` and `/s/` are platform roots, so
       // ClanLink passes it through untouched and the address is the team's own.
-      href={`/c/${i.clanSlug}/team/${i.teamId}`}
+      href={clanPathOf({ slug: i.clanSlug, kind: i.clanKind }, `/team/${i.teamId}`)}
       className={`block p-4 border rounded-xl transition-all ${
         past ? 'border-card-border/60 bg-card-bg/50 hover:border-gold/30' : 'border-card-border bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover'
       }`}

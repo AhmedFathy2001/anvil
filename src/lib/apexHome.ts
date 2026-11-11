@@ -31,6 +31,8 @@ export interface OpenSignup {
   name: string;
   format: string;
   clanSlug: string;
+  /** 'clan' | 'creator' — which address the slug is under (clanPathOf). */
+  clanKind?: string | null;
   clanName: string;
   /** The clan's own image; null = the crest. */
   clanLogoUrl: string | null;
@@ -53,6 +55,7 @@ export interface DiscoverEvent {
   eventId: number;
   name: string;
   clanSlug: string;
+  clanKind?: string | null;
   clanName: string;
   clanLogoUrl: string | null;
   /** The event's own icon, else its clan's logo; null = the crest (lib/eventImage). */
@@ -164,8 +167,8 @@ export async function apexHomeView(
   return {
     discover,
     clans: clans.map((c) => ({ ...c, live: byClan.get(c.id) ?? [] })),
-    openSignups: signups.map(({ eventId, name, format, clanSlug, clanName, clanLogoUrl, deadline, startDate }) => ({
-      eventId, name, format, clanSlug, clanName, clanLogoUrl, deadline, startDate,
+    openSignups: signups.map(({ eventId, name, format, clanSlug, clanKind, clanName, clanLogoUrl, deadline, startDate }) => ({
+      eventId, name, format, clanSlug, clanKind, clanName, clanLogoUrl, deadline, startDate,
     })),
     characters: chars,
   };
@@ -314,6 +317,7 @@ export async function openSignups(
       name: events.name,
       format: events.format,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
       clanName: clans.name,
       clanLogoUrl: clans.logoUrl,
       deadline: events.signupDeadline,
@@ -480,6 +484,7 @@ export async function discoverEvents(
       eventId: events.id,
       name: events.name,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
       clanName: clans.name,
       clanLogoUrl: clans.logoUrl,
       eventIconUrl: events.iconUrl,
@@ -515,6 +520,7 @@ export async function discoverEvents(
         eventId: r.eventId,
         name: r.name,
         clanSlug: r.clanSlug,
+        clanKind: r.clanKind,
         clanName: r.clanName,
         clanLogoUrl: r.clanLogoUrl,
         iconUrl: r.eventIconUrl || r.clanLogoUrl,

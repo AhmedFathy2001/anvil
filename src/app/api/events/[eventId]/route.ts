@@ -804,9 +804,9 @@ export async function DELETE(
   // a proof URL is client-sent, and a screenshot may be shared with another clan's bingo. The URLs are
   // gathered before the delete; the files go after it, so this event's own rows no longer count.
   const media = await eventMediaUrls(id);
-  const clanSlug = (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true } }))?.slug ?? null;
+  const clanRow = (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true, kind: true } })) ?? null;
   await db.delete(events).where(eq(events.id, id));
-  await deleteOwnedFiles(id, clanSlug, {
+  await deleteOwnedFiles(id, clanRow, {
     proofRows: [...media.submissions, ...media.cleanFrames, ...media.startProofs, ...media.attachments],
     moneyRows: [...media.fees, ...media.payouts],
   }, { anyRowKeeps: true }).catch(() => 0);

@@ -23,6 +23,7 @@ import { isRealDiscordId } from '@/lib/anvilDiscordRoles';
 import { clanGrant } from '@/lib/clanGrants';
 import { moveClanOwnership } from '@/lib/clanOwnership';
 import { log } from '@/lib/logger';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import {
   checkTransferAction,
   completionDecision,
@@ -47,7 +48,7 @@ const NOTICE_KIND = 'ownership_transfer';
 const SETTLE_BATCH = 50;
 
 async function names(clanId: number, userIds: number[]) {
-  const [clan] = await db.select({ id: clans.id, name: clans.name, slug: clans.slug }).from(clans).where(eq(clans.id, clanId));
+  const [clan] = await db.select({ id: clans.id, name: clans.name, slug: clans.slug, kind: clans.kind }).from(clans).where(eq(clans.id, clanId));
   const rows = userIds.length
     ? await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, userIds))
     : [];
@@ -70,12 +71,12 @@ async function audit(clanId: number, eventType: string, actorUserId: number | nu
 }
 
 /** An in-site notice (the record they were told) plus a best-effort DM linking to the clan's staff page. */
-async function tell(userId: number, t: TransferRow, slug: string | undefined, msg: { title: string; description: string }) {
+async function tell(userId: number, t: TransferRow, clan: { slug: string; kind?: string | null } | undefined, msg: { title: string; description: string }) {
   await db
     .insert(userNotices)
     .values({ userId, kind: NOTICE_KIND, refId: t.id, title: msg.title, body: msg.description, createdAt: new Date().toISOString() })
     .catch(() => {});
-  const path = slug ? `/c/${slug}/admin/people/staff` : '/settings/claims';
+  const path = clan ? clanPathOf(clan, '/admin/people/staff') : '/settings/claims';
   transferDeps.dm(userId, msg, path).catch(() => false);
 }
 
@@ -124,11 +125,11 @@ export async function requestOwnershipTransfer(input: {
   const { clan, name } = await names(clanId, [fromUserId, toUserId]);
   const when = fmtTransferMoment(row.completesAt);
   await audit(clanId, 'ownership_transfer_requested', fromUserId, row, {}, `${name(fromUserId)} asked to hand ownership to ${name(toUserId)}; moves ${when}`);
-  await tell(fromUserId, row, clan?.slug, {
+  await tell(fromUserId, row, clan, {
     title: `Ownership of ${clan?.name ?? 'your clan'} moves to ${name(toUserId)} on ${when}`,
     description: `You asked to make ${name(toUserId)} the owner of ${clan?.name ?? 'your clan'}. Nothing changes until ${when}; you can cancel it from the clan's admin pages any time before then. Anvil staff have been told, as they are for every ownership transfer.`,
   });
-  await tell(toUserId, row, clan?.slug, {
+  await tell(toUserId, row, clan, {
     title: `${name(fromUserId)} is handing ${clan?.name ?? 'a clan'} to you`,
     description: `Unless it is cancelled, you become the owner of ${clan?.name ?? 'the clan'} on ${when}, and ${name(fromUserId)} becomes an ordinary admin. Don't want it? Decline from the clan's admin pages.`,
   });
@@ -210,7 +211,7 @@ export async function actOnOwnershipTransfer(input: {
     // Also the operator log (/staff/audit only reads `platform_*`; the clan's history hides those).
     await audit(t.clanId, 'platform_ownership_transfer_blocked', input.actorUserId, updated, { reason }, `Blocked ${name(t.fromUserId)} → ${name(t.toUserId)}${reason ? `: ${reason}` : ''}`);
   }
-  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, updated, clan?.slug, line);
+  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, updated, clan, line);
   return { ok: true, transfer: updated };
 }
 
@@ -245,7 +246,7 @@ async function settleOne(t: TransferRow, nowIso: string): Promise<'completed' | 
   if (done.ok) return 'completed';
   if (done.superseded) return 'skipped';
   const { clan, name } = await names(t.clanId, [t.fromUserId, t.toUserId]);
-  return cancelLapsed(t, nowIso, done.error, clan?.slug, clan?.name ?? 'the clan', name);
+  return cancelLapsed(t, nowIso, done.error, clan, clan?.name ?? 'the clan', name);
 }
 
 /**
@@ -302,7 +303,7 @@ async function completeTransfer(
     title: `${name(t.toUserId)} now owns ${clanName}`,
     description: `${early ? 'Anvil staff completed it' : 'The 3-day hold ran out'}: ${name(t.toUserId)} is the owner of ${clanName}, and ${name(t.fromUserId)} is an ordinary admin. Only the new owner can transfer it again.`,
   };
-  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, finished, clan?.slug, msg);
+  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, finished, clan, msg);
   return { ok: true, transfer: finished };
 }
 
@@ -365,7 +366,7 @@ async function cancelLapsed(
   t: TransferRow,
   nowIso: string,
   reason: string,
-  slug: string | undefined,
+  clan: { slug: string; kind?: string | null } | undefined,
   clanName: string,
   name: (id: number) => string,
 ): Promise<'cancelled' | 'skipped'> {
@@ -380,7 +381,7 @@ async function cancelLapsed(
     title: `Ownership transfer of ${clanName} cancelled`,
     description: `Handing ${clanName} from ${name(t.fromUserId)} to ${name(t.toUserId)} did not go ahead: ${reason} Nothing changed.`,
   };
-  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, row, slug, msg);
+  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, row, clan, msg);
   return 'cancelled';
 }
 

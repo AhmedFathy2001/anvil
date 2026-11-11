@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { SupporterStar } from '@/components/SupporterName';
 import CopyLink from '@/app/events/[eventId]/wrapped/CopyLink';
 import { CardImage } from '@/app/events/[eventId]/wrapped/parts';
@@ -260,7 +261,7 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
                   <div key={e.eventId} className="px-4 py-3 space-y-1.5">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                       {e.cardKey != null ? (
-                        <ClanLink href={`/c/${e.clanSlug}/events/${e.eventId}/wrapped/p/${e.cardKey}`} className="font-medium hover:text-gold">
+                        <ClanLink href={clanPathOf({ slug: e.clanSlug, kind: e.clanKind }, `/events/${e.eventId}/wrapped/p/${e.cardKey}`)} className="font-medium hover:text-gold">
                           {e.name}
                         </ClanLink>
                       ) : (

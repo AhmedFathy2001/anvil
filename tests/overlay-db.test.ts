@@ -152,7 +152,8 @@ test('!join points at the running event a stranger can see', async () => {
   // Both are running; the later start wins, ties to the newer event.
   assert.ok(pick);
   assert.ok([eventId, otherEventId].includes(pick.id));
-  assert.match(pick.url, /\/c\/streamer\/events\/\d+$/);
+  // A creator space's events live at /s/<slug>.
+  assert.match(pick.url, /\/s\/streamer\/events\/\d+$/);
   // An invited-only event is never offered in a public chat.
   await db.update(s.events).set({ visibility: 'invited' }).where(eq(s.events.id, pick.id));
   const next = await B.joinEventFor(clanId);

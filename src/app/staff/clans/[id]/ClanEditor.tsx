@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 /**
  * The clan's name and address (staff), and deleting it outright (root). Plan, cap and status stay in
@@ -14,7 +15,7 @@ export default function ClanEditor({
   clan,
   canDelete,
 }: {
-  clan: { id: number; name: string; slug: string; events: number; members: number };
+  clan: { id: number; name: string; slug: string; kind?: string | null; events: number; members: number };
   canDelete: boolean;
 }) {
   const router = useRouter();
@@ -32,8 +33,8 @@ export default function ClanEditor({
   async function save() {
     if (slugChanged) {
       const ok = await confirm({
-        title: `Move ${clan.name} to /c/${slug.trim().toLowerCase()}?`,
-        body: `The clan's address becomes /c/${slug.trim().toLowerCase()}. Old links to /c/${clan.slug} keep reaching it, and no other clan can take that address.`,
+        title: `Move ${clan.name} to ${clanBasePath({ slug: slug.trim().toLowerCase(), kind: clan.kind })}?`,
+        body: `The address becomes ${clanBasePath({ slug: slug.trim().toLowerCase(), kind: clan.kind })}. Old links to ${clanBasePath(clan)} keep reaching it, and no other clan can take that address.`,
         confirmLabel: 'Change address',
         tone: 'danger',
       });
@@ -64,7 +65,7 @@ export default function ClanEditor({
   async function remove() {
     const ok = await confirm({
       title: `Delete ${clan.name} for good?`,
-      body: `This removes the clan and what it ran: ${clan.events} event(s) with their boards, proofs and teams, its staff, settings, weeklies and guides. Its ${clan.members} member(s) are unlinked, not deleted: their accounts, characters and stats stay on Anvil. The address /c/${clan.slug} is retired for good. It cannot be undone; archiving is the reversible option.`,
+      body: `This removes the clan and what it ran: ${clan.events} event(s) with their boards, proofs and teams, its staff, settings, weeklies and guides. Its ${clan.members} member(s) are unlinked, not deleted: their accounts, characters and stats stay on Anvil. The address ${clanBasePath(clan)} is retired for good. It cannot be undone; archiving is the reversible option.`,
       confirmLabel: 'Delete clan',
       tone: 'danger',
     });

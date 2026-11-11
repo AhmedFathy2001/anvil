@@ -88,6 +88,7 @@ export async function GET(request: Request) {
   const leads: LeadRow[] = rows.map((r) => ({
     id: r.id,
     slug: r.slug,
+    kind: r.kind,
     name: r.name,
     inGameName: r.inGameName,
     createdAt: r.createdAt,

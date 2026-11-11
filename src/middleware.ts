@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requireSecret } from '@/lib/env';
-import { isPlatformPath } from '@/lib/clanScopedPaths';
+import { clanBasePath, isPlatformPath, kindOfSegment } from '@/lib/clanScopedPaths';
 import {
   CLAN_PREFIX_HEADER,
   CLAN_PROOF_HEADER,
+  CLAN_KIND_HEADER,
   CLAN_SLUG_HEADER,
   PATHNAME_HEADER,
   PATH_HEADERS,
@@ -12,7 +13,7 @@ import {
   SEARCH_HEADER,
   constantTimeEqual,
   pathHeaderProof,
-  provenClanSlug,
+  provenClan,
   setProvenClan,
 } from '@/lib/requestHeaderProof';
 
@@ -88,14 +89,15 @@ async function verifyToken(token: string, secret: string): Promise<string | null
  * broken proof can do is send the request back to resolving its clan from the address.
  */
 async function stripForeignClanHeaders(request: NextRequest, downstream: Headers): Promise<void> {
-  const slug = await provenClanSlug(request.headers);
-  if (slug) {
-    // Re-derive the prefix rather than trusting the one that arrived: only the slug is proven, and
-    // one signed value should not vouch for a second unsigned one travelling beside it.
-    downstream.set(CLAN_PREFIX_HEADER, `/c/${slug}`);
+  const proven = await provenClan(request.headers);
+  if (proven) {
+    // Re-derive the prefix rather than trusting the one that arrived: only the slug and kind are
+    // proven, and one signed value should not vouch for a second unsigned one travelling beside it.
+    downstream.set(CLAN_PREFIX_HEADER, clanBasePath(proven));
     return;
   }
   downstream.delete(CLAN_SLUG_HEADER);
+  downstream.delete(CLAN_KIND_HEADER);
   downstream.delete(CLAN_PREFIX_HEADER);
   downstream.delete(CLAN_PROOF_HEADER);
 }
@@ -138,9 +140,11 @@ export async function middleware(request: NextRequest) {
   for (const name of PATH_HEADERS) downstream.delete(name);
   await stripForeignClanHeaders(request, downstream);
 
-  const clanPath = /^\/c\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
+  // `/c/<slug>` is a clan, `/s/<slug>` a creator space (lib/clanScopedPaths clanBasePath).
+  const clanPath = /^\/([cs])\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
   if (clanPath) {
-    const [, slug, rest] = clanPath;
+    const [, segment, slug, rest] = clanPath;
+    const kind = kindOfSegment(segment);
     const inner = rest && rest !== '/' ? rest : '/';
 
     // A PLATFORM path underneath a clan prefix is not that clan's page. `/c/theafkspot/leaderboard`
@@ -180,7 +184,7 @@ export async function middleware(request: NextRequest) {
     // The slug, the prefix (so anything building a link back out can reproduce it without
     // re-parsing), and the proof that this pair came from here, so the second pass over the
     // rewritten path keeps it instead of mistaking it for something a caller sent.
-    await setProvenClan(downstream, slug);
+    await setProvenClan(downstream, slug, kind);
     await setPath(downstream, url.pathname, request.nextUrl.search);
     return NextResponse.rewrite(url, { request: { headers: downstream } });
   }

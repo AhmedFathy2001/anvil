@@ -1,4 +1,5 @@
 import { currentClan } from '@/lib/clanContext';
+import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { accounts, clanRoster, users, detectedAccounts } from '@/db/schema';
@@ -78,7 +79,7 @@ export default async function ProfilePage({
   //
   // The clan-prefix lint rule cannot catch this: '/login' IS a platform path, so the href is
   // correct; the clan-scoped path is hiding inside a query parameter where the rule does not look.
-  const back = clan ? `/c/${clan.slug}/profile` : '/profile';
+  const back = clan ? clanPathOf(clan, '/profile') : '/profile';
   if (!session) {
     redirect(`/login?return=${encodeURIComponent(back)}`);
   }
@@ -100,7 +101,7 @@ export default async function ProfilePage({
     // where people spend their time — and "Everywhere" (?everywhere=1) is the person view below.
     // Someone with no clan seat only has the person view, so they stay here.
     const home = profileClans(myClans)[0];
-    if (home && params.everywhere !== '1') redirect(`/c/${home.slug}/profile`); // clan-prefix: platform -- the home clan's tab
+    if (home && params.everywhere !== '1') redirect(clanPathOf({ slug: home.slug, kind: home.clanKind }, '/profile')); // clan-prefix: platform -- the home clan's tab
 
     // The apex: you, across the platform — clans and characters, nothing per board. Settings live on
     // /settings; this view only reads.
@@ -269,7 +270,7 @@ export default async function ProfilePage({
           <SettingsButton />
         </span>
       </div>
-      <ProfileTabs clans={myClans} current={clan.slug} />
+      <ProfileTabs clans={myClans} current={clanBasePath(clan)} />
 
       {viewed && recordsAccount ? (
         // THE CHARACTER VIEW: no owner band — this page is about the character now.

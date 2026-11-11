@@ -16,6 +16,7 @@
 
 import { parseStamp } from '@/lib/dbTime';
 import { SITE_NAME, absoluteUrl } from '@/lib/seo';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 
 /**
  * A stored timestamp as strict ISO-8601, or null.
@@ -92,6 +93,7 @@ export function websiteLd(): object {
 export function clanLd(opts: {
   name: string;
   slug: string;
+  kind?: string | null;
   description: string;
   memberCount: number;
   discordInvite: string | null;
@@ -100,7 +102,7 @@ export function clanLd(opts: {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: opts.name,
-    url: absoluteUrl(`/c/${opts.slug}`),
+    url: absoluteUrl(clanBasePath(opts)),
     description: opts.description,
     ...(opts.memberCount > 0
       ? { numberOfEmployees: { '@type': 'QuantitativeValue', value: opts.memberCount, unitText: 'members' } }
@@ -151,7 +153,7 @@ export function eventLd(opts: {
     organizer: {
       '@type': opts.hostKind === 'creator' ? 'Person' : 'Organization',
       name: opts.clanName,
-      url: absoluteUrl(`/c/${opts.clanSlug}`),
+      url: absoluteUrl(clanBasePath({ slug: opts.clanSlug, kind: opts.hostKind })),
     },
     isAccessibleForFree: true,
   };
@@ -182,7 +184,7 @@ export function breadcrumbLd(trail: { name: string; path: string }[]): object {
  * The apex's one genuinely competitive artefact, and the only page here whose whole content is an
  * ordering. Saying so is what lets it be read as a ranking rather than as a table of links.
  */
-export function leaderboardLd(rows: { name: string; slug: string }[]): object {
+export function leaderboardLd(rows: { name: string; slug: string; kind?: string | null }[]): object {
   return {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -193,7 +195,7 @@ export function leaderboardLd(rows: { name: string; slug: string }[]): object {
       '@type': 'ListItem',
       position: i + 1,
       name: r.name,
-      url: absoluteUrl(`/c/${r.slug}`),
+      url: absoluteUrl(clanBasePath(r)),
     })),
   };
 }

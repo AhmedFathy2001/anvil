@@ -22,6 +22,7 @@ import { chatFeedId, completionRow, feedTabUi, momentRow, reactRowAction, type C
 import type { FeedRow, View } from './nodes';
 import { backRow, col, eventName, gap, message, text } from './nodes';
 import { mediaRevision } from './mediaRevision';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 // The Feed tab's data (view 'feed') and the event chat's actions. The look is lib/pluginUi/feedUi.
 
@@ -260,8 +261,8 @@ export function chatCharacter(request: Request): ChatSeatPick {
 /** A board's Feed & chat page on the website, at its host clan's address. */
 async function boardWebPath(eventId: number): Promise<string | null> {
   // clan-scope: global -- by the board id the viewer's chatAccess just admitted them to; only its host's slug.
-  const [row] = await db.select({ slug: clans.slug }).from(events).innerJoin(clans, eq(clans.id, events.clanId)).where(eq(events.id, eventId)).limit(1);
-  return row ? `/c/${encodeURIComponent(row.slug)}/events/${eventId}/live` : null;
+  const [row] = await db.select({ slug: clans.slug, kind: clans.kind }).from(events).innerJoin(clans, eq(clans.id, events.clanId)).where(eq(events.id, eventId)).limit(1);
+  return row ? clanPathOf({ slug: encodeURIComponent(row.slug), kind: row.kind }, `/events/${eventId}/live`) : null;
 }
 
 /** Opened from a board page on the Clan tab ("Feed" / "Chat" there): a way back over the feed. */
