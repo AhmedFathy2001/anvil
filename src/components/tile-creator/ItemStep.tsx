@@ -39,6 +39,10 @@ export default function ItemStep({
   const [sources, setSources] = useState<string[]>([]);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Item[]>([]);
+  // Loot only by default (lib/osrsItems isDroppableItem: drops, chest rewards, clog unlocks), so a
+  // search for "masori" isn't a page of (l), (broken) and max-cape variants. A gain tile, or the
+  // admin asking, searches every item.
+  const [everyItem, setEveryItem] = useState(false);
   const seq = useRef(0);
 
   // What the datasets say about each picked item (how it's obtained, who drops it, its clog page).
@@ -68,9 +72,10 @@ export default function ItemStep({
     const query = q.trim();
     if (query.length < 2) return;
     const mine = ++seq.current;
+    const lootOnly = !everyItem && !(howTouched && how === 'gain');
     const t = setTimeout(async () => {
       try {
-        const res = await clanFetch(`/api/admin/items-search?q=${encodeURIComponent(query)}`);
+        const res = await clanFetch(`/api/admin/items-search?q=${encodeURIComponent(query)}${lootOnly ? '&dropsOnly=1' : ''}`);
         const data = res.ok ? ((await res.json()) as Item[]) : [];
         if (mine === seq.current) setHits(data.slice(0, 8));
       } catch {
@@ -78,7 +83,7 @@ export default function ItemStep({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, everyItem, how, howTouched]);
 
   const pages = useMemo(() => {
     const set = new Set(known.map((i) => i.clogPage).filter((p): p is string => !!p));
@@ -160,7 +165,7 @@ export default function ItemStep({
             onChange={(e) => setQ(e.target.value)}
             className="w-full min-h-11 px-3 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold"
           />
-          {q.trim().length >= 2 && hits.length > 0 && (
+          {q.trim().length >= 2 && (hits.length > 0 || !everyItem && !(howTouched && how === 'gain')) && (
             <ul className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-card-border bg-brown-dark divide-y divide-card-border/60 shadow-xl">
               {hits.map((h) => (
                 <li key={h.id}>
@@ -178,6 +183,13 @@ export default function ItemStep({
                   </button>
                 </li>
               ))}
+              {!everyItem && !(howTouched && how === 'gain') && (
+                <li>
+                  <button type="button" onClick={() => setEveryItem(true)} className="w-full min-h-11 text-left px-3 text-sm text-gold hover:bg-gold/10">
+                    {hits.length ? 'Not here? Search every item' : 'No loot by that name. Search every item'}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </div>
