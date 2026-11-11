@@ -8,6 +8,8 @@ import { clanFetch } from '@/lib/clanFetch';
 export interface PickableMember {
   id: number;
   rsn: string;
+  /** A guest's seat (api/admin/clan/active-members): hidden unless the Guests filter is on. */
+  isGuest?: boolean;
   rank: string | null;
   isPrimary: boolean;
   verifiedAt: string | null;
@@ -86,6 +88,10 @@ type Props = SingleProps | MultiProps;
 export default function ClanMemberPicker(props: Props) {
   const [members, setMembers] = useState<PickableMember[] | null>(null);
   const [search, setSearch] = useState('');
+  // Members by default: a clan's roster view also holds every guest let in, which made the list
+  // read as "the whole platform". Guests and a plugin-only view are one tap away.
+  const [showGuests, setShowGuests] = useState(false);
+  const [pluginOnly, setPluginOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -111,7 +117,7 @@ export default function ClanMemberPicker(props: Props) {
   const filtered = useMemo(() => {
     if (!members) return [];
     const q = search.trim().toLowerCase();
-    let list = members;
+    let list = members.filter((m) => (showGuests || !m.isGuest) && (!pluginOnly || m.hasPlugin));
     if (q) {
       list = list.filter((m) => {
         const haystack = `${m.rsn} ${m.user?.displayName ?? ''} ${m.user?.discordUsername ?? ''}`.toLowerCase();
@@ -127,7 +133,7 @@ export default function ClanMemberPicker(props: Props) {
       });
     }
     return list;
-  }, [members, search, props.preferLinked]);
+  }, [members, search, props.preferLinked, showGuests, pluginOnly]);
 
   if (members === null) {
     return <div className="text-sm text-text-muted py-3 text-center">Loading roster…</div>;
@@ -190,6 +196,24 @@ export default function ClanMemberPicker(props: Props) {
           placeholder="Search by RSN, Discord name…"
           className="flex-1 bg-brown-light border border-card-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gold"
         />
+        <button
+          type="button"
+          aria-pressed={pluginOnly}
+          onClick={() => setPluginOnly((v) => !v)}
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${pluginOnly ? 'border-gold/60 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
+        >
+          Plugin only
+        </button>
+        {members.some((m) => m.isGuest) && (
+          <button
+            type="button"
+            aria-pressed={showGuests}
+            onClick={() => setShowGuests((v) => !v)}
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${showGuests ? 'border-gold/60 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
+          >
+            Guests ({members.filter((m) => m.isGuest).length})
+          </button>
+        )}
         <span className="text-xs text-text-muted shrink-0">
           {selectedCount > 0
             ? `${selectedCount} selected`

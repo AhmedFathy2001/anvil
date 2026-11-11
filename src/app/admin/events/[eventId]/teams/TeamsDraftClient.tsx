@@ -109,7 +109,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
 
   const pointsMode = isPointsMode(event.scoringMode);
-  const signupsOpen = !event.signupOpensAt || new Date(event.signupOpensAt) <= new Date();
+  // No form (signupsEnabled off): staff fill the pool any time, so the window doesn't gate it.
+  const signupsOpen = event.signupsEnabled === false || !event.signupOpensAt || new Date(event.signupOpensAt) <= new Date();
 
   // ── Format-first: how this event's teams work. Decides which wizard steps exist at all —
   // 'draft' runs the classic teams → pool → order → run flow; 'individual' (one team each) and

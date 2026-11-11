@@ -5,6 +5,7 @@ import { timingSafeStrEqual } from '@/lib/auth';
 import { recheckPendingEventServerMembers } from '@/lib/eventDiscord';
 import { processClanEventReminders } from '@/lib/clanEvents';
 import { settleDueH2h } from '@/lib/h2h';
+import { autoEnrollTick } from '@/lib/enroll';
 import { resolveDueVods } from '@/lib/highlights/store';
 
 // Per-minute backstop for the submission-notification debounce. Opportunistic flushes (run at the end
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
   // Head-to-head challenges (lib/h2h): lapse unanswered invitations, refresh running kill / XP races,
   // call the ones whose time is up.
   await settleDueH2h().catch(() => {});
+  await autoEnrollTick().catch(() => {});
   // Stream highlights (lib/highlights): find the VOD second for clips and beats that have none yet.
   await resolveDueVods().catch(() => {});
   const posted = await flushPendingNotifications();

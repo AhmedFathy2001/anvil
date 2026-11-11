@@ -97,6 +97,7 @@ export default async function TeamBoardPage({
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    signupsEnabled: event.signupsEnabled,
   });
   if (window.reason === 'not_open_yet') {
     return (
