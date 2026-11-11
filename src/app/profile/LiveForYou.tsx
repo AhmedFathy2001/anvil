@@ -96,9 +96,9 @@ function EventRow({ event }: { event: LockerLiveEvent }) {
               className="font-mono text-xs font-bold text-orange-400 border border-orange-400/30 bg-orange-400/10 rounded-full px-2.5 py-0.5"
             />
           )}
-          {event.status === 'live' && event.playerToken && (
+          {event.status === 'live' && (
             <ClanLink
-              href={`/player/${event.playerToken}`}
+              href="/team"
               className="text-xs font-semibold px-2.5 py-1.5 border border-gold/30 text-gold hover:bg-gold/10 rounded-lg transition-colors"
             >
               Dashboard →

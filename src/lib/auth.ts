@@ -28,7 +28,7 @@ import { admit } from '@/lib/guestAdmission';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { clanSeat, rosterClanSeat, rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { isEventSeat } from '@/lib/seatKinds';
-import { parsePlayerSessionPayload, playerSessionMatchesRow, playerTokenHash } from '@/lib/playerSession';
+import { parsePlayerSessionPayload, playerSessionMatchesRow } from '@/lib/playerSession';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -573,14 +573,6 @@ export async function verifyCaptain(): Promise<{ teamId: number } | null> {
 
 export function generatePlayerToken(): string {
   return crypto.randomUUID();
-}
-
-/** `playerToken` is the participant row's token: its hash rides in the session so a regenerated link ends it (lib/playerSession). */
-export function signPlayerToken(playerId: number, teamId: number, playerToken: string): string {
-  return sign(
-    JSON.stringify({ role: 'player', playerId, teamId, tk: playerTokenHash(playerToken), iat: Date.now() }),
-    PLAYER_SESSION_SECRET,
-  );
 }
 
 // Lightweight token validation: returns user info if the bearer token matches a

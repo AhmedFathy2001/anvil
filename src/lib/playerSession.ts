@@ -1,5 +1,6 @@
-// The legacy per-event player session (`player_session` cookie, minted by /api/player/login from an
-// event_participants.player_token link). Pure: no database, so the decision is testable on its own;
+// The legacy per-event player session (`player_session` cookie, once minted by /api/player/login from
+// an event_participants.player_token link — that login is retired and mints nothing now; what is left
+// here makes sure no cookie minted before then is still honoured). Pure: no database, so the decision is testable on its own;
 // lib/auth verifyPlayer does the one row read and hands it here.
 //
 // The cookie used to be trusted on its signature alone for the shared 30-day session window, so a
@@ -11,7 +12,7 @@
 
 import crypto from 'crypto';
 
-/** Matches the cookie's own maxAge in /api/player/login; the shared 30-day session constant is for others. */
+/** The player cookie's own maxAge; the shared 30-day session constant is for others. */
 export const PLAYER_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
