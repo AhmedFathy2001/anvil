@@ -183,7 +183,10 @@ volumes:
 ```caddyfile
 bingo.yourclan.com {
 	encode zstd gzip
-	reverse_proxy anvil:3000
+	reverse_proxy anvil:3000 {
+		# Not behind Cloudflare, so a CF-Connecting-IP here is the client's own invention.
+		header_up -CF-Connecting-IP
+	}
 }
 ```
 

@@ -10,12 +10,33 @@ import assert from 'node:assert/strict';
 import { getClientIp } from '../src/lib/clientIp.ts';
 
 // ── getClientIp trusts Cloudflare's header, then the proxy-appended XFF hop, never a client value ──
-test('getClientIp prefers CF-Connecting-IP, which Cloudflare overwrites', () => {
+// Each test sets the flag itself; the default is off.
+const withCf = <T>(on: boolean, fn: () => T): T => {
+  const prev = process.env.TRUST_CF_CONNECTING_IP;
+  if (on) process.env.TRUST_CF_CONNECTING_IP = '1';
+  else delete process.env.TRUST_CF_CONNECTING_IP;
+  try {
+    return fn();
+  } finally {
+    if (prev === undefined) delete process.env.TRUST_CF_CONNECTING_IP;
+    else process.env.TRUST_CF_CONNECTING_IP = prev;
+  }
+};
+
+test('getClientIp ignores CF-Connecting-IP unless TRUST_CF_CONNECTING_IP=1 (a direct Caddy self-host)', () => {
+  const req = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
+  withCf(false, () => {
+    assert.equal(getClientIp(req({ 'cf-connecting-ip': '9.9.9.9', 'x-forwarded-for': '1.2.3.4, 172.18.0.5' })), '172.18.0.5');
+    assert.equal(getClientIp(req({ 'cf-connecting-ip': '9.9.9.9' })), 'unknown');
+  });
+});
+
+test('getClientIp prefers CF-Connecting-IP, which Cloudflare overwrites', () => withCf(true, () => {
   const req = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
   assert.equal(getClientIp(req({ 'cf-connecting-ip': '9.9.9.9', 'x-forwarded-for': '1.2.3.4, 172.18.0.5' })), '9.9.9.9');
   // Whitespace-only falls through rather than becoming the bucket key.
   assert.equal(getClientIp(req({ 'cf-connecting-ip': '  ', 'x-forwarded-for': '7.7.7.7' })), '7.7.7.7');
-});
+}));
 
 test('getClientIp ignores a client-sent X-Real-IP (nothing in front of us sets it)', () => {
   const req = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
@@ -40,5 +61,5 @@ test('IPv6 is throttled by its /64, so rotating the interface half buys nothing'
   assert.equal(bucketOf('::ffff:203.0.113.9'), '203.0.113.9');
   assert.equal(bucketOf('203.0.113.9'), '203.0.113.9');
   const req = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
-  assert.equal(getClientIp(req({ 'cf-connecting-ip': '2001:db8:1:2:3:4:5:6' })), '2001:db8:1:2::/64');
+  withCf(true, () => assert.equal(getClientIp(req({ 'cf-connecting-ip': '2001:db8:1:2:3:4:5:6' })), '2001:db8:1:2::/64'));
 });
