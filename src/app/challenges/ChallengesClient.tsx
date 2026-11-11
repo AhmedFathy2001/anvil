@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import Combobox from '@/components/Combobox';
 import { clanFetch } from '@/lib/clanFetch';
 import type { H2hCharacter, H2hPrefs, H2hView } from '@/lib/h2h';
 import {
@@ -316,6 +317,21 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
   const hits = searching ? itemHits : [];
   const shownCheck = opponent.trim() ? check : null;
 
+  // Names to pick from as they type: shared characters only (api/players/search), so it never
+  // confirms an unshared one. The free text still works for anyone the search does not list.
+  const [people, setPeople] = useState<{ rsn: string; clanName: string | null }[]>([]);
+  useEffect(() => {
+    const q = opponent.trim();
+    if (q.length < 2) return;
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/players/search?q=${encodeURIComponent(q)}`).catch(() => null);
+      const body = res?.ok ? await res.json().catch(() => null) : null;
+      setPeople(Array.isArray(body?.results) ? body.results : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [opponent]);
+  const peopleShown = opponent.trim().length >= 2 ? people : [];
+
   // Is this somebody who can be challenged? Asked as they stop typing.
   useEffect(() => {
     const name = opponent.trim();
@@ -392,20 +408,24 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
           </p>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
+          <div className="block">
             <span className="text-xs uppercase tracking-[0.12em] text-text-dim">Who</span>
-            <input
+            <Combobox
               value={opponent}
-              onChange={(e) => setOpponent(e.target.value.slice(0, 12))}
-              placeholder="Their RSN"
-              className="mt-1 w-full rounded-lg border border-card-border bg-black/20 px-3 py-2"
+              onChange={(v) => setOpponent(v.slice(0, 12))}
+              suggestions={peopleShown.map((p) => p.rsn)}
+              suggestionHint={(rsn) => peopleShown.find((p) => p.rsn === rsn)?.clanName ?? null}
+              placeholder="Search a name"
+              maxLength={12}
+              ariaLabel="Who to challenge"
+              className="mt-1"
             />
             {shownCheck && (
               <span className={`mt-1 block text-xs ${shownCheck.ok ? 'text-accent-green-light' : 'text-text-dim'}`}>
                 {shownCheck.ok ? `${shownCheck.rsn} is on Anvil` : shownCheck.error}
               </span>
             )}
-          </label>
+          </div>
           <label className="block">
             <span className="text-xs uppercase tracking-[0.12em] text-text-dim">Playing as</span>
             <Select
