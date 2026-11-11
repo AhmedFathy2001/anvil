@@ -108,3 +108,8 @@ test('a single diary step on a mode world is not a mode task', () => {
   // A league task with "area" in its name still counts.
   assert.equal(verdict("Congratulations, you've completed a hard task: Unlock the Kandarin area.").kind, 'modeTask');
 });
+
+test('a total-level line reads as a total, not a generic milestone', () => {
+  assert.deepEqual(verdict("Congratulations, you've reached a total level of 775."), { kind: 'total', total: 775 });
+  assert.deepEqual(verdict("Congratulations, you've reached a total level of 1,500."), { kind: 'total', total: 1500 });
+});
