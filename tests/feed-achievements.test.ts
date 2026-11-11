@@ -19,7 +19,7 @@ import {
   type ClanScope,
   type Observation,
 } from '../src/lib/moments.ts';
-import { feedTabUi, kindGroup, momentFeedIds, momentRow, momentTitle } from '../src/lib/pluginUi/feedUi.ts';
+import { chatRow, feedTabUi, kindGroup, momentFeedIds, momentRow, momentTitle } from '../src/lib/pluginUi/feedUi.ts';
 
 const AT = '2026-11-04T10:00:00.000Z';
 const clan: ClanScope = { ...DEFAULT_CLAN_SCOPE, minCaTier: 'Elite', levelRules: DEFAULT_LEVEL_RULES };
@@ -162,4 +162,11 @@ test('an achievement is keyed by what it is, not by the client', () => {
   assert.equal(achievementDedupKey('ca', { taskName: 'Vault of Death' }), 'ca|vault of death');
   assert.equal(achievementDedupKey('level', { itemName: 'Slayer' }), null, 'levels keep the client’s key');
   assert.equal(achievementDedupKey('drop', { itemName: 'Whip' }), null);
+});
+
+test('a Supporter\'s chat line carries their tenure badge; anyone else\'s does not', () => {
+  const sup = chatRow({ id: 1, rsn: 'dead person', body: 'test', createdAt: '2026-11-11T00:00:00Z' }, { whoColor: '#4dd3ff', whoGlyph: 'tenure-3' });
+  assert.equal(sup.whoGlyph, 'tenure-3');
+  const plain = chatRow({ id: 2, rsn: 'Drenvox', body: 'test', createdAt: '2026-11-11T00:00:00Z' }, { whoGlyph: 'tenure-3' });
+  assert.equal(plain.whoGlyph, undefined, 'no Supporter colour, no badge');
 });

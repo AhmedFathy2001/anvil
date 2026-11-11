@@ -405,6 +405,8 @@ export interface ChatRowOptions {
   whoColor?: Color;
   grad?: `#${string}`[];
   move?: boolean;
+  /** Their tenure badge after the name (lib/supporterTiers TENURE_LADDER glyph). */
+  whoGlyph?: string;
   /** The viewer moderates: right-click to delete or mute. */
   modActions?: { del: Action; mute: Action } | null;
 }
@@ -419,6 +421,7 @@ export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
     whoColor: o.whoColor ?? 'white',
     ...(o.grad ? { grad: o.grad } : {}),
     ...(o.grad && o.move ? { move: true } : {}),
+    ...(o.whoColor && o.whoGlyph ? { whoGlyph: o.whoGlyph } : {}),
     text: m.body,
     textColor: 'text',
     ...(tag ? { tag, tagColor } : {}),
