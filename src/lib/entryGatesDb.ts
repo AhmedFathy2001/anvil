@@ -51,6 +51,7 @@ import {
   refreshToken,
   subscriptionTier,
   twitchConfig,
+  revokeToken,
   type FetchLike,
   type HelixResult,
   type TwitchConfig,
@@ -166,8 +167,25 @@ export async function saveHostTwitchChannel(opts: {
     .onConflictDoUpdate({ target: clanTwitchChannels.clanId, set: values });
 }
 
+/** Forget the channel and revoke its grant at Twitch (best-effort), as disconnectHostYoutube does. */
 export async function disconnectHostTwitch(clanId: number): Promise<void> {
+  // clan-scope: clanId is the caller's resolved creator space.
+  const row = await db.query.clanTwitchChannels.findFirst({ where: eq(clanTwitchChannels.clanId, clanId) });
+  // clan-scope: same.
   await db.delete(clanTwitchChannels).where(eq(clanTwitchChannels.clanId, clanId));
+  const cfg = twitchConfig();
+  if (row && cfg) {
+    // Both tokens: Twitch's revoke endpoint is documented for access tokens, and revoking the refresh
+    // token as well leaves nothing to mint a new one from. Fire and forget — a disconnect never
+    // waits on Twitch.
+    for (const sealed of [row.accessToken, row.refreshToken]) {
+      try {
+        void revokeToken(cfg, decryptSecret(sealed, cfg.tokenKey), fetchImpl);
+      } catch {
+        // a rotated key: nothing readable to revoke
+      }
+    }
+  }
 }
 
 /** One refresh per clan at a time, so a burst of joins does not race Twitch with the same refresh token. */

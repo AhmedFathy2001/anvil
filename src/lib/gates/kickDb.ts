@@ -30,6 +30,7 @@ import {
   kickAppToken,
   kickConfig,
   refreshKickToken,
+  revokeKickToken,
   subscribeChannelEvents,
   unsubscribeChannelEvents,
   type FetchLike,
@@ -165,9 +166,24 @@ async function forgetChannelIfOrphaned(broadcasterId: string): Promise<void> {
 }
 
 export async function disconnectHostKick(clanId: number): Promise<void> {
-  const row = await db.query.clanKickChannels.findFirst({ where: eq(clanKickChannels.clanId, clanId), columns: { kickUserId: true } });
+  const row = await db.query.clanKickChannels.findFirst({
+    where: eq(clanKickChannels.clanId, clanId),
+    columns: { kickUserId: true, accessToken: true, refreshToken: true },
+  });
   await db.delete(clanKickChannels).where(eq(clanKickChannels.clanId, clanId));
   if (row) await forgetChannelIfOrphaned(row.kickUserId);
+  // Revoke the grant at Kick too (id.kick.com/oauth/revoke), best-effort, as YouTube and Twitch do:
+  // deleting our row alone left the host's authorisation live on Kick's side.
+  const cfg = kickConfig();
+  if (row && cfg) {
+    for (const [sealed, hint] of [[row.accessToken, 'access_token'], [row.refreshToken, 'refresh_token']] as const) {
+      try {
+        void revokeKickToken(decryptSecret(sealed, cfg.tokenKey), fetchImpl, hint);
+      } catch {
+        // a rotated key: nothing readable to revoke
+      }
+    }
+  }
 }
 
 /** One refresh per space at a time — Kick rotates refresh tokens, so two racing would break the link. */
