@@ -741,6 +741,7 @@ export default async function EventScoreboardPage({
         forceEndedAt={event.forceEndedAt}
         placementPrizes={placementPrizes}
         startProof={!!parseEventRules(event.rules).startProof}
+        startHeld={event.startHoldNotified === 1 && !event.startNotified}
       />
       <EventTabs
         eventId={event.id}

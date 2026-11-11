@@ -30,6 +30,12 @@ interface Props {
   placementPrizes: number[];
   /** The board needs a starting shot — the final-hour countdown walks through the steps. */
   startProof?: boolean;
+  /**
+   * The start time came but the board can't start (no teams, a draft still running): the cron keeps
+   * pushing startDate two minutes ahead (lib/eventLifecycle START_HOLD_MS), so a countdown would
+   * reset forever and read as "going live" again and again. Held, the hero says so instead.
+   */
+  startHeld?: boolean;
 }
 
 function countParts(ms: number) {
@@ -81,6 +87,7 @@ export default function EventHero({
   endDate,
   forceEndedAt,
   placementPrizes,
+  startHeld = false,
   startProof = false,
 }: Props) {
   // Client-only clock — null until mounted so SSR and first render agree (no hydration mismatch).
@@ -106,7 +113,7 @@ export default function EventHero({
   const realStart = startDate ? new Date(startDate).getTime() : null;
   const fhTarget = previewStart ?? (forceEndedAt ? null : realStart);
   const fhLeft = now === null || fhTarget === null ? null : fhTarget - now;
-  const finalHour = fhLeft !== null && fhLeft <= FINAL_HOUR_MS && fhLeft > -FINAL_HOUR_GO_MS;
+  const finalHour = (previewStart !== null || !startHeld) && fhLeft !== null && fhLeft <= FINAL_HOUR_MS && fhLeft > -FINAL_HOUR_GO_MS;
 
   // When the real start passes, the server has just drawn the starting spot — re-fetch the page so
   // the starting-shot card shows up without a manual reload.
@@ -207,7 +214,18 @@ export default function EventHero({
           )}
 
           <div className={hasPrize ? 'sm:pl-6' : ''}>
-            <CountdownBlock now={now} phase={phase} target={state?.target ?? null} />
+            {startHeld ? (
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-amber-300/80">Start on hold</div>
+                <p className="mt-1 text-sm text-text-muted">
+                  {teamsCount === 0
+                    ? 'It starts as soon as the host sets up the teams.'
+                    : 'It starts as soon as the host finishes the draft.'}
+                </p>
+              </div>
+            ) : (
+              <CountdownBlock now={now} phase={phase} target={state?.target ?? null} />
+            )}
           </div>
         </div>
 
