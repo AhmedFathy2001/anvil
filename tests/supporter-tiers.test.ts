@@ -197,15 +197,15 @@ test('a framed tenure star on Discord: the tier colours drawn with the step, pla
   const { supporterStarUrl } = await import('../src/lib/supporterTiers.ts');
   const o = 'https://anvilosrs.com';
   assert.equal(supporterStarUrl('supporter', null, o), `${o}/icons/supporter-supporter.png`);
-  assert.equal(supporterStarUrl('supporter', null, o, 'apprentice'), `${o}/icons/supporter-supporter.png`);
+  assert.equal(supporterStarUrl('supporter', null, o, 'apprentice'), `${o}/api/og/supporter-star/ffd35c?t=apprentice`, 'every step has its badge');
   assert.equal(supporterStarUrl('supporter', null, o, 'master'), `${o}/api/og/supporter-star/ffd35c?t=master`);
   assert.equal(supporterStarUrl('champion', null, o, 'legend'), `${o}/api/og/supporter-star/ff9a5a-e05ad0-7a8cff?t=legend`);
 });
 
 test('the tenure star SVG frames every step past Apprentice and renders only checked colours', async () => {
   const { tenureStarSvg } = await import('../src/lib/tenureStarSvg.ts');
-  assert.ok(!tenureStarSvg(['#ffd35c']).includes('polygon'));
-  assert.ok(tenureStarSvg(['#ffd35c'], 'master').includes('polygon'));
-  assert.ok(tenureStarSvg(['#ff9a5a', '#7a8cff'], 'journeyman').includes('<circle'));
-  assert.ok(tenureStarSvg(['#ff9a5a', '#7a8cff'], 'legend').includes('url(#g)'));
+  assert.ok(tenureStarSvg(['#ffd35c']).includes('<path'), 'no step: the bare star');
+  assert.ok(tenureStarSvg(['#ffd35c'], 'master').includes('<rect'), 'a step: its pixel badge');
+  assert.notEqual(tenureStarSvg(['#ffd35c'], 'master'), tenureStarSvg(['#ffd35c'], 'legend'));
+  assert.ok(!tenureStarSvg(['#ffd35c'], 'legend').includes('script'));
 });

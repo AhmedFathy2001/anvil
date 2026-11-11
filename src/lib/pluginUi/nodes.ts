@@ -7,6 +7,8 @@
 // thumbnail, named by a PATH on this site the plugin fetches itself (lib/proofImage). A click is one of a fixed set of actions (Action below); the ones that
 // reach the site go to this same route and nowhere else.
 
+import type { TenureGlyph } from '@/lib/supporterTiers';
+
 /** A row's or column's ground: the card's, the panel's, or a raised row's. */
 export type Ground = 'card' | 'panel' | 'raised';
 
@@ -130,7 +132,7 @@ export type Node =
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
       /** 'up' / 'down': a rank's move; an older plugin draws the icon's `alt` instead. */
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | 'star-ring' | 'star-hex' | 'hex' | 'up' | 'down';
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star' | TenureGlyph | 'up' | 'down';
       color?: Color;
       w?: number;
       h?: number;
@@ -381,7 +383,7 @@ export const nameText = (rsn: string, color: Color = 'white', extra: Partial<Ext
 
 type TextNode = Extract<Node, { t: 'text' }>;
 /** `label` names the tier for the star's tooltip ("Anvil Patron"). */
-type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean; label?: string; glyph?: 'star' | 'star-ring' | 'star-hex' | 'hex' };
+type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean; label?: string; glyph?: TenureGlyph };
 
 function eachChild(n: Node, f: (c: Node) => void): void {
   const any = n as unknown as Record<string, unknown>;
@@ -420,9 +422,10 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
         if (found.grad) t.grad = found.grad;
         if (found.move) t.move = true;
         if (!t.icon) {
-          // The tenure shapes (ring, hex) need a little more room than the plain star to read.
-          const size = found.glyph && found.glyph !== 'star' ? 12 : 10;
-          t.icon = { t: 'icon', glyph: found.glyph ?? 'star', w: size, h: size, color: '#ffd35c' };
+          // A tenure badge is the plugin's pixel sprite, shaded in the name's own colour; else the star.
+          t.icon = found.glyph
+            ? { t: 'icon', glyph: found.glyph, w: 11, h: 11, color: (found.grad?.[0] ?? found.color) as `#${string}` }
+            : { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
           t.iconAfter = true;
           // Whatever the name already explained stays, after who they are.
           const who = found.label ?? 'Anvil Supporter';

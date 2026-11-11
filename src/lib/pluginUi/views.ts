@@ -1,4 +1,5 @@
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
+import type { TenureGlyph } from '@/lib/supporterTiers';
 import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
 import { type PinRow, revealedTileIds, trackedCard } from './trackedUi';
 
@@ -806,7 +807,7 @@ async function flaired(view: View | null, glyphs: boolean): Promise<View | null>
     const ink = inks.get(normalizeRsn(name));
     if (!ink) return null;
     // A plugin that can't draw the tenure shapes gets the plain star it always had.
-    const worn = inkForSurface(ink, 'dark') as ReturnType<typeof inkForSurface<SupporterInk>> & { glyph?: 'star' | 'star-ring' | 'star-hex' | 'hex' };
+    const worn = inkForSurface(ink, 'dark') as ReturnType<typeof inkForSurface<SupporterInk>> & { glyph?: TenureGlyph };
     return glyphs ? worn : { ...worn, glyph: undefined };
   });
   return view;

@@ -180,7 +180,8 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
  *   glyph: the plugin panel's icon for the same four.
  */
 export type TenureStepId = 'apprentice' | 'journeyman' | 'artisan' | 'master' | 'grandmaster' | 'legend';
-export type TenureGlyph = 'star' | 'star-ring' | 'star-hex' | 'hex';
+/** The plugin panel's badge for each step (its pixel sprite, lib/tenureSprites). */
+export type TenureGlyph = 'tenure-1' | 'tenure-2' | 'tenure-3' | 'tenure-4' | 'tenure-5' | 'tenure-6';
 
 export interface TenureStep {
   id: TenureStepId;
@@ -191,12 +192,12 @@ export interface TenureStep {
 }
 
 export const TENURE_LADDER: readonly TenureStep[] = [
-  { id: 'apprentice', name: 'Apprentice', months: 0, chat: 1, glyph: 'star' },
-  { id: 'journeyman', name: 'Journeyman', months: 3, chat: 2, glyph: 'star-ring' },
-  { id: 'artisan', name: 'Artisan', months: 6, chat: 3, glyph: 'star-ring' },
-  { id: 'master', name: 'Master', months: 12, chat: 4, glyph: 'star-hex' },
-  { id: 'grandmaster', name: 'Grandmaster', months: 24, chat: 5, glyph: 'star-hex' },
-  { id: 'legend', name: 'Legend', months: 36, chat: 6, glyph: 'hex' },
+  { id: 'apprentice', name: 'Apprentice', months: 0, chat: 1, glyph: 'tenure-1' },
+  { id: 'journeyman', name: 'Journeyman', months: 3, chat: 2, glyph: 'tenure-2' },
+  { id: 'artisan', name: 'Artisan', months: 6, chat: 3, glyph: 'tenure-3' },
+  { id: 'master', name: 'Master', months: 12, chat: 4, glyph: 'tenure-4' },
+  { id: 'grandmaster', name: 'Grandmaster', months: 24, chat: 5, glyph: 'tenure-5' },
+  { id: 'legend', name: 'Legend', months: 36, chat: 6, glyph: 'tenure-6' },
 ];
 
 /** The step `months` of unbroken time has reached, and the next one (null at the top). */
@@ -308,9 +309,9 @@ export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | 
   // Discord is a dark surface: their own dark look when they set one, else the main look.
   const look = eff?.dark ?? eff;
   const own = look?.stops ?? (look?.preset ? presetById(look.preset)?.stops : undefined);
-  const framed = tenure != null && tenure !== 'apprentice';
+  const framed = tenure != null;
   if (!own && !framed) return `${origin}/icons/supporter-${tier}.png`;
-  // A framed star in the tier's own colours when they chose none.
+  // A tenure badge in the tier's own colours when they chose none.
   const ink = SUPPORTER_INK[tier];
   const stops = own ?? ink.grad ?? [ink.color];
   return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}${framed ? `?t=${tenure}` : ''}`;
