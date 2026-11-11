@@ -24,10 +24,11 @@ export interface WorldModeDef {
   /** Matches the world's flags. */
   flags?: (types: ReadonlySet<string>) => boolean;
   /**
-   * The mode's own event kinds (lib/modeLines MODE_EVENT_KINDS ids) its settings offer. Each mode has
-   * its own: Leagues has relics and pacts, a Hardcore world has none. Unset = none.
+   * The mode's own event kinds its settings offer, in the mode's own words: lib/modeLines
+   * MODE_EVENT_KINDS id → label. Leagues has relics and pacts, Grid Master tiles and masteries, a
+   * Hardcore world none. Unset = none.
    */
-  events?: readonly string[];
+  events?: Readonly<Record<string, string>>;
 }
 
 export interface WorldMode {
@@ -40,25 +41,39 @@ export interface WorldMode {
 
 const WIKI = 'https://oldschool.runescape.wiki/images/';
 /** Everything a league has. Also what a mode we have no entry for is offered: new temporary modes are league-like. */
-const LEAGUE_EVENTS = ['modeRelic', 'modeArea', 'modePact', 'modeMastery', 'modeTask', 'modeTaskMinor', 'modeMilestone'] as const;
+// Each season brings its own systems (relics, areas, combat masteries, demonic pacts…), so a league
+// keeps every slot; a clan switches off what this season doesn't have.
+const LEAGUE_EVENTS: Readonly<Record<string, string>> = {
+  modeRelic: 'Relics',
+  modeArea: 'Area unlocks',
+  modePact: 'Demonic pacts',
+  modeMastery: 'Combat masteries',
+  modeTask: 'Tasks (hard and up)',
+  modeTaskMinor: 'Tasks (easy and medium)',
+  modeMilestone: 'Other unlocks and milestones',
+};
 
-/** The event kinds a mode's settings offer (WorldModeDef.events); a mode we don't know gets the league set. */
-export function modeEventKinds(key: string): readonly string[] {
+/** The event kinds a mode's settings offer, with the mode's own names; a mode we don't know gets the league set. */
+export function modeEventKinds(key: string): { id: string; label: string }[] {
   const def = WORLD_MODES.find((m) => m.key === key);
-  return def ? (def.events ?? []) : LEAGUE_EVENTS;
+  return Object.entries(def ? (def.events ?? {}) : LEAGUE_EVENTS).map(([id, label]) => ({ id, label }));
 }
 
 /** Order matters: the first match wins, so the more specific entries come first. */
 export const WORLD_MODES: readonly WorldModeDef[] = [
-  { key: 'grid-master', label: 'Grid Master', icon: `${WIKI}Grid_Master_icon.png`, activity: /grid\s*master/i, events: ['modeTask', 'modeTaskMinor', 'modeMilestone'] },
+  {
+    key: 'grid-master', label: 'Grid Master', icon: `${WIKI}Grid_Master_icon.png`, activity: /grid\s*master/i,
+    // A bingo grid of tiles: no task tiers, no relics. Rows and columns pay out rewards and perks.
+    events: { modeTask: 'Tiles completed', modeMastery: 'Combat mastery tiers', modeMilestone: 'Row and column rewards, perks' } },
   {
     key: 'seasonal-deadman',
     label: 'Seasonal Deadman',
     icon: `${WIKI}Deadman_world_icon.png`,
     flags: (t) => t.has('DEADMAN') && t.has('SEASONAL'),
-    events: ['modeMilestone'],
+    // PvP and key loot already post as PvP kills and drops; what's left changes each season.
+    events: { modeMilestone: 'Season unlocks and milestones' },
   },
-  { key: 'deadman', label: 'Deadman', icon: `${WIKI}Deadman_world_icon.png`, activity: /deadman/i, flags: (t) => t.has('DEADMAN'), events: ['modeMilestone'] },
+  { key: 'deadman', label: 'Deadman', icon: `${WIKI}Deadman_world_icon.png`, activity: /deadman/i, flags: (t) => t.has('DEADMAN'), events: { modeMilestone: 'Emblems, chests and breaches' } },
   { key: 'leagues', label: 'Leagues', icon: `${WIKI}Leagues_icon.png`, activity: /\bleagues?\b/i, flags: (t) => t.has('SEASONAL'), events: LEAGUE_EVENTS },
   { key: 'hardcore', label: 'Hardcore', icon: null, activity: /\bhardcore\b/i, flags: (t) => t.has('HARDCORE_MAIN') },
   { key: 'fresh-start', label: 'Fresh Start', icon: `${WIKI}Fresh_Start_Worlds_icon.png`, activity: /fresh\s*start/i, flags: (t) => t.has('FRESH_START_WORLD') },

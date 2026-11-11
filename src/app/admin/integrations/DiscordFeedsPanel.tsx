@@ -26,8 +26,8 @@ interface ModeRow {
   /** Leagues was switched off on the old row: its channel stays unused until it's switched on. */
   ownChannelIgnored: boolean;
   kindsOff: string[];
-  /** The event kinds this mode has (its own, not every mode's). */
-  events: string[];
+  /** The event kinds this mode has, in its own words (not every mode's). */
+  events: { id: string; label: string }[];
   /** The mode's own drop rarity (1 in N); null = the main-game setting. */
   dropFloor: number | null;
   /** The mode's own drop minimum value (gp); null = the main-game setting. */
@@ -385,7 +385,7 @@ export default function DiscordFeedsPanel({
         {modes.map((m) => {
           const ownSet = isSet(m.hookKey) && !m.ownChannelIgnored;
           // Only this mode's kinds: the usual posts plus the events it actually has.
-          const mine = kinds.filter((k) => !k.event || m.events.includes(k.id));
+          const mine = [...kinds.filter((k) => !k.event), ...m.events.map((e) => ({ ...e, event: true }))];
           const posting = mine.filter((k) => !m.kindsOff.includes(k.id)).length;
           const where = m.off
             ? 'Off'

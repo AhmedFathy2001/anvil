@@ -124,7 +124,7 @@ async function view(clanId: number) {
         id: modeFeedId(m.key),
         hookKey: modeWebhookKey(m.key),
         // The mode's own event kinds only (lib/worldModes): no relics on a Hardcore world.
-        events: [...modeEventKinds(m.key)],
+        events: modeEventKinds(m.key),
         off: modesOff.has(m.key),
         ownChannelIgnored: m.key === 'leagues' && legacyLeaguesOff,
         kindsOff: modeKindsOff(map.has(modeKindsOffKey(m.key)) ? map.get(modeKindsOffKey(m.key)) : undefined).filter((k) =>
