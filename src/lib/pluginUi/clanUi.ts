@@ -55,7 +55,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
   if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
   // Clan tenure: how long it has backed Anvil, in the Supporter star's shapes (older plugins: the star).
   if (c.tenure && c.tenure.months >= 1) {
-    id.push(row(icon(glyphs ? { glyph: c.tenure.glyph, w: 11, h: 11, color: '#ffd35c' } : { glyph: 'star', w: 10, h: 10, color: '#ffd35c' }), small(c.tenure.line, '#ffd35c'), undefined, { gap: 4 }));
+    id.push(row(icon(glyphs ? { glyph: c.tenure.glyph, w: 22, h: 22, color: '#ffd35c' } : { glyph: 'star', w: 10, h: 10, color: '#ffd35c' }), small(c.tenure.line, '#ffd35c'), undefined, { gap: 4 }));
   }
   if (c.competitions.length) {
     const running = c.competitions
