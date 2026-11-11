@@ -1,4 +1,5 @@
 import { notifyBoardPeople } from '@/lib/pushNotify';
+import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
 import { NextResponse } from 'next/server';
 import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { eventForRequest } from '@/lib/eventScope';
@@ -614,10 +615,9 @@ export async function PATCH(
   // Multi-account config — same validation as event create (api/events/route.ts). Editable in place so
   // the "One team each" setup can tune it; the pre-start gate below refuses changes once live so a
   // slot-mode flip can't retroactively scramble MVP / recap aggregation.
-  const MAX_ACCOUNTS_CAP = 10;
   if ('maxAccountsPerPerson' in body) {
-    if (!Number.isInteger(body.maxAccountsPerPerson) || body.maxAccountsPerPerson < 1 || body.maxAccountsPerPerson > MAX_ACCOUNTS_CAP) {
-      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}` }, { status: 400 });
+    if (!validAccountLimit(body.maxAccountsPerPerson)) {
+      return NextResponse.json({ error: `maxAccountsPerPerson must be an integer from 1 to ${MAX_ACCOUNTS_CAP}, or 0 for no limit` }, { status: 400 });
     }
     updates.maxAccountsPerPerson = body.maxAccountsPerPerson;
   }

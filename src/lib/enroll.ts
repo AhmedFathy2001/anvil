@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { accountCap } from '@/lib/accountCap';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
@@ -366,7 +367,7 @@ async function groupAccountsByPerson(
 export async function withinAccountCap(eventId: number, eligible: EligibleMember[]): Promise<EligibleMember[]> {
   // clan-scope: this clan -- one event by id; the caller already resolved it within the clan.
   const [ev] = await db.select({ max: events.maxAccountsPerPerson }).from(events).where(eq(events.id, eventId)).limit(1);
-  const max = ev?.max ?? 1;
+  const max = accountCap(ev?.max);
   const meta = await loadMemberMeta(eligible.map((m) => m.id));
   // Everyone a person already has on the board counts, plugin or not.
   const owners = [...new Set([...meta.values()].map((m) => m.userId).filter((u): u is number => u != null))];

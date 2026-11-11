@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { accountCap } from '@/lib/accountCap';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
@@ -192,7 +193,7 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const maxAccounts = event.maxAccountsPerPerson ?? 1;
+  const maxAccounts = accountCap(event.maxAccountsPerPerson);
   if (selectedIds.length > maxAccounts) {
     return NextResponse.json(
       { error: `This event allows at most ${maxAccounts} account${maxAccounts === 1 ? '' : 's'} per person.` },

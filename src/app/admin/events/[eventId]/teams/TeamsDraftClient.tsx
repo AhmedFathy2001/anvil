@@ -1,5 +1,6 @@
 'use client';
 
+import Checkbox from '@/components/Checkbox';
 import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1273,6 +1274,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   Max accounts per person
                   <span className="block text-text-muted font-normal">How many of a person&apos;s accounts (alts) may enter.</span>
                 </span>
+                <span className="flex items-center gap-3">
+                <Checkbox
+                  checked={maxAccounts === 0}
+                  disabled={savingAccountCfg || eventStarted || editLocked}
+                  onChange={(on) => {
+                    const v = on ? 0 : 2;
+                    setMaxAccounts(v);
+                    void saveAccountConfig({ maxAccounts: v });
+                  }}
+                  label="No limit"
+                />
+                {maxAccounts !== 0 && (
                 <NumberInput
                   value={maxAccounts}
                   disabled={savingAccountCfg || eventStarted || editLocked}
@@ -1283,6 +1296,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   onBlur={() => maxAccounts !== (event.maxAccountsPerPerson ?? 1) && saveAccountConfig({ maxAccounts })}
                   className="w-16 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none focus:border-gold/50 disabled:opacity-50"
                 />
+                )}
+                </span>
               </label>
               {format === 'individual' && (
                 <div className="text-xs">

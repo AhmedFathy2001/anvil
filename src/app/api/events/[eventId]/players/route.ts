@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { accountCap } from '@/lib/accountCap';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
@@ -129,7 +130,7 @@ export async function POST(
       return NextResponse.json({ error: 'No valid players to import' }, { status: 400 });
     }
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });
-    const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, members.map((m) => m.clanMemberId));
+    const capErr = await accountCapError(id, accountCap(event?.maxAccountsPerPerson), members.map((m) => m.clanMemberId));
     if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
     // Sign-ups first, under the host's room lock (lib/enroll backfillApprovedSignups): a refusal
     // from the plan's cap leaves nobody seated.
@@ -150,7 +151,7 @@ export async function POST(
   members.push({ clanMemberId, name: trimmedName, discord: trimmedDiscord, timezone: timezone?.trim() || null });
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
-  const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, [clanMemberId]);
+  const capErr = await accountCapError(id, accountCap(event?.maxAccountsPerPerson), [clanMemberId]);
   if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
   const full = await signupsOrFull(id, [clanMemberId]);
   if (full) return full;

@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { accountCap } from '@/lib/accountCap';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import { signupSeatsFor } from '@/lib/eventSeats';
 import EventApiHost from '@/components/EventApiHost';
@@ -90,7 +91,7 @@ export default async function EventSignupPage({
         provisional: a.provisional,
       }));
 
-  const maxAccounts = event.maxAccountsPerPerson ?? 1;
+  const maxAccounts = accountCap(event.maxAccountsPerPerson);
   // Only asked when there is no seat here: "link a character" vs "not on this clan's list yet".
   const hasAnyCharacter =
     myAccounts.length === 0 && session.playerId != null
@@ -249,7 +250,7 @@ export default async function EventSignupPage({
       </div>
       <p className="text-sm text-text-muted mb-6">
         {maxAccounts > 1
-          ? `Pick up to ${maxAccounts} of your linked accounts — they all play on the same team, and every one is tracked for this event.`
+          ? `Pick ${event.maxAccountsPerPerson === 0 ? 'any' : `up to ${maxAccounts}`} of your linked accounts — they all play on the same team, and every one is tracked for this event.`
           : "One sign-up per Discord account. Pick the RSN you'll play with — that's the only account that'll be tracked for this event."}
       </p>
 
