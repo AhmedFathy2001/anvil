@@ -10,7 +10,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { DISCORD_FEEDS, FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
 import { CREATOR_HIDDEN_FEEDS, CREATOR_HIDDEN_FEED_TABS } from '@/lib/creatorSpaces';
 import { useRevealTarget } from '@/components/HashReveal';
-import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelHalf, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
+import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelPart, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
 import { MIN_MODE_DROP_FLOOR, MIN_MODE_DROP_VALUE } from '@/lib/modeFilters';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { valuesEqual } from '@/lib/unsavedChanges';
@@ -140,7 +140,7 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
           checked={mode.levels != null}
           disabled={disabled}
           onChange={(on) =>
-            void put(mode.id, { mode: mode.key, levels: on ? levelHalf(levels) : null }).then((ok) => {
+            void put(mode.id, { mode: mode.key, levels: on ? levelPart(levels) : null }).then((ok) => {
               // Switching on saves the milestones as edited, so that is the new baseline.
               if (ok && on) setSavedLevels(levels);
             })
@@ -156,7 +156,7 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
                 type="button"
                 disabled={disabled}
                 onClick={() =>
-                  void put(mode.id, { mode: mode.key, levels: levelHalf(levels) }).then((ok) => {
+                  void put(mode.id, { mode: mode.key, levels: levelPart(levels) }).then((ok) => {
                     if (ok) setSavedLevels(levels);
                   })
                 }
