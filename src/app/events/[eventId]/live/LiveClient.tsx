@@ -8,9 +8,11 @@ import { useDialog } from '@/components/Confirm';
 import Input from '@/components/Input';
 import MomentReactions from '@/components/MomentReactions';
 import Select from '@/components/Select';
+import { TenureBadge } from '@/components/SupporterName';
 import { clanFetch } from '@/lib/clanFetch';
 import type { LiveChatState, LiveFeedState, LiveSeat } from '@/lib/liveData';
 import { FEED_PAGE, clockLabel, type LiveChatLine, type LiveFeedRow, type LiveIcon, type LiveInk } from '@/lib/liveView';
+import { TENURE_LADDER } from '@/lib/supporterTiers';
 
 /** How often the page asks "anything new?" while it is in view and the push socket is down (a 304 when nothing moved). */
 const POLL_MS = 5_000;
@@ -516,18 +518,27 @@ function Chip({ label, on, onClick }: { label: string; on: boolean; onClick: () 
 
 /** A name in its Supporter colours (moving for a Patron), else the colour given, else muted. */
 function InkName({ name, ink, color, className = '' }: { name: string; ink: LiveInk | null; color?: string | null; className?: string }) {
+  // A Supporter's tenure badge before the name, in their colour (the panel's own art).
+  const step = ink?.glyph ? TENURE_LADDER.find((t) => t.glyph === ink.glyph)?.id : undefined;
+  const badge = step ? <TenureBadge step={step} color={ink?.grad?.[0] ?? ink?.color ?? '#ffd35c'} decorative /> : null;
   if (ink?.grad && ink.grad.length >= 2) {
     const stops = ink.move ? [...ink.grad, ink.grad[0]] : ink.grad;
     return (
-      <span className={`${ink.move ? 'supporter-name-patron' : 'supporter-name-champion'} truncate font-semibold ${className}`} style={{ backgroundImage: `linear-gradient(90deg, ${stops.join(', ')})` }}>
-        {name}
+      <span className="inline-flex min-w-0 items-center gap-1">
+        {badge}
+        <span className={`${ink.move ? 'supporter-name-patron' : 'supporter-name-champion'} truncate font-semibold ${className}`} style={{ backgroundImage: `linear-gradient(90deg, ${stops.join(', ')})` }}>
+          {name}
+        </span>
       </span>
     );
   }
   const c = ink?.color ?? color ?? null;
   return (
-    <span className={`truncate font-semibold ${c ? '' : 'text-foreground'} ${className}`} style={c ? { color: c } : undefined}>
-      {name}
+    <span className="inline-flex min-w-0 items-center gap-1">
+      {badge}
+      <span className={`truncate font-semibold ${c ? '' : 'text-foreground'} ${className}`} style={c ? { color: c } : undefined}>
+        {name}
+      </span>
     </span>
   );
 }

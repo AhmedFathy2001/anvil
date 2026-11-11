@@ -36,7 +36,7 @@ export function liveIcon(m: MomentLike): LiveIcon {
 /** One moment (maybe a collapsed run) as the page's row. */
 export function liveMomentRow(
   m: MomentLike,
-  o: { mine?: boolean; team?: { name: string; color: string | null } | null; ink?: { color: string; grad?: readonly string[]; move?: boolean } | null } = {},
+  o: { mine?: boolean; team?: { name: string; color: string | null } | null; ink?: { color: string; grad?: readonly string[]; move?: boolean; glyph?: string | null } | null } = {},
 ): LiveFeedRow {
   const ink = inkOf(o.ink);
   const tone = momentTone(m);
@@ -83,7 +83,7 @@ export function liveTileRow(c: { tileId: number; teamId: number; label: string; 
 export function liveChatLine(r: FeedRow): LiveChatLine | null {
   const id = Number(r.id.startsWith('c') ? r.id.slice(1) : NaN);
   if (!Number.isInteger(id) || id <= 0) return null;
-  const ink = r.whoColor && HEX.test(r.whoColor) ? inkOf({ color: r.whoColor, grad: r.grad, move: r.move }) : null;
+  const ink = r.whoColor && HEX.test(r.whoColor) ? inkOf({ color: r.whoColor, grad: r.grad, move: r.move, glyph: r.whoGlyph }) : null;
   return {
     id,
     who: r.who ?? '',

@@ -131,6 +131,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             moments={moments}
             reactions={reactions}
             boosters={boosters}
+            looks={supporterLooks}
             title="Lately"
             blurb="pets, big drops and combat tasks, as they happened. Nothing here scores."
             emptyNote="Nothing yet. Moments arrive from the Anvil plugin — pets and rare drops always, and anything else that clears the floors on Admin → Integrations."

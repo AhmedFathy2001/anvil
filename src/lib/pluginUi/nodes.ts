@@ -427,7 +427,7 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
           t.icon = found.glyph
             ? { t: 'icon', glyph: found.glyph, w: 20, h: 20, color: (found.grad?.[0] ?? found.color) as `#${string}` }
             : { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
-          t.iconAfter = true;
+          // Before the name, as in game chat.
           // Whatever the name already explained stays, after who they are.
           const who = found.label ?? 'Anvil Supporter';
           t.tip = t.tip ? `${who} · ${t.tip}` : who;

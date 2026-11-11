@@ -196,7 +196,11 @@ export async function liveFeed(access: ChatAccess, userId: number, rawFilter: un
     const source = inkSource.get(normalizeRsn(m.rsn));
     return liveMomentRow(
       { ...m, run: m.run ?? null },
-      { mine: own(m.teamId), team: team ? { name: team.name, color: team.color } : null, ink: source ? inkForSurface(source, 'dark') : null },
+      {
+        mine: own(m.teamId),
+        team: team ? { name: team.name, color: team.color } : null,
+        ink: source ? { ...inkForSurface(source, 'dark'), glyph: 'glyph' in source ? (source.glyph as string) : null } : null,
+      },
     );
   });
   // GZ / Sad / Sit: the site's own reactions (lib/siteReactions), the same rule as the panel's.
