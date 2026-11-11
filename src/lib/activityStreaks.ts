@@ -142,3 +142,17 @@ export async function clanHeats(clanIds: number[]): Promise<Map<number, number>>
   }
   return out;
 }
+
+/** Current streak weeks by character name (a roster the panel lists), keyed by normalizeRsn; only those on one. */
+export async function streakWeeksForRsns(rsns: string[]): Promise<Map<string, number>> {
+  const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 200);
+  if (keys.length === 0) return new Map();
+  const rows = await db.select({ id: accounts.id, key: accounts.rsnNormalized }).from(accounts).where(inArray(accounts.rsnNormalized, keys));
+  const weeks = await streakWeeksFor(rows.map((r) => r.id));
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    const w = weeks.get(r.id);
+    if (w) out.set(r.key, w);
+  }
+  return out;
+}

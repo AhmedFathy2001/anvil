@@ -424,6 +424,15 @@ export default async function CharacterProfile({
             <ClanLink href={`/compare?a=${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
               Compare ↗
             </ClanLink>
+            {/* Someone else's character: buy them Supporter. Quiet, last, never a pitch on your own page. */}
+            {!show.ownerControls && (
+              <>
+                {' · '}
+                <ClanLink href={`/supporter/gift?to=${encodeURIComponent(rsn)}`} className="text-text-muted hover:text-gold">
+                  Gift Supporter
+                </ClanLink>
+              </>
+            )}
           </>
         )}
       </p>

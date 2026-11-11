@@ -89,17 +89,6 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       ...(feedTab && tabLinks ? [gap(4), row(text('Open the clan feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })] : []),
     ], { gap: 4 }));
   }
-  if (c.supporters && c.supporters.count > 0) {
-    // Who keeps Anvil running, laid out like Top accounts: one person per row, their flair on the
-    // name (`who`), tier and how long on the right.
-    const more = c.supporters.count - c.supporters.people.length;
-    const since = (m: number) => (m >= 12 ? `${Math.floor(m / 12)} yr` : m > 0 ? `${m} mo` : 'new');
-    parts.push(section([
-      siteHeader('Supporters', 'keep Anvil running', '/supporter'),
-      ...c.supporters.people.map((p) => nameLine(p.rsn, `${p.tier} · ${since(p.months)}`, p.rsn)),
-      ...(more > 0 ? [small(`+${fmt(more)} more`, 'muted')] : []),
-    ], { gap: 4 }));
-  }
   if (c.highlights.length) {
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.
     const quick = col(

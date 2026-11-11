@@ -1,4 +1,6 @@
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
+import { streakWeeksForRsns } from '@/lib/activityStreaks';
+import { normalizeRsn } from '@/lib/auth';
 import { db } from '@/db';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
@@ -165,7 +167,19 @@ export default async function TeamBoardPage({
         players={eventPlayers}
         startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         tierBands={tierBands}
+        streaks={await teamStreaks(rawEventPlayers.filter((p) => p.teamId === tId).map((p) => p.name))}
       />
     </>
   );
+}
+
+/** Streak weeks by name for this team's members; decoration, so a failed read is none. */
+async function teamStreaks(names: string[]): Promise<Record<string, number>> {
+  const weeks = await streakWeeksForRsns(names).catch(() => new Map<string, number>());
+  const out: Record<string, number> = {};
+  for (const n of names) {
+    const w = weeks.get(normalizeRsn(n));
+    if (w) out[n] = w;
+  }
+  return out;
 }

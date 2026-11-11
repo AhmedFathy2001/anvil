@@ -175,8 +175,8 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
 /**
  * Tenure: the Supporter star changes SHAPE with unbroken paid time (colour stays the tier's). Not
  * supporter-specific, so a clan plan's time can climb the same ladder later.
- *   chat:  the in-game chat icon (plugin chat-flair `t`): 1 star, 2 ringed, 3 hex, 4 solid hex. Four
- *          shapes, because only four read apart at 11px.
+ *   chat:  the in-game chat icon (plugin chat-flair `t`), one per step 1-6: star, ringed, filled ring,
+ *          hex, filled hex, solid hex (the plugin's pixel sprites).
  *   glyph: the plugin panel's icon for the same four.
  */
 export type TenureStepId = 'apprentice' | 'journeyman' | 'artisan' | 'master' | 'grandmaster' | 'legend';
@@ -186,17 +186,17 @@ export interface TenureStep {
   id: TenureStepId;
   name: string;
   months: number;
-  chat: 1 | 2 | 3 | 4;
+  chat: 1 | 2 | 3 | 4 | 5 | 6;
   glyph: TenureGlyph;
 }
 
 export const TENURE_LADDER: readonly TenureStep[] = [
   { id: 'apprentice', name: 'Apprentice', months: 0, chat: 1, glyph: 'star' },
   { id: 'journeyman', name: 'Journeyman', months: 3, chat: 2, glyph: 'star-ring' },
-  { id: 'artisan', name: 'Artisan', months: 6, chat: 2, glyph: 'star-ring' },
-  { id: 'master', name: 'Master', months: 12, chat: 3, glyph: 'star-hex' },
-  { id: 'grandmaster', name: 'Grandmaster', months: 24, chat: 3, glyph: 'star-hex' },
-  { id: 'legend', name: 'Legend', months: 36, chat: 4, glyph: 'hex' },
+  { id: 'artisan', name: 'Artisan', months: 6, chat: 3, glyph: 'star-ring' },
+  { id: 'master', name: 'Master', months: 12, chat: 4, glyph: 'star-hex' },
+  { id: 'grandmaster', name: 'Grandmaster', months: 24, chat: 5, glyph: 'star-hex' },
+  { id: 'legend', name: 'Legend', months: 36, chat: 6, glyph: 'hex' },
 ];
 
 /** The step `months` of unbroken time has reached, and the next one (null at the top). */

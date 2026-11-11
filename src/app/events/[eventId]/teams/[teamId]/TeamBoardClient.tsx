@@ -31,9 +31,11 @@ interface Props {
   /** Late joiners whose starting stats are being read, or were just taken (lib/startingStats). */
   startingStats?: Record<number, StartingStatsStatus>;
   tierBands?: TierBand[];
+  /** Weekly activity streak (weeks) by player name (lib/activityStreaks), for the member list. */
+  streaks?: Record<string, number>;
 }
 
-export default function TeamBoardClient({ event, team, tiles, completions, players, startingStats = {}, tierBands = DEFAULT_TIER_BANDS }: Props) {
+export default function TeamBoardClient({ event, team, tiles, completions, players, startingStats = {}, tierBands = DEFAULT_TIER_BANDS, streaks = {} }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
@@ -302,6 +304,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                     teamScore={completed}
                     selectedPlayerId={selectedMemberId}
                     onSelect={setSelectedMemberId}
+                    streaks={streaks}
                   />
                 </div>
               )}

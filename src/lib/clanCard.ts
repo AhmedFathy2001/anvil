@@ -2,9 +2,7 @@ import { normalizeHex } from '@/lib/artPalette';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clans, memberClog } from '@/db/schema';
-import { normalizeRsn } from '@/lib/auth';
-import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
+import { clans, memberClog } from '@/db/schema';
 import { SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
@@ -15,7 +13,6 @@ import { clanBoostLevel } from '@/lib/clanBoosts';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
 import { clanStreaks } from '@/lib/activityStreaks';
-import { supporterLooksByName } from '@/lib/supporter';
 import type { TenureGlyph, TenureStepId } from '@/lib/supporterTiers';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
@@ -44,8 +41,6 @@ export interface ClanCard {
   /** Streak weeks of the names this card lists (This week, Top accounts), when on one. */
   streaks?: Record<string, number>;
   /** Members who support Anvil, longest-supporting first (names only; their flair paints itself). */
-  /** Supporting PEOPLE (one character each, the roster's first of theirs), longest support first. */
-  supporters?: { people: { rsn: string; tier: string; months: number }[]; count: number };
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -70,41 +65,6 @@ export interface ClanCard {
 function clanAccent(clan: { accentColor?: string | null; artPalette?: unknown }): string | null {
   const first = (clan.artPalette as { colors?: unknown[] } | null)?.colors?.[0];
   return normalizeHex(clan.accentColor) ?? normalizeHex(first);
-}
-
-/** The roster's Supporters, longest unbroken support first. Decoration: a failed read is none. */
-async function clanSupporters(rsns: string[]): Promise<NonNullable<ClanCard['supporters']>> {
-  const looks = await supporterLooksByName(rsns).catch(() => ({}) as Awaited<ReturnType<typeof supporterLooksByName>>);
-  const names = Object.keys(looks);
-  if (names.length === 0) return { people: [], count: 0 };
-  // One person, several characters on the roster: they're one supporter, shown once, under their
-  // main when it's in good standing, else any active character; a banned or unranked one only when
-  // that's all they have here.
-  const owners = await db
-    .select({ key: accounts.rsnNormalized, playerId: accounts.playerId, status: accounts.status, isPrimary: accounts.isPrimary })
-    .from(accounts)
-    .where(inArray(accounts.rsnNormalized, names.map(normalizeRsn)))
-    .catch(() => []);
-  const ownerOf = new Map(owners.map((o) => [o.key, o]));
-  const rank = (rsn: string) => {
-    const o = ownerOf.get(normalizeRsn(rsn));
-    return (o?.status === 'active' ? 2 : 0) + (o?.isPrimary ? 1 : 0);
-  };
-  const best = new Map<string, string>();
-  for (const rsn of rsns) {
-    if (!looks[rsn]) continue;
-    const pid = ownerOf.get(normalizeRsn(rsn))?.playerId;
-    const key = pid != null ? `p${pid}` : `n${rsn}`;
-    const had = best.get(key);
-    if (had == null || rank(rsn) > rank(had)) best.set(key, rsn);
-  }
-  const people: { rsn: string; tier: string; months: number }[] = [];
-  for (const rsn of best.values()) {
-    const look = looks[rsn];
-    people.push({ rsn, tier: SUPPORTER_TIERS[look.tier].name, months: look.tenure?.months ?? 0 });
-  }
-  people.sort((a, b) => b.months - a.months || a.rsn.localeCompare(b.rsn));
-  return { people: people.slice(0, 10), count: people.length };
 }
 
 /** The clan's tenure badge, or null. Decoration: a failed read is no badge. */
@@ -194,7 +154,6 @@ export async function loadClanCard(clan: {
     boostLevel,
     boostNameStyle,
     tenure: await loadClanTenure(clan.id),
-    supporters: await clanSupporters(roster.map((m) => m.rsn)),
     ...(await clanStreaks(clan.id)
       .then((h) => ({
         heat: h.total ? { on: h.on, total: h.total, pct: h.heat } : null,

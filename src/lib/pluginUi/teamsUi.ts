@@ -140,10 +140,12 @@ function personRow(p: RosterPersonOut, ranked: boolean, showTeam: boolean, s: Te
       })
     : null;
   const tag = p.captain && p.you ? 'Captain · you' : p.captain ? 'Captain' : p.you ? 'You' : null;
+  // A weekly activity streak rides after the role, in the flame's orange.
+  const streak = p.streak ? text(`${p.streak}wk`, '#ff8a3d', { font: 'small', tip: `${p.streak}-week activity streak` }) : undefined;
   return row(
     ranked ? text(p.rank == null ? '–' : `#${p.rank}`, p.rank != null && p.rank <= 3 ? 'brand' : 'muted', { w: 34 }) : undefined,
     col([nameText(p.name, p.you ? 'brand' : 'white'), ...(line ? [line] : [])]),
-    tag ? text(tag, 'brand') : undefined,
+    tag && streak ? row(text(tag, 'brand'), undefined, streak, { gap: 6 }) : tag ? text(tag, 'brand') : streak,
     { pad: 4, inset: 6, tip: `Look up ${p.name}`, on: { a: 'lookup', rsn: p.name } },
   );
 }
