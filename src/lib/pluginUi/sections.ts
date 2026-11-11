@@ -40,6 +40,17 @@ export const section = (c: (Node | null | false | undefined)[], extra: Partial<E
 export const chip = (s: string, kind: keyof typeof CHIP, extra: Partial<Extract<Node, { t: 'text' }>> = {}): Node => text(s, CHIP[kind][1], { chip: CHIP[kind][0], font: 'small', ...extra });
 export const small = (s: string, color: Color, extra: Partial<Extract<Node, { t: 'text' }>> = {}): Node => text(s, color, { font: 'small', ...extra });
 export const link = (s: string, on: Action, tip?: string): Node => text(s, GOLD, { font: 'small', on, ...(tip ? { tip } : {}) });
+
+/** The activity-streak flame's colours: warm (2–3 weeks), flame (4–7), hot (8+). */
+export const WARM = '#ffb347' as const;
+export const FLAME = '#ff8a3d' as const;
+export const HOT = '#ff5a36' as const;
+
+/** A weekly activity streak as a chip that heats up with length. */
+export function streakChip(weeks: number): Node {
+  const [bg, ink]: [`#${string}`, `#${string}`] = weeks >= 8 ? [HOT, '#ffffff'] : weeks >= 4 ? [FLAME, '#1b1b1b'] : [WARM, '#1b1b1b'];
+  return text(`${weeks} wk`, ink, { chip: bg, font: 'small', tip: `${weeks}-week activity streak` });
+}
 const chevron = () => icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT });
 
 /** "‹ All events" on the left, the page's kind on the right, then the event's name. */

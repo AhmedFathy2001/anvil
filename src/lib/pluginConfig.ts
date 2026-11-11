@@ -467,6 +467,7 @@ export interface ActiveWeeklyMetric {
   type: 'skill' | 'boss' | 'efficiency';
   metric: string;
   startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
+  endDate?: string;
 }
 
 // EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
@@ -488,6 +489,7 @@ export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeek
     type: c.type as 'skill' | 'boss' | 'efficiency',
     metric: c.metric,
     startDate: c.startDate,
+    endDate: c.endDate,
   }));
 }
 
