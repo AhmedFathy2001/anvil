@@ -24,6 +24,7 @@
     "test": "node scripts/test-all.mjs",
     "seo:indexnow": "node scripts/indexnow.mjs",
     "test:redactpath": "npx tsx --test tests/redact-path.test.ts",
+    "test:playersession": "npx tsx --test tests/player-session.test.ts",
     "test:headerproof": "npx tsx --test tests/request-header-proof.test.ts",
     "test:balance": "npx tsx --test tests/balance-effort.test.ts",
     "test:deathsource": "npx tsx --test tests/death-source.test.ts tests/lab-feed.test.ts",
