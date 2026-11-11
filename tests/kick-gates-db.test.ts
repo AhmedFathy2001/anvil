@@ -403,7 +403,7 @@ test('!join: only when switched on; replies once per cooldown as the app bot thr
   assert.equal(sent.auth, `Bearer ${net.liveToken}`);
   assert.equal(sent.body.type, 'bot');
   assert.equal(sent.body.reply_to_message_id, body.message_id);
-  assert.match(String(sent.body.content), /^(Join .+ on Anvil: https?:\/\/\S+\/c\/kick-streamer\/events\/\d+|No event is open)/);
+  assert.match(String(sent.body.content), /^(Join .+ on Anvil: https?:\/\/\S+\/s\/kick-streamer\/events\/\d+|No event is open)/);
   // Within the cooldown: quiet.
   assert.equal(await C.answerKickJoin({ clanId: spaceId, broadcasterId: BROADCASTER, replyTo: null }, 1_010_000), false);
   assert.equal(net.chats.length, before + 1);

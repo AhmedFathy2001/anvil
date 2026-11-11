@@ -186,5 +186,5 @@ test('/profile refuses a signed-out visitor, and sends them back where they were
   // in and silently landed somewhere else. This asserts the property rather than the old string,
   // which is what the previous version of this test pinned in place.
   assert.doesNotMatch(src, /return=\/profile'/, 'the return must follow the clan, not a constant');
-  assert.match(src, /const back = clan \? `\/c\/\$\{clan\.slug\}\/profile` : '\/profile'/);
+  assert.match(src, /const back = clan \? clanPathOf\(clan, '\/profile'\) : '\/profile'/);
 });
