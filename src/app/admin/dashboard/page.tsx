@@ -882,6 +882,8 @@ function PulseTile({
 const LABEL_INSIDE_MIN = 0.16;
 
 const RUNWAY_ROW = 30;
+/** The strip under the lanes the gap notes sit in. */
+const GAP_NOTE_H = 14;
 
 /** A one-day event is a hairline at six weeks' zoom; give every bar something to grab. */
 const MIN_BAR_WIDTH = 2.5;
@@ -952,7 +954,9 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
           ))}
         </div>
 
-        <div className="relative" style={{ height: `${lanes * RUNWAY_ROW}px` }}>
+        {/* The lanes, plus a strip under them for the gap notes: centred in the lanes they printed
+            straight over a short event's title written beside its bar. */}
+        <div className="relative" style={{ height: `${lanes * RUNWAY_ROW + (gaps.length ? GAP_NOTE_H : 0)}px` }}>
           {/* Week gridlines, behind everything */}
           {ticks.map((t, i) => (
             <span
@@ -982,7 +986,7 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
                     : `Nothing scheduled for ${g.days} days`
                 }
                 style={{ left: `${left}%` }}
-                className="absolute inset-y-0 flex items-center gap-2 pl-2 border-l border-dashed border-yellow-500/30 text-[9px] text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap"
+                className="absolute inset-y-0 flex items-end gap-2 pl-2 pb-0.5 border-l border-dashed border-yellow-500/30 text-[9px] leading-none text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap"
               >
                 {/* An open-ended gap has no honest length — only a start. */}
                 {g.openEnded ? 'nothing scheduled beyond here' : `${g.days}d clear`}
