@@ -6,12 +6,13 @@ import { verifyFeeCollector } from '@/lib/auth';
 import { getCofferBalance, clanHasCoffer, getWeeklyPool } from '@/lib/coffer';
 import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import WeeklyHomeClient from './WeeklyHomeClient';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WeeklyHomePage({ params }: { params: Promise<{ weeklyId: string }> }) {
   const { weeklyId } = await params;
-  const id = parseInt(weeklyId, 10);
+  const id = idParam(weeklyId);
 
   // Whose competition is this? The id came from the URL.
   const clan = await requireClan();

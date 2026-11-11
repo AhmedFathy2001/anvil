@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('tile-lab');
 
@@ -48,7 +49,7 @@ function pluginRequest(opts: { token?: string; rsn?: string; scenario?: string }
   const headers: Record<string, string> = {
     Authorization: `Bearer ${opts.token ?? TOKEN}`,
     'X-RSN': opts.rsn ?? RSN,
-    'x-anvil-clan-slug': 'alpha',
+    ...clanHeaders('alpha'),
   };
   if (opts.scenario) headers['X-Anvil-Scenario'] = opts.scenario;
   return new Request('https://anvilosrs.com/api/plugin/config', { headers });

@@ -23,6 +23,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-autolink');
 
@@ -40,7 +41,7 @@ function pluginRequest(slug: string) {
     headers: {
       Authorization: `Bearer ${TOKEN}`,
       'X-RSN': RSN,
-      'x-anvil-clan-slug': slug,
+      ...clanHeaders(slug),
     },
   });
 }
@@ -142,7 +143,7 @@ test('an account already claimed by someone else is left alone', async () => {
     headers: {
       Authorization: `Bearer ${TOKEN}`,
       'X-RSN': 'Taken Name',
-      'x-anvil-clan-slug': 'alpha',
+      ...clanHeaders('alpha'),
     },
   });
   await A.resolvePluginMember(req);

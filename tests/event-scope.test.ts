@@ -11,6 +11,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('event-scope');
 
@@ -87,7 +88,7 @@ test('a nonsense id is refused rather than queried', async () => {
 
 // The plugin connects a co-host's members to THEIR clan, so its calls for the shared board arrive at
 // the co-host's address. Those answer; nothing else widens.
-const at = (slug: string) => new Request('https://example.test/api/plugin/board', { headers: { 'x-anvil-clan-slug': slug } });
+const at = (slug: string) => new Request('https://example.test/api/plugin/board', { headers: { ...clanHeaders(slug) } });
 
 test("the plugin reaches a co-hosted board from the co-host's address, marked as such", async () => {
   const own = await eventForPluginRequest(at('alpha'), alphaEvent);
@@ -100,4 +101,15 @@ test('an invitation not yet accepted reaches nothing, and the host cannot reach 
   assert.equal(await eventForPluginRequest(at('charlie'), alphaEvent), null);
   assert.equal(await eventForPluginRequest(at('alpha'), bravoEvent), null);
   assert.equal(await eventForPluginRequest(at('charlie'), Number.NaN), null);
+});
+
+// The clan header without middleware's proof is a caller's own text. On a path middleware's matcher
+// skipped (`/admin/events/5.png`) nothing stripped it, and clanContext used to believe it.
+test('a bare, unsigned clan header names no clan', async () => {
+  const bare = new Request('https://example.test/api/plugin/board', { headers: { 'x-anvil-clan-slug': 'alpha' } });
+  assert.equal(await eventForPluginRequest(bare, alphaEvent), null);
+  const forged = new Request('https://example.test/api/plugin/board', {
+    headers: { 'x-anvil-clan-slug': 'alpha', 'x-anvil-clan-proof': clanHeaders('bravo')['x-anvil-clan-proof'] },
+  });
+  assert.equal(await eventForPluginRequest(forged, alphaEvent), null, "another slug's proof does not transfer");
 });

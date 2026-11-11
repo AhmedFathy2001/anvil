@@ -10,12 +10,13 @@ import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventEditLocked } from '@/lib/eventLock';
 import { startingStatsFor } from '@/lib/startingStats';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EventTeamsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
 
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);

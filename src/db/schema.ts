@@ -658,6 +658,11 @@ export const events = pgTable('events', {
   addedPrizePool: integer('added_prize_pool'),
   signupOpensAt: text('signup_opens_at'),
   signupDeadline: text('signup_deadline'),
+  // Off = no public sign-up form; staff add players (by hand, Add them all, or autoEnroll). 0259.
+  signupsEnabled: boolean('signups_enabled').notNull().default(true),
+  // "Keep adding new plugin members": autoEnrollActivePluginMembers' placement, re-run by the cron
+  // until the event starts (lib/enroll autoEnrollTick). Null = off. 0259.
+  autoEnroll: text('auto_enroll'),
   // Grace cutoff for paying the fee. While unpassed, players may keep editing their
   // sign-up answers (and pay) even after signupDeadline / event start. Null = no grace;
   // editing then follows the normal sign-up window. See lib/signup.ts signupEditState.

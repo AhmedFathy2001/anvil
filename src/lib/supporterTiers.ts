@@ -314,5 +314,6 @@ export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | 
   // A tenure badge in the tier's own colours when they chose none.
   const ink = SUPPORTER_INK[tier];
   const stops = own ?? ink.grad ?? [ink.color];
-  return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}${framed ? `?t=${tenure}` : ''}`;
+  // `v=2`: the badge now follows the whole gradient; a new URL so Discord and the CDN drop the one-colour copy.
+  return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}${framed ? `?t=${tenure}&v=2` : ''}`;
 }

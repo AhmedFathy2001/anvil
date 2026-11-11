@@ -95,6 +95,7 @@ export async function GET(
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    signupsEnabled: event.signupsEnabled,
     hostKind: friendsKind,
   });
 
@@ -212,6 +213,7 @@ export async function POST(
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
         hostKind: friendsKind,
         paymentDeadline: event.paymentDeadline,
       })
@@ -219,6 +221,7 @@ export async function POST(
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
         hostKind: friendsKind,
       });
   if (!window.open) {
@@ -545,6 +548,7 @@ export async function DELETE(
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    signupsEnabled: event.signupsEnabled,
     hostKind: friendsKind,
   });
   if (!window.open) {

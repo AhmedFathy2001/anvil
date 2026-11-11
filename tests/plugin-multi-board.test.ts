@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('multiboard');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -18,7 +19,7 @@ const ids = {} as Record<string, number>;
 const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
 
 function headers(clan: string, extra: Record<string, string> = {}) {
-  return { Authorization: 'Bearer tok-mb', 'X-RSN': 'Twoboard', 'X-Account-Hash': 'hash-mb', 'x-anvil-clan-slug': clan, ...extra };
+  return { Authorization: 'Bearer tok-mb', 'X-RSN': 'Twoboard', 'X-Account-Hash': 'hash-mb', ...clanHeaders(clan), ...extra };
 }
 
 async function config(extra: Record<string, string> = {}) {

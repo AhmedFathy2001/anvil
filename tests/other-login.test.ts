@@ -22,6 +22,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('other-login');
 
@@ -70,7 +71,7 @@ async function character(owner: Login, rsn: string, hash: string | null, method 
 }
 
 function headers(token: string, rsn: string, hash: string | null, extra: Record<string, string> = {}): Record<string, string> {
-  const h: Record<string, string> = { Authorization: `Bearer ${token}`, 'X-RSN': rsn, 'x-anvil-clan-slug': 'afk', ...extra };
+  const h: Record<string, string> = { Authorization: `Bearer ${token}`, 'X-RSN': rsn, ...clanHeaders('afk'), ...extra };
   if (hash) h['X-Account-Hash'] = hash;
   return h;
 }
@@ -356,7 +357,7 @@ test('fair-play: nothing outside the window, off a team, or in another event', a
 test('fair-play: the integrity list answers only through the event’s own clan', async () => {
   const route = await import('../src/app/api/admin/events/[eventId]/integrity/route.ts');
   const res = await route.GET(
-    new Request(`https://example.test/api/admin/events/${ids.event}/integrity`, { headers: { 'x-anvil-clan-slug': 'elsewhere' } }),
+    new Request(`https://example.test/api/admin/events/${ids.event}/integrity`, { headers: { ...clanHeaders('elsewhere') } }),
     { params: Promise.resolve({ eventId: String(ids.event) }) },
   );
   assert.equal(res.status, 404, 'another clan’s staff never see it');

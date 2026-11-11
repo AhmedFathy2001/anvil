@@ -86,7 +86,7 @@ interface Props {
   prefillClanMemberId: number | null;
   prefillProfile: SignupProfile;
   windowOpen: boolean;
-  windowReason: 'not_open_yet' | 'closed' | 'event_started' | null;
+  windowReason: 'not_open_yet' | 'closed' | 'event_started' | 'off' | null;
   /**
    * Team-choice events (rules.teamChoice): the host built the teams up front and the applicant
    * names the one they're joining. Null on a drafted event, and on an invite (the link already
@@ -120,6 +120,7 @@ const WINDOW_MESSAGES: Record<NonNullable<Props['windowReason']>, string> = {
   not_open_yet: 'Sign-ups are not open yet.',
   closed: 'The sign-up deadline has passed.',
   event_started: 'This event has already started.',
+  off: 'This event has no sign-up form: the organisers add the players.',
 };
 
 // Tongue-in-cheek clan banter shown next to the hours fields — but it now reacts to what

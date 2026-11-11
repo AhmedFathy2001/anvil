@@ -10,6 +10,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('cadedupe');
 (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= AsyncLocalStorage;
@@ -30,7 +31,7 @@ async function inRequest<T>(req: Request, fn: () => Promise<T>): Promise<T> {
   return workAsyncStorage.run({ route: '/test' } as never, () => workUnitAsyncStorage.run(store as never, fn));
 }
 
-const auth = { Authorization: 'Bearer tok-ca', 'X-RSN': 'Tasker', 'X-Account-Hash': 'hash-Tasker', 'x-anvil-clan-slug': 'alpha' };
+const auth = { Authorization: 'Bearer tok-ca', 'X-RSN': 'Tasker', 'X-Account-Hash': 'hash-Tasker', ...clanHeaders('alpha') };
 
 /** The rule table the plugin runs on, with its ETag. */
 async function ruleTable() {

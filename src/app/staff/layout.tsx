@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { provenPath } from '@/lib/requestHeaderProof';
 
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { libraryActor } from '@/lib/guideAccess';
@@ -32,7 +33,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     // /staff/guides and nothing else: this shell is the only thing standing between them and every
     // other /staff page, most of which do not guard themselves, so anything else is still a 404.
     const guides = await libraryActor();
-    const pathname = (await headers()).get('x-anvil-pathname') ?? '';
+    // Only a path middleware signed: an unknown one is not the library, so it 404s.
+    const pathname = (await provenPath(await headers()))?.pathname;
+    if (pathname == null) notFound();
     // The task and board library is the same library with other content, under the same grant.
     const inLibrary = ['/staff/guides', '/staff/library'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
     if (!guides?.canEdit || !inLibrary) notFound();

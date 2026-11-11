@@ -1,5 +1,6 @@
 'use client';
 
+import Checkbox from '@/components/Checkbox';
 import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 
@@ -31,7 +32,7 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
   // Teams tab lets the host go Back and pick another format, which re-pins this panel without
   // remounting it, and a copied initial value kept enrolling under the format they'd left.
   const placement = fixedPlacement ?? chosenPlacement;
-  const [counts, setCounts] = useState<{ eligible: number; notEnrolled: number } | null>(null);
+  const [counts, setCounts] = useState<{ eligible: number; notEnrolled: number; keep?: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -73,6 +74,30 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
       setResult(parts.join(' · '));
       await loadCounts();
       await onEnrolled();
+    } catch {
+      setErr('Network error.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setKeep(on: boolean) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await clanFetch(`/api/admin/events/${eventId}/auto-enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Turning it on also adds everyone eligible now, so the pool and the switch agree.
+        body: JSON.stringify(on ? { placement, keep: true } : { keep: false }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(data.error || 'Could not save.');
+        return;
+      }
+      await loadCounts();
+      if (on) await onEnrolled();
     } catch {
       setErr('Network error.');
     } finally {
@@ -149,6 +174,15 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
               ? 'Add them all'
               : `Add them all (${selected.label})`}
       </button>
+
+      {/* Kept up to date by the cron (lib/enroll autoEnrollTick) until the board starts. */}
+      <Checkbox
+        checked={!!counts?.keep}
+        disabled={busy || blocked}
+        onChange={(on) => void setKeep(on)}
+        label="Keep adding members as they get the plugin"
+        description="Until the event starts, anyone in the clan who installs the plugin or links their character is added the same way. Members only, never guests."
+      />
 
       {result && <p className="text-xs text-accent-green-light">Enrolled: {result}</p>}
       {err && <p className="text-xs text-red-400">{err}</p>}

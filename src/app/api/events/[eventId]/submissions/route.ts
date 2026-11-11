@@ -41,6 +41,7 @@ import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { claimUploads } from '@/lib/uploadClaims';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
+import { provenClanSlug } from '@/lib/requestHeaderProof';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -723,7 +724,7 @@ export async function POST(
         ? {
             proofKey: pendingKey,
             proofDueAt: proofDueAt(receivedAt),
-            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug'), announce: null, sender: pluginAuth?.userId ?? null }),
+            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: await provenClanSlug(request.headers), announce: null, sender: pluginAuth?.userId ?? null }),
           }
         : {}),
     })
@@ -792,7 +793,7 @@ export async function POST(
       [submission] = await db.update(submissions)
         .set({ proofPending: encodePendingProof({
           claims, receivedAt, completed: !!syncResult?.isComplete, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null,
-          clan: request.headers.get('x-anvil-clan-slug'), announce: syncResult?.heldTileId ?? null, sender: pluginAuth?.userId ?? null,
+          clan: await provenClanSlug(request.headers), announce: syncResult?.heldTileId ?? null, sender: pluginAuth?.userId ?? null,
         }) })
         .where(eq(submissions.id, inserted.id)).returning();
     } else {

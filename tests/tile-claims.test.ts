@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('tile-claims');
 
@@ -206,7 +207,7 @@ test('an enrolled plugin character can plan on a revealed upcoming board, while 
   const headers = {
     Authorization: 'Bearer tile-claims-upcoming-token',
     'X-RSN': 'Planning RSN',
-    'x-anvil-clan-slug': 'c',
+    ...clanHeaders('c'),
   };
   const boardUrl = `https://example.test/api/plugin/board?eventId=${upcoming.id}`;
   const { GET } = await import('../src/app/api/plugin/board/route.ts');
@@ -216,7 +217,7 @@ test('an enrolled plugin character can plan on a revealed upcoming board, while 
   assert.equal(before.readOnly, false);
   assert.equal(before.yourTeamId, team.id);
 
-  const publicPreview = await GET(new Request(boardUrl, { headers: { 'x-anvil-clan-slug': 'c' } }));
+  const publicPreview = await GET(new Request(boardUrl, { headers: { ...clanHeaders('c') } }));
   assert.equal(publicPreview.status, 200);
   assert.equal(((await publicPreview.json()) as { readOnly: boolean }).readOnly, true);
 

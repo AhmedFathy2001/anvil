@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('facts-lab-boards');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -29,7 +30,7 @@ async function facts(facts: object[], extra: object = {}) {
         Authorization: `Bearer ${TOKEN}`,
         'X-RSN': RSN,
         'X-Account-Hash': 'hash-labby',
-        'x-anvil-clan-slug': 'alpha',
+        ...clanHeaders('alpha'),
         'X-Anvil-Boards': '1',
         'Content-Type': 'application/json',
       },
@@ -112,7 +113,7 @@ test('a banned login’s token is still refused', async () => {
 
 test('a folded-in lab board is tagged with the addressed clan, which resolves the seat (pins, board reads)', async () => {
   const { GET } = await import('../src/app/api/plugin/config/route.ts');
-  const h = { Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-labby', 'x-anvil-clan-slug': 'alpha' };
+  const h = { Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-labby', ...clanHeaders('alpha') };
   const res = await GET(new Request('https://example.test/api/plugin/config', { headers: { ...h, 'X-Anvil-Boards': '1' } }));
   const cfg = (await res.json()) as { boards: { eventId: number; clan: string; teamId: number }[] };
   const lab = cfg.boards.find((b) => b.eventId === events[0]);
@@ -160,7 +161,7 @@ test('the live board is a race: one more kill finishes its start tile on both bo
   // ...and the panel's race page, asked again (what the plugin does on "Tile complete"), shows step 2.
   const { GET } = await import('../src/app/api/plugin/ui/route.ts');
   const ui = await GET(new Request('https://example.test/api/plugin/ui?v=home&open=board', {
-    headers: { Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-labby', 'x-anvil-clan-slug': 'alpha', 'X-Anvil-Boards': '1' },
+    headers: { Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-labby', ...clanHeaders('alpha'), 'X-Anvil-Boards': '1' },
   }));
   const page = JSON.stringify(await ui.json());
   assert.ok(page.includes('Step 2 of 3'), page.slice(0, 2000));
