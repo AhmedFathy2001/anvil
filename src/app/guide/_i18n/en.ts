@@ -3667,7 +3667,7 @@ export const en = {
         },
       ],
       outro:
-        '**Your Anvil display name** is the name on your Discord-linked account. Under **Your RuneScape characters**, choose **Same for all** or **Customize each** to give each character its own look. Press **Save** (or **Save for all characters**); **Reset to default** goes back to your tier’s colours.',
+        'Start with **Your Anvil display name**, the name on your Discord-linked account, and press **Save**. **Reset to default** goes back to your tier’s colours. Under **Your RuneScape characters**, keep **Same as my Anvil name** or choose **A separate look for my characters**, which opens an editor for one look on all of them. To give one character its own look, pick it under **Customize per character**. Its editor opens on its own, and **Use the default** puts it back.',
       note: {
         tag: 'Dark and light backgrounds',
         body: 'The site, the plugin panel and Discord are dark; the game’s solid chatbox is light. Anvil adjusts your colours so they stay readable on each. If you want a different look on one of them, switch on **Set a separate look for dark backgrounds** or **for light backgrounds**. That look is shown exactly as you picked it, with no contrast fix, and the preview warns you when it is hard to read.',

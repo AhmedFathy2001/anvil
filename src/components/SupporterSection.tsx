@@ -6,8 +6,7 @@ import SupporterName from '@/components/SupporterName';
 import SupporterAnnounceToggle from '@/components/SupporterAnnounceToggle';
 import SupporterGameChatToggle from '@/components/SupporterGameChatToggle';
 import SupporterWallToggle from '@/components/SupporterWallToggle';
-import SupporterStylePicker from '@/components/SupporterStylePicker';
-import SupporterCharacterStyles from '@/components/SupporterCharacterStyles';
+import SupporterNameLooks from '@/components/SupporterNameLooks';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import { giverRank } from '@/lib/supporterGiftPurchase';
 import { tenureFor, tenureLabel, type SupporterState, type SupporterTierId, type TenureStepId } from '@/lib/supporterTiers';
@@ -90,7 +89,7 @@ export default function SupporterSection({
   wall?: boolean | null;
   /** Months they've bought for other people (lib/supporterGiftCheckout): the giver ladder. */
   gifted?: number;
-  /** Linked RuneScape characters and their own flair overrides. */
+  /** Linked RuneScape characters and their stored looks (null follows the Anvil name). */
   characters?: { accountId: number; rsn: string; style: SupporterStyle | null }[];
   /** Their own display name, previewed in each tier's flair. */
   name?: string | null;
@@ -189,18 +188,8 @@ export default function SupporterSection({
             Manage on Gumroad
           </a>
         </div>
-        <div className="mt-4 space-y-3">
-          <div className="rounded-xl border border-card-border bg-black/10 p-4">
-            <p className="mb-1 text-[13px] font-semibold">Your Anvil display name</p>
-            <p className="mb-3 text-[12px] text-text-dim">Used for your Discord-linked identity, separate from your RuneScape characters.</p>
-            <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
-          </div>
-          {characters.length > 0 ? (
-            <div className="rounded-xl border border-card-border bg-black/10 p-4">
-              <p className="mb-3 text-[13px] font-semibold">Your RuneScape characters</p>
-              <SupporterCharacterStyles tier={supporter.tier} characters={characters.map((c) => ({ ...c, style: c.style ?? supporter.style }))} />
-            </div>
-          ) : null}
+        <div className="mt-4">
+          <SupporterNameLooks tier={supporter.tier} name={name || 'Your name'} accountStyle={supporter.style} characters={characters} />
         </div>
         {gameChat != null && <SupporterGameChatToggle initial={gameChat} />}
         {wall != null && <SupporterWallToggle initial={wall} />}
