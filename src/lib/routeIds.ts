@@ -24,8 +24,13 @@ export function idParam(raw: string | undefined): number {
 }
 
 /** As {@link idParam}, for callers that would rather decide for themselves. */
-export function idOrNull(raw: string | undefined): number | null {
-  if (!raw || !/^[0-9]+$/.test(raw)) return null;
+export function idOrNull(raw: string | undefined | null): number | null {
+  // No leading zero and at most 16 digits: '012' and '0' name nothing we ever minted, and a path
+  // like `/admin/events/5.png` (which routes to [eventId]) is refused rather than read as 5.
+  if (!raw || !/^[1-9][0-9]{0,15}$/.test(raw)) return null;
   const id = Number(raw);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
+
+/** The handoff's name for {@link idOrNull}: the strict positive-integer parse, null otherwise. */
+export const intParam = idOrNull;

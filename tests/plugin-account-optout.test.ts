@@ -19,6 +19,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-account-optout');
 
@@ -43,7 +44,7 @@ async function login() {
 }
 
 function headers(token: string, rsn: string, hash: string | null): Record<string, string> {
-  const h: Record<string, string> = { Authorization: `Bearer ${token}`, 'X-RSN': rsn, 'x-anvil-clan-slug': 'afk' };
+  const h: Record<string, string> = { Authorization: `Bearer ${token}`, 'X-RSN': rsn, ...clanHeaders('afk') };
   if (hash) h['X-Account-Hash'] = hash;
   return h;
 }

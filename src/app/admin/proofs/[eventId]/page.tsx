@@ -5,6 +5,7 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { clanHref } from '@/lib/clanPath';
 import { requireEventForPage } from '@/lib/eventScope';
 import ProofFeedClient from '../../events/[eventId]/proofs/ProofFeedClient';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
  * (lib/adminAccess), but checking proofs is their job — so /admin/proofs links each board here.
  */
 export default async function BoardProofsPage({ params }: { params: Promise<{ eventId: string }> }) {
-  const id = parseInt((await params).eventId, 10);
+  const id = idParam((await params).eventId);
   if (!(await verifyAdminOrModerator())) redirect(await clanHref('/admin'));
   // Whose event is this? Ids are global and this one came from the URL.
   const event = await requireEventForPage(id);

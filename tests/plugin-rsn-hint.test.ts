@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-rsn-hint');
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
@@ -23,7 +24,7 @@ let syncedId: number;
 
 function req(headers: Record<string, string>) {
   return new Request('https://example.test/api/plugin/config', {
-    headers: { Authorization: 'Bearer tok-hint', 'x-anvil-clan-slug': 'hint', ...headers },
+    headers: { Authorization: 'Bearer tok-hint', ...clanHeaders('hint'), ...headers },
   });
 }
 

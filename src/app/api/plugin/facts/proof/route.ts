@@ -10,6 +10,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { emitTeamProgress, TEAM_PROGRESS_TILE_TYPES } from '@/lib/chatFeed';
 import { announceHeldCompletion, countTileProgress } from '@/lib/submissions';
 import { claimUploads } from '@/lib/uploadClaims';
+import { setProvenClan } from '@/lib/requestHeaderProof';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +61,8 @@ export async function POST(request: Request) {
     if (!authed.has(tile.eventId)) {
       const pending = decodePendingProof(r.proofPending);
       const headers = new Headers(request.headers);
-      if (pending.clan) headers.set('x-anvil-clan-slug', pending.clan);
+      // Stored only from a proven slug (submissions route), and re-signed so clanContext accepts it.
+      if (pending.clan) await setProvenClan(headers, pending.clan);
       const scoped = new Request(request.url, { method: 'POST', headers });
       const auth = await verifyPluginTokenOnEvent(scoped, tile.eventId);
       authed.set(tile.eventId, auth ? { request: scoped, playerId: auth.playerId, teamId: auth.teamId } : null);

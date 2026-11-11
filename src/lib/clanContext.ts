@@ -5,6 +5,7 @@ import { eq, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, retiredClanSlugs } from '@/db/schema';
 import { apexDomain, normalizeHost, slugFromHost } from '@/lib/apexHost';
+import { provenClanSlug } from '@/lib/requestHeaderProof';
 
 // Which clan is this request for?
 //
@@ -145,7 +146,9 @@ export const resolveClanBySlug = cache(async (slug: string | null | undefined): 
  */
 export const currentClan = cache(async (): Promise<ClanContext | null> => {
   const h = await headers();
-  const fromPath = await resolveClanBySlug(h.get('x-anvil-clan-slug'));
+  // Only a slug middleware signed (lib/requestHeaderProof): on a path its matcher skips, the header
+  // is whatever the caller wrote.
+  const fromPath = await resolveClanBySlug(await provenClanSlug(h));
   if (fromPath) return fromPath;
   return resolveClanByHost(h.get('host'));
 });
@@ -158,8 +161,9 @@ export const currentClan = cache(async (): Promise<ClanContext | null> => {
  * prefixing its links would send people somewhere they aren't.
  */
 export const clanPrefix = cache(async (): Promise<string> => {
-  const h = await headers();
-  return h.get('x-anvil-clan-prefix') ?? '';
+  // Derived from the proven slug, never read from the prefix header: only the slug is signed.
+  const slug = await provenClanSlug(await headers());
+  return slug ? `/c/${slug}` : '';
 });
 
 /**
@@ -189,7 +193,7 @@ export async function resolveClanFromRequest(request: Request): Promise<ClanCont
   // Same order as currentClan: the prefixed path is the canonical address, the Host is the
   // fallback that keeps every installed plugin working. A route handler reached at
   // `/c/<slug>/api/...` sees the slug here because middleware put it on the request.
-  const fromPath = await resolveClanBySlug(request.headers.get('x-anvil-clan-slug'));
+  const fromPath = await resolveClanBySlug(await provenClanSlug(request.headers));
   if (fromPath) return fromPath;
   return resolveClanByHost(request.headers.get('host'));
 }

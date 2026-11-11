@@ -12,6 +12,7 @@ import CaptainAssignment from './CaptainAssignment';
 import TeamStaffPanel from './TeamStaffPanel';
 import TeamInvitePanel from '@/components/TeamInvitePanel';
 import { idParam } from '@/lib/routeIds';
+import { requireAdminPath } from '@/lib/adminGuard';
 import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,8 @@ export default async function AdminTeamBoardPage({
 }) {
   const clan = await requireClan();
   const { eventId, teamId } = await params;
-  const eId = parseInt(eventId, 10);
+  const eId = idParam(eventId);
+  await requireAdminPath(`/admin/events/${eId}/teams/${idParam(teamId)}`);
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(eId);
   const tId = idParam(teamId);

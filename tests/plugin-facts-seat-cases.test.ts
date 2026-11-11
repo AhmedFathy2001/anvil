@@ -21,6 +21,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 // Next's request storage wants the runtime's AsyncLocalStorage on globalThis (the server sets it).
 (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= AsyncLocalStorage;
@@ -57,7 +58,7 @@ async function facts() {
         Authorization: `Bearer ${TOKEN}`,
         'X-RSN': RSN,
         'X-Account-Hash': 'hash-seatcase',
-        'x-anvil-clan-slug': 'alpha',
+        ...clanHeaders('alpha'),
         'X-Anvil-Boards': '1',
         'Content-Type': 'application/json',
       },
@@ -178,7 +179,7 @@ test('a banned login’s token files nothing anywhere', async () => {
 // that address must find the event and resolve the character's own seat on it.
 test('every folded-in board resolves the character’s seat through the clan it is tagged with', async () => {
   const { GET } = await import('../src/app/api/plugin/config/route.ts');
-  const h = (clan: string) => ({ Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-seatcase', 'x-anvil-clan-slug': clan });
+  const h = (clan: string) => ({ Authorization: `Bearer ${TOKEN}`, 'X-RSN': RSN, 'X-Account-Hash': 'hash-seatcase', ...clanHeaders(clan) });
   const req = new Request('https://example.test/api/plugin/config', { headers: { ...h('alpha'), 'X-Anvil-Boards': '1' } });
   const cfg = (await (await inRequest(req, () => GET(req))).json()) as { boards: { eventId: number; clan: string; teamId: number; name: string }[] };
   assert.deepEqual(cfg.boards.map((b) => b.name.replace('Board ', '')).sort(), [...credited].sort());

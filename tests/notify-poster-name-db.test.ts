@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('notify-poster-name');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -50,7 +51,7 @@ const post = (body: Record<string, unknown>) =>
   POST(
     new Request('https://example.test/api/plugin/notify', {
       method: 'POST',
-      headers: { Authorization: 'Bearer tok-poster', 'X-RSN': 'Realme', 'x-anvil-clan-slug': 'home', 'content-type': 'application/json' },
+      headers: { Authorization: 'Bearer tok-poster', 'X-RSN': 'Realme', ...clanHeaders('home'), 'content-type': 'application/json' },
       body: JSON.stringify(body),
     }),
   );

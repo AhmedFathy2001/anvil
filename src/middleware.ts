@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requireSecret } from '@/lib/env';
 import { isPlatformPath } from '@/lib/clanScopedPaths';
+import {
+  CLAN_PREFIX_HEADER,
+  CLAN_PROOF_HEADER,
+  CLAN_SLUG_HEADER,
+  PATHNAME_HEADER,
+  PATH_HEADERS,
+  PATH_PROOF_HEADER,
+  SEARCH_HEADER,
+  constantTimeEqual,
+  pathHeaderProof,
+  provenClanSlug,
+  setProvenClan,
+} from '@/lib/requestHeaderProof';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -24,15 +37,6 @@ async function hmacSign(message: string, secret: string): Promise<string> {
   );
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
   return bytesToHex(new Uint8Array(sig));
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }
 
 async function verifyToken(token: string, secret: string): Promise<string | null> {
@@ -73,13 +77,9 @@ async function verifyToken(token: string, secret: string): Promise<string | null
 // The fix is to make the header self-proving. Pass 1 attaches an HMAC over the slug; the strip keeps
 // a slug that carries a valid one and drops everything else. A caller cannot forge it without the
 // secret, and never sees a valid one either — these headers travel inward to the route handler, not
-// outward to the client.
-const CLAN_HEADER_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
-
-/** The proof that WE set this slug, on this deployment. Domain-separated from session tokens. */
-async function clanHeaderProof(slug: string): Promise<string> {
-  return hmacSign(`anvil-clan-header:${slug}`, CLAN_HEADER_SECRET);
-}
+// outward to the client. The proof itself lives in lib/requestHeaderProof, which every reader of
+// these headers checks against: a path this middleware's matcher skips arrives with whatever the
+// caller wrote, so stripping here alone was never enough.
 
 /**
  * Drop clan headers unless they are ours from an earlier pass over the same request.
@@ -88,18 +88,27 @@ async function clanHeaderProof(slug: string): Promise<string> {
  * broken proof can do is send the request back to resolving its clan from the address.
  */
 async function stripForeignClanHeaders(request: NextRequest, downstream: Headers): Promise<void> {
-  const slug = request.headers.get('x-anvil-clan-slug');
-  const proof = request.headers.get('x-anvil-clan-proof');
-  const ours = !!slug && !!proof && constantTimeEqual(proof, await clanHeaderProof(slug));
-  if (ours) {
+  const slug = await provenClanSlug(request.headers);
+  if (slug) {
     // Re-derive the prefix rather than trusting the one that arrived: only the slug is proven, and
     // one signed value should not vouch for a second unsigned one travelling beside it.
-    downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
+    downstream.set(CLAN_PREFIX_HEADER, `/c/${slug}`);
     return;
   }
-  downstream.delete('x-anvil-clan-slug');
-  downstream.delete('x-anvil-clan-prefix');
-  downstream.delete('x-anvil-clan-proof');
+  downstream.delete(CLAN_SLUG_HEADER);
+  downstream.delete(CLAN_PREFIX_HEADER);
+  downstream.delete(CLAN_PROOF_HEADER);
+}
+
+/**
+ * The path and query this request is forwarded inward with, signed so layouts can tell it from one a
+ * caller wrote. EVERY branch that forwards a request calls this — a branch that forgot used to leave
+ * the caller's own x-anvil-pathname in place.
+ */
+async function setPath(downstream: Headers, pathname: string, search: string): Promise<void> {
+  downstream.set(PATHNAME_HEADER, pathname);
+  downstream.set(SEARCH_HEADER, search);
+  downstream.set(PATH_PROOF_HEADER, await pathHeaderProof(pathname, search));
 }
 
 export async function middleware(request: NextRequest) {
@@ -124,6 +133,9 @@ export async function middleware(request: NextRequest) {
   // attacker and wrong about us, because middleware runs a SECOND time on the rewritten path and
   // the second pass threw away what the first had just decided.
   const downstream = new Headers(request.headers);
+  // The path headers are never the caller's, on any pass: this pass sets its own below. (A second
+  // pass over a rewritten path recomputes the same values from the rewritten URL.)
+  for (const name of PATH_HEADERS) downstream.delete(name);
   await stripForeignClanHeaders(request, downstream);
 
   const clanPath = /^\/c\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
@@ -147,6 +159,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = inner;
       if (inner.startsWith('/api/')) {
+        await setPath(downstream, inner, request.nextUrl.search);
         return NextResponse.rewrite(url, { request: { headers: downstream } });
       }
       // Next parses this Location itself and throws ERR_INVALID_URL on a relative one, so it has to
@@ -164,14 +177,11 @@ export async function middleware(request: NextRequest) {
 
     const url = request.nextUrl.clone();
     url.pathname = inner;
-    downstream.set('x-anvil-clan-slug', slug);
-    // The prefix, so anything building a link back out can reproduce it without re-parsing.
-    downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
-    // …and the proof that this pair came from here, so the second pass over the rewritten path
-    // keeps it instead of mistaking it for something a caller sent.
-    downstream.set('x-anvil-clan-proof', await clanHeaderProof(slug));
-    downstream.set('x-anvil-pathname', url.pathname);
-    downstream.set('x-anvil-search', request.nextUrl.search);
+    // The slug, the prefix (so anything building a link back out can reproduce it without
+    // re-parsing), and the proof that this pair came from here, so the second pass over the
+    // rewritten path keeps it instead of mistaking it for something a caller sent.
+    await setProvenClan(downstream, slug);
+    await setPath(downstream, url.pathname, request.nextUrl.search);
     return NextResponse.rewrite(url, { request: { headers: downstream } });
   }
 
@@ -300,9 +310,8 @@ export async function middleware(request: NextRequest) {
   // editorScope field. Middleware here is only the coarse gate.
   // `downstream` above, not a fresh copy of the request: a fresh copy would carry the caller's
   // own x-anvil-clan-slug straight back in, which is the whole bug.
-  downstream.set('x-anvil-pathname', pathname);
-  // The query, for the same reason — a page redirecting a clanless address keeps ?invite=… intact.
-  downstream.set('x-anvil-search', request.nextUrl.search);
+  // The query too — a page redirecting a clanless address keeps ?invite=… intact.
+  await setPath(downstream, pathname, request.nextUrl.search);
   return NextResponse.next({ request: { headers: downstream } });
 }
 
@@ -312,5 +321,20 @@ export const config = {
   // narrow list of gated prefixes this used to carry would miss both.
   // `/img/` is the cached game art (app/img/*): public, clanless, and never under a clan prefix, so
   // it skips this entirely — no auth, no clan rewrite, no legacy-host redirect hop.
-  matcher: ['/((?!_next/static|_next/image|img/|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|webmanifest)$).*)'],
+  //
+  // The file-extension exclusion is for public/ files, but it matches real routes too:
+  // `/admin/events/5.png` routes to admin/events/[eventId]. So every prefix whose pages decide access
+  // or clan from what middleware forwards is listed again in full; Next ORs the entries. Readers
+  // also check lib/requestHeaderProof, so a path this still misses is "unknown", never "trusted".
+  matcher: [
+    '/((?!_next/static|_next/image|img/|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|webmanifest)$).*)',
+    '/admin/:path*',
+    '/staff/:path*',
+    '/team/:path*',
+    '/captain/:path*',
+    '/player/:path*',
+    '/events/:path*',
+    '/c/:path*',
+    '/api/:path*',
+  ],
 };
