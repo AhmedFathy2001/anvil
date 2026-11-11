@@ -45,10 +45,18 @@ export const link = (s: string, on: Action, tip?: string): Node => text(s, GOLD,
 export const WARM = '#ffb347' as const;
 export const FLAME = '#ff8a3d' as const;
 export const HOT = '#ff5a36' as const;
+/** The same three, dimmed, for bars: a full-strength strip under every row glares on the dark panel. */
+export const BAR_WARM = '#8a6a3a' as const;
+export const BAR_FLAME = '#9a5a32' as const;
+export const BAR_HOT = '#a04632' as const;
+export const BAR_BLUE = '#3f6b94' as const;
+/** A streak bar's colour by length. */
+export const streakBar = (weeks: number): `#${string}` => (weeks >= 8 ? BAR_HOT : weeks >= 4 ? BAR_FLAME : BAR_WARM);
 
 /** A weekly activity streak as a chip that heats up with length. */
 export function streakChip(weeks: number): Node {
-  const [bg, ink]: [`#${string}`, `#${string}`] = weeks >= 8 ? [HOT, '#ffffff'] : weeks >= 4 ? [FLAME, '#1b1b1b'] : [WARM, '#1b1b1b'];
+  // A dark tint with the heat as the ink: it still reads hotter with length without a solid block.
+  const [bg, ink]: [`#${string}`, `#${string}`] = weeks >= 8 ? ['#4a1d14', HOT] : weeks >= 4 ? ['#422513', FLAME] : ['#3b2c16', WARM];
   return text(`${weeks} wk`, ink, { chip: bg, font: 'small', tip: `${weeks}-week activity streak` });
 }
 const chevron = () => icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT });
