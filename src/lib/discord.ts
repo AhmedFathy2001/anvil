@@ -239,10 +239,15 @@ export async function deliverWebhook(
   );
 }
 
-function jsonInit(payload: DiscordWebhookPayload): () => RequestInit {
+export function jsonInit(payload: DiscordWebhookPayload): () => RequestInit {
   // Brand every embed here rather than in each builder: this is the single JSON exit to Discord,
   // so a post added later can't forget the footer.
-  const body = JSON.stringify(stampEmbeds(payload));
+  // PINGS ARE OPT-IN, here for the same reason. Content can carry member-typed text (a coffer
+  // donation's note went straight into cofferLine), and Discord's default with no allowed_mentions
+  // is to parse everything — a note of `@everyone` pinged the whole channel. A post that means to
+  // ping names exactly whom in its own allowed_mentions (pingFor, memberPing, the user mention).
+  const safe: DiscordWebhookPayload = payload.allowed_mentions ? payload : { ...payload, allowed_mentions: { parse: [] } };
+  const body = JSON.stringify(stampEmbeds(safe));
   return () => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 }
 

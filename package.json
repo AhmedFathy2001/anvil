@@ -23,6 +23,8 @@
     "db:studio": "drizzle-kit studio",
     "test": "node scripts/test-all.mjs",
     "seo:indexnow": "node scripts/indexnow.mjs",
+    "test:rolesafety": "npx tsx --test tests/discord-role-safety.test.ts",
+    "test:discordnoping": "npx tsx --test tests/discord-no-ping-default.test.ts",
     "test:balance": "npx tsx --test tests/balance-effort.test.ts",
     "test:deathsource": "npx tsx --test tests/death-source.test.ts tests/lab-feed.test.ts",
     "test:pluginfacts": "npx tsx --test tests/plugin-facts.test.ts",

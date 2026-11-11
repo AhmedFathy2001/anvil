@@ -4,6 +4,7 @@
 
 const bit = (position: number) => BigInt(1) << BigInt(position);
 
+// Positions from Discord's permission table (discord.com/developers/docs/topics/permissions).
 const DANGEROUS_ROLE_PERMISSIONS =
   bit(1) | // Kick Members
   bit(2) | // Ban Members
@@ -13,10 +14,14 @@ const DANGEROUS_ROLE_PERMISSIONS =
   bit(7) | // View Audit Log
   bit(13) | // Manage Messages
   bit(17) | // Mention @everyone / @here / all roles
+  bit(22) | // Mute Members
+  bit(23) | // Deafen Members
+  bit(24) | // Move Members
   bit(27) | // Manage Nicknames
   bit(28) | // Manage Roles
   bit(29) | // Manage Webhooks
-  bit(32) | // Manage Events
+  bit(30) | // Manage Expressions (emoji, stickers, soundboard)
+  bit(33) | // Manage Events (was listed as 32, which is Request to Speak)
   bit(34) | // Manage Threads
   bit(40); // Moderate Members
 

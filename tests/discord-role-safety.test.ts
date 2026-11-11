@@ -21,6 +21,14 @@ test('automated role assignment rejects privileged, managed, everyone and malfor
   assert.equal(isSafeAutomatedRole({ id: 'broken', permissions: 'not-a-number' }, 'guild'), false);
 });
 
+test('the dangerous list uses Discord\'s real bit positions', () => {
+  const role = (p: string) => isSafeAutomatedRole({ id: 'r', permissions: p }, 'guild');
+  assert.equal(role(bit(33)), false, 'Manage Events');
+  assert.equal(role(bit(32)), true, 'Request to Speak is harmless');
+  for (const b of [22, 23, 24, 30]) assert.equal(role(bit(b)), false, `bit ${b}`);
+  assert.equal(role(((BigInt(1) << BigInt(10)) | (BigInt(1) << BigInt(11))).toString()), true, 'View Channel + Send Messages');
+});
+
 test('guild binding requires Discord ownership, Administrator, or Manage Server', async () => {
   const realFetch = globalThis.fetch;
   const realDatabaseUrl = process.env.DATABASE_URL;

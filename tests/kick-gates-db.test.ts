@@ -32,6 +32,7 @@ const net = {
   unsubscribes: [] as string[],
   chats: [] as { auth: string; body: Record<string, unknown> }[],
   botRefreshes: 0,
+  revokes: [] as string[],
 };
 
 const realFetch = globalThis.fetch;
@@ -41,6 +42,10 @@ function reply(body: unknown, status = 200): Response {
 globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
   const u = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
   const auth = new Headers(init?.headers).get('authorization') ?? '';
+  if (u.hostname === 'id.kick.com' && u.pathname === '/oauth/revoke') {
+    net.revokes.push(u.searchParams.get('token_hint_type') ?? '');
+    return reply({});
+  }
   if (u.hostname === 'id.kick.com' && u.pathname === '/oauth/token') {
     const form = new URLSearchParams(String(init?.body));
     if (form.get('grant_type') === 'client_credentials') return reply({ access_token: 'app-token', expires_in: 3600 });
@@ -447,6 +452,9 @@ test('disconnecting drops the channel, its facts and its webhook subscriptions',
   assert.equal(await K.hostKickChannel(spaceId), null);
   assert.equal(await K.kickFactsFor(BROADCASTER, '7001'), null);
   assert.deepEqual(net.unsubscribes, ['sub-1']);
+  // …and the grant is revoked at Kick, both tokens (best-effort, so give the fire-and-forget a tick).
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(net.revokes.sort(), ['access_token', 'refresh_token']);
   // Kick-gated events now tell viewers it is the host's move.
   const ev = await gatedEvent('After Disconnect', { anyOf: [{ kind: 'kick-follow' }] });
   const v = await person('After');
