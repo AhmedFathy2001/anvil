@@ -8,8 +8,7 @@ import { verifyAdmin } from '@/lib/auth';
 import {
   autoEnrollActivePluginMembers,
   listEligiblePluginMembers,
-  type EnrollPlacement,
-} from '@/lib/enroll';
+  type EnrollPlacement, withinAccountCap } from '@/lib/enroll';
 import { assertEventEditable } from '@/lib/eventLock';
 
 const PLACEMENTS: EnrollPlacement[] = ['one_team', 'draft_pool', 'individual'];
@@ -32,7 +31,7 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }
   const [eligible, ev] = await Promise.all([
-    listEligiblePluginMembers(id),
+    listEligiblePluginMembers(id).then((list) => withinAccountCap(id, list)),
     db.query.events.findFirst({ where: eq(events.id, id), columns: { autoEnroll: true } }),
   ]);
   return NextResponse.json({
