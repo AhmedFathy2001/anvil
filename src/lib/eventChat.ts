@@ -331,7 +331,7 @@ async function rowsFor(
       mine: viewer?.userId === l.userId,
       role: l.fromStaff ? (hosts.get(l.userId) ?? 'mod') : null,
       team: team ? { name: team.name, color: team.color } : null,
-      ...(ink ? { whoColor: ink.color as Color, ...(ink.grad ? { grad: ink.grad as `#${string}`[], ...(ink.move ? { move: true } : {}) } : {}) } : {}),
+      ...(ink ? { whoColor: ink.color as Color, whoGlyph: s.tenure.glyph, ...(ink.grad ? { grad: ink.grad as `#${string}`[], ...(ink.move ? { move: true } : {}) } : {}) } : {}),
       modActions: canMod(l.userId) ? { del: modAct(eventId, l.id, 'chat-del'), mute: modAct(eventId, l.id, 'chat-mute') } : null,
     };
     return chatRow({ id: l.id, rsn: l.rsn, body: l.body, createdAt: l.createdAt }, o);
