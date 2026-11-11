@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import {
@@ -227,44 +228,7 @@ export default function EventDiscordInventory({ eventId }: { eventId: number }) 
         {inv.teams.length === 0 ? (
           <p className="text-text-muted">No teams yet.</p>
         ) : (
-          <ul className="space-y-2">
-            {inv.teams.map((t) => (
-              <li key={t.teamId} className="rounded-lg border border-card-border-soft">
-                <div className="flex flex-wrap items-center gap-2 border-b border-card-border-soft px-3 py-2">
-                  <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.color ?? 'var(--color-gold)' }} />
-                  <span className="font-semibold">{t.name}</span>
-                  <span className="text-[12px] text-text-muted">
-                    {t.players} player{t.players === 1 ? '' : 's'}
-                  </span>
-                </div>
-                <ul className="divide-y divide-card-border-soft">
-                  {(['role', 'text', 'voice'] as const).map((part) => {
-                    const item = t[part];
-                    const shown = item.name ? (part === 'role' ? `@${item.name}` : part === 'text' ? `#${item.name}` : item.name) : null;
-                    return (
-                      <li key={part} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-                        <span className="min-w-0 flex-[1_1_200px]">
-                          {PART_LABEL[part]}
-                          {shown && <span className="text-text-muted"> · {shown}</span>}
-                        </span>
-                        <Pill {...STATUS[item.status]} />
-                        {canManage && item.id && (
-                          <button
-                            type="button"
-                            disabled={anyBusy}
-                            onClick={() => void deleteOne(t.name, part, t.teamId, item)}
-                            className="min-h-8 rounded-lg border border-card-border px-2.5 text-[12px] text-text-muted hover:border-accent-red/50 hover:text-accent-red disabled:opacity-50"
-                          >
-                            {busy === `del-${t.teamId}-${part}` ? 'Deleting…' : 'Delete'}
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            ))}
-          </ul>
+          <TeamInventory teams={inv.teams} canManage={canManage} anyBusy={anyBusy} busy={busy} onDelete={deleteOne} />
         )}
         <p className="text-[12px] text-text-muted">
           Only what Anvil made for this event is listed or deleted. “Bot can’t see it” usually means a private channel made before the bot
@@ -272,5 +236,130 @@ export default function EventDiscordInventory({ eventId }: { eventId: number }) 
         </p>
       </div>
     </Section>
+  );
+}
+
+type InvTeam = Inventory['teams'][number];
+const PARTS = ['role', 'text', 'voice'] as const;
+
+/** A team whose role or channels are anything but present (or never made): what a host comes here to fix. */
+const troubled = (t: InvTeam) => PARTS.some((p) => t[p].status !== 'exists' && t[p].status !== 'none');
+
+/**
+ * One compact row per team (role · text · voice), searchable, with a count of each state on top. A solo
+ * board can have hundreds of teams: as cards (three rows each) the tab ran thousands of pixels. When
+ * nothing was ever made for any team it says so in a line; past a dozen teams it opens on the ones
+ * that need attention; the list scrolls in its own box.
+ */
+function TeamInventory({
+  teams,
+  canManage,
+  anyBusy,
+  busy,
+  onDelete,
+}: {
+  teams: InvTeam[];
+  canManage: boolean;
+  anyBusy: boolean;
+  busy: string | null;
+  onDelete: (teamName: string, part: Part, teamId: number, item: InventoryItem) => void | Promise<void>;
+}) {
+  const [q, setQ] = useState('');
+  const [onlyTrouble, setOnlyTrouble] = useState(teams.length > 12 && teams.some(troubled));
+  const [open, setOpen] = useState(false);
+  const counts = new Map<InventoryStatus, number>();
+  for (const t of teams) for (const p of PARTS) counts.set(t[p].status, (counts.get(t[p].status) ?? 0) + 1);
+  const nothingMade = teams.every((t) => PARTS.every((p) => t[p].status === 'none'));
+  if (nothingMade && !open) {
+    return (
+      <p className="text-[13px] text-text-muted">
+        No team roles or channels made for {teams.length} team{teams.length === 1 ? '' : 's'}.{' '}
+        <button type="button" onClick={() => setOpen(true)} className="text-gold hover:underline">
+          Show teams
+        </button>
+      </p>
+    );
+  }
+  const needle = q.trim().toLowerCase();
+  const shown = teams.filter((t) => (!onlyTrouble || troubled(t)) && (!needle || t.name.toLowerCase().includes(needle)));
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
+        <span className="font-medium text-foreground">{teams.length} team{teams.length === 1 ? '' : 's'}</span>
+        {[...counts].map(([st, n]) => (
+          <Pill key={st} label={`${n} ${STATUS[st].label.toLowerCase()}`} cls={STATUS[st].cls} />
+        ))}
+      </div>
+      {teams.length > 8 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Find a team…"
+            aria-label="Find a team"
+            className="min-h-9 flex-1 rounded-lg border border-card-border bg-brown-dark px-3 text-[13px] focus:border-gold focus:outline-none"
+          />
+          <button
+            type="button"
+            aria-pressed={onlyTrouble}
+            onClick={() => setOnlyTrouble((v) => !v)}
+            className={`min-h-9 rounded-full border px-3 text-[12px] ${onlyTrouble ? 'border-gold/60 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
+          >
+            Only problems
+          </button>
+        </div>
+      )}
+      {shown.length === 0 ? (
+        <p className="text-[12px] text-text-muted">{onlyTrouble && !needle ? 'Every team’s role and channels are fine.' : 'No team matches.'}</p>
+      ) : (
+        <div className="max-h-[26rem] overflow-y-auto rounded-lg border border-card-border-soft">
+          <table className="w-full text-[12px]">
+            <thead className="sticky top-0 bg-card-bg text-left text-[11px] uppercase tracking-wide text-text-muted">
+              <tr>
+                <th className="px-3 py-2 font-medium">Team</th>
+                {PARTS.map((p) => (
+                  <th key={p} className="px-2 py-2 font-medium">{PART_LABEL[p]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-card-border-soft">
+              {shown.map((t) => (
+                <tr key={t.teamId}>
+                  <td className="px-3 py-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: t.color ?? 'var(--color-gold)' }} />
+                      <span className="truncate font-medium">{t.name}</span>
+                      <span className="shrink-0 text-text-muted">{t.players}</span>
+                    </span>
+                  </td>
+                  {PARTS.map((part) => {
+                    const item = t[part];
+                    const name = item.name ? (part === 'role' ? `@${item.name}` : part === 'text' ? `#${item.name}` : item.name) : null;
+                    return (
+                      <td key={part} className="px-2 py-2" title={name ?? undefined}>
+                        <span className="flex items-center gap-1.5">
+                          <Pill {...STATUS[item.status]} />
+                          {canManage && item.id && (
+                            <button
+                              type="button"
+                              disabled={anyBusy}
+                              onClick={() => void onDelete(t.name, part, t.teamId, item)}
+                              aria-label={`Delete ${t.name}'s ${PART_LABEL[part].toLowerCase()}`}
+                              className="rounded px-1 text-text-muted hover:text-accent-red disabled:opacity-50"
+                            >
+                              {busy === `del-${t.teamId}-${part}` ? '…' : '✕'}
+                            </button>
+                          )}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
