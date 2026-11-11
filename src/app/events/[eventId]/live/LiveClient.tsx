@@ -520,7 +520,7 @@ function Chip({ label, on, onClick }: { label: string; on: boolean; onClick: () 
 function InkName({ name, ink, color, className = '' }: { name: string; ink: LiveInk | null; color?: string | null; className?: string }) {
   // A Supporter's tenure badge before the name, in their colour (the panel's own art).
   const step = ink?.glyph ? TENURE_LADDER.find((t) => t.glyph === ink.glyph)?.id : undefined;
-  const badge = step ? <TenureBadge step={step} color={ink?.grad?.[0] ?? ink?.color ?? '#ffd35c'} decorative /> : null;
+  const badge = step ? <TenureBadge step={step} color={ink?.grad?.[0] ?? ink?.color ?? '#ffd35c'} stops={ink?.grad ?? null} decorative /> : null;
   if (ink?.grad && ink.grad.length >= 2) {
     const stops = ink.move ? [...ink.grad, ink.grad[0]] : ink.grad;
     return (
