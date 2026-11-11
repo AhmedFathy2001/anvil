@@ -95,6 +95,7 @@ const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
  * announcements channel filling with who donated what.
  */
 const COFFER_WEBHOOK_KEY = 'discord_webhook_coffer';
+const CHALLENGES_WEBHOOK_KEY = 'discord_webhook_challenges';
 // Clan events (lib/clanEvents): a mass, a hangout. Falls back to the main channel.
 const CLAN_EVENTS_WEBHOOK_KEY = 'discord_webhook_clan_events';
 // Roster-sync summaries, falling back to the main channel.
@@ -716,6 +717,19 @@ export async function sendEventBingoWebhook(
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'weekly')) return false;
   const webhookUrl = await resolveWebhookTarget(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload, clanId);
+}
+
+/** A person's own webhook (lib/emissionRouting personalWebhookTargets): no clan identity, no fallback. */
+export async function sendPersonalWebhook(url: string, payload: DiscordWebhookPayload): Promise<boolean> {
+  return sendToWebhook(url, payload);
+}
+
+/** Members' head-to-heads (lib/h2h): its own channel only, so a clan that never set one hears nothing. */
+export async function sendChallengesWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'challenges')) return false;
+  const webhookUrl = await resolveWebhookTarget(clanId, CHALLENGES_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }

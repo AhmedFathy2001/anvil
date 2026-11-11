@@ -114,6 +114,13 @@ export const WEBHOOK_SECTIONS = [
         label: 'Coffer channel (optional)',
         help: "Every movement of the clan's gp — donations reported and approved, prizes owed and paid, adjustments — each with the balance it leaves behind. Unlike the channels above this one has no fallback: leave it blank and nothing about the coffer is posted anywhere.",
       },
+      // Opt-in like the coffer: a clan that never set it hears nothing about members' challenges.
+      {
+        kind: 'webhook',
+        key: 'discord_webhook_challenges',
+        label: 'Challenges channel (optional)',
+        help: 'Head-to-head challenges between your members and players from other clans: a post when one starts and one with the winner. Only challenges both players chose to show publicly. No fallback: leave it blank and nothing is posted.',
+      },
     ],
   },
   {
