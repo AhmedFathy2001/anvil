@@ -1,8 +1,8 @@
 /**
  * Tile race "Hide tiles past the next step" (events.rules.raceHideAhead, lib/eventRules).
  *
- * With it on, a team sees the tiles it finished and every tile on the step it moves to next (the
- * tiles it can play now, and any other tile on that step or an earlier one). Every tile further along stays on the map as a locked "?" (same slot, same roads, so
+ * With it on, a team sees only its own road: the tiles it walked and finished, and the tiles it can
+ * play now. Other roads, even on the same step, stay hidden. Every tile further along stays on the map as a locked "?" (same slot, same roads, so
  * the route never shifts) with nothing else: no name, icon, description, items or tracking. What
  * "next" means follows the team's own route (lib/raceRoutes teamRoute), so a fork, "Choose and lock
  * in" and "Roads stay open" all come out right without a rule of their own.
@@ -21,14 +21,15 @@ import type { RaceGraph, TeamRoute } from '@/lib/raceRoutes';
 export const HIDDEN_RACE_TILE_LABEL = 'Locked tile';
 
 /** The tiles one team can see: finished ones and everything up to the step it plays next. Null = all of them. */
-export function raceTeamSeen(graph: RaceGraph, route: TeamRoute): Set<number> | null {
+// `_graph` stays in the signature: callers and tests pass it, and a later rule may need the map.
+export function raceTeamSeen(_graph: RaceGraph, route: TeamRoute): Set<number> | null {
   if (route.finished) return null;
-  // The step the team moves to next. Everything at or before it is in view (earlier forks
-  // included, so a passed-up road and "Roads stay open" both read naturally).
-  const front = route.path.length;
-  const seen = new Set<number>();
-  for (const n of graph.nodes) if (n.step <= front) seen.add(n.id);
+  // Only the team's own road: the tiles it walked, finished, and can move to now (on "Roads stay
+  // open" that includes earlier forks it can still play). Every other tile, even on the same step
+  // or a road it passed up, stays a "?", so a hidden race never shows what another road holds.
+  const seen = new Set<number>(route.path);
   for (const id of route.open) seen.add(id);
+  if (route.picked != null) seen.add(route.picked);
   for (const id of route.pickFrom) seen.add(id);
   for (const [id, st] of route.state) if (st === 'done') seen.add(id);
   return seen;
