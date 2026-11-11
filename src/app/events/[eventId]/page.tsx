@@ -465,6 +465,8 @@ export default async function EventScoreboardPage({
     // Behind the curtain: only the viewer's own team's moments (a teamless moment names no side
     // and can't be placed, so it waits too).
     .filter((moment) => canSeeTeamProgress(standingsScope, moment.teamId))).slice(0, 12);
+  // Their Supporter looks: colours and the tenure badge before the name. Decoration: a failed read is plain names.
+  const momentLooks = eventMoments.length ? await supporterLooksByName([...new Set(eventMoments.map((m) => m.rsn))]).catch(() => ({})) : {};
   // Stream highlights (lib/highlights): a streamed board's clips and stream timestamps, under the same
   // curtain as the feed above. The page's own gate already decided the event is this viewer's to see.
   const streamHighlights = creatorEvent
@@ -971,7 +973,7 @@ export default async function EventScoreboardPage({
         )}
         <EventFirsts firsts={firsts} />
         <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
-        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} />
+        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
           curtain={curtain}

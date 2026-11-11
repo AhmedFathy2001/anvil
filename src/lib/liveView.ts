@@ -9,6 +9,8 @@ export interface LiveInk {
   color: string;
   grad?: string[];
   move?: boolean;
+  /** Their tenure badge (the panel's glyph, 'tenure-1'…'tenure-6'), drawn before the name. */
+  glyph?: string;
 }
 
 /** A row's picture: an image, or the panel's glyph in its colour. */
@@ -72,10 +74,16 @@ export function isoStamp(stamp: string): string {
   return `${stamp.replace(' ', 'T')}Z`;
 }
 
-export function inkOf(ink: { color: string; grad?: readonly string[]; move?: boolean } | null | undefined): LiveInk | null {
+const GLYPH = /^tenure-[1-6]$/;
+
+export function inkOf(ink: { color: string; grad?: readonly string[]; move?: boolean; glyph?: string | null } | null | undefined): LiveInk | null {
   if (!ink || !HEX.test(ink.color)) return null;
   const grad = (ink.grad ?? []).filter((c) => HEX.test(c));
-  return { color: ink.color, ...(grad.length >= 2 ? { grad, ...(ink.move ? { move: true } : {}) } : {}) };
+  return {
+    color: ink.color,
+    ...(grad.length >= 2 ? { grad, ...(ink.move ? { move: true } : {}) } : {}),
+    ...(ink.glyph && GLYPH.test(ink.glyph) ? { glyph: ink.glyph } : {}),
+  };
 }
 
 /** The channel switch's segment for a channel: 'team' for any team's. */

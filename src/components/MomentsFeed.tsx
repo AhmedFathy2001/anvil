@@ -4,6 +4,8 @@ import type { MomentRow } from '@/lib/momentsStore';
 import { runTooltip, type WithRun } from '@/lib/feedRuns';
 import { MomentStreamLinks } from '@/components/HighlightsStrip';
 import type { SiteReactions } from '@/lib/siteReactions';
+import SupporterName from '@/components/SupporterName';
+import type { SupporterLook } from '@/lib/supporterStyle';
 import MomentReactions from './MomentReactions';
 import MomentRows from './MomentRows';
 
@@ -31,7 +33,10 @@ export default function MomentsFeed({
   streamLinks,
   reactions,
   boosters,
+  looks,
 }: {
+  /** Names' Supporter looks (lib/supporter supporterLooksByName): their colours and tenure badge. */
+  looks?: Record<string, SupporterLook>;
   /** This clan's boosting characters by name (lib/clanBoosts boosterMarks): the Booster mark. */
   boosters?: Record<string, number>;
   /** Back-to-back repeats already collapsed (lib/feedRuns collapseMomentRuns): a run reads "×N". */
@@ -73,7 +78,18 @@ export default function MomentsFeed({
                   {MOMENT_EMOJI[m.kind] ?? '⭐'}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-text-muted" title={runTooltip(m.run, m.occurredAt)}>
-                  <b className="font-semibold text-foreground">{m.rsn}</b>
+                  {looks?.[m.rsn] ? (
+                    <SupporterName
+                      name={m.rsn}
+                      tier={looks[m.rsn].tier}
+                      style={looks[m.rsn].style}
+                      tenure={looks[m.rsn].tenure ?? null}
+                      plain
+                      className="align-bottom font-semibold"
+                    />
+                  ) : (
+                    <b className="font-semibold text-foreground">{m.rsn}</b>
+                  )}
                   {boosters?.[m.rsn] ? <span className="mx-1 inline-flex align-[-2px]"><BoosterMark count={boosters[m.rsn]} /></span> : ' '}
                   {momentSentence(m)}
                 </span>

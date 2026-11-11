@@ -141,3 +141,12 @@ test('helpers: colours, stamps, counts, channel keys, times', () => {
   assert.match(clockLabel(new Date(noon - 3 * 86_400_000).toISOString(), noon), /·/, 'before today: the day too');
   assert.equal(clockLabel('not a time'), '');
 });
+
+test('a Supporter\'s tenure badge rides with their name on the live page, and nothing else does', () => {
+  const line = liveChatLine(chatRow({ id: 9, rsn: 'dead person', body: 'hi', createdAt: '2026-11-11 00:00:00' }, { whoColor: '#4dd3ff', whoGlyph: 'tenure-4' }))!;
+  assert.equal(line.ink?.glyph, 'tenure-4');
+  const plain = liveChatLine(chatRow({ id: 10, rsn: 'Drenvox', body: 'hi', createdAt: '2026-11-11 00:00:00' }, {}))!;
+  assert.equal(plain.ink, null);
+  const row = liveMomentRow({ id: 1, kind: 'pet', rsn: 'dead person', itemName: 'Pet snakeling', occurredAt: '2026-11-11 00:00:00' } as MomentLike, { ink: { color: '#4dd3ff', glyph: '<script>' } });
+  assert.equal(row.ink?.glyph, undefined, 'only a real tenure glyph passes');
+});
