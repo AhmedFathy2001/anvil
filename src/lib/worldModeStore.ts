@@ -10,6 +10,7 @@ import {
   modeLevelRules,
   storedModeDropFloor,
   storedModeDropValue,
+  storedModeDropBoth,
   storedModeLevels,
   type ModeFilters,
   type PluginModeThresholds,
@@ -25,6 +26,7 @@ import {
   modeIconKey,
   modeDropFloorKey,
   modeDropValueKey,
+  modeDropBothKey,
   modeKindsOffKey,
   modeLevelsKey,
   modeWebhookKey,
@@ -77,10 +79,12 @@ export async function getModeFilters(clanId: number, modeKey: string): Promise<M
   const floorKey = modeDropFloorKey(modeKey);
   const valueKey = modeDropValueKey(modeKey);
   const levelsKey = modeLevelsKey(modeKey);
-  const map = await getSettingMap(clanId, [floorKey, valueKey, levelsKey]);
+  const bothKey = modeDropBothKey(modeKey);
+  const map = await getSettingMap(clanId, [floorKey, valueKey, levelsKey, bothKey]);
   return {
     dropFloor: storedModeDropFloor(map.get(floorKey)),
     dropMinValue: storedModeDropValue(map.get(valueKey)),
+    dropBoth: storedModeDropBoth(map.get(bothKey)),
     levels: storedModeLevels(map.get(levelsKey)),
   };
 }

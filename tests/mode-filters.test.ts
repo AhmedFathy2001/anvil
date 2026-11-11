@@ -17,6 +17,7 @@ import {
   parseModeDropValue,
   parseModeLevels,
   pluginPostsModeLevels,
+  storedModeDropBoth,
   storedModeDropFloor,
   storedModeDropValue,
   storedModeLevels,
@@ -254,4 +255,22 @@ test('level union: never misses a level any clan wants', () => {
 test('mode-line level-ups stand down for a plugin that posts mode level-ups itself', () => {
   for (const v of ['1.15.1', '1.15.2', '1.16.0', '2.0', '1.15.1-dev']) assert.equal(pluginPostsModeLevels(v), true, v);
   for (const v of ['1.15.0', '1.14.9', '0.9', null, undefined, '', 'dev']) assert.equal(pluginPostsModeLevels(v), false, String(v));
+});
+
+test('both bars: a mode drop must be rare AND worth enough; a blank bar is not asked for; always-post still posts', () => {
+  const rich = { name: 'Thing', qty: 1, value: 200_000 };
+  const rareCheap = { items: [item], dropRate: 1 / 500 };
+  const rareRich = { items: [rich], dropRate: 1 / 500 };
+  const commonRich = { items: [rich], dropRate: 1 / 10 };
+  const either = filters({ dropFloor: 128, dropMinValue: 150_000 });
+  const both = filters({ dropFloor: 128, dropMinValue: 150_000, dropBoth: true });
+  assert.equal(modeDropAllows(rareCheap, either), true);
+  assert.equal(modeDropAllows(commonRich, either), true);
+  assert.equal(modeDropAllows(rareCheap, both), false);
+  assert.equal(modeDropAllows(commonRich, both), false);
+  assert.equal(modeDropAllows(rareRich, both), true);
+  assert.equal(modeDropAllows(rareCheap, filters({ dropFloor: 128, dropBoth: true })), true, 'value left blank');
+  assert.equal(modeDropAllows({ items: [item], notable: 'loot' }, both), true);
+  assert.equal(storedModeDropBoth('and'), true);
+  assert.equal(storedModeDropBoth(null), false);
 });

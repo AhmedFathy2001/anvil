@@ -17,6 +17,8 @@ import {
   isModeKey,
   modeDropFloorKey,
   modeDropValueKey,
+  modeEventKinds,
+  modeDropBothKey,
   modeFeedId,
   modeKindsOffKey,
   modeLevelsKey,
@@ -35,6 +37,7 @@ import {
   parseModeLevels,
   storedModeDropFloor,
   storedModeDropValue,
+  storedModeDropBoth,
   storedModeLevels,
 } from '@/lib/modeFilters';
 
@@ -83,6 +86,7 @@ async function view(clanId: number) {
     modeKindsOffKey(m.key),
     modeDropFloorKey(m.key),
     modeDropValueKey(m.key),
+    modeDropBothKey(m.key),
     modeLevelsKey(m.key),
   ]);
   const allKeys = [...FEED_KEYS, ...modeHookKeys];
@@ -119,6 +123,8 @@ async function view(clanId: number) {
         ...m,
         id: modeFeedId(m.key),
         hookKey: modeWebhookKey(m.key),
+        // The mode's own event kinds only (lib/worldModes): no relics on a Hardcore world.
+        events: modeEventKinds(m.key),
         off: modesOff.has(m.key),
         ownChannelIgnored: m.key === 'leagues' && legacyLeaguesOff,
         kindsOff: modeKindsOff(map.has(modeKindsOffKey(m.key)) ? map.get(modeKindsOffKey(m.key)) : undefined).filter((k) =>
@@ -127,6 +133,7 @@ async function view(clanId: number) {
         // Its own thresholds (lib/modeFilters); null drop halves follow the main game, null levels = none.
         dropFloor: storedModeDropFloor(map.get(modeDropFloorKey(m.key))),
         dropMinValue: storedModeDropValue(map.get(modeDropValueKey(m.key))),
+        dropBoth: storedModeDropBoth(map.get(modeDropBothKey(m.key))),
         levels: storedModeLevels(map.get(modeLevelsKey(m.key))),
       })),
     },
@@ -208,6 +215,7 @@ export async function PUT(request: Request) {
       }
       if ('dropFloor' in body) await setSetting(clan.id, modeDropFloorKey(modeKey), floor == null ? null : String(floor));
       if ('dropMinValue' in body) await setSetting(clan.id, modeDropValueKey(modeKey), value == null ? null : String(value));
+      if ('dropBoth' in body) await setSetting(clan.id, modeDropBothKey(modeKey), body.dropBoth === true ? 'and' : null);
       return NextResponse.json(await view(clan.id));
     }
     if ('levels' in body) {
