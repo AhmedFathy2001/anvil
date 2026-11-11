@@ -46,9 +46,9 @@ export async function generateMetadata(): Promise<Metadata> {
 // Roster and stats both move on the sweep, so there's nothing worth caching between requests.
 export const dynamic = 'force-dynamic';
 
-export default async function MembersPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ sort?: string; tab?: string }> }) {
   const clan = await requireClan();
-  const requestedSort = (await searchParams).sort;
+  const { sort: requestedSort, tab: requestedTab } = await searchParams;
   const initialSort = requestedSort === 'xp' ? 'xp' as const : requestedSort === 'streak' ? 'streak' as const : 'week' as const;
   // A creator space has no roster (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS): its home instead.
   await creatorPublicAway('/members', clan);
@@ -109,6 +109,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       </p>
 
       <MembersTabs
+        initialTab={requestedTab}
         initialSort={initialSort}
         streaks={streaks}
         members={members}
