@@ -163,10 +163,20 @@ done
 
 # Silent: no note to ship, so the version is the newest v* tag's next patch (1.20.0 -> 1.20.1). Never
 # an old untagged note: that once tagged new code as v1.19.1, moving self-hosters' :1.19 image.
+# The site reads its own version off package.json (lib/serverInfo APP_VERSION, the footer, /api/version),
+# and production runs the image beta built, so the version has to be in beta's package.json BEFORE
+# the promote: bump it in the batch that ships, and this tags exactly that.
+PKG="$(git show "$BETA:package.json" | sed -n 's/^ *"version": *"\([0-9]*\.[0-9]*\.[0-9]*\)".*/\1/p' | head -1)"
 if [ -n "$SILENT" ]; then
   NEWEST="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -t. -k1,1nr -k2,2nr -k3,3nr | head -1)"
   [ -n "$NEWEST" ] || { echo "Refusing: no v* tag to count a silent patch from." >&2; exit 1; }
-  RELEASE="$(echo "$NEWEST" | awk -F. '{print $1"."$2"."$3+1}')"
+  RELEASE="$PKG"
+  if [ -z "$RELEASE" ] || git rev-parse -q --verify "refs/tags/v$RELEASE" >/dev/null \
+    || [ "$(printf '%s\n%s\n' "$NEWEST" "$RELEASE" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)" != "$RELEASE" ]; then
+    echo "Refusing: beta's package.json says ${RELEASE:-nothing}, which isn't newer than v$NEWEST." >&2
+    echo "  Bump \"version\" in package.json on beta (e.g. $(echo "$NEWEST" | awk -F. '{print $1"."$2"."$3+1}')), let beta deploy, then promote." >&2
+    exit 1
+  fi
   echo "Silent release v$RELEASE ($(git rev-parse --short "$MAIN") -> $(git rev-parse --short "$BETA"))"
   if [ -n "$DRY" ]; then
     echo "(dry run — nothing pushed)"
@@ -176,6 +186,10 @@ else
   if [ -z "$RELEASE" ]; then
     echo "Refusing: production only ships as a release, and beta has no new release note." >&2
     echo "  Write releases/<next version>.md on beta (see releases/README.md), get it approved, then promote." >&2
+    exit 1
+  fi
+  if [ "$PKG" != "$RELEASE" ]; then
+    echo "Refusing: the release note is $RELEASE but beta's package.json says ${PKG:-nothing}. Bump it on beta first." >&2
     exit 1
   fi
 fi
