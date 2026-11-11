@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
 import type { Node } from '../src/lib/pluginUi/nodes.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('plugin-ui-views');
 
@@ -132,7 +133,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: acct.id, kind: 'member', source: 'roster' }).returning();
   await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, clanMemberId: seat.id, accountId: acct.id, name: 'Board Main' });
   const asPlayer = () =>
-    new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer ui-board-token', 'X-RSN': 'Board Main', 'x-anvil-clan-slug': 'uiboard' } });
+    new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer ui-board-token', 'X-RSN': 'Board Main', ...clanHeaders('uiboard') } });
 
   const page = await V.pluginView(asPlayer(), 'board', { event: '0', clan: 'uiboard', track: '1', pins: '' });
   assert.ok(texts(page!.ui).includes('1 tile'));
@@ -146,7 +147,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   assert.ok(texts(dropped!.ui).includes('Claim tile'));
 
   // Someone not on the board reads it, but can't claim on it.
-  const outsider = await V.pluginView(req({ 'x-anvil-clan-slug': 'uiboard' }), 'board', { event: String(ev.id) });
+  const outsider = await V.pluginView(req({ ...clanHeaders('uiboard') }), 'board', { event: String(ev.id) });
   assert.ok(texts(outsider!.ui).includes('Click for details · join this event to claim tiles.'));
 
   const teamsPage = await V.pluginView(asPlayer(), 'teams', { event: '0' });
@@ -185,7 +186,7 @@ test('a tile’s proofs: the team’s list under the tile, images only for a plu
   const [mine] = await db.insert(s.submissions).values({ tileId: vork.id, teamId: team.id, playerId: me.id, amount: 2, imageUrl: 'https://media.example/a.webp' }).returning();
   await db.insert(s.submissions).values({ tileId: vork.id, teamId: team.id, playerId: mate.id, amount: 1, imageUrl: null });
   const as = (extra: Record<string, string> = {}) =>
-    new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer ui-proofs-token', 'X-RSN': 'Proof Main', 'x-anvil-clan-slug': 'uiproofs', ...extra } });
+    new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer ui-proofs-token', 'X-RSN': 'Proof Main', ...clanHeaders('uiproofs'), ...extra } });
 
   // The tile's detail carries the slot that loads them.
   const board = await V.pluginView(as(), 'board', { event: '0', clan: 'uiproofs', tile: String(vork.id) });

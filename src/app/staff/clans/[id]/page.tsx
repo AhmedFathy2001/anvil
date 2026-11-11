@@ -14,6 +14,7 @@ import { eq } from 'drizzle-orm';
 import ClanBoostGift from './ClanBoostGift';
 import StaffTransferNow from './StaffTransferNow';
 import OwnershipTransfersClient from '../../ownership/OwnershipTransfersClient';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   if (!actor) notFound();
 
   const { id } = await params;
-  const detail = await clanDetail(parseInt(id, 10));
+  const detail = await clanDetail(idParam(id));
   if (!detail) notFound();
 
   const { clan, staff, recentEvents, openErrors } = detail;

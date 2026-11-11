@@ -4,12 +4,13 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { clanHref } from '@/lib/clanPath';
 import { requireEventForPage } from '@/lib/eventScope';
 import ProofFeedClient from './ProofFeedClient';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
 /** Admin → event → Proofs: every proof on the board, flagged or not (see ProofFeedClient). */
 export default async function EventProofsPage({ params }: { params: Promise<{ eventId: string }> }) {
-  const id = parseInt((await params).eventId, 10);
+  const id = idParam((await params).eventId);
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);
   // Same tier as removing a proof; a board-only editor or treasurer goes back to the board.

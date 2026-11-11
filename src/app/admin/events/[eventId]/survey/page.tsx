@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import SurveyClient from './SurveyClient';
 import { isEventEnded, toQuestionView } from '@/lib/survey';
 import { SURVEY_TEMPLATES } from '@/lib/surveyTemplates';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ export default async function EventSurveyPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const id = parseInt(eventId, 10);
+  const id = idParam(eventId);
 
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);

@@ -8,6 +8,7 @@ import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import ClanLink from '@/components/ClanLink';
 import { creatorAway } from '@/lib/creatorGuard';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function WeeklyLayout({
   // In-game clans only (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
   await creatorAway('/admin/events/weekly');
   const { weeklyId } = await params;
-  const id = parseInt(weeklyId, 10);
+  const id = idParam(weeklyId);
 
   // Whose competition is this? The id came from the URL.
   const clan = await requireClan();

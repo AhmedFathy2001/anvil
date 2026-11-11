@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('competition-entrants');
 
@@ -339,7 +340,7 @@ test('plugin weekly-leaderboard: a clan-vs-clan board at a public partner’s ad
     .values({ displayName: 'Hana', discordId: 'd-hana-lb', pluginTokenHash: tokenHash('tok-hana-lb'), playerId: player.Hana })
     .returning({ id: s.users.id });
   const ask = async (token?: string) => {
-    const headers: Record<string, string> = { 'x-anvil-clan-slug': 'third' };
+    const headers: Record<string, string> = { ...clanHeaders('third') };
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await GET(new Request(`https://example.test/api/plugin/weekly-leaderboard?id=${c.id}&rsn=Hana`, { headers }));
     return (await res.json()) as { competition: unknown; entries: { rsn: string }[]; entry?: unknown };
@@ -431,7 +432,7 @@ test('plugin weekly-leaderboard: a private clan’s own solo board needs a membe
     .values({ displayName: 'Tia2', discordId: 'd-tia-solo', pluginTokenHash: tokenHash('tok-tia-solo'), playerId: player.Tia })
     .returning({ id: s.users.id });
   const ask = async (token?: string) => {
-    const headers: Record<string, string> = { 'x-anvil-clan-slug': 'host' };
+    const headers: Record<string, string> = { ...clanHeaders('host') };
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await GET(new Request(`https://example.test/api/plugin/weekly-leaderboard?id=${c.id}`, { headers }));
     return (await res.json()) as { competition: unknown; total: number; entries: { rsn: string }[] };

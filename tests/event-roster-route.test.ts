@@ -7,6 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { clanHeaders } from './helpers/clanHeader.ts';
 
 const DB = useTestDatabase('event-roster-route');
 
@@ -52,7 +53,7 @@ after(async () => {
 
 const call = async (slug: string, eventId: number, qs = '') => {
   const res = await GET(
-    new Request(`https://example.test/api/plugin/event/${eventId}/roster${qs}`, { headers: { 'x-anvil-clan-slug': slug } }),
+    new Request(`https://example.test/api/plugin/event/${eventId}/roster${qs}`, { headers: { ...clanHeaders(slug) } }),
     { params: Promise.resolve({ id: String(eventId) }) },
   );
   return { status: res.status, body: res.status === 200 ? await res.json() : null, etag: res.headers.get('etag') };
@@ -83,7 +84,7 @@ test('an unchanged roster answers 304', async () => {
   const first = await call('open', openEvent);
   const res = await GET(
     new Request(`https://example.test/api/plugin/event/${openEvent}/roster`, {
-      headers: { 'x-anvil-clan-slug': 'open', 'if-none-match': first.etag! },
+      headers: { ...clanHeaders('open'), 'if-none-match': first.etag! },
     }),
     { params: Promise.resolve({ id: String(openEvent) }) },
   );

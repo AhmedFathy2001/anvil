@@ -19,6 +19,7 @@ import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { homeTitleSuffix } from '@/lib/creatorSpaces';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { canonicalPathFor, socialMetadata } from '@/lib/seo';
+import { provenPath } from '@/lib/requestHeaderProof';
 
 /**
  * Title, description, canonical and card for one section of one clan.
@@ -49,7 +50,7 @@ export async function clanSectionMetadata(opts: {
     getClanDisplayName(clan.id, clan.name),
   ]);
   const clanName = name || clan.name;
-  const pathname = opts.pathname ?? h.get('x-anvil-pathname') ?? '/';
+  const pathname = opts.pathname ?? (await provenPath(h))?.pathname ?? '/';
 
   return socialMetadata({
     // The clan home says what KIND of thing it is, because the clan's name alone does not: "The AFK
