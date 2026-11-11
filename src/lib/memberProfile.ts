@@ -1063,8 +1063,9 @@ export interface EventResult {
 }
 
 /** Formats where a points total is a meaningful thing to show. */
-function scoresPoints(format: string | null): boolean {
-  return format !== 'race';
+/** Points mean something only on a points-scored board; a race or a tile-count board shows "—". */
+function scoresPoints(format: string | null, scoringMode: string | null): boolean {
+  return format !== 'race' && scoringMode === 'points';
 }
 
 export interface WeeklyResult {
@@ -1126,6 +1127,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       name: events.name,
       endDate: events.endDate,
       format: events.format,
+      scoringMode: events.scoringMode,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
@@ -1154,6 +1156,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       name: events.name,
       endDate: events.endDate,
       format: events.format,
+      scoringMode: events.scoringMode,
     })
     .from(playerEventFacts)
     .innerJoin(events, eq(playerEventFacts.eventId, events.id))
@@ -1176,7 +1179,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       endedOn: e.endDate,
       // Race and other non-scoring formats have no points — null renders as "—" rather than a zero
       // that reads like they turned up and did nothing.
-      points: scoresPoints(e.format) ? (fact?.points ?? null) : null,
+      points: scoresPoints(e.format, e.scoringMode) ? (fact?.points ?? null) : null,
       tiles: fact?.tilesContributed ?? null,
       teamRank: fact?.teamRank ?? null,
       teamsTotal: fact?.teamsTotal ?? null,
@@ -1191,7 +1194,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       eventId: fact.eventId,
       name: fact.name,
       endedOn: fact.endDate,
-      points: scoresPoints(fact.format) ? fact.points : null,
+      points: scoresPoints(fact.format, fact.scoringMode) ? fact.points : null,
       tiles: fact.tilesContributed,
       teamRank: fact.teamRank,
       teamsTotal: fact.teamsTotal,
