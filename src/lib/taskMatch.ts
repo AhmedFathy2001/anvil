@@ -1261,8 +1261,22 @@ const SOURCE_BONUS: Partial<Record<CandidateSource, number>> = {
 };
 
 /** A library task as a candidate: fully configured, with its own points and tags. */
+/**
+ * "Players must <verb> <noun>" for a task that arrives with only a name (the library): a name that
+ * already starts with a verb lends it ("Kill Vorkath 50 times"), else the tile kind picks one, so a
+ * drop reads "Get Dragon pickaxe", never "Do Dragon pickaxe".
+ */
+const LEAD_VERBS = /^(get|obtain|kill|defeat|complete|finish|clear|beat|run|win|gain|reach|earn|catch|craft|make|loot|receive|unlock|survive|do)\s+(.+)$/i;
+export function verbPhrase(label: string, tileType: string | null | undefined): { verb: string; noun: string } {
+  const m = LEAD_VERBS.exec(label.trim());
+  if (m) return { verb: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(), noun: m[2] };
+  const t = tileType ?? '';
+  return { verb: t === 'drop' || t === 'clog' || t === 'value' ? 'Get' : 'Complete', noun: label };
+}
+
 export function libraryCandidate(t: NonNullable<MatchContext['library']>[number]): TaskCandidate {
   const how = howItCountsLine(t.config);
+  const phrase = verbPhrase(t.label, (t.config as { tileType?: string | null }).tileType);
   return {
     key: t.key,
     source: 'library',
@@ -1271,8 +1285,8 @@ export function libraryCandidate(t: NonNullable<MatchContext['library']>[number]
     titleTemplate: t.label,
     hint: how.text,
     engine: how.engine,
-    verb: 'Do',
-    noun: t.label,
+    verb: phrase.verb,
+    noun: phrase.noun,
     amountField: null,
     amount: null,
     config: t.config,
