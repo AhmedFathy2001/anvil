@@ -1,9 +1,8 @@
-import { slugIn } from '@/lib/clanSlugLookup';
+import { resolvePluginClan } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
-import { db } from '@/db';
 import { type BriefFacts, composeBrief } from '@/lib/chatBrief';
 import { getChatFeedPrefs } from '@/lib/chatFeed';
 import { effectiveBrief, effectiveLook } from '@/lib/chatLook';
@@ -101,13 +100,11 @@ export async function GET(request: Request) {
   }
 
   if (items.includes('clanEvents') && cfg?.activeClan?.slug) {
-    // clan-scope: global -- the clan this caller's own config named.
-    // The plugin sees a bare slug, and config reports a friends host as 'creator' though it sits in
-    // the clan namespace: so a 'creator' hint is tried first, then the other namespace.
-    const slug = cfg.activeClan.slug;
-    const find = (kind: 'clan' | 'creator') => db.query.clans.findFirst({ where: slugIn(slug, kind), columns: { id: true } });
-    const first = cfg.activeClan.kind === 'creator' ? 'creator' : 'clan';
-    const clan = (await find(first)) ?? (first === 'clan' ? null : await find('clan'));
+    // The tenant /config just answered for, resolved the same way from the same request and token —
+    // not re-guessed from the slug, which a clan and a creator space may share (and /config reports a
+    // friends host as 'creator', so its display kind is no namespace either).
+    const resolved = await resolvePluginClan(request, who.userId);
+    const clan = resolved && resolved.slug === cfg.activeClan.slug ? resolved : null;
     if (clan) {
       const list = await listClanEvents(clan.id, { userId: who.userId, now, withinDays: 1 });
       facts.clanEvents = list.map((e) => ({ title: e.title, startsInMin: Math.round((Date.parse(e.occurrence.start) - now) / 60_000) }));
