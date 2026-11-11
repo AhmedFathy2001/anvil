@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requireSecret } from '@/lib/env';
-import { isPlatformPath } from '@/lib/clanScopedPaths';
+import { clanBasePath, isPlatformPath, kindOfSegment, type AddressKind } from '@/lib/clanScopedPaths';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -77,8 +77,14 @@ async function verifyToken(token: string, secret: string): Promise<string | null
 const CLAN_HEADER_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 
 /** The proof that WE set this slug, on this deployment. Domain-separated from session tokens. */
-async function clanHeaderProof(slug: string): Promise<string> {
-  return hmacSign(`anvil-clan-header:${slug}`, CLAN_HEADER_SECRET);
+async function clanHeaderProof(slug: string, kind: AddressKind): Promise<string> {
+  // The kind is inside the proof: `/c/x` and `/s/x` are different tenants, so a proof for one must
+  // not vouch for a kind header swapped to the other.
+  return hmacSign(`anvil-clan-header:${kind}:${slug}`, CLAN_HEADER_SECRET);
+}
+
+function headerKind(raw: string | null): AddressKind {
+  return raw === 'creator' ? 'creator' : 'clan';
 }
 
 /**
@@ -89,15 +95,18 @@ async function clanHeaderProof(slug: string): Promise<string> {
  */
 async function stripForeignClanHeaders(request: NextRequest, downstream: Headers): Promise<void> {
   const slug = request.headers.get('x-anvil-clan-slug');
+  const kind = headerKind(request.headers.get('x-anvil-clan-kind'));
   const proof = request.headers.get('x-anvil-clan-proof');
-  const ours = !!slug && !!proof && constantTimeEqual(proof, await clanHeaderProof(slug));
+  const ours = !!slug && !!proof && constantTimeEqual(proof, await clanHeaderProof(slug, kind));
   if (ours) {
-    // Re-derive the prefix rather than trusting the one that arrived: only the slug is proven, and
-    // one signed value should not vouch for a second unsigned one travelling beside it.
-    downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
+    // Re-derive the prefix rather than trusting the one that arrived: only the slug and kind are
+    // proven, and one signed value should not vouch for a second unsigned one travelling beside it.
+    downstream.set('x-anvil-clan-kind', kind);
+    downstream.set('x-anvil-clan-prefix', clanBasePath({ slug, kind }));
     return;
   }
   downstream.delete('x-anvil-clan-slug');
+  downstream.delete('x-anvil-clan-kind');
   downstream.delete('x-anvil-clan-prefix');
   downstream.delete('x-anvil-clan-proof');
 }
@@ -126,9 +135,11 @@ export async function middleware(request: NextRequest) {
   const downstream = new Headers(request.headers);
   await stripForeignClanHeaders(request, downstream);
 
-  const clanPath = /^\/c\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
+  // `/c/<slug>` is a clan, `/s/<slug>` a creator space (lib/clanScopedPaths clanBasePath).
+  const clanPath = /^\/([cs])\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
   if (clanPath) {
-    const [, slug, rest] = clanPath;
+    const [, segment, slug, rest] = clanPath;
+    const kind = kindOfSegment(segment);
     const inner = rest && rest !== '/' ? rest : '/';
 
     // A PLATFORM path underneath a clan prefix is not that clan's page. `/c/theafkspot/leaderboard`
@@ -165,11 +176,12 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = inner;
     downstream.set('x-anvil-clan-slug', slug);
+    downstream.set('x-anvil-clan-kind', kind);
     // The prefix, so anything building a link back out can reproduce it without re-parsing.
-    downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
+    downstream.set('x-anvil-clan-prefix', clanBasePath({ slug, kind }));
     // …and the proof that this pair came from here, so the second pass over the rewritten path
     // keeps it instead of mistaking it for something a caller sent.
-    downstream.set('x-anvil-clan-proof', await clanHeaderProof(slug));
+    downstream.set('x-anvil-clan-proof', await clanHeaderProof(slug, kind));
     downstream.set('x-anvil-pathname', url.pathname);
     downstream.set('x-anvil-search', request.nextUrl.search);
     return NextResponse.rewrite(url, { request: { headers: downstream } });

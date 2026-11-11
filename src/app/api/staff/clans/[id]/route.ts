@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, clanAuditLog, retiredClanSlugs } from '@/db/schema';
@@ -7,6 +7,7 @@ import { requirePlatformApi, CAN_WRITE, CAN_DELETE_CLAN } from '@/lib/platformAc
 import { billingTierOf, planIdsFor } from '@/lib/billingCatalog';
 import { availabilityMessage, normalizeSlug } from '@/lib/clanNames';
 import { checkSlug } from '@/lib/clanCreate';
+import type { AddressKind } from '@/lib/clanScopedPaths';
 import { ClanDeleteBlocked, deleteClan } from '@/lib/clanDelete';
 import { log } from '@/lib/logger';
 import { forgetLinkCards } from '@/lib/ogKit';
@@ -65,13 +66,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
     patch.name = name;
   }
+  // Which address namespace this tenant's slug lives in: /s/ for a creator space, /c/ otherwise.
+  const addressKind: AddressKind = before.kind === 'creator' ? 'creator' : 'clan';
   if ('slug' in body) {
     // The clan's address. Every old link — /c/<slug>, <slug>.<apex>, shared Discord posts — stops
     // working, which the page says before it sends this.
     // The old one is retired, not freed: it keeps reaching this clan and is never given to another.
     const slug = normalizeSlug(String(body.slug ?? ''));
     if (slug !== before.slug) {
-      const avail = await checkSlug(slug, clanId);
+      const avail = await checkSlug(slug, clanId, addressKind);
       if (!avail.ok) {
         return NextResponse.json({ error: availabilityMessage('Slug', avail) }, { status: avail.reason === 'taken' ? 409 : 400 });
       }
@@ -105,10 +108,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (patch.slug) {
       await tx
         .insert(retiredClanSlugs)
-        .values({ slug: before.slug, clanId })
-        .onConflictDoUpdate({ target: retiredClanSlugs.slug, set: { clanId } });
+        .values({ slug: before.slug, kind: addressKind, clanId })
+        .onConflictDoUpdate({ target: [retiredClanSlugs.kind, retiredClanSlugs.slug], set: { clanId } });
       // Moving back to an address it gave up earlier: it is the clan's live one again.
-      await tx.delete(retiredClanSlugs).where(eq(retiredClanSlugs.slug, patch.slug));
+      await tx
+        .delete(retiredClanSlugs)
+        .where(and(eq(retiredClanSlugs.slug, patch.slug), eq(retiredClanSlugs.kind, addressKind)));
     }
     const [row] = await tx.update(clans).set(patch).where(eq(clans.id, clanId)).returning();
     return row;

@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, type ComponentProps } from 'react';
 
-import { withClanPrefix } from '@/lib/clanScopedPaths';
+import { parseClanPrefix, stripClanPrefix, withClanPrefix } from '@/lib/clanScopedPaths';
 import { useSetNavPending } from '@/components/NavProgress';
 
 /**
@@ -103,7 +103,8 @@ function LinkPendingReporter() {
 
 /** The slug a path or prefix belongs to, or null for the apex. */
 function clanOf(path: string): string | null {
-  return /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(path)?.[1] ?? null;
+  // The whole prefix, not just the slug: /c/x and /s/x are different tenants.
+  return parseClanPrefix(path)?.prefix ?? null;
 }
 
 /** The same prefixing, for a handler that needs a URL rather than a link — `router.push`, mostly. */
@@ -126,5 +127,5 @@ export function useClanUrl(): (path: string) => string {
  */
 export function useClanRelativePath(): string {
   const pathname = usePathname() ?? '';
-  return pathname.replace(/^\/c\/[a-z0-9-]{2,32}(?=\/|$)/, '') || '/';
+  return stripClanPrefix(pathname);
 }

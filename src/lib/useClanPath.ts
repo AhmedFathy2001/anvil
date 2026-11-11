@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 
 import { withClanPrefix } from '@/lib/clanScopedPaths';
+import { parseClanPrefix } from '@/lib/clanScopedPaths';
 
 /**
  * The clan prefix a client component is currently under, read from the URL it is already at.
@@ -17,8 +18,7 @@ import { withClanPrefix } from '@/lib/clanScopedPaths';
 export function useClanPrefix(): string {
   const pathname = usePathname() ?? '';
   return useMemo(() => {
-    const m = /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(pathname);
-    return m ? m[0] : '';
+    return parseClanPrefix(pathname)?.prefix ?? '';
   }, [pathname]);
 }
 

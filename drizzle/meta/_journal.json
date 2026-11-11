@@ -1373,6 +1373,13 @@
       "when": 1794540070870,
       "tag": "0258_whats_new_replay_1_20",
       "breakpoints": true
+    },
+    {
+      "idx": 259,
+      "version": "7",
+      "when": 1794540130870,
+      "tag": "0259_space_slug_namespace",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { supporterForUser } from '@/lib/supporter';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import { headers } from 'next/headers';
+import { permanentRedirect } from 'next/navigation';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
@@ -160,6 +162,16 @@ export default async function RootLayout({
   // Null on the apex, which is a legitimate place to be: the directory and the platform surfaces
   // belong to no clan. The shell renders without clan branding rather than failing.
   const clan = await currentClan();
+  // A creator space reached through the CLAN prefix — an old `/c/<space>` link from before spaces got
+  // /s/ (lib/clanContext resolveClanBySlug falls back to it). Move the reader to the real address, so
+  // every link the page builds from the prefix is a /s/ one too.
+  if (clan && isCreatorSpace(clan)) {
+    const h = await headers();
+    if (h.get('x-anvil-clan-slug') && h.get('x-anvil-clan-kind') !== 'creator') {
+      const inner = h.get('x-anvil-pathname') ?? '/';
+      permanentRedirect(`${clanPathOf(clan, inner)}${h.get('x-anvil-search') ?? ''}`);
+    }
+  }
   const session = await verifyUser();
   let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string; platformGuideEditor: boolean } | null = null;
   if (session?.userId) {

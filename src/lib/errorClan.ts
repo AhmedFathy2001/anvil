@@ -12,12 +12,10 @@
 // NULL IS A REAL ANSWER, not a failure. The apex has no clan, and a request that died before one
 // could be resolved genuinely belongs to none.
 
-import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
+import { addressKindOf, resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
+import { parseClanPrefix } from '@/lib/clanScopedPaths';
 
-/** The `/c/<slug>` prefix a path carries, if any. Same shape the proxy matches on. */
-function slugFromPath(path: string): string | null {
-  return /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(path)?.[1] ?? null;
-}
+
 
 function firstHeader(headers: NodeJS.Dict<string | string[]>, name: string): string | null {
   const raw = headers[name];
@@ -39,9 +37,11 @@ export async function clanIdForError(
     // against a running server, because the proxy rewrites it away before routing and it would have
     // been equally plausible for the rewritten one to arrive here. The header is the fallback for a
     // failure raised after the rewrite, where only middleware's copy of the slug survives.
-    const fromPath = slugFromPath(path) ?? firstHeader(headers, 'x-anvil-clan-slug');
-    if (fromPath) {
-      const clan = await resolveClanBySlug(fromPath);
+    const parsed = parseClanPrefix(path);
+    const slug = parsed?.slug ?? firstHeader(headers, 'x-anvil-clan-slug');
+    const kind = parsed?.kind ?? addressKindOf(firstHeader(headers, 'x-anvil-clan-kind'));
+    if (slug) {
+      const clan = await resolveClanBySlug(slug, kind);
       if (clan) return clan.id;
     }
     const clan = await resolveClanByHost(firstHeader(headers, 'host'));

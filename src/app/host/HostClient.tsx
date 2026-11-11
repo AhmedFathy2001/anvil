@@ -44,7 +44,7 @@ export default function HostClient({
     }
     const t = setTimeout(async () => {
       // Apex-only availability check, shared with the create-a-clan form.
-      const res = await fetch(`/api/clans?slug=${encodeURIComponent(slug)}`);
+      const res = await fetch(`/api/clans?kind=creator&slug=${encodeURIComponent(slug)}`);
       if (res.ok) setCheck((await res.json()).slug ?? null);
     }, 350);
     return () => clearTimeout(t);

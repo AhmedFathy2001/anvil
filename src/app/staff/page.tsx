@@ -2,6 +2,7 @@
 import { platformTotals, multiClanPeople, nameCollisions, allClans } from '@/lib/platformView';
 import { billingStatus, liveness, QUIET_SYNC_DAYS, TRIAL_WARN_DAYS } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,8 @@ export default async function StaffOverview() {
   // nothing said so, because nothing was looking. A dashboard of totals is a report; this is the
   // part that is a tool.
   const ownerless = clans.filter((c) => c.status === 'active' && !c.owner);
-  const unverified = clans.filter((c) => c.status === 'active' && !c.verified);
+  // A creator space has no in-game clan to prove, so it can never verify — it is not waiting on anyone.
+  const unverified = clans.filter((c) => c.status === 'active' && !c.verified && !isCreatorSpace(c));
   const overCap = clans.filter((c) => c.memberCap != null && c.members > c.memberCap);
 
   // MONEY, WHICH THIS PAGE COULD NOT SEE. Every one of these facts was already on the clan row and

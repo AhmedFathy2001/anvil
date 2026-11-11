@@ -1,5 +1,5 @@
 import { forgetSession, isOperatorPattern, isPlatformStaff, trackLeave, trackPage } from '@/lib/analytics';
-import { boundProps, clanSlugOf, isBotUserAgent, isSessionId, scrubPattern } from '@/lib/analyticsPattern';
+import { boundProps, isBotUserAgent, tenantOfBeacon, isSessionId, scrubPattern } from '@/lib/analyticsPattern';
 import { classifyFirstTouch, clampLeaveMs, isViewportClass } from '@/lib/analyticsSource';
 import { sessionUserIdForAnalytics } from '@/lib/auth';
 import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
@@ -58,8 +58,10 @@ export async function POST(request: Request) {
 
     // The page's own path names the clan; the host is the fallback for a custom domain, where pages
     // carry no prefix.
-    const slug = typeof body.c === 'string' ? clanSlugOf(`/c/${body.c}`) : null;
-    const clan = (slug ? await resolveClanBySlug(slug) : null) ?? (await resolveClanByHost(request.headers.get('host')));
+    const tenant = typeof body.c === 'string' ? tenantOfBeacon(body.c) : null;
+    const clan =
+      (tenant ? await resolveClanBySlug(tenant.slug, tenant.kind) : null) ??
+      (await resolveClanByHost(request.headers.get('host')));
 
     // Time on page: a leave beacon names the page and how long it was open. Nothing else.
     const ms = clampLeaveMs(body.l);

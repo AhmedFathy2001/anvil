@@ -20,12 +20,13 @@ const STRAIGHT_THROUGH: RegExp[] = [
   /^\/portal(?:[/?#]|$)/,
   /^\/clans\/new(?:[/?#]|$)/,
   // An event invite, with or without a clan prefix.
-  /^(?:\/c\/[^/]+)?\/events\/[^/]+\/join\/[^/?#]+/,
+  /^(?:\/[cs]\/[^/]+)?\/events\/[^/]+\/join\/[^/?#]+/,
 ];
 
-/** The slug of a `/c/<slug>/…` return path, or null. */
-export function spaceSlugOf(returnTo: string): string | null {
-  return /^\/c\/([^/?#]+)/.exec(safeReturnPath(returnTo))?.[1]?.toLowerCase() ?? null;
+/** The tenant of a `/c/<slug>/…` or `/s/<slug>/…` return path, or null. */
+export function spaceSlugOf(returnTo: string): { slug: string; kind: 'clan' | 'creator' } | null {
+  const m = /^\/([cs])\/([^/?#]+)/.exec(safeReturnPath(returnTo));
+  return m ? { slug: m[2].toLowerCase(), kind: m[1] === 's' ? 'creator' : 'clan' } : null;
 }
 
 /**
