@@ -34,6 +34,8 @@ globalThis.fetch = (async () => {
   return new Response(new Uint8Array(PNG), { status: 200, headers: { 'content-type': 'image/png' } });
 }) as typeof fetch;
 
+// Only trusted when the deployment says Cloudflare is the sole way in (lib/clientIp).
+process.env.TRUST_CF_CONNECTING_IP = "1";
 const req = (ip: string) => ({ headers: { get: (n: string) => (n === 'cf-connecting-ip' ? ip : null) } });
 
 test('a throttled miss is a 429 that no cache may keep, and nothing is fetched', async () => {

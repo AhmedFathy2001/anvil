@@ -18,7 +18,7 @@ interface Result {
 }
 
 // getClientIp lives in lib/clientIp (the `@/`-free, testable module) and trusts Cloudflare's
-// CF-Connecting-IP, then the proxy-appended XFF hop — never a value the client chose.
+// CF-Connecting-IP when TRUST_CF_CONNECTING_IP=1, then the proxy-appended XFF hop — never a value the client chose.
 
 export async function rateLimit(
   request: Request,

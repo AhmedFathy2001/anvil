@@ -22,8 +22,16 @@
  * 'unknown' when no proxy header is present, which simply shares one bucket.
  */
 export function getClientIp(request: { headers: { get(name: string): string | null } }): string {
-  const cf = request.headers.get('cf-connecting-ip');
-  if (cf && cf.trim()) return bucketOf(cf.trim());
+  // ONLY WHEN TOLD. The header is only Cloudflare's when Cloudflare is the sole way in. A self-host
+  // with Caddy straight on the internet (docs/SELF_HOSTING.md) passes a client's own CF-Connecting-IP
+  // through, and a fresh random one per request never hits a limit. So it is opt-in per deployment:
+  // TRUST_CF_CONNECTING_IP=1 on ours (tunnel-only). Read per call so tests can toggle it.
+  // DEPLOY ORDER: the env var must be live on prod/beta before this code is — without it, behind the
+  // tunnel, everyone falls back to cloudflared's one XFF address and shares a single bucket.
+  if (process.env.TRUST_CF_CONNECTING_IP === '1') {
+    const cf = request.headers.get('cf-connecting-ip');
+    if (cf && cf.trim()) return bucketOf(cf.trim());
+  }
   const fwd = request.headers.get('x-forwarded-for');
   if (fwd) {
     const parts = fwd
