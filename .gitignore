@@ -77,3 +77,6 @@ docs/PLUGIN_SUBMISSION.md
 
 # load test outputs (profile, fixtures with live tokens, k6 summaries)
 /loadtest/.out/
+
+# Local Playwright MCP session logs
+.playwright-mcp/

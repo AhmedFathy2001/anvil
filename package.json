@@ -23,6 +23,7 @@
     "db:studio": "drizzle-kit studio",
     "test": "node scripts/test-all.mjs",
     "seo:indexnow": "node scripts/indexnow.mjs",
+    "test:redactpath": "npx tsx --test tests/redact-path.test.ts",
     "test:balance": "npx tsx --test tests/balance-effort.test.ts",
     "test:deathsource": "npx tsx --test tests/death-source.test.ts tests/lab-feed.test.ts",
     "test:pluginfacts": "npx tsx --test tests/plugin-facts.test.ts",
@@ -266,5 +267,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }
