@@ -7,7 +7,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import type { ShownProfileMedia } from '@/lib/profileMediaRules';
 
 // Per-character avatar/banner (account_media), under the account-wide editor in Settings → Profile
-// look. Mirrors SupporterCharacterStyles: "Same for all" = every character wears your default;
+// look. "Same for all" = every character wears your default;
 // "Customize each" = per character, "Use my default" or its own pictures (same editor, same limits).
 
 export interface CharacterLook {

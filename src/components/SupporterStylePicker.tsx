@@ -22,6 +22,7 @@ import {
   type SupporterStyle,
 } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
+import { isDefaultSupporterStyle, normalSupporterStyle as normal } from '@/lib/characterNameLooks';
 
 /** One look being edited: a preset, or the person's own stops. */
 interface LookDraft {
@@ -30,11 +31,24 @@ interface LookDraft {
   stops: Hex[];
 }
 
+/** "Use the default" for one character: what to store, and what the character then wears. */
+export interface PickerReset {
+  label: string;
+  /** Sent as the style; null clears the character's own look. */
+  send: SupporterStyle | null;
+  /** The look the character wears afterwards, which the editor starts from again. */
+  wears: SupporterStyle | null;
+  disabled: boolean;
+}
+
 /**
  * "Your name's look": a Champion picks a preset gradient, a Patron a preset or their own 2–4 colours.
  * Optionally a separate look per background (dark / light), worn as-is there. The preview is their
  * own name as everyone will see it; saving goes through the server, which re-checks the choice
  * against the tier in force and answers with what is actually worn.
+ *
+ * The same editor serves the Anvil name (no accountId), all characters at once (applyAll) and one
+ * character (accountId), each opened by SupporterNameLooks.
  */
 export default function SupporterStylePicker({
   tier,
@@ -42,6 +56,15 @@ export default function SupporterStylePicker({
   initial,
   accountId,
   applyAll = false,
+  title = 'Your name’s look',
+  where = 'On the site, in the plugin panel and on your Discord star',
+  framed = true,
+  saveLabel,
+  savedText,
+  reset,
+  defaultBlocked,
+  pageOnly = false,
+  onSaved,
 }: {
   tier: SupporterTierId;
   name: string;
@@ -50,6 +73,20 @@ export default function SupporterStylePicker({
   accountId?: number;
   /** Apply this choice to every linked character. */
   applyAll?: boolean;
+  /** Heading and the "where it shows" line; only drawn when `framed`. */
+  title?: string;
+  where?: string;
+  /** Its own bordered box with a heading. Off inside a panel that already has both. */
+  framed?: boolean;
+  saveLabel?: string;
+  savedText?: string;
+  /** Replaces "Reset to default" (save the tier default); null hides the button. */
+  reset?: PickerReset | null;
+  /** Characters can't store the default look apart from the Anvil name: say why Save is off. */
+  defaultBlocked?: string;
+  /** The editor stays on the page while a panel opens over it: guard leaving the page only. */
+  pageOnly?: boolean;
+  onSaved?: (style: SupporterStyle | null) => void;
 }) {
   const presets = presetsFor(tier);
   const custom = canCustomise(tier);
@@ -78,7 +115,8 @@ export default function SupporterStylePicker({
     if (d) draft[surface] = lookOf(d, true);
   }
   const same = JSON.stringify(normal(draft)) === JSON.stringify(normal(saved));
-  useUnsavedChanges(!same);
+  useUnsavedChanges(!same, { pageOnly });
+  const blocked = !!defaultBlocked && !same && isDefaultSupporterStyle(draft);
 
   if (tier === 'supporter') {
     return (
@@ -94,7 +132,7 @@ export default function SupporterStylePicker({
     return own ? weakestContrast(own, SURFACE_BACKGROUND[surface]) : null;
   };
 
-  async function save(next: SupporterStyle) {
+  async function save(next: SupporterStyle, wears?: SupporterStyle | null) {
     setBusy(true);
     setNote(null);
     try {
@@ -108,8 +146,9 @@ export default function SupporterStylePicker({
         setNote({ ok: false, text: json.error ?? 'Could not save that.' });
         return;
       }
-      setSaved(json.style ?? null);
-      setNote({ ok: true, text: applyAll ? 'Saved for every character.' : 'Saved. Your name looks like this everywhere now.' });
+      setSaved(wears !== undefined ? wears : (json.style ?? null));
+      setNote({ ok: true, text: savedText ?? (applyAll ? 'Saved for every character.' : 'Saved. Your name looks like this everywhere now.') });
+      onSaved?.(json.style ?? null);
     } catch {
       setNote({ ok: false, text: 'Could not reach Anvil. Try again.' });
     } finally {
@@ -117,20 +156,31 @@ export default function SupporterStylePicker({
     }
   }
 
-  function reset() {
-    setMain(startLook(null));
-    setOver({ dark: null, light: null });
+  function restart(look: SupporterStyle | null) {
+    setMain(startLook(look));
+    setOver({ dark: look?.dark ? startLook(look.dark) : null, light: look?.light ? startLook(look.light) : null });
+  }
+
+  function resetToDefault() {
+    if (reset) {
+      restart(reset.wears);
+      void save(reset.send ?? {}, reset.wears);
+      return;
+    }
+    restart(null);
     void save({});
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-card-border bg-background/40 p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold">Your name&rsquo;s look</p>
-        <span className="text-[12px] text-text-dim">On the site, in the plugin panel and on your Discord star</span>
-      </div>
+    <div className={framed ? 'mt-4 rounded-lg border border-card-border bg-background/40 p-3' : ''}>
+      {framed && (
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm font-semibold">{title}</p>
+          <span className="text-[12px] text-text-dim">{where}</span>
+        </div>
+      )}
 
-      <div className="mt-3 space-y-2">
+      <div className={`${framed ? 'mt-3 ' : ''}space-y-2`}>
         <SurfacePreview surface="dark" contrast={contrastOn('dark')}>
           <SupporterName name={name} tier={tier} style={draft} className="text-base font-semibold" plain />
         </SurfacePreview>
@@ -164,27 +214,30 @@ export default function SupporterStylePicker({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          disabled={busy || same}
+          disabled={busy || same || blocked}
           onClick={() => void save(draft)}
           className="rounded-lg bg-gold px-3 py-1.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
         >
-          {busy ? 'Saving…' : applyAll ? 'Save for all characters' : 'Save'}
+          {busy ? 'Saving…' : (saveLabel ?? (applyAll ? 'Save for all characters' : 'Save'))}
         </button>
         <UnsavedIndicator dirty={!same} />
-        <button
-          type="button"
-          disabled={busy || saved == null}
-          onClick={reset}
-          className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-gold/40 disabled:opacity-50"
-        >
-          Reset to default
-        </button>
+        {reset !== null && (
+          <button
+            type="button"
+            disabled={busy || (reset ? reset.disabled : saved == null)}
+            onClick={resetToDefault}
+            className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-gold/40 disabled:opacity-50"
+          >
+            {reset ? reset.label : 'Reset to default'}
+          </button>
+        )}
         {note && (
           <span role="status" className={`text-[12.5px] ${note.ok ? 'text-accent-green-light' : 'text-red-400'}`}>
             {note.text}
           </span>
         )}
       </div>
+      {blocked && <p className="mt-2 text-[12px] text-text-dim">{defaultBlocked}</p>}
     </div>
   );
 }
@@ -260,12 +313,4 @@ function LookFields({
       )}
     </>
   );
-}
-
-/** Compare a draft with what is saved: the default is `{}` and `null` alike. */
-function normal(s: SupporterStyle | null | undefined): SupporterStyle {
-  if (!s) return {};
-  const look = (l: SupporterLookStyle | undefined): SupporterLookStyle =>
-    l?.stops?.length ? { stops: l.stops } : l?.preset ? { preset: l.preset } : {};
-  return { ...look(s), ...(s.dark ? { dark: look(s.dark) } : {}), ...(s.light ? { light: look(s.light) } : {}) };
 }
