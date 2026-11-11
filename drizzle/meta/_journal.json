@@ -1366,6 +1366,13 @@
       "when": 1794540069870,
       "tag": "0257_gift_intent_choice",
       "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1794540070870,
+      "tag": "0258_whats_new_replay_1_20",
+      "breakpoints": true
     }
   ]
 }
