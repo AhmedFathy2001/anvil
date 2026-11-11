@@ -23,6 +23,8 @@ const metaOf = (i: CalendarItem) => (i.clanEvent ? CLAN_EVENT_META : hubKind(i.k
 
 const WEEK_MS = 7 * 86_400_000;
 const ROW_H = 26;
+/** Below this a bar shows only its dot, and the name sits beside it. */
+const LABEL_IN_PX = 64;
 const ROW_GAP = 4;
 
 const ZOOMS = [
@@ -33,7 +35,8 @@ const ZOOMS = [
 
 interface Lane {
   name: string;
-  rows: { item: CalendarItem; left: number; width: number }[][];
+  /** `label`: where a bar too narrow for its name shows it — beside it, right or left. */
+  rows: { item: CalendarItem; left: number; width: number; label: 'in' | 'right' | 'left' }[][];
 }
 
 export default function SeasonCalendar({
@@ -80,22 +83,30 @@ export default function SeasonCalendar({
         .map((item) => {
           const l = Math.max(0, pos(Date.parse(item.start)));
           const r = Math.min(100, pos(Date.parse(item.end)));
-          return { item, left: l, width: Math.max(0.8, r - l) };
+          const width = Math.max(0.8, r - l);
+          // A short event at Season/Year zoom is a few pixels wide: its name goes beside the bar,
+          // and the packing below counts that space so a name never runs into the next bar.
+          const fits = (width / 100) * trackPx >= LABEL_IN_PX;
+          const labelPct = fits ? 0 : (((item.shortName.length * 6.6 + 10) / trackPx) * 100);
+          const label: 'in' | 'right' | 'left' = fits ? 'in' : l + width + labelPct <= 100 ? 'right' : 'left';
+          const from = label === 'left' ? l - labelPct : l;
+          const to = label === 'right' ? l + width + labelPct : l + width;
+          return { item, left: l, width, label, from, to };
         })
-        .sort((a, b) => a.left - b.left);
+        .sort((a, b) => a.from - b.from);
 
       // First-fit packing. Two bars that merely touch — a week ending as the next begins — share a
       // row; the gap in the bar's own width keeps them visually apart.
       const rows: Lane['rows'] = [];
       const ends: number[] = [];
-      for (const p of placed) {
-        const row = ends.findIndex((e) => p.left + 0.05 >= e);
+      for (const { from, to, ...p } of placed) {
+        const row = ends.findIndex((e) => from + 0.05 >= e);
         if (row === -1) {
           rows.push([p]);
-          ends.push(p.left + p.width);
+          ends.push(to);
         } else {
           rows[row].push(p);
-          ends[row] = p.left + p.width;
+          ends[row] = to;
         }
       }
       return { name, rows };
@@ -120,7 +131,7 @@ export default function SeasonCalendar({
     }
 
     return { lanes, ticks, nowLeft: pos(now), count: inWindow.length };
-  }, [items, zoom, now, weeksAhead]);
+  }, [items, zoom, now, weeksAhead, trackPx]);
 
   if (!view) {
     return <div className="h-40 rounded-xl border border-card-border bg-card-bg" aria-hidden />;
@@ -175,9 +186,8 @@ export default function SeasonCalendar({
               </span>
               <div style={{ height: lane.rows.length * (ROW_H + ROW_GAP) - ROW_GAP }} className="relative">
                 {lane.rows.map((row, ri) =>
-                  row.map(({ item, left, width }) => {
+                  row.map(({ item, left, width, label }) => {
                     const meta = metaOf(item);
-                    const wide = (width / 100) * trackPx > 46;
                     return (
                       <ClanLink
                         key={item.key}
@@ -185,7 +195,7 @@ export default function SeasonCalendar({
                         onMouseEnter={(e) => setHover({ item, x: e.clientX, y: e.clientY })}
                         onMouseMove={(e) => setHover({ item, x: e.clientX, y: e.clientY })}
                         onMouseLeave={() => setHover(null)}
-                        className={`absolute flex items-center gap-1.5 overflow-hidden rounded-md border px-1.5 text-[11px] font-bold transition-[filter] hover:brightness-125 ${
+                        className={`absolute flex items-center gap-1.5 rounded-md border px-1.5 text-[11px] font-bold transition-[filter] hover:brightness-125 ${label === 'in' ? 'overflow-hidden' : 'justify-center px-0'} ${
                           item.state === 'past' ? 'opacity-55' : ''
                         } ${item.state === 'upcoming' ? 'border-dashed' : ''}`}
                         style={{
@@ -202,7 +212,13 @@ export default function SeasonCalendar({
                         }}
                       >
                         <span aria-hidden className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: meta.accent }} />
-                        {wide && <span className="truncate">{item.shortName}</span>}
+                        {label === 'in' ? (
+                          <span className="truncate">{item.shortName}</span>
+                        ) : (
+                          <span className={`absolute whitespace-nowrap ${label === 'right' ? 'left-full ml-1.5' : 'right-full mr-1.5'}`}>
+                            {item.shortName}
+                          </span>
+                        )}
                       </ClanLink>
                     );
                   }),
