@@ -213,6 +213,7 @@ export async function POST(
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
         hostKind: friendsKind,
         paymentDeadline: event.paymentDeadline,
       })

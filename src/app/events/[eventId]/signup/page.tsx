@@ -153,6 +153,7 @@ export default async function EventSignupPage({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
         paymentDeadline: event.paymentDeadline,
         hostKind: friendsKind,
       })

@@ -272,11 +272,13 @@ export function signupEditState(event: {
   startDate: string | null;
   paymentDeadline: string | null;
   /** As signupWindowState: a friends host's undated event is open. */
+  signupsEnabled?: boolean | null;
   hostKind?: string | null;
 }): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | 'off' | null } {
   const base = signupWindowState(event);
   // Before the window opens at all, nothing's editable yet.
-  if (base.reason === 'not_open_yet') return base;
+  // No form at all (signups_enabled off) is final: the payment grace never reopens it.
+  if (base.reason === 'not_open_yet' || base.reason === 'off') return base;
   if (event.paymentDeadline) {
     const closed = new Date(event.paymentDeadline).getTime() <= Date.now();
     return closed ? { open: false, reason: 'closed' } : { open: true, reason: null };

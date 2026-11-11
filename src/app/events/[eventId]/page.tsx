@@ -342,6 +342,7 @@ export default async function EventScoreboardPage({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        signupsEnabled: event.signupsEnabled,
         paymentDeadline: event.paymentDeadline,
       }).open;
     }
