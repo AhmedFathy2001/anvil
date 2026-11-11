@@ -18,7 +18,8 @@
 import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, accountStatSnapshots, clanMemberships, h2hChallenges, h2hPrefs, users } from '@/db/schema';
+import { accounts, accountStatSnapshots, clanMemberships, clans, h2hChallenges, h2hPrefs, users } from '@/db/schema';
+import { sendChallengesWebhook } from '@/lib/discord';
 import { normalizeRsn } from '@/lib/auth';
 import { discordRest, sharedBotToken } from '@/lib/discord-roles';
 import {
@@ -318,6 +319,9 @@ export async function respondToChallenge(args: {
     .returning({ id: h2hChallenges.id });
   if (!updated.length) return { ok: false, error: 'That invitation was already answered.' };
   void tellPerson(row.challengerPlayerId, `${theirName} accepted: ${describe(row.kind as H2hKind, row.label, row.durationMin)}. Go!`, 'near');
+  if (isPublic({ challengerPublic: row.challengerPublic, opponentPublic: !!args.public })) {
+    void postToClans(row, 'start').catch((err) => log.warn('h2h.clan-post-failed', { id: row.id, message: (err as Error).message }));
+  }
   return { ok: true, id: row.id };
 }
 
@@ -795,6 +799,41 @@ async function announceResult(r: Row): Promise<void> {
   const audience = await clanmateLogins([r.challengerAccountId, r.opponentAccountId]);
   const own = new Set(players.map((p) => p.id));
   await pushLine(audience.filter((id) => !own.has(id)), line(`${sentence}.`, 'feed'));
+  await postToClans(r, 'result', sentence).catch((err) => log.warn('h2h.clan-post-failed', { id: r.id, message: (err as Error).message }));
+}
+
+/**
+ * A public challenge in each clan either player holds a member seat in, through that clan's own
+ * Challenges channel (sendChallengesWebhook: nothing when unset or switched off). Clanmates read as
+ * one clan's post; across clans, each clan's post names the other side's clan, so "both clans
+ * allow it" is simply both clans having the channel set. Only clans a stranger may see named.
+ */
+async function postToClans(r: Pick<Row, 'id' | 'kind' | 'label' | 'durationMin' | 'challengerAccountId' | 'opponentAccountId'>, phase: 'start' | 'result', sentence?: string): Promise<void> {
+  // clan-scope: global -- the clans are found from these two characters' own member seats.
+  const seats = await db
+    .select({ accountId: clanMemberships.accountId, clanId: clans.id, clanName: clans.name })
+    .from(clanMemberships)
+    .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
+    .where(and(inArray(clanMemberships.accountId, [r.challengerAccountId, r.opponentAccountId]), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt), eq(clans.platformHidden, false)));
+  if (!seats.length) return;
+  const names = await rsnsOf([r.challengerAccountId, r.opponentAccountId]);
+  const clansOf = (accountId: number) => seats.filter((s) => s.accountId === accountId);
+  const who = (accountId: number, clanId: number) => {
+    const rsn = names.get(accountId) ?? '?';
+    const theirs = clansOf(accountId);
+    // Named by clan only when they are not in the clan reading it.
+    return theirs.length && !theirs.some((s) => s.clanId === clanId) ? `${rsn} (${theirs[0].clanName})` : rsn;
+  };
+  const url = absoluteUrl('/challenges');
+  for (const clanId of new Set(seats.map((s) => s.clanId))) {
+    const a = who(r.challengerAccountId, clanId);
+    const b = who(r.opponentAccountId, clanId);
+    const embed =
+      phase === 'start'
+        ? { title: '⚔️ Challenge on', description: `**${a}** vs **${b}**\n${describe(r.kind as H2hKind, r.label, r.durationMin)}.`, color: 0xe0aa1e, url }
+        : { title: '🏆 Challenge over', description: `${sentence}.`, color: 0x23a55a, url };
+    await sendChallengesWebhook(clanId, { embeds: [embed] });
+  }
 }
 
 /** Logins of everyone holding a member seat in either character's clan(s). */

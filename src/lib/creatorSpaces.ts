@@ -155,6 +155,7 @@ export const CREATOR_HIDDEN_SETTING_KEYS: readonly string[] = [
   'discord_webhook_clan_events',
   'discord_webhook_roster',
   'discord_webhook_coffer',
+  'discord_webhook_challenges',
   'discord_webhook_cohost',
   'discord_cohost_posts_enabled',
   'webhook_leagues',
