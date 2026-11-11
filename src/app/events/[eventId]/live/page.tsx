@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import ClanLink from '@/components/ClanLink';
 import EventApiHost from '@/components/EventApiHost';
+import EventPageHeader from '@/components/events/EventPageHeader';
 import { verifyUser } from '@/lib/auth';
 import { clanHref } from '@/lib/clanPath';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
@@ -36,12 +37,7 @@ export default async function EventLivePage({
   return (
     <div className="mx-auto max-w-3xl">
       <EventApiHost eventId={id} prefix={apiPrefix} />
-      <div className="mb-4">
-        <ClanLink href={`/events/${id}`} className="text-sm text-text-muted transition-colors hover:text-gold">
-          ← {event.name}
-        </ClanLink>
-        <h1 className="mt-1 text-2xl font-bold text-gold">Feed &amp; chat</h1>
-      </div>
+      <EventPageHeader event={event} apiPrefix={apiPrefix} active="live" title="Feed & chat" access={live?.access ?? null} />
       {member && live ? (
         <LiveClient
           eventId={id}

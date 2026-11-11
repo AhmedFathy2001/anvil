@@ -1,6 +1,7 @@
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import ClanLink from '@/components/ClanLink';
+import EventPageHeader from '@/components/events/EventPageHeader';
 import LiveRefresher from '@/components/LiveRefresher';
 import { getEventStats, type StatsWindow } from '@/lib/eventStats';
 import { stampMs } from '@/lib/eventDay';
@@ -58,31 +59,30 @@ export default async function EventStatsPage({
   const id = parseInt(eventId, 10);
   const { event, apiPrefix } = await requireEventForParticipantPage(id);
 
-  const header = (title: string) => (
-    <div className="mb-5">
-      <EventApiHost eventId={id} prefix={apiPrefix} />
-      <ClanLink href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</ClanLink>
-      <h1 className="text-2xl font-bold text-gold mt-1">{title}</h1>
-    </div>
-  );
-
   const startMs = stampMs(event.startDate);
-  if (startMs == null || !eventHasStarted(event)) {
+  const started = startMs != null && eventHasStarted(event);
+  // HIDDEN STANDINGS: this page is every player's numbers side by side — the race itself. While the
+  // host keeps the standings back it waits for the reveal (staff see it as ever).
+  const curtain = started ? curtainInfo(await standingsScopeForSession(event)) : null;
+  const header = () => (
+    <>
+      <EventApiHost eventId={id} prefix={apiPrefix} />
+      <EventPageHeader event={event} apiPrefix={apiPrefix} active="stats" title="Event stats" curtained={!!curtain} />
+    </>
+  );
+  if (startMs == null || !started) {
     return (
       <div>
-        {header('Event stats')}
+        {header()}
         <Notice title="Stats start when the event does">Every number here counts from the start — check back once it’s under way.</Notice>
       </div>
     );
   }
 
-  // HIDDEN STANDINGS: this page is every player's numbers side by side — the race itself. While the
-  // host keeps the standings back it waits for the reveal (staff see it as ever).
-  const curtain = curtainInfo(await standingsScopeForSession(event));
   if (curtain) {
     return (
       <div>
-        {header('Event stats')}
+        {header()}
         <StandingsHiddenNotice curtain={curtain} className="mx-auto mt-10 max-w-xl" />
       </div>
     );
@@ -95,7 +95,7 @@ export default async function EventStatsPage({
   if (!data) {
     return (
       <div>
-        {header('Event stats')}
+        {header()}
         <Notice title="No stats for this event" />
       </div>
     );
@@ -116,7 +116,7 @@ export default async function EventStatsPage({
 
   return (
     <div>
-      {header('Event stats')}
+      {header()}
       {data.window.live && <LiveRefresher url={`/api/events/${id}/pulse`} />}
       <nav className="flex flex-wrap gap-2 mb-6" aria-label="Pick a day">
         {chip(`/events/${id}/stats`, 'Whole event', data.window.kind === 'all')}

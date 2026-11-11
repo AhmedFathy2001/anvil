@@ -177,6 +177,11 @@ test('unread counts per channel, and opening one marks it read', async () => {
   // Rikkert's own line never counts as unread for him; Pkpingu's does.
   const rik = await L.liveChat(await access('Rikkert'), u.Rikkert, { f: 'all' });
   assert.equal(rik.channels.find((c) => c.key === 'team')!.n, 1);
+  // Looking at a channel reads it, without leaving it: the event page's unread dot (lib/eventTabs) goes out.
+  assert.equal((await C.sendChat(kev, u.Kev, 'round two', 'all', Date.now() + 60_000)).ok, true); // past slow mode
+  assert.equal((await C.chatUnread(salt, u.Saltbeard, ['all'])).get('all'), 1);
+  await L.liveChat(salt, u.Saltbeard, { f: 'all' });
+  assert.equal((await C.chatUnread(salt, u.Saltbeard, ['all'])).get('all'), 0);
 });
 
 test('staff: team chips, delete on a line they outrank, and it leaves every open plugin list', async () => {
