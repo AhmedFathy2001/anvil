@@ -4,7 +4,7 @@
 // hex, the step is one of the ladder's ids; nothing else reaches the markup.
 
 import { TENURE_LADDER, type TenureStepId } from './supporterTiers.ts';
-import { TENURE_SPRITES, tenureTones } from './tenureSprites.ts';
+import { TENURE_SIZE, TENURE_SPRITES, tenureInk, tenurePixel } from './tenureSprites.ts';
 
 export const STAR_PATH = 'M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z';
 
@@ -16,9 +16,9 @@ export function tenureStarSvg(stops: readonly string[], step: TenureStepId | nul
     return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">${offsets}</linearGradient></defs><path d="${STAR_PATH}" fill="${paint}"/></svg>`;
   }
   const k = Math.max(0, TENURE_LADDER.findIndex((t) => t.id === step));
-  const tones = tenureTones(stops[0] ?? '#ffd35c');
+  const ink = tenureInk(stops[0] ?? '#ffd35c');
   const px = TENURE_SPRITES[k]
-    .flatMap((r, y) => [...r].map((ch, x) => (ch === '.' ? '' : `<rect x="${x}" y="${y}" width="1" height="1" fill="${tones[ch as 'k' | '#' | '+']}"/>`)))
+    .flatMap((r, y) => [...r].map((ch, x) => (ch === '.' ? '' : `<rect x="${x}" y="${y}" width="1" height="1" fill="${tenurePixel(ink, ch)}"/>`)))
     .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 11 11" shape-rendering="crispEdges">${px}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 ${TENURE_SIZE} ${TENURE_SIZE}" shape-rendering="crispEdges">${px}</svg>`;
 }

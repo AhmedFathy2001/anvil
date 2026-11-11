@@ -173,11 +173,11 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
 }
 
 /**
- * Tenure: the Supporter star changes SHAPE with unbroken paid time (colour stays the tier's). Not
- * supporter-specific, so a clan plan's time can climb the same ladder later.
- *   chat:  the in-game chat icon (plugin chat-flair `t`), one per step 1-6: star, ringed, filled ring,
- *          hex, filled hex, solid hex (the plugin's pixel sprites).
- *   glyph: the plugin panel's icon for the same four.
+ * Tenure: the Supporter badge climbs with unbroken paid time, a diamond that gets more precious (a
+ * gem, a brilliant cut, catching the light, a halo, halo and light, a laurel; lib/tenureSprites), in the
+ * name's colour. Not supporter-specific, so a clan plan's time can climb the same ladder later.
+ *   chat:  the in-game chat icon (plugin chat-flair `t`), one per step 1-6 (the plugin's pixel sprites).
+ *   glyph: the plugin panel's icon for the same six.
  */
 export type TenureStepId = 'apprentice' | 'journeyman' | 'artisan' | 'master' | 'grandmaster' | 'legend';
 /** The plugin panel's badge for each step (its pixel sprite, lib/tenureSprites). */
