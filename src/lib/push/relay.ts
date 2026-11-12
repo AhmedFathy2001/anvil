@@ -18,6 +18,9 @@ import { checkBody } from '../eventChatRules.ts';
 //   fc:<owner>  friends chat — the channel owner the plugin says it sits in (`?fc=`). Self-reported, like
 //                        the world; each receiver shows a line only when the sender is in its OWN friends
 //                        chat member list, so nobody's names are uploaded and a wrong room shows nothing.
+//   guest:<clan> guest clan — the clan the plugin says it guests in (`?guest=`), checked the same way.
+//   pm:<name>   private messages — every relay socket sits in its own character's room, so a PM
+//                        ({"t":"say","c":"pm","to":name}) reaches only that character's sockets, if any.
 // GIM is not relayed: Anvil keeps no GIM groups, and a group named by the client could be anyone's.
 // Out, to the room minus the sender's own sockets:
 //   {"t":"relay","c":…,"n":"Name","nm":"<img=2>Name","x":text,"xh":escaped,"at":ms,"u":user,"k":sig}
@@ -28,7 +31,7 @@ import { checkBody } from '../eventChatRules.ts';
 // be of a line this server really sent.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type RelayChannel = 'public' | 'clan' | 'fc';
+export type RelayChannel = 'public' | 'clan' | 'fc' | 'guest' | 'pm';
 
 /** What a relay ticket says about its character (lib/push/ticket `relay`). */
 export interface RelayIdentity {
@@ -42,6 +45,8 @@ export interface RelayIdentity {
   world: number | null;
   /** The friends chat owner it sits with (standardised), or null: the fc room. */
   fc?: string | null;
+  /** The guest clan it sits in (standardised), or null: the guest room. */
+  guest?: string | null;
 }
 
 export interface RelayClient {
@@ -118,6 +123,9 @@ export class RelayHub {
     if (w != null && w > 0 && w < 10_000 && this.roomSize(`world:${w}`) < WORLD_MAX) this.join(m, `world:${w}`);
     const fc = fcOwner(client.who.fc);
     if (fc) this.join(m, `fc:${fc}`);
+    const guest = fcOwner(client.who.guest);
+    if (guest) this.join(m, `guest:${guest}`);
+    this.join(m, `pm:${presenceName(client.who.name)}`);
     // Presence: who else in these rooms has the relay on (they opted in; nobody else is ever named),
     // and to each of them, that this character is here now.
     const me = presenceName(client.who.name);
@@ -155,20 +163,23 @@ export class RelayHub {
     if (!m || !raw || typeof raw !== 'object') return 'bad';
     const msg = raw as Record<string, unknown>;
     if (msg.t !== 'say') return 'bad';
-    return this.say(m, msg.c, msg.x);
+    return this.say(m, msg.c, msg.x, msg.to);
   }
 
-  private say(m: Member, c: unknown, x: unknown): string | null {
+  private say(m: Member, c: unknown, x: unknown, to: unknown): string | null {
     if (!this.enabled) return 'off';
-    if (c !== 'public' && c !== 'clan' && c !== 'fc') return 'bad';
+    if (c !== 'public' && c !== 'clan' && c !== 'fc' && c !== 'guest' && c !== 'pm') return 'bad';
     if (typeof x !== 'string' || x.length > RELAY_MAX * 2) return 'bad';
-    const room = [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : `${c}:`));
+    // A PM's room is its recipient's own (only if they have a relay socket); the rest, the sender's.
+    const room = c === 'pm' ? (typeof to === 'string' && this.rooms.has(`pm:${presenceName(to)}`) ? `pm:${presenceName(to)}` : null)
+      : [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : `${c}:`));
     if (!room) return 'no-room';
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
     const raw = checkBody(x, { staff: false });
     if (!raw.ok || raw.body.length > RELAY_MAX) return 'filtered';
-    // The game capitalises the first letter of what anyone says; a muted player's own copy isn't.
-    const checked = { body: raw.body.charAt(0).toUpperCase() + raw.body.slice(1) };
+    // The game capitalises the first letter of public, friends chat and private lines itself, muted or
+    // not, but not a muted player's own clan or guest clan line: only those are capitalised here.
+    const checked = { body: c === 'clan' || c === 'guest' ? raw.body.charAt(0).toUpperCase() + raw.body.slice(1) : raw.body };
     const at = this.now();
     m.sent = m.sent.filter((t) => t > at - RELAY_WINDOW_MS);
     if (m.sent.length >= RELAY_BURST) return 'rate';
@@ -217,10 +228,10 @@ export class RelayHub {
   }
 }
 
-/** A friends chat owner as a room key: the game's name rules, lower case; null when it can't be one. */
+/** A friends chat owner or a clan name as a room key: name characters, lower case; null when it can't be one. */
 export function fcOwner(raw: unknown): string | null {
   const v = typeof raw === 'string' ? raw.replace(/\u00a0/g, ' ').trim().toLowerCase() : '';
-  return /^[a-z0-9 _-]{1,12}$/.test(v) ? v : null;
+  return /^[a-z0-9 _-]{1,20}$/.test(v) ? v : null;
 }
 
 /** A character's name as presence carries it: plain, lower case, single spaces (the plugin's Text.standardize). */

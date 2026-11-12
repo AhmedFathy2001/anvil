@@ -39,7 +39,7 @@ export async function setRelayOn(on: boolean): Promise<void> {
  * (the plugin's `?fc=`: the friends chat owner it sits with, self-reported the same way). Null
  * when there is no such character, or the header names another one than the account it resolved to.
  */
-export async function relayIdentity(request: Request, world: number | null, fc: string | null = null): Promise<RelayIdentity | null> {
+export async function relayIdentity(request: Request, world: number | null, fc: string | null = null, guest: string | null = null): Promise<RelayIdentity | null> {
   const character = await resolvePluginCharacter(request).catch(() => null);
   const played = playedCharacter(request);
   if (!character || !played) return null;
@@ -51,7 +51,7 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
     where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)),
     columns: { clanId: true },
   });
-  return { name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}) };
+  return { name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };
 }
 
 export interface RelayReport {

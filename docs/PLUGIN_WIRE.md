@@ -625,13 +625,16 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
   whose in-game roster lists it, and the world. The socket's hello is then `{"t":"hello","relay":1}`.
   Rooms come only from the ticket: `world:<n>` (public), `clan:<id>` (clan) and, with `&fc=<owner>`,
   `fc:<owner>` (friends chat: self-reported; the receiver shows a line only when the sender is in its own
-  friends chat member list). A world hop or a friends chat change re-tickets.
+  friends chat member list), with `&guest=<clan>`, `guest:<clan>` (guest clan, the same way), and
+  always `pm:<own name>` so a private message reaches only its recipient's sockets. A world hop or a
+  friends chat / guest clan change re-tickets.
   GIM is not relayed in phase 1 (Anvil keeps no GIM groups to bind a room to).
 - Plugin → server (only on a relay ticket; any other socket is still closed by a message):
-  `{"t":"say","c":"public"|"clan"|"fc","x":"<the line>"}` — the local player's own line only, never a `::`
+  `{"t":"say","c":"public"|"clan"|"fc"|"guest"|"pm","x":"<the line>"(,"to":"<recipient>" for pm)}` — the local player's own line only, never a `::`
   command. Filtered with event chat's rules (lib/eventChatRules `checkBody`), max 80 chars, 6 lines per
-  10 s per socket, the same line twice in 10 s is one (case aside). The first letter is capitalised, as
-  the game does for everyone else's lines (a muted player's own copy isn't).
+  10 s per socket, the same line twice in 10 s is one (case aside). A clan or guest clan line's first
+  letter is capitalised, as the game does for everyone else's (a muted player's own copy isn't; public,
+  friends chat and private the game capitalises itself).
 - Server → plugin, to the room minus every socket of the sender: `{"t":"relay","c","n":"Name",
   "nm":"<img=2>Name","x","xh","at","u","k"}` — `xh` is `x` escaped for game chat; `k` signs
   `(u, n, c, at, x)`. The receiver shows a clan line only when the sender is in its own clan channel.
