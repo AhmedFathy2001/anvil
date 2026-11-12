@@ -147,7 +147,7 @@ export class RelayHub {
       t: 'relay',
       c,
       n: who.name,
-      nm: (who.icon != null ? `<img=${who.icon}>` : '') + who.name,
+      nm: (who.icon != null ? `<img=${who.icon}>` : '') + who.name.replace(/[<>]/g, ''),
       x: checked.body,
       at,
       // Escaped for the game's chat (a '<' would open a tag): what the plugin prints.
