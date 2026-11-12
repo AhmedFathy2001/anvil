@@ -104,6 +104,8 @@ function log(event: string, fields: Record<string, unknown> = {}) {
 // ── Sockets ──────────────────────────────────────────────────────────────────────────────────────
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+// A reader that stops reading gets nothing more queued past 1 MB; the heartbeat drops it soon after.
+const SEND_BUFFER_MAX = 1 << 20;
 const alive = new WeakSet<WebSocket>();
 
 const server = http.createServer((req, res) => {
@@ -140,8 +142,10 @@ server.on('upgrade', (req, socket, head) => {
     ws.on('pong', () => alive.add(ws));
     // Nothing comes the other way, except a relay ticket's own chat lines (lib/push/relay).
     const who = scope.relay && !scope.web ? scope.relay : null;
-    const relayClient = who ? { userId: scope.userId, who, send: (m: string) => ws.readyState === ws.OPEN && ws.send(m) } : null;
+    const relayClient = who ? { userId: scope.userId, who, send: (m: string) => ws.readyState === ws.OPEN && ws.bufferedAmount < SEND_BUFFER_MAX && ws.send(m) } : null;
     const unrelay = relayClient ? relay.add(relayClient) : null;
+    // A bad frame (too big, bad UTF-8) emits 'error'; with no listener Node throws and the server dies.
+    ws.on('error', () => ws.terminate());
     ws.on('message', (data) => {
       if (!relayClient) return ws.close(1003, 'listen only');
       let m: unknown;
@@ -158,7 +162,7 @@ server.on('upgrade', (req, socket, head) => {
     ws.send(JSON.stringify(relayClient ? { t: 'hello', relay: 1 } : { t: 'hello' }));
     const remove = hub.add({
       scope,
-      send: (m) => ws.readyState === ws.OPEN && ws.send(m),
+      send: (m) => ws.readyState === ws.OPEN && ws.bufferedAmount < SEND_BUFFER_MAX && ws.send(m),
       rescope: () => ws.close(4001, 'roster changed'),
     });
     // The ticket's scope was true when it was signed. At its expiry the plugin reconnects with a fresh
@@ -270,6 +274,7 @@ async function acceptOverlay(req: http.IncomingMessage, socket: Duplex, head: Bu
   wss.handleUpgrade(req, socket, head, (ws) => {
     alive.add(ws);
     ws.on('pong', () => alive.add(ws));
+    ws.on('error', () => ws.terminate());
     ws.on('message', () => ws.close(1003, 'listen only'));
     ws.send(JSON.stringify({ t: 'hello' }));
     const stop = hub.watch(eventId, { send: (m) => ws.readyState === ws.OPEN && ws.send(m) });
