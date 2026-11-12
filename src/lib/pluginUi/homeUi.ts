@@ -483,10 +483,12 @@ export function homeUi(d: HomeData): Node {
     const t = titled(m.eventId, m.name);
     // The same four things as the board above: clan · team and the rank, the bar, the count and the clock.
     const rank = m.rank != null && (m.of ?? 0) > 1 ? text(`${ordinal(m.rank)} of ${count(m.of ?? 0)}`, SOFT) : undefined;
-    const lines: Node[] = [row(muted(clip(`${m.clanName} · ${m.teamName}`, 24)), undefined, rank)];
+    // The clan · team line on its own, wrapped: beside the rank it was cut to "Anvil Tile Lab · dead p…".
+    // The rank sits on the title row instead.
+    const lines: Node[] = [muted(clip(`${m.clanName} · ${m.teamName}`, 48), { wrap: CARD_W })];
     if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), row(muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`), undefined, endsNode(m.endDate, d.now)));
     else lines.push(muted('Board not revealed yet'));
-    return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, home(`board:${m.eventId}`), `Open ${t}`);
+    return openRow(text(clip(t, 24), '#e6e6e6'), rank, lines, home(`board:${m.eventId}`), `Open ${t}`);
   });
   const liveRows = [...(playingHere ? [playingHere] : []), ...mineRows];
   if (liveRows.length > 1) {
