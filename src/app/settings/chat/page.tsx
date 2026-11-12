@@ -25,7 +25,7 @@ export default async function ChatSettingsPage() {
     <>
       <SettingsTitle title="In-game chat feed">
         What the Anvil plugin shows in your RuneLite chat: other players&rsquo; drops and achievements, and the brief when you log in.
-        The plugin&rsquo;s own switch (Configuration → Anvil → Chat feed) turns it all on or off.
+        The plugin&rsquo;s own switch (Configuration → Anvil → General → Anvil messages in chat) turns it all on or off.
       </SettingsTitle>
 
       <SettingsGroup

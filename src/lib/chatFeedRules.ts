@@ -50,6 +50,10 @@ export interface ChatFeedPrefs {
   colors: Partial<Record<Tone, string>>;
   /** What the login brief covers. Choosing is a Champion perk; everyone else gets the default. */
   brief: BriefItem[];
+  /** The [Anvil] tag's own colour, '#rrggbb', with the 'custom' palette (a Supporter perk); null = Anvil gold. */
+  tagColor: string | null;
+  /** Boards (event ids) whose event chat stays out of the in-game chatbox (the panel still shows it). */
+  chatboxOff: number[];
 }
 
 /** What a chat line is, which decides its colour: tile done, progress/rank, a drop, someone else's
@@ -80,6 +84,8 @@ export const DEFAULT_PREFS: ChatFeedPrefs = {
   palette: 'anvil',
   colors: {},
   brief: DEFAULT_BRIEF,
+  tagColor: null,
+  chatboxOff: [],
 };
 
 export const MIN_VALUE_CHOICES = [100_000, 500_000, 1_000_000, 5_000_000, 10_000_000, 50_000_000] as const;
@@ -120,6 +126,8 @@ export function cleanPrefs(p: Record<string, unknown>): ChatFeedPrefs {
     brief: Array.isArray(p.brief)
       ? BRIEF_ITEMS.filter((b) => (p.brief as unknown[]).includes(b))
       : DEFAULT_PREFS.brief,
+    tagColor: typeof p.tagColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.tagColor) ? p.tagColor.toLowerCase() : null,
+    chatboxOff: Array.isArray(p.chatboxOff) ? [...new Set(p.chatboxOff.filter((n): n is number => Number.isInteger(n) && n > 0))].slice(0, 100) : [],
   };
 }
 

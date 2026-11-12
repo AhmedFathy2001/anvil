@@ -649,6 +649,9 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
   player on one live board), colours and escapes included, and `ai` (the sender's account-type chat icon
   index) when they have one. The tag is the host's (event rules
   `chatTag`, ≤12 chars, set in the event's chat settings) or derived from the name.
+- The login brief's `look` (`GET /api/plugin/brief`, refetched on `{"t":"look"}`) also carries `tag` (the
+  [Anvil] tag's colour, a Supporter's own with the custom palette) and `off` (event ids whose event chat
+  the person keeps out of the chatbox, set per board on Settings › In-game chat).
 - `GET /api/plugin/chat-chans` — `{one, chans:[{l:"Winter Bingo · Team", e:"12", to:"team"|"all"|
   "announce"}]}`: where the chatbox event chat input may post, board by board, in cycle order
   (Announcements only for the board's host/mods; "Only my team's chat" drops All). `one`: print `cb1`.

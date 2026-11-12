@@ -9,7 +9,10 @@ import { ANVIL_COLORS, canCustomColors, canShapeBrief } from '@/lib/chatLook';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 import ColorSwatch from '@/components/ColorSwatch';
 
-type Prefs = ChatFeedPrefs & { tier?: SupporterTierId | null };
+type Prefs = ChatFeedPrefs & { tier?: SupporterTierId | null; boards?: { id: number; name: string }[] };
+
+/** The [Anvil] tag's own gold, as the plugin draws it on the transparent chatbox. */
+const DEFAULT_TAG = '#ffd700';
 
 const TONE_LABELS: Record<Tone, string> = {
   done: 'Tile done',
@@ -71,7 +74,8 @@ export default function ChatFeedPanel() {
         body: JSON.stringify(change),
       });
       if (!res.ok) throw new Error();
-      setPrefs(await res.json());
+      // The answer has no board list: keep the one the page loaded with.
+      setPrefs({ ...(await res.json()), boards: before.boards });
     } catch {
       setPrefs(before);
       setError('That didn’t save. Try again.');
@@ -84,7 +88,8 @@ export default function ChatFeedPanel() {
     <div>
       <div className="grid gap-5">
         <p className="max-w-[70ch] text-[13px] text-text-muted">
-          What shows in your chat when the feed is on in the Anvil plugin (Configuration → Anvil → Chat feed).
+          What shows in your chat when the feed is on in the Anvil plugin (Configuration → Anvil → General → Anvil
+          messages in chat).
           Each thing shows once, even when it reaches you more than one way, and never when your own clan&rsquo;s
           broadcast already showed it.
         </p>
@@ -186,7 +191,7 @@ export default function ChatFeedPanel() {
                   onChange={(v) => save({ palette: v as ChatFeedPrefs['palette'] })}
                   options={[
                     { value: 'anvil', label: 'By type (Anvil colours)' },
-                    { value: 'plain', label: "One colour (the plugin's own)" },
+                    { value: 'plain', label: 'One colour (white)' },
                     { value: 'custom', label: canCustomColors(prefs.tier) ? 'My own colours' : 'My own colours (Supporter)' },
                   ]}
                   disabled={busy}
@@ -208,12 +213,40 @@ export default function ChatFeedPanel() {
                   ))}
                 </div>
               )}
+              {prefs.palette === 'custom' && (
+                <ToneSwatch
+                  key={`tag${prefs.tagColor ?? DEFAULT_TAG}`}
+                  label="The [Anvil] tag"
+                  value={prefs.tagColor ?? DEFAULT_TAG}
+                  editable={canCustomColors(prefs.tier) && !busy}
+                  onSave={(c) => save({ tagColor: c })}
+                />
+              )}
               {prefs.palette === 'custom' && !canCustomColors(prefs.tier) && (
                 <p className="text-xs text-text-muted">
                   Your own colours are a Supporter perk. Until then the plugin uses the Anvil colours.
                 </p>
               )}
             </div>
+
+            {!!prefs.boards?.length && (
+              <div className="grid gap-3">
+                <p className="text-sm font-medium">Event chat in the chatbox</p>
+                <p className="max-w-[70ch] text-[13px] text-text-muted">
+                  Each board&rsquo;s event chat also prints in your game chatbox, unless you switch it off here (or turn
+                  &ldquo;Event chat in chatbox&rdquo; off in the plugin for every board). The panel&rsquo;s Feed tab shows it either way.
+                </p>
+                {prefs.boards.map((b) => (
+                  <Checkbox
+                    key={b.id}
+                    checked={!prefs.chatboxOff.includes(b.id)}
+                    disabled={busy}
+                    onChange={(v) => save({ chatboxOff: v ? prefs.chatboxOff.filter((x) => x !== b.id) : [...prefs.chatboxOff, b.id] })}
+                    label={b.name}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
