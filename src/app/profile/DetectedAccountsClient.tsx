@@ -77,7 +77,7 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
               Not mine
             </button>
             <ClanLink
-              href={`/settings/add?connect=${encodeURIComponent(a.rsn)}#link-account`}
+              href={`/settings/characters?connect=${encodeURIComponent(a.rsn)}#link-account`}
               className="px-3 py-1.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors"
             >
               Verify ownership

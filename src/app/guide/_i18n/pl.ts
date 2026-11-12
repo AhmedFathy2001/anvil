@@ -1070,7 +1070,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: '„<RSN> belongs to another Anvil player”',
-          body: 'Ktoś inny pierwszy połączył tę postać w Anvil, więc nic z twojego logowania się dla niej nie liczy. Jeśli naprawdę jest twoja, kliknij **This is my account** w zakładce **You** panelu i przejdź szybką weryfikację XP. Wtedy pytany jest obecny właściciel albo decyduje staff Anvil. Nigdy nie dowiesz się, kto to jest. Śledź sprawę w [Settings → Ownership claims](/settings/claims).',
+          body: 'Ktoś inny pierwszy połączył tę postać w Anvil, więc nic z twojego logowania się dla niej nie liczy. Jeśli naprawdę jest twoja, kliknij **This is my account** w zakładce **You** panelu i przejdź szybką weryfikację XP. Wtedy pytany jest obecny właściciel albo decyduje staff Anvil. Nigdy nie dowiesz się, kto to jest. Śledź sprawę w [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Dalej nie działa? Wyślij adminowi log',
@@ -3099,7 +3099,7 @@ const pl: PartialGuideDict = {
     accounts: {
       title: 'Twoje połączone konta',
       body: [
-        'Konta Twitch, YouTube i Kick, które połączyłeś, są w [Settings → Connected accounts](/settings/connections). Możesz je tam połączyć jeszcze przed dołączeniem.',
+        'Konta Twitch, YouTube i Kick, które połączyłeś, są w [Settings → Connected accounts](/settings/account#streaming). Możesz je tam połączyć jeszcze przed dołączeniem.',
         'Możesz odłączyć każde w każdej chwili. Wydarzenia, do których już dołączyłeś, cię zachowują. Wydarzenie z ograniczeniem, do którego dołączysz później, poprosi o ponowne połączenie.',
         'Połączone konta Twitch, YouTube i Kick widać na twoim profilu ze znaczkiem weryfikacji: udowodniłeś, że są twoje. Wyłącz **Show on my profile**, żeby jedno ukryć. Link do Medal to co innego. Wklejasz go sam, więc nie ma znaczka.',
         'Sam streamujesz na Twitchu? Włącz **Clip my stream when I hit a big moment** pod swoim kontem Twitch. Gdy jesteś na live w wydarzeniu streamera, Anvil klipuje twoje rzadkie dropy, pety i ukończone pola.',

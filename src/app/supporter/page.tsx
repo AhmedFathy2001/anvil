@@ -139,7 +139,7 @@ export default async function SupporterPage() {
               Host an event for your friends →
             </ClanLink>
             {boostSlots > 0 && (
-              <ClanLink href="/settings/boosts" className="text-gold hover:text-gold-light">
+              <ClanLink href="/settings/profile#boosts" className="text-gold hover:text-gold-light">
                 You have {boostSlots} boost{boostSlots === 1 ? '' : 's'}. Boost any clan you&rsquo;re a member of →
               </ClanLink>
             )}
@@ -317,7 +317,7 @@ function Wall({ wall }: { wall: SupporterWall }) {
         ))}
       </div>
       <p className="mt-2 text-[12px] text-text-dim">
-        Supporters show under a character they share publicly. Anyone can leave the wall in Settings → Supporter.
+        Supporters show under a character they share publicly. Anyone can leave the wall in Settings → Profile &amp; look.
       </p>
     </section>
   );

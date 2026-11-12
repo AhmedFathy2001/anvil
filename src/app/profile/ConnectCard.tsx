@@ -209,9 +209,9 @@ export default function ConnectCard({
             Verify by XP
           </button>
         ) : (
-          <a href="/settings/add#link-account" className="text-gold hover:text-gold-light">
+          <ClanLink href="/settings/characters#link-account" className="text-gold hover:text-gold-light">
             Verify by XP
-          </a>
+          </ClanLink>
         )}{' '}
         — we pick one of your skills, and you gain 1,000 XP in it within 30 minutes.
       </p>
@@ -233,9 +233,9 @@ export default function ConnectCard({
             <div>
               <div className="font-semibold text-foreground/85">On mobile, or not on the hiscores?</div>
               <p className="mt-0.5">
-                <a href="/settings/add#link-account" className="text-gold hover:text-gold-light">
+                <ClanLink href="/settings/characters#link-account" className="text-gold hover:text-gold-light">
                   Link by name
-                </a>{' '}
+                </ClanLink>{' '}
                 with the XP check, or ask for a manual check if your character is too low level to show on the
                 hiscores.
               </p>

@@ -1071,7 +1071,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Joku muu yhdisti tämän hahmon Anviliin ensin, joten kirjautumisestasi ei lasketa sille mitään. Jos hahmo todella on sinun, paina paneelin **You**-välilehdellä **This is my account** ja tee nopea XP-tarkistus. Sen jälkeen nykyiseltä omistajalta kysytään, tai Anvilin henkilökunta päättää. Et koskaan saa tietää, kuka hän on. Seuraa asiaa kohdassa [Settings → Ownership claims](/settings/claims).',
+          body: 'Joku muu yhdisti tämän hahmon Anviliin ensin, joten kirjautumisestasi ei lasketa sille mitään. Jos hahmo todella on sinun, paina paneelin **You**-välilehdellä **This is my account** ja tee nopea XP-tarkistus. Sen jälkeen nykyiseltä omistajalta kysytään, tai Anvilin henkilökunta päättää. Et koskaan saa tietää, kuka hän on. Seuraa asiaa kohdassa [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Yhä jumissa? Lähetä ylläpitäjälle loki',
@@ -3111,7 +3111,7 @@ const fi: PartialGuideDict = {
     accounts: {
       title: 'Yhdistetyt tilisi',
       body: [
-        'Yhdistämäsi Twitch-, YouTube- ja Kick-tilit löytyvät kohdasta [Settings → Connected accounts](/settings/connections). Voit yhdistää ne siellä myös ennen liittymistä.',
+        'Yhdistämäsi Twitch-, YouTube- ja Kick-tilit löytyvät kohdasta [Settings → Connected accounts](/settings/account#streaming). Voit yhdistää ne siellä myös ennen liittymistä.',
         'Voit poistaa yhteyden milloin tahansa. Tapahtumat, joihin jo liityit, pitävät sinut mukana. Myöhemmin liittyessäsi rajattuun tapahtumaan sinua pyydetään yhdistämään uudelleen.',
         'Yhdistetyt Twitch-, YouTube- ja Kick-tilit näkyvät profiilissasi vahvistusmerkillä: todistit, että ne ovat sinun. Piilota tili laittamalla **Show on my profile** pois päältä. Medal-linkki on eri asia. Liität sen itse, joten siinä ei ole merkkiä.',
         'Striimaatko itse Twitchissä? Laita Twitch-tilisi alla päälle **Clip my stream when I hit a big moment**. Kun olet livenä striimaajan tapahtumassa, Anvil klippaa harvinaiset droppisi, pettisi ja valmiit ruutusi.',

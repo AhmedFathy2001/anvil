@@ -1066,7 +1066,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: '别人先在 Anvil 上关联了这个角色，所以你登录时它的任何进度都不计数。如果它真的是你的，在面板的 **You** 标签页按 **This is my account**，并通过一个简短的 XP 检查。之后会询问当前所有者，或由 Anvil 工作人员决定。你永远不会知道对方是谁。在 [Settings → Ownership claims](/settings/claims) 里跟进进度。',
+          body: '别人先在 Anvil 上关联了这个角色，所以你登录时它的任何进度都不计数。如果它真的是你的，在面板的 **You** 标签页按 **This is my account**，并通过一个简短的 XP 检查。之后会询问当前所有者，或由 Anvil 工作人员决定。你永远不会知道对方是谁。在 [Settings → Ownership claims](/settings/characters#claims) 里跟进进度。',
         },
       ],
       logHeading: '还是不行？给管理员发一份日志',
@@ -3099,7 +3099,7 @@ const zhHans: PartialGuideDict = {
     accounts: {
       title: '你已连接的账号',
       body: [
-        '你关联的 Twitch、YouTube 和 Kick 账号都在 [Settings → Connected accounts](/settings/connections)。你也可以在加入之前先在那里关联。',
+        '你关联的 Twitch、YouTube 和 Kick 账号都在 [Settings → Connected accounts](/settings/account#streaming)。你也可以在加入之前先在那里关联。',
         '随时可以取消关联。你已经加入的活动会保留你。以后加入需要检查的活动时，会再要求你关联。',
         '你关联的 Twitch、YouTube 和 Kick 账号会带着已验证的勾显示在你的个人资料上：你证明了它们是你的。关掉 **Show on my profile** 就能隐藏其中一个。Medal 链接不一样。它是你自己粘贴的，所以没有勾。',
         '你自己也在 Twitch 直播？在你的 Twitch 账号下打开 **Clip my stream when I hit a big moment**。你在主播的活动里直播时，Anvil 会剪下你的稀有掉落、宠物和完成的格子。',

@@ -1069,7 +1069,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'ほかの誰かが先にこのキャラクターを Anvil にリンクしたため、あなたのログインでは何も数えられません。本当にあなたのものなら、パネルの **You** タブで **This is my account** を押して、簡単な XP チェックを通ってください。そのあと現在の所有者に確認が行くか、Anvil のスタッフが判断します。相手が誰かは知らされません。進み具合は [Settings → Ownership claims](/settings/claims) で確認できます。',
+          body: 'ほかの誰かが先にこのキャラクターを Anvil にリンクしたため、あなたのログインでは何も数えられません。本当にあなたのものなら、パネルの **You** タブで **This is my account** を押して、簡単な XP チェックを通ってください。そのあと現在の所有者に確認が行くか、Anvil のスタッフが判断します。相手が誰かは知らされません。進み具合は [Settings → Ownership claims](/settings/characters#claims) で確認できます。',
         },
       ],
       logHeading: 'それでも詰まったら、管理者にログを送る',
@@ -3103,7 +3103,7 @@ const ja: PartialGuideDict = {
     accounts: {
       title: 'つないだアカウント',
       body: [
-        'リンクした Twitch、YouTube、Kick のアカウントは [Settings → Connected accounts](/settings/connections) にあります。参加する前にここでリンクしておくこともできます。',
+        'リンクした Twitch、YouTube、Kick のアカウントは [Settings → Connected accounts](/settings/account#streaming) にあります。参加する前にここでリンクしておくこともできます。',
         'いつでもリンクを外せます。すでに参加したイベントはそのままです。あとから参加する限定イベントでは、もう一度リンクを求められます。',
         'リンクした Twitch、YouTube、Kick のアカウントは、確認済みのチェック付きでプロフィールに表示されます：あなたのものだと証明したからです。隠したいときは **Show on my profile** をオフにします。Medal のリンクは別です。自分で貼るので、チェックは付きません。',
         '自分も Twitch で配信していますか？ Twitch アカウントの下の **Clip my stream when I hit a big moment** をオンにします。配信者のイベントで配信中なら、Anvil があなたのレアドロップ、ペット、完了したマスをクリップします。',

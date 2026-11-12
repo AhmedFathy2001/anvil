@@ -1072,7 +1072,7 @@ const no: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Noen andre koblet denne karakteren til Anvil først, så ingenting teller for den fra din innlogging. Er den virkelig din? Trykk **This is my account** i panelets **You**-fane og ta den raske XP-sjekken. Da blir den nåværende eieren spurt, eller staben til Anvil avgjør. Du får aldri vite hvem det er. Følg saken under [Settings → Ownership claims](/settings/claims).',
+          body: 'Noen andre koblet denne karakteren til Anvil først, så ingenting teller for den fra din innlogging. Er den virkelig din? Trykk **This is my account** i panelets **You**-fane og ta den raske XP-sjekken. Da blir den nåværende eieren spurt, eller staben til Anvil avgjør. Du får aldri vite hvem det er. Følg saken under [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Fortsatt fast? Send en admin en logg',
@@ -3114,7 +3114,7 @@ const no: PartialGuideDict = {
     accounts: {
       title: 'Kontoene dine',
       body: [
-        'Twitch-, YouTube- og Kick-kontoene du har koblet til, ligger i [Settings → Connected accounts](/settings/connections). Du kan koble dem til der før du blir med også.',
+        'Twitch-, YouTube- og Kick-kontoene du har koblet til, ligger i [Settings → Connected accounts](/settings/account#streaming). Du kan koble dem til der før du blir med også.',
         'Fjern en tilkobling når som helst. Events du allerede er med i, beholder deg. Et event med krav som du blir med i senere, ber deg koble til på nytt.',
         'Tilkoblede Twitch-, YouTube- og Kick-kontoer vises på profilen din med en hake: du har bevist at de er dine. Slå av **Show on my profile** for å skjule en. En Medal-lenke er annerledes. Den limer du inn selv, så den får ingen hake.',
         'Streamer du selv på Twitch? Slå på **Clip my stream when I hit a big moment** under Twitch-kontoen din. Mens du er live i en streamers event, klipper Anvil de sjeldne dropsene dine, pets og fullførte ruter.',

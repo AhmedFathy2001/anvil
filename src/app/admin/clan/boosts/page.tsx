@@ -22,7 +22,7 @@ const LEVELS: { level: 1 | 2 | 3; perks: string[] }[] = [
 /**
  * Clan settings → Boosts (lib/clanBoosts). Owners and admins see the level, any grace week, and the
  * two things a level lets them write: the recruiting line (Level 2) and the monthly Discord post
- * (Level 3). Boosts themselves are placed by members on Settings → Clan boosts.
+ * (Level 3). Boosts themselves are placed by members on Settings → Profile & look → Clan boosts.
  */
 export default async function ClanBoostsPage() {
   if (!(await verifyAdmin())) redirect(await clanHref('/admin/people'));

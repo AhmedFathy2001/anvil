@@ -40,7 +40,7 @@ export default function PluginSetupValues({ tokenLabel }: { tokenLabel: string }
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <span className="text-text-muted">Sign in with Discord to make a token here.</span>
             <ClanLink
-              href="/settings/plugin"
+              href="/settings/in-game#plugin"
               className="rounded-lg bg-gold px-3 py-2 font-semibold text-brown-dark transition-colors hover:bg-gold-light"
             >
               Sign in
@@ -56,7 +56,7 @@ export default function PluginSetupValues({ tokenLabel }: { tokenLabel: string }
 
       <p className="mt-3 text-xs text-text-muted">
         Treat the token like a password.{' '}
-        <ClanLink href="/settings/plugin" className="text-gold hover:text-gold-light">
+        <ClanLink href="/settings/in-game#plugin" className="text-gold hover:text-gold-light">
           Open token settings
         </ClanLink>{' '}
         to sign every client out if one leaks.

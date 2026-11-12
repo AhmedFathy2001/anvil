@@ -29,7 +29,7 @@ export default async function InboxPage() {
           <h1 className="text-2xl font-bold">Inbox</h1>
           <p className="mt-1 text-sm text-gray-400">Updates from Anvil. Questions or feedback? Reply on Discord, I read everything.</p>
         </div>
-        <ClanLink href="/settings/notifications" className="text-sm text-gold hover:text-gold-light">
+        <ClanLink href="/settings/posts#notifications" className="text-sm text-gold hover:text-gold-light">
           Notification settings
         </ClanLink>
       </div>

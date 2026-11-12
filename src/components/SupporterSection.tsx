@@ -76,7 +76,10 @@ export default function SupporterSection({
   gifted = 0,
   characters = [],
   bare = false,
+  looks = true,
 }: {
+  /** Draw the name-colour editor here. Off where the page has its own (Settings → Profile & look). */
+  looks?: boolean;
   /** On /settings, where the page already has its title: no section heading or top margin. */
   bare?: boolean;
   supporter: SupporterView | null;
@@ -188,9 +191,9 @@ export default function SupporterSection({
             Manage on Gumroad
           </a>
         </div>
-        <div className="mt-4">
+        {looks && <div className="mt-4">
           <SupporterNameLooks tier={supporter.tier} name={name || 'Your name'} accountStyle={supporter.style} characters={characters} />
-        </div>
+        </div>}
         {gameChat != null && <SupporterGameChatToggle initial={gameChat} />}
         {wall != null && <SupporterWallToggle initial={wall} />}
       </div>

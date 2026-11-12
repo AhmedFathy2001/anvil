@@ -1,12 +1,15 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import { MotionImage } from '@/components/ProfileMedia';
 import { clanFetch } from '@/lib/clanFetch';
 import { MEDIA_LIMITS, type ProfileMediaKind, type ShownMedia, type ShownProfileMedia } from '@/lib/profileMediaRules';
 import Slider from '@/components/Slider';
+import { OnlyYouNote } from '@/app/settings/_ui';
+import { useLookPreview } from '@/app/settings/_preview';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 // Your own avatar and banner, on "your account across Anvil" (Anvil Supporter: Champion and Patron).
 // Uploads on choose — the server validates, re-encodes and stores it, and answers with what to show.
@@ -21,7 +24,16 @@ export default function ProfileLookEditor({
   accountId,
   fallback,
   onChange,
+  canAnimate,
+  held = null,
 }: {
+  /**
+   * Their tier lets the pictures MOVE for everyone else. When false, `initial` should still be the
+   * moving copy (the owner's own preview) and the editor says only they see it move.
+   */
+  canAnimate?: boolean;
+  /** The tier in force, for the "become / upgrade" wording. */
+  held?: SupporterTierId | null;
   /** For a character (`accountId`): ONLY its own override parts; a null part uses the default. */
   initial: ShownProfileMedia;
   /** Champion+ now. Without it, what they uploaded shows as a still and the pickers are hidden. */
@@ -55,6 +67,13 @@ export default function ProfileLookEditor({
   const [busy, setBusy] = useState<ProfileMediaKind | null>(null);
   const [error, setError] = useState('');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The page's live preview follows the person's own pictures (not a character's override).
+  const setPreviewMedia = useLookPreview()?.setMedia;
+  useEffect(() => {
+    if (!forCharacter && setPreviewMedia) setPreviewMedia({ avatar, banner: banner ? { ...banner, position } : null });
+  }, [forCharacter, setPreviewMedia, avatar, banner, position]);
+  const movesOnlyForYou = canAnimate === false && (!!avatar?.animated || !!banner?.animated);
 
   if (!canUpload && !avatar && !banner && !forCharacter) {
     return (
@@ -202,6 +221,13 @@ export default function ProfileLookEditor({
           </p>
         </div>
       </div>
+
+      {movesOnlyForYou && (
+        <div className="mt-3">
+          <OnlyYouNote need="champion" held={held} what="The motion" />
+          <p className="mt-1 text-[12px] text-text-dim">Everyone else sees the first frame until then.</p>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-400">

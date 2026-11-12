@@ -11,7 +11,7 @@ import { MemberSettingsSearch, SettingsCard } from './SettingsHub';
  * It used to redirect to Login & devices, which left people reading the rail's labels and guessing
  * ("Announcements" held screenshot privacy; "Privacy" was a different thing). Now it opens on a
  * search box and one card per area, each saying what it controls and linking to the exact section.
- * The plugin links here and to /settings/announcements, so both stay.
+ * The plugin links here and to /settings/announcements (which redirects to Posts & alerts).
  */
 export default async function SettingsHome() {
   const session = await settingsSession();

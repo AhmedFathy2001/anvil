@@ -26,7 +26,7 @@ import {
 
 /**
  * The newer announcement kinds and per-kind screenshots (lib/notifyKinds), for a player on
- * /settings/announcements or a clan on its Discord page. A player sees what their clan's default gives
+ * /settings/posts#discord-posts or a clan on its Discord page. A player sees what their clan's default gives
  * them until they change something; "Reset" goes back to it. A clan sets the default for its members
  * and never sees the private kinds: those are each player's own.
  */

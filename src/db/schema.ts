@@ -2240,7 +2240,7 @@ export const accountOwnershipClaims = pgTable('account_ownership_claims', {
 
 /**
  * A notice on the site for one login — the in-site record that somebody was told something (an
- * ownership claim on their character, its outcome). Shown on /settings/claims; `readAt` once seen.
+ * ownership claim on their character, its outcome). Shown on /settings/characters#claims; `readAt` once seen.
  * A Discord DM may also go out, but this row is what "the owner was told" means.
  */
 export const userNotices = pgTable('user_notices', {

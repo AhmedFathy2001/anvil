@@ -1074,7 +1074,7 @@ const es: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Otra persona vinculó este personaje en Anvil primero, así que nada cuenta para él desde tu sesión. Si de verdad es tuyo, pulsa **This is my account** en la pestaña **You** del panel y pasa la comprobación rápida de XP. Después se pregunta al propietario actual, o decide el staff de Anvil. Nunca sabrás quién es. Sigue la solicitud en [Settings → Ownership claims](/settings/claims).',
+          body: 'Otra persona vinculó este personaje en Anvil primero, así que nada cuenta para él desde tu sesión. Si de verdad es tuyo, pulsa **This is my account** en la pestaña **You** del panel y pasa la comprobación rápida de XP. Después se pregunta al propietario actual, o decide el staff de Anvil. Nunca sabrás quién es. Sigue la solicitud en [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: '¿Sigues atascado? Manda un registro a un admin',
@@ -3114,7 +3114,7 @@ const es: PartialGuideDict = {
     accounts: {
       title: 'Tus cuentas conectadas',
       body: [
-        'Las cuentas de Twitch, YouTube y Kick que enlazaste están en [Settings → Connected accounts](/settings/connections). También puedes enlazarlas ahí antes de unirte.',
+        'Las cuentas de Twitch, YouTube y Kick que enlazaste están en [Settings → Connected accounts](/settings/account#streaming). También puedes enlazarlas ahí antes de unirte.',
         'Desvincula una cuando quieras. Los eventos a los que ya te uniste te mantienen. Un evento con requisitos al que te unas después te pide enlazar otra vez.',
         'Las cuentas de Twitch, YouTube y Kick enlazadas salen en tu perfil con una marca de verificación: demostraste que son tuyas. Desactiva **Show on my profile** para ocultar una. Un enlace de Medal es distinto. Lo pegas tú, así que no lleva marca.',
         '¿Tú también haces stream en Twitch? Activa **Clip my stream when I hit a big moment** bajo tu cuenta de Twitch. Mientras estás en directo en el evento de un streamer, Anvil clipea tus drops raros, tus mascotas y tus casillas completadas.',
