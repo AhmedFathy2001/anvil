@@ -44,10 +44,10 @@ test('public goes to the ticket’s world room only, never back to the sender', 
   assert.equal(m.t, 'relay');
   assert.equal(m.c, 'public');
   assert.equal(m.n, 'Alice');
-  assert.equal(m.x, 'A < b > c');
-  assert.equal(m.xh, 'A <lt> b <gt> c');
-  assert.ok(lineSigned(key, 1, 'Alice', 'public', 'A < b > c', m.at as number, m.k), 'signed for a report');
-  assert.ok(!lineSigned(key, 1, 'Mallory', 'public', 'A < b > c', m.at as number, m.k), 'not under another name');
+  assert.equal(m.x, 'a < b > c', 'public is left as the game wrote it');
+  assert.equal(m.xh, 'a <lt> b <gt> c');
+  assert.ok(lineSigned(key, 1, 'Alice', 'public', 'a < b > c', m.at as number, m.k), 'signed for a report');
+  assert.ok(!lineSigned(key, 1, 'Mallory', 'public', 'a < b > c', m.at as number, m.k), 'not under another name');
   assert.ok(!lineSigned(key, 1, 'Alice', 'public', 'something else', m.at as number, m.k), 'a changed line is not');
   assert.equal(hub.receive(a, { t: 'rooms', w: 330 }), 'bad', 'a socket cannot name its own rooms');
   assert.equal(hub.roomSize('world:330'), 1);
@@ -160,9 +160,9 @@ test('friends chat room from the ticket; first letter capitalised; repeats ignor
   c.send = (m: string) => JSON.parse(m).t === 'relay' && assert.fail('another friends chat');
   for (const x of [a, b, c]) hub.add(x);
   assert.equal(hub.receive(a, { t: 'say', c: 'fc', x: 'need a scythe' }), null);
-  assert.equal(JSON.parse(got[0]).x, 'Need a scythe');
+  assert.equal(JSON.parse(got[0]).x, 'need a scythe', 'friends chat is the game’s to capitalise');
   now += 1;
-  assert.equal(hub.receive(a, { t: 'say', c: 'fc', x: 'Need a scythe' }), 'repeat');
+  assert.equal(hub.receive(a, { t: 'say', c: 'fc', x: 'Need a scythe' }), 'repeat', 'case-blind');
   assert.equal(fcOwner('<img=1>x'), null);
   assert.equal(fcOwner('Raid Host'), 'raid host');
 });
@@ -185,4 +185,14 @@ test('presence: who else has the relay on in my rooms, and joins/leaves after', 
   stop();
   assert.ok(!a.seen.some((m) => m.t === 'gone'));
   assert.equal(presenceName('GIM\u00a0Drenvox'), 'gim drenvox');
+});
+
+test('clan lines get the capital the game gives everyone else', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Alice', 7);
+  const b = client(2, 'Bob', 7);
+  hub.add(a);
+  hub.add(b);
+  hub.receive(a, { t: 'say', c: 'clan', x: 'test' });
+  assert.equal(b.got[0].x, 'Test');
 });

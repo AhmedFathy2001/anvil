@@ -167,8 +167,9 @@ export class RelayHub {
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
     const raw = checkBody(x, { staff: false });
     if (!raw.ok || raw.body.length > RELAY_MAX) return 'filtered';
-    // The game capitalises the first letter of what anyone says; a muted player's own copy isn't.
-    const checked = { body: raw.body.charAt(0).toUpperCase() + raw.body.slice(1) };
+    // The game capitalises the first letter of public and friends chat lines itself, muted or not, but
+    // not a muted player's own clan line: only clan is capitalised here, to read like the rest.
+    const checked = { body: c === 'clan' ? raw.body.charAt(0).toUpperCase() + raw.body.slice(1) : raw.body };
     const at = this.now();
     m.sent = m.sent.filter((t) => t > at - RELAY_WINDOW_MS);
     if (m.sent.length >= RELAY_BURST) return 'rate';

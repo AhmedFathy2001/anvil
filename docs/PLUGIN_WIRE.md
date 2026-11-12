@@ -630,8 +630,9 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
 - Plugin → server (only on a relay ticket; any other socket is still closed by a message):
   `{"t":"say","c":"public"|"clan"|"fc","x":"<the line>"}` — the local player's own line only, never a `::`
   command. Filtered with event chat's rules (lib/eventChatRules `checkBody`), max 80 chars, 6 lines per
-  10 s per socket, the same line twice in 10 s is one (case aside). The first letter is capitalised, as
-  the game does for everyone else's lines (a muted player's own copy isn't).
+  10 s per socket, the same line twice in 10 s is one (case aside). A clan line's first letter is
+  capitalised, as the game does for everyone else's (a muted player's own clan copy isn't; public and
+  friends chat the game capitalises itself).
 - Server → plugin, to the room minus every socket of the sender: `{"t":"relay","c","n":"Name",
   "nm":"<img=2>Name","x","xh","at","u","k"}` — `xh` is `x` escaped for game chat; `k` signs
   `(u, n, c, at, x)`. The receiver shows a clan line only when the sender is in its own clan channel.
