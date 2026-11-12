@@ -76,3 +76,13 @@ test('Champion extras go on a second line', () => {
   });
   assert.deepEqual(lines, [{ tone: 'info', text: 'Nearly done: Zulrah · Barbarian Assault in 1h 35m · Goal: 99 Slayer (87%)' }]);
 });
+
+test('the [Anvil] tag colour rides a Supporter’s custom palette; boards kept out of the chatbox always ride', () => {
+  const prefs = cleanPrefs({ palette: 'custom', tagColor: '#AA00FF', chatboxOff: [12, 12, -1, 'x', 7] });
+  assert.deepEqual(prefs.chatboxOff, [12, 7]);
+  assert.equal(effectiveLook(prefs, 'supporter').tag, 'aa00ff');
+  assert.equal(effectiveLook(prefs, null).tag, undefined, 'not a Supporter: Anvil gold');
+  assert.deepEqual(effectiveLook(prefs, null).off, ['12', '7']);
+  assert.deepEqual(effectiveLook(cleanPrefs({ palette: 'plain', chatboxOff: [3] }), null).off, ['3']);
+  assert.equal(effectiveLook(cleanPrefs({}), null).off, undefined);
+});

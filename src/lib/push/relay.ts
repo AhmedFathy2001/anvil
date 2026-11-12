@@ -175,7 +175,7 @@ export class RelayHub {
       : [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : `${c}:`));
     if (!room) return 'no-room';
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
-    const raw = checkBody(x, { staff: false });
+    const raw = checkBody(x, { staff: false, keepRuns: true });
     if (!raw.ok || raw.body.length > RELAY_MAX) return 'filtered';
     // The game capitalises the first letter of public, friends chat and private lines itself, muted or
     // not, but not a muted player's own clan or guest clan line: only those are capitalised here.

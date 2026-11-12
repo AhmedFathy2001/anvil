@@ -53,6 +53,17 @@ test('public goes to the ticket’s world room only, never back to the sender', 
   assert.equal(hub.roomSize('world:330'), 1);
 });
 
+test('a relayed line keeps its repeated letters as the game let them through', () => {
+  const hub = new RelayHub(key, () => 1_000);
+  const a = client(1, 'Alice', null, 302);
+  const b = client(2, 'Bob', null, 302);
+  hub.add(a);
+  hub.add(b);
+  const line = 'This is a reallyyyyyyyyyyyy longgggggggggg testtttttttt';
+  assert.equal(hub.receive(a, { t: 'say', c: 'public', x: line }), null);
+  assert.equal(b.got[0].x, line);
+});
+
 test('clan goes to the roster clan from the ticket; GIM is not relayed', () => {
   const hub = new RelayHub(key, () => 5_000);
   const a = client(1, 'Alice', 7);
@@ -131,11 +142,11 @@ test('the chat tag survives other rules edits and defaults to nothing stored', (
 
 test('chatbox lines: tag and channel, escaped, Announcements gold', () => {
   const team = chatboxLines('Winter', 'team:4', 'Bob', 'a < b');
-  assert.equal(team.cb, '<col=57c785>[Winter · Team]</col> Bob: a <lt> b');
-  assert.equal(team.cb1, '<col=57c785>[Team]</col> Bob: a <lt> b');
+  assert.equal(team.cb, '<col=57c785>[Winter · Team]</col> Bob: A <lt> b');
+  assert.equal(team.cb1, '<col=57c785>[Team]</col> Bob: A <lt> b');
   const ann = chatboxLines('Winter', 'announce', 'Host', 'Starts now');
   assert.equal(ann.cb, '<col=ffb54d>[Winter · Announcements]</col> Host: <col=ffb54d>Starts now</col>');
-  assert.equal(chatboxLines('W', 'all', 'X', 'y').cb1, '<col=7fc8ff>[All]</col> X: y');
+  assert.equal(chatboxLines('W', 'all', 'X', 'y').cb1, '<col=7fc8ff>[All]</col> X: Y', 'first letter capitalised like the game');
 });
 
 test('a person’s other character hears their line; the same character’s sockets do not', () => {

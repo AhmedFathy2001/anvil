@@ -49,6 +49,23 @@ export async function getChatFeedPrefs(userId: number): Promise<ChatFeedPrefs> {
   return parsePrefs(row?.chatFeedPrefs);
 }
 
+/**
+ * The boards with event chat on that this person's characters play and that haven't ended: the list
+ * the chat settings offer a per-board "in the chatbox" switch for (prefs.chatboxOff).
+ */
+export async function chatBoardsForUser(userId: number): Promise<{ id: number; name: string }[]> {
+  // clan-scope: global -- the person's own characters' boards, across clans, by their own seats
+  const rows = await db
+    .selectDistinct({ id: events.id, name: events.name, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .from(users)
+    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+    .innerJoin(eventParticipants, eq(eventParticipants.accountId, accounts.id))
+    .innerJoin(events, eq(events.id, eventParticipants.eventId))
+    .where(and(eq(users.id, userId), eq(events.chatEnabled, true)));
+  const now = Date.now();
+  return rows.filter((r) => !r.forceEndedAt && !((parseStamp(r.endDate) ?? Infinity) <= now)).map(({ id, name }) => ({ id, name }));
+}
+
 export async function setChatFeedPrefs(userId: number, prefs: ChatFeedPrefs): Promise<void> {
   await db.update(users).set({ chatFeedPrefs: JSON.stringify(prefs) }).where(eq(users.id, userId));
 }

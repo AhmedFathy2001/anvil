@@ -31,8 +31,8 @@ import { rankOf } from '../src/lib/clanRoles.ts';
 test('a message is cleaned and length-checked', () => {
   assert.deepEqual(checkBody('  gz   on the​ pet \n ', { staff: false }), { ok: true, body: 'gz on the pet' });
   assert.equal(checkBody('   ', { staff: false }).ok, false);
-  assert.equal(checkBody('ab'.repeat(101), { staff: false }).ok, false);
-  assert.equal(checkBody('ab'.repeat(100), { staff: false }).ok, true);
+  assert.equal(checkBody('ab'.repeat(40) + 'c', { staff: false }).ok, false);
+  assert.equal(checkBody('ab'.repeat(40), { staff: false }).ok, true);
 });
 
 test('markup, zalgo, styled letters and long runs are cleaned', () => {
