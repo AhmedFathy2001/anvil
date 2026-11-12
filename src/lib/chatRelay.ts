@@ -10,7 +10,7 @@ import { cleanName } from '@/lib/eventChatRules';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { playedCharacter, resolvePluginCharacter } from '@/lib/pluginAccount';
-import { accountIcon, lineSigned, relayKey, RELAY_MAX, type RelayIdentity } from '@/lib/push/relay';
+import { accountIcon, fcOwner, lineSigned, relayKey, RELAY_MAX, type RelayIdentity } from '@/lib/push/relay';
 
 /** Staff's switch for the relay. ON unless staff turn it off ('false'). */
 export const CHAT_RELAY_PLATFORM_KEY = 'chat_relay_enabled';
@@ -35,10 +35,11 @@ export async function setRelayOn(on: boolean): Promise<void> {
 /**
  * Who this plugin relays as: the character it is logged in on (theirs — resolvePluginCharacter), by
  * the name Anvil holds for that account (never the header's), its account-type icon, the clan whose
- * in-game roster lists it, and `world` (the plugin's `?world=`: only the client can know it). Null
+ * in-game roster lists it, `world` (the plugin's `?world=`: only the client can know it) and `fc`
+ * (the plugin's `?fc=`: the friends chat owner it sits with, self-reported the same way). Null
  * when there is no such character, or the header names another one than the account it resolved to.
  */
-export async function relayIdentity(request: Request, world: number | null): Promise<RelayIdentity | null> {
+export async function relayIdentity(request: Request, world: number | null, fc: string | null = null): Promise<RelayIdentity | null> {
   const character = await resolvePluginCharacter(request).catch(() => null);
   const played = playedCharacter(request);
   if (!character || !played) return null;
@@ -50,7 +51,7 @@ export async function relayIdentity(request: Request, world: number | null): Pro
     where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)),
     columns: { clanId: true },
   });
-  return { name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null };
+  return { name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}) };
 }
 
 export interface RelayReport {

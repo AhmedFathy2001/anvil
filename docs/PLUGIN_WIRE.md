@@ -623,15 +623,21 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
   `chat_relay_enabled`, on unless `'false'`) on, the ticket carries `rl: [name, icon, clanId, world]`
   (lib/chatRelay `relayIdentity`): Anvil's name for the character, its account-type chat icon, the clan
   whose in-game roster lists it, and the world. The socket's hello is then `{"t":"hello","relay":1}`.
-  Rooms come only from the ticket: `world:<n>` (public) and `clan:<id>` (clan). A world hop re-tickets.
+  Rooms come only from the ticket: `world:<n>` (public), `clan:<id>` (clan) and, with `&fc=<owner>`,
+  `fc:<owner>` (friends chat: self-reported; the receiver shows a line only when the sender is in its own
+  friends chat member list). A world hop or a friends chat change re-tickets.
   GIM is not relayed in phase 1 (Anvil keeps no GIM groups to bind a room to).
 - Plugin → server (only on a relay ticket; any other socket is still closed by a message):
-  `{"t":"say","c":"public"|"clan","x":"<the line>"}` — the local player's own line only, never a `::`
+  `{"t":"say","c":"public"|"clan"|"fc","x":"<the line>"}` — the local player's own line only, never a `::`
   command. Filtered with event chat's rules (lib/eventChatRules `checkBody`), max 80 chars, 6 lines per
-  10 s per socket, the same line twice in 10 s is one.
+  10 s per socket, the same line twice in 10 s is one (case aside). The first letter is capitalised, as
+  the game does for everyone else's lines (a muted player's own copy isn't).
 - Server → plugin, to the room minus every socket of the sender: `{"t":"relay","c","n":"Name",
   "nm":"<img=2>Name","x","xh","at","u","k"}` — `xh` is `x` escaped for game chat; `k` signs
   `(u, n, c, at, x)`. The receiver shows a clan line only when the sender is in its own clan channel.
+- Presence, relay sockets only: `{"t":"here","n":[names]}` on joining (the other relay-connected
+  characters in its rooms, standardised) and to each of them; `{"t":"gone","n":name}` once that
+  character's last socket leaves. Only people with the relay on are ever named.
 - `POST /api/plugin/chat-relay/report` with the line as received (`{c,n,x,at,u,k}`): only a line the
   push server signed is taken, within a day; stored in the report queue as a report of the sender's
   profile, the line as its snapshot.

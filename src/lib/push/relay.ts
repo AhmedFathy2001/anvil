@@ -15,15 +15,20 @@ import { checkBody } from '../eventChatRules.ts';
 //                        Only the plugin can know it; what it opens is that world's public chat, which
 //                        everybody standing there sees anyway.
 //   clan:<id>   clan   — the character's in-game clan on Anvil's roster.
+//   fc:<owner>  friends chat — the channel owner the plugin says it sits in (`?fc=`). Self-reported, like
+//                        the world; each receiver shows a line only when the sender is in its OWN friends
+//                        chat member list, so nobody's names are uploaded and a wrong room shows nothing.
 // GIM is not relayed: Anvil keeps no GIM groups, and a group named by the client could be anyone's.
 // Out, to the room minus the sender's own sockets:
 //   {"t":"relay","c":…,"n":"Name","nm":"<img=2>Name","x":text,"xh":escaped,"at":ms,"u":user,"k":sig}
+// Presence, to relay sockets only: {"t":"here","n":[names]} on joining (the others in its rooms) and to
+// those others; {"t":"gone","n":name} when the last socket of that character leaves.
 // `nm` is the name as the game writes it (account-type icon first); `u` the sender's Anvil user and
 // `k` this server's signature of (u, n, c, at, x), so a report (api/plugin/chat-relay/report) can only
 // be of a line this server really sent.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type RelayChannel = 'public' | 'clan';
+export type RelayChannel = 'public' | 'clan' | 'fc';
 
 /** What a relay ticket says about its character (lib/push/ticket `relay`). */
 export interface RelayIdentity {
@@ -35,6 +40,8 @@ export interface RelayIdentity {
   clanId: number | null;
   /** The world it is on: the public room. */
   world: number | null;
+  /** The friends chat owner it sits with (standardised), or null: the fc room. */
+  fc?: string | null;
 }
 
 export interface RelayClient {
@@ -109,10 +116,37 @@ export class RelayHub {
     // A world holds 2,000 players; a room far past that is somebody's script, not a world.
     const w = client.who.world;
     if (w != null && w > 0 && w < 10_000 && this.roomSize(`world:${w}`) < WORLD_MAX) this.join(m, `world:${w}`);
+    const fc = fcOwner(client.who.fc);
+    if (fc) this.join(m, `fc:${fc}`);
+    // Presence: who else in these rooms has the relay on (they opted in; nobody else is ever named),
+    // and to each of them, that this character is here now.
+    const me = presenceName(client.who.name);
+    const here = new Set<string>();
+    for (const o of this.around(m)) {
+      const name = presenceName(o.client.who.name);
+      if (name !== me) {
+        here.add(name);
+        o.client.send(JSON.stringify({ t: 'here', n: [me] }));
+      }
+    }
+    if (here.size) client.send(JSON.stringify({ t: 'here', n: [...here] }));
     return () => {
-      for (const r of m.rooms) this.leave(m, r);
+      const around = this.around(m);
+      for (const r of [...m.rooms]) this.leave(m, r);
       this.members.delete(client);
+      // Gone only once no socket of this character is left beside them (a re-ticket opens its new one first).
+      for (const o of around) {
+        if (presenceName(o.client.who.name) === me) return;
+      }
+      for (const o of around) o.client.send(JSON.stringify({ t: 'gone', n: me }));
     };
+  }
+
+  /** Everyone sharing a room with this member, once each, itself left out. */
+  private around(m: Member): Set<Member> {
+    const out = new Set<Member>();
+    for (const r of m.rooms) for (const o of this.rooms.get(r) ?? []) if (o !== m) out.add(o);
+    return out;
   }
 
   /** One message from a plugin. The reason when it went nowhere (for tests and the log), else null. */
@@ -126,17 +160,19 @@ export class RelayHub {
 
   private say(m: Member, c: unknown, x: unknown): string | null {
     if (!this.enabled) return 'off';
-    if (c !== 'public' && c !== 'clan') return 'bad';
+    if (c !== 'public' && c !== 'clan' && c !== 'fc') return 'bad';
     if (typeof x !== 'string' || x.length > RELAY_MAX * 2) return 'bad';
-    const room = [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : 'clan:'));
+    const room = [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : `${c}:`));
     if (!room) return 'no-room';
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
-    const checked = checkBody(x, { staff: false });
-    if (!checked.ok || checked.body.length > RELAY_MAX) return 'filtered';
+    const raw = checkBody(x, { staff: false });
+    if (!raw.ok || raw.body.length > RELAY_MAX) return 'filtered';
+    // The game capitalises the first letter of what anyone says; a muted player's own copy isn't.
+    const checked = { body: raw.body.charAt(0).toUpperCase() + raw.body.slice(1) };
     const at = this.now();
     m.sent = m.sent.filter((t) => t > at - RELAY_WINDOW_MS);
     if (m.sent.length >= RELAY_BURST) return 'rate';
-    const repeat = `${c}|${checked.body}`;
+    const repeat = `${c}|${checked.body.toLowerCase()}`;
     const was = m.last.get(repeat);
     if (was != null && at - was < RELAY_REPEAT_MS) return 'repeat';
     for (const [k, t] of m.last) if (at - t >= RELAY_REPEAT_MS) m.last.delete(k);
@@ -179,4 +215,15 @@ export class RelayHub {
   roomSize(room: string): number {
     return this.rooms.get(room)?.size ?? 0;
   }
+}
+
+/** A friends chat owner as a room key: the game's name rules, lower case; null when it can't be one. */
+export function fcOwner(raw: unknown): string | null {
+  const v = typeof raw === 'string' ? raw.replace(/\u00a0/g, ' ').trim().toLowerCase() : '';
+  return /^[a-z0-9 _-]{1,12}$/.test(v) ? v : null;
+}
+
+/** A character's name as presence carries it: plain, lower case, single spaces (the plugin's Text.standardize). */
+export function presenceName(name: string): string {
+  return name.replace(/\u00a0/g, ' ').replace(/[\s_-]+/g, ' ').trim().toLowerCase();
 }

@@ -8,14 +8,25 @@ import assert from 'node:assert/strict';
 
 import { chatTagOf, chatboxLines, cleanChatTag, deriveChatTag } from '../src/lib/eventChatRules.ts';
 import { parseEventRules, validateEventRules } from '../src/lib/eventRules.ts';
-import { RELAY_BURST, RelayHub, accountIcon, lineSigned, relayKey, type RelayClient } from '../src/lib/push/relay.ts';
+import { RELAY_BURST, RelayHub, accountIcon, fcOwner, presenceName, lineSigned, relayKey, type RelayClient } from '../src/lib/push/relay.ts';
 import { signTicket, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const key = relayKey('secret');
 
-function client(userId: number, name: string, clanId: number | null = null, world: number | null = null): RelayClient & { got: Record<string, unknown>[] } {
+/** `got`: relayed lines; `seen`: presence messages. */
+function client(userId: number, name: string, clanId: number | null = null, world: number | null = null): RelayClient & { got: Record<string, unknown>[]; seen: Record<string, unknown>[] } {
   const got: Record<string, unknown>[] = [];
-  return { userId, who: { name, icon: null, clanId, world }, send: (m) => got.push(JSON.parse(m)), got };
+  const seen: Record<string, unknown>[] = [];
+  return {
+    userId,
+    who: { name, icon: null, clanId, world },
+    send: (m) => {
+      const o = JSON.parse(m);
+      (o.t === 'relay' ? got : seen).push(o);
+    },
+    got,
+    seen,
+  };
 }
 
 test('public goes to the ticket’s world room only, never back to the sender', () => {
@@ -33,10 +44,10 @@ test('public goes to the ticket’s world room only, never back to the sender', 
   assert.equal(m.t, 'relay');
   assert.equal(m.c, 'public');
   assert.equal(m.n, 'Alice');
-  assert.equal(m.x, 'a < b > c');
-  assert.equal(m.xh, 'a <lt> b <gt> c');
-  assert.ok(lineSigned(key, 1, 'Alice', 'public', 'a < b > c', m.at as number, m.k), 'signed for a report');
-  assert.ok(!lineSigned(key, 1, 'Mallory', 'public', 'a < b > c', m.at as number, m.k), 'not under another name');
+  assert.equal(m.x, 'A < b > c');
+  assert.equal(m.xh, 'A <lt> b <gt> c');
+  assert.ok(lineSigned(key, 1, 'Alice', 'public', 'A < b > c', m.at as number, m.k), 'signed for a report');
+  assert.ok(!lineSigned(key, 1, 'Mallory', 'public', 'A < b > c', m.at as number, m.k), 'not under another name');
   assert.ok(!lineSigned(key, 1, 'Alice', 'public', 'something else', m.at as number, m.k), 'a changed line is not');
   assert.equal(hub.receive(a, { t: 'rooms', w: 330 }), 'bad', 'a socket cannot name its own rooms');
   assert.equal(hub.roomSize('world:330'), 1);
@@ -136,4 +147,42 @@ test('a person’s other character hears their line; the same character’s sock
   assert.equal(hub.receive(dead, { t: 'say', c: 'clan', x: 'test' }), null);
   assert.equal(gim.got.length, 1, 'their other character is another player in game');
   assert.equal(deadAgain.got.length, 0, 'never back to the sending character');
+});
+
+test('friends chat room from the ticket; first letter capitalised; repeats ignore case', () => {
+  let now = 1;
+  const hub = new RelayHub(key, () => now);
+  const a = { ...client(1, 'Alice'), who: { name: 'Alice', icon: null, clanId: null, world: null, fc: 'Raid Host' } };
+  const b = { ...client(2, 'Bob'), who: { name: 'Bob', icon: null, clanId: null, world: null, fc: 'raid\u00a0host' } };
+  const c = { ...client(3, 'Carol'), who: { name: 'Carol', icon: null, clanId: null, world: null, fc: 'other' } };
+  const got: string[] = [];
+  b.send = (m: string) => JSON.parse(m).t === 'relay' && got.push(m);
+  c.send = (m: string) => JSON.parse(m).t === 'relay' && assert.fail('another friends chat');
+  for (const x of [a, b, c]) hub.add(x);
+  assert.equal(hub.receive(a, { t: 'say', c: 'fc', x: 'need a scythe' }), null);
+  assert.equal(JSON.parse(got[0]).x, 'Need a scythe');
+  now += 1;
+  assert.equal(hub.receive(a, { t: 'say', c: 'fc', x: 'Need a scythe' }), 'repeat');
+  assert.equal(fcOwner('<img=1>x'), null);
+  assert.equal(fcOwner('Raid Host'), 'raid host');
+});
+
+test('presence: who else has the relay on in my rooms, and joins/leaves after', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Alice', 7);
+  const b = client(2, 'Bob_Two', 7);
+  const c = client(3, 'Carol', 8);
+  hub.add(a);
+  hub.add(c);
+  assert.equal(a.seen.length, 0, 'alone in the clan room');
+  const stop = hub.add(b);
+  assert.deepEqual(b.seen[0], { t: 'here', n: ['alice'] });
+  assert.deepEqual(a.seen[0], { t: 'here', n: ['bob two'] });
+  assert.equal(c.seen.length, 0, 'another clan hears nothing');
+  // A re-ticket: the new socket first, then the old one closes — no "gone" for a character still here.
+  const b2 = client(2, 'Bob_Two', 7);
+  hub.add(b2);
+  stop();
+  assert.ok(!a.seen.some((m) => m.t === 'gone'));
+  assert.equal(presenceName('GIM\u00a0Drenvox'), 'gim drenvox');
 });

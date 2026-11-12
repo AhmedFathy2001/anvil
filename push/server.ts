@@ -150,7 +150,9 @@ server.on('upgrade', (req, socket, head) => {
       } catch {
         return;
       }
-      relay.receive(relayClient, m);
+      // Why a line went nowhere (never its words), for checking a report of "it doesn't arrive".
+      const why = relay.receive(relayClient, m);
+      if (why) log('push.relay-dropped', { why, c: (m as { c?: unknown })?.c });
     });
     // Hello first: the views follow, the cached ones straight away. `relay`: this socket may send its lines.
     ws.send(JSON.stringify(relayClient ? { t: 'hello', relay: 1 } : { t: 'hello' }));
