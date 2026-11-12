@@ -124,8 +124,9 @@ test('many teams: 12+ teams of any size get the cut, worded as teams; small boar
   assert.equal(standingsLayout('draft', Array(11).fill(3)), 'cards', '2–11 teams stay as today');
   assert.equal(standingsLayout('draft', [5, 5]), 'cards');
   assert.equal(standingsLayout('draft', Array(12).fill(3)), 'teams');
-  // Solo-like wins: players wording, not teams.
-  assert.equal(standingsLayout('solo', thirty), 'players');
+  // Solo stays players while every entry is one person; a shared entry self-corrects to teams.
+  assert.equal(standingsLayout('solo', Array(7).fill(1)), 'players');
+  assert.equal(standingsLayout('solo', [1, 1, 2, 1]), 'teams');
   assert.equal(standingsLayout('draft', Array(20).fill(1)), 'players');
   assert.equal(isManyTeams('draft', Array(20).fill(1)), false);
   // A big board mixing one-person and bigger teams is a team board.

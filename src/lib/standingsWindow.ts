@@ -3,10 +3,10 @@
 // side; the rest is a paged list with a name search. Used by the site's scoreboard and the plugin
 // panel (lib/eventRoster), so both cut the same list the same way.
 //
-// SOLO-LIKE: a board reads as PLAYERS rather than teams when the host chose solo placement, or
-// when it has at least SOLO_MIN_TEAMS teams and none holds more than one person. A few one-person
-// teams early in an auto-balanced board aren't a player list, so the size floor keeps those as
-// teams; solo placement always is one, however few have joined.
+// SOLO-LIKE: a board reads as PLAYERS rather than teams when the host chose solo placement and
+// every entry still has one person, or when it has at least SOLO_MIN_TEAMS teams and none holds
+// more than one person. A solo board can deliberately gain a shared entry through a team invite;
+// once that happens its actual entries win over the setting and it reads as compact teams.
 //
 // MANY TEAMS: any other board with at least MANY_TEAMS_MIN teams (30 teams of 2–3, say) gets the
 // same cut, worded as teams: the top five, the viewer's team(s) with two either side, the rest paged
@@ -27,7 +27,7 @@ export const STANDINGS_PAGE_SIZE = 25;
 
 /** Solo placement, or a big board of one-person teams. `teamSizes` = members per team. */
 export function isSoloLike(placement: string | null | undefined, teamSizes: number[]): boolean {
-  if (placement === 'solo') return true;
+  if (placement === 'solo') return teamSizes.every((n) => n <= 1);
   return teamSizes.length >= SOLO_MIN_TEAMS && teamSizes.every((n) => n <= 1);
 }
 
@@ -35,6 +35,9 @@ export const MANY_TEAMS_MIN = SOLO_MIN_TEAMS;
 
 /** Not a players board, but too many teams for a card each. */
 export function isManyTeams(placement: string | null | undefined, teamSizes: number[]): boolean {
+  // A mixed solo board must not expand into one card per entry just because it has fewer than the
+  // usual large-board threshold. It keeps the compact standings, now truthfully worded as teams.
+  if (placement === 'solo') return teamSizes.some((n) => n > 1);
   return !isSoloLike(placement, teamSizes) && teamSizes.length >= MANY_TEAMS_MIN;
 }
 

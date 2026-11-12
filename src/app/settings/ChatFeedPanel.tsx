@@ -53,8 +53,8 @@ const MAJOR_OPTIONS = (major: string) => [
  * (lib/chatFeed). The plugin's own switch turns the whole feed on or off; this picks what is in it.
  *
  * One panel, three parts, each where it belongs in Settings: `feed` (where from, what, the login
- * brief) and `boards` (event chat in the chatbox, per board) under In game; `colours` (line colours
- * and the [Anvil] tag) under Profile & look, where it also drives the live preview.
+ * brief), `boards` (event chat in the chatbox, per board), and `colours` (line colours and the
+ * [Anvil] tag) under In game. Profile & look also embeds colours beside its live preview.
  *
  * Supporter perks here (own line colours: Supporter; choosing the brief: Champion) can be picked by
  * anyone and are saved as chosen; lib/chatLook applies them only at the tier in force.

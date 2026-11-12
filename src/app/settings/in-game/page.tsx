@@ -6,22 +6,20 @@ import { PartJumps, SettingsBlock, SettingsGroup, SettingsPart, SettingsTitle } 
 
 /**
  * In game: what the RuneLite plugin signs in with and what it shows in your chatbox. Was Plugin
- * connection and the feed half of In-game chat feed (its colours moved to Profile & look).
+ * connection and every part of the in-game chat feed, including its colours.
  */
 export default function InGameSettingsPage() {
   return (
     <>
       <SettingsTitle title="In game">
         The Anvil RuneLite plugin: how it signs in, and what it shows in your chat. These used to be in RuneLite, and now they follow you
-        to every computer. Chat colours are under{' '}
-        <ClanLink href="/settings/profile#chat-colours" className="text-gold hover:text-gold-light">
-          Profile &amp; look →
-        </ClanLink>
+        to every computer.
       </SettingsTitle>
       <PartJumps
         parts={[
           { id: 'plugin', label: 'Plugin connection' },
           { id: 'chat-feed', label: 'Chat feed & login brief' },
+          { id: 'chat-colours', label: 'Chat colours' },
           { id: 'event-chat', label: 'Event chat' },
         ]}
       />
@@ -50,6 +48,18 @@ export default function InGameSettingsPage() {
         <SettingsGroup title="What shows in your chat" id="chat-feed-what">
           <SettingsBlock>
             <ChatFeedPanel part="feed" />
+          </SettingsBlock>
+        </SettingsGroup>
+      </SettingsPart>
+
+      <SettingsPart
+        id="chat-colours"
+        title="Chat colours"
+        intro="How Anvil’s own lines look in your RuneLite chatbox. The [Anvil] tag colour is free; choosing your own colour for each kind of line is a Supporter perk."
+      >
+        <SettingsGroup title="Line and tag colours" id="chat-colours-picker">
+          <SettingsBlock>
+            <ChatFeedPanel part="colours" />
           </SettingsBlock>
         </SettingsGroup>
       </SettingsPart>
