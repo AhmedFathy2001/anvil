@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { relayIdentity, relayOn } from '@/lib/chatRelay';
 import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
@@ -39,6 +40,12 @@ export async function GET(request: Request) {
   // ?flair=1: a plugin with 'chat-flair-v' — it is sent the Supporter list's deltas ({t:'flair'}). Not
   // a reason to listen by itself: a plugin with no other socket polls the list's version instead.
   const flair = params.get('flair') === '1';
+  // ?relay=1: the plugin's chat relay is on (either way: sending its own lines, or showing others'),
+  // with &world=: the world it is on.
+  // Signed in on a character of theirs, with staff's switch on, the ticket carries who it speaks as
+  // (lib/chatRelay relayIdentity) and the push server lets it talk (lib/push/relay).
+  // `world`: its public room (only the client knows it; a hop asks for a new ticket).
+  const relay = params.get('relay') === '1' && (await relayOn()) ? await relayIdentity(request, Number(params.get('world')) || null).catch(() => null) : null;
   const clan = await resolvePluginClan(request);
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }) : null;
   const home = !clan || seat ? null : await homeBoardForUser(clan.id, user.userId);
@@ -53,10 +60,10 @@ export async function GET(request: Request) {
       for (const b of others.slice(0, MAX_EXTRA_BOARDS)) if (!eventIds.includes(b.eventId)) eventIds.push(b.eventId);
     }
   }
-  if (eventIds.length === 0 && !feed && !rows) return new NextResponse(null, { status: 204 });
+  if (eventIds.length === 0 && !feed && !rows && !relay) return new NextResponse(null, { status: 204 });
 
   const { ticket, expiresAt } = signTicket(
-    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed, rows, flair },
+    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed, rows, flair, ...(relay ? { relay } : {}) },
     KEY,
     Date.now(),
   );

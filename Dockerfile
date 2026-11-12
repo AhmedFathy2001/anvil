@@ -88,9 +88,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-date ./node
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-interval ./node_modules/postgres-interval
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-cloudflare ./node_modules/pg-cloudflare
 # The live push server (push/server.ts) runs from this same image as its own container, under Node's
-# type stripping: its source, the two pure modules it shares with the site, and the socket library.
+# type stripping: its source, the pure modules it shares with the site, and the socket library.
 COPY --from=builder --chown=nextjs:nodejs /app/push ./push
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/push ./src/lib/push
+# The chat relay (src/lib/push/relay.ts) filters lines with event chat's own rules; that file imports
+# only a type, which type stripping drops.
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/eventChatRules.ts ./src/lib/eventChatRules.ts
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/ws ./node_modules/ws
 # The optional Twitch `!join` bot (bot/twitchChat.ts, npm run bot:twitch) runs from this image too, as its
 # own container, under the same type stripping: its source and the one pure module it shares with the

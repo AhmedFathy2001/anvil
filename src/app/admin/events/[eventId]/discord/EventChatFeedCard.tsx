@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 
 /**
@@ -16,7 +17,12 @@ export default function EventChatFeedCard({ eventId, creator = false }: { eventI
     chatPaused: boolean;
     chatPlatformOn: boolean;
     standingsHidden: boolean;
+    chatTag: string | null;
+    chatTagDerived: string;
+    chatTagMax: number;
   } | null>(null);
+  // The chatbox tag being typed; saved on blur or Enter.
+  const [tag, setTag] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +33,7 @@ export default function EventChatFeedCard({ eventId, creator = false }: { eventI
       .catch(() => setError('Could not load'));
   }, [eventId]);
 
-  async function save(patch: Partial<{ chatFeed: boolean; chatEnabled: boolean; chatPaused: boolean }>) {
+  async function save(patch: Partial<{ chatFeed: boolean; chatEnabled: boolean; chatPaused: boolean; chatTag: string | null }>) {
     if (!state) return;
     const before = state;
     setState({ ...state, ...patch });
@@ -41,6 +47,7 @@ export default function EventChatFeedCard({ eventId, creator = false }: { eventI
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to save');
       setState(await res.json());
+      setTag(null);
     } catch (err) {
       setState(before);
       setError((err as Error).message);
@@ -91,6 +98,28 @@ export default function EventChatFeedCard({ eventId, creator = false }: { eventI
             label="Let this board's players chat in the plugin's Feed tab"
             description="A private channel for this event only: its players, plus your clan's mods and admins. Players can also talk to just their team. Mods can delete messages and mute people by right-clicking a line, or time out and ban people from the moderation page; links and gold adverts are blocked, and the chat slows itself down when it gets busy. Messages are deleted a week after the event ends."
           />
+          {state.chatEnabled && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-foreground" htmlFor="event-chat-tag">
+                Chatbox tag
+              </label>
+              <p className="mb-1.5 text-xs text-text-muted">
+                Players also see this chat in the game chatbox, as &ldquo;[{(tag ?? state.chatTag) || state.chatTagDerived} · Team] Name: …&rdquo;.
+                Up to {state.chatTagMax} characters; leave it empty to use &ldquo;{state.chatTagDerived}&rdquo;.
+              </p>
+              <Input
+                id="event-chat-tag"
+                className="max-w-xs"
+                maxLength={state.chatTagMax}
+                placeholder={state.chatTagDerived}
+                value={tag ?? state.chatTag ?? ''}
+                disabled={saving}
+                onChange={(e) => setTag(e.target.value)}
+                onBlur={() => tag != null && tag.trim() !== (state.chatTag ?? '') && save({ chatTag: tag.trim() || null })}
+                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              />
+            </div>
+          )}
           {state.chatEnabled && (
             <div className="mt-3">
               <Checkbox
