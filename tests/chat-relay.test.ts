@@ -53,6 +53,17 @@ test('public goes to the ticket’s world room only, never back to the sender', 
   assert.equal(hub.roomSize('world:330'), 1);
 });
 
+test('a relayed line keeps its repeated letters as the game let them through', () => {
+  const hub = new RelayHub(key, () => 1_000);
+  const a = client(1, 'Alice', null, 302);
+  const b = client(2, 'Bob', null, 302);
+  hub.add(a);
+  hub.add(b);
+  const line = 'This is a reallyyyyyyyyyyyy longgggggggggg testtttttttt';
+  assert.equal(hub.receive(a, { t: 'say', c: 'public', x: line }), null);
+  assert.equal(b.got[0].x, line);
+});
+
 test('clan goes to the roster clan from the ticket; GIM is not relayed', () => {
   const hub = new RelayHub(key, () => 5_000);
   const a = client(1, 'Alice', 7);
