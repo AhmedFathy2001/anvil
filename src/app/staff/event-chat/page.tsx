@@ -29,7 +29,7 @@ export default async function StaffEventChatPage() {
         In-game chat relay
       </h2>
       <p className="mb-4 text-sm text-text-muted">
-        Players who opt in send a copy of their own public, clan and GIM chat lines through Anvil, so other Anvil
+        Players who opt in send a copy of their own public and clan chat lines through Anvil, so other Anvil
         players still see them when the game doesn&rsquo;t (a muted sender). Nothing is stored except a line someone
         reports, which lands in the report queue. On unless you turn it off.
       </p>

@@ -94,7 +94,7 @@ async function refreshFlair(players: number[], names: string[]): Promise<void> {
 const flairGather = new FlairGather((p, n) => void refreshFlair(p, n));
 
 const hub = new ViewHub({ fetchView, minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
-/** Chat relay rooms (lib/push/relay): in memory only; a restart empties them and plugins rejoin on hello. */
+/** Chat relay rooms (lib/push/relay): in memory only, from each ticket; a restart empties them and plugins reconnect into them. */
 const relay = new RelayHub(relayKey(secret));
 
 function log(event: string, fields: Record<string, unknown> = {}) {
@@ -138,7 +138,7 @@ server.on('upgrade', (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => {
     alive.add(ws);
     ws.on('pong', () => alive.add(ws));
-    // Nothing comes the other way, except a relay ticket's chat lines and rooms (lib/push/relay).
+    // Nothing comes the other way, except a relay ticket's own chat lines (lib/push/relay).
     const who = scope.relay && !scope.web ? scope.relay : null;
     const relayClient = who ? { userId: scope.userId, who, send: (m: string) => ws.readyState === ws.OPEN && ws.send(m) } : null;
     const unrelay = relayClient ? relay.add(relayClient) : null;
@@ -152,8 +152,7 @@ server.on('upgrade', (req, socket, head) => {
       }
       relay.receive(relayClient, m);
     });
-    // Hello first: the views follow, the cached ones straight away. `relay`: this socket may send
-    // its lines and should say where it is ({"t":"rooms"}).
+    // Hello first: the views follow, the cached ones straight away. `relay`: this socket may send its lines.
     ws.send(JSON.stringify(relayClient ? { t: 'hello', relay: 1 } : { t: 'hello' }));
     const remove = hub.add({
       scope,

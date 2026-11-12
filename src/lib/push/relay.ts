@@ -3,26 +3,27 @@ import crypto from 'node:crypto';
 import { checkBody } from '../eventChatRules.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
-// Chat relay: a copy of a player's own public, clan and GIM chat lines, for Anvil players whose game
+// Chat relay: a copy of a player's own public and clan chat lines, for Anvil players whose game
 // doesn't show them (the sender is muted). Pure (the clock is injected), so it is tested directly
 // (tests/chat-relay.test.ts); push/server.ts feeds it the sockets.
 //
 // The plugin never touches outgoing chat: it reads its OWN line as its client shows it and sends a
-// copy here ({"t":"say","c":"public"|"clan"|"gim","x":text}). It goes to one in-memory room, never a
-// broadcast, and nothing is written anywhere:
-//   world:<n>   public — the world the plugin says it is on ({"t":"rooms","w":n})
-//   clan:<id>   clan   — the character's in-game clan on Anvil's roster (signed into the ticket)
-//   gim:<name>  GIM    — the group name the plugin reads off its own GIM channel ({"t":"rooms","g":…}).
-//                        Anvil keeps no GIM groups; each receiver's client shows a line only when the
-//                        sender is in its own GIM channel, so a wrong room shows nothing.
+// copy here ({"t":"say","c":"public"|"clan","x":text}). It goes to one in-memory room, never a
+// broadcast, and nothing is written anywhere. Both rooms come from the signed ticket, never from a
+// socket message:
+//   world:<n>   public — the world the plugin was on when it asked for the ticket (a hop re-tickets).
+//                        Only the plugin can know it; what it opens is that world's public chat, which
+//                        everybody standing there sees anyway.
+//   clan:<id>   clan   — the character's in-game clan on Anvil's roster.
+// GIM is not relayed: Anvil keeps no GIM groups, and a group named by the client could be anyone's.
 // Out, to the room minus the sender's own sockets:
-//   {"t":"relay","c":…,"n":"Name","nm":"<img=2>Name","x":text,"at":ms,"k":sig}
+//   {"t":"relay","c":…,"n":"Name","nm":"<img=2>Name","x":text,"xh":escaped,"at":ms,"u":user,"k":sig}
 // `nm` is the name as the game writes it (account-type icon first); `u` the sender's Anvil user and
-// `k` this server's signature of (u, c, at, x), so a report (api/plugin/chat-relay/report) can only
+// `k` this server's signature of (u, n, c, at, x), so a report (api/plugin/chat-relay/report) can only
 // be of a line this server really sent.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type RelayChannel = 'public' | 'clan' | 'gim';
+export type RelayChannel = 'public' | 'clan';
 
 /** What a relay ticket says about its character (lib/push/ticket `relay`). */
 export interface RelayIdentity {
@@ -32,6 +33,8 @@ export interface RelayIdentity {
   icon: number | null;
   /** Its clan on Anvil's roster: the clan room. */
   clanId: number | null;
+  /** The world it is on: the public room. */
+  world: number | null;
 }
 
 export interface RelayClient {
@@ -48,7 +51,6 @@ export const RELAY_REPEAT_MS = 10_000;
 /** The game's own cap on a chat line. */
 export const RELAY_MAX = 80;
 const WORLD_MAX = 1_000;
-const GIM_NAME = /^[a-z0-9 _-]{1,12}$/;
 
 /** Game chat icon index by Anvil's account type (accounts.account_type). */
 const ICONS: Record<string, number> = { ironman: 2, ultimate: 3, hardcore: 10, group: 41, hardcore_group: 42, unranked_group: 43 };
@@ -62,14 +64,15 @@ export function relayKey(sessionSecret: string): Buffer {
   return crypto.createHmac('sha256', sessionSecret).update('anvil-chat-relay:v1').digest();
 }
 
-export function signLine(key: Buffer, userId: number, c: string, x: string, at: number): string {
-  return crypto.createHmac('sha256', key).update(`${userId}|${c}|${at}|${x}`).digest('base64url').slice(0, 22);
+/** The signature over everything a report later shows: sender, name, channel, time and words. */
+export function signLine(key: Buffer, userId: number, n: string, c: string, x: string, at: number): string {
+  return crypto.createHmac('sha256', key).update(JSON.stringify([userId, n, c, at, x])).digest('base64url').slice(0, 22);
 }
 
 /** Whether `k` is this server's signature of the line. */
-export function lineSigned(key: Buffer, userId: number, c: string, x: string, at: number, k: unknown): boolean {
+export function lineSigned(key: Buffer, userId: number, n: string, c: string, x: string, at: number, k: unknown): boolean {
   if (typeof k !== 'string') return false;
-  const want = Buffer.from(signLine(key, userId, c, x, at));
+  const want = Buffer.from(signLine(key, userId, n, c, x, at));
   const got = Buffer.from(k);
   return got.length === want.length && crypto.timingSafeEqual(got, want);
 }
@@ -98,11 +101,14 @@ export class RelayHub {
     return this.members.size;
   }
 
-  /** A relay socket opened: in its clan's room straight away; the world and group follow from the plugin. */
+  /** A relay socket opened: into its ticket's clan and world rooms. */
   add(client: RelayClient): () => void {
     const m: Member = { client, rooms: new Set(), sent: [], last: new Map() };
     this.members.set(client, m);
     if (client.who.clanId != null) this.join(m, `clan:${client.who.clanId}`);
+    // A world holds 2,000 players; a room far past that is somebody's script, not a world.
+    const w = client.who.world;
+    if (w != null && w > 0 && w < 10_000 && this.roomSize(`world:${w}`) < WORLD_MAX) this.join(m, `world:${w}`);
     return () => {
       for (const r of m.rooms) this.leave(m, r);
       this.members.delete(client);
@@ -114,21 +120,15 @@ export class RelayHub {
     const m = this.members.get(client);
     if (!m || !raw || typeof raw !== 'object') return 'bad';
     const msg = raw as Record<string, unknown>;
-    if (msg.t === 'rooms') {
-      this.move(m, 'world:', Number.isInteger(msg.w) && (msg.w as number) > 0 && (msg.w as number) < 10_000 ? `world:${msg.w}` : null);
-      const g = typeof msg.g === 'string' ? msg.g.toLowerCase().replace(/ /g, ' ').trim() : '';
-      this.move(m, 'gim:', GIM_NAME.test(g) ? `gim:${g}` : null);
-      return null;
-    }
     if (msg.t !== 'say') return 'bad';
     return this.say(m, msg.c, msg.x);
   }
 
   private say(m: Member, c: unknown, x: unknown): string | null {
     if (!this.enabled) return 'off';
-    if (c !== 'public' && c !== 'clan' && c !== 'gim') return 'bad';
+    if (c !== 'public' && c !== 'clan') return 'bad';
     if (typeof x !== 'string' || x.length > RELAY_MAX * 2) return 'bad';
-    const room = [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : `${c}:`));
+    const room = [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : 'clan:'));
     if (!room) return 'no-room';
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
     const checked = checkBody(x, { staff: false });
@@ -150,21 +150,14 @@ export class RelayHub {
       nm: (who.icon != null ? `<img=${who.icon}>` : '') + who.name,
       x: checked.body,
       at,
-      k: signLine(this.key, m.client.userId, c, checked.body, at),
+      // Escaped for the game's chat (a '<' would open a tag): what the plugin prints.
+      xh: checked.body.replace(/[<>]/g, (ch) => (ch === '<' ? '<lt>' : '<gt>')),
+      k: signLine(this.key, m.client.userId, who.name, c, checked.body, at),
       u: m.client.userId,
     });
     // Never back to the sender: none of their own sockets (a second client of theirs included).
     for (const o of this.rooms.get(room) ?? []) if (o.client.userId !== m.client.userId) o.client.send(text);
     return null;
-  }
-
-  private move(m: Member, prefix: string, to: string | null): void {
-    for (const r of [...m.rooms]) if (r.startsWith(prefix) && r !== to) this.leave(m, r);
-    if (to && !m.rooms.has(to)) {
-      // A world holds 2,000 players; a room far past that is somebody's script, not a world.
-      if (prefix === 'world:' && (this.rooms.get(to)?.size ?? 0) >= WORLD_MAX) return;
-      this.join(m, to);
-    }
   }
 
   private join(m: Member, room: string): void {

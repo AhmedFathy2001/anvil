@@ -13,24 +13,19 @@ import { signTicket, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const key = relayKey('secret');
 
-function client(userId: number, name: string, clanId: number | null = null): RelayClient & { got: Record<string, unknown>[] } {
+function client(userId: number, name: string, clanId: number | null = null, world: number | null = null): RelayClient & { got: Record<string, unknown>[] } {
   const got: Record<string, unknown>[] = [];
-  return { userId, who: { name, icon: null, clanId }, send: (m) => got.push(JSON.parse(m)), got };
+  return { userId, who: { name, icon: null, clanId, world }, send: (m) => got.push(JSON.parse(m)), got };
 }
 
-test('public goes to the world room only, never back to the sender', () => {
-  let now = 1_000;
-  const hub = new RelayHub(key, () => now);
-  const a = client(1, 'Alice');
-  const b = client(2, 'Bob');
-  const c = client(3, 'Carol');
-  const a2 = client(1, 'Alice'); // Alice's second client
+test('public goes to the ticket’s world room only, never back to the sender', () => {
+  const hub = new RelayHub(key, () => 1_000);
+  const a = client(1, 'Alice', null, 302);
+  const b = client(2, 'Bob', null, 302);
+  const c = client(3, 'Carol', null, 330);
+  const a2 = client(1, 'Alice', null, 302); // Alice's second client
   for (const x of [a, b, c, a2]) hub.add(x);
-  hub.receive(a, { t: 'rooms', w: 302 });
-  hub.receive(b, { t: 'rooms', w: 302 });
-  hub.receive(c, { t: 'rooms', w: 330 });
-  hub.receive(a2, { t: 'rooms', w: 302 });
-  assert.equal(hub.receive(a, { t: 'say', c: 'public', x: 'hello world' }), null);
+  assert.equal(hub.receive(a, { t: 'say', c: 'public', x: 'a < b > c' }), null);
   assert.equal(b.got.length, 1);
   assert.equal(c.got.length, 0, 'another world hears nothing');
   assert.equal(a.got.length + a2.got.length, 0, 'none of the sender’s own sockets');
@@ -38,18 +33,16 @@ test('public goes to the world room only, never back to the sender', () => {
   assert.equal(m.t, 'relay');
   assert.equal(m.c, 'public');
   assert.equal(m.n, 'Alice');
-  assert.equal(m.x, 'hello world');
-  assert.ok(lineSigned(key, 1, 'public', 'hello world', m.at as number, m.k), 'signed for a report');
-  assert.ok(!lineSigned(key, 1, 'public', 'something else', m.at as number, m.k), 'a changed line is not');
-  // Hopping: out of the old world's room, into the new one.
-  hub.receive(b, { t: 'rooms', w: 330 });
-  assert.equal(hub.roomSize('world:302'), 2);
-  now += 1;
-  hub.receive(a, { t: 'say', c: 'public', x: 'again' });
-  assert.equal(b.got.length, 1);
+  assert.equal(m.x, 'a < b > c');
+  assert.equal(m.xh, 'a <lt> b <gt> c');
+  assert.ok(lineSigned(key, 1, 'Alice', 'public', 'a < b > c', m.at as number, m.k), 'signed for a report');
+  assert.ok(!lineSigned(key, 1, 'Mallory', 'public', 'a < b > c', m.at as number, m.k), 'not under another name');
+  assert.ok(!lineSigned(key, 1, 'Alice', 'public', 'something else', m.at as number, m.k), 'a changed line is not');
+  assert.equal(hub.receive(a, { t: 'rooms', w: 330 }), 'bad', 'a socket cannot name its own rooms');
+  assert.equal(hub.roomSize('world:330'), 1);
 });
 
-test('clan goes to the roster clan from the ticket; gim to the group the plugin reads', () => {
+test('clan goes to the roster clan from the ticket; GIM is not relayed', () => {
   const hub = new RelayHub(key, () => 5_000);
   const a = client(1, 'Alice', 7);
   const b = client(2, 'Bob', 7);
@@ -58,14 +51,8 @@ test('clan goes to the roster clan from the ticket; gim to the group the plugin 
   hub.receive(a, { t: 'say', c: 'clan', x: 'clan line' });
   assert.equal(b.got.length, 1);
   assert.equal(c.got.length, 0);
-  assert.equal(hub.receive(a, { t: 'say', c: 'gim', x: 'gim line' }), 'no-room', 'no group said yet');
-  hub.receive(a, { t: 'rooms', g: 'Iron Bros' });
-  hub.receive(c, { t: 'rooms', g: 'iron bros' });
-  hub.receive(a, { t: 'say', c: 'gim', x: 'gim line' });
-  assert.equal(c.got.length, 1);
-  assert.equal(c.got[0].c, 'gim');
-  assert.equal(hub.receive(a, { t: 'rooms', g: '<img=1>bad name that is long' }), null);
-  assert.equal(hub.receive(a, { t: 'say', c: 'gim', x: 'after' }), 'no-room', 'an invalid group leaves the room');
+  assert.equal(hub.receive(a, { t: 'say', c: 'gim', x: 'gim line' }), 'bad');
+  assert.equal(hub.receive(a, { t: 'say', c: 'public', x: 'no world' }), 'no-room');
 });
 
 test('filter, repeats, rate limit and the off switch', () => {
@@ -95,7 +82,7 @@ test('account-type icon is in the name the game draws', () => {
   assert.equal(accountIcon('group'), 41);
   assert.equal(accountIcon('normal'), null);
   const hub = new RelayHub(key, () => 1);
-  const a: RelayClient = { userId: 1, who: { name: 'Iron Al', icon: 2, clanId: 1 }, send: () => {} };
+  const a: RelayClient = { userId: 1, who: { name: 'Iron Al', icon: 2, clanId: 1, world: null }, send: () => {} };
   const b = client(2, 'Bob', 1);
   hub.add(a);
   hub.add(b);
@@ -105,8 +92,8 @@ test('account-type icon is in the name the game draws', () => {
 
 test('a relay ticket round-trips; an old one has none', () => {
   const k = ticketKey('s');
-  const { ticket } = signTicket({ userId: 4, eventIds: [], teamId: null, rows: true, relay: { name: 'Alice', icon: 3, clanId: 9 } }, k, 0);
-  assert.deepEqual(verifyTicket(ticket, k, 1)?.relay, { name: 'Alice', icon: 3, clanId: 9 });
+  const { ticket } = signTicket({ userId: 4, eventIds: [], teamId: null, rows: true, relay: { name: 'Alice', icon: 3, clanId: 9, world: 420 } }, k, 0);
+  assert.deepEqual(verifyTicket(ticket, k, 1)?.relay, { name: 'Alice', icon: 3, clanId: 9, world: 420 });
   const plain = signTicket({ userId: 4, eventIds: [], teamId: null }, k, 0).ticket;
   assert.equal(verifyTicket(plain, k, 1)?.relay, undefined);
 });
