@@ -614,8 +614,8 @@ side panel itself is a `plugin-ui` view: a team message is the plugin's cue to f
 
 ### `chat-relay`
 
-Anvil players' own game chat lines reach other Anvil players whose game didn't show them (a muted
-sender), plus event chat in the game chatbox. The plugin never touches outgoing chat: it reads the
+Anvil chat: an opt-in copy of an Anvil player's own game chat lines, relayed to other signed-in Anvil
+players in the same world, clan or channel and shown with the Anvil icon, plus event chat in the game chatbox. The plugin never touches outgoing chat: it reads the
 local player's line as its own client shows it and sends a copy. Nothing is stored but a reported line.
 
 - `GET /api/plugin/push/ticket?relay=1&world=<n>` — signed in on a character the token owns (the
@@ -633,8 +633,8 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
   `{"t":"say","c":"public"|"clan"|"fc"|"guest"|"pm","x":"<the line>"(,"to":"<recipient>" for pm)}` — the local player's own line only, never a `::`
   command. Filtered with event chat's rules (lib/eventChatRules `checkBody`), max 80 chars, 6 lines per
   10 s per socket, the same line twice in 10 s is one (case aside). A clan or guest clan line's first
-  letter is capitalised, as the game does for everyone else's (a muted player's own copy isn't; public,
-  friends chat and private the game capitalises itself).
+  letter is capitalised so it reads like the game's own lines (public, friends chat and private the game
+  capitalises itself).
 - Server → plugin, to the room minus every socket of the sender: `{"t":"relay","c","n":"Name",
   "nm":"<img=2>Name","x","xh","at","u","k"}` — `xh` is `x` escaped for game chat; `k` signs
   `(u, n, c, at, x)`. The receiver shows a clan line only when the sender is in its own clan channel.

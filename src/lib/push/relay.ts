@@ -3,8 +3,8 @@ import crypto from 'node:crypto';
 import { checkBody } from '../eventChatRules.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
-// Chat relay: a copy of a player's own public and clan chat lines, for Anvil players whose game
-// doesn't show them (the sender is muted). Pure (the clock is injected), so it is tested directly
+// Anvil chat: an opt-in copy of a player's own chat lines, relayed to other signed-in Anvil players
+// in the same world, clan or channel and shown with the Anvil icon. Pure (the clock is injected), so it is tested directly
 // (tests/chat-relay.test.ts); push/server.ts feeds it the sockets.
 //
 // The plugin never touches outgoing chat: it reads its OWN line as its client shows it and sends a
@@ -177,8 +177,8 @@ export class RelayHub {
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
     const raw = checkBody(x, { staff: false, keepRuns: true });
     if (!raw.ok || raw.body.length > RELAY_MAX) return 'filtered';
-    // The game capitalises the first letter of public, friends chat and private lines itself, muted or
-    // not, but not a muted player's own clan or guest clan line: only those are capitalised here.
+    // The game capitalises public, friends chat and private lines itself; a clan or guest clan line is
+    // capitalised here so Anvil chat reads the same.
     const checked = { body: c === 'clan' || c === 'guest' ? raw.body.charAt(0).toUpperCase() + raw.body.slice(1) : raw.body };
     const at = this.now();
     m.sent = m.sent.filter((t) => t > at - RELAY_WINDOW_MS);
