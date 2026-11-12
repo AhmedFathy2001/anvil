@@ -126,3 +126,14 @@ test('chatbox lines: tag and channel, escaped, Announcements gold', () => {
   assert.equal(ann.cb, '<col=ffb54d>[Winter · Announcements]</col> Host: <col=ffb54d>Starts now</col>');
   assert.equal(chatboxLines('W', 'all', 'X', 'y').cb1, '<col=7fc8ff>[All]</col> X: y');
 });
+
+test('a person’s other character hears their line; the same character’s sockets do not', () => {
+  const hub = new RelayHub(key, () => 1_000);
+  const dead = client(1, 'dead person', 7, 310);
+  const deadAgain = client(1, 'dead person', 7, 310); // the same character on a second socket
+  const gim = client(1, 'GIM Drenvox', 7, 308); // the same person's other character
+  for (const x of [dead, deadAgain, gim]) hub.add(x);
+  assert.equal(hub.receive(dead, { t: 'say', c: 'clan', x: 'test' }), null);
+  assert.equal(gim.got.length, 1, 'their other character is another player in game');
+  assert.equal(deadAgain.got.length, 0, 'never back to the sending character');
+});
