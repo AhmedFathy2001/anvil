@@ -17,7 +17,8 @@ export const dynamic = 'force-dynamic';
 
 // Your display case (Anvil Supporter: 4 slots, Champion 8, Patron 12). Yours only: every call is
 // about the signed-in login, and a pin (item, kill count or time) is accepted only from one of their own verified
-// characters (lib/displayCase). Slots are the tier NOW; removing and reordering work at any tier.
+// characters (lib/displayCase). Anyone may pin up to the most any tier shows (try before subscribing);
+// `slots` is what the tier NOW shows to everyone else. Removing and reordering work at any tier.
 
 async function session() {
   const s = await verifyUser();
@@ -43,8 +44,7 @@ export async function POST(request: Request) {
   if (!rl.ok) return NextResponse.json({ error: 'Slow down a little.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const input = parsePinInput(await request.json().catch(() => null));
   if (!input) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
-  const supporter = await supporterForUser(s.userId);
-  const result = await pinToDisplayCase(s.userId, s.playerId ?? null, supporter?.tier.id, input);
+  const result = await pinToDisplayCase(s.userId, s.playerId ?? null, input);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ id: result.id });
 }

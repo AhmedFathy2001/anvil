@@ -498,15 +498,16 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
 
 export type PinResult = { ok: true; id: number } | { ok: false; status: number; error: string };
 
-/** Pin one item, kill count or time, after proving it is theirs and that a slot is free at their tier now. */
+/**
+ * Pin one item, kill count or time, after proving it is theirs. Anyone may fill the case up to the
+ * most any tier shows (DISPLAY_CASE_MAX), to try it before subscribing: what OTHERS see is cut to the
+ * tier in force on every read (displayCaseFor → visiblePins; no tier shows nothing).
+ */
 export async function pinToDisplayCase(
   userId: number,
   playerId: number | null,
-  tier: SupporterTierId | null | undefined,
   input: PinInput,
 ): Promise<PinResult> {
-  const slots = displayCaseSlots(tier);
-  if (slots === 0) return { ok: false, status: 403, error: 'The display case comes with Anvil Supporter.' };
   if (playerId == null) return { ok: false, status: 400, error: 'Link a character first.' };
 
   const owned = new Map((await verifiedAccounts(playerId)).map((a) => [a.id, a]));
@@ -589,8 +590,8 @@ export async function pinToDisplayCase(
           : c.kind === input.kind && c.accountId === accountId && c.statKey === statKey,
     );
     if (dupe) return { ok: true as const, id: dupe.id };
-    if (current.length >= Math.min(slots, DISPLAY_CASE_MAX)) {
-      return { ok: false as const, status: 409, error: `Your display case is full (${slots} slots). Take one out first.` };
+    if (current.length >= DISPLAY_CASE_MAX) {
+      return { ok: false as const, status: 409, error: `Your display case is full (${DISPLAY_CASE_MAX} slots). Take one out first.` };
     }
     const position = current.reduce((m, c) => Math.max(m, c.position), -1) + 1;
     const [row] = await tx

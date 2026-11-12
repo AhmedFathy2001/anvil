@@ -116,6 +116,11 @@ export function displayCaseSlots(tier: SupporterTierId | null | undefined): numb
   return tier ? DISPLAY_CASE_SLOTS[tier] ?? 0 : 0;
 }
 
+/** The tier whose slots reach the pin at `index` (0-based): the first 4 Supporter, then Champion, then Patron. */
+export function tierForDisplaySlot(index: number): SupporterTierId {
+  return index < DISPLAY_CASE_SLOTS.supporter ? 'supporter' : index < DISPLAY_CASE_SLOTS.champion ? 'champion' : 'patron';
+}
+
 /** Keep the first N pins the tier allows, in their order. Lapsing hides the tail; nothing is lost. */
 export function visiblePins<T extends { position: number; id: number }>(pins: T[], tier: SupporterTierId | null | undefined): T[] {
   return [...pins].sort((a, b) => a.position - b.position || a.id - b.id).slice(0, displayCaseSlots(tier));
