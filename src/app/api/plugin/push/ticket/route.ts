@@ -41,11 +41,11 @@ export async function GET(request: Request) {
   // a reason to listen by itself: a plugin with no other socket polls the list's version instead.
   const flair = params.get('flair') === '1';
   // ?relay=1: the plugin's chat relay is on (either way: sending its own lines, or showing others'),
-  // with &world=: the world it is on.
+  // with &world=: the world it is on, and &fc=: the friends chat owner it sits with.
   // Signed in on a character of theirs, with staff's switch on, the ticket carries who it speaks as
   // (lib/chatRelay relayIdentity) and the push server lets it talk (lib/push/relay).
   // `world`: its public room (only the client knows it; a hop asks for a new ticket).
-  const relay = params.get('relay') === '1' && (await relayOn()) ? await relayIdentity(request, Number(params.get('world')) || null).catch(() => null) : null;
+  const relay = params.get('relay') === '1' && (await relayOn()) ? await relayIdentity(request, Number(params.get('world')) || null, params.get('fc')).catch(() => null) : null;
   const clan = await resolvePluginClan(request);
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }) : null;
   const home = !clan || seat ? null : await homeBoardForUser(clan.id, user.userId);
