@@ -68,10 +68,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   const row = await db.query.users.findFirst({
     where: eq(users.id, actor.user.userId),
-    columns: { displayName: true, discordId: true, discordAvatar: true, isOwner: true },
+    columns: { displayName: true, discordId: true, discordAvatar: true },
   });
-  // The Money page is the owner's alone (lib/ownerAccess); the link is only drawn for them.
-  const isOwner = row?.isOwner === true;
+  // Money and Analytics are platform root's alone (lib/ownerAccess); the links are only drawn for root.
+  const isRoot = actor.role === 'root';
 
   const canWrite = hasPlatformRole(actor.role, 'staff');
   // The same counts the Platform link wears everywhere else, broken out by where each is cleared.
@@ -82,12 +82,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       label: 'Platform',
       items: [
         { href: '/staff', label: 'Overview', icon: '◎', badge: pending.nameDisputes, attn: true },
-        // Visits, where people come from and where onboarding stalls (lib/analytics). Owner only.
-        ...(row?.isOwner ? [{ href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true }] : []),
+        // Visits, where people come from and where onboarding stalls (lib/analytics). Root only.
+        ...(isRoot ? [{ href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true }] : []),
         // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
         // operator can do, and the one most often needed when somebody asks why.
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
-        ...(isOwner ? [{ href: '/staff/money', label: 'Money', icon: '$', matchPrefix: true }] : []),
+        ...(isRoot ? [{ href: '/staff/money', label: 'Money', icon: '$', matchPrefix: true }] : []),
       ],
     },
     {

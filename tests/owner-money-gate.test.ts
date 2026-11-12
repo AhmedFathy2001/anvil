@@ -1,18 +1,10 @@
-// The owner gate on /staff/money: every route, the page and the nav are owner-only. Source checks
-// (as the other staff gate tests do) plus a real-database check that the flag, not a platform role,
-// decides. Needs the test Postgres for the second half.
-import { test, before, after } from 'node:test';
+// The root gate on /staff/money and /staff/analytics: every route, the page and the nav are platform
+// root only. Source checks (as the other staff gate tests do) plus a check that root, and not
+// users.is_owner (a clan owner's flag), decides.
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-
-import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
-
-const DB = useTestDatabase('owner-money-gate');
-let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
-
-before(async () => { await resetDatabase(DB); ({ pool } = await loadDb()); });
-after(async () => { await pool.end(); await dropDatabase(DB); });
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
@@ -32,30 +24,22 @@ test('every money route guards every handler with requireOwnerApi, and none with
   }
 });
 
-test('the page 404s for anyone but the owner, and the nav link is drawn only for them', () => {
+test('the pages 404 for anyone but root, and the nav links are drawn only for root', () => {
   const page = readFileSync('src/app/staff/money/page.tsx', 'utf8');
   assert.match(page, /requireOwnerPage\(\)/);
   assert.match(page, /if \(!actor\) notFound\(\)/);
   const layout = readFileSync('src/app/staff/layout.tsx', 'utf8');
-  assert.match(layout, /isOwner \? \[\{ href: '\/staff\/money'/);
+  assert.match(layout, /isRoot \? \[\{ href: '\/staff\/money'/);
+  assert.match(layout, /isRoot \? \[\{ href: '\/staff\/analytics'/);
+  assert.match(readFileSync('src/app/staff/analytics/page.tsx', 'utf8'), /requireOwnerPage\(\)/);
   const sidebarLinks = layout.match(/\/staff\/money/g) ?? [];
   assert.equal(sidebarLinks.length, 1, 'only one place renders the link');
 });
 
-test('the guard reads users.is_owner live and refuses root, staff and support alike', async () => {
-  const { db, schema: s } = await loadDb();
-  const A = await import('../src/lib/ownerAccess.ts');
-  const mk = async (name: string, platformRole: string, isOwner: boolean) =>
-    (await db.insert(s.users).values({ displayName: name, discordId: `d-${name}`, platformRole, isOwner } as never).returning())[0].id;
-  const owner = await mk('owner', 'root', true);
-  const root = await mk('root', 'root', false);
-  const staff = await mk('staff', 'staff', false);
-  const support = await mk('support', 'support', false);
-  assert.equal(await A.isPlatformOwner(owner), true);
-  for (const id of [root, staff, support]) assert.equal(await A.isPlatformOwner(id), false);
-  assert.equal(await A.isPlatformOwner(99999), false);
+test('the guard is platform root: the clan owner flag alone gets nothing', () => {
   const guard = readFileSync('src/lib/ownerAccess.ts', 'utf8');
-  assert.match(guard, /platformActor\('support'\)/);
+  assert.match(guard, /platformActor\('root'\)/);
+  assert.ok(!/isOwner|is_owner/.test(guard.replace(/\/\/.*$/gm, '')), 'no owner flag in the guard');
   assert.match(guard, /NextResponse\.json\(\{ error: 'Not found' \}, \{ status: 404 \}\)/);
 });
 
