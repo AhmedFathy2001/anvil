@@ -419,7 +419,8 @@ export function chatboxLines(tag: string, channel: string, who: string, body: st
   const kind = channel === 'announce' ? 'announce' : channel === 'all' ? 'all' : 'team';
   const col = CHATBOX_COLOR[kind];
   const label = chatboxChannelLabel(channel);
-  const text = gameText(body);
+  // First letter capitalised, as the game does its own chat lines.
+  const text = gameText(body.charAt(0).toUpperCase() + body.slice(1));
   const rest = ` ${gameText(who)}: ${kind === 'announce' ? `<col=${col}>${text}</col>` : text}`;
   return { cb: `<col=${col}>[${gameText(tag)} · ${label}]</col>${rest}`, cb1: `<col=${col}>[${label}]</col>${rest}` };
 }
