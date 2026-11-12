@@ -132,13 +132,13 @@ export function boardRevealImage(opts: {
               >
                 <div style={{ width: square ? 48 : 58, height: square ? 48 : 58, display: 'flex', flexShrink: 0, alignItems: 'center', justifyContent: 'center' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders plain img */}
-                  {icon ? <img src={icon} width={square ? 46 : 56} height={square ? 46 : 56} alt="" style={{ objectFit: 'contain' }} /> : <div style={{ display: 'flex', width: 18, height: 18, background: C.gold, transform: 'rotate(45deg)' }} />}
+                  {icon ? <img src={icon} width={square ? 46 : 56} height={square ? 46 : 56} alt="" style={{ objectFit: 'contain' }} /> : <Mark size={square ? 38 : 44} />}
                 </div>
                 <div style={{ minWidth: 0, display: 'flex', flex: 1, flexDirection: 'column' }}>
                   <div style={{ display: 'flex', color: C.text, fontWeight: 700, fontSize: square ? 17 : 22, lineHeight: 1.2, maxHeight: square ? 62 : 56, overflow: 'hidden' }}>{tile.label}</div>
-                  {(opts.scoringMode === 'points' || tile.optional) && (
+                  {(tile.optional || (opts.scoringMode === 'points' && (tile.points ?? 0) > 0)) && (
                     <div style={{ display: 'flex', marginTop: 7, fontSize: 15, color: tile.optional ? C.muted : C.goldLight }}>
-                      {tile.optional ? 'Bonus' : `${tile.points ?? 0} pts`}
+                      {tile.optional ? 'Bonus' : `${tile.points} pts`}
                     </div>
                   )}
                 </div>
