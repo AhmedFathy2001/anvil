@@ -15,7 +15,7 @@ export const ANVIL_COLORS: Record<Tone, string> = {
   drop: '#ff7f27',
   feed: '#9a9a9a',
   warn: '#ff3b3b',
-  info: '#ffffff',
+  info: '#ff5c5c',
 };
 
 const atLeast = (tier: SupporterTierId | null | undefined, need: SupporterTierId) =>

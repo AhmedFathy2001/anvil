@@ -65,6 +65,8 @@ export interface RosterTeamOut {
   rank: number | null;
   score: string | null;
   members: number;
+  /** The only member's RSN. Lets a compact mixed board open that player without a roster detour. */
+  soleMember: string | null;
   yours: boolean;
   /** Places climbed since the day began (lib/rankMoves); absent or null = unchanged or unknown. */
   move?: number | null;
@@ -194,13 +196,15 @@ class Roster {
   }
 
   team(t: RosterTeamIn): RosterTeamOut {
+    const members = this.membersOf.get(t.teamId) ?? [];
     return {
       teamId: t.teamId,
       name: t.name,
       color: t.color,
       rank: this.teamRank.get(t) ?? null,
       score: t.scoreText,
-      members: this.membersOf.get(t.teamId)?.length ?? 0,
+      members: members.length,
+      soleMember: members.length === 1 ? members[0].name : null,
       yours: this.yourTeamIds().has(t.teamId),
     };
   }
@@ -221,13 +225,17 @@ class Roster {
 
   /** 12+ teams with people sharing them (lib/standingsWindow isManyTeams): cut, and searchable by team name. */
   manyTeams(): boolean {
-    return !this.playersMode() && isManyTeams(null, this.input.teams.map((t) => this.membersOf.get(t.teamId)?.length ?? 0));
+    const sizes = this.input.teams.map((t) => this.membersOf.get(t.teamId)?.length ?? 0);
+    return !this.playersMode() && (this.input.solo ? isManyTeams('solo', sizes) : isManyTeams(null, sizes));
   }
 
   /** One-person teams, or an individual event: the people are what is ranked. */
   playersMode(): boolean {
-    if (this.input.individuals || this.input.solo) return true;
+    if (this.input.individuals) return true;
     if (this.input.teams.length === 0) return false;
+    // Solo is the desired placement, not permission to flatten a real shared entry into duplicate
+    // standings rows. An invite can intentionally put 2+ people together; show that as one team.
+    if (this.input.solo) return [...this.membersOf.values()].every((m) => m.length <= 1);
     return [...this.membersOf.values()].every((m) => m.length <= 1);
   }
 

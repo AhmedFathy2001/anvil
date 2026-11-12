@@ -18,6 +18,11 @@ test('own colours are a Supporter perk; without it the Anvil palette applies', (
   assert.deepEqual(effectiveLook(cleanPrefs({ palette: 'plain' }), 'patron'), { palette: 'plain', colors: null });
 });
 
+test('ordinary Anvil information has a site-owned high-contrast default', () => {
+  assert.equal(ANVIL_COLORS.info, '#ff5c5c');
+  assert.equal(effectiveLook(cleanPrefs({}), null).colors?.info, 'ff5c5c');
+});
+
 test('shaping the brief is Champion and up', () => {
   const prefs = cleanPrefs({ brief: ['goals', 'nonsense'] });
   assert.deepEqual(prefs.brief, ['goals']);

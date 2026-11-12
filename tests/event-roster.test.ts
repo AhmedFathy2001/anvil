@@ -173,7 +173,7 @@ test('a solo board of 170: the window is the top five and each of your accounts 
   assert.equal(rosterOverview(input, 1, 25).mode === 'players' && (rosterOverview(input, 1, 25) as { window?: unknown }).window, undefined, 'only when asked');
 });
 
-test('solo placement ranks players even when the host doubled someone up', () => {
+test('a mixed solo board self-corrects to compact teams; singleton entries name their player', () => {
   const input: RosterInput = {
     teams: [team(1, 5), team(2, 3)],
     people: [person('A', 1), person('B', 1), person('C', 2)],
@@ -181,7 +181,11 @@ test('solo placement ranks players even when the host doubled someone up', () =>
     individuals: false,
     solo: true,
   };
-  assert.equal(rosterOverview(input, 1, 25).mode, 'players');
+  const mixed = rosterOverview(input, 1, 25, {});
+  assert.equal(mixed.mode, 'teams');
+  if (mixed.mode !== 'teams') return;
+  assert.ok(mixed.window, 'even a small mixed solo board stays compact');
+  assert.deepEqual(mixed.teams.map((t) => [t.teamId, t.members, t.soleMember]), [[1, 2, null], [2, 1, 'C']]);
   assert.equal(rosterOverview({ ...input, solo: false }, 1, 25).mode, 'teams');
 });
 
