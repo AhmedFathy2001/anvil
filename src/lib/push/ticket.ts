@@ -37,6 +37,11 @@ export interface PushScope {
    * the plugin's Authorization header.
    */
   web?: boolean;
+  /**
+   * Chat relay (lib/push/relay): this plugin may send its own chat lines and hear others' — signed in,
+   * with staff's switch on. The character it speaks as, its account-type icon and its roster clan.
+   */
+  relay?: { name: string; icon: number | null; clanId: number | null };
 }
 
 /** Long enough to cover a reconnect storm, short enough that a lost seat stops listening soon. */
@@ -58,7 +63,7 @@ export function signTicket(scope: PushScope, key: Buffer, nowMs: number, ttlMs: 
   const expiresAt = nowMs + Math.min(ttlMs, TICKET_TTL_MS);
   // The newer fields only when set, so a plugin's ticket is byte for byte what it always was.
   const teams = (scope.teamIds ?? []).filter((t) => Number.isInteger(t) && t !== scope.teamId).slice(0, MAX_TICKET_TEAMS);
-  const body = Buffer.from(JSON.stringify({ u: scope.userId, e: scope.eventIds, t: scope.teamId, ...(scope.feed ? { f: 1 } : {}), ...(scope.rows ? { r: 1 } : {}), ...(scope.flair ? { l: 1 } : {}), ...(teams.length ? { ts: teams } : {}), ...(scope.web ? { w: 1 } : {}), x: expiresAt })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ u: scope.userId, e: scope.eventIds, t: scope.teamId, ...(scope.feed ? { f: 1 } : {}), ...(scope.rows ? { r: 1 } : {}), ...(scope.flair ? { l: 1 } : {}), ...(teams.length ? { ts: teams } : {}), ...(scope.web ? { w: 1 } : {}), ...(scope.relay ? { rl: [scope.relay.name, scope.relay.icon, scope.relay.clanId] } : {}), x: expiresAt })).toString('base64url');
   return { ticket: `${body}.${mac(body, key)}`, expiresAt };
 }
 
@@ -85,6 +90,9 @@ export function verifyTicket(ticket: string, key: Buffer, nowMs: number): PushSc
       ...(p.l === 1 ? { flair: true } : {}),
       ...(teamIds.length ? { teamIds } : {}),
       ...(p.w === 1 ? { web: true } : {}),
+      ...(Array.isArray(p.rl) && typeof p.rl[0] === 'string' && p.rl[0]
+        ? { relay: { name: p.rl[0], icon: Number.isInteger(p.rl[1]) ? p.rl[1] : null, clanId: Number.isInteger(p.rl[2]) ? p.rl[2] : null } }
+        : {}),
     };
   } catch {
     return null;

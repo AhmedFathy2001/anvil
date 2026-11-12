@@ -612,6 +612,38 @@ side panel itself is a `plugin-ui` view: a team message is the plugin's cue to f
   (`node --experimental-strip-types push/server.ts`), reading views from the site's
   `GET /api/internal/push/view` with a derived secret; served on `/api/plugin/push/ws` of the same host.
 
+### `chat-relay`
+
+Anvil players' own game chat lines reach other Anvil players whose game didn't show them (a muted
+sender), plus event chat in the game chatbox. The plugin never touches outgoing chat: it reads the
+local player's line as its own client shows it and sends a copy. Nothing is stored but a reported line.
+
+- `GET /api/plugin/push/ticket?relay=1` — signed in on a character the token owns, with staff's switch
+  (platform setting `chat_relay_enabled`, on unless `'false'`) on, the ticket carries `rl: [name, icon,
+  clanId]` (lib/chatRelay `relayIdentity`): the name the game shows, the account-type chat icon, and the
+  clan whose in-game roster lists the character. The socket's hello is then `{"t":"hello","relay":1}`.
+- Plugin → server (only on a relay ticket; any other socket is still closed by a message):
+  - `{"t":"rooms","w":<world>,"g":"<GIM channel name>"}` on hello, login and clan-channel changes.
+  - `{"t":"say","c":"public"|"clan"|"gim","x":"<the line>"}` — the local player's own line only, never
+    a `::` command. Filtered with event chat's rules (lib/eventChatRules `checkBody`), max 80 chars,
+    6 lines per 10 s per socket, the same line twice in 10 s is one.
+- Server → plugin, to the room minus every socket of the sender: `{"t":"relay","c","n":"Name",
+  "nm":"<img=2>Name","x","at","u","k"}`. Rooms: `world:<n>`, `clan:<id>` (from the ticket),
+  `gim:<group>` (the group's channel name; Anvil keeps no groups — the receiver shows a clan or GIM line
+  only when the sender is in its own channel's member list).
+- `POST /api/plugin/chat-relay/report` with the line as received (`{c,n,x,at,u,k}`): only a line the
+  push server signed (`k`) is taken, within a day; stored in the report queue as a report of the
+  sender's profile, the line as its snapshot.
+- Event chat lines (`{"t":"rows"}` pushes for `chat:<event>:<channel>` feeds) carry `cb` (the chatbox
+  line with the board's tag: `[Winter Bingo · Team] Name: text`) and `cb1` (without it: `[Team]`, for a
+  player on one live board), colours and escapes included. The tag is the host's (event rules
+  `chatTag`, ≤12 chars, set in the event's chat settings) or derived from the name.
+- `GET /api/plugin/chat-chans` — `{one, chans:[{l:"Winter Bingo · Team", e:"12", to:"team"|"all"|
+  "announce"}]}`: where the chatbox event chat input may post, board by board, in cycle order
+  (Announcements only for the board's host/mods; "Only my team's chat" drops All). `one`: print `cb1`.
+  Sends go through the Feed tab's own action: `POST /api/plugin/ui` act `chat-send`, args `{e, to}`,
+  fields `{msg}`.
+
 ## Checklist: shipping a new plugin-facing feature
 
 On the site:
