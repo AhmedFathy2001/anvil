@@ -4,7 +4,7 @@
 // into every clan and onto their apex profile. Tiers and the pure state logic live in
 // lib/supporterTiers; this is the database half. The webhook side is lib/supporterBilling.
 
-import { and, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
@@ -13,7 +13,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
 import { hasChatStar } from '@/lib/chatLook';
 import { styleFromKey, styleKey, type FlairRecord, type FlairStyle, type FlairSurface } from '@/lib/chatFlairWire';
-import { effectiveSupporterStyle, parseSupporterStyle, supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
+import { effectiveSupporterStyle, parseSupporterStyle, supporterInk, wornCharacterStyles, type SupporterInk, type SupporterLook, type SupporterStyle } from '@/lib/supporterStyle';
 import { SUPPORTER_TIERS, rowInForce, supporterState, tenureShort, tiersByName, type SupporterState, type SupporterTierId, type TenureGlyph } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
@@ -124,12 +124,37 @@ export function flairCharacterWhere(): SQL {
   return and(eq(accounts.shared, true), isNotNull(accounts.verifiedAt))!;
 }
 
+/**
+ * What each character of these Champion people wears, keyed by account id, with Champion's
+ * two-colour limit applied across ALL of the person's characters (lib/supporterStyle
+ * wornCharacterStyles), so a partial read (a few names, a delta) agrees with a full one. Only
+ * Champions need it: no other tier has a cross-character limit.
+ */
+async function championWorn(people: { playerId: number; fallback: SupporterStyle | null }[]): Promise<Map<number, SupporterStyle | null>> {
+  const out = new Map<number, SupporterStyle | null>();
+  const ids = [...new Set(people.map((p) => p.playerId))];
+  if (!ids.length) return out;
+  const rows = await db
+    .select({ id: accounts.id, playerId: accounts.playerId, style: accounts.supporterStyle })
+    .from(accounts)
+    .where(inArray(accounts.playerId, ids))
+    .orderBy(desc(accounts.isPrimary), asc(accounts.id));
+  const fallback = new Map(people.map((p) => [p.playerId, p.fallback]));
+  const byPlayer = new Map<number, typeof rows>();
+  for (const r of rows) if (r.playerId != null) byPlayer.set(r.playerId, [...(byPlayer.get(r.playerId) ?? []), r]);
+  for (const [pid, list] of byPlayer) {
+    const worn = wornCharacterStyles('champion', fallback.get(pid) ?? null, list.map((r) => parseSupporterStyle(r.style)));
+    list.forEach((r, i) => out.set(r.id, worn[i]));
+  }
+  return out;
+}
+
 async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, SupporterState>> {
   const out = new Map<string, SupporterState>();
   const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 500);
   if (keys.length === 0) return out;
   const rows = await db
-    .select({ rsn: accounts.rsnNormalized, accountStyle: accounts.supporterStyle, ...ROW_COLUMNS })
+    .select({ rsn: accounts.rsnNormalized, accountId: accounts.id, playerId: accounts.playerId, accountStyle: accounts.supporterStyle, ...ROW_COLUMNS })
     .from(accounts)
     .innerJoin(users, eq(users.playerId, accounts.playerId))
     .innerJoin(supporterSubscriptions, eq(supporterSubscriptions.userId, users.id))
@@ -142,12 +167,20 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
     );
   const byRsn = new Map<string, typeof rows>();
   for (const r of rows) byRsn.set(r.rsn, [...(byRsn.get(r.rsn) ?? []), r]);
+  const states = new Map<string, { state: SupporterState; first: (typeof rows)[number] }>();
   for (const [rsn, list] of byRsn) {
     const state = supporterState(list);
-    if (state) {
-      const raw = list[0]?.accountStyle;
-      out.set(rsn, raw == null ? state : { ...state, style: effectiveSupporterStyle(state.tier.id, parseSupporterStyle(raw)) });
-    }
+    if (state) states.set(rsn, { state, first: list[0] });
+  }
+  // Champions: their limits hold across all their characters, read here (whatever is stored).
+  const champs = [...states.values()].filter((v) => v.state.tier.id === 'champion' && v.first.playerId != null);
+  const worn = await championWorn(champs.map((v) => ({ playerId: v.first.playerId!, fallback: v.state.style })));
+  for (const [rsn, { state, first }] of states) {
+    const raw = first.accountStyle;
+    const style = state.tier.id === 'champion' && worn.has(first.accountId)
+      ? worn.get(first.accountId)!
+      : raw == null ? state.style : effectiveSupporterStyle(state.tier.id, parseSupporterStyle(raw));
+    out.set(rsn, raw == null && style === state.style ? state : { ...state, style });
   }
   return out;
 }
@@ -259,24 +292,33 @@ export async function gameChatFlairRecords(rsns?: string[]): Promise<Map<string,
   if (states.size === 0) return out;
 
   const ids = [...states.keys()];
-  const chars: { userId: number; rsn: string; playerId: number; style: string | null }[] = [];
+  const chars: { userId: number; accountId: number; rsn: string; playerId: number; style: string | null }[] = [];
   // Chunked: a full rebuild can name tens of thousands of supporters.
   for (let i = 0; i < ids.length; i += 5_000) {
     chars.push(
       ...(await db
-        .select({ userId: users.id, rsn: accounts.rsnNormalized, playerId: accounts.playerId, style: accounts.supporterStyle })
+        .select({ userId: users.id, accountId: accounts.id, rsn: accounts.rsnNormalized, playerId: accounts.playerId, style: accounts.supporterStyle })
         .from(users)
         .innerJoin(accounts, eq(accounts.playerId, users.playerId))
         .where(and(inArray(users.id, ids.slice(i, i + 5_000)), charWhere))),
     );
   }
+  const champs = new Map<number, SupporterStyle | null>();
+  for (const c of chars) {
+    const st = states.get(c.userId);
+    if (st?.tier.id === 'champion' && c.playerId != null) champs.set(c.playerId, st.style);
+  }
+  const championLooks = await championWorn([...champs].map(([playerId, fallback]) => ({ playerId, fallback })));
   const starred = new Set<string>();
-  for (const { userId, rsn, playerId, style } of chars) {
+  for (const { userId, accountId, rsn, playerId, style } of chars) {
     const state = states.get(userId);
     if (!state || !rsn || rsn.length > 12) continue;
     // Two logins on one character (rare): the higher tier wins.
     if (out.has(rsn) && (starred.has(rsn) || !hasChatStar(state.tier.id))) continue;
-    const characterStyle = style == null ? state.style : effectiveSupporterStyle(state.tier.id, parseSupporterStyle(style));
+    const characterStyle =
+      state.tier.id === 'champion' && championLooks.has(accountId)
+        ? championLooks.get(accountId)!
+        : style == null ? state.style : effectiveSupporterStyle(state.tier.id, parseSupporterStyle(style));
     const ink = supporterInk(state.tier.id, characterStyle);
     const star = hasChatStar(state.tier.id);
     if (star) starred.add(rsn);

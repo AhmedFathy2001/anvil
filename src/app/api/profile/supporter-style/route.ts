@@ -4,7 +4,17 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { accounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
-import { distinctStaticColours, parseSupporterStyle, supporterForUser, SUPPORTER_TIERS, tryTier, validateSupporterStyle, type SupporterTierId } from '@/lib/supporter';
+import {
+  distinctStaticColours,
+  effectiveSupporterStyle,
+  parseSupporterStyle,
+  supporterForUser,
+  SUPPORTER_TIERS,
+  tryTier,
+  validateSupporterStyle,
+  type SupporterStyle,
+  type SupporterTierId,
+} from '@/lib/supporter';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,14 +58,18 @@ export async function PUT(request: Request) {
         .where(and(eq(accounts.id, accountId), eq(accounts.playerId, playerId)))
         .limit(1);
       if (!account) return { error: 'That character is not yours.', status: 404 } as const;
-      if (tier === 'champion' && !allCharacters) {
+      // Champion's two-colour limit, counted on the looks as a Champion WEARS them: whenever the
+      // person holds Champion (trying Patron included, so a single colour that would be worn still
+      // counts) or is trying Champion. Reads clamp to it too (lib/supporterStyle wornCharacterStyles).
+      if ((held === 'champion' || tier === 'champion') && !allCharacters) {
         const rows = await tx
           .select({ style: accounts.supporterStyle })
           .from(accounts)
           .where(and(eq(accounts.playerId, playerId), ne(accounts.id, accountId)));
+        const asChampion = (st: SupporterStyle | null) => effectiveSupporterStyle('champion', st);
         const colours = distinctStaticColours([
-          ...rows.map((row) => parseSupporterStyle(row.style) ?? supporter?.style ?? null),
-          check.style ?? supporter?.style ?? null,
+          ...rows.map((row) => asChampion(parseSupporterStyle(row.style) ?? supporter?.style ?? null)),
+          asChampion(check.style ?? supporter?.style ?? null),
         ]);
         if (colours.size > 2) return { error: 'Champions may use at most two custom colours across their characters.', status: 400 } as const;
       }

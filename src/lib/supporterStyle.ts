@@ -143,6 +143,37 @@ export function distinctStaticColours(styles: readonly (SupporterStyle | null | 
   return colours;
 }
 
+/** A Champion may wear at most this many distinct custom static colours across their characters. */
+export const CHAMPION_STATIC_COLOURS = 2;
+
+/**
+ * Every character's look as `tier` wears it, Champion's cross-character limit included, so the limit
+ * holds on READ whatever was stored (a look saved while trying Patron, a lapse from Patron, a row
+ * written before the limit). `characters` is ALL of the person's characters in a fixed order
+ * (primary first, then by id): the first two distinct static colours in that order are worn, a later
+ * third falls back to the tier's default. `fallback` is the Anvil name's look, worn where a
+ * character has none of its own (null = follows it).
+ */
+export function wornCharacterStyles(
+  tier: SupporterTierId | null | undefined,
+  fallback: SupporterStyle | null | undefined,
+  characters: readonly (SupporterStyle | null | undefined)[],
+): (SupporterStyle | null)[] {
+  const allowed = new Set<Hex>();
+  return characters.map((raw) => {
+    const worn = effectiveSupporterStyle(tier, raw ?? fallback);
+    if (tier !== 'champion' || worn?.stops?.length !== 1) return worn;
+    const c = worn.stops[0];
+    if (allowed.has(c) || allowed.size < CHAMPION_STATIC_COLOURS) {
+      allowed.add(c);
+      return worn;
+    }
+    const { stops: _drop, ...rest } = worn;
+    void _drop;
+    return hasAny(rest) ? rest : null;
+  });
+}
+
 /** '#RRGGBB' / 'rrggbb' → '#rrggbb', anything else null. */
 export function normalizeHex(v: unknown): Hex | null {
   if (typeof v !== 'string') return null;

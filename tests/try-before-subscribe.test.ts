@@ -25,6 +25,7 @@ import {
   tierForStyle,
   tryTier,
   validateSupporterStyle,
+  wornCharacterStyles,
 } from '../src/lib/supporterStyle.ts';
 import { supporterState } from '../src/lib/supporterTiers.ts';
 
@@ -126,4 +127,25 @@ test('display case: anyone may fill it, others see only what the tier shows', ()
     [0, 3, 4, 7, 8, 11].map(tierForDisplaySlot),
     ['supporter', 'supporter', 'champion', 'champion', 'patron', 'patron'],
   );
+});
+
+test('read-time clamp: a stored Patron-shaped look is served by the tier held, never above it', () => {
+  const patronShaped = { stops: ['#ff0000', '#00ff00', '#0000ff'] as `#${string}`[] };
+  // Held Champion: no gradient of their own; the tier's default (classic) is worn.
+  assert.equal(effectiveSupporterStyle('champion', patronShaped), null);
+  assert.deepEqual(supporterInk('champion', patronShaped).grad, SUPPORTER_INK.champion.grad);
+  assert.deepEqual(wornCharacterStyles('champion', null, [patronShaped]), [null]);
+  // Held nothing: the free look (no flair at all).
+  assert.equal(effectiveSupporterStyle(null, patronShaped), null);
+  assert.deepEqual(wornCharacterStyles(null, patronShaped, [patronShaped, null]), [null, null]);
+});
+
+test('read-time clamp: a Champion wears at most two distinct static colours across characters', () => {
+  const one = (c: string) => ({ stops: [c as `#${string}`] });
+  const worn = wornCharacterStyles('champion', null, [one('#aa0000'), one('#00aa00'), one('#0000aa'), one('#aa0000'), { preset: 'ember' }]);
+  assert.deepEqual(worn, [one('#aa0000'), one('#00aa00'), null, one('#aa0000'), { preset: 'ember' }], 'the third colour falls back; presets are free');
+  // A character with no look of its own wears the Anvil name's, which counts too.
+  assert.deepEqual(wornCharacterStyles('champion', one('#123456'), [null, one('#aa0000'), one('#00aa00')]), [one('#123456'), one('#aa0000'), null]);
+  // Patron has no such limit.
+  assert.equal(wornCharacterStyles('patron', null, [one('#aa0000'), one('#00aa00'), one('#0000aa')]).filter(Boolean).length, 3);
 });
