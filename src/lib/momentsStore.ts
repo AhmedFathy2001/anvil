@@ -331,6 +331,7 @@ export async function recordMoments(
     // would otherwise read twice. (A week and a board both keeping it is their own business.)
     if (!mode && isAchievementKind(row.kind) && !BOARD_COPY_KINDS.has(row.kind) && (await achievementHeld(member.clanMemberId, row.dedupKey))) continue;
     const dedupKey = mode ? `mode:${mode.key}:${row.dedupKey}` : row.dedupKey;
+    if (row.kind === 'loot' && row.itemId != null && (await sameDropNearby(member.clanMemberId, row))) continue;
     const rows = await db
       .insert(moments)
       .values({
@@ -793,4 +794,46 @@ export async function momentsForMembers(clanMemberIds: number[], limit = 20): Pr
     .where(and(inArray(moments.clanMemberId, clanMemberIds), isNull(moments.worldMode)))
     .orderBy(desc(moments.occurredAt))
     .limit(limit);
+}
+
+/** How close two sightings of one drop land: the source resolving late, a reward chest read twice. */
+const SAME_DROP_MS = 90_000;
+
+/**
+ * Is this drop one already stored, seen again? The key includes the source and the tick, so the
+ * plugin's first sighting (no source yet) and its second (with it), or a reward chest read twice a
+ * few ticks apart, each made their own row: Titoo's one Masori body read as three. Same character,
+ * item and board within SAME_DROP_MS, with a matching or missing source, is the same drop; an earlier
+ * row with no source takes this one's source and KC. Two different sources are two drops.
+ */
+async function sameDropNearby(
+  clanMemberId: number,
+  row: { itemId: number | null; source: string | null; sourceKind: string | null; kc: number | null; eventId: number | null; weeklyCompetitionId: number | null; occurredAt: string },
+): Promise<boolean> {
+  const at = parseStamp(row.occurredAt);
+  if (at == null) return false;
+  // clan-scope: global -- keyed by the member's own seat (clan_member_id), which belongs to one clan.
+  const near = await db
+    .select({ id: moments.id, source: moments.source, occurredAt: moments.occurredAt })
+    .from(moments)
+    .where(
+      and(
+        eq(moments.clanMemberId, clanMemberId),
+        eq(moments.kind, 'loot'),
+        eq(moments.itemId, row.itemId!),
+        row.eventId == null ? isNull(moments.eventId) : eq(moments.eventId, row.eventId),
+        row.weeklyCompetitionId == null ? isNull(moments.weeklyCompetitionId) : eq(moments.weeklyCompetitionId, row.weeklyCompetitionId),
+      ),
+    )
+    .orderBy(desc(moments.id))
+    .limit(5);
+  const same = near.find((m) => {
+    const t = parseStamp(m.occurredAt);
+    return t != null && Math.abs(t - at) <= SAME_DROP_MS && (m.source == null || row.source == null || m.source === row.source);
+  });
+  if (!same) return false;
+  if (same.source == null && row.source != null) {
+    await db.update(moments).set({ source: row.source, sourceKind: row.sourceKind, kc: row.kc }).where(eq(moments.id, same.id));
+  }
+  return true;
 }
