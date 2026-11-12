@@ -969,7 +969,7 @@ const PAGES: readonly SettingEntry[] = [
     description:
       'What your own plugin posts (drops, pets, deaths, achievements) across every clan, and which chat is hidden in its screenshots. In your Settings, once you have a character.',
     keywords: ['personal', 'my announcements', 'announcements', 'my webhooks', 'opt out', 'emissions', 'profile', 'notifications', 'screenshot privacy'],
-    href: '/settings/announcements',
+    href: '/settings/posts#discord-posts',
     section: 'Your account',
   },
   {
@@ -977,7 +977,7 @@ const PAGES: readonly SettingEntry[] = [
     label: 'Notifications from Anvil',
     description: 'A sound for new notices on the site, and whether Anvil may DM you important updates on Discord.',
     keywords: ['notifications', 'inbox', 'bell', 'sound', 'dm', 'direct message', 'updates', 'notices'],
-    href: '/settings/notifications',
+    href: '/settings/posts#notifications',
     section: 'Your account',
   },
   {
@@ -985,7 +985,7 @@ const PAGES: readonly SettingEntry[] = [
     label: 'Boost a clan',
     description: 'As a Supporter, spend your boosts on the clans you are in.',
     keywords: ['boost', 'boosts', 'my boosts', 'nitro', 'supporter', 'give boost'],
-    href: '/settings/boosts',
+    href: '/settings/profile#boosts',
     section: 'Your account',
   },
   {

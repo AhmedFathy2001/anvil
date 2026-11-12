@@ -8,7 +8,7 @@ import { rt } from '../_i18n/rich';
 
 // Clan boosts for the Champion or Patron placing one and the clan staff reading the level. The rules
 // live in lib/clanBoostRules (slots, seats, cooldown, levels, grace, perks, gifts, badges); the pages
-// are /settings/boosts and /admin/clan/boosts. When a number changes there, the copy here has to too.
+// are /settings/profile#boosts and /admin/clan/boosts. When a number changes there, the copy here has to too.
 //
 // Section ids are also the Discord /setup outline (lib/discordGuides GUIDE_OUTLINES.boosts).
 export const BOOSTS_SECTIONS = ['what', 'place', 'levels', 'perks', 'colours', 'staff', 'boosters'] as const;

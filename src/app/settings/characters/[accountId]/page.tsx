@@ -2,7 +2,7 @@ import ClanLink from '@/components/ClanLink';
 import { clanPathOf } from '@/lib/clanScopedPaths';
 import CreatorChip from '@/components/CreatorChip';
 import { groupClansAndSpaces, isCreatorSpace } from '@/lib/creatorSpaces';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import SupporterName from '@/components/SupporterName';
 import { supporterForUser } from '@/lib/supporter';
@@ -50,7 +50,14 @@ function joined(stamp: string | null): string | null {
  */
 export default async function CharacterSettingsPage({ params }: { params: Promise<{ accountId: string }> }) {
   const session = await settingsSession();
-  const accountId = Number((await params).accountId);
+  const raw = (await params).accountId;
+  // `/settings/characters/main#…`: your main character's page (the search and hub link there). The
+  // redirect carries no fragment, so the browser keeps the one asked for.
+  if (raw === 'main') {
+    const mine = session.playerId ? await settingsCharacters(session.playerId) : [];
+    redirect(mine[0] ? `/settings/characters/${mine[0].accountId}` : '/settings/characters?at=add');
+  }
+  const accountId = Number(raw);
   if (!session.playerId || !Number.isInteger(accountId)) notFound();
 
   const characters = await settingsCharacters(session.playerId);
@@ -108,7 +115,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
       {claim && (
         <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] px-4 py-3 text-[13px] text-yellow-300">
           {claim.claimantName} says {c.rsn} is their character.{' '}
-          <ClanLink href="/settings/claims" className="font-medium text-gold hover:text-gold-light">
+          <ClanLink href="/settings/characters#claims" className="font-medium text-gold hover:text-gold-light">
             Answer the claim →
           </ClanLink>
         </div>
@@ -261,7 +268,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             url={`/api/profile/characters/${accountId}`}
             method="DELETE"
             tone="danger"
-            then="/settings/account"
+            then="/settings/characters"
             confirm={{
               title: `Remove ${c.rsn} from your account?`,
               body: 'Results already recorded under it stay where they are. You can add it back by playing it with the plugin.',

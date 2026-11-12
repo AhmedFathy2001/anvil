@@ -1075,7 +1075,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: '« <RSN> belongs to another Anvil player »',
-          body: 'Quelqu’un d’autre a relié ce personnage sur Anvil en premier, donc rien ne compte pour lui depuis votre connexion. S’il est vraiment à vous, appuyez sur **This is my account** dans l’onglet **You** du panneau et passez la petite vérification d’XP. Ensuite, le propriétaire actuel est consulté, ou l’équipe Anvil tranche. Vous ne saurez jamais qui c’est. Suivez la demande dans [Settings → Ownership claims](/settings/claims).',
+          body: 'Quelqu’un d’autre a relié ce personnage sur Anvil en premier, donc rien ne compte pour lui depuis votre connexion. S’il est vraiment à vous, appuyez sur **This is my account** dans l’onglet **You** du panneau et passez la petite vérification d’XP. Ensuite, le propriétaire actuel est consulté, ou l’équipe Anvil tranche. Vous ne saurez jamais qui c’est. Suivez la demande dans [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Toujours bloqué ? Envoyez un journal à un admin',
@@ -3115,7 +3115,7 @@ const fr: PartialGuideDict = {
     accounts: {
       title: 'Tes comptes connectés',
       body: [
-        'Les comptes Twitch, YouTube et Kick que tu as liés sont dans [Settings → Connected accounts](/settings/connections). Tu peux aussi les lier là avant de rejoindre.',
+        'Les comptes Twitch, YouTube et Kick que tu as liés sont dans [Settings → Connected accounts](/settings/account#streaming). Tu peux aussi les lier là avant de rejoindre.',
         'Tu peux en délier un à tout moment. Les événements déjà rejoints te gardent. Un événement réservé que tu rejoins plus tard te demandera de lier à nouveau.',
         'Les comptes Twitch, YouTube et Kick liés apparaissent sur ton profil avec une coche de vérification : tu as prouvé qu’ils sont à toi. Désactive **Show on my profile** pour en masquer un. Un lien Medal, c’est différent. Tu le colles toi-même, donc il n’a pas de coche.',
         'Tu streames toi-même sur Twitch ? Active **Clip my stream when I hit a big moment** sous ton compte Twitch. Pendant que tu es en live dans l’événement d’un streamer, Anvil clippe tes drops rares, tes pets et tes cases terminées.',

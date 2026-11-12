@@ -143,6 +143,37 @@ export function distinctStaticColours(styles: readonly (SupporterStyle | null | 
   return colours;
 }
 
+/** A Champion may wear at most this many distinct custom static colours across their characters. */
+export const CHAMPION_STATIC_COLOURS = 2;
+
+/**
+ * Every character's look as `tier` wears it, Champion's cross-character limit included, so the limit
+ * holds on READ whatever was stored (a look saved while trying Patron, a lapse from Patron, a row
+ * written before the limit). `characters` is ALL of the person's characters in a fixed order
+ * (primary first, then by id): the first two distinct static colours in that order are worn, a later
+ * third falls back to the tier's default. `fallback` is the Anvil name's look, worn where a
+ * character has none of its own (null = follows it).
+ */
+export function wornCharacterStyles(
+  tier: SupporterTierId | null | undefined,
+  fallback: SupporterStyle | null | undefined,
+  characters: readonly (SupporterStyle | null | undefined)[],
+): (SupporterStyle | null)[] {
+  const allowed = new Set<Hex>();
+  return characters.map((raw) => {
+    const worn = effectiveSupporterStyle(tier, raw ?? fallback);
+    if (tier !== 'champion' || worn?.stops?.length !== 1) return worn;
+    const c = worn.stops[0];
+    if (allowed.has(c) || allowed.size < CHAMPION_STATIC_COLOURS) {
+      allowed.add(c);
+      return worn;
+    }
+    const { stops: _drop, ...rest } = worn;
+    void _drop;
+    return hasAny(rest) ? rest : null;
+  });
+}
+
 /** '#RRGGBB' / 'rrggbb' → '#rrggbb', anything else null. */
 export function normalizeHex(v: unknown): Hex | null {
   if (typeof v !== 'string') return null;
@@ -375,11 +406,17 @@ const SURFACE_LABEL: Record<NameSurface, string> = { dark: 'Dark backgrounds', l
  * the browser's). `null` / `{}` resets to the default. Each surface override (`dark`, `light`) is a
  * whole look under the same rules; `null` / `{}` clears it. Returns what will be stored.
  */
-export function validateSupporterStyle(input: unknown, tier: SupporterTierId | null | undefined): StyleCheck {
+export function validateSupporterStyle(
+  input: unknown,
+  tier: SupporterTierId | null | undefined,
+  opts: { keepDefault?: boolean } = {},
+): StyleCheck {
   if (input == null) return { ok: true, style: null };
   if (typeof input !== 'object' || Array.isArray(input)) return { ok: false, error: 'Send a style object.' };
   const o = input as Record<string, unknown>;
-  const main = validateLook(o, tier, false);
+  // Trying a tier you don't have: keep its default preset by name, so the choice (and the tier it
+  // needs) survives a reload instead of collapsing to "nothing chosen".
+  const main = validateLook(o, tier, !!opts.keepDefault);
   if (!main.ok) return main;
   const style: SupporterStyle = { ...main.look };
   for (const surface of NAME_SURFACES) {
@@ -420,4 +457,41 @@ function validateLook(o: Record<string, unknown>, tier: SupporterTierId | null |
   if (!preset) return { ok: false, error: 'Unknown preset.' };
   if (rank(preset.minTier) > rank(tier)) return { ok: false, error: `${preset.name} is a ${TIER_NAME[preset.minTier]} preset.` };
   return { ok: true, look: !keepDefault && preset.id === DEFAULT_PRESET[tier] ? null : { preset: preset.id } };
+}
+
+// ── Try before you subscribe ────────────────────────────────────────────────────────────────────
+//
+// Anyone may pick and save any look, at any tier, to see it on Settings → Profile & look. What is
+// WORN anywhere else is still effectiveSupporterStyle(tier in force, stored): a free person wears no
+// flair at all, and a lower tier falls back to its own default. These two say which tier a choice
+// needs, so the page can name it.
+
+/** The lowest tier that wears this look exactly as chosen. Nothing chosen is plain Supporter gold. */
+export function tierForStyle(style: SupporterStyle | null | undefined): SupporterTierId {
+  let need = 1;
+  const look = (l: SupporterLookStyle | undefined) => {
+    if (!l) return;
+    if (l.stops?.length) need = Math.max(need, l.stops.length > 1 ? RANK.patron : RANK.champion);
+    else {
+      const p = presetById(l.preset);
+      if (p) need = Math.max(need, rank(p.minTier));
+    }
+  };
+  look(style ?? undefined);
+  look(style?.dark);
+  look(style?.light);
+  return need >= RANK.patron ? 'patron' : need >= RANK.champion ? 'champion' : 'supporter';
+}
+
+/** The tier a look is checked (and previewed) against: the one asked to try, never below the one held. */
+export function tryTier(held: SupporterTierId | null | undefined, asked: SupporterTierId | null | undefined): SupporterTierId | null {
+  const a = asked && RANK[asked] ? asked : null;
+  if (!held) return a;
+  if (!a) return held;
+  return RANK[a] > RANK[held] ? a : held;
+}
+
+/** Does holding `held` cover something that needs `need`? */
+export function tierCovers(held: SupporterTierId | null | undefined, need: SupporterTierId): boolean {
+  return !!held && (RANK[held] ?? 0) >= RANK[need];
 }

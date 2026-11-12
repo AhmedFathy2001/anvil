@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { StopsEditor, SurfaceOverride, SurfacePreview } from '@/components/NameSurfaceLooks';
 import SupporterName from '@/components/SupporterName';
@@ -65,7 +65,16 @@ export default function SupporterStylePicker({
   defaultBlocked,
   pageOnly = false,
   onSaved,
+  trying = false,
+  onDraft,
 }: {
+  /**
+   * `tier` is one they are TRYING, above the one they hold (Settings → Profile & look): the choice is
+   * saved as that tier's look (`as`), default preset included by name, and worn once they hold it.
+   */
+  trying?: boolean;
+  /** The look as edited, on every change (the page's live preview). */
+  onDraft?: (style: SupporterStyle) => void;
   tier: SupporterTierId;
   name: string;
   initial: SupporterStyle | null;
@@ -109,7 +118,8 @@ export default function SupporterStylePicker({
 
   const lookOf = (d: LookDraft, keepDefault: boolean): SupporterLookStyle =>
     d.mode === 'custom' ? { stops: d.stops } : !keepDefault && d.preset === fallback ? {} : { preset: d.preset };
-  const draft: SupporterStyle = { ...lookOf(main, false) };
+  // Trying a tier: its default preset is a choice like any other, so it is kept by name.
+  const draft: SupporterStyle = { ...lookOf(main, trying) };
   for (const surface of NAME_SURFACES) {
     const d = over[surface];
     if (d) draft[surface] = lookOf(d, true);
@@ -117,6 +127,10 @@ export default function SupporterStylePicker({
   const same = JSON.stringify(normal(draft)) === JSON.stringify(normal(saved));
   useUnsavedChanges(!same, { pageOnly });
   const blocked = !!defaultBlocked && !same && isDefaultSupporterStyle(draft);
+  const draftKey = JSON.stringify(draft);
+  useEffect(() => {
+    onDraft?.(JSON.parse(draftKey) as SupporterStyle);
+  }, [draftKey, onDraft]);
 
   if (tier === 'supporter') {
     return (
@@ -139,7 +153,11 @@ export default function SupporterStylePicker({
       const res = await fetch('/api/profile/supporter-style', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accountId == null ? next : { accountId, style: next, allCharacters: applyAll }),
+        body: JSON.stringify(
+          accountId == null
+            ? { ...next, ...(trying ? { as: tier } : {}) }
+            : { accountId, style: next, allCharacters: applyAll, ...(trying ? { as: tier } : {}) },
+        ),
       });
       const json = (await res.json().catch(() => ({}))) as { style?: SupporterStyle | null; error?: string };
       if (!res.ok) {
@@ -147,7 +165,12 @@ export default function SupporterStylePicker({
         return;
       }
       setSaved(wears !== undefined ? wears : (json.style ?? null));
-      setNote({ ok: true, text: savedText ?? (applyAll ? 'Saved for every character.' : 'Saved. Your name looks like this everywhere now.') });
+      setNote({
+        ok: true,
+        text: trying
+          ? 'Saved. Only you see it for now.'
+          : (savedText ?? (applyAll ? 'Saved for every character.' : 'Saved. Your name looks like this everywhere now.')),
+      });
       onSaved?.(json.style ?? null);
     } catch {
       setNote({ ok: false, text: 'Could not reach Anvil. Try again.' });

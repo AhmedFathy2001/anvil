@@ -142,7 +142,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     title: 'Choose what you announce',
     body: 'Drops now post from 1m or 1 in 1,000 by default, following your clan. Turn on new kinds like slayer or kill count milestones, change the wording, and give each of your own webhooks its own filters.',
     audience: ['pluginUser'],
-    links: [{ label: 'Your announcement settings', href: '/settings/announcements', account: true }],
+    links: [{ label: 'Your announcement settings', href: '/settings/posts#discord-posts', account: true }],
   },
   {
     id: '2026-11-09-chat-channels',
@@ -173,7 +173,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     body: 'Supporters can pick one name look for dark backgrounds and another for light ones. Leave it alone and Anvil adjusts your colours so your name stays readable everywhere.',
     audience: ['supporter'],
     links: [
-      { label: 'Set your name look', href: '/settings/supporter', account: true },
+      { label: 'Set your name look', href: '/settings/profile#name-colours', account: true },
       { label: 'About Supporter', href: '/supporter', apexOnly: true },
     ],
   },
@@ -185,7 +185,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     audience: [{ clan: { role: 'admin', boost: 1, kind: 'clan' } }, 'boostedClan'],
     links: [
       { label: 'Set {clanName}’s name colour', href: '/c/{clan}/admin/clan/boosts', clan: { role: 'admin', boost: 1, kind: 'clan' } },
-      { label: 'How clan boosts work', href: '/settings/boosts', account: true },
+      { label: 'How clan boosts work', href: '/settings/profile#boosts', account: true },
     ],
   },
   {
@@ -194,7 +194,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     title: 'A banner for each character',
     body: 'Your banner and avatar now show on every character you play, on the site and in the plugin. You can also give each character its own, or keep your default.',
     audience: ['champion+'],
-    links: [{ label: 'Profile look', href: '/settings/look', account: true }],
+    links: [{ label: 'Profile look', href: '/settings/profile#look', account: true }],
   },
   {
     id: '2026-11-07-animated-banners',
@@ -202,7 +202,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     title: 'Animated banners play in the plugin',
     body: 'Animated clan and profile banners now play in the plugin’s side panel, cropped at the spot you picked on the site.',
     audience: ['champion+', 'boostedClan2'],
-    links: [{ label: 'Profile look', href: '/settings/look', account: true }],
+    links: [{ label: 'Profile look', href: '/settings/profile#look', account: true }],
   },
   {
     id: '2026-11-07-live-reactions',
@@ -225,7 +225,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     title: 'One boost per clan',
     body: 'Your boosts are listed once per clan, and Anvil picks which of your characters each one rides on. Your profile shows them the same way.',
     audience: ['champion+'],
-    links: [{ label: 'Your boosts', href: '/settings/boosts', account: true }],
+    links: [{ label: 'Your boosts', href: '/settings/profile#boosts', account: true }],
   },
   {
     id: '2026-11-07-display-case-dates',
@@ -233,7 +233,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     title: 'Drop dates in your display case',
     body: 'A display-case item you got before Anvil was tracking now shows the date and kill count of its first recorded drop, when Anvil has one.',
     audience: ['supporter'],
-    links: [{ label: 'Your display case', href: '/settings/look', account: true }],
+    links: [{ label: 'Your display case', href: '/settings/profile#display-case', account: true }],
   },
   {
     id: '2026-11-07-creator-plans',

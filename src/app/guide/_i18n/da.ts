@@ -1078,7 +1078,7 @@ const da: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'En anden linkede denne karakter på Anvil først, så intet tæller for den fra dit login. Er den virkelig din? Så tryk **This is my account** på panelets **You**-fane og tag det hurtige XP-tjek. Derefter bliver den nuværende ejer spurgt, eller Anvils staff afgør det. Du får aldrig at vide, hvem de er. Følg sagen under [Settings → Ownership claims](/settings/claims).',
+          body: 'En anden linkede denne karakter på Anvil først, så intet tæller for den fra dit login. Er den virkelig din? Så tryk **This is my account** på panelets **You**-fane og tag det hurtige XP-tjek. Derefter bliver den nuværende ejer spurgt, eller Anvils staff afgør det. Du får aldrig at vide, hvem de er. Følg sagen under [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Stadig i vanskeligheder? Send en admin en log',
@@ -3120,7 +3120,7 @@ const da: PartialGuideDict = {
     accounts: {
       title: 'Dine forbundne konti',
       body: [
-        'De Twitch-, YouTube- og Kick-konti, du har linket, står i [Settings → Connected accounts](/settings/connections). Du kan også linke dem der, før du kommer med.',
+        'De Twitch-, YouTube- og Kick-konti, du har linket, står i [Settings → Connected accounts](/settings/account#streaming). Du kan også linke dem der, før du kommer med.',
         'Fjern et link når som helst. Events, du allerede er med i, beholder dig. Et event med krav, du kommer med i senere, beder dig linke igen.',
         'Linkede Twitch-, YouTube- og Kick-konti vises på din profil med et flueben: du har bevist, at de er dine. Slå **Show on my profile** fra for at skjule en. Et Medal-link er anderledes. Det indsætter du selv, så det får intet flueben.',
         'Streamer du selv på Twitch? Slå **Clip my stream when I hit a big moment** til under din Twitch-konto. Mens du er live i en streamers event, klipper Anvil dine sjældne drops, pets og færdige felter.',

@@ -10,13 +10,13 @@ import { useRouter } from 'next/navigation';
  * never sent to the server, which is why this has to happen in the browser.
  */
 const MOVED: Record<string, string> = {
-  '#plugin-token': '/settings/plugin',
-  '#link-account': '/settings/add',
-  '#detected-accounts': '/settings/add',
-  '#account-security': '/settings/account',
-  '#announcements': '/settings/announcements',
-  '#profile-look': '/settings/look',
-  '#display-case': '/settings/look',
+  '#plugin-token': '/settings/in-game#plugin-token',
+  '#link-account': '/settings/characters#link-account',
+  '#detected-accounts': '/settings/characters#detected',
+  '#account-security': '/settings/account#login',
+  '#announcements': '/settings/posts#discord-posts',
+  '#profile-look': '/settings/profile#avatar-banner',
+  '#display-case': '/settings/profile#display-case',
 };
 
 export default function LegacyAnchors() {

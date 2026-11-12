@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { pluginAct, pluginView } from '@/lib/pluginUi/views';
+import { rsText } from '@/lib/pluginUi/rsText';
 
 /**
  * The plugin side panel's views, built here and drawn by the plugin (`plugin-ui` capability;
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   for (const [k, v] of params) if (k !== 'v' && str(v)) args[k] = v;
   const view = await pluginView(request, params.get('v') ?? '', args);
   if (!view) return NextResponse.json({ error: 'No such view' }, { status: 404 });
-  return jsonWithEtag(request, view);
+  return jsonWithEtag(request, rsText(view));
 }
 
 export async function POST(request: Request) {
@@ -43,5 +44,5 @@ export async function POST(request: Request) {
   }
   const view = str(body?.act) ? await pluginAct(request, body.act, strings(body.args), strings(body.fields)) : null;
   if (!view) return NextResponse.json({ error: 'No such action' }, { status: 404 });
-  return NextResponse.json(view);
+  return NextResponse.json(rsText(view));
 }

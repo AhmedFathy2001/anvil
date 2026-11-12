@@ -91,7 +91,7 @@ export default async function ProfilePage({
 
   // Adding a character moved to settings; old `/profile?connect=<rsn>` links follow it there.
   if (suggestedRsn && session.playerId != null) {
-    redirect(`/settings/add?connect=${encodeURIComponent(suggestedRsn)}#link-account`);
+    redirect(`/settings/characters?connect=${encodeURIComponent(suggestedRsn)}#link-account`);
   }
 
   const myClans = await clansOfPerson(session.playerId, session.userId);
@@ -132,7 +132,7 @@ export default async function ProfilePage({
     ).length;
     // eslint-disable-next-line react-hooks/purity -- server component, runs once per request
     const standings = await characterStandings(characters.map((a) => a.id), Date.now());
-    // Their own avatar and banner (Anvil Supporter), at the tier in force now. Edited on /settings/look.
+    // Their own avatar and banner (Anvil Supporter), at the tier in force now. Edited on /settings/profile#look.
     const media = await profileMediaForUser(session.userId, { tier: supporter?.tier.id ?? null });
     // Their clan boosts and badges: this page is private, so it's the one place they're listed whole.
     const boosts = await myBoosts(session.userId, session.playerId ?? null).catch(() => null);
@@ -334,7 +334,7 @@ export default async function ProfilePage({
               ))}
               {detected.length > 0 && (
                 <ClanLink
-                  href="/settings/add"
+                  href="/settings/characters#add"
                   className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
                 >
                   <span>

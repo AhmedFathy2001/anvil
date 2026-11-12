@@ -3,14 +3,19 @@
 import { useMemo, useState, type ReactNode } from 'react';
 
 import CaseIcon from '@/components/CaseIcon';
-import ClanLink from '@/components/ClanLink';
 import { caseDate, caseGp, DisplayCaseCard } from '@/components/DisplayCase';
+import Input from '@/components/Input';
+import Select from '@/components/Select';
+import { OnlyYouNote, TIER_LABEL } from '@/app/settings/_ui';
+import { DISPLAY_CASE_MAX, tierForDisplaySlot } from '@/lib/profileMediaRules';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 import { clanFetch } from '@/lib/clanFetch';
 import type { DisplayCaseCandidate, DisplayCaseEntry } from '@/lib/displayCase';
 
 // Arranging your display case, on "your account across Anvil". Pins come from your own drops,
-// collection log, kill counts and personal bests only (the server proves each one is yours); the slot
-// count is your tier now.
+// collection log, kill counts and personal bests only (the server proves each one is yours). Anyone
+// may fill all 12 to try it; `slots` is how many your tier NOW shows to everyone else (0 = none), and
+// the pins past it say which tier would show them.
 
 const SHOW = 60;
 
@@ -36,7 +41,16 @@ function pinBody(c: DisplayCaseCandidate) {
   return { kind: c.kind, accountId: c.accountId, statKey: c.statKey };
 }
 
-export default function DisplayCaseEditor({ initialPins, slots }: { initialPins: DisplayCaseEntry[]; slots: number }) {
+export default function DisplayCaseEditor({
+  initialPins,
+  slots,
+  held = null,
+}: {
+  initialPins: DisplayCaseEntry[];
+  /** Shown to everyone else at the tier in force. */
+  slots: number;
+  held?: SupporterTierId | null;
+}) {
   const [pins, setPins] = useState(initialPins);
   const [candidates, setCandidates] = useState<DisplayCaseCandidate[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -131,49 +145,35 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
     return [...byId].sort((a, b) => a[1].localeCompare(b[1]));
   }, [candidates]);
 
-  const full = pins.length >= slots;
-
-  if (slots === 0 && pins.length === 0) {
-    return (
-      <p className="rounded-xl border border-card-border bg-card-bg p-4 text-sm text-text-muted">
-        Pin your best drops to a display case on your profile —{' '}
-        <ClanLink href="/supporter" className="text-gold hover:text-gold-light">
-          4 slots with Anvil Supporter, 8 with Champion, 12 with Patron
-        </ClanLink>
-        .
-      </p>
-    );
-  }
+  const full = pins.length >= DISPLAY_CASE_MAX;
+  const hiddenNeed = pins.length > slots ? tierForDisplaySlot(pins.length - 1) : null;
 
   return (
     <div className="rounded-xl border border-card-border bg-card-bg p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-text-muted">
-          {Math.min(pins.length, slots)} of {slots} slots used
+          {pins.length} of {DISPLAY_CASE_MAX} pinned
+          {slots > 0 ? ` · ${Math.min(pins.length, slots)} shown to others` : pins.length > 0 ? ' · shown only to you' : ''}
         </span>
-        {slots === 0 && pins.length > 0 && (
-          <span className="text-[13px] text-text-muted">
-            · hidden while you&rsquo;re not a Supporter — your pins are kept.{' '}
-            <ClanLink href="/supporter" className="text-gold hover:text-gold-light">
-              Bring it back
-            </ClanLink>
-          </span>
-        )}
-        {slots > 0 && (
-          <button
-            type="button"
-            onClick={() => void (open ? setOpen(false) : openPicker())}
-            className="ml-auto rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45"
-          >
-            {open ? 'Done' : '+ Add to case'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => void (open ? setOpen(false) : openPicker())}
+          className="ml-auto rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45"
+        >
+          {open ? 'Done' : '+ Add to case'}
+        </button>
       </div>
+
+      {hiddenNeed && (
+        <div className="mb-3">
+          <OnlyYouNote need={hiddenNeed} held={held} what={slots ? 'The dimmed pins' : 'Your display case'} />
+        </div>
+      )}
 
       {pins.length > 0 ? (
         <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {pins.map((e, i) => (
-            <li key={e.id} className={i >= slots ? 'opacity-45' : undefined} title={i >= slots ? 'Over your slots — not shown' : undefined}>
+            <li key={e.id} className={i >= slots ? 'opacity-60' : undefined}>
               <DisplayCaseCard
                 entry={e}
                 actions={
@@ -190,6 +190,9 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
                   </span>
                 }
               />
+              {i >= slots && (
+                <p className="mt-1 text-center text-[11px] text-gold">Only you see this · {TIER_LABEL[tierForDisplaySlot(i)]}</p>
+              )}
               {!e.shared && (
                 <p className="mt-1 text-center text-[11px] text-text-dim">Only you see this — {e.rsn} isn&rsquo;t shared</p>
               )}
@@ -204,26 +207,22 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
         <div className="mt-4 border-t border-card-border pt-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {characters.length > 1 && (
-              <select
+              <Select
                 value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                aria-label="Character whose records to show"
-                className="rounded-lg border border-card-border bg-brown-dark/60 px-3 py-1.5 text-sm"
-              >
-                <option value="all">All characters</option>
-                {characters.map(([id, rsn]) => (
-                  <option key={id} value={id}>{rsn}</option>
-                ))}
-              </select>
+                onChange={setAccount}
+                ariaLabel="Character whose records to show"
+                options={[{ value: 'all', label: 'All characters' }, ...characters.map(([id, rsn]) => ({ value: String(id), label: rsn }))]}
+                className="w-44 shrink-0"
+              />
             )}
-            <input
+            <Input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search"
               aria-label="Search what you can pin"
               maxLength={60}
-              className="min-w-0 flex-1 rounded-lg border border-card-border bg-brown-dark/60 px-3 py-1.5 text-sm"
+              className="w-auto min-w-0 flex-1"
             />
             {TABS.map((t) => (
               <button

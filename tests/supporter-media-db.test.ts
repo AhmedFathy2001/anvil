@@ -118,13 +118,16 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-const pin = (input: Parameters<typeof DC.pinToDisplayCase>[3], tier: Parameters<typeof DC.pinToDisplayCase>[2]) =>
-  DC.pinToDisplayCase(ids.user, ids.player, tier, input);
+// The tier argument is kept at each call as a note of who is pinning; pinning itself is open to all
+// (try before subscribing), and only reads cut the case to the tier.
+const pin = (input: Parameters<typeof DC.pinToDisplayCase>[2], _tier?: string | null) => DC.pinToDisplayCase(ids.user, ids.player, input);
 
-test('no tier, no case: pinning is refused', async () => {
+test('no tier: a pin is kept for its owner, and nobody else sees the case', async () => {
   const r = await pin({ kind: 'clog', accountId: ids.main, itemId: 4151 }, null);
-  assert.equal(r.ok, false);
-  if (!r.ok) assert.equal(r.status, 403);
+  assert.ok(r.ok);
+  assert.equal((await DC.readDisplayCase(ids.user, ids.player)).length, 1, 'the owner sees what they pinned');
+  assert.deepEqual(await DC.displayCaseForPlayer(ids.player, { publicView: true }), [], 'strangers see nothing');
+  assert.deepEqual(await DC.displayCaseForPlayer(ids.player, { accountId: ids.main }), [], 'nor does the plugin card');
 });
 
 test('pins only from their own verified characters, and only items really there', async () => {
@@ -150,9 +153,12 @@ test('pins only from their own verified characters, and only items really there'
   assert.ok((await pin({ kind: 'drop', momentId: ids.myDrop }, 'supporter')).ok);
   assert.ok((await pin({ kind: 'clog', accountId: ids.iron, itemId: 12921 }, 'supporter')).ok); // private character
   assert.ok((await pin({ kind: 'clog', accountId: ids.main, itemId: 13265 }, 'supporter')).ok);
-  const full = await pin({ kind: 'clog', accountId: ids.main, itemId: 12932 }, 'supporter');
-  assert.equal(full.ok, false);
-  if (!full.ok) assert.equal(full.status, 409);
+  // A fifth pin is kept (to try Champion's slots), but a Supporter's case still shows four.
+  const fifth = await pin({ kind: 'clog', accountId: ids.main, itemId: 12932 }, 'supporter');
+  assert.ok(fifth.ok);
+  assert.equal((await DC.displayCaseFor(ids.user, ids.player, 'supporter')).length, 4);
+  assert.ok(!(await DC.displayCaseFor(ids.user, ids.player, 'supporter')).some((e) => fifth.ok && e.id === fifth.id));
+  if (fifth.ok) await DC.unpinFromDisplayCase(ids.user, fifth.id);
 });
 
 test('read back: names, values, kc, proof link; strangers never see the unshared character', async () => {

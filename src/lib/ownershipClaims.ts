@@ -363,10 +363,10 @@ async function routeVerifiedClaim(claim: ClaimRow, account: typeof accounts.$inf
       : await notice(ownerLogin, 'ownership_claim', claim.id, {
           title: `${who} says ${account.rsn} is their character`,
           description: ownerVerified
-            ? `${who} proved control of **${account.rsn}** with Anvil's XP check. You verified it too, so it moves only if you approve. Answer in Settings → Ownership claims.`
+            ? `${who} proved control of **${account.rsn}** with Anvil's XP check. You verified it too, so it moves only if you approve. Answer in Settings → Characters → Ownership claims.`
             : `${who} proved control of **${account.rsn}** with Anvil's XP check; your link to it was never verified. ` +
               `If you don't object by **${fmtDay(new Date(Date.parse(nowIso) + OBJECTION_DAYS * DAY_MS).toISOString())}**, it moves to them ` +
-              `(everything it earned stays where it was recorded). Answer in Settings → Ownership claims.`,
+              `(everything it earned stays where it was recorded). Answer in Settings → Characters → Ownership claims.`,
         });
   if (noticeId == null) return toStaff(claim, account, nowIso, 'the current owner has no Anvil login to tell');
 
@@ -770,7 +770,7 @@ export async function unreadNoticeCount(userId: number): Promise<number> {
  * Discord DM to a login, through Anvil's own bot or else the bot of a clan they sit in (a bot can
  * only DM someone it shares a server with). Best effort; the in-site notice is the record.
  */
-export async function discordDm(userId: number, msg: { title: string; description: string }, path = '/settings/claims'): Promise<boolean> {
+export async function discordDm(userId: number, msg: { title: string; description: string }, path = '/settings/characters#claims'): Promise<boolean> {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { discordId: true, playerId: true } });
   const { isRealDiscordId } = await import('@/lib/anvilDiscordRoles');
   if (!isRealDiscordId(user?.discordId)) return false;

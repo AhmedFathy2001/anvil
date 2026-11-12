@@ -171,37 +171,27 @@ export interface NavCharacter {
   isPrimary: boolean;
 }
 
-// Labels say what the page controls, not what it was once called: "Announcements" held screenshot
-// privacy too, and "Privacy" (who sees a character) read as the same thing as screenshot privacy.
-// The URLs never change: the plugin links to /settings and /settings/announcements.
-const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
-  { href: '/settings/announcements', label: 'Discord posts & screenshots', icon: '📣' },
-  { href: '/settings/chat', label: 'In-game chat feed', icon: '💬' },
-  { href: '/settings/plugin', label: 'Plugin connection', icon: '⚿' },
-  { href: '/settings/account', label: 'Login & devices', icon: '⏻' },
-  { href: '/settings/webhooks', label: 'Your Discord webhooks', icon: '⌁' },
-  { href: '/settings/privacy', label: 'Who sees my characters', icon: '◐' },
-  { href: '/settings/supporter', label: 'Supporter & name colours', icon: '★' },
-  { href: '/settings/notifications', label: 'Notifications', icon: '🔔' },
-  { href: '/settings/look', label: 'Profile look', icon: '▣' },
-  { href: '/settings/connections', label: 'Streaming accounts', icon: '⇄' },
+// Five pages, each named for what it holds. The old addresses (/settings/profile#look, /settings/in-game#chat-feed, …)
+// redirect to the section that holds them now (app/settings/_legacy), so the plugin's links and old
+// bookmarks still land.
+const PAGES: { href: string; label: string; icon: string }[] = [
+  { href: '/settings/profile', label: 'Profile & look', icon: '▣' },
+  { href: '/settings/characters', label: 'Characters', icon: '♟' },
+  { href: '/settings/in-game', label: 'In game', icon: '⚿' },
+  { href: '/settings/posts', label: 'Posts & alerts', icon: '📣' },
+  { href: '/settings/account', label: 'Account', icon: '⏻' },
 ];
-/** Only for Supporters (and anyone with a boost placed): never a pitch to everyone else. */
-const BOOSTS_ITEM = { href: '/settings/boosts', label: 'Clan boosts', icon: '◆' };
 
 /**
- * The left rail: account sections, then one entry per character. On a phone it becomes a row of
- * chips that scrolls sideways above the page, so the page itself never does.
+ * The left rail: the five pages, then one entry per character. On a phone it becomes a row of chips
+ * that scrolls sideways above the page, so the page itself never does.
  */
 export function SettingsNav({
   characters,
   pending,
   claims = 0,
   flair = null,
-  boosts = false,
 }: {
-  /** Show "Clan boosts": they're a Supporter, or still have boosts placed. */
-  boosts?: boolean;
   characters: NavCharacter[];
   pending: number;
   /** "This is my account" claims on their characters waiting for their answer (lib/ownershipClaims). */
@@ -230,22 +220,25 @@ export function SettingsNav({
   const heading = (text: string) => (
     <div className="mb-1.5 mt-4 hidden px-2.5 text-[11px] uppercase tracking-[0.08em] text-text-dim first:mt-0 lg:block">{text}</div>
   );
+  const badge = (n: number) =>
+    n > 0 ? <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-brown-dark">{n}</span> : null;
 
   return (
     <nav aria-label="Settings" className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden scroll-quiet px-4 pb-2 lg:sticky lg:top-20 lg:mx-0 lg:block lg:overflow-visible lg:px-0 lg:pb-0">
       {item('/settings', path === '/settings', <>{icon('⌂')}Overview & search</>)}
-      {heading('Account')}
-      {[...ACCOUNT_ITEMS, ...(boosts || path === BOOSTS_ITEM.href ? [BOOSTS_ITEM] : [])].map((i) => item(i.href, path === i.href, <>{icon(i.icon)}{i.label}</>))}
-      {item(
-        '/settings/claims',
-        path === '/settings/claims',
-        <>
-          {icon('⚑')}
-          Ownership claims
-          {claims > 0 && <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-brown-dark">{claims}</span>}
-        </>,
+      {heading('Settings')}
+      {PAGES.map((p) =>
+        item(
+          p.href,
+          path === p.href,
+          <>
+            {icon(p.icon)}
+            {p.label}
+            {p.href === '/settings/characters' && badge(claims + pending)}
+          </>,
+        ),
       )}
-      {heading('Characters')}
+      {characters.length > 0 && heading('Your characters')}
       {characters.map((c) => {
         const href = `/settings/characters/${c.accountId}`;
         return item(
@@ -258,15 +251,6 @@ export function SettingsNav({
           </>,
         );
       })}
-      {item(
-        '/settings/add',
-        path === '/settings/add',
-        <>
-          {icon('+')}
-          <span className="text-gold">Add character</span>
-          {pending > 0 && <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-brown-dark">{pending}</span>}
-        </>,
-      )}
     </nav>
   );
 }

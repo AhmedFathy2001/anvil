@@ -1073,7 +1073,7 @@ const de: PartialGuideDict = {
         },
         {
           term: '„<RSN> belongs to another Anvil player“',
-          body: 'Jemand anderes hat diesen Charakter zuerst auf Anvil verknüpft, deshalb zählt bei deinem Login nichts für ihn. Gehört er wirklich dir, drück im Reiter **You** des Panels auf **This is my account** und besteh den kurzen XP-Check. Danach wird der aktuelle Besitzer gefragt, oder das Anvil-Team entscheidet. Du erfährst nie, wer es ist. Verfolge den Stand unter [Settings → Ownership claims](/settings/claims).',
+          body: 'Jemand anderes hat diesen Charakter zuerst auf Anvil verknüpft, deshalb zählt bei deinem Login nichts für ihn. Gehört er wirklich dir, drück im Reiter **You** des Panels auf **This is my account** und besteh den kurzen XP-Check. Danach wird der aktuelle Besitzer gefragt, oder das Anvil-Team entscheidet. Du erfährst nie, wer es ist. Verfolge den Stand unter [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Immer noch fest? Schick einem Admin ein Log',
@@ -3112,7 +3112,7 @@ const de: PartialGuideDict = {
     accounts: {
       title: 'Deine verbundenen Accounts',
       body: [
-        'Die Twitch-, YouTube- und Kick-Accounts, die du verknüpft hast, findest du unter [Settings → Connected accounts](/settings/connections). Dort kannst du sie auch vor dem Beitreten verknüpfen.',
+        'Die Twitch-, YouTube- und Kick-Accounts, die du verknüpft hast, findest du unter [Settings → Connected accounts](/settings/account#streaming). Dort kannst du sie auch vor dem Beitreten verknüpfen.',
         'Du kannst jederzeit eine Verknüpfung lösen. Events, denen du schon beigetreten bist, behalten dich. Bei einem beschränkten Event, dem du später beitrittst, musst du erneut verknüpfen.',
         'Verknüpfte Twitch-, YouTube- und Kick-Accounts erscheinen auf deinem Profil mit einem Verifiziert-Haken: Du hast bewiesen, dass sie dir gehören. Schalte **Show on my profile** aus, um einen zu verbergen. Ein Medal-Link ist anders. Den fügst du selbst ein, deshalb hat er keinen Haken.',
         'Streamst du selbst auf Twitch? Schalte **Clip my stream when I hit a big moment** unter deinem Twitch-Account ein. Während du in einem Streamer-Event live bist, clippt Anvil deine seltenen Drops, Pets und fertigen Felder.',

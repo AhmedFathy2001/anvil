@@ -1072,7 +1072,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Outra pessoa vinculou esse personagem no Anvil primeiro, então nada conta para ele a partir do seu login. Se ele é mesmo seu, aperte **This is my account** na aba **You** do painel e passe na verificação rápida por XP. Aí o dono atual é consultado, ou a staff do Anvil decide. Você nunca fica sabendo quem é. Acompanhe em [Settings → Ownership claims](/settings/claims).',
+          body: 'Outra pessoa vinculou esse personagem no Anvil primeiro, então nada conta para ele a partir do seu login. Se ele é mesmo seu, aperte **This is my account** na aba **You** do painel e passe na verificação rápida por XP. Aí o dono atual é consultado, ou a staff do Anvil decide. Você nunca fica sabendo quem é. Acompanhe em [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Ainda travado? Mande um log para um admin',
@@ -3101,7 +3101,7 @@ const ptBr: PartialGuideDict = {
     accounts: {
       title: 'Suas contas conectadas',
       body: [
-        'As contas de Twitch, YouTube e Kick que você vinculou estão em [Settings → Connected accounts](/settings/connections). Você também pode vinculá-las lá antes de entrar.',
+        'As contas de Twitch, YouTube e Kick que você vinculou estão em [Settings → Connected accounts](/settings/account#streaming). Você também pode vinculá-las lá antes de entrar.',
         'Desvincule quando quiser. Os eventos em que você já entrou continuam com você. Um evento com requisitos em que você entrar depois pede para vincular de novo.',
         'Contas da Twitch, YouTube e Kick vinculadas aparecem no seu perfil com um selo de verificado: você provou que são suas. Desligue **Show on my profile** para esconder uma. Um link do Medal é diferente. Você mesmo cola o link, então ele não tem selo.',
         'Também faz live na Twitch? Ative **Clip my stream when I hit a big moment** embaixo da sua conta da Twitch. Enquanto você está ao vivo no evento de um streamer, o Anvil clipa seus drops raros, pets e casas concluídas.',

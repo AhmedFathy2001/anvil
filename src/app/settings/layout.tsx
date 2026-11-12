@@ -4,10 +4,10 @@ import { redirect } from 'next/navigation';
 
 import { verifyUser } from '@/lib/auth';
 import { detectedFor, settingsCharacters } from '@/lib/settingsData';
-import { BOOST_SLOTS } from '@/lib/clanBoostRules';
 import { supporterForUser } from '@/lib/supporter';
 import { claimsOnMyCharacters, unreadNoticeCount } from '@/lib/ownershipClaims';
 import HashReveal from '@/components/HashReveal';
+import SettingsAt from '@/components/SettingsAt';
 import { SettingsNav } from './_client';
 
 export const metadata: Metadata = { title: 'Settings', robots: { index: false } };
@@ -40,6 +40,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
     <div className="mx-auto max-w-6xl">
       {/* Search results and hub cards link to #sections: scroll there and ring it, like the admin area. */}
       <HashReveal />
+      <SettingsAt />
       <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-10">
         <aside className="min-w-0">
           <SettingsNav
@@ -47,7 +48,6 @@ export default async function SettingsLayout({ children }: { children: ReactNode
             pending={detected.pending.length}
             claims={Math.max(claimsOnMine.filter((c) => c.status === 'open').length, unread)}
             flair={supporter ? { tier: supporter.tier.id, style: supporter.style } : null}
-            boosts={!!supporter && BOOST_SLOTS[supporter.tier.id] > 0}
           />
         </aside>
         <main className="min-w-0 max-w-3xl">{children}</main>

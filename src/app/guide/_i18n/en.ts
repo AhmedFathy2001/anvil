@@ -1047,7 +1047,7 @@ export const en = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Someone else linked this character on Anvil first, so nothing counts for it from your login. If it really is yours, press **This is my account** in the panel’s **You** tab and pass the quick XP check. Then the current owner is asked, or Anvil staff decide. You never learn who they are. Follow it under [Settings → Ownership claims](/settings/claims).',
+          body: 'Someone else linked this character on Anvil first, so nothing counts for it from your login. If it really is yours, press **This is my account** in the panel’s **You** tab and pass the quick XP check. Then the current owner is asked, or Anvil staff decide. You never learn who they are. Follow it under [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Still stuck? Send an admin a log',
@@ -3091,7 +3091,7 @@ export const en = {
     accounts: {
       title: 'Your connected accounts',
       body: [
-        'The Twitch, YouTube and Kick accounts you linked are in [Settings → Connected accounts](/settings/connections). You can link them there before you join, too.',
+        'The Twitch, YouTube and Kick accounts you linked are in [Settings → Connected accounts](/settings/account#streaming). You can link them there before you join, too.',
         'Unlink one any time. Events you already joined keep you. A gated event you join later asks you to link again.',
         'Linked Twitch, YouTube and Kick accounts show on your profile with a verified tick: you proved they are yours. Turn off **Show on my profile** to hide one. A Medal link is different. You paste it yourself, so it has no tick.',
         'Stream on Twitch yourself? Turn on **Clip my stream when I hit a big moment** under your Twitch account. While you are live in a streamer’s event, Anvil clips your rare drops, pets and finished tiles.',
