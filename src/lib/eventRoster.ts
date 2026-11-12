@@ -66,7 +66,7 @@ export interface RosterTeamOut {
   score: string | null;
   members: number;
   /** The only member's RSN. Lets a compact mixed board open that player without a roster detour. */
-  soleMember: string | null;
+  soleMember?: string | null;
   yours: boolean;
   /** Places climbed since the day began (lib/rankMoves); absent or null = unchanged or unknown. */
   move?: number | null;
