@@ -196,3 +196,24 @@ test('clan lines get the capital the game gives everyone else', () => {
   hub.receive(a, { t: 'say', c: 'clan', x: 'test' });
   assert.equal(b.got[0].x, 'Test');
 });
+
+test('guest clan room like friends chat, capitalised like clan; a PM reaches only its recipient', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = { ...client(1, 'Alice'), who: { name: 'Alice', icon: null, clanId: null, world: 301, guest: 'Our Worst' } };
+  const b = client(2, 'Bob_Two', null, 301);
+  const g = { ...client(3, 'Gus'), who: { name: 'Gus', icon: null, clanId: null, world: null, guest: 'our worst' } };
+  const got: Record<string, Record<string, unknown>[]> = { a: [], b: [], g: [] };
+  a.send = (m: string) => JSON.parse(m).t === 'relay' && got.a.push(JSON.parse(m));
+  b.send = (m: string) => JSON.parse(m).t === 'relay' && got.b.push(JSON.parse(m));
+  g.send = (m: string) => JSON.parse(m).t === 'relay' && got.g.push(JSON.parse(m));
+  for (const x of [a, b, g]) hub.add(x);
+  assert.equal(hub.receive(a, { t: 'say', c: 'guest', x: 'hi guests' }), null);
+  assert.equal(got.g[0].x, 'Hi guests');
+  assert.equal(got.b.length, 0);
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'bob two', x: 'psst' }), null);
+  assert.equal(got.b[0].c, 'pm');
+  assert.equal(got.b[0].x, 'psst', 'the game capitalises PMs itself');
+  assert.equal(got.g.length, 1, 'nobody else hears a PM');
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'Nobody Here', x: 'hello?' }), 'no-room');
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', x: 'no one' }), 'no-room');
+});
