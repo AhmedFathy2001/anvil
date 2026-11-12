@@ -646,7 +646,8 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
   profile, the line as its snapshot.
 - Event chat lines (`{"t":"rows"}` pushes for `chat:<event>:<channel>` feeds) carry `cb` (the chatbox
   line with the board's tag: `[Winter Bingo · Team] Name: text`) and `cb1` (without it: `[Team]`, for a
-  player on one live board), colours and escapes included. The tag is the host's (event rules
+  player on one live board), colours and escapes included, and `ai` (the sender's account-type chat icon
+  index) when they have one. The tag is the host's (event rules
   `chatTag`, ≤12 chars, set in the event's chat settings) or derived from the name.
 - `GET /api/plugin/chat-chans` — `{one, chans:[{l:"Winter Bingo · Team", e:"12", to:"team"|"all"|
   "announce"}]}`: where the chatbox event chat input may post, board by board, in cycle order

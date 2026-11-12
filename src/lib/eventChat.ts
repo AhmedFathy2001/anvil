@@ -47,6 +47,7 @@ import {
 } from '@/lib/eventChatRules';
 import { parseEventRules } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
+import { accountIcon } from '@/lib/push/relay';
 import { eventStaffUserIds, notifyRows, teamUserIds, type RowsTarget } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { chatFeedId, chatLockFeeds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
@@ -554,7 +555,11 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
   const [row] = await rowsFor(access.eventId, [line], null);
   // `cb`/`cb1`: the same line for the game chatbox, built whole (lib/eventChatRules chatboxLines).
   const box = chatboxLines(await boardChatTag(access.eventId), channel, line.rsn, line.body);
-  await notifyRows(await channelTarget(access.eventId, channel), { t: 'rows', feeds: [chatFeedId(access.eventId, channel)], rows: [row], ...box });
+  // `ai`: the sender's account-type chat icon (ironman, GIM…), drawn before their name as in game chat.
+  // clan-scope: global -- the sender's own character, by the name already on their line
+  const acct = access.rsn ? await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalizeRsn(access.rsn)), columns: { accountType: true } }) : null;
+  const ai = accountIcon(acct?.accountType);
+  await notifyRows(await channelTarget(access.eventId, channel), { t: 'rows', feeds: [chatFeedId(access.eventId, channel)], rows: [row], ...box, ...(ai != null ? { ai } : {}) });
   return { ok: true };
 }
 
