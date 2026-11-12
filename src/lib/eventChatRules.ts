@@ -7,7 +7,8 @@
 
 import type { SupporterTierId } from './supporterTiers.ts';
 
-export const MAX_BODY = 200;
+// The game's own chat limit, so a line fits the chatbox and the in-game announcement box the same way.
+export const MAX_BODY = 80;
 
 /** Least time between one person's messages, normally. */
 export const PERSON_GAP_MS = 1_500;
