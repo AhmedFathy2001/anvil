@@ -40,6 +40,7 @@ const SHOT_LABELS: Record<ShotKind, string> = {
   diaries: 'Achievement diaries',
   levels: 'Levels',
   pvp: 'Player kills',
+  quests: 'Quests',
 };
 
 const KIND_TEXT: Record<NewKind, { title: string; hint: string }> = {

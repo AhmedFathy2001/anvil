@@ -57,8 +57,10 @@ export const SHOT_KINDS = {
   pets: ['pet'],
   deaths: ['death'],
   clog: ['clogSlot'],
-  ca: ['caTask'],
+  // A tier unlock is a combat-achievement post too, so it answers to the same switch.
+  ca: ['caTask', 'caTier'],
   diaries: ['diary'],
+  quests: ['quest'],
   levels: ['level', 'totalLevel'],
   pvp: ['pvpKills'],
 } as const;
