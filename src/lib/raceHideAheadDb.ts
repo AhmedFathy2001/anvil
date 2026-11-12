@@ -251,3 +251,46 @@ export async function editorGrantBlocked(
   const staffHidden = rows.some((e) => e.format === 'tilerace' && parseEventRules(e.rules).raceHideAhead === 'staff');
   return staffHidden && !(await mayChangeStaffHide(user));
 }
+
+/** What a Discord post about a hide-ahead race needs to know (lib/raceSharedPosts). */
+export interface RacePostVeil {
+  /** One of the named tiles is still a locked "?" for some team other than the posting one. */
+  hiddenFromOthers: boolean;
+  /** The step (0-based) of the first named route tile, and the race's last step. */
+  step: number | null;
+  lastStep: number;
+  /** The names of every tile the public can't see yet: a shared post must carry none of them. */
+  hiddenLabels: string[];
+}
+
+/** Every tile's label and combo parent on an event, memoised with the veil. */
+function eventTileLabels(eventId: number): Promise<{ id: number; label: string; parentTileId: number | null }[]> {
+  // clan-scope: global -- the caller already scoped the event id.
+  return ttlMemo(`race-labels:${eventId}`, () => db.select({ id: tiles.id, label: tiles.label, parentTileId: tiles.parentTileId }).from(tiles).where(eq(tiles.eventId, eventId)), 3_000);
+}
+
+/**
+ * The veil as one Discord post sees it, or null when the race hides nothing (any other board, the
+ * setting off, the race over). `tileIds` are the tiles the post names (combo parts count as their
+ * combo); `teamId` the team it is about.
+ */
+export async function racePostVeil(event: RaceHideEvent, tileIds: number[], teamId: number | null | undefined): Promise<RacePostVeil | null> {
+  if (!raceHideOn(event)) return null;
+  const veil = await loadRaceVeil(event);
+  if (!veil) return null;
+  const rows = await eventTileLabels(event.id);
+  const parentOf = new Map(rows.map((r) => [r.id, r.parentTileId]));
+  const cell = (id: number) => (veil.covered.has(id) ? id : (parentOf.get(id) ?? id));
+  const cells = tileIds.map(cell).filter((id) => veil.covered.has(id));
+  const hiddenFromOthers = cells.some((id) => hiddenFromAnotherTeam(veil, id, teamId));
+  const step = cells.map((id) => veil.stepOf.get(id)).find((s): s is number => s != null) ?? null;
+  // A name the public can see on another tile isn't a secret: only names that are hidden everywhere.
+  const visible = new Set<string>();
+  const hidden = new Set<string>();
+  for (const r of rows) {
+    const id = r.parentTileId ?? r.id;
+    (raceTileHidden(veil, veil.everyone, { id }) ? hidden : visible).add(r.label.trim().toLowerCase());
+  }
+  const hiddenLabels = rows.map((r) => r.label).filter((l) => hidden.has(l.trim().toLowerCase()) && !visible.has(l.trim().toLowerCase()));
+  return { hiddenFromOthers, step, lastStep: veil.lastStep, hiddenLabels: [...new Set(hiddenLabels)] };
+}

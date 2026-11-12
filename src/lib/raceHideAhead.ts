@@ -45,6 +45,9 @@ export interface RaceVeil {
   everyone: Set<number>;
   /** What at least one team can see (event staff's view when they're hidden from too). */
   anyone: Set<number>;
+  /** Each route tile's step (0-based), and the last step: what a shared post says instead of a name. */
+  stepOf: Map<number, number>;
+  lastStep: number;
 }
 
 /**
@@ -66,7 +69,8 @@ export function buildRaceVeil(
   const start = new Set(graph.steps[0] ?? []);
   const everyone = new Set(sets.length ? all.filter((id) => sets.every((s) => sees(s, id))) : start);
   const anyone = new Set(sets.length ? all.filter((id) => sets.some((s) => sees(s, id))) : start);
-  return { mode, covered, seenByTeam, everyone, anyone };
+  const stepOf = new Map<number, number>([...graph.byId].map(([id, n]) => [id, n.step]));
+  return { mode, covered, seenByTeam, everyone, anyone, stepOf, lastStep: graph.lastStep };
 }
 
 /**
