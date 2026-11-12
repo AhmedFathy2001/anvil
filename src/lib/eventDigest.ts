@@ -10,6 +10,8 @@ import { field, type DiscordEmbedField } from '@/lib/discordEmbeds';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { log } from '@/lib/logger';
 import { effectiveStatsForPlayers } from '@/lib/liveStats';
+import { raceStandingsForEvent } from '@/lib/raceRoutesDb';
+import { raceStepPlace } from '@/lib/raceSharedPosts';
 import {
   DAY_MS,
   biggestComeback,
@@ -86,6 +88,17 @@ function pickAwards(awards: RecapAward[], order: string[], count: number): Recap
 
 function medal(rank: number): string {
   return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+}
+
+/**
+ * A tile race's standings, phrased per step ("on step 3 of 5"), never a tile: the shared channel may
+ * not know what a team's tile is (lib/raceSharedPosts). Null off a race.
+ */
+async function raceStepLines(event: typeof events.$inferSelect, nameOf: (teamId: number) => string): Promise<string[] | null> {
+  if (event.format !== 'tilerace') return null;
+  const race = await raceStandingsForEvent(event).catch(() => null);
+  if (!race) return null;
+  return race.standings.map((s) => `${medal(s.rank)} **${nameOf(s.teamId)}** — ${raceStepPlace(s, race.steps)}`);
 }
 
 function hours(minutes: number): string {
@@ -307,7 +320,9 @@ async function digestEvent(event: typeof events.$inferSelect, nowMs: number): Pr
       const today = gained > 0 ? ` _(+${gained.toLocaleString()} today)_` : '';
       return `${medal(rank)} **${team?.name ?? 'Team'}** — ${s.score.toLocaleString()} ${unit}${arrow}${today}`;
     });
-  if (standings.length) fields.push(field('📊 Standings', standings.join('\n'), false));
+  const raceDay = await raceStepLines(event, (id) => teamById.get(id)?.name ?? 'Team');
+  const dayLines = raceDay ?? standings;
+  if (dayLines.length) fields.push(field('📊 Standings', dayLines.join('\n'), false));
 
   if (windowRecap) {
     const mvp = windowRecap.awards.find((a) => a.key === 'mvp');
@@ -408,7 +423,9 @@ export async function runHalfwayReports(nowMs = Date.now()): Promise<void> {
       const standings = [...scored]
         .sort((a, b) => b.score - a.score)
         .map((s) => `${medal(ranks.get(s.teamId) ?? 0)} **${teamById.get(s.teamId)?.name ?? 'Team'}** — ${s.score.toLocaleString()} ${unit}`);
-      if (standings.length) fields.push(field('📊 Standings at the half', standings.join('\n'), false));
+      const raceHalf = await raceStepLines(event, (id) => teamById.get(id)?.name ?? 'Team');
+      const halfLines = raceHalf ?? standings;
+      if (halfLines.length) fields.push(field('📊 Standings at the half', halfLines.join('\n'), false));
       if (recap) {
         const picks = pickAwards(recap.awards, HALFWAY_AWARD_ORDER, HALFWAY_AWARD_COUNT);
         if (picks.length) fields.push(field('🏅 Awards so far', picks.map(awardLine).join('\n'), false));

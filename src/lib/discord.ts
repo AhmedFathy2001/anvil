@@ -1,7 +1,8 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
-import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
+import { racePostVeil, type RacePostVeil } from '@/lib/raceHideAheadDb';
+import { routeEventPost, scrubHiddenTileNames, stepPostText, stepProgressKey, takeStepProgress, type StepPostKind } from '@/lib/raceSharedPosts';
 import { safeError } from '@/lib/webhookRedact';
 import { blockedWebhookIds, hasBlockedWebhook } from '@/lib/sharedWebhooks';
 import {
@@ -44,7 +45,7 @@ import {
   type PostDecision,
 } from '@/lib/discordPostPolicy';
 import { loadClanPostDefaults, loadEventDiscordPrefs, loadPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
-import { curtainRoute, PROGRESS_POST_KINDS, standingsHidden } from '@/lib/standingsVisibility';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import { emitTileCompletion } from '@/lib/chatFeed';
 import { queueBoardHighlight, queueStartHighlight } from '@/lib/highlights/store';
 import { clans, events, teams } from '@/db/schema';
@@ -584,15 +585,55 @@ function eventHostClanId(eventId: number): Promise<number | null> {
   ).catch(() => null);
 }
 
-/** Is this event's standings curtain down right now? Read fresh: the reveal must not lag a cache. */
-async function eventStandingsHidden(eventId: number): Promise<boolean> {
+/** The event columns a post's routing reads: its standings curtain and its race veil. */
+async function eventPostRow(eventId: number) {
   // clan-scope: global -- reads one event's own rule and clock, by id, to decide its own posts.
   const [row] = await db
-    .select({ rules: events.rules, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .select({
+      id: events.id,
+      clanId: events.clanId,
+      name: events.name,
+      format: events.format,
+      rules: events.rules,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+    })
     .from(events)
     .where(eq(events.id, eventId))
     .limit(1);
+  return row ?? null;
+}
+
+/** Is this event's standings curtain down right now? Read fresh: the reveal must not lag a cache. */
+async function eventStandingsHidden(eventId: number): Promise<boolean> {
+  const row = await eventPostRow(eventId);
   return row ? standingsHidden(row) : false;
+}
+
+/** One "made progress on step N" line per team per step per window (lib/raceSharedPosts). */
+const stepProgressSeen = new Map<string, number>();
+
+/** The shared channels' version of a post naming a hidden race tile: the team and the step, nothing else. */
+async function stepLinePayload(
+  event: { id: number; name: string },
+  teamId: number,
+  kind: StepPostKind,
+  veil: RacePostVeil,
+): Promise<DiscordWebhookPayload> {
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { name: true, color: true } });
+  const who = team?.name ?? 'A team';
+  const words = stepPostText(kind, who, veil.step ?? 0, veil.lastStep + 1);
+  const url = eventLeaderboardUrl(event.id);
+  return {
+    embeds: [{
+      ...eventAuthor(event.id, event.name, who),
+      title: clamp(words.title, LIMIT.title),
+      description: words.description,
+      color: teamColorToDecimal(team?.color),
+      ...(url ? { url } : {}),
+    }],
+  };
 }
 
 /** The mention a ping choice turns into, in one clan's own server. */
@@ -651,32 +692,42 @@ export async function sendEventBingoWebhook(
   // Off for the event is off everywhere — the host's server, the co-hosts', the extra hooks.
   if (!hostDecision.send) return false;
 
-  // HIDDEN STANDINGS (lib/standingsVisibility). While the host keeps the standings back, a post that
-  // tells a reader how a team is doing never reaches a shared channel — the host's, a co-host's, a
-  // whole-event hook. A team's OWN hook still hears about its own team. Dropped, not queued: the
-  // reveal posts one summary of the standings instead (lib/standingsReveal).
+  // HIDDEN STANDINGS (lib/standingsVisibility, rule A). While the host keeps the standings back, a
+  // post that tells a reader how a team is doing never reaches a shared channel — the host's, a
+  // co-host's, a whole-event hook. A team's OWN hook still hears about its own team. Dropped, not
+  // queued: the reveal posts one summary of the standings instead (lib/standingsReveal).
   //
-  // HIDDEN TILES (lib/raceHideAhead) ride the same route: a progress post naming a race tile that some
-  // OTHER team still sees as a locked "?" goes to the posting team's own channel only. The tile comes
-  // from the post's ref (lib/discordPosts) when the caller didn't name it.
-  const refTile = opts.tileId ?? currentPostRef()?.tileId ?? null;
+  // HIDDEN TILES (lib/raceHideAhead, rule B). A progress post naming a race tile some OTHER team still
+  // sees as a locked "?" goes whole to the posting team's own hook; the shared channels get its step
+  // line instead ("<Team> completed step 3"), or nothing when it has none (lib/raceSharedPosts). The
+  // tile comes from the post's ref (lib/discordPosts) when the caller didn't name it. And every
+  // shared post on such a race has the locked tiles' names scrubbed, whatever it is.
+  const ref = currentPostRef();
+  const refTile = opts.tileId ?? ref?.tileId ?? null;
   const namedTiles = opts.tileIds ?? (refTile != null ? [refTile] : []);
-  const route = PROGRESS_POST_KINDS.has(opts.post)
-    ? curtainRoute(
-        opts.post,
-        opts.teamId,
-        await eventStandingsHidden(eventId),
-        namedTiles.length > 0 &&
-          (await Promise.all(namedTiles.map((id) => raceTileHiddenFromOthers(eventId, id, opts.teamId).catch(() => true)))).some(Boolean),
+  const eventRow = await eventPostRow(eventId);
+  // Fail closed: a veil that can't be read hides everything a post could name.
+  const veil = eventRow
+    ? await racePostVeil(eventRow, namedTiles, opts.teamId).catch(
+        (): RacePostVeil => ({ hiddenFromOthers: namedTiles.length > 0, step: null, lastStep: 0, hiddenLabels: [] }),
       )
-    : { shared: true, teamOnly: null };
-  if (!route.shared) {
-    if (route.teamOnly == null || !info.hook) return false;
+    : null;
+  const route = routeEventPost({ post: opts.post, refKind: ref?.kind, teamId: opts.teamId, standingsHidden: eventRow ? standingsHidden(eventRow) : false, veil });
+  const stepKind = route.stepKind;
+  // The team's own hooks, when the shared channels don't get the whole post.
+  let teamSent = false;
+  if (route.shared !== 'full' && route.teamOnly != null && info.hook) {
     const hooks = await eventHookTargets(eventId, { kind: info.hook, teamId: route.teamOnly }).catch(() => []);
     const own = hooks.filter((h) => h.teamId === route.teamOnly);
-    const sent = await Promise.all(own.map((h) => sendToWebhook(h.url, payload, hostClanId)));
-    return sent.some(Boolean);
+    teamSent = (await Promise.all(own.map((h) => sendToWebhook(h.url, payload, hostClanId)))).some(Boolean);
   }
+  if (route.shared === 'none') return teamSent;
+  if (route.shared === 'step') {
+    // Completions always post; "made progress" at most once per team per step per window.
+    if (stepKind === 'progress' && !takeStepProgress(stepProgressSeen, stepProgressKey(eventId, route.teamOnly!, veil!.step!), Date.now())) return teamSent;
+    payload = await stepLinePayload(eventRow!, route.teamOnly!, stepKind!, veil!);
+  }
+  if (veil?.hiddenLabels.length) payload = scrubHiddenTileNames(payload, veil.hiddenLabels);
 
   // How busy this event is, for the "add more webhooks" advice (lib/webhookCapacity).
   webhookActivity.notePost(eventActivityKey(eventId));
@@ -709,7 +760,8 @@ export async function sendEventBingoWebhook(
     const kind = info.hook;
     const hooks = await eventHookTargets(eventId, { kind, teamId: opts.teamId ?? null }).catch(() => []);
     await Promise.all(
-      hooks.map(async (h) => {
+      // A team's own hook already had the whole post above; it doesn't need the step line as well.
+      hooks.filter((h) => route.teamOnly == null || h.teamId !== route.teamOnly).map(async (h) => {
         const ok = await sendToWebhook(h.url, payload, hostClanId);
         if (!ok) log.warn('discord.event-hook-fail', { eventId, hookId: h.id, kind });
       }),
