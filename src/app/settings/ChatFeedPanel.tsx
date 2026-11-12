@@ -213,18 +213,16 @@ export default function ChatFeedPanel() {
                   ))}
                 </div>
               )}
-              {prefs.palette === 'custom' && (
-                <ToneSwatch
-                  key={`tag${prefs.tagColor ?? DEFAULT_TAG}`}
-                  label="The [Anvil] tag"
-                  value={prefs.tagColor ?? DEFAULT_TAG}
-                  editable={canCustomColors(prefs.tier) && !busy}
-                  onSave={(c) => save({ tagColor: c })}
-                />
-              )}
+              <ToneSwatch
+                key={`tag${prefs.tagColor ?? DEFAULT_TAG}`}
+                label="The [Anvil] tag"
+                value={prefs.tagColor ?? DEFAULT_TAG}
+                editable={!busy}
+                onSave={(c) => save({ tagColor: c })}
+              />
               {prefs.palette === 'custom' && !canCustomColors(prefs.tier) && (
                 <p className="text-xs text-text-muted">
-                  Your own colours are a Supporter perk. Until then the plugin uses the Anvil colours.
+                  Your own line colours are a Supporter perk (the [Anvil] tag colour is free). Until then the plugin uses the Anvil colours.
                 </p>
               )}
             </div>
