@@ -155,8 +155,9 @@ export class RelayHub {
       k: signLine(this.key, m.client.userId, who.name, c, checked.body, at),
       u: m.client.userId,
     });
-    // Never back to the sender: none of their own sockets (a second client of theirs included).
-    for (const o of this.rooms.get(room) ?? []) if (o.client.userId !== m.client.userId) o.client.send(text);
+    // Never back to the sending character (its own client already shows the line), but a person's OTHER
+    // characters are other players in game: their clients get it like anyone's.
+    for (const o of this.rooms.get(room) ?? []) if (o !== m && o.client.who.name !== who.name) o.client.send(text);
     return null;
   }
 
