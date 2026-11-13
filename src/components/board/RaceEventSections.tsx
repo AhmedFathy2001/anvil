@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import ClanLink from '@/components/ClanLink';
 import { cn } from '@/lib/utils';
 import { ROADS_OPEN_NOTE, frontOpen, roadChoiceLine, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
-import { hoursText, type RaceFeedItem, type RaceStatCards, type RaceTeamLine } from '@/lib/raceSummary';
+import { hoursText, raceStandingStep, type RaceFeedItem, type RaceStatCards, type RaceTeamLine, type StepProgress } from '@/lib/raceSummary';
 import type { TeamMvp } from '@/lib/memberBreakdown';
 
 /**
@@ -58,6 +58,8 @@ export function RaceStandings({
   lines,
   steps,
   labelOf,
+  hiddenTile = () => false,
+  stepProgress = {},
   teamMvps = {},
   eventId,
   viewerTeamId,
@@ -66,6 +68,10 @@ export function RaceStandings({
   lines: RaceTeamLine[];
   steps: number;
   labelOf: (id: number) => string;
+  /** Is this tile a locked "?" for the viewer (lib/raceHideAhead)? Then the line says the step, not the tile. */
+  hiddenTile?: (id: number) => boolean;
+  /** Each team's count on its step ("2/5"), by team id. */
+  stepProgress?: Record<number, StepProgress | null>;
   teamMvps?: Record<number, TeamMvp | null>;
   eventId: number;
   viewerTeamId: number | null;
@@ -80,7 +86,7 @@ export function RaceStandings({
             <span className="w-6 text-right text-xs text-text-muted tabular-nums">{l.rank}</span>
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: l.team.color }} />
             <ClanLink href={`/events/${eventId}/teams/${l.team.id}`} className="truncate flex-1 hover:text-gold">{l.team.name}</ClanLink>
-            <span className="text-xs text-text-muted hidden sm:inline">{l.road ? `road ${l.road}` : 'at the start'}</span>
+            <span className="text-xs text-text-muted hidden sm:inline">{raceStandingStep(l, steps, stepProgress[l.team.id])}{l.road ? ` · road ${l.road}` : ''}</span>
             <span className="tabular-nums font-semibold text-gold">{l.finished ? '🏁' : `${l.stepsDone}/${steps}`}</span>
           </li>
         ))}
@@ -116,7 +122,10 @@ export function RaceStandings({
               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${l.team.color}cc, ${l.team.color})` }} />
             </div>
             <p className="mt-2 text-xs text-text-muted truncate">
-              {l.currentTileId != null ? <>Road {l.road} · on <span className="text-foreground/90">{labelOf(l.currentTileId)}</span></> : 'At the start line'}
+              <span className="text-foreground/90">{raceStandingStep(l, steps, stepProgress[l.team.id])}</span>
+              {l.currentTileId != null && !l.finished ? (
+                hiddenTile(l.currentTileId) ? <> · Road {l.road}</> : <> · Road {l.road} · on <span className="text-foreground/90">{labelOf(l.currentTileId)}</span></>
+              ) : l.currentTileId == null ? ' · at the start line' : null}
               {l.perStep ? <> · 1 tile / {hoursText(l.perStep)}</> : null}
             </p>
             {mvp && (

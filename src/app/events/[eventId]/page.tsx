@@ -1,6 +1,7 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
 import { raceViewData } from '@/lib/raceSummary';
+import { raceRouteOpts } from '@/lib/raceRoutes';
 import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
 import { parseBoardAccess } from '@/lib/cohostBoardAccess';
@@ -494,10 +495,34 @@ export default async function EventScoreboardPage({
   // completions on it, so a hidden tile's label, a hidden mission or an unopened slot can't leak
   // through the route, the firsts, the feed or the step count. Nothing before the reveal.
   const raceView = event.format === 'tilerace' && event.tilesRevealed
-    ? raceViewData({ visibleBoardTiles: boardTiles, teams: safeTeams, completions: eventCompletions, withFirsts: !curtain })
+    ? raceViewData({
+        visibleBoardTiles: boardTiles,
+        teams: safeTeams,
+        completions: eventCompletions,
+        withFirsts: !curtain,
+        // Each team's count on the step it's on ("Step 3 of 5 · 2/5"), read from the unmasked rows so a
+        // locked "?" still counts — the number shows, the tile's name never does. The curtain holds.
+        progressOf: (teamId, tileId) => {
+          if (!canSeeTeamProgress(standingsScope, teamId)) return null;
+          const t = allTileRows.find((r) => r.id === tileId);
+          if (!t) return null;
+          if (t.trackedStat && t.statGoal) {
+            const st = statStandings.find((x) => x.tileId === tileId);
+            const gained = (st?.players ?? []).filter((pl) => pl.teamId === teamId).reduce((n, pl) => n + pl.gained, 0);
+            return { current: gained, goal: t.statGoal };
+          }
+          if (t.requiredAmount && t.requiredAmount > 1) {
+            const cur = eventSubmissions.filter((x) => x.tileId === tileId && x.teamId === teamId && x.goal == null).reduce((n, x) => n + x.amount, 0);
+            return { current: cur, goal: t.requiredAmount };
+          }
+          return null;
+        },
+        routeOpts: raceRouteOpts(rules.raceRoad),
+      })
     : null;
   const raceRouteGraph = raceView?.graph ?? null;
   const raceStandings = raceView?.standings ?? null;
+  const raceStepProgress = raceView?.stepProgress ?? {};
   const raceEmoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
   for (const f of raceView?.firsts ?? []) {
     firsts.push({ key: `race-${f.key}`, emoji: raceEmoji[f.key], title: f.title, blurb: f.title, who: f.team.name, teamName: f.team.name, teamColor: f.team.color, tileLabel: f.detail, at: f.at ?? '' });
@@ -938,6 +963,7 @@ export default async function EventScoreboardPage({
           tiles={withSearchText(boardTiles)}
           lockedMissions={lockedMissionPreviews(eventTiles)}
           raceStandings={raceStandings}
+          raceStepProgress={raceStepProgress}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}

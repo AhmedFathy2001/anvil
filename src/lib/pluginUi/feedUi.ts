@@ -7,7 +7,7 @@ import { runSuffix } from '@/lib/feedRuns';
 import { clanBoostInk } from '@/lib/clanBoostRules';
 import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
-import { ownTeamChatLabel, type ChatLock } from '@/lib/eventChatRules';
+import { MAX_BODY, ownTeamChatLabel, type ChatLock } from '@/lib/eventChatRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { badge, button, col, gap, hero, muted, nameTint, row, text } from './nodes';
@@ -627,7 +627,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     cap: o.pane === 'chat' ? 300 : 200,
     h: 460,
     empty: o.mode?.active ? emptyModeLine(o.filter) : emptyLine(o.pane, o.filter),
-    ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: 200 } } : {}),
+    ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: MAX_BODY } } : {}),
     ...(o.pane === 'chat' && o.mine?.length ? { mine: o.mine } : {}),
     ...(o.pane === 'chat' && o.chans?.length ? { chans: o.chans } : {}),
     ...(o.lock ? { locked: o.lock.locked, ...(o.lock.sub ? { lockSub: o.lock.sub } : {}), ...(o.lock.warn ? { lockWarn: true } : {}) } : {}),

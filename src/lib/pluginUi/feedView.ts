@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, eventParticipants, events, teams, users } from '@/db/schema';
 import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, setOwnTeamChat, type ChatAccess, type ChatSeatPick, type ChatTarget, type SendResult } from '@/lib/eventChat';
-import { canChooseOwnTeamChat, chatPaceHint, lockFor, parseChannel, type ChatChannel, type ChatLock } from '@/lib/eventChatRules';
+import { boardChatSlow, boardChatTag, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, setOwnTeamChat, type ChatAccess, type ChatSeatPick, type ChatTarget, type SendResult } from '@/lib/eventChat';
+import { canChooseOwnTeamChat, canPostChannel, chatboxChannelLabel, chatPaceHint, lockFor, parseChannel, type ChatChannel, type ChatLock } from '@/lib/eventChatRules';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -535,4 +535,42 @@ export async function chatAct(request: Request, act: string, a: Args, fields: Ar
   // nothing on the sender's screen.
   if (act === 'chat-pause' || act === 'chat-own-team') return feedView(request, { s: a.s ?? `event:${access.eventId}`, p: 'chat', ...(a.f ? { f: a.f } : {}) });
   return OK;
+}
+
+// ── The game chatbox's event chat input ───────────────────────────────────────────────────────────
+
+/** One place the plugin's chatbox input can post to: its label, and the send's own args back. */
+export interface ChatboxChan {
+  /** "Winter Bingo · Team" ("Team" alone on one board): the menu entry and the input's label. */
+  l: string;
+  e: string;
+  to: 'team' | 'all' | 'announce';
+}
+
+/**
+ * Every channel this viewer can post in from the game chatbox, board by board (Team, All, then
+ * Announcements for the board's own staff), in the order the plugin's key cycles them. `one`: a
+ * single live board, so the chatbox lines leave its tag off (lib/eventChatRules chatboxLines `cb1`).
+ * Same rules as the Feed tab's box (chatAccess): open boards only, "Only my team's chat" drops All.
+ */
+export async function chatboxChans(request: Request, userId: number): Promise<{ one: boolean; chans: ChatboxChan[] }> {
+  const boards = (await scopesFor(request, userId)).filter((s) => s.kind === 'event');
+  const pick = chatCharacter(request);
+  const per: ChatboxChan[][] = [];
+  for (const b of boards) {
+    const access = await chatAccess(b.id, userId, pick).catch(() => null);
+    if (!access || !access.member || !access.open) continue;
+    const tag = await boardChatTag(b.id);
+    const out: ChatboxChan[] = [];
+    const add = (to: ChatboxChan['to'], ch: ChatChannel) => {
+      if (canPostChannel(access, ch)) out.push({ l: `${tag} · ${chatboxChannelLabel(ch)}`, e: String(b.id), to });
+    };
+    if (access.teamId != null && !access.solo) add('team', `team:${access.teamId}`);
+    add('all', 'all');
+    if (access.role != null && !access.ownTeamOnly) add('announce', 'announce');
+    if (out.length) per.push(out);
+  }
+  const one = per.length <= 1;
+  const chans = per.flat().map((c) => (one ? { ...c, l: c.l.slice(c.l.lastIndexOf(' · ') + 3) } : c));
+  return { one, chans };
 }

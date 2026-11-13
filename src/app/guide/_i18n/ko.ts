@@ -1069,7 +1069,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: '다른 사람이 먼저 Anvil에 이 캐릭터를 연결해서, 당신의 로그인으로는 아무것도 집계되지 않습니다. 정말 당신 캐릭터라면 패널의 **You** 탭에서 **This is my account**를 누르고 간단한 XP 확인을 통과하세요. 그러면 현재 소유자에게 묻거나 Anvil 스태프가 결정합니다. 상대가 누구인지는 알 수 없습니다. 진행 상황은 [Settings → Ownership claims](/settings/claims)에서 확인하세요.',
+          body: '다른 사람이 먼저 Anvil에 이 캐릭터를 연결해서, 당신의 로그인으로는 아무것도 집계되지 않습니다. 정말 당신 캐릭터라면 패널의 **You** 탭에서 **This is my account**를 누르고 간단한 XP 확인을 통과하세요. 그러면 현재 소유자에게 묻거나 Anvil 스태프가 결정합니다. 상대가 누구인지는 알 수 없습니다. 진행 상황은 [Settings → Ownership claims](/settings/characters#claims)에서 확인하세요.',
         },
       ],
       logHeading: '그래도 막혔다면 관리자에게 로그를 보내세요',
@@ -3104,7 +3104,7 @@ const ko: PartialGuideDict = {
     accounts: {
       title: '연결한 계정',
       body: [
-        '연결한 Twitch, YouTube, Kick 계정은 [Settings → Connected accounts](/settings/connections)에 있어요. 참여하기 전에 여기서 미리 연결해도 됩니다.',
+        '연결한 Twitch, YouTube, Kick 계정은 [Settings → Connected accounts](/settings/account#streaming)에 있어요. 참여하기 전에 여기서 미리 연결해도 됩니다.',
         '언제든 연결을 끊을 수 있어요. 이미 참여한 이벤트는 그대로입니다. 나중에 참여하는 제한 이벤트는 다시 연결하라고 합니다.',
         '연결한 Twitch, YouTube, Kick 계정은 프로필에 인증 표시와 함께 보여요: 내 것임을 증명했다는 뜻입니다. 숨기려면 **Show on my profile**을 끄세요. Medal 링크는 달라요. 직접 붙여 넣는 것이라 인증 표시가 없습니다.',
         '직접 Twitch에서 방송하나요? Twitch 계정 아래의 **Clip my stream when I hit a big moment**를 켜세요. 스트리머의 이벤트에서 방송 중일 때 Anvil이 희귀 드롭, 펫, 완료한 타일을 클립합니다.',

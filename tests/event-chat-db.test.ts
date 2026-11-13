@@ -37,7 +37,7 @@ before(async () => {
   ({ db, pool, schema: s } = await loadDb());
   C = await import('../src/lib/eventChat.ts');
   const [clan] = await db.insert(s.clans).values({ slug: 'forge', name: 'Forge' }).returning();
-  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Winter Bingo', boardSize: 5, chatEnabled: true }).returning();
+  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Winter Bingo', boardSize: 5, chatEnabled: true, startDate: '2020-01-01T00:00:00.000Z' }).returning();
   eventId = ev.id;
   clanId = clan.id;
   [{ id: ruby }, { id: jade }] = await db.insert(s.teams).values([{ eventId, name: 'Ruby', color: '#cf4a3e' }, { eventId, name: 'Jade', color: '#3ecf62' }]).returning();
@@ -272,7 +272,7 @@ test('chat from a long-finished event is swept', async () => {
 test('one person, two characters on two teams of one board: each client speaks and reads as its own character', async () => {
   // Drenvox (Ruby) and Denoverse (Sapphire): one Anvil person, both clients signed in as them.
   const [clan] = await db.insert(s.clans).values({ slug: 'twoseat', name: 'Two Seat' }).returning();
-  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Alt Bingo', boardSize: 5, chatEnabled: true }).returning();
+  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Alt Bingo', boardSize: 5, chatEnabled: true, startDate: '2020-01-01T00:00:00.000Z' }).returning();
   const [{ id: rubyT }, { id: sapphire }] = await db
     .insert(s.teams)
     .values([{ eventId: ev.id, name: 'Ruby', color: '#cf4a3e' }, { eventId: ev.id, name: 'Sapphire', color: '#3e6acf' }])
@@ -432,7 +432,7 @@ test('channels: pushes reach only who may read; unread counts move', async () =>
 
 test('a team channel is only ever one of this board’s teams: staff of one board can’t reach another’s', async () => {
   const [otherClan] = await db.insert(s.clans).values({ slug: 'elsewhere', name: 'Elsewhere' }).returning();
-  const [otherEv] = await db.insert(s.events).values({ clanId: otherClan.id, name: 'Other Bingo', boardSize: 5, chatEnabled: true }).returning();
+  const [otherEv] = await db.insert(s.events).values({ clanId: otherClan.id, name: 'Other Bingo', boardSize: 5, chatEnabled: true, startDate: '2020-01-01T00:00:00.000Z' }).returning();
   const [{ id: foreign }] = await db.insert(s.teams).values({ eventId: otherEv.id, name: 'Foreign', color: '#888888' }).returning();
   await db.insert(s.eventChatMessages).values({ eventId: otherEv.id, teamId: foreign, teamOnly: true, channel: `team:${foreign}`, userId: u.Stranger, rsn: 'Stranger', body: 'their secret' });
   // Even a line wrongly filed on this board under the other board's team id stays unreadable here.

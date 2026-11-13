@@ -26,7 +26,7 @@ before(async () => {
   L = await import('../src/lib/labFeedChat.ts');
   C = await import('../src/lib/eventChat.ts');
   const [clan] = await db.insert(s.clans).values({ slug: 'anvil-lab', name: 'Anvil lab' }).returning();
-  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Lab session', boardSize: 5 }).returning();
+  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Lab session', boardSize: 5, startDate: '2020-01-01T00:00:00.000Z' }).returning();
   eventId = ev.id;
   const [team] = await db.insert(s.teams).values({ eventId, name: 'Lab side', color: '#3ecf62' }).returning();
   for (const [i, name] of ['Lab~Alpha', 'Lab~Bravo'].entries()) {

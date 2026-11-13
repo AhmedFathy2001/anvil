@@ -5,6 +5,7 @@ import { useState } from 'react';
 import ProfileLookEditor from '@/components/ProfileLookEditor';
 import { clanFetch } from '@/lib/clanFetch';
 import type { ShownProfileMedia } from '@/lib/profileMediaRules';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 // Per-character avatar/banner (account_media), under the account-wide editor in Settings → Profile
 // look. "Same for all" = every character wears your default;
@@ -24,7 +25,12 @@ export default function CharacterLookOverrides({
   characters,
   fallback,
   canUpload,
+  canAnimate,
+  held = null,
 }: {
+  /** Passed to each editor: see ProfileLookEditor. */
+  canAnimate?: boolean;
+  held?: SupporterTierId | null;
   characters: CharacterLook[];
   /** The person's default, previewed where a character has none of its own. */
   fallback: ShownProfileMedia;
@@ -102,6 +108,8 @@ export default function CharacterLookOverrides({
               character={generation ? { ...c, own: { avatar: null, banner: null } } : c}
               fallback={fallback}
               canUpload={canUpload}
+              canAnimate={canAnimate}
+              held={held}
               owned={owned[c.accountId] ?? { avatar: false, banner: false }}
               onOwned={(o) => setOwned((prev) => ({ ...prev, [c.accountId]: o }))}
               onClear={() => clear(c.accountId, owned[c.accountId] ?? { avatar: false, banner: false })}
@@ -123,6 +131,8 @@ function CharacterRow({
   character,
   fallback,
   canUpload,
+  canAnimate,
+  held,
   owned,
   onOwned,
   onClear,
@@ -130,6 +140,8 @@ function CharacterRow({
   character: CharacterLook;
   fallback: ShownProfileMedia;
   canUpload: boolean;
+  canAnimate?: boolean;
+  held: SupporterTierId | null;
   owned: { avatar: boolean; banner: boolean };
   onOwned: (o: { avatar: boolean; banner: boolean }) => void;
   onClear: () => Promise<boolean>;
@@ -188,6 +200,8 @@ function CharacterRow({
             key={editorKey}
             initial={editorKey ? { avatar: null, banner: null } : character.own}
             canUpload={canUpload}
+            canAnimate={canAnimate}
+            held={held}
             name={character.rsn}
             accountId={character.accountId}
             fallback={fallback}

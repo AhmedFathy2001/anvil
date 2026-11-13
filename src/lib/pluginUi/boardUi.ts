@@ -279,7 +279,7 @@ function stateText(t: BoardTile, pre: boolean): string | null {
   // A closed mission / bounty in the shared tile-state words (lib/tileState): claimed by someone, or
   // expired (hourglass, timed ones only — the site decides which, so hidden standings never name or
   // leak a taker). A race tile off the team's road is "Locked", not closed.
-  const closedWord = t.closedAt ? ('closedReason' in t && t.closedReason === 'expired' ? '⌛ Expired' : 'Closed') : '🔒 Locked';
+  const closedWord = t.closedAt ? ('closedReason' in t && t.closedReason === 'expired' ? 'Expired' : 'Closed') : 'Locked';
   return `${t.complete ? 'Done' : closedUndone(t) ? closedWord : open}${isManual(t) ? ' (manual)' : ''}`;
 }
 
@@ -378,7 +378,7 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
       out.push(gap(2), text('▸ You are here', 'brand', { font: 'small' }), { t: 'bar', pct: 100, color: 'brand', h: 2, bg: 'panel' } as Node, gap(3));
     }
     const crowd = st.crowd > 0 && race.entrants > 6 ? ` · ${st.crowd} ${crowdWord ?? `team${st.crowd === 1 ? '' : 's'}`}` : '';
-    const mark = st.phase === 'done' ? '✓ ' : st.phase === 'later' ? '🔒 ' : '';
+    const mark = st.phase === 'done' ? '✓ ' : st.phase === 'later' ? '- ' : '';
     out.push(text(`${mark}${st.heading}${crowd}`, st.phase === 'done' ? 'done' : st.phase === 'current' ? 'text' : 'muted', { font: st.phase === 'current' ? 'bold' : 'small' }));
     for (const t of st.tiles) {
       const lane = t.road ? `${t.road}: ` : '';

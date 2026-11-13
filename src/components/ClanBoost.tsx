@@ -217,7 +217,7 @@ export function ClanBoostPanel({
           )}
           {viewer!.note && <span className="text-text-muted">{viewer!.note}</span>}
           {canBoost && <BoostHereButton seatId={viewer!.boostSeatId!} />}
-          <ClanLink href="/settings/boosts" className="ml-auto text-text-muted hover:text-gold">
+          <ClanLink href="/settings/profile#boosts" className="ml-auto text-text-muted hover:text-gold">
             Your boosts →
           </ClanLink>
         </div>

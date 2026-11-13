@@ -6,6 +6,7 @@
  * and the plugin say the same thing.
  */
 import {
+  frontOpen,
   raceGraph as raceGraphOf,
   rankRaceTeams,
   roadOf,
@@ -305,6 +306,9 @@ export function raceViewData(args: {
   teams: RaceTeamIn[];
   completions: RaceCompletionIn[];
   withFirsts: boolean;
+  /** A team's live count on a tile (from the unmasked rows), for each team's progress on its step. */
+  progressOf?: (teamId: number, tileId: number) => StepProgress | null;
+  routeOpts?: TeamRouteOpts;
 }) {
   const graph = raceGraphOf(args.visibleBoardTiles);
   const ids = new Set(graph.nodes.map((n) => n.id));
@@ -318,5 +322,55 @@ export function raceViewData(args: {
     completions,
     standings,
     firsts: args.withFirsts ? raceFirsts(graph, args.teams, completions, labelOf) : [],
+    stepProgress: args.progressOf ? teamStepProgress(graph, args.teams, completions, args.progressOf, args.routeOpts) : {},
   };
+}
+
+/** A count toward a tile's goal ("2/5"). */
+export interface StepProgress {
+  current: number;
+  goal: number;
+}
+
+/**
+ * A team's progress on the step it's on: the open tile at its next step it's furthest along on, as
+ * a count. Null when nothing counts yet, the tile is a one-off (goal 1), or the team finished.
+ */
+export function stepProgress(graph: RaceGraph, route: TeamRoute, progressOf: (tileId: number) => StepProgress | null): StepProgress | null {
+  if (route.finished) return null;
+  let best: StepProgress | null = null;
+  for (const id of frontOpen(graph, route)) {
+    const p = progressOf(id);
+    if (!p || p.goal <= 1 || p.current <= 0) continue;
+    const cur = { current: Math.min(p.current, p.goal), goal: p.goal };
+    if (!best || cur.current / cur.goal > best.current / best.goal) best = cur;
+  }
+  return best;
+}
+
+/** Every team's stepProgress, by team id (picks are left out: a choose-and-lock fork counts nothing until picked). */
+export function teamStepProgress(
+  graph: RaceGraph,
+  teams: RaceTeamIn[],
+  completions: RaceCompletionIn[],
+  progressOf: (teamId: number, tileId: number) => StepProgress | null,
+  opts: TeamRouteOpts = {},
+): Record<number, StepProgress | null> {
+  const out: Record<number, StepProgress | null> = {};
+  for (const t of teams) {
+    const route = teamRoute(graph, completions.filter((c) => c.teamId === t.id).map((c) => c.tileId), null, opts);
+    out[t.id] = stepProgress(graph, route, (tileId) => progressOf(t.id, tileId));
+  }
+  return out;
+}
+
+/**
+ * Where a team stands on the race standings, by step and never by tile: "Finished", "Step 3 of 5",
+ * "Step 3 of 5 · 2/5" (its count on that step's tile).
+ */
+export function raceStandingStep(s: { stepsDone: number; finished: boolean }, steps: number, progress?: StepProgress | null): string {
+  if (s.finished) return 'Finished';
+  const step = `Step ${Math.min(s.stepsDone + 1, steps)} of ${steps}`;
+  if (progress && progress.goal > 1) return `${step} · ${Math.min(progress.current, progress.goal).toLocaleString('en-US')}/${progress.goal.toLocaleString('en-US')}`;
+  return step;
 }

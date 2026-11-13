@@ -2,6 +2,7 @@
 // only the TYPE from here), so there is no runtime cycle.
 import { nextSlotAfter } from '@/lib/missionSchedule';
 import { isModeKey } from '@/lib/worldModes';
+import { cleanChatTag } from '@/lib/eventChatRules';
 
 // Per-event game rules — the third axis on top of (format, scoringMode). Stored as JSON in
 // `events.rules` (NULL = classic behaviour). Rules decide HOW tiles become playable (the reveal
@@ -318,6 +319,11 @@ export interface EventRules {
    * and this board's own tile editors see through it (and only the owner may switch it on or off).
    */
   raceHideAhead: RaceHideAhead;
+  /**
+   * The board's short name in the game chatbox (lib/eventChatRules chatTagOf): "[<tag> · Team]" before
+   * each event chat line. Null (default): derived from the event's name. At most CHAT_TAG_MAX chars.
+   */
+  chatTag: string | null;
 }
 
 export type RaceHideAhead = 'off' | 'players' | 'staff';
@@ -388,6 +394,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   raceBank: false,
   raceRoad: 'achieve',
   raceHideAhead: 'off',
+  chatTag: null,
 };
 
 /**
@@ -636,6 +643,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     raceBank: obj.raceBank === true,
     raceRoad: obj.raceRoad === 'choose' || obj.raceRoad === 'open' ? obj.raceRoad : 'achieve',
     raceHideAhead: obj.raceHideAhead === 'players' || obj.raceHideAhead === 'staff' ? obj.raceHideAhead : 'off',
+    chatTag: cleanChatTag(obj.chatTag),
   };
 }
 
@@ -845,6 +853,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     !canonical.raceBank &&
     canonical.raceRoad === 'achieve' &&
     canonical.raceHideAhead === 'off' &&
+    canonical.chatTag == null &&
     // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
     // nothing loses nothing", and a board that has switched a sign-up section on or off has said
     // something that null cannot hold — so it has to be asked about like every other key.

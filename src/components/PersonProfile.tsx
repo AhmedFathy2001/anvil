@@ -46,12 +46,12 @@ export default function PersonProfile({
   boosts?: Pick<MyBoosts, 'slots' | 'free' | 'placements'> | null;
   /** Their Discord avatar, shown when they have not uploaded one of their own. */
   discordAvatar?: string | null;
-  /** Their own avatar and banner as shown now (Supporter perk, set on /settings/look). */
+  /** Their own avatar and banner as shown now (Supporter perk, set on /settings/profile#look). */
   media?: ShownProfileMedia | null;
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
-  /** Characters the plugin saw them play that aren't linked yet — reviewed on /settings/add. */
+  /** Characters the plugin saw them play that aren't linked yet — reviewed on /settings/characters#add. */
   detectedCount?: number;
   /** Their first run is still outstanding — see lib/onboarding's `offer`. */
   unfinishedSetup?: boolean;
@@ -109,7 +109,7 @@ export default function PersonProfile({
 
       {detectedCount > 0 && (
         <ClanLink
-          href="/settings/add"
+          href="/settings/characters#add"
           className="mb-5 flex items-center gap-2 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-sm transition-colors hover:border-gold/60"
         >
           <span className="font-medium text-gold">
@@ -200,7 +200,7 @@ export default function PersonProfile({
             </ul>
           )}
           {!supporter && characters.length > 0 && (
-            <ClanLink href="/settings/supporter" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
+            <ClanLink href="/settings/profile#plan" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
               Wear your name in colour on every board — Anvil Supporter →
             </ClanLink>
           )}
@@ -234,7 +234,7 @@ export default function PersonProfile({
                 </ul>
               )}
               {boosts.free > 0 && (
-                <ClanLink href="/settings/boosts" className="block text-[12.5px] text-gold hover:text-gold-light">
+                <ClanLink href="/settings/profile#boosts" className="block text-[12.5px] text-gold hover:text-gold-light">
                   You have {boosts.free} boost{boosts.free === 1 ? '' : 's'}. Boost any clan you&rsquo;re a member of →
                 </ClanLink>
               )}

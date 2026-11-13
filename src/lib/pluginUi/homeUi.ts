@@ -483,10 +483,12 @@ export function homeUi(d: HomeData): Node {
     const t = titled(m.eventId, m.name);
     // The same four things as the board above: clan · team and the rank, the bar, the count and the clock.
     const rank = m.rank != null && (m.of ?? 0) > 1 ? text(`${ordinal(m.rank)} of ${count(m.of ?? 0)}`, SOFT) : undefined;
-    const lines: Node[] = [row(muted(clip(`${m.clanName} · ${m.teamName}`, 24)), undefined, rank)];
+    // The clan · team line on its own, wrapped: beside the rank it was cut to "Anvil Tile Lab · dead p…".
+    // The rank sits on the title row instead.
+    const lines: Node[] = [muted(clip(`${m.clanName} · ${m.teamName}`, 48), { wrap: CARD_W })];
     if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), row(muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`), undefined, endsNode(m.endDate, d.now)));
     else lines.push(muted('Board not revealed yet'));
-    return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, home(`board:${m.eventId}`), `Open ${t}`);
+    return openRow(text(clip(t, 24), '#e6e6e6'), rank, lines, home(`board:${m.eventId}`), `Open ${t}`);
   });
   const liveRows = [...(playingHere ? [playingHere] : []), ...mineRows];
   if (liveRows.length > 1) {
@@ -1081,11 +1083,16 @@ export function soloStandingRows(w: StandingsWindow<RosterPersonOut>, all?: Acti
 export function teamStandingRows(w: StandingsWindow<RosterTeamOut>, title: string): Node[] {
   const line = (t: RosterTeamOut) => {
     const ink: Color = t.yours ? GOLD : SOFT;
+    const singleton = t.members === 1 && !!t.soleMember;
+    const label = singleton ? t.soleMember! : t.name;
+    const on: Action = singleton
+      ? { a: 'lookup', rsn: t.soleMember! }
+      : { a: 'load', v: 'teams', args: { event: '0', team: String(t.teamId), back: 'board', backLabel: title } };
     return row(
-      withMove(text(`${t.rank == null ? '–' : t.rank}  ${clip(t.name, 16)}${t.yours ? ` · ${t.members} member${t.members === 1 ? '' : 's'}` : ''}`, ink, { icon: swatch(t.color) }), t.move),
+      withMove(text(`${t.rank == null ? '–' : t.rank}  ${clip(label, 16)}${t.yours && !singleton ? ` · ${t.members} members` : ''}`, ink, { icon: swatch(t.color) }), t.move),
       undefined,
       text(t.score ?? '', t.yours ? GOLD : FAINT),
-      { tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`, on: { a: 'load', v: 'teams', args: { event: '0', team: String(t.teamId), back: 'board', backLabel: title } }, gap: 6 },
+      { tip: singleton ? `Look up ${t.soleMember}` : `${t.name} — ${t.members} members. Click for the roster.`, on, gap: 6 },
     );
   };
   const rows = compactStandings(windowRows(w), (t) => !!t.yours, line, null, `teams:${title}`, w.total);

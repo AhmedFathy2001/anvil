@@ -7,7 +7,8 @@
 
 import type { SupporterTierId } from './supporterTiers.ts';
 
-export const MAX_BODY = 200;
+// The game's own chat limit, so a line fits the chatbox and the in-game announcement box the same way.
+export const MAX_BODY = 80;
 
 /** Least time between one person's messages, normally. */
 export const PERSON_GAP_MS = 1_500;
@@ -44,7 +45,7 @@ export type BodyCheck = { ok: true; body: string } | { ok: false; reason: string
  * none are left (a tag hidden inside another reappears when the inner one goes); only then cap stacked
  * marks, so nothing removed later can split a stack the cap already counted.
  */
-export function clean(raw: string): string {
+export function clean(raw: string, opts: { keepRuns?: boolean } = {}): string {
   let text = String(raw ?? '').normalize('NFKC').replace(CONTROL, '');
   for (let prev = ''; prev !== text; ) {
     prev = text;
@@ -54,7 +55,7 @@ export function clean(raw: string): string {
     .normalize('NFD')
     .replace(ZALGO, '$1')
     .normalize('NFC')
-    .replace(RUNS, '$1$1$1$1$1$1')
+    .replace(RUNS, opts.keepRuns ? '$&' : '$1$1$1$1$1$1')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -64,9 +65,10 @@ export function cleanName(raw: string | null | undefined): string {
   return clean(raw ?? '').slice(0, 32) || 'Player';
 }
 
-/** Clean a message and say whether it may be sent. Staff may post links. */
-export function checkBody(raw: string, opts: { staff: boolean }): BodyCheck {
-  const body = clean(raw);
+/** Clean a message and say whether it may be sent. Staff may post links. A relayed game line keeps
+ *  its repeated letters: the game already let it through as typed. */
+export function checkBody(raw: string, opts: { staff: boolean; keepRuns?: boolean }): BodyCheck {
+  const body = clean(raw, { keepRuns: opts.keepRuns });
   if (!body) return { ok: false, reason: 'Type something first.' };
   if (body.length > MAX_BODY) return { ok: false, reason: `Keep it under ${MAX_BODY} characters.` };
   if (GOLD_SELLER.test(body)) return { ok: false, reason: 'That looks like a gold advert.' };
@@ -350,4 +352,76 @@ export function lockFor(ch: ChatChannel, o: { block: ChatBlock | null; paused: b
   if (ch === 'announce' && o.rank < 1) return { locked: ANNOUNCE_READ_ONLY, sub: ANNOUNCE_READ_ONLY_SUB };
   if (pausedFor(ch, o.paused, o.staff)) return { locked: 'The host has paused chat.' };
   return null;
+}
+
+// ── The game chatbox ─────────────────────────────────────────────────────────────────────────────
+//
+// The plugin also prints each event chat line in the game chatbox, as "[<tag> · Team] Name: text"
+// ("[Team] Name: text" for a player on one live board). Built whole here so the plugin only prints
+// what it is handed (it is near the hub's size cap): the tag, the channel's word and the colours.
+
+/** Longest chat tag: room in the chatbox for the line itself. */
+export const CHAT_TAG_MAX = 12;
+
+/** A host's chat tag as it may be stored: cleaned, at most CHAT_TAG_MAX, or null (derive it). */
+export function cleanChatTag(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const t = clean(raw).replace(/[[\]·|]/g, '').trim().slice(0, CHAT_TAG_MAX).trim();
+  return t || null;
+}
+
+/**
+ * A board's tag from its name: a leading "The" and the clan's own name dropped, then as many whole
+ * words as fit in CHAT_TAG_MAX ("The AFK Spot Winter Bingo" by "The AFK Spot" → "Winter Bingo"); when
+ * not even the first word fits, the words' initials ("Grandmasterclass Throwdown" → "GT").
+ */
+export function deriveChatTag(eventName: string, clanName?: string | null): string {
+  const strip = (s: string) => s.replace(/^the\s+/i, '').trim();
+  let name = clean(eventName).replace(/[[\]·|]/g, ' ').replace(/\s+/g, ' ').trim();
+  const clan = clanName ? strip(clean(clanName)) : '';
+  name = strip(name);
+  if (clan && name.toLowerCase().startsWith(clan.toLowerCase()) && name.length > clan.length) {
+    name = strip(name.slice(clan.length).replace(/^(?:['’]s?)?[\s\-–—:|]+/, ' ').trim());
+  }
+  const words = name.split(' ').filter(Boolean);
+  let out = '';
+  for (const w of words) {
+    const next = out ? `${out} ${w}` : w;
+    if (next.length > CHAT_TAG_MAX) break;
+    out = next;
+  }
+  if (!out) out = words.map((w) => w[0]).join('').slice(0, CHAT_TAG_MAX).toUpperCase();
+  return out || 'Event';
+}
+
+/** The tag a board's lines wear: the host's own, else derived. */
+export function chatTagOf(stored: string | null | undefined, eventName: string, clanName?: string | null): string {
+  return cleanChatTag(stored) ?? deriveChatTag(eventName, clanName);
+}
+
+/** The channel's word in the chatbox. */
+export function chatboxChannelLabel(channel: string): string {
+  return channel === 'announce' ? 'Announcements' : channel === 'all' ? 'All' : 'Team';
+}
+
+/** Text as the game draws it: '<' and '>' would open a chat tag, so they go as the game's escapes. */
+export function gameText(s: string): string {
+  return s.replace(/[<>]/g, (c) => (c === '<' ? '<lt>' : '<gt>'));
+}
+
+/** Colours of the prefix, by channel; Announcements is gold, line and all. */
+const CHATBOX_COLOR: Record<string, string> = { team: '57c785', all: '7fc8ff', announce: 'ffb54d' };
+
+/**
+ * One event chat line for the chatbox, both ways: `cb` with the board's tag, `cb1` without it (the
+ * plugin prints `cb1` when the player is on one live board only).
+ */
+export function chatboxLines(tag: string, channel: string, who: string, body: string): { cb: string; cb1: string } {
+  const kind = channel === 'announce' ? 'announce' : channel === 'all' ? 'all' : 'team';
+  const col = CHATBOX_COLOR[kind];
+  const label = chatboxChannelLabel(channel);
+  // First letter capitalised, as the game does its own chat lines.
+  const text = gameText(body.charAt(0).toUpperCase() + body.slice(1));
+  const rest = ` ${gameText(who)}: ${kind === 'announce' ? `<col=${col}>${text}</col>` : text}`;
+  return { cb: `<col=${col}>[${gameText(tag)} · ${label}]</col>${rest}`, cb1: `<col=${col}>[${label}]</col>${rest}` };
 }

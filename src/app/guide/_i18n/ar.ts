@@ -1069,7 +1069,7 @@ const ar: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'ربط شخص آخر هذه الشخصية على Anvil أولًا، لذا لا يُحسب لها شيء من تسجيل دخولك. إن كانت لك حقًا، فاضغط **This is my account** في تبويبة **You** في اللوحة واجتز تحقق XP السريع. بعد ذلك يُسأل المالك الحالي، أو يقرر طاقم Anvil. لن تعرف أبدًا من هو. تابع الأمر في [Settings ← Ownership claims](/settings/claims).',
+          body: 'ربط شخص آخر هذه الشخصية على Anvil أولًا، لذا لا يُحسب لها شيء من تسجيل دخولك. إن كانت لك حقًا، فاضغط **This is my account** في تبويبة **You** في اللوحة واجتز تحقق XP السريع. بعد ذلك يُسأل المالك الحالي، أو يقرر طاقم Anvil. لن تعرف أبدًا من هو. تابع الأمر في [Settings ← Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'ما زلت عالقًا؟ أرسل لمسؤول سجلًا',
@@ -3107,7 +3107,7 @@ const ar: PartialGuideDict = {
     accounts: {
       title: 'حساباتك المرتبطة',
       body: [
-        'حسابات Twitch وYouTube وKick التي ربطتها موجودة في [Settings → Connected accounts](/settings/connections). يمكنك ربطها من هناك قبل الانضمام أيضًا.',
+        'حسابات Twitch وYouTube وKick التي ربطتها موجودة في [Settings → Connected accounts](/settings/account#streaming). يمكنك ربطها من هناك قبل الانضمام أيضًا.',
         'يمكنك فك ربط أي حساب في أي وقت. الفعاليات التي انضممت إليها تُبقيك فيها. الفعالية المقيّدة التي تنضم إليها لاحقًا تطلب منك الربط من جديد.',
         'حسابات Twitch وYouTube وKick المربوطة تظهر في ملفك الشخصي بعلامة توثيق: لقد أثبتّ أنها لك. أطفئ **Show on my profile** لإخفاء أحدها. رابط Medal مختلف. أنت تلصقه بنفسك، لذا لا يحمل علامة.',
         'تبث على Twitch بنفسك؟ شغّل **Clip my stream when I hit a big moment** تحت حساب Twitch الخاص بك. أثناء بثك المباشر في فعالية ستريمر، يقص Anvil دروباتك النادرة والـ pets والمربعات التي أكملتها.',

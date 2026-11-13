@@ -2,6 +2,7 @@
 
 import { raceGraph, raceFieldSize, raceRouteOpts } from '@/lib/raceRoutes';
 import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/lib/raceSummary';
+import { isRaceHidden } from '@/lib/raceHideAhead';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
 import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -154,6 +155,8 @@ interface Props {
   lockedMissions?: { id: number; label: string; icon: string | null }[];
   /** A tile race's order, ranked once on the server (first to the finish, steps, who got there first). */
   raceStandings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[] | null;
+  /** Each race team's count on the step it's on (lib/raceSummary stepProgress), from the server. */
+  raceStepProgress?: Record<number, { current: number; goal: number } | null>;
   /**
    * A players board (lib/standingsWindow isSoloLike): the standings read as a ranked list of players
    * — top five, the viewer's own line(s) with neighbours, the rest paged — not a card per team.
@@ -201,7 +204,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], raceStandings = null, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -761,7 +764,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                   ranked={raceLineList.map((l) => ({ id: l.team.id, rank: l.rank }))}
                 />
               ) : (
-                <RaceStandings lines={raceLineList} steps={steps} labelOf={labelOf} teamMvps={teamMvps} eventId={event.id} viewerTeamId={raceViewer} compact={variant === 'medium'} />
+                <RaceStandings lines={raceLineList} steps={steps} labelOf={labelOf} hiddenTile={(id) => isRaceHidden(tileById.get(id) ?? {})} stepProgress={raceStepProgress} teamMvps={teamMvps} eventId={event.id} viewerTeamId={raceViewer} compact={variant === 'medium'} />
               )}
             </div>
             <div className="min-w-0 space-y-6">

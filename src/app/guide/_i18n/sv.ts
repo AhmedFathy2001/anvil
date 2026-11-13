@@ -1072,7 +1072,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Någon annan kopplade den här karaktären på Anvil först, så inget räknas för den från din inloggning. Är den verkligen din? Tryck på **This is my account** på panelens flik **You** och gör den snabba XP-kontrollen. Då tillfrågas den nuvarande ägaren, eller så avgör Anvils personal. Du får aldrig veta vem det är. Följ ärendet under [Settings → Ownership claims](/settings/claims).',
+          body: 'Någon annan kopplade den här karaktären på Anvil först, så inget räknas för den från din inloggning. Är den verkligen din? Tryck på **This is my account** på panelens flik **You** och gör den snabba XP-kontrollen. Då tillfrågas den nuvarande ägaren, eller så avgör Anvils personal. Du får aldrig veta vem det är. Följ ärendet under [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Fortfarande fast? Skicka en admin en logg',
@@ -3112,7 +3112,7 @@ const sv: PartialGuideDict = {
     accounts: {
       title: 'Dina kopplade konton',
       body: [
-        'Twitch-, YouTube- och Kick-kontona du kopplat finns i [Settings → Connected accounts](/settings/connections). Du kan koppla dem där innan du går med också.',
+        'Twitch-, YouTube- och Kick-kontona du kopplat finns i [Settings → Connected accounts](/settings/account#streaming). Du kan koppla dem där innan du går med också.',
         'Koppla bort ett när som helst. Event du redan gått med i behåller dig. Ett begränsat event du går med i senare ber dig koppla igen.',
         'Kopplade Twitch-, YouTube- och Kick-konton visas på din profil med en bock: du har visat att de är dina. Stäng av **Show on my profile** för att dölja ett. En Medal-länk är annorlunda. Den klistrar du in själv, så den får ingen bock.',
         'Streamar du själv på Twitch? Slå på **Clip my stream when I hit a big moment** under ditt Twitch-konto. Medan du är live i en streamers event klipper Anvil dina sällsynta drops, pets och klarade rutor.',

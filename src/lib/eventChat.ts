@@ -9,7 +9,7 @@
 import { and, desc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanStaff, eventChatMessages, eventChatMutes, eventChatReads, eventParticipants, events, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clans, clanStaff, eventChatMessages, eventChatMutes, eventChatReads, eventParticipants, events, teams, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { clanGrant, platformRoleOf } from '@/lib/clanGrants';
 import { atLeast, hasPlatformRole, rankOf } from '@/lib/clanRoles';
@@ -37,13 +37,17 @@ import {
   type ChatChannel,
   type ChatLock,
   canChooseOwnTeamChat,
+  chatTagOf,
+  chatboxLines,
   canPostChannel,
   canReadChannel,
   channelTeam,
   pausedFor,
   sanctionLock,
 } from '@/lib/eventChatRules';
+import { parseEventRules } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
+import { accountIcon } from '@/lib/push/relay';
 import { eventStaffUserIds, notifyRows, teamUserIds, type RowsTarget } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { chatFeedId, chatLockFeeds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
@@ -549,8 +553,38 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
     .returning(LINE_COLUMNS);
   // Pushed rows carry no "mine" and no mod menu: those are per viewer, and the same text goes to all.
   const [row] = await rowsFor(access.eventId, [line], null);
-  await notifyRows(await channelTarget(access.eventId, channel), { t: 'rows', feeds: [chatFeedId(access.eventId, channel)], rows: [row] });
+  // `cb`/`cb1`: the same line for the game chatbox, built whole (lib/eventChatRules chatboxLines).
+  const box = chatboxLines(await boardChatTag(access.eventId), channel, line.rsn, line.body);
+  // `ai`: the sender's account-type chat icon (ironman, GIM…), drawn before their name as in game chat.
+  // clan-scope: global -- the sender's own character, by the name already on their line
+  const acct = access.rsn ? await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalizeRsn(access.rsn)), columns: { accountType: true } }) : null;
+  const ai = accountIcon(acct?.accountType);
+  await notifyRows(await channelTarget(access.eventId, channel), { t: 'rows', feeds: [chatFeedId(access.eventId, channel)], rows: [row], ...box, ...(ai != null ? { ai } : {}) });
   return { ok: true };
+}
+
+const tagCache = new Map<number, { tag: string; at: number }>();
+
+/** The board's chatbox tag (the host's, else derived from its name), cached a minute. */
+export async function boardChatTag(eventId: number, now = Date.now()): Promise<string> {
+  const hit = tagCache.get(eventId);
+  if (hit && now - hit.at < 60_000) return hit.tag;
+  // clan-scope: global -- one board by id: its name, its rules and its host's name, for its own lines
+  const [ev] = await db
+    .select({ name: events.name, rules: events.rules, clanName: clans.name })
+    .from(events)
+    .leftJoin(clans, eq(clans.id, events.clanId))
+    .where(eq(events.id, eventId))
+    .limit(1);
+  const tag = ev ? chatTagOf(parseEventRules(ev.rules).chatTag, ev.name, ev.clanName) : 'Event';
+  if (tagCache.size > 2_000) tagCache.clear();
+  tagCache.set(eventId, { tag, at: now });
+  return tag;
+}
+
+/** A host just changed the tag: the next line wears the new one. */
+export function forgetChatTag(eventId: number): void {
+  tagCache.delete(eventId);
 }
 
 // ── The host's staff ─────────────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 //
 //   1. ASK. The owner picks one of the clan's admins. A clan_ownership_transfers row goes 'pending'
 //      with completes_at = now + 72h. Both people get an in-site notice (user_notices, shown on
-//      /settings/claims) and a Discord DM where a bot can reach them. It lands in Anvil staff's
+//      /settings/characters#claims) and a Discord DM where a bot can reach them. It lands in Anvil staff's
 //      queue (/staff/ownership) — the support ticket.
 //   2. WAIT. The owner may cancel, the target may decline, Anvil staff may block it (with a reason) or
 //      let it through (off their queue; the hold still runs). The clan's admin pages carry a banner.
@@ -76,7 +76,7 @@ async function tell(userId: number, t: TransferRow, clan: { slug: string; kind?:
     .insert(userNotices)
     .values({ userId, kind: NOTICE_KIND, refId: t.id, title: msg.title, body: msg.description, createdAt: new Date().toISOString() })
     .catch(() => {});
-  const path = clan ? clanPathOf(clan, '/admin/people/staff') : '/settings/claims';
+  const path = clan ? clanPathOf(clan, '/admin/people/staff') : '/settings/characters#claims';
   transferDeps.dm(userId, msg, path).catch(() => false);
 }
 

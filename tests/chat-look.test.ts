@@ -18,6 +18,11 @@ test('own colours are a Supporter perk; without it the Anvil palette applies', (
   assert.deepEqual(effectiveLook(cleanPrefs({ palette: 'plain' }), 'patron'), { palette: 'plain', colors: null });
 });
 
+test('ordinary Anvil information has a site-owned high-contrast default', () => {
+  assert.equal(ANVIL_COLORS.info, '#ff5c5c');
+  assert.equal(effectiveLook(cleanPrefs({}), null).colors?.info, 'ff5c5c');
+});
+
 test('shaping the brief is Champion and up', () => {
   const prefs = cleanPrefs({ brief: ['goals', 'nonsense'] });
   assert.deepEqual(prefs.brief, ['goals']);
@@ -75,4 +80,16 @@ test('Champion extras go on a second line', () => {
     goal: { text: '99 Slayer', pct: 87.4 },
   });
   assert.deepEqual(lines, [{ tone: 'info', text: 'Nearly done: Zulrah · Barbarian Assault in 1h 35m · Goal: 99 Slayer (87%)' }]);
+});
+
+test('the [Anvil] tag colour is free in every palette; boards kept out of the chatbox always ride', () => {
+  const prefs = cleanPrefs({ palette: 'custom', tagColor: '#AA00FF', chatboxOff: [12, 12, -1, 'x', 7] });
+  assert.deepEqual(prefs.chatboxOff, [12, 7]);
+  assert.equal(effectiveLook(prefs, 'supporter').tag, 'aa00ff');
+  assert.equal(effectiveLook(prefs, null).tag, 'aa00ff', 'free: not a Supporter still gets their tag colour');
+  assert.equal(effectiveLook(cleanPrefs({ palette: 'plain', tagColor: '#00ff00' }), null).tag, '00ff00', 'plain lines keep the tag colour');
+  assert.equal(effectiveLook(cleanPrefs({ palette: 'custom' }), 'supporter').tag, undefined, 'unset: Anvil gold');
+  assert.deepEqual(effectiveLook(prefs, null).off, ['12', '7']);
+  assert.deepEqual(effectiveLook(cleanPrefs({ palette: 'plain', chatboxOff: [3] }), null).off, ['3']);
+  assert.equal(effectiveLook(cleanPrefs({}), null).off, undefined);
 });

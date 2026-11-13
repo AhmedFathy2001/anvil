@@ -211,6 +211,11 @@ export const PLUGIN_CAPABILITIES = [
   // resolved `me` block, /rules the rare-drop screenshot gate, and /notify judges a drop candidate
   // (facts.judge, lib/notifyDrops). POST /api/plugin/notify-prefs takes the old RuneLite values once.
   'notify-prefs',
+  // In-game chat relay (lib/push/relay, lib/chatRelay): push tickets with ?relay=1&world=(&fc=) may send
+  // their own public/clan/friends chat lines ({"t":"say"}) and hear {"t":"relay"};
+  // POST /api/plugin/chat-relay/report reports one. Event chat in the chatbox: {"t":"rows"} chat pushes
+  // carry `cb`/`cb1`, and GET /api/plugin/chat-chans lists where the chatbox input may post.
+  'chat-relay',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

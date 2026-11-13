@@ -15,7 +15,7 @@ export const ANVIL_COLORS: Record<Tone, string> = {
   drop: '#ff7f27',
   feed: '#9a9a9a',
   warn: '#ff3b3b',
-  info: '#ffffff',
+  info: '#ff5c5c',
 };
 
 const atLeast = (tier: SupporterTierId | null | undefined, need: SupporterTierId) =>
@@ -27,17 +27,24 @@ export const hasChatStar = (tier: SupporterTierId | null | undefined) => atLeast
 
 export interface ChatLook {
   palette: Exclude<Palette, 'custom'> | 'custom';
-  /** Hex per tone without '#', or null for 'plain' (the plugin's own colours). */
+  /** Hex per tone without '#', or null for 'plain' (one plain colour). */
   colors: Record<Tone, string> | null;
+  /** The [Anvil] tag's colour without '#' (anyone may set it); absent = Anvil gold. */
+  tag?: string;
+  /** Boards whose event chat the plugin keeps out of the chatbox (event ids, as strings); absent = none. */
+  off?: string[];
 }
 
 /** What the plugin is told, with the perks the person's tier doesn't cover folded back to defaults. */
 export function effectiveLook(prefs: ChatFeedPrefs, tier: SupporterTierId | null | undefined): ChatLook {
-  if (prefs.palette === 'plain') return { palette: 'plain', colors: null };
+  const off = prefs.chatboxOff?.length ? { off: prefs.chatboxOff.map(String) } : {};
+  // The [Anvil] tag colour is free for everyone; only the line colours are a Supporter perk.
+  if (prefs.tagColor) Object.assign(off, { tag: prefs.tagColor.slice(1) });
+  if (prefs.palette === 'plain') return { palette: 'plain', colors: null, ...off };
   const custom = prefs.palette === 'custom' && canCustomColors(tier);
   const colors = {} as Record<Tone, string>;
   for (const t of TONES) colors[t] = ((custom && prefs.colors[t]) || ANVIL_COLORS[t]).slice(1);
-  return { palette: custom ? 'custom' : 'anvil', colors };
+  return { palette: custom ? 'custom' : 'anvil', colors, ...off };
 }
 
 export function effectiveBrief(prefs: ChatFeedPrefs, tier: SupporterTierId | null | undefined): BriefItem[] {

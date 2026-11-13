@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SKILL_LABELS } from '@/lib/constants';
+import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 
@@ -371,7 +372,7 @@ function StatDeltaPath({
  * "This is my character". The way out of "somebody else has linked it": starts the same ownership
  * claim as the plugin's "This is my account" (/api/profile/claim-dispute → lib/ownershipClaims) — an
  * XP check first, and only then is the owner (or Anvil staff) asked. The claim and its Check button
- * live on /settings/claims.
+ * live on /settings/characters#claims.
  */
 function ReportConflict({ rsn }: { rsn: string }) {
   const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
@@ -409,9 +410,9 @@ function ReportConflict({ rsn }: { rsn: string }) {
           <>
             {' '}
             Follow it, and press <b className="text-foreground">Check</b> once you’ve gained the XP, on{' '}
-            <a href="/settings/claims" className="text-gold hover:underline">
+            <ClanLink href="/settings/characters#claims" className="text-gold hover:underline">
               your claims
-            </a>
+            </ClanLink>
             .
           </>
         )}

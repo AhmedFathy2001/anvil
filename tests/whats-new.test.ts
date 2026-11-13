@@ -92,7 +92,7 @@ const entry: WhatsNewEntry = {
   body: 'b',
   links: [
     { label: 'Set {clanName}’s name colour', href: '/c/{clan}/admin/clan/boosts', clan: { role: 'admin', boost: 1 } },
-    { label: 'Your boosts', href: '/settings/boosts', account: true },
+    { label: 'Your boosts', href: '/settings/profile#boosts', account: true },
     { label: 'Pricing', href: '/pricing', apexOnly: true },
     { label: 'Guide', href: '/guide' },
   ],
@@ -105,7 +105,7 @@ test('clan tokens fill per matching clan, and drop the link (not the entry) when
     [
       ['Set The AFK Spot’s name colour', '/c/theafkspot/admin/clan/boosts'],
       ['Set B Clan’s name colour', '/c/b-clan/admin/clan/boosts'],
-      ['Your boosts', '/settings/boosts'],
+      ['Your boosts', '/settings/profile#boosts'],
       ['Pricing', '/pricing'],
       ['Guide', '/guide'],
     ],
@@ -124,12 +124,12 @@ test('signed out: account pages go through sign-in, clan links drop, apex-only p
   assert.deepEqual(
     out.map((l) => [l.label, l.href, l.signIn]),
     [
-      ['Your boosts', signInHref('/settings/boosts'), true],
+      ['Your boosts', signInHref('/settings/profile#boosts'), true],
       ['Pricing', '/pricing', false],
       ['Guide', '/guide', false],
     ],
   );
-  assert.equal(signInHref('/settings/boosts'), '/login?return=%2Fsettings%2Fboosts');
+  assert.equal(signInHref('/settings/profile#boosts'), '/login?return=%2Fsettings%2Fprofile%23boosts');
   assert.deepEqual(resolveLinks(entry, { ...SIGNED_OUT, onApex: false }).map((l) => l.label), ['Your boosts', 'Guide']);
 });
 
@@ -212,8 +212,8 @@ test('1.20.0 announcements: one integrations button per clan the viewer admins',
 
 test('1.20.0 account links go through sign-in when signed out, direct when signed in', () => {
   const my = byId('2026-11-09-my-announcements');
-  assert.deepEqual(resolveLinks(my, SIGNED_OUT).map((l) => [l.href, l.signIn]), [[signInHref('/settings/announcements'), true]]);
-  assert.deepEqual(resolveLinks(my, viewer()).map((l) => [l.href, l.signIn]), [['/settings/announcements', false]]);
+  assert.deepEqual(resolveLinks(my, SIGNED_OUT).map((l) => [l.href, l.signIn]), [[signInHref('/settings/posts#discord-posts'), true]]);
+  assert.deepEqual(resolveLinks(my, viewer()).map((l) => [l.href, l.signIn]), [['/settings/posts#discord-posts', false]]);
 });
 
 test('every link in the list resolves to a site path for a multi-clan viewer, signed out and off-apex', () => {

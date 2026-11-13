@@ -1072,7 +1072,7 @@ const it: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Qualcun altro ha collegato questo personaggio su Anvil per primo, quindi dal tuo login non conta niente per lui. Se è davvero tuo, premi **This is my account** nella scheda **You** del pannello e supera il rapido controllo XP. Poi viene chiesto all’attuale proprietario, oppure decide lo staff di Anvil. Non saprai mai chi è. Segui la richiesta in [Settings → Ownership claims](/settings/claims).',
+          body: 'Qualcun altro ha collegato questo personaggio su Anvil per primo, quindi dal tuo login non conta niente per lui. Se è davvero tuo, premi **This is my account** nella scheda **You** del pannello e supera il rapido controllo XP. Poi viene chiesto all’attuale proprietario, oppure decide lo staff di Anvil. Non saprai mai chi è. Segui la richiesta in [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Ancora bloccato? Manda un log a un admin',
@@ -3101,7 +3101,7 @@ const it: PartialGuideDict = {
     accounts: {
       title: 'I tuoi account collegati',
       body: [
-        'Gli account Twitch, YouTube e Kick che hai collegato sono in [Settings → Connected accounts](/settings/connections). Puoi collegarli lì anche prima di unirti.',
+        'Gli account Twitch, YouTube e Kick che hai collegato sono in [Settings → Connected accounts](/settings/account#streaming). Puoi collegarli lì anche prima di unirti.',
         'Scollegane uno quando vuoi. Gli eventi a cui ti sei già unito ti mantengono. Un evento riservato a cui ti unirai più tardi ti chiederà di collegare di nuovo.',
         'Gli account Twitch, YouTube e Kick collegati compaiono sul tuo profilo con una spunta di verifica: hai dimostrato che sono tuoi. Disattiva **Show on my profile** per nasconderne uno. Un link Medal è diverso. Lo incolli tu, quindi non ha la spunta.',
         'Fai stream anche tu su Twitch? Attiva **Clip my stream when I hit a big moment** sotto il tuo account Twitch. Mentre sei in live nell’evento di uno streamer, Anvil fa clip dei tuoi drop rari, dei pet e delle caselle completate.',

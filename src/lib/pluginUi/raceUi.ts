@@ -60,7 +60,9 @@ export function racePageUi(board: Board, o: RacePageOpts): Node | null {
   const tiles = board.tiles as BoardTile[];
   const byId = new Map(tiles.map((t) => [t.tileId, t]));
   const name = (id: number) => byId.get(id)?.label?.trim() || `Tile ${id}`;
-  const ctx = { ...m, race, name, byId, board, o };
+  // A locked "?" (lib/raceHideAhead): the board sent it without a name, icon or anything else.
+  const hidden = (id: number) => { const t = byId.get(id); return !!t && 'raceHidden' in t && !!t.raceHidden; };
+  const ctx = { ...m, race, name, hidden, byId, board, o };
   const panes: Record<string, Node> = { main: col(mainPage(ctx), { gap: 10 }) };
   for (const id of m.graph.byId.keys()) if (byId.has(id)) panes[`t:${id}`] = col(tilePage(ctx, byId.get(id)!), { gap: 10 });
   return { t: 'slot', id: 'race', nav: true, open: 'main', panes, c: gap(0) };
@@ -71,6 +73,8 @@ interface Ctx {
   route: TeamRoute | null;
   race: NonNullable<ReturnType<typeof racePayload>>;
   name: (id: number) => string;
+  /** Is this tile a locked "?" for the viewer (lib/raceHideAhead)? */
+  hidden: (id: number) => boolean;
   byId: Map<number, BoardTile>;
   board: Board;
   o: RacePageOpts;
@@ -166,7 +170,7 @@ function nextCard(x: Ctx, route: TeamRoute): Node {
  * on a road, each later step is the tile that road leads to, and where the road splits the other
  * ways are offered as "or switch: C: <tile>".
  */
-export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, open: (id: number) => Action = (id) => pane(`t:${id}`)): Node[] {
+export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'> & Partial<Pick<Ctx, 'hidden'>>, open: (id: number) => Action = (id) => pane(`t:${id}`)): Node[] {
   const g = x.graph;
   const route = x.route!;
   const out: Node[] = [];
@@ -208,6 +212,14 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
     const dot = end ? 'end' : 'lock'; // a step not reached yet: a small padlock, not trackable
     const word = end ? 'Finish' : `Step ${step + 1}`;
     const ways = at != null ? g.byId.get(at)!.next.filter((id) => ids.includes(id)) : [];
+    // A step the viewer hasn't unlocked ("Hide tiles past the next step"): how many tiles it holds,
+    // and nothing else — no name, no icon, nothing to open.
+    const ahead = at != null && ways.length ? ways : ids;
+    if (x.hidden && ahead.length && ahead.every(x.hidden)) {
+      out.push(lockedStop(word, ids.length, end));
+      at = null;
+      continue;
+    }
     if (at != null && ways.length) {
       // Keep to the road the team is on; the rest are switches.
       const road = roadOf(g, at);
@@ -231,6 +243,11 @@ export function trackStops(x: Pick<Ctx, 'graph' | 'route' | 'name' | 'race'>, op
     }
   }
   return out;
+}
+
+/** "Step 4 · Locked · 5 tiles": a step not unlocked yet, as the track shows it. */
+export function lockedStop(word: string, tiles: number, end = false): Node {
+  return stop(end ? 'end' : 'lock', text(word, 'text'), text(`Locked · ${tiles} tile${tiles === 1 ? '' : 's'}`, FAINT, { font: 'small', wrap: TRACK_W }), undefined, end);
 }
 
 /** A step's roads folded: `inline` and a "+N other roads" chip, opening to one badged row per road. */

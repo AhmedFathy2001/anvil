@@ -347,7 +347,7 @@ test('a solo board: the cut standings, your lines picked out, and a way to every
 });
 
 test('a board of many teams: the cut list worded as teams, your team picked out', () => {
-  const t = (rank: number, yours = false) => ({ teamId: rank, name: `Team ${rank}`, color: '#ff0000', rank, score: `${100 - rank} tiles`, members: 3, yours });
+  const t = (rank: number, yours = false) => ({ teamId: rank, name: `Team ${rank}`, color: '#ff0000', rank, score: `${100 - rank} tiles`, members: 3, soleMember: null, yours });
   const ui = eventUi(
     base(liveCfg(), {
       teamStandings: {
@@ -372,6 +372,24 @@ test('a board of many teams: the cut list worded as teams, your team picked out'
   assert.ok(!all.some((s) => /players/.test(s)));
   assert.ok(!all.includes('Team 6'));
   assert.ok(walk(ui).some((x) => (x.on as { args?: { team?: string } } | undefined)?.args?.team === '18'), 'a row opens that team');
+});
+
+test('mixed solo standings open a singleton as a player and a shared entry as a team', () => {
+  const ui = eventUi(base(liveCfg(), {
+    teamStandings: {
+      total: 2,
+      complete: true,
+      mineMore: 0,
+      parts: [{ kind: 'rows', rows: [
+        { teamId: 1, name: 'Alice', color: '#ff0000', rank: 1, score: '4 tiles', members: 1, soleMember: 'Alice', yours: false },
+        { teamId: 2, name: 'The duo', color: '#00ff00', rank: 2, score: '3 tiles', members: 2, soleMember: null, yours: false },
+      ] }],
+    },
+  }), 'board')!;
+  const nodes = walk(ui);
+  assert.ok(nodes.some((x) => (x.on as { a?: string; rsn?: string } | undefined)?.a === 'lookup' && (x.on as { rsn?: string }).rsn === 'Alice'));
+  assert.ok(nodes.some((x) => (x.on as { args?: { team?: string } } | undefined)?.args?.team === '2'));
+  assert.ok(texts(ui).includes('2 teams'));
 });
 
 test('two live boards with one name: each card says its #id and opens by id, with a way back to the list', () => {

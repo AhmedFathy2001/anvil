@@ -1073,7 +1073,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: '“<RSN> belongs to another Anvil player”',
-          body: 'Iemand anders heeft dit character als eerste op Anvil gekoppeld, dus vanaf jouw login telt er niets voor. Is het echt van jou? Druk dan op **This is my account** in het tabblad **You** van het paneel en doe de korte XP-controle. Daarna wordt de huidige eigenaar gevraagd, of beslist de staf van Anvil. Je komt nooit te weten wie het is. Volg het via [Settings → Ownership claims](/settings/claims).',
+          body: 'Iemand anders heeft dit character als eerste op Anvil gekoppeld, dus vanaf jouw login telt er niets voor. Is het echt van jou? Druk dan op **This is my account** in het tabblad **You** van het paneel en doe de korte XP-controle. Daarna wordt de huidige eigenaar gevraagd, of beslist de staf van Anvil. Je komt nooit te weten wie het is. Volg het via [Settings → Ownership claims](/settings/characters#claims).',
         },
       ],
       logHeading: 'Nog steeds vast? Stuur een admin een log',
@@ -3112,7 +3112,7 @@ const nl: PartialGuideDict = {
     accounts: {
       title: 'Je gekoppelde accounts',
       body: [
-        'De Twitch-, YouTube- en Kick-accounts die je hebt gekoppeld staan in [Settings → Connected accounts](/settings/connections). Je kunt ze daar ook koppelen voordat je meedoet.',
+        'De Twitch-, YouTube- en Kick-accounts die je hebt gekoppeld staan in [Settings → Connected accounts](/settings/account#streaming). Je kunt ze daar ook koppelen voordat je meedoet.',
         'Je kunt er altijd een ontkoppelen. Events waaraan je al meedoet, houden je erin. Bij een afgeschermd event waaraan je later meedoet, moet je opnieuw koppelen.',
         'Gekoppelde Twitch-, YouTube- en Kick-accounts staan op je profiel met een vinkje: je hebt bewezen dat ze van jou zijn. Zet **Show on my profile** uit om er een te verbergen. Een Medal-link is anders. Die plak je zelf, dus die krijgt geen vinkje.',
         'Stream je zelf op Twitch? Zet **Clip my stream when I hit a big moment** aan onder je Twitch-account. Terwijl je live bent in het event van een streamer, clipt Anvil je zeldzame drops, pets en voltooide tiles.',

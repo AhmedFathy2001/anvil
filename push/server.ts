@@ -18,6 +18,7 @@ import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
 import { FlairGather, ViewHub, parseChange, parseFeed, parseFlair, parseRows } from '../src/lib/push/hub.ts';
+import { RelayHub, relayKey } from '../src/lib/push/relay.ts';
 import { internalSecret, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const PATH = '/api/plugin/push/ws';
@@ -93,6 +94,8 @@ async function refreshFlair(players: number[], names: string[]): Promise<void> {
 const flairGather = new FlairGather((p, n) => void refreshFlair(p, n));
 
 const hub = new ViewHub({ fetchView, minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
+/** Chat relay rooms (lib/push/relay): in memory only, from each ticket; a restart empties them and plugins reconnect into them. */
+const relay = new RelayHub(relayKey(secret));
 
 function log(event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ at: new Date().toISOString(), event, ...fields }));
@@ -101,12 +104,14 @@ function log(event: string, fields: Record<string, unknown> = {}) {
 // ── Sockets ──────────────────────────────────────────────────────────────────────────────────────
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+// A reader that stops reading gets nothing more queued past 1 MB; the heartbeat drops it soon after.
+const SEND_BUFFER_MAX = 1 << 20;
 const alive = new WeakSet<WebSocket>();
 
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, clients: hub.size, overlays: hub.watching, db: listening }));
+    res.end(JSON.stringify({ ok: true, clients: hub.size, overlays: hub.watching, relay: relay.size, db: listening }));
     return;
   }
   res.writeHead(404).end();
@@ -135,13 +140,29 @@ server.on('upgrade', (req, socket, head) => {
   wss.handleUpgrade(req, socket, head, (ws) => {
     alive.add(ws);
     ws.on('pong', () => alive.add(ws));
-    // Nothing comes the other way; the plugin (and the web page) only listens.
-    ws.on('message', () => ws.close(1003, 'listen only'));
-    // Hello first: the views follow, the cached ones straight away.
-    ws.send(JSON.stringify({ t: 'hello' }));
+    // Nothing comes the other way, except a relay ticket's own chat lines (lib/push/relay).
+    const who = scope.relay && !scope.web ? scope.relay : null;
+    const relayClient = who ? { userId: scope.userId, who, send: (m: string) => ws.readyState === ws.OPEN && ws.bufferedAmount < SEND_BUFFER_MAX && ws.send(m) } : null;
+    const unrelay = relayClient ? relay.add(relayClient) : null;
+    // A bad frame (too big, bad UTF-8) emits 'error'; with no listener Node throws and the server dies.
+    ws.on('error', () => ws.terminate());
+    ws.on('message', (data) => {
+      if (!relayClient) return ws.close(1003, 'listen only');
+      let m: unknown;
+      try {
+        m = JSON.parse(String(data));
+      } catch {
+        return;
+      }
+      // Why a line went nowhere (never its words), for checking a report of "it doesn't arrive".
+      const why = relay.receive(relayClient, m);
+      if (why) log('push.relay-dropped', { why, c: (m as { c?: unknown })?.c });
+    });
+    // Hello first: the views follow, the cached ones straight away. `relay`: this socket may send its lines.
+    ws.send(JSON.stringify(relayClient ? { t: 'hello', relay: 1 } : { t: 'hello' }));
     const remove = hub.add({
       scope,
-      send: (m) => ws.readyState === ws.OPEN && ws.send(m),
+      send: (m) => ws.readyState === ws.OPEN && ws.bufferedAmount < SEND_BUFFER_MAX && ws.send(m),
       rescope: () => ws.close(4001, 'roster changed'),
     });
     // The ticket's scope was true when it was signed. At its expiry the plugin reconnects with a fresh
@@ -150,6 +171,7 @@ server.on('upgrade', (req, socket, head) => {
     ws.on('close', () => {
       clearTimeout(expiry);
       remove();
+      unrelay?.();
     });
   });
 });
@@ -252,6 +274,7 @@ async function acceptOverlay(req: http.IncomingMessage, socket: Duplex, head: Bu
   wss.handleUpgrade(req, socket, head, (ws) => {
     alive.add(ws);
     ws.on('pong', () => alive.add(ws));
+    ws.on('error', () => ws.terminate());
     ws.on('message', () => ws.close(1003, 'listen only'));
     ws.send(JSON.stringify({ t: 'hello' }));
     const stop = hub.watch(eventId, { send: (m) => ws.readyState === ws.OPEN && ws.send(m) });
@@ -294,6 +317,12 @@ async function listen(): Promise<void> {
   const client = new pg.Client({ connectionString: dbUrl });
   client.on('notification', (n) => {
     if (!n.payload) return;
+    // Staff's relay switch (lib/chatRelay setRelayOn).
+    if (n.payload.startsWith('{"k":"relay"')) {
+      relay.enabled = n.payload.includes('"on":true');
+      log('push.relay', { on: relay.enabled });
+      return;
+    }
     const flair = parseFlair(n.payload);
     if (flair) {
       if (flair.kind === 'dirty') flairGather.add(flair.players, flair.names);

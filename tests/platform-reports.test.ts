@@ -119,7 +119,8 @@ test('the reporter is never exposed: only the platform queue reads the reports t
     .trim()
     .split('\n')
     .sort();
-  assert.deepEqual(hits, ['src/lib/platformReports.ts', 'src/lib/spacePage/store.ts']);
+  // chatRelay only dedupes the reporter's own earlier report, then inserts.
+  assert.deepEqual(hits, ['src/lib/chatRelay.ts', 'src/lib/platformReports.ts', 'src/lib/spacePage/store.ts']);
   // The public button never names anyone and uses the in-page dialog, not the browser's.
   const btn = read('src/components/ReportButton.tsx');
   assert.ok(!/window\.(confirm|alert|prompt)|\balert\(|\bconfirm\(/.test(btn));

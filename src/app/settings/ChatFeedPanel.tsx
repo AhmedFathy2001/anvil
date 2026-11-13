@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
+import { OnlyYouNote } from './_ui';
+import { useLookPreview } from './_preview';
+
 import Checkbox from '@/components/Checkbox';
 import Select from '@/components/Select';
 import { BRIEF_ITEMS, gp, MIN_VALUE_CHOICES, TONES, type BriefItem, type ChatFeedPrefs, type Tone } from '@/lib/chatFeedRules';
@@ -9,7 +12,10 @@ import { ANVIL_COLORS, canCustomColors, canShapeBrief } from '@/lib/chatLook';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 import ColorSwatch from '@/components/ColorSwatch';
 
-type Prefs = ChatFeedPrefs & { tier?: SupporterTierId | null };
+type Prefs = ChatFeedPrefs & { tier?: SupporterTierId | null; boards?: { id: number; name: string }[] };
+
+/** The [Anvil] tag's own gold, as the plugin draws it on the transparent chatbox. */
+const DEFAULT_TAG = '#ffd700';
 
 const TONE_LABELS: Record<Tone, string> = {
   done: 'Tile done',
@@ -45,11 +51,19 @@ const MAJOR_OPTIONS = (major: string) => [
 /**
  * "In-game chat feed" — what other players' drops and achievements show in YOUR RuneLite chat
  * (lib/chatFeed). The plugin's own switch turns the whole feed on or off; this picks what is in it.
+ *
+ * One panel, three parts, each where it belongs in Settings: `feed` (where from, what, the login
+ * brief), `boards` (event chat in the chatbox, per board), and `colours` (line colours and the
+ * [Anvil] tag) under In game. Profile & look also embeds colours beside its live preview.
+ *
+ * Supporter perks here (own line colours: Supporter; choosing the brief: Champion) can be picked by
+ * anyone and are saved as chosen; lib/chatLook applies them only at the tier in force.
  */
-export default function ChatFeedPanel() {
+export default function ChatFeedPanel({ part = 'feed' }: { part?: 'feed' | 'colours' | 'boards' }) {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const preview = useLookPreview();
 
   useEffect(() => {
     fetch('/api/profile/chat-feed')
@@ -57,6 +71,17 @@ export default function ChatFeedPanel() {
       .then((d) => d && setPrefs(d))
       .catch(() => setError('Could not load your chat feed settings.'));
   }, []);
+
+  // The preview follows the colours as saved, and each swatch's draft while it is being picked.
+  const setChatPreview = preview?.setChat;
+  useEffect(() => {
+    if (part === 'colours' && prefs && setChatPreview) setChatPreview({ palette: prefs.palette, colors: prefs.colors, tagColor: prefs.tagColor });
+  }, [part, prefs, setChatPreview]);
+  const draftColour = (key: Tone | 'tag', c: string) => {
+    if (!prefs || !setChatPreview) return;
+    if (key === 'tag') setChatPreview({ palette: prefs.palette, colors: prefs.colors, tagColor: c });
+    else setChatPreview({ palette: prefs.palette, colors: { ...prefs.colors, [key]: c }, tagColor: prefs.tagColor });
+  };
 
   async function save(change: Partial<Prefs>) {
     if (!prefs) return;
@@ -71,7 +96,8 @@ export default function ChatFeedPanel() {
         body: JSON.stringify(change),
       });
       if (!res.ok) throw new Error();
-      setPrefs(await res.json());
+      // The answer has no board list: keep the one the page loaded with.
+      setPrefs({ ...(await res.json()), boards: before.boards });
     } catch {
       setPrefs(before);
       setError('That didn’t save. Try again.');
@@ -80,17 +106,109 @@ export default function ChatFeedPanel() {
     }
   }
 
+  const errorBox = error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-400">{error}</div>;
+  const loading = <p className="text-sm text-text-muted">Loading…</p>;
+
+  if (part === 'colours') {
+    const held = prefs?.tier ?? null;
+    return (
+      <div className="grid gap-3">
+        {errorBox}
+        {!prefs ? (
+          loading
+        ) : (
+          <>
+            <Row label="Anvil lines in chat">
+              <Select
+                value={prefs.palette}
+                onChange={(v) => save({ palette: v as ChatFeedPrefs['palette'] })}
+                options={[
+                  { value: 'anvil', label: 'By type (Anvil colours)' },
+                  { value: 'plain', label: 'One colour (white)' },
+                  { value: 'custom', label: canCustomColors(held) ? 'My own colours' : 'My own colours (Supporter)' },
+                ]}
+                disabled={busy}
+                ariaLabel="Chat colours"
+                className="w-56 shrink-0"
+              />
+            </Row>
+            {prefs.palette !== 'plain' && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {TONES.map((t) => (
+                  <ToneSwatch
+                    // Keyed on the colour too, so a saved or reset colour starts a fresh draft.
+                    key={`${t}${(prefs.palette === 'custom' && prefs.colors[t]) || ANVIL_COLORS[t]}`}
+                    label={TONE_LABELS[t]}
+                    value={(prefs.palette === 'custom' && prefs.colors[t]) || ANVIL_COLORS[t]}
+                    editable={prefs.palette === 'custom' && !busy}
+                    onDraft={(c) => draftColour(t, c)}
+                    onSave={(c) => save({ colors: { ...prefs.colors, [t]: c } })}
+                  />
+                ))}
+              </div>
+            )}
+            {prefs.palette === 'anvil' && (
+              <p className="text-xs text-text-muted">Pick &ldquo;My own colours&rdquo; to change each type&rsquo;s colour.</p>
+            )}
+            <ToneSwatch
+              key={`tag${prefs.tagColor ?? DEFAULT_TAG}`}
+              label="The [Anvil] tag"
+              value={prefs.tagColor ?? DEFAULT_TAG}
+              editable={!busy}
+              onDraft={(c) => draftColour('tag', c)}
+              onSave={(c) => save({ tagColor: c })}
+            />
+            <p className="text-xs text-text-muted">The [Anvil] tag colour is free for everyone.</p>
+            {prefs.palette === 'custom' && !canCustomColors(held) && (
+              <OnlyYouNote need="supporter" held={held} what="Your own line colours" />
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (part === 'boards') {
+    return (
+      <div className="grid gap-3">
+        {errorBox}
+        {!prefs ? (
+          loading
+        ) : !prefs.boards?.length ? (
+          <p className="text-[13px] text-text-muted">None of your boards has an event chat right now.</p>
+        ) : (
+          <>
+            <p className="max-w-[70ch] text-[13px] text-text-muted">
+              Each board&rsquo;s event chat also prints in your game chatbox, unless you switch it off here (or turn
+              &ldquo;Event chat in chatbox&rdquo; off in the plugin for every board). The panel&rsquo;s Feed tab shows it either way.
+            </p>
+            {prefs.boards.map((b) => (
+              <Checkbox
+                key={b.id}
+                checked={!prefs.chatboxOff.includes(b.id)}
+                disabled={busy}
+                onChange={(v) => save({ chatboxOff: v ? prefs.chatboxOff.filter((x) => x !== b.id) : [...prefs.chatboxOff, b.id] })}
+                label={b.name}
+              />
+            ))}
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="grid gap-5">
         <p className="max-w-[70ch] text-[13px] text-text-muted">
-          What shows in your chat when the feed is on in the Anvil plugin (Configuration → Anvil → Chat feed).
+          What shows in your chat when the feed is on in the Anvil plugin (Configuration → Anvil → General → Anvil
+          messages in chat).
           Each thing shows once, even when it reaches you more than one way, and never when your own clan&rsquo;s
           broadcast already showed it.
         </p>
-        {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-400">{error}</div>}
+        {errorBox}
         {!prefs ? (
-          <p className="text-sm text-text-muted">Loading…</p>
+          loading
         ) : (
           <>
             <div className="grid gap-3">
@@ -162,58 +280,26 @@ export default function ChatFeedPanel() {
               />
               {prefs.login && (
                 <div className="grid gap-2 pl-1">
-                  <p className="text-xs text-text-muted">
-                    {canShapeBrief(prefs.tier) ? 'What it covers:' : 'Champions choose what it covers:'}
-                  </p>
+                  <p className="text-xs text-text-muted">What it covers:</p>
                   {BRIEF_ITEMS.map((b) => (
                     <Checkbox
                       key={b}
                       checked={prefs.brief.includes(b)}
-                      disabled={busy || !canShapeBrief(prefs.tier)}
+                      disabled={busy}
                       onChange={(v) => save({ brief: v ? [...prefs.brief, b] : prefs.brief.filter((x) => x !== b) })}
                       label={BRIEF_LABELS[b]}
                     />
                   ))}
+                  {!canShapeBrief(prefs.tier) && (
+                    <p className="text-xs text-text-muted">
+                      Choosing what it covers comes with Champion. Your picks are saved; until then the brief covers your live bingo and
+                      competitions.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="grid gap-3">
-              <p className="text-sm font-medium">Colours</p>
-              <Row label="Anvil lines in chat">
-                <Select
-                  value={prefs.palette}
-                  onChange={(v) => save({ palette: v as ChatFeedPrefs['palette'] })}
-                  options={[
-                    { value: 'anvil', label: 'By type (Anvil colours)' },
-                    { value: 'plain', label: "One colour (the plugin's own)" },
-                    { value: 'custom', label: canCustomColors(prefs.tier) ? 'My own colours' : 'My own colours (Supporter)' },
-                  ]}
-                  disabled={busy}
-                  ariaLabel="Chat colours"
-                  className="w-56 shrink-0"
-                />
-              </Row>
-              {prefs.palette !== 'plain' && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {TONES.map((t) => (
-                    <ToneSwatch
-                      // Keyed on the colour too, so a saved or reset colour starts a fresh draft.
-                      key={`${t}${(prefs.palette === 'custom' && prefs.colors[t]) || ANVIL_COLORS[t]}`}
-                      label={TONE_LABELS[t]}
-                      value={(prefs.palette === 'custom' && prefs.colors[t]) || ANVIL_COLORS[t]}
-                      editable={prefs.palette === 'custom' && canCustomColors(prefs.tier) && !busy}
-                      onSave={(c) => save({ colors: { ...prefs.colors, [t]: c } })}
-                    />
-                  ))}
-                </div>
-              )}
-              {prefs.palette === 'custom' && !canCustomColors(prefs.tier) && (
-                <p className="text-xs text-text-muted">
-                  Your own colours are a Supporter perk. Until then the plugin uses the Anvil colours.
-                </p>
-              )}
-            </div>
           </>
         )}
       </div>
@@ -221,14 +307,30 @@ export default function ChatFeedPanel() {
   );
 }
 
-function ToneSwatch({ label, value, editable, onSave }: { label: string; value: string; editable: boolean; onSave: (c: string) => void }) {
+function ToneSwatch({
+  label,
+  value,
+  editable,
+  onSave,
+  onDraft,
+}: {
+  label: string;
+  value: string;
+  editable: boolean;
+  onSave: (c: string) => void;
+  /** Every pick while choosing, before it is saved on blur (the live preview). */
+  onDraft?: (c: string) => void;
+}) {
   const [draft, setDraft] = useState(value);
   return (
     <label className="flex items-center gap-2.5 rounded-lg border border-card-border px-3 py-2 text-sm">
       <ColorSwatch
         value={draft}
         disabled={!editable}
-        onChange={setDraft}
+        onChange={(c) => {
+          setDraft(c);
+          onDraft?.(c);
+        }}
         onBlur={() => draft !== value && onSave(draft)}
         ariaLabel={`${label} colour`}
         className="h-6 w-8 rounded"

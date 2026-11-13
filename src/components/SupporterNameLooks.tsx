@@ -16,8 +16,10 @@ import {
   wornCharacterStyle,
   type CharacterLookRow,
 } from '@/lib/characterNameLooks';
-import { SURFACE_BACKGROUND, type SupporterStyle } from '@/lib/supporterStyle';
-import type { SupporterTierId } from '@/lib/supporterTiers';
+import { SURFACE_BACKGROUND, tierCovers, type SupporterStyle } from '@/lib/supporterStyle';
+import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
+import { OnlyYouNote, TIER_LABEL } from '@/app/settings/_ui';
+import { useLookPreview } from '@/app/settings/_preview';
 
 type Character = CharacterLookRow & { rsn: string };
 type Panel = { kind: 'shared' } | { kind: 'character'; accountId: number } | null;
@@ -25,7 +27,7 @@ type Panel = { kind: 'shared' } | { kind: 'character'; accountId: number } | nul
 const DEFAULT_BLOCKED = 'Characters wear the default look only by following your Anvil name, so pick another look here.';
 
 /**
- * Name colours on Settings → Supporter, as one flow:
+ * Name colours on Settings → Profile & look, as one flow:
  *   1. the Anvil display name's look (users.supporter_style), edited in place;
  *   2. how the RuneScape characters wear colours: "Same as my Anvil name" (their rows are NULL) or
  *      "A separate look for my characters" (one look written into every row), edited in a panel;
@@ -33,19 +35,31 @@ const DEFAULT_BLOCKED = 'Characters wear the default look only by following your
  * The mode is read off the stored rows (lib/characterNameLooks); nothing new is stored.
  */
 export default function SupporterNameLooks({
-  tier,
+  tier: startTier,
+  held = startTier,
   name,
   accountStyle: initialAccountStyle,
   characters,
 }: {
+  /** The tier the editor opens at: the one held, or one already being tried. */
   tier: SupporterTierId;
+  /**
+   * The tier in force (null: none). Below `tier`, or when they pick a higher one to try, the
+   * editor saves the look as that tier's and says only they see it until they hold it.
+   */
+  held?: SupporterTierId | null;
   name: string;
   /** The Anvil name's look as worn (already gated to the tier). */
   accountStyle: SupporterStyle | null;
   /** Linked characters, primary first, with their stored look (null follows the Anvil name). */
   characters: Character[];
 }) {
+  const [tier, setTier] = useState<SupporterTierId>(startTier);
+  const trying = !tierCovers(held, tier);
+  // Tiers worth previewing: the one held and every one above it.
+  const tryable = SUPPORTER_TIER_ORDER.filter((t) => !held || SUPPORTER_TIER_ORDER.indexOf(t) >= SUPPORTER_TIER_ORDER.indexOf(held));
   const [accountStyle, setAccountStyle] = useState(initialAccountStyle);
+  const [draftStyle, setDraftStyle] = useState<SupporterStyle | null>(initialAccountStyle);
   const [rows, setRows] = useState<Character[]>(characters);
   // The shared look the screen last showed, so an edit that leaves a tie doesn't swap it.
   const [prefer, setPrefer] = useState<string | null>(null);
@@ -95,13 +109,61 @@ export default function SupporterNameLooks({
 
   const open = panel?.kind === 'character' ? rows.find((r) => r.accountId === panel.accountId) ?? null : null;
 
+  // The page's live preview: the Anvil name as being edited, and the main character as it wears it.
+  const setPreviewFlair = useLookPreview()?.setFlair;
+  useEffect(() => {
+    if (!setPreviewFlair) return;
+    const main = rows[0];
+    setPreviewFlair(
+      { tier, style: draftStyle },
+      main ? { tier, style: wornCharacterStyle(main, draftStyle) } : undefined,
+    );
+  }, [setPreviewFlair, tier, draftStyle, rows]);
+
   return (
     <div className="rounded-xl border border-card-border bg-black/10 p-4">
+      {tryable.length > 1 && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-[12.5px] text-text-muted">{held ? 'Try a higher tier’s looks:' : 'Try the looks each tier gets:'}</p>
+          <div role="radiogroup" aria-label="Tier to try" className="inline-flex flex-wrap rounded-lg border border-card-border bg-background/40 p-1 text-[12.5px]">
+            {tryable.map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="radio"
+                aria-checked={tier === t}
+                onClick={() => {
+                  setTier(t);
+                  setPanel(null);
+                }}
+                className={`rounded-md px-3 py-1.5 transition-colors ${tier === t ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                {TIER_LABEL[t]}
+                {held === t && <span className="ml-1 text-text-dim">(yours)</span>}
+              </button>
+            ))}
+          </div>
+          {trying && (
+            <div className="mt-2">
+              <OnlyYouNote need={tier} held={held} what="These name colours" />
+            </div>
+          )}
+        </div>
+      )}
       <p className="mb-1 text-[13px] font-semibold">Your Anvil display name</p>
       <p className="mb-3 text-[12px] text-text-dim">
         The name on your Discord-linked account.{showCharacters && ' Your RuneScape characters can wear the same look or one of their own.'}
       </p>
-      <SupporterStylePicker tier={tier} name={name} initial={initialAccountStyle} pageOnly onSaved={setAccountStyle} />
+      <SupporterStylePicker
+        key={tier}
+        tier={tier}
+        trying={trying}
+        name={name}
+        initial={accountStyle}
+        pageOnly
+        onDraft={setDraftStyle}
+        onSaved={setAccountStyle}
+      />
 
       {showCharacters && (
         <div className="mt-5 border-t border-card-border pt-4">
@@ -192,6 +254,7 @@ export default function SupporterNameLooks({
             name={rows[0].rsn}
             accountId={rows[0].accountId}
             applyAll
+            trying={trying}
             framed={false}
             initial={plan.mode === 'separate' ? plan.shared : accountStyle}
             reset={null}
@@ -212,8 +275,9 @@ export default function SupporterNameLooks({
               : 'A look for this character only. Use the default to wear your characters’ look again.'}
           </p>
           <SupporterStylePicker
-            key={open.accountId}
+            key={`${open.accountId}${tier}`}
             tier={tier}
+            trying={trying}
             name={open.rsn}
             accountId={open.accountId}
             framed={false}

@@ -33,8 +33,12 @@ const SOURCES = filesUnder(SETTINGS).map((f) => ({ file: f, text: readFileSync(f
 function pageSource(path: string): string {
   const dir = join(SETTINGS, path.replace(/^\/settings\/?/, ''));
   const own = SOURCES.filter((s) => s.file.startsWith(dir + '/') || s.file === join(dir, 'page.tsx')).map((s) => s.text);
-  // Panels shared by several pages (EmissionPanels, ChatFeedPanel) live beside the pages.
-  const shared = SOURCES.filter((s) => !s.file.slice(SETTINGS.length + 1).includes('/')).map((s) => s.text);
+  // Panels shared by several pages (EmissionPanels, ChatFeedPanel) live beside the pages, and the
+  // sections the five pages are built from live in _parts.
+  const shared = SOURCES.filter((s) => {
+    const rel = s.file.slice(SETTINGS.length + 1);
+    return !rel.includes('/') || rel.startsWith('_parts/');
+  }).map((s) => s.text);
   return [...own, ...shared].join('\n');
 }
 
@@ -60,7 +64,8 @@ test('every href is a /settings page that exists', () => {
   for (const e of all) {
     assert.match(e.href, /^\/settings(\/|#|$)/, e.id);
     const path = memberPathOf(e.href);
-    assert.ok(existsSync(join(SETTINGS, path.replace(/^\/settings\/?/, ''), 'page.tsx')), `${e.id}: no page at ${path}`);
+    const dir = path === '/settings/characters/main' ? 'characters/[accountId]' : path.replace(/^\/settings\/?/, '');
+    assert.ok(existsSync(join(SETTINGS, dir, 'page.tsx')), `${e.id}: no page at ${path}`);
   }
 });
 
@@ -70,16 +75,42 @@ test('every #anchor is an id its page renders', () => {
     if (!anchor) continue;
     const path = memberPathOf(e.href);
     // The characters stand-in resolves to a character's page, which is where its anchors live.
-    const src = pageSource(path === '/settings/characters' ? '/settings/characters/[accountId]' : path);
+    const src = pageSource(path === '/settings/characters/main' ? '/settings/characters/[accountId]' : path);
     assert.ok(src.includes(`id="${anchor}"`), `${e.id}: ${path} renders no id="${anchor}"`);
   }
 });
 
 test('the characters stand-in resolves to the main character, keeping the anchor', () => {
-  assert.equal(resolveMemberHref('/settings/characters#clans', 42), '/settings/characters/42#clans');
-  assert.equal(resolveMemberHref('/settings/characters', 42), '/settings/characters/42');
-  assert.equal(resolveMemberHref('/settings/characters#clans', null), '/settings/add#link-account');
-  assert.equal(resolveMemberHref('/settings/plugin#plugin-token', 42), '/settings/plugin#plugin-token');
+  assert.equal(resolveMemberHref('/settings/characters/main#clans', 42), '/settings/characters/42#clans');
+  assert.equal(resolveMemberHref('/settings/characters/main', 42), '/settings/characters/42');
+  assert.equal(resolveMemberHref('/settings/characters/main#clans', null), '/settings/characters#link-account');
+  assert.equal(resolveMemberHref('/settings/characters#add', 42), '/settings/characters#add');
+  assert.equal(resolveMemberHref('/settings/in-game#plugin-token', 42), '/settings/in-game#plugin-token');
+});
+
+test('the hub has one card per page, and every old address redirects to a section its new page renders', async () => {
+  assert.deepEqual(
+    MEMBER_SETTINGS_CARDS.map((c) => memberPathOf(c.href)),
+    ['/settings/profile', '/settings/characters', '/settings/in-game', '/settings/posts', '/settings/account'],
+  );
+  const { LEGACY_SETTINGS } = await import('../src/app/settings/_legacy.ts');
+  const old = ['look', 'chat', 'supporter', 'boosts', 'add', 'claims', 'plugin', 'notifications', 'announcements', 'webhooks', 'connections', 'privacy'];
+  for (const name of old) {
+    const to = LEGACY_SETTINGS[name];
+    assert.ok(to, `${name}: no redirect`);
+    const page = readFileSync(join(SETTINGS, name, 'page.tsx'), 'utf8');
+    assert.ok(page.includes(`LEGACY_SETTINGS['${name}']`), `${name}/page.tsx does not redirect`);
+    assert.ok(pageSource(to.page).includes(`id="${to.at}"`), `${name}: ${to.page} renders no id="${to.at}"`);
+  }
+  // The old pages' section ids still render on the new pages, so old #deep-links keep landing.
+  const kept: [string, string[]][] = [
+    ['/settings/profile', ['avatar-banner', 'look-per-character', 'display-case', 'perks', 'name-colours', 'your-boosts', 'boostable-clans']],
+    ['/settings/in-game', ['plugin-token', 'chat-feed']],
+    ['/settings/characters', ['detected', 'link-account', 'claims-on-yours', 'your-claims']],
+    ['/settings/posts', ['plugin-posts', 'where-posts-go', 'per-character', 'posts-drops', 'screenshot-privacy', 'your-webhooks']],
+    ['/settings/account', ['plugin-sign-ins', 'sessions', 'clan-billing', 'twitch', 'youtube', 'kick', 'medal', 'character-visibility', 'across-anvil']],
+  ];
+  for (const [page, ids] of kept) for (const id of ids) assert.ok(pageSource(page).includes(`id="${id}"`), `${page}: no id="${id}"`);
 });
 
 const top = (q: string) => searchMemberSettings(q)[0]?.id;

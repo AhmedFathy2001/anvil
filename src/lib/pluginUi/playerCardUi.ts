@@ -192,7 +192,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
     sections.push({ label: 'Bosses', c: searchable('bosses', bosses.length, { t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }) });
   }
   if (anvil && c.clog && c.clog.total > 0) sections.push({ label: 'Log', c: logTab(c, kills) });
-  else if (anvil) sections.push({ label: 'Log', c: card([muted('No collection log synced yet. Sync profile (⚙) sends it.', { wrap: true })]) });
+  else if (anvil) sections.push({ label: 'Log', c: card([muted('No collection log synced yet. Sync profile (the gear button) sends it.', { wrap: true })]) });
 
   const more: { label: string; summary?: string; c: Node }[] = [];
   const isClue = (key: string) => key.startsWith('clues');
