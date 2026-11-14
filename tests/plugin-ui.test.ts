@@ -328,7 +328,7 @@ test('recent drops point at the Feed tab: a link for a plugin that can open it, 
 
 // ---- The board's tiles page and the Teams page ------------------------------------------------
 
-import { type BoardContext, type BoardTile, boardRowsUi, boardUi, claimLine, filterTiles, tileDetailUi, trackingLines } from '../src/lib/pluginUi/boardUi';
+import { type BoardContext, type BoardTile, boardRowsUi, boardUi, claimLine, filterTiles, isManual, tileDetailUi, trackingLines } from '../src/lib/pluginUi/boardUi';
 import { rosterUi, teamLine } from '../src/lib/pluginUi/teamsUi';
 
 const tileOf = (id: number, extra: Partial<BoardTile> = {}): BoardTile =>
@@ -634,4 +634,11 @@ test('clan card: heat gets its own card, the hottest streaks a bar each, and onl
   assert.ok(all.includes('Hottest streaks') && all.includes('13 wk') && all.includes('3 wk'));
   assert.ok(!all.some((t) => /^1 ?wk$/.test(t)), 'no one-week marks');
   assert.ok(walk(ui).filter((x) => x.t === 'bar').length >= 4, 'a bar per hottest streak and per player this week');
+});
+
+test('tracking lines: a combo lists its parts with the team’s count on each', () => {
+  const t = tileOf(20, { tileType: 'combo', comboLead: 'any one of', parts: [{ tileId: 21, label: 'Vorkath kills' }, { tileId: 22, label: 'Draconic visage' }, { tileId: 23, label: 'Zulrah kills' }] });
+  const progress = new Map([[21, { current: 37, goal: 100 }], [22, { current: 1, goal: 1 }]]);
+  assert.deepEqual(trackingLines(t, progress), ['Any one of:', '  Vorkath kills (37/100)', '  ✓ Draconic visage', '  Zulrah kills']);
+  assert.equal(isManual(t), false, 'a combo is not a manual tile');
 });

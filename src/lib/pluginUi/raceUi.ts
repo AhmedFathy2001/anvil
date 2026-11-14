@@ -373,7 +373,7 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
   }
 
   // What counts: the tile's own words, then exactly what the plugin watches.
-  const lines = trackingLines(t);
+  const lines = trackingLines(t, x.o.ctx.progress);
   const what = [t.description?.trim(), ...lines.filter((l) => l.trim() && l.trim() !== t.description?.trim())].filter((s): s is string => !!s);
   out.push(section([
     title('What counts'),

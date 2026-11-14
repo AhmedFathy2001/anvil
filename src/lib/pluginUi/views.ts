@@ -328,6 +328,12 @@ function boardState(a: Args): BoardState {
  * The team's count per tile, as the side panel's rows read it (the config builder, with the caller as
  * the viewer so per-member tiles are theirs). The live board only: a preview has no team counts.
  */
+/** One panel row's count, and under a combo (lib/pluginPanel foldCombos) each part's own. */
+function noteProgress(out: BoardContext['progress'], t: PanelTile): void {
+  out.set(t.tileId, { current: t.current, goal: t.goal, ...(t.sets ? { sets: t.sets } : {}) });
+  for (const p of t.parts ?? []) out.set(p.tileId, { current: p.current, goal: p.goal });
+}
+
 async function teamProgress(request: Request, eventId: number | null = null): Promise<BoardContext['progress']> {
   const out: BoardContext['progress'] = new Map();
   const auth = await verifyPluginToken(request);
@@ -336,7 +342,7 @@ async function teamProgress(request: Request, eventId: number | null = null): Pr
   if (eventId != null && auth?.eventId !== eventId) {
     const f = await focusSeat(request, eventId, null);
     if (!f) return out;
-    for (const t of (f.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) out.set(t.tileId, { current: t.current, goal: t.goal, ...(t.sets ? { sets: t.sets } : {}) });
+    for (const t of (f.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) noteProgress(out, t);
     return out;
   }
   const user = auth?.userId != null ? { userId: auth.userId } : await verifyPluginTokenUser(request);
@@ -349,7 +355,7 @@ async function teamProgress(request: Request, eventId: number | null = null): Pr
     viewer: { playerId: auth.playerId, userId: auth.userId, rsn: auth.rsn, request },
   });
   if (!built.ok) return out;
-  for (const t of (built.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) out.set(t.tileId, { current: t.current, goal: t.goal, ...(t.sets ? { sets: t.sets } : {}) });
+  for (const t of (built.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) noteProgress(out, t);
   return out;
 }
 

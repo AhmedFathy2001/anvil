@@ -10,7 +10,7 @@ import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
-import { comboSentence, isComboTile, parseComboRule, partsByParent, withoutParts } from '@/lib/combo';
+import { comboRuleLead, comboSentence, isComboTile, parseComboRule, partsByParent, withoutParts } from '@/lib/combo';
 import { isIndividualMode } from '@/lib/statTracking';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenForEvent, verifyPluginTokenUser, resolvePluginClan, pluginRsnHintOnly } from '@/lib/auth';
@@ -579,7 +579,7 @@ export async function buildBoard(
           ? comboSentence(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).map((p) => p.label), isIndividualMode(t.trackingMode))
           : tileHowItCounts(t),
         ...(isComboTile(t)
-          ? { comboRule: parseComboRule(t.comboRule).mode, parts: (partsOf.get(t.id) ?? []).map((p) => ({ tileId: p.id, label: p.label })) }
+          ? { comboRule: parseComboRule(t.comboRule).mode, comboLead: comboRuleLead(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).length), parts: (partsOf.get(t.id) ?? []).map((p) => ({ tileId: p.id, label: p.label })) }
           : {}),
         ...(itemRequirements
           ? { groupMode: t.groupMode === 'all' ? 'all' : 'any', setsRequired: parseSetsRequired(t.setsRequired) }

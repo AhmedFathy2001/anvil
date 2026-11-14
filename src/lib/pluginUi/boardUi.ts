@@ -124,6 +124,8 @@ export function withAliases(textIn: string): string {
 }
 
 export function isManual(t: BoardTile): boolean {
+  // A combo (lib/combo) is done by its parts, each tracked or not in its own right.
+  if (comboParts(t).length) return false;
   if (t.autoTrackDisabled || ('manualOnly' in t && t.manualOnly)) return true;
   if (t.statName) return false;
   const type = (t.tileType ?? '').toLowerCase();
@@ -618,7 +620,25 @@ export function finisherLine(t: BoardTile, f: { name: string; amount: number }):
 }
 
 /** The exact inputs the plugin watches, as lines: set headers end in ":", items start with two spaces. */
-export function trackingLines(t: BoardTile): string[] {
+/** A combo's parts (lib/combo), or none. */
+function comboParts(t: BoardTile): { tileId: number; label: string }[] {
+  return ('parts' in t && t.parts) || [];
+}
+
+export function trackingLines(t: BoardTile, progress?: BoardContext['progress']): string[] {
+  // A combo: its rule, then each part with the team's count on it.
+  const parts = comboParts(t);
+  if (parts.length) {
+    const lead = ('comboLead' in t && t.comboLead) || 'any of';
+    return [
+      `${lead.charAt(0).toUpperCase()}${lead.slice(1)}:`,
+      ...parts.map((p) => {
+        const pr = progress?.get(p.tileId);
+        if (pr && pr.current >= pr.goal) return `  ✓ ${p.label}`;
+        return `  ${p.label}${pr && pr.goal > 1 ? ` (${pr.current}/${pr.goal})` : ''}`;
+      }),
+    ];
+  }
   if (isManual(t)) return [];
   const lines: string[] = [];
   const itemName = (id: number, name: string | null | undefined) => name?.trim() || `Item ${id}`;
@@ -720,7 +740,8 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   }
 
   // What counts: the objective, then exactly what the plugin watches; a long list folds to "+N more".
-  const lines = trackingLines(t);
+  const lines = trackingLines(t, ctx.progress);
+  const combo = comboParts(t).length > 0;
   const what: Node[] = [title('What counts')];
   if (t.description?.trim()) what.push(text(t.description.trim(), SOFT, { wrap: CARD_W }));
   if (isManual(t)) {
@@ -728,7 +749,8 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
       ? 'The plugin can’t see this item arrive — it isn’t a drop (it’s bought, made or handed over), so it isn’t tracked. Screenshot it and submit it on the site.'
       : 'This task is not completed automatically. A captain or admin marks it done.', { wrap: CARD_W }));
   } else if (lines.length) {
-    if (t.howItCounts?.trim()) what.push(text(t.howItCounts.trim(), 'brand', { wrap: CARD_W }));
+    // A combo's sentence is its part list again; the lines below say it with the counts.
+    if (!combo && t.howItCounts?.trim()) what.push(text(t.howItCounts.trim(), 'brand', { wrap: CARD_W }));
     let headers = 0;
     const tracked = lines.map((line) => {
       const header = line.endsWith(':');
@@ -737,7 +759,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
       const color: Color = header ? SET_COLORS[headers++ % SET_COLORS.length] : ticked ? DONE_LINE : 'muted';
       return row(undefined, text(s2, color, { wrap: CARD_W - 10, ...(ticked ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: DONE_LINE } } : {}) }), undefined, { inset: line.startsWith('  ') ? 8 : 0 });
     });
-    what.push(...more(tracked, 6, `tile-what:${t.tileId}`, 2), small('Tracked automatically.', BLUE));
+    what.push(...more(tracked, 6, `tile-what:${t.tileId}`, 2), ...(combo ? [] : [small('Tracked automatically.', BLUE)]));
   }
   const req = t.requirement?.trim();
   if (req && req !== (t.description ?? '').trim() && !lines.includes(req)) what.push(muted(req, { wrap: CARD_W }));
