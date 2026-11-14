@@ -21,7 +21,7 @@ import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, 
 import { syncPartRevealState } from '@/lib/comboSql';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { tilesForViewer } from '@/lib/tilesForViewer';
-import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
+import { STAFF_HIDE_ERROR, raceTileHiddenForAuthoring } from '@/lib/raceHideAheadDb';
 
 export async function GET(
   request: Request,
@@ -83,7 +83,7 @@ export async function PUT(
   // saved over (the editor would write the placeholder back), and nothing below may echo it back.
   {
     const hideEvent = await db.query.events.findFirst({ where: eq(events.id, eId) });
-    if (hideEvent && (await raceTileHiddenForSession(hideEvent, tile))) {
+    if (hideEvent && (await raceTileHiddenForAuthoring(hideEvent, tile))) {
       return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
     }
   }

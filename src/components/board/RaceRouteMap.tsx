@@ -14,6 +14,8 @@ import { H_COL, H_LANE, H_PAD, V_GUTTER, layoutFor } from '@/lib/raceMapLayout';
  * glow), closed waypoints fade with a padlock and done ones carry a check. The crowd variants add
  * team pennants and lines (a few teams), crowd chips and road traffic (a field), or a heat glow
  * (solo-sized). Used by the route editor too, with a selected waypoint and its candidate links.
+ * Pointing at a waypoint (or tabbing to it) lights the roads out of it: the tiles it unlocks next in
+ * a pale gold with a ring, and every road that can follow from there, fainter, down to the finish.
  * The map scrolls sideways inside its own box; the page never does. On a phone (under 640px) it
  * becomes a vertical list of steps instead, each road a row with its letter, so five roads and ten
  * steps read top to bottom with no sideways scroll at all.
@@ -96,6 +98,8 @@ export interface RouteMapGeometry {
 
 const ROAD = '#251e18';
 const GOLD = '#e0aa1e';
+/** The roads out of the waypoint under the pointer: paler than the team's own gold road. */
+const AHEAD = '#ffe2a0';
 const COL = H_COL;
 const ROW = 138;
 const HEAD = 30;
@@ -185,6 +189,8 @@ export default function RaceRouteMap({
 }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(initialWidth);
+  // The waypoint under the pointer (or keyboard focus): its roads onward light up.
+  const [hoverId, setHoverId] = useState<number | null>(null);
   const measure = fit || shrink;
   useEffect(() => {
     if (!measure || !boxRef.current) return;
@@ -252,6 +258,26 @@ export default function RaceRouteMap({
   const current = path[path.length - 1];
   const openIds = state ? nodes.filter((n) => state.get(n.id) === 'open').map((n) => n.id) : [];
   const links = nodes.flatMap((n) => n.next.filter((to) => pos.has(to)).map((to) => ({ from: n.id, to })));
+  // From the pointed-at waypoint: the tiles it unlocks next, and every road reachable after them.
+  const hovered = hoverId != null ? nodes.find((n) => n.id === hoverId) : undefined;
+  const unlocks = new Set(hovered ? hovered.next.filter((to) => pos.has(to)) : []);
+  const onward = new Set<string>();
+  if (hovered) {
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const seen = new Set<number>(unlocks);
+    const queue = [...unlocks];
+    while (queue.length) {
+      const from = queue.pop()!;
+      for (const to of byId.get(from)?.next ?? []) {
+        if (!pos.has(to)) continue;
+        onward.add(`${from}-${to}`);
+        if (!seen.has(to)) {
+          seen.add(to);
+          queue.push(to);
+        }
+      }
+    }
+  }
   const room = (boxWidth - 8) / width;
   const scale = boxWidth > 0 ? (fit ? Math.min(1.75, Math.max(1, room)) : !layout.vertical ? layout.scale : 1) : 1;
   const scaled = scale !== 1 || !!overlay;
@@ -351,6 +377,14 @@ export default function RaceRouteMap({
                 <path key={`o${to}`} d={draw(pos.get(current)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" className="race-road-flow" />
               ) : null,
             )}
+          {hovered &&
+            links.filter(({ from, to }) => onward.has(`${from}-${to}`)).map(({ from, to }) => (
+              <path key={`ha${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={AHEAD} strokeOpacity={0.3} strokeWidth={4} strokeLinecap="round" />
+            ))}
+          {hovered &&
+            [...unlocks].map((to) => (
+              <path key={`hu${to}`} d={draw(pos.get(hovered.id)!, pos.get(to)!)} fill="none" stroke={AHEAD} strokeWidth={6} strokeLinecap="round" />
+            ))}
           {selectedId != null &&
             links.filter(({ from, to }) => from === selectedId || to === selectedId).map(({ from, to }) => (
               <path key={`e${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" />
@@ -393,6 +427,9 @@ export default function RaceRouteMap({
               key={n.id}
               className={cn('absolute flex flex-col items-center', matched && !matched.has(n.id) && 'opacity-30')}
               style={{ left: p.x - nodeW / 2, top: p.y - r, width: nodeW }}
+              // On the wrapper: a waypoint nobody can click is a disabled button, which hears no pointer.
+              onMouseEnter={() => setHoverId(n.id)}
+              onMouseLeave={() => setHoverId((h) => (h === n.id ? null : h))}
             >
               {variant === 'few' && here.some((t) => t.id !== viewerTeamId) && (
                 <div className="absolute bottom-full mb-1 z-10 flex flex-col-reverse items-center gap-0.5">
@@ -408,6 +445,8 @@ export default function RaceRouteMap({
               <button
                 type="button"
                 onClick={onTileClick ? () => onTileClick(n.id) : undefined}
+                onFocus={() => setHoverId(n.id)}
+                onBlur={() => setHoverId((h) => (h === n.id ? null : h))}
                 disabled={!onTileClick}
                 title={n.label}
                 aria-label={`${n.label}${st ? ` — ${st === 'open' ? 'next' : st === 'ahead' ? 'locked' : st}` : ''}`}
@@ -420,6 +459,7 @@ export default function RaceRouteMap({
                   st === 'ahead' && !lockedIds?.has(n.id) && 'opacity-60',
                   st === 'closed' && 'opacity-35 grayscale',
                   isSelected && 'border-gold ring-4 ring-gold/40',
+                  !isSelected && unlocks.has(n.id) && 'ring-2 ring-[#ffe2a0]/80 ring-offset-2 ring-offset-[#141010]',
                   !isSelected && isLinkable && (linked ? 'border-gold' : 'border-dashed border-gold/50'),
                   !isSelected && problemIds?.has(n.id) && 'border-red-500',
                   blank && !isSelected && !isLinkable && !problemIds?.has(n.id) && 'border-dashed border-text-muted/40 bg-[#141010]',
@@ -455,6 +495,7 @@ export default function RaceRouteMap({
               </span>
               <span className="flex items-center gap-1 mt-0.5 min-h-[14px]">
                 {blank && !(isLinkable && sel) && <span className="text-[9px] italic text-text-muted/70">not written yet</span>}
+                {unlocks.has(n.id) && !(isLinkable && sel) && st !== 'open' && <span className="text-[9px] font-semibold text-[#ffe2a0]">Unlocks next</span>}
                 {st === 'open' && <span className="text-[9px] font-bold px-1.5 rounded bg-gold text-brown-dark">Next</span>}
                 {isLinkable && sel && <span className="text-[9px] text-gold">{linked ? 'Linked · click to unlink' : '+ Link'}</span>}
                 {line && st !== 'done' && <span className="text-[9px] text-gold-light tabular-nums">{line}</span>}
@@ -595,6 +636,7 @@ export function RouteMapLegend({ withTeam }: { withTeam: boolean }) {
         </>
       )}
       <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-2.5 rounded-full" style={{ backgroundColor: ROAD, outline: '1px solid #332a22' }} />Road — where roads meet you can switch lanes</span>
+      <span className="hidden sm:flex items-center gap-1.5"><span className="inline-block w-6 h-1 rounded-full" style={{ backgroundColor: AHEAD }} />Point at a tile to see what it unlocks</span>
     </div>
   );
 }

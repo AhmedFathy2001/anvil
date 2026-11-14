@@ -25,3 +25,21 @@ export function duplicateClogSlot(userId: number, item: unknown, now = Date.now(
   seen.set(key, now);
   return false;
 }
+
+// The same for an always-post item (a "Notable drop"). The plugin sees it twice, as loot and as the
+// collection log's unlock line, and holds the second back only when it lands within five seconds. A
+// raid chest breaks that: the loot shows when the chest opens and the log fills when the item is
+// taken out, so 1BM's Masori crafting kit posted once with its value and kill count, and again as
+// an unlock. Whichever sighting arrives first is the post.
+const notableSeen = new Map<string, number>();
+
+/** True when this person already posted this notable item to this clan in the last two minutes (and records it otherwise). */
+export function duplicateNotableDrop(clanId: number, userId: number, item: unknown, now = Date.now()): boolean {
+  if (typeof item !== 'string' || !item.trim()) return false;
+  const key = `${clanId}:${userId}:${itemKey(item)}`;
+  const at = notableSeen.get(key);
+  if (at !== undefined && now - at < SEEN_MS) return true;
+  if (notableSeen.size > 5000) for (const [k, t] of notableSeen) if (now - t >= SEEN_MS) notableSeen.delete(k);
+  notableSeen.set(key, now);
+  return false;
+}

@@ -1,4 +1,4 @@
-import { mayChangeStaffHide, maskRaceTilesForSession, staffHideBlocksSession } from '@/lib/raceHideAheadDb';
+import { mayChangeStaffHide, maskRaceTilesForAuthoring, staffHideBlocksSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -43,9 +43,10 @@ export default async function EventTilesPage({
     db.select({ teamId: eventParticipants.teamId }).from(eventParticipants).where(eq(eventParticipants.eventId, id)),
   ]);
 
-  // "Also hide from event staff" (lib/raceHideAhead): staff who don't see through get the locked
-  // "?" cells players get, and the whole-board tools (map save, bulk edits, import) refuse them.
-  const eventTiles = await maskRaceTilesForSession(event, rawTiles);
+  // "Also hide from event staff" (lib/raceHideAhead): staff who don't see through get every tile as
+  // a locked "?" here, the start included, and the whole-board tools (map save, bulk edits, import)
+  // refuse them.
+  const eventTiles = await maskRaceTilesForAuthoring(event, rawTiles);
   const [staffHideLocked, canChangeStaffHide] = await Promise.all([staffHideBlocksSession(event), mayChangeStaffHide(user)]);
 
   // Does this board actually have multi-person teams? Team-shaped tile options (Team Total vs Solo,
