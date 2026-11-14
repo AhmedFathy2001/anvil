@@ -132,6 +132,9 @@ interface Props {
   race?: RaceDetailContext | null;
 }
 
+/** Combo parts that take a screenshot of their own (the kinds the submission forms below serve). */
+const PART_PROOF_TYPES = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'diary', 'ca', 'deathless', 'lms', 'clog', 'timed', 'value', 'valuetotal']);
+
 /** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
 const CONTRIBUTOR_PREVIEW = 8;
 
@@ -193,6 +196,8 @@ export default function TileDetailModal({
   // handler; shown under the buttons so the click doesn't just do nothing.
   const [actionError, setActionError] = useState('');
   // Delete confirmation modal state
+  // A combo's part opened for its own screenshot form (the part is a real tile: it takes its own proof).
+  const [openPart, setOpenPart] = useState<Tile | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteSubmissionId, setDeleteSubmissionId] = useState<number | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
@@ -854,6 +859,12 @@ export default function TileDetailModal({
                               className="text-[11px] text-gold hover:underline"
                             >
                               {st?.state.done ? 'Undo' : 'Mark done'}
+                            </button>
+                          )}
+                          {/* A part that takes screenshots gets the same form its own tile would have. */}
+                          {canSubmit && onSubmit && teamId && !st?.state.done && PART_PROOF_TYPES.has(p.tileType ?? '') && (
+                            <button type="button" onClick={() => setOpenPart(p)} className="text-[11px] text-gold hover:underline">
+                              Add screenshot
                             </button>
                           )}
                           {teamsDone.map((t) => (
@@ -1776,6 +1787,30 @@ export default function TileDetailModal({
           </div>
         </div>
       )}
+      {openPart && (() => {
+        const st = dropProgress?.combo?.parts.find((x) => x.id === openPart.id)?.state;
+        return (
+          <TileDetailModal
+            tile={openPart}
+            submissions={submissions.filter((sub) => sub.tileId === openPart.id)}
+            submissionsLoading={submissionsLoading}
+            completedBy={[]}
+            canSubmit={canSubmit}
+            canManage={canManage}
+            canToggle={false}
+            onSubmit={onSubmit}
+            onDelete={onDelete}
+            onClose={() => setOpenPart(null)}
+            eventId={eventId}
+            teamId={teamId}
+            dropProgress={st?.required != null ? { current: st.current ?? 0, required: st.required } : undefined}
+            teamPlayers={teamPlayers}
+            currentPlayerId={currentPlayerId}
+            pointsMode={pointsMode}
+            teamNameById={teamNameById}
+          />
+        );
+      })()}
       {viewer && (
         <ProofGallery
           shots={viewer.shots}
