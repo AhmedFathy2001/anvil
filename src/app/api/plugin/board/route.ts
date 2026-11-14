@@ -289,8 +289,10 @@ export async function buildBoard(
   // view should say what counts, not make a player decode "6571, 28919, …" by hand. A mapping outage
   // degrades to the id without taking the board down.
   const trackedItemNames = new Map<number, string>();
-  const rawTrackedIds = new Set(eventTiles.flatMap((t) => allItemIds(t.trackedItemIds, t.itemRequirements)));
-  for (const tile of eventTiles) {
+  // A combo's parts name their items too (the tile page lists what each part takes).
+  const named = [...eventTiles, ...eventTiles.flatMap((t) => (isComboTile(t) ? partsOf.get(t.id) ?? [] : []))];
+  const rawTrackedIds = new Set(named.flatMap((t) => allItemIds(t.trackedItemIds, t.itemRequirements)));
+  for (const tile of named) {
     if (!tile.itemRequirements) continue;
     try {
       const requirements = JSON.parse(tile.itemRequirements) as { itemId?: number; name?: string }[];
@@ -579,7 +581,12 @@ export async function buildBoard(
           ? comboSentence(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).map((p) => p.label), isIndividualMode(t.trackingMode))
           : tileHowItCounts(t),
         ...(isComboTile(t)
-          ? { comboRule: parseComboRule(t.comboRule).mode, comboLead: comboRuleLead(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).length), parts: (partsOf.get(t.id) ?? []).map((p) => ({ tileId: p.id, label: p.label })) }
+          ? { comboRule: parseComboRule(t.comboRule).mode, comboLead: comboRuleLead(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).length), parts: (partsOf.get(t.id) ?? []).map((p) => {
+              // What the part takes, when its name doesn't already say: the items, else its requirement.
+              const items = allItemIds(p.trackedItemIds, p.itemRequirements).map((id) => trackedItemNames.get(id) ?? `Item ${id}`);
+              const what = items.length ? `${items.slice(0, 8).join(', ')}${items.length > 8 ? ` +${items.length - 8} more` : ''}` : tileRequirement(p);
+              return { tileId: p.id, label: p.label, ...(what && what.trim().toLowerCase() !== p.label.trim().toLowerCase() ? { what } : {}) };
+            }) }
           : {}),
         ...(itemRequirements
           ? { groupMode: t.groupMode === 'all' ? 'all' : 'any', setsRequired: parseSetsRequired(t.setsRequired) }

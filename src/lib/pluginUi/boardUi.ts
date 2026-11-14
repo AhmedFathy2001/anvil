@@ -621,7 +621,7 @@ export function finisherLine(t: BoardTile, f: { name: string; amount: number }):
 
 /** The exact inputs the plugin watches, as lines: set headers end in ":", items start with two spaces. */
 /** A combo's parts (lib/combo), or none. */
-function comboParts(t: BoardTile): { tileId: number; label: string }[] {
+function comboParts(t: BoardTile): { tileId: number; label: string; what?: string }[] {
   return ('parts' in t && t.parts) || [];
 }
 
@@ -632,10 +632,11 @@ export function trackingLines(t: BoardTile, progress?: BoardContext['progress'])
     const lead = ('comboLead' in t && t.comboLead) || 'any of';
     return [
       `${lead.charAt(0).toUpperCase()}${lead.slice(1)}:`,
-      ...parts.map((p) => {
+      ...parts.flatMap((p) => {
         const pr = progress?.get(p.tileId);
-        if (pr && pr.current >= pr.goal) return `  ✓ ${p.label}`;
-        return `  ${p.label}${pr && pr.goal > 1 ? ` (${pr.current}/${pr.goal})` : ''}`;
+        const head = pr && pr.current >= pr.goal ? `  ✓ ${p.label}` : `  ${p.label}${pr && pr.goal > 1 ? ` (${pr.current}/${pr.goal})` : ''}`;
+        // The part's own items ("Mooleta, Cow slippers, …"), under its name.
+        return p.what ? [head, `    ${p.what}`] : [head];
       }),
     ];
   }

@@ -377,8 +377,8 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
   const what = [t.description?.trim(), ...lines.filter((l) => l.trim() && l.trim() !== t.description?.trim())].filter((s): s is string => !!s);
   out.push(section([
     title('What counts'),
-    ...(what.length ? what.slice(0, 8).map((s) => text(s.trim(), SOFT, { wrap: CARD_W })) : [text(t.requirement?.trim() || 'See the tile on the site.', SOFT, { wrap: CARD_W })]),
-    ...(what.length > 8 ? [muted(`+${what.length - 8} more on the site`)] : []),
+    ...(what.length ? what.slice(0, 10).map((s) => (s.startsWith('    ') ? muted(s.trim(), { wrap: CARD_W }) : text(s.trim(), SOFT, { wrap: CARD_W }))) : [text(t.requirement?.trim() || 'See the tile on the site.', SOFT, { wrap: CARD_W })]),
+    ...(what.length > 10 ? [muted(`+${what.length - 10} more on the site`)] : []),
     muted(['Worth 1 step', t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null].filter(Boolean).join(' · ')),
   ]));
 

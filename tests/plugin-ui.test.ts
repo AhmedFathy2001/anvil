@@ -637,8 +637,8 @@ test('clan card: heat gets its own card, the hottest streaks a bar each, and onl
 });
 
 test('tracking lines: a combo lists its parts with the team’s count on each', () => {
-  const t = tileOf(20, { tileType: 'combo', comboLead: 'any one of', parts: [{ tileId: 21, label: 'Vorkath kills' }, { tileId: 22, label: 'Draconic visage' }, { tileId: 23, label: 'Zulrah kills' }] });
+  const t = tileOf(20, { tileType: 'combo', comboLead: 'any one of', parts: [{ tileId: 21, label: 'Vorkath kills' }, { tileId: 22, label: 'Draconic visage' }, { tileId: 23, label: 'Any Brutus unique', what: 'Mooleta, Cow slippers' }] });
   const progress = new Map([[21, { current: 37, goal: 100 }], [22, { current: 1, goal: 1 }]]);
-  assert.deepEqual(trackingLines(t, progress), ['Any one of:', '  Vorkath kills (37/100)', '  ✓ Draconic visage', '  Zulrah kills']);
+  assert.deepEqual(trackingLines(t, progress), ['Any one of:', '  Vorkath kills (37/100)', '  ✓ Draconic visage', '  Any Brutus unique', '    Mooleta, Cow slippers']);
   assert.equal(isManual(t), false, 'a combo is not a manual tile');
 });
