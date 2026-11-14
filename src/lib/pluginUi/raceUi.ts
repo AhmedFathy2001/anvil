@@ -360,8 +360,9 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
   const p = x.o.ctx.progress.get(id);
   const prog = state === 'open' && p && p.goal > 1 ? text(`${count(Math.min(p.current, p.goal))} of ${count(p.goal)}`, PROGRESS, { live: { tile: id, cur: p.current, goal: p.goal, fmt: 'raw' } }) : undefined;
   const where = `${node.step === g.lastStep ? 'Finish' : `Step ${node.step + 1}`}${hasRoads(g, id) ? ` · Road ${roadOf(g, id)}` : ''}`;
+  const back = row(undefined, text('Back to the race', '#e6e6e6', { icon: icon({ glyph: 'chevron-left', w: 9, h: 9, color: '#e6e6e6' }) }), undefined, { bg: 'raised', pad: 8, on: pane('main'), tip: 'Back to the race' });
   const out: Node[] = [
-    row(undefined, text('Back to the race', '#e6e6e6', { icon: icon({ glyph: 'chevron-left', w: 9, h: 9, color: '#e6e6e6' }) }), undefined, { bg: 'raised', pad: 8, on: pane('main'), tip: 'Back to the race' }),
+    back,
     col([muted(where), text(x.name(id), 'white', { font: 'bold', wrap: 205 }), row(text(chip[0], chip[2], { chip: chip[1], font: 'small' }), prog, undefined, { gap: 6 })], { gap: 4 }),
   ];
 
@@ -403,5 +404,7 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
       ...(x.o.ctx.boardPath ? [text('Open on the website', GOLD, { font: 'small', on: { a: 'site', path: `${x.o.ctx.boardPath}?tile=${id}` }, tip: 'Open this tile on the Anvil site' })] : []),
     ]));
   }
+  // The page is long once the proofs are in: the way back is at the foot too.
+  out.push(back);
   return out;
 }

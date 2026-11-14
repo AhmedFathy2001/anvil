@@ -53,7 +53,8 @@ function proofRow(p: ProofRow, o: ProofsOpts): Node {
     row(undefined, nameText(who, 'text', p.credit ? { tip: `For ${p.credit}` } : {}), undefined, { gap: 4 }),
     row(text('', 'muted', { at: p.at }), undefined, o.unit ? muted(`${count(p.amount)}${o.unit}`) : p.amount > 1 ? muted(`×${count(p.amount)}`) : undefined, { gap: 4 }),
   ];
-  if (o.teams && p.team) lines.push(muted(p.team));
+  // A solo board's team is the player: don't say the name twice.
+  if (o.teams && p.team && p.team.trim().toLowerCase() !== who.trim().toLowerCase()) lines.push(muted(p.team));
   let picture: Node | undefined;
   if (p.thumb && o.images) picture = { t: 'img', src: p.thumb, w: THUMB.w, h: THUMB.h, tip: 'Open the full screenshot', ...(view ? { on: view } : {}) };
   else if (view) lines.push(text('View screenshot', 'brand', { on: view, tip: 'Open the screenshot in your browser', icon: { t: 'icon', glyph: 'external', w: 10, h: 10, color: 'brand' }, iconAfter: true }));
