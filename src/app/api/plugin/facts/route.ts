@@ -128,6 +128,11 @@ export async function POST(request: Request) {
     ...overflow,
   ];
 
+  const parts = new Set<number>();
+  for (const [key, list] of Object.entries(cfg as unknown as Record<string, unknown>)) {
+    if (!key.startsWith('tracked') || !Array.isArray(list)) continue;
+    for (const e of list as { tileId?: number; partOf?: number | null }[]) if (e.partOf != null && e.tileId != null) parts.add(e.tileId);
+  }
   const byTile = new Map<number, { ok: boolean; completed: boolean; error?: string }>();
   for (const r of results) {
     const had = byTile.get(r.tileId);
@@ -156,6 +161,8 @@ export async function POST(request: Request) {
       of: c.of,
       ...(c.quiet ? { quiet: true } : {}),
       ...byTile.get(c.tileId),
+      // A combo's part is not a tile of its own: the combo is announced, from the next config.
+      ...(parts.has(c.tileId) ? { completed: false } : {}),
     })),
     notes,
     ...(retry.length ? { retry } : {}),

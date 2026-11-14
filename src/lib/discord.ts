@@ -978,9 +978,10 @@ function formatClearTime(totalSeconds: number): string {
 // Headline for a submission post. Completions get their own line; otherwise the tile kind names
 // what landed. The tile label rides in the title (it used to be a field) so the post reads as a
 // sentence at a glance in a busy channel.
-function submissionTitle(tileType: string | null | undefined, tileLabel: string, completed: boolean): string {
+function submissionTitle(tileType: string | null | undefined, tileLabel: string, completed: boolean, part = false): string {
   const lead = completed
-    ? '✅ Tile complete'
+    // A combo's part (lib/combo) is a piece, not a tile: the combo's own post says "Tile complete".
+    ? part ? '🧩 Combo part done' : '✅ Tile complete'
     : tileType === 'timed' ? '⏱️ Timed clear'
     : tileType === 'kill' ? '⚔️ Kill'
     : tileType === 'lap' ? '🏃 Laps'
@@ -1026,13 +1027,13 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
 
   const who = creditPlayerName ? `**${creditPlayerName}**` : 'Someone';
   const description = completed
-    ? `${who} finished it for **${teamName}**.`
+    ? `${who} ${isPartTile(tile) ? 'did this part' : 'finished it'} for **${teamName}**.`
     : `${who} submitted for **${teamName}**.`;
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName, teamName),
     ...tileThumbnail(tile),
-    title: submissionTitle(tileType, tileLabel, !!completed),
+    title: submissionTitle(tileType, tileLabel, !!completed, isPartTile(tile)),
     description,
     color: teamColorToDecimal(teamColor),
     ...(fields.length ? { fields } : {}),
@@ -1102,9 +1103,9 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName, teamName),
     ...tileThumbnail(tile),
-    title: submissionTitle(tileType, tileLabel, completed),
+    title: submissionTitle(tileType, tileLabel, completed, isPartTile(tile)),
     description: completed
-      ? `${who} finished it for **${teamName}**.`
+      ? `${who} ${isPartTile(tile) ? 'did this part' : 'finished it'} for **${teamName}**.`
       : params.milestonePct
         ? `**${teamName}** is ${params.milestonePct}% of the way there.`
         : `${who} made progress for **${teamName}**.`,
@@ -1707,6 +1708,11 @@ function eventLeaderboardUrl(eventId: number): string | null {
 
 /** A tile as the notifiers receive it: icon facts, plus the id when the caller has the row. */
 type LinkedTile = IconableTile & { id?: number | null };
+
+/** A combo's part (lib/combo): callers hand the tile row, which names its combo. */
+function isPartTile(tile: LinkedTile | null | undefined): boolean {
+  return (tile as { parentTileId?: number | null } | null | undefined)?.parentTileId != null;
+}
 
 // A tile post links to that tile opened on the board (the event page reads ?tile=), not just the board.
 function tileBoardUrl(eventId: number, tile: LinkedTile | null | undefined): string | null {

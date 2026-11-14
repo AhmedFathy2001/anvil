@@ -691,6 +691,12 @@ export async function buildEnrolledConfig(args: {
       })
     : null;
 
+  // A finished combo is "by" whoever finished one of its parts (its own completion has no submission).
+  for (const c of teamCompletions) {
+    const parentId = tileById.get(c.tileId)?.parentTileId;
+    const by = completedByMap.get(c.tileId);
+    if (parentId != null && by && completedTileIdSet.has(parentId)) completedByMap.set(parentId, by);
+  }
   const completedTiles = teamCompletions.map((c) => {
     const tile = tileById.get(c.tileId);
     // A combo PART (lib/combo) reads as a piece of its combo and is worth nothing on its own.
