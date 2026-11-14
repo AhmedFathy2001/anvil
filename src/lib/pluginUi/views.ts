@@ -516,7 +516,7 @@ async function proofsView(request: Request, a: Args): Promise<View> {
   if (!ps || !tileId) return { ui: gap(0) };
   const n = Math.min(PROOFS_MAX, Math.max(PROOFS_STEP, positive(a.n) ?? PROOFS_STEP));
   const [list, tile] = await Promise.all([
-    listTileProofs(ps.event, tileId, ps.viewer, n),
+    listTileProofs(ps.event, tileId, ps.viewer, n, a.mine === '1'),
     // clan-scope: global -- listTileProofs only answers for a tile on this event.
     db.query.tiles.findFirst({ where: eq(tiles.id, tileId), columns: { statType: true, tileType: true } }),
   ]);
@@ -533,7 +533,7 @@ async function proofsView(request: Request, a: Args): Promise<View> {
     canDelete: p.canDelete,
   }));
   const empty = ps.viewer.teamId == null && !list.allTeams ? 'Proofs show for your own team.' : 'No proofs yet.';
-  const ui = proofsUi(rows, { args: a, n, more: list.more, images, unit: tile ? unitFor(tile) : '', teams: list.allTeams }, empty);
+  const ui = proofsUi(rows, { args: a, n, more: list.more, images, unit: tile ? unitFor(tile) : '', teams: list.allTeams, ...(list.allTeams && ps.viewer.teamId != null ? { scope: a.mine === '1' ? 'mine' as const : 'all' as const } : {}) }, empty);
   // An older plugin skips an answer equal to the last one in this slot, even into a new tile's empty
   // slot — so reopening a tile would sit on "Loading proofs…". A plugin that draws images doesn't.
   if (!images && ui.t === 'col') ui.k = `proofs:${tileId}:${Date.now()}`;

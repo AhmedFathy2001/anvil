@@ -33,6 +33,8 @@ export interface ProofsOpts {
   unit: string;
   /** Every team's proofs (staff): name the team on each. */
   teams: boolean;
+  /** Staff with a team of their own: 'mine' = filtered to it, 'all' = every team's. Absent = no filter to offer. */
+  scope?: 'mine' | 'all';
 }
 
 const DELETE_ASK = 'Delete this proof? It stops counting for the team. Reason (optional):';
@@ -67,7 +69,17 @@ function proofRow(p: ProofRow, o: ProofsOpts): Node {
 /** The section: its heading, the rows, and "Show more" while there are older ones. */
 export function proofsUi(rows: ProofRow[], o: ProofsOpts, empty: string): Node {
   // `head`: the race page's own card title ("Your proofs"), white and bold like its other cards.
-  const parts: Node[] = [o.args.head ? text(o.args.head, 'white', { font: 'bold' }) : text('Proofs', 'brand'), gap(2)];
+  // Staff see every team's, so the card says so, with a switch to their own team's.
+  const all = o.teams && o.scope !== 'mine';
+  const head = all ? 'All teams’ proofs' : o.scope === 'mine' ? 'Your team’s proofs' : o.args.head || '';
+  const flip: Node | undefined = o.scope
+    ? text(o.scope === 'mine' ? 'Show all teams' : 'Only my team', 'brand', {
+        font: 'small',
+        tip: o.scope === 'mine' ? 'Show every team’s proofs' : 'Show only your own team’s proofs',
+        on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(PROOFS_STEP), mine: o.scope === 'mine' ? '' : '1' }, into: 'proofs' },
+      })
+    : undefined;
+  const parts: Node[] = [row(undefined, head ? text(head, 'white', { font: 'bold' }) : text('Proofs', 'brand'), flip), gap(2)];
   if (!rows.length) return col([...parts, muted(empty, { wrap: true })]);
   rows.forEach((p, i) => parts.push(...(i ? [gap(4)] : []), proofRow(p, o)));
   if (o.more && o.n < PROOFS_MAX) {

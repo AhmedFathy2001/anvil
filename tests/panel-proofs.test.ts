@@ -116,3 +116,13 @@ test('picture links are signed to the submission AND its image, so a new picture
   assert.match(proofImagePath(4, 'https://media.example/a.webp'), /^\/api\/plugin\/proof-image\/4\?t=1&s=[\w-]{22}$/);
   assert.match(proofImagePath(4, 'https://media.example/a.webp', true), /^\/api\/plugin\/proof-image\/4\?s=[\w-]{22}$/);
 });
+
+test('staff see the card named for every team, with a switch to their own team’s', () => {
+  const o = { args: { ev: '1', tile: '2', head: 'Your proofs' }, n: PROOFS_STEP, more: false, images: true, unit: '', teams: true };
+  const texts = (n: Node) => JSON.stringify(n);
+  const allTeams = texts(proofsUi([], { ...o, scope: 'all' }, 'none'));
+  assert.ok(allTeams.includes('All teams’ proofs') && allTeams.includes('Only my team') && allTeams.includes('"mine":"1"'));
+  const mine = texts(proofsUi([], { ...o, scope: 'mine' }, 'none'));
+  assert.ok(mine.includes('Your team’s proofs') && mine.includes('Show all teams') && mine.includes('"mine":""'));
+  assert.ok(texts(proofsUi([], { ...o, teams: false }, 'none')).includes('Your proofs'), 'a player keeps the plain heading');
+});

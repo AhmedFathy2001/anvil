@@ -63,6 +63,8 @@ export async function listTileProofs(
   tileId: number,
   viewer: ProofViewer,
   limit: number,
+  /** A moderator asking for their own team's only (ignored without a team). */
+  ownOnly = false,
 ): Promise<{ proofs: TileProof[]; more: boolean; allTeams: boolean }> {
   const grant = await viewerGrant(event, viewer.userId);
   const allTeams = isProofModerator(grant);
@@ -82,7 +84,7 @@ export async function listTileProofs(
   }
 
   const where = [inArray(submissions.tileId, found.ids)];
-  if (!allTeams) where.push(eq(submissions.teamId, viewer.teamId!));
+  if (!allTeams || (ownOnly && viewer.teamId != null)) where.push(eq(submissions.teamId, viewer.teamId!));
   const rows = await db
     .select()
     .from(submissions)
