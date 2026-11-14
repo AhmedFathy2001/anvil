@@ -143,7 +143,6 @@ server.on('upgrade', (req, socket, head) => {
     // Nothing comes the other way, except a relay ticket's own chat lines (lib/push/relay).
     const who = scope.relay && !scope.web ? scope.relay : null;
     const relayClient = who ? { userId: scope.userId, who, send: (m: string) => ws.readyState === ws.OPEN && ws.bufferedAmount < SEND_BUFFER_MAX && ws.send(m) } : null;
-    const unrelay = relayClient ? relay.add(relayClient) : null;
     // A bad frame (too big, bad UTF-8) emits 'error'; with no listener Node throws and the server dies.
     ws.on('error', () => ws.terminate());
     ws.on('message', (data) => {
@@ -160,6 +159,10 @@ server.on('upgrade', (req, socket, head) => {
     });
     // Hello first: the views follow, the cached ones straight away. `relay`: this socket may send its lines.
     ws.send(JSON.stringify(relayClient ? { t: 'hello', relay: 1 } : { t: 'hello' }));
+    // Into the relay rooms only AFTER the hello: joining sends this socket who is already there
+    // ({"t":"here"}), and the plugin empties its list on hello, so sent first that list was thrown away
+    // (everyone connected before you read as "disconnected").
+    const unrelay = relayClient ? relay.add(relayClient) : null;
     const remove = hub.add({
       scope,
       send: (m) => ws.readyState === ws.OPEN && ws.bufferedAmount < SEND_BUFFER_MAX && ws.send(m),
