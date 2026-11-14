@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import NumberInput from '@/components/NumberInput';
 import {
@@ -144,15 +144,6 @@ export default function ComboPartsField({
   solo?: boolean;
 }) {
   const [open, setOpen] = useState<string | null>(null);
-  // Collapsing an open part (or opening another) commits it first, so its edits are never dropped.
-  const saveOpen = useRef<(() => void) | null>(null);
-  const openNext = useRef<string | null>(null);
-  const toggle = (key: string) => {
-    if (open && saveOpen.current) {
-      openNext.current = open === key ? null : key;
-      saveOpen.current();
-    } else setOpen(key);
-  };
   const n = rule.n ?? 2;
 
   const update = (key: string, patch: Partial<ComboPartDraft>) => onParts(parts.map((p) => (p.key === key ? { ...p, ...patch } : p)));
@@ -221,7 +212,7 @@ export default function ComboPartsField({
                 <span className="text-[10px] text-text-muted w-4 text-right">{i + 1}</span>
                 <button
                   type="button"
-                  onClick={() => toggle(p.key)}
+                  onClick={() => setOpen(p.key)}
                   className="flex-1 min-w-0 text-left text-xs text-foreground hover:text-gold truncate"
                   aria-expanded={open === p.key}
                 >
@@ -250,10 +241,11 @@ export default function ComboPartsField({
                 )}
                 <button
                   type="button"
-                  onClick={() => toggle(p.key)}
+                  onClick={() => setOpen(open === p.key ? null : p.key)}
                   className="text-[11px] text-gold hover:underline"
+                  title={open === p.key ? 'Close this part without keeping the changes you made to it' : undefined}
                 >
-                  {open === p.key ? 'Close' : 'Edit'}
+                  {open === p.key ? 'Discard changes' : 'Edit'}
                 </button>
                 <button
                   type="button"
@@ -280,11 +272,7 @@ export default function ComboPartsField({
                       onPartDone?.();
                       return saved as unknown as TileConfig;
                     }}
-                    onSaved={() => {
-                      setOpen(openNext.current);
-                      openNext.current = null;
-                    }}
-                    saveRef={saveOpen}
+                    onSaved={() => setOpen(null)}
                   />
                 </div>
               )}

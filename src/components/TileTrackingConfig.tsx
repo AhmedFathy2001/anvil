@@ -96,8 +96,6 @@ interface Props {
   asPart?: boolean;
   /** A combo saved itself after one of its parts was finished — same shape as onSaved, but the editor stays open. */
   onAutoSaved?: Props['onSaved'];
-  /** Part editor only: lets the combo editor commit this part when it is collapsed. */
-  saveRef?: { current: (() => void) | null };
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -731,7 +729,6 @@ function TileTrackingEditor({
   cofferAvailable = null,
   asPart = false,
   onAutoSaved,
-  saveRef,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -1843,13 +1840,6 @@ function TileTrackingEditor({
     void handleSave(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comboParts]);
-  useEffect(() => {
-    if (!saveRef) return;
-    saveRef.current = () => void handleSave();
-    return () => {
-      saveRef.current = null;
-    };
-  });
 
   async function handleSave(quiet = false) {
     const err = validate();
