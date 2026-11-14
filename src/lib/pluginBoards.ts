@@ -27,6 +27,7 @@ import { ttlMemo } from '@/lib/ttlMemo';
 import { visibleClan } from '@/lib/pluginUi/load';
 import { appendBoardTiles } from '@/lib/pluginBoardTiles';
 import { LAB_CLAN_SLUG } from '@/lib/labRules';
+import { worldModeOf } from '@/lib/worldModeRequest';
 
 export { appendBoardTiles, TRACKED_TILE_LISTS } from '@/lib/pluginBoardTiles';
 
@@ -286,4 +287,21 @@ export async function foldOtherBoards(
     summaries.push(summaryOf({ ...b, endDate: b.endDate ?? ev?.endDate ?? null }, (built.body as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board, place));
   }
   body.boards = summaries;
+}
+
+/**
+ * `quiet` on the config: the request came from a game-mode world (lib/worldModes) that none of the
+ * character's live boards count (rules.worldModes). Nothing done there credits a tile, so the plugin
+ * stops matching tiles and holds its tile popups until the next config says otherwise. Absent on the
+ * main game and on a world any board counts, so those answers (and their ETags) are unchanged.
+ */
+export async function markQuietWorld(request: Request, body: Record<string, unknown>): Promise<void> {
+  const mode = worldModeOf(request);
+  if (!mode) return;
+  const listed = body.boards as { eventId: number }[] | undefined;
+  const ids = listed ? listed.map((b) => b.eventId) : [(body.event as { id?: number } | undefined)?.id].filter((x): x is number => typeof x === 'number');
+  if (ids.length === 0) return;
+  // clan-scope: global -- the ids are this character's own live boards, already resolved above.
+  const rows = await db.select({ rules: events.rules }).from(events).where(inArray(events.id, ids));
+  if (!rows.some((r) => parseEventRules(r.rules).worldModes.includes(mode.key))) body.quiet = true;
 }

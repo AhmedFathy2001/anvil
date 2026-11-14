@@ -35,7 +35,7 @@ async function h2hDropIdsFor(character: PlayedCharacter): Promise<number[]> {
 }
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { panelSchedule } from '@/lib/pluginPanel';
-import { foldOtherBoards, summaryOf, wantsAllBoards } from '@/lib/pluginBoards';
+import { foldOtherBoards, markQuietWorld, summaryOf, wantsAllBoards } from '@/lib/pluginBoards';
 import { buildEnrolledConfig, clanPluginSettings, notifyFlags, pluginRollTables } from '@/lib/pluginConfigEnrolled';
 import { normalizeNotifyPrefs, pluginMe } from '@/lib/notifyPrefs';
 import { characterClanDrops, dropHookFilters, characterClanKinds } from '@/lib/notifyDefaults';
@@ -240,6 +240,7 @@ export async function GET(request: Request) {
         if (member) await foldOtherBoards(request, body, { accountId: member.accountId, userId: userOnly.userId, addressedClanId: clan.id, active: null });
         else body.boards = [];
       }
+      await markQuietWorld(request, body);
       return jsonWithEtag(request, withTileCounts(body));
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
@@ -287,6 +288,7 @@ export async function GET(request: Request) {
     );
     await foldOtherBoards(request, body, { accountId: auth.accountId, userId: auth.userId, addressedClanId: clan.id, active });
   }
+  await markQuietWorld(request, built.body as unknown as Record<string, unknown>);
   // `tiles` last: the counts of every board folded in above (lib/pluginTileCounts).
   return jsonWithEtag(request, withTileCounts(built.body));
 }

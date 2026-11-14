@@ -252,3 +252,15 @@ test('a tile opened from a second board shows that team’s count there', async 
   walk(page!.ui);
   assert.ok(texts.some((t) => t.includes('3 / 50')), JSON.stringify(texts));
 });
+
+test('a game-mode world no live board counts makes the config quiet', async () => {
+  const hardcore = { 'X-World-Types': 'HARDCORE_MAIN', 'X-Anvil-Boards': '1' };
+  assert.equal((await config({ 'X-Anvil-Boards': '1' })).quiet, undefined, 'the main game is never quiet');
+  assert.equal((await config(hardcore)).quiet, true);
+  assert.equal((await config({ 'X-World-Types': 'HARDCORE_MAIN' })).quiet, true, 'single-board answer too');
+  // One of the character's other boards counts Hardcore worlds: tracking stays on.
+  await pool.query('UPDATE events SET rules = $1 WHERE id = $2', [JSON.stringify({ worldModes: ['hardcore'] }), ids.bEvent]);
+  assert.equal((await config(hardcore)).quiet, undefined);
+  assert.equal((await config({ 'X-World-Types': 'SEASONAL', 'X-Anvil-Boards': '1' })).quiet, true, 'a mode it does not count');
+  await pool.query('UPDATE events SET rules = NULL WHERE id = $1', [ids.bEvent]);
+});
