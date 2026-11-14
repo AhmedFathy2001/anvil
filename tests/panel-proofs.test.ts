@@ -125,4 +125,7 @@ test('staff see the card named for every team, with a switch to their own teamâ€
   const mine = texts(proofsUi([], { ...o, scope: 'mine' }, 'none'));
   assert.ok(mine.includes('Your teamâ€™s proofs') && mine.includes('Show all teams') && mine.includes('"mine":""'));
   assert.ok(texts(proofsUi([], { ...o, teams: false }, 'none')).includes('Your proofs'), 'a player keeps the plain heading');
+  // On the race's tile page every load keeps that page open, so its Back still leads to the race.
+  const nav = JSON.stringify(proofsUi([], { ...o, args: { ...o.args, nav: 'race' }, scope: 'all' as const }, 'none'));
+  assert.ok(nav.includes('"open":{"into":"race","pane":"t:2"}'));
 });

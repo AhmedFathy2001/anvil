@@ -400,7 +400,7 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
   if (acts.length) out.push(col(acts, { gap: 5 }));
   if (x.o.ctx.eventId > 0) {
     out.push(section([
-      { t: 'slot', id: 'proofs', c: muted('Loading proofs…'), load: { a: 'load', v: 'proofs', args: { ev: String(x.o.ctx.eventId), tile: String(id), head: 'Your proofs' } } },
+      { t: 'slot', id: 'proofs', c: muted('Loading proofs…'), load: { a: 'load', v: 'proofs', args: { ev: String(x.o.ctx.eventId), tile: String(id), head: 'Your proofs', nav: 'race' } } },
       ...(x.o.ctx.boardPath ? [text('Open on the website', GOLD, { font: 'small', on: { a: 'site', path: `${x.o.ctx.boardPath}?tile=${id}` }, tip: 'Open this tile on the Anvil site' })] : []),
     ]));
   }

@@ -71,13 +71,16 @@ function proofRow(p: ProofRow, o: ProofsOpts): Node {
 export function proofsUi(rows: ProofRow[], o: ProofsOpts, empty: string): Node {
   // `head`: the race page's own card title ("Your proofs"), white and bold like its other cards.
   // Staff see every team's, so the card says so, with a switch to their own team's.
+  // On a page of a nav slot (the race's tile page, `nav`): a load forgets which pane is open, and the
+  // page's Back then returns to itself — so each load here names the pane it is on.
+  const keep = o.args.nav ? { open: { into: o.args.nav, pane: `t:${o.args.tile}` } } : {};
   const all = o.teams && o.scope !== 'mine';
   const head = all ? 'All teams’ proofs' : o.scope === 'mine' ? 'Your team’s proofs' : o.args.head || '';
   const flip: Node | undefined = o.scope
     ? text(o.scope === 'mine' ? 'Show all teams' : 'Only my team', 'brand', {
         font: 'small',
         tip: o.scope === 'mine' ? 'Show every team’s proofs' : 'Show only your own team’s proofs',
-        on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(PROOFS_STEP), mine: o.scope === 'mine' ? '' : '1' }, into: 'proofs' },
+        on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(PROOFS_STEP), mine: o.scope === 'mine' ? '' : '1' }, into: 'proofs', ...keep },
       })
     : undefined;
   const parts: Node[] = [row(undefined, head ? text(head, 'white', { font: 'bold' }) : text('Proofs', 'brand'), flip), gap(2)];
@@ -88,7 +91,7 @@ export function proofsUi(rows: ProofRow[], o: ProofsOpts, empty: string): Node {
       t: 'button',
       label: 'Show more',
       tip: 'Show older proofs',
-      on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(Math.min(PROOFS_MAX, o.n + PROOFS_STEP)) }, into: 'proofs' },
+      on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(Math.min(PROOFS_MAX, o.n + PROOFS_STEP)) }, into: 'proofs', ...keep },
     });
   }
   return col(parts);
