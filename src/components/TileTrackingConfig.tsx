@@ -94,6 +94,10 @@ interface Props {
    * no points, tags, missions or advanced options (those are the combo's), and no nested combo.
    */
   asPart?: boolean;
+  /** A combo saved itself after one of its parts was finished — same shape as onSaved, but the editor stays open. */
+  onAutoSaved?: Props['onSaved'];
+  /** Part editor only: lets the combo editor commit this part when it is collapsed. */
+  saveRef?: { current: (() => void) | null };
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -726,6 +730,8 @@ function TileTrackingEditor({
   missionsEnabled = true,
   cofferAvailable = null,
   asPart = false,
+  onAutoSaved,
+  saveRef,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -1829,10 +1835,26 @@ function TileTrackingEditor({
     setBaseline(payloadKey);
   }
 
-  async function handleSave() {
+  // Finishing a part saves the whole combo (parts are only written with it) — quietly, editor left open.
+  const autoSave = useRef(false);
+  useEffect(() => {
+    if (!autoSave.current) return;
+    autoSave.current = false;
+    void handleSave(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comboParts]);
+  useEffect(() => {
+    if (!saveRef) return;
+    saveRef.current = () => void handleSave();
+    return () => {
+      saveRef.current = null;
+    };
+  });
+
+  async function handleSave(quiet = false) {
     const err = validate();
     if (err) {
-      setError(err);
+      if (!quiet) setError(err);
       return;
     }
     setError(null);
@@ -1862,7 +1884,7 @@ function TileTrackingEditor({
         const updated = await res.json();
         setBaseStamp(updated.updatedAt ?? null);
         markTileSaved();
-        onSaved({
+        (quiet ? onAutoSaved : onSaved)?.({
           label: updated.label,
           description: updated.description,
           tileType: updated.tileType,
@@ -1894,7 +1916,10 @@ function TileTrackingEditor({
           parts: Array.isArray(updated.parts) ? updated.parts.map(rowToPartConfig) : null,
           updatedAt: updated.updatedAt ?? null,
         });
-        if (Array.isArray(updated.parts)) setComboParts(draftsFromParts(updated.parts.map(rowToPartConfig)));
+        if (Array.isArray(updated.parts)) {
+          const rows = draftsFromParts(updated.parts.map(rowToPartConfig));
+          setComboParts((prev) => rows.map((r, i) => (prev[i] ? { ...r, key: prev[i].key } : r)));
+        }
       } else {
         const data = await res.json().catch(() => ({}));
         setError(
@@ -2090,6 +2115,7 @@ function TileTrackingEditor({
           onRule={setComboRule}
           parts={comboParts}
           onParts={setComboParts}
+          onPartDone={onSave ? undefined : () => { autoSave.current = true; }}
           base={initial}
           locked={locked}
           eventStarted={eventStarted}
@@ -4145,7 +4171,7 @@ function TileTrackingEditor({
 
       <button
         type="button"
-        onClick={handleSave}
+        onClick={() => handleSave()}
         disabled={saving}
         className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
       >

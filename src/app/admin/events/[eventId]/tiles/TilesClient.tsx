@@ -984,6 +984,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       handleTileConfigSaved(editingTile.id, updated);
       setEditingTileId(null);
     }}
+    onAutoSaved={(updated) => handleTileConfigSaved(editingTile.id, updated)}
         />
   ) : null;
 
@@ -2037,7 +2038,7 @@ interface DrawerProps {
   canDelete?: boolean;
   onClose: () => void;
   onDelete?: () => void;
-  onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  tierBands?: TierBand[];
+  onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  onAutoSaved?: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  tierBands?: TierBand[];
   /** Advisory lock holder (someone else editing right now), for the warning banner. */
   lockHolder?: string | null;
   /** Categories used elsewhere on the board, for the category tag typeahead. */
@@ -2062,7 +2063,7 @@ interface DrawerProps {
   onDuplicate?: () => void;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
   // A blank placeholder before the start is a NEW tile: it opens on the tile creator ("what should
   // players do?") instead of the full editor, which stays one tap away under "More options".
   const creating = !eventStarted && isPlaceholderTile(tile) && !tile.mission && !!onCreated;
@@ -2139,6 +2140,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
                   eventId={eventId}
                   initial={draftToTileConfig(tileToTrackingInitial(tile), draft)}
                   onSaved={onSaved}
+                  onAutoSaved={onAutoSaved}
                   eventStarted={eventStarted}
                   isAdmin={isAdmin}
                   pointsMode={pointsMode}
@@ -2158,6 +2160,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             eventId={eventId}
             initial={tileToTrackingInitial(tile)}
             onSaved={onSaved}
+            onAutoSaved={onAutoSaved}
             eventStarted={eventStarted}
             isAdmin={isAdmin}
             pointsMode={pointsMode}
