@@ -1,8 +1,8 @@
 # The shared deployment: one Site container for every clan, and the Postgres behind it.
 #
 # Merge into /opt/anvil/docker-compose.yml (or run with `-f`). It deliberately does NOT define caddy
-# or anvil-admin — those already exist there and this must not restate them, or a `compose up` would
-# recreate the control plane as a side effect of deploying the site.
+# — it already exists there and this must not restate it, or a `compose up` would recreate the proxy
+# as a side effect of deploying the site.
 #
 # WHAT REPLACES WHAT. Every `clan-<slug>` container goes away. There is no per-clan container, no
 # per-clan volume, and no per-clan env file: a clan is a row, resolved from the Host header on each

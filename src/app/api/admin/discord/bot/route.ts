@@ -58,8 +58,8 @@ function buildInviteUrl(clientId: string, guildId: string): string {
     params.set('disable_guild_select', 'true');
   }
   // URLSearchParams renders the space in `bot applications.commands` as `+`. Percent-encode it back:
-  // `%20` is what Discord's own generator emits, and it's the form the onboarding wizard's invite
-  // (Anvil.Admin lib/onboardOAuth) already settled on. Nothing else here can contain a literal `+`
+  // `%20` is what Discord's own generator emits, and it's the form already pasted around
+  // in existing invites. Nothing else here can contain a literal `+`
   // (an id, a permissions bitfield, a boolean), so the blanket replace is safe.
   return `https://discord.com/oauth2/authorize?${params.toString().replace(/\+/g, '%20')}`;
 }

@@ -1,6 +1,6 @@
 import { SITE } from '@/lib/site';
 
-// Forge-themed transactional email layout, ported from Anvil.Admin with its email (lib/mailer). One renderer for every customer email so branding stays
+// Forge-themed transactional email layout, used with lib/mailer. One renderer for every customer email so branding stays
 // consistent. Email HTML is not web HTML: table-based layout, inline styles only, no external CSS/JS,
 // and a plain-text alternative. Colors are hard-coded here (email clients don't read our CSS vars) but
 // mirror the "forge" palette used across the marketing pages. Dark by default with a light-mode hint;
