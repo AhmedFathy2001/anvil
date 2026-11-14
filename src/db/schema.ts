@@ -673,6 +673,8 @@ export const events = pgTable('events', {
   // "Keep adding new plugin members": autoEnrollActivePluginMembers' placement, re-run by the cron
   // until the event starts (lib/enroll autoEnrollTick). Null = off. 0259.
   autoEnroll: text('auto_enroll'),
+  // The host's "also after the event starts" for the above: the cron keeps adding until the END. 0261.
+  autoEnrollLate: boolean('auto_enroll_late').notNull().default(false),
   // Grace cutoff for paying the fee. While unpassed, players may keep editing their
   // sign-up answers (and pay) even after signupDeadline / event start. Null = no grace;
   // editing then follows the normal sign-up window. See lib/signup.ts signupEditState.

@@ -25,13 +25,17 @@ export default function WhoGetsAddedPanel({
 }) {
   const [signups, setSignups] = useState(initialSignups);
   const [keep, setKeep] = useState<boolean | null>(null);
+  const [late, setLate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     void clanFetch(`/api/admin/events/${eventId}/auto-enroll`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setKeep(!!d?.keep))
+      .then((d) => {
+        setKeep(!!d?.keep);
+        setLate(!!d?.late);
+      })
       .catch(() => setKeep(false));
   }, [eventId]);
 
@@ -63,12 +67,21 @@ export default function WhoGetsAddedPanel({
         />
         <Checkbox
           checked={!!keep}
-          disabled={busy || keep === null || started}
+          disabled={busy || keep === null || (started && !late && !keep)}
           onChange={async (on) => {
             if (await call(`/api/admin/events/${eventId}/auto-enroll`, 'POST', on ? { placement, keep: true } : { keep: false })) setKeep(on);
           }}
           label="Keep adding clan members as they get the plugin"
           description={`Turning it on adds everyone eligible now. Until the event starts, anyone in the clan who installs the plugin or links their character (including people who join the clan later) is added too, ${placement === 'individual' ? 'each on their own team' : 'into the draft pool'}. Members only, never guests, and within the characters-per-person limit.`}
+        />
+        <Checkbox
+          checked={late}
+          disabled={busy || keep === null}
+          onChange={async (on) => {
+            if (await call(`/api/admin/events/${eventId}/auto-enroll`, 'POST', { late: on })) setLate(on);
+          }}
+          label="Also after the event starts"
+          description="Keep adding them while the event runs, until it ends. A late joiner starts from their stats at the moment they are added. Off: adding stops at the start."
         />
         {msg && <p className={`text-[12px] ${msg === 'Saved.' ? 'text-accent-green-light' : 'text-red-400'}`}>{msg}</p>}
       </div>

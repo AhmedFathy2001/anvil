@@ -32,12 +32,13 @@ export async function GET(
   }
   const [eligible, ev] = await Promise.all([
     listEligiblePluginMembers(id).then((list) => withinAccountCap(id, list)),
-    db.query.events.findFirst({ where: eq(events.id, id), columns: { autoEnroll: true } }),
+    db.query.events.findFirst({ where: eq(events.id, id), columns: { autoEnroll: true, autoEnrollLate: true } }),
   ]);
   return NextResponse.json({
     eligible: eligible.length,
     notEnrolled: eligible.filter((m) => m.enrolledPlayerId == null).length,
     keep: ev?.autoEnroll ?? null,
+    late: !!ev?.autoEnrollLate,
   });
 }
 
@@ -67,7 +68,12 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => null)) as { placement?: string; keep?: boolean } | null;
+  const body = (await request.json().catch(() => null)) as { placement?: string; keep?: boolean; late?: boolean } | null;
+  // "Also after the event starts": only the switch (the cron reads it), nobody is added by this call.
+  if (typeof body?.late === 'boolean') {
+    await db.update(events).set({ autoEnrollLate: body.late }).where(eq(events.id, id));
+    if (!body.placement && body.keep === undefined) return NextResponse.json({ late: body.late });
+  }
   // "Keep adding new plugin members" (lib/enroll autoEnrollTick): just the switch, or with a run.
   if (body?.keep === false) {
     await db.update(events).set({ autoEnroll: null }).where(eq(events.id, id));

@@ -1387,6 +1387,13 @@
       "when": 1794540131870,
       "tag": "0260_space_slug_namespace",
       "breakpoints": true
+    },
+    {
+      "idx": 261,
+      "version": "7",
+      "when": 1794540191870,
+      "tag": "0261_auto_enroll_late",
+      "breakpoints": true
     }
   ]
 }

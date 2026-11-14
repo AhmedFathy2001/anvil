@@ -558,21 +558,25 @@ async function findOrCreateTeam(
  * The cron's half of "Keep adding new plugin members" (events.auto_enroll): every board with it on that
  * hasn't started re-runs Add them all with the saved placement, so a member who installs the plugin or
  * links their character joins on the next tick. Members only (eligibleWhere), never guests; each one
- * gets the same approved sign-up and fee row as a hand-added player. Stops at the start: once a board
- * is running, late joiners are the host's call.
+ * gets the same approved sign-up and fee row as a hand-added player. Stops at the start, unless the
+ * host switched on "also after the event starts" (events.auto_enroll_late): then it runs until the
+ * END, each late joiner's starting stats taken as they are added (upsertPlayers).
  */
 export async function autoEnrollTick(now = new Date()): Promise<number> {
   // clan-scope: global -- the cron walks every board that switched it on; each run is keyed by its own event id.
   const rows = await db
-    .select({ id: events.id, autoEnroll: events.autoEnroll, startDate: events.startDate, draftStatus: events.draftStatus, slot: events.accountSlotMode })
+    .select({ id: events.id, autoEnroll: events.autoEnroll, late: events.autoEnrollLate, startDate: events.startDate, endDate: events.endDate, draftStatus: events.draftStatus, slot: events.accountSlotMode })
     .from(events)
     .where(isNotNull(events.autoEnroll));
   let added = 0;
   for (const e of rows) {
     const placement = e.autoEnroll as EnrollPlacement;
     if (!['draft_pool', 'one_team', 'individual'].includes(placement)) continue;
-    const starts = e.startDate ? Date.parse(e.startDate.includes('T') ? e.startDate : `${e.startDate.replace(' ', 'T')}Z`) : NaN;
-    if (Number.isFinite(starts) && starts <= now.getTime()) continue;
+    const at = (d: string | null) => (d ? Date.parse(d.includes('T') ? d : `${d.replace(' ', 'T')}Z`) : NaN);
+    const starts = at(e.startDate);
+    const ends = at(e.endDate);
+    if (Number.isFinite(starts) && starts <= now.getTime() && !e.late) continue;
+    if (Number.isFinite(ends) && ends <= now.getTime()) continue;
     if (e.draftStatus === 'active' || e.draftStatus === 'paused') continue;
     if (placement !== 'draft_pool' && e.draftStatus !== 'none') continue;
     const eligible = await withinAccountCap(e.id, await listEligiblePluginMembers(e.id));

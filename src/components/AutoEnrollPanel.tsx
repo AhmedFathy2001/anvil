@@ -32,7 +32,7 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
   // Teams tab lets the host go Back and pick another format, which re-pins this panel without
   // remounting it, and a copied initial value kept enrolling under the format they'd left.
   const placement = fixedPlacement ?? chosenPlacement;
-  const [counts, setCounts] = useState<{ eligible: number; notEnrolled: number; keep?: string | null } | null>(null);
+  const [counts, setCounts] = useState<{ eligible: number; notEnrolled: number; keep?: string | null; late?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -98,6 +98,24 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
       }
       await loadCounts();
       if (on) await onEnrolled();
+    } catch {
+      setErr('Network error.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setLate(on: boolean) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await clanFetch(`/api/admin/events/${eventId}/auto-enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ late: on }),
+      });
+      if (!res.ok) setErr('Could not save.');
+      await loadCounts();
     } catch {
       setErr('Network error.');
     } finally {
@@ -183,6 +201,16 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
         label="Keep adding members as they get the plugin"
         description="Until the event starts, anyone in the clan who installs the plugin or links their character is added the same way. Members only, never guests."
       />
+
+      {!!counts?.keep && (
+        <Checkbox
+          checked={!!counts.late}
+          disabled={busy}
+          onChange={(on) => void setLate(on)}
+          label="Also after the event starts"
+          description="Keep adding them while the event runs, until it ends. A late joiner starts from their stats at the moment they are added."
+        />
+      )}
 
       {result && <p className="text-xs text-accent-green-light">Enrolled: {result}</p>}
       {err && <p className="text-xs text-red-400">{err}</p>}
