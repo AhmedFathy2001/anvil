@@ -137,13 +137,16 @@ export async function POST(request: Request) {
     if (verdict.kind === 'generic') {
       // Posted as it stands, and queued so staff can give it a proper pattern.
       await recordSample(mode, line, true);
-      events.push({ kind: 'modeMilestone', title: verdict.title });
+      events.push({ kind: 'modeOther', title: verdict.title });
     } else {
       events.push({ kind: verdict.kind, title: verdict.title });
     }
   }
 
   const fresh = events.filter((e) => !seenRecently(`${member.userId}:${e.title}`, now)).slice(0, MAX_POSTS);
+  // The catch-all switched off in the member's own clan keeps those lines out of the feed and chat too.
+  const quietOther = fresh.some((e) => e.kind === 'modeOther') && (await getModeRouting(member.clanId, mode.key, null)).kindsOff.has('modeOther');
+  const shown = quietOther ? fresh.filter((e) => e.kind !== 'modeOther') : fresh;
   if (fresh.length === 0 && levelUps.length === 0 && quests.length === 0) return NextResponse.json({ ok: true, posted: 0 });
   const levelPrefs = levelUps.length ? await getMemberLevelPrefs(member.userId) : null;
 
@@ -156,14 +159,14 @@ export async function POST(request: Request) {
     ? levelUps.filter((lv) => levelPostMatches({ type: 'skill', level: lv.level }, feedRules))
     : [];
   const stored = await recordModeLineMoments(member, mode, [
-    ...fresh.filter((e) => e.kind !== 'modeTaskMinor').map((e) => ({ kind: 'mode' as const, title: e.title, sourceKind: e.kind })),
+    ...shown.filter((e) => e.kind !== 'modeTaskMinor').map((e) => ({ kind: 'mode' as const, title: e.title, sourceKind: e.kind })),
     ...feedLevels.map((lv) => ({ kind: 'level' as const, title: `Reached level ${lv.level} ${lv.skill}`, itemName: lv.skill, quantity: lv.level, sourceKind: 'skill' })),
     ...quests.map((q) => ({ kind: 'quest' as const, title: `Quest complete: ${q}`, itemName: q })),
   ]);
   if (stored.length) await emitMomentRows(member.clanId, 'member', stored);
 
   // Other players' in-game chat (lib/chatFeed), the minor tasks aside — a league has hundreds.
-  for (const e of fresh) {
+  for (const e of shown) {
     if (e.kind === 'modeTaskMinor') continue;
     void emitPersonalItem(
       { accountId: member.accountId, userId: member.userId },

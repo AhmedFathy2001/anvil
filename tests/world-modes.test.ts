@@ -186,3 +186,11 @@ test('a board counts only the game modes it names', async () => {
   assert.equal(worldModeIgnored(onLeagues, ['deadman'])?.status, 202, 'another mode: ignored');
   assert.equal(worldModeIgnored(new Request('http://x'), []), null, 'the main game always counts');
 });
+
+test('every mode offers the catch-all switch, Hardcore included', async () => {
+  const { modeEventKinds } = await import('../src/lib/worldModes.ts');
+  const { MODE_EVENT_KIND_IDS } = await import('../src/lib/modeLines.ts');
+  assert.deepEqual(modeEventKinds('hardcore').map((k) => k.id), ['modeOther']);
+  assert.ok(modeEventKinds('leagues').some((k) => k.id === 'modeOther'));
+  assert.ok(MODE_EVENT_KIND_IDS.has('modeOther'), 'the clan can save it switched off');
+});

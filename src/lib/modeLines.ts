@@ -29,6 +29,8 @@ export const MODE_EVENT_KINDS = [
   { id: 'modeTask', label: 'Tasks (hard and up)' },
   { id: 'modeTaskMinor', label: 'Tasks (easy and medium)' },
   { id: 'modeMilestone', label: 'Other unlocks and milestones' },
+  // The generic shape (classifyLine step 3): a line no pattern knows, posted as the game wrote it.
+  { id: 'modeOther', label: 'Anything else the game congratulates (catch-all)' },
 ] as const;
 export type ModeEventKind = (typeof MODE_EVENT_KINDS)[number]['id'];
 export const MODE_EVENT_KIND_IDS: ReadonlySet<string> = new Set(MODE_EVENT_KINDS.map((k) => k.id));

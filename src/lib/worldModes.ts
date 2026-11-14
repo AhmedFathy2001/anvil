@@ -56,7 +56,11 @@ const LEAGUE_EVENTS: Readonly<Record<string, string>> = {
 /** The event kinds a mode's settings offer, with the mode's own names; a mode we don't know gets the league set. */
 export function modeEventKinds(key: string): { id: string; label: string }[] {
   const def = WORLD_MODES.find((m) => m.key === key);
-  return Object.entries(def ? (def.events ?? {}) : LEAGUE_EVENTS).map(([id, label]) => ({ id, label }));
+  // Every mode has the catch-all: a line no pattern knows still posts unless the clan switches it off.
+  return [
+    ...Object.entries(def ? (def.events ?? {}) : LEAGUE_EVENTS).map(([id, label]) => ({ id, label })),
+    { id: 'modeOther', label: 'Anything else the game congratulates (catch-all)' },
+  ];
 }
 
 /** Order matters: the first match wins, so the more specific entries come first. */
