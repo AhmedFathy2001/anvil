@@ -9,6 +9,7 @@ import type { FlowView } from '@/lib/guidedFlow';
 import { clanlessStartFlow, memberStartFlow } from '@/lib/guidedFlows/memberStart';
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { onboardingState } from '@/lib/onboarding';
+import { runningXpCheck } from '@/lib/xpCheckRead';
 
 /**
  * Has a proof of theirs ever landed on a board? The member-onboarding funnel's own definition
@@ -42,7 +43,7 @@ export async function memberStartGuide(
 ): Promise<FlowView | null> {
   try {
     if (await hasAnyProof(playerId)) return null;
-    const [state, involvements] = await Promise.all([onboardingState(userId, playerId), countLiveTeamInvolvements(userId)]);
+    const [state, involvements, xpCheck] = await Promise.all([onboardingState(userId, playerId), countLiveTeamInvolvements(userId), runningXpCheck(userId)]);
     const done = (key: string) => state.steps.find((s) => s.key === key)?.done === true;
     const view = memberStartFlow({
       inClan: done('clan') || opts.insider === true,
@@ -50,6 +51,7 @@ export async function memberStartGuide(
       hasCharacter: done('character'),
       inEvent: involvements > 0,
       hasProof: false,
+      xpCheck,
       eventsHref: opts.eventsHref,
       teamHref: opts.teamHref,
     });
@@ -63,14 +65,16 @@ export async function memberStartGuide(
 /** The strip for somebody in no clan. `openEvents` is the public feed their home page already loaded (null: not loaded here). */
 export async function clanlessStartGuide(userId: number, playerId: number | null, openEvents: number | null): Promise<FlowView | null> {
   try {
-    const [state, involvements, proof] = await Promise.all([
+    const [state, involvements, proof, xpCheck] = await Promise.all([
       onboardingState(userId, playerId),
       countLiveTeamInvolvements(userId),
       hasAnyProof(playerId),
+      runningXpCheck(userId),
     ]);
     const step = (key: string) => state.steps.find((s) => s.key === key);
     const view = clanlessStartFlow({
       hasCharacter: step('character')?.done === true,
+      xpCheck,
       inClan: step('clan')?.done === true,
       clanSkipped: step('clan')?.skipped === true,
       intent: state.intent,

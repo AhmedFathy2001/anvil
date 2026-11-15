@@ -7,6 +7,7 @@
 //
 // Pure (no `@/` imports): tests/guided-flows.test.ts runs it directly.
 
+import { xpCheckLine, type PendingXpCheck } from '../xpCheck.ts';
 import { buildFlow, type FlowStepCopy, type FlowStepDef, type FlowView } from '../guidedFlow.ts';
 
 export const MEMBER_START_NAME = 'Getting started';
@@ -26,6 +27,8 @@ export interface MemberStartFacts {
   inEvent: boolean;
   /** A proof of theirs has landed on a board, by the plugin or by hand. */
   hasProof: boolean;
+  /** A character's XP check is running (lib/xpCheck): the character step says so. */
+  xpCheck?: Pick<PendingXpCheck, 'rsn' | 'minutesLeft'> | null;
   /**
    * Where this clan's events and their team page are, when the strip is drawn outside the clan (the
    * platform home): there the bare paths belong to no clan. Inside a clan the defaults are right.
@@ -77,9 +80,10 @@ export function memberStartFlow(f: MemberStartFacts): FlowView {
       case 'character':
         return {
           title: 'Link your character',
-          sentence:
-            'Log in to the game with the plugin signed in and your character links itself; if it does not show up, add it by hand with Verify by XP.',
-          action: { kind: 'link', label: 'Link a character', ...LINK_CHARACTER },
+          sentence: f.xpCheck
+            ? `${xpCheckLine(f.xpCheck)} Open it to finish.`
+            : 'Log in to the game with the plugin signed in and your character links itself; if it does not show up, add it by hand with Verify by XP.',
+          action: { kind: 'link', label: f.xpCheck ? 'Open the check' : 'Link a character', ...LINK_CHARACTER },
           guideHref: '/guide/plugin#accounts',
         };
       case 'join':
@@ -106,6 +110,8 @@ export function memberStartFlow(f: MemberStartFacts): FlowView {
 
 export interface ClanlessStartFacts {
   hasCharacter: boolean;
+  /** A character's XP check is running (lib/xpCheck): the character step says so. */
+  xpCheck?: Pick<PendingXpCheck, 'rsn' | 'minutesLeft'> | null;
   /** Holds a member seat in a clan. */
   inClan: boolean;
   /** They said they are here on their own, or passed on the clan step (lib/onboarding). */
@@ -132,9 +138,10 @@ export function clanlessStartFlow(f: ClanlessStartFacts): FlowView {
       case 'character':
         return {
           title: 'Link your character',
-          sentence:
-            'Link the character you play and Anvil tracks its XP, kills and collection log from then on; it stays yours in every clan you join, with no clan needed.',
-          action: { kind: 'link', label: 'Link a character', ...LINK_CHARACTER },
+          sentence: f.xpCheck
+            ? `${xpCheckLine(f.xpCheck)} Open it to finish.`
+            : 'Link the character you play and Anvil tracks its XP, kills and collection log from then on; it stays yours in every clan you join, with no clan needed.',
+          action: { kind: 'link', label: f.xpCheck ? 'Open the check' : 'Link a character', ...LINK_CHARACTER },
           guideHref: '/guide/plugin#accounts',
         };
       case 'clan':
