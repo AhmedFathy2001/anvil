@@ -640,6 +640,24 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                 ? `Last announced ${new Date(announcedAt).toLocaleString()}. Auto-posts when every payout is paid.`
                 : `Auto-posts to the bingo channel once every payout is marked paid — or send it now (${paidCount} paid).`}
             </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div
+                role="progressbar"
+                aria-label="Payouts paid"
+                aria-valuemin={0}
+                aria-valuemax={payouts.length}
+                aria-valuenow={paidCount}
+                className="h-1.5 w-40 overflow-hidden rounded-full bg-brown-dark"
+              >
+                <div
+                  className="h-full rounded-full bg-accent-green"
+                  style={{ width: `${payouts.length ? Math.round((paidCount / payouts.length) * 100) : 0}%` }}
+                />
+              </div>
+              <span className="text-xs text-text-muted">
+                {paidCount} of {payouts.length} paid
+              </span>
+            </div>
           </div>
           <button
             onClick={announce}
