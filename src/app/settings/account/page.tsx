@@ -4,13 +4,14 @@ import { LoginGroups } from '../_parts/account';
 import { PlanGroups } from '../_parts/supporter';
 import { StreamingGroups } from '../_parts/connections';
 import { PrivacyGroups } from '../_parts/privacy';
+import { DataGroups } from '../_parts/data';
 import { PartJumps, SettingsPart, SettingsTitle } from '../_ui';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Account: your plan, signing in (devices, sessions, clan billing), the streaming accounts you linked, and who
- * sees your characters. Was Login & devices, Streaming accounts and Who sees my characters.
+ * Account: your plan, signing in (devices, sessions, clan billing), the streaming accounts you linked, who
+ * sees your characters, and at the bottom your data (download it, or delete the account). Was Login & devices, Streaming accounts and Who sees my characters.
  */
 export default function AccountSettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   return (
@@ -22,6 +23,7 @@ export default function AccountSettingsPage({ searchParams }: { searchParams: Pr
           { id: 'login', label: 'Login & devices' },
           { id: 'streaming', label: 'Streaming accounts' },
           { id: 'privacy', label: 'Who sees my characters' },
+          { id: 'your-data', label: 'Your data' },
         ]}
       />
 
@@ -56,6 +58,13 @@ export default function AccountSettingsPage({ searchParams }: { searchParams: Pr
       >
         <PrivacyGroups />
       </SettingsPart>
+
+      {/* Last, and apart from everything above: the two things that are about the whole account. */}
+      <div className="mt-10 border-t border-card-border pt-8">
+        <SettingsPart id="your-data" title="Your data" intro="Take a copy of everything Anvil holds about you, or delete your account.">
+          <DataGroups />
+        </SettingsPart>
+      </div>
     </>
   );
 }
