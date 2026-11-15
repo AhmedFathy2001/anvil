@@ -167,6 +167,9 @@ interface Props {
   solo?: boolean;
   /** The viewer's own teams on this board (one per account of theirs entered). */
   myTeamIds?: number[];
+  /** The viewer's own team in this event (any board shape), for the tile dialog's "Submit proof" hand-off. */
+  proofTeamId?: number | null;
+  signedIn?: boolean;
   /**
    * A board of many teams of any size (lib/standingsWindow isManyTeams): the same cut list as `solo`,
    * worded as teams. `teamMembers` carries each team's member names for the row count and the search.
@@ -207,7 +210,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], proofTeamId = null, signedIn = false, manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -660,6 +663,14 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     return () => clearInterval(t);
   }, [isRace]);
 
+  // Proof is filed on the team page (the one copy of the form); from here we point at it. Nothing to
+  // offer once the event is over, and a plain reason when the viewer has no team to file for.
+  const submitProof = (tileId: number): { href: string } | { reason: string } | null => {
+    if (finished) return null;
+    if (proofTeamId != null) return { href: `/team/${proofTeamId}?tile=${tileId}` };
+    return { reason: signedIn ? 'You can submit proof once you are on a team in this event.' : 'Sign in to submit proof for your team.' };
+  };
+
   const tileModal = selectedTile ? (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
@@ -695,6 +706,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           }
           pointsMode={pointsMode}
           highlights={tileHighlights?.[selectedTile.id]}
+          submitProof={submitProof(selectedTile.id)}
         />
   ) : null;
 

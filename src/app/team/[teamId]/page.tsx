@@ -40,11 +40,11 @@ export default async function MyTeamPage({
   searchParams,
 }: {
   params: Promise<{ teamId: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; tile?: string }>;
 }) {
   const clan = await requireClan();
   const { teamId } = await params;
-  const { from } = await searchParams;
+  const { from, tile: tileParam } = await searchParams;
   const tId = idParam(teamId);
 
   const user = await verifyUser();
@@ -214,6 +214,7 @@ export default async function MyTeamPage({
         </ClanLink>
       </div>
       <MyTeamClient
+        initialTileId={Number.isInteger(Number(tileParam)) && Number(tileParam) > 0 ? Number(tileParam) : null}
         event={clientEvent(event)}
         team={safeTeam}
         tiles={withSearchText(nestParts(eventTiles))}

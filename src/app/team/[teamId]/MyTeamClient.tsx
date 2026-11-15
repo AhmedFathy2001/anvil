@@ -30,6 +30,8 @@ import { completionMarkers } from '@/lib/tileClaimsView';
 import { prefetchTileDialog } from '@/lib/tileData';
 
 interface Props {
+  /** `?tile=` on the link: open this tile's dialog (the board's "Submit proof" button lands here). */
+  initialTileId?: number | null;
   event: Event;
   team: Team;
   tiles: Tile[];
@@ -70,12 +72,13 @@ export default function MyTeamClient({
   tierBands = DEFAULT_TIER_BANDS,
   boardHidden = false,
   tools = null,
+  initialTileId = null,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
-  const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [selectedTileId, setSelectedTileId] = useState<number | null>(() => (initialTileId != null && tiles.some((t) => t.id === initialTileId) ? initialTileId : null));
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(initialTeam.name);
   const [newColor, setNewColor] = useState(initialTeam.color);
