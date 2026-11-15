@@ -5,6 +5,7 @@ import ClanMemberPicker, { type PickableMember } from './ClanMemberPicker';
 import Input from '@/components/Input';
 import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
+import DialogFrame from '@/components/DialogFrame';
 
 const PRESET_COLORS = [
   '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71',
@@ -99,17 +100,21 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="bg-card-bg border border-card-border rounded-xl w-full max-w-lg max-h-[85vh] overflow-y-auto m-4 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <DialogFrame
+      dirty={dirty}
+      onClose={onClose}
+      ariaLabel={isEdit ? `Edit ${team.name}` : 'Add Team'}
+      overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      panelClassName="bg-card-bg border border-card-border rounded-xl w-full max-w-lg max-h-[85vh] overflow-y-auto m-4 shadow-xl"
+    >
+      {(requestClose) => (
+      <>
         <div className="sticky top-0 bg-card-bg border-b border-card-border p-4 flex items-center justify-between z-10">
           <h2 className="text-lg font-bold text-gold flex items-center gap-2">
             <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: color }} />
             {isEdit ? `Edit ${team.name}` : 'Add Team'}
           </h2>
-          <button onClick={onClose} className="text-text-muted hover:text-foreground transition-colors text-lg leading-none">
+          <button onClick={requestClose} aria-label="Close" className="text-text-muted hover:text-foreground transition-colors text-lg leading-none">
             &times;
           </button>
         </div>
@@ -213,7 +218,7 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="flex-1 border border-card-border text-text-muted hover:text-foreground font-medium px-4 py-2.5 rounded-lg transition-colors"
             >
               Cancel
@@ -228,7 +233,8 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
             <UnsavedIndicator dirty={dirty} />
           </div>
         </form>
-      </div>
-    </div>
+      </>
+      )}
+    </DialogFrame>
   );
 }

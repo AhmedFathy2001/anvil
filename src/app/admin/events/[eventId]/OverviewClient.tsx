@@ -476,11 +476,11 @@ function BuildHome({
         counts.teamCount === 0
           ? 'No teams yet'
           : counts.assignedPlayers === 0
-            ? `${counts.teamCount} teams, nobody assigned`
-            : `${counts.teamCount} teams · ${counts.assignedPlayers} players`,
+            ? `${counts.teamCount} ${counts.teamCount === 1 ? 'team' : 'teams'}, nobody assigned`
+            : `${counts.teamCount} ${counts.teamCount === 1 ? 'team' : 'teams'} · ${counts.assignedPlayers} ${counts.assignedPlayers === 1 ? 'player' : 'players'}`,
       detail: blocked ? capitalise(counts.blockers[0]) : 'Draft them, or assign straight from the roster.',
       href: `${base}/teams`,
-      action: counts.teamCount === 0 ? 'Set up teams' : 'Open draft',
+      action: counts.teamCount === 0 ? 'Set up teams' : event.draftStatus && event.draftStatus !== 'none' ? 'Open draft' : 'Open teams',
       blocking: blocked,
     },
     {

@@ -11,6 +11,8 @@ export interface ActionItem {
   onClick: () => void;
   variant?: 'default' | 'gold' | 'danger';
   disabled?: boolean;
+  /** Why it is disabled, shown under the item (a tooltip on a disabled button is never seen). */
+  disabledReason?: string;
   title?: string;
 }
 
@@ -152,6 +154,9 @@ export default function ActionMenu({
               >
                 {it.label}
               </button>
+              {it.disabled && it.disabledReason && (
+                <p className="px-3 pb-1.5 -mt-0.5 text-[11px] leading-snug text-text-muted">{it.disabledReason}</p>
+              )}
               </div>
             ))}
           </div>,

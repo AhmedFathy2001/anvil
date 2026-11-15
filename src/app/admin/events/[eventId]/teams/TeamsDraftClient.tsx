@@ -141,7 +141,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     // A ladder event is individual-primary by design — default a fresh one to one-team-each (the
     // admin can still switch to real teams). Other formats ask on the first screen.
     if (eventAxes(event).competitors === 'individuals') return 'individual';
-    return null; // fresh event — ask
+    // The host already chose "Host drafts" when they made the event: don't ask again. "Change"
+    // below still offers building rosters directly, a solo board or one shared team.
+    if (placement === 'draft' && event.teamFormation !== 'per_clan') return 'draft';
+    return null; // clan-v-clan boards and the like — ask
   })();
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);
   const formatStorageKey = `draft-format-${event.id}`;
@@ -886,7 +889,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             : placement === 'auto'
               ? `Players join the team with the fewest players when they sign up${event.teamCount ? `, across ${event.teamCount} teams` : ''}. You can still move people by hand.`
               : 'Players choose one of your teams when they sign up. Create the teams here first.'}{' '}
-          Change it on the Sign-ups tab.
+          <ClanLink href={`/admin/events/${event.id}/signups`} className="text-gold hover:underline">
+            Change team placement
+          </ClanLink>
         </p>
       )}
       {/* Format-first: nothing else renders until the admin picks how teams work. Non-draft picks
@@ -895,11 +900,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         <div className="!mt-0">
           <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            How should teams work?
+            Team placement
           </h2>
           <p className="text-xs text-text-muted mb-2">
-            Pick a format first — it decides the rest of the setup. You can change your mind any time
-            before a draft starts.
+            Pick how players end up on teams first — it decides the rest of the setup. You can change
+            your mind any time before a draft starts.
           </p>
           <p className="mb-4 flex flex-wrap gap-x-4">
             <GuideLink href="/guide/captain#draft">How a draft runs</GuideLink>
@@ -911,7 +916,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               onClick={() => chooseFormat('draft')}
               className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
             >
-              <div className="text-sm font-bold mb-1">Draft into teams</div>
+              <div className="text-sm font-bold mb-1">Host drafts</div>
               <p className="text-xs text-text-muted leading-relaxed">
                 The classic team bingo: create teams, fill a player pool, then captains take turns
                 picking. Best for balanced competitive boards.
@@ -922,7 +927,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               onClick={() => chooseFormat('preassigned')}
               className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
             >
-              <div className="text-sm font-bold mb-1">Build rosters directly</div>
+              <div className="text-sm font-bold mb-1">Host builds the rosters</div>
               <p className="text-xs text-text-muted leading-relaxed">
                 Create the teams and place people straight onto them. Best for clan-v-clan or any
                 event whose sides are already decided — no draft order or picking round.
@@ -933,7 +938,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               onClick={() => chooseFormat('individual')}
               className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
             >
-              <div className="text-sm font-bold mb-1">One team each</div>
+              <div className="text-sm font-bold mb-1">Solo: one team each</div>
               <p className="text-xs text-text-muted leading-relaxed">
                 Every player races on their own — a solo leaderboard. No team setup, no draft: enroll
                 players and each gets their own team automatically.
@@ -1007,15 +1012,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         <p className="text-sm text-text-muted mt-3">
           <span className="text-foreground/80 font-medium">Next:</span> {nextHint}
         </p>
+        {/* When the host's team placement already says how teams work, the note above says it:
+            this line is only for the choices placement can't express. */}
+        {(placement === 'draft' || event.draftStatus !== 'none') && (
         <p className="text-xs text-text-muted mt-2">
-          Format:{' '}
+          Team placement:{' '}
           <span className="text-foreground/80">
             {format === 'draft'
-              ? 'Draft into teams'
+              ? 'Host drafts'
               : format === 'preassigned'
-                ? 'Pre-assigned teams'
+                ? 'Host builds the rosters'
                 : format === 'individual'
-                  ? 'One team each'
+                  ? 'Solo: one team each'
                   : 'One shared team'}
           </span>
           {draft.status === 'none' && (
@@ -1027,6 +1035,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             </>
           )}
         </p>
+        )}
       </div>
 
       {/* Plain-language model — open by default until the first team exists, then out of the way.

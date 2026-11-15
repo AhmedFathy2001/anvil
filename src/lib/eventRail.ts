@@ -43,7 +43,8 @@ export function eventRailGroups(opts: {
   };
   const teams = {
     href: `${base}/teams`,
-    label: stage === 'build' ? 'Teams & draft' : 'Rosters & subs',
+    // One name in every stage (it used to flip to "Rosters & subs"); it is also what the guides call the page.
+    label: 'Teams & draft',
     icon: '◈',
     sprite: 'bandos' as const,
     badge: counts.teamCount === 0 ? 'none' : counts.teamCount,
