@@ -3,11 +3,14 @@
 // A themed <details> accordion for the Integrations "Advanced" groups. Collapsed by
 // default so the page reads as a short Essentials list with optional depth underneath.
 export default function CollapsibleSection({
+  id,
   title,
   summary,
   defaultOpen = false,
   children,
 }: {
+  /** A deep-link target: components/HashReveal opens the section and scrolls to it. */
+  id?: string;
   title: string;
   summary?: string;
   defaultOpen?: boolean;
@@ -15,8 +18,9 @@ export default function CollapsibleSection({
 }) {
   return (
     <details
+      id={id}
       open={defaultOpen}
-      className="group border border-card-border rounded-xl bg-card-bg/60 overflow-hidden"
+      className="group scroll-mt-24 border border-card-border rounded-xl bg-card-bg/60 overflow-hidden"
     >
       <summary className="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer select-none list-none hover:bg-card-bg-hover transition-colors">
         <span className="min-w-0">

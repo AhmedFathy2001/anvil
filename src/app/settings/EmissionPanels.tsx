@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
+import CollapsibleSection from '@/components/CollapsibleSection';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import LevelRulesEditor from '@/components/LevelRulesEditor';
@@ -603,16 +604,13 @@ function PrefRow({ title, hint, children }: { title: string; hint: string; child
   );
 }
 
-function PrefGroup({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
-  // `id` is a /settings search target (lib/memberSettingsIndex), so it scrolls clear of the header.
+function PrefGroup({ title, id, summary, children }: { title: string; id?: string; summary?: string; children: React.ReactNode }) {
+  // `id` is a /settings search target (lib/memberSettingsIndex); a link to a line inside opens the fold
+  // (components/HashReveal). Folded by default: this page was 58 switches in a row.
   return (
-    <div id={id} className="grid scroll-mt-24 gap-4 rounded-lg">
-      <h3 className="flex items-center gap-2 text-sm font-semibold">
-        <span className="h-4 w-1 bg-gold" aria-hidden />
-        {title}
-      </h3>
-      {children}
-    </div>
+    <CollapsibleSection id={id} title={title} summary={summary}>
+      <div className="grid gap-4">{children}</div>
+    </CollapsibleSection>
   );
 }
 
@@ -647,7 +645,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
       </p>
       <ErrorLine error={error} />
 
-      <PrefGroup title="Drops & pets" id="posts-drops">
+      <PrefGroup title="Drops & pets" summary="Rare drops, value and rarity floors, loot keys, pets." id="posts-drops">
         {toggle('drops', 'Rare drops', 'Post valuable or very rare drops to the clan drops channel.')}
         <DropThresholdRow
           title="Min drop value"
@@ -687,7 +685,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
         {toggle('pets', 'Pets', 'Post to the clan drops channel when you get a pet.')}
       </PrefGroup>
 
-      <PrefGroup title="Deaths & PvP" id="posts-deaths">
+      <PrefGroup title="Deaths & PvP" summary="Death posts and PvP kills." id="posts-deaths">
         {toggle('deaths', 'Deaths', 'Post a screenshot to the clan deaths channel when you die.')}
         <PrefRow title="Death message" hint="Use {name} for your RSN.">
           <Input
@@ -704,7 +702,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
         {toggle('pvp', 'PvP kills', 'Post a screenshot to the clan PvP channel when you kill a player.')}
       </PrefGroup>
 
-      <PrefGroup title="Achievements" id="posts-achievements">
+      <PrefGroup title="Achievements" summary="Collection log, levels, diaries, combat tasks, quests." id="posts-achievements">
         {toggle('clog', 'Collection log slots', 'Post every new collection-log slot to the clan achievements channel.')}
         {toggle('levels', 'Level milestones', 'Post level milestones (your clan’s rules) to the clan and your own webhooks.')}
         {toggle('diaries', 'Diary completions')}
@@ -732,7 +730,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
 
       <AnnounceKindsEditor mode="personal" value={p.announce} inherited={view.clanKinds} busy={busy} onSave={(a) => save({ announce: a as PersonalKinds })} />
 
-      <PrefGroup title="Screenshot privacy" id="screenshot-privacy">
+      <PrefGroup title="Screenshot privacy" summary="Which chat is left out of screenshots." id="screenshot-privacy">
         <p className="max-w-[70ch] text-[12.5px] text-text-muted">
           Ticked chat is left out of every screenshot your plugin takes, bingo proofs and Discord posts alike. Game messages, broadcasts and Anvil&rsquo;s own lines always stay in.
         </p>
