@@ -24,7 +24,8 @@ import { useDialog } from '@/components/Confirm';
 import type { SurveyQuestionView } from '@/lib/survey';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import NumberInput from '@/components/NumberInput';
-import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, placementOf, type TeamPlacement } from '@/lib/teamPlacement';
+import { DEFAULT_AUTO_TEAM_COUNT, placementOf, type TeamPlacement } from '@/lib/teamPlacement';
+import TeamPlacementFields from '@/components/TeamPlacementFields';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -700,35 +701,15 @@ export default function SignupAdminPanel({
         </div>
 
         {!perClan && (
-          <div className="rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3 space-y-2">
-            <div>
-              <span className="text-xs text-text-muted">Team placement</span>
-              <div className="mt-1 max-w-xs">
-                <Select
-                  value={placement}
-                  onChange={(v) => setPlacement(v as TeamPlacement)}
-                  ariaLabel="Team placement"
-                  options={TEAM_PLACEMENTS.map((p) => ({ value: p, label: `${PLACEMENT_META[p].label}: ${PLACEMENT_META[p].short.toLowerCase()}` }))}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-text-muted">
-              {PLACEMENT_META[placement].help} Changing this never moves anyone already on a team, and a team&rsquo;s invite link
-              always puts people on that team.
-            </p>
-            {placement === 'auto' && (
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-text-muted">Number of teams</span>
-                <NumberInput
-                  value={teamCount}
-                  onChange={setTeamCount}
-                  min={MIN_AUTO_TEAMS}
-                  max={MAX_AUTO_TEAMS}
-                  fallback={DEFAULT_AUTO_TEAM_COUNT}
-                  className="w-24 bg-brown-light border border-card-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-gold"
-                />
-              </label>
-            )}
+          <TeamPlacementFields
+            placement={placement}
+            onPlacementChange={setPlacement}
+            teamCount={teamCount}
+            onTeamCountChange={setTeamCount}
+            teamCap={teamCap}
+            onTeamCapChange={setTeamCap}
+          />
+        )}
             {placement === 'pick' && (
               <label className="flex items-center gap-2 text-sm">
                 <span className="text-text-muted">Most players per team</span>
