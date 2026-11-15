@@ -1,3 +1,4 @@
+import { landingClans } from '@/lib/landingClans';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
@@ -6,7 +7,7 @@ import { isFriendsHost } from '@/lib/friendEventRules';
 import { currentClan, isApexHost } from '@/lib/clanContext';
 import { clanRankFor } from '@/lib/clanLeaderboard';
 import { JsonLd, clanLd, faqLd, softwareLd, websiteLd } from '@/lib/jsonLd';
-import { ANVIL_DEFINITION, GENERAL_FAQ } from '@/lib/answers';
+import { ANVIL_DEFINITION, LANDING_FAQ } from '@/lib/answers';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { ordinal } from '@/lib/utils';
 import ApexLanding from '@/components/landing/ApexLanding';
@@ -153,8 +154,8 @@ async function ApexRoot() {
         <JsonLd data={websiteLd()} />
         <JsonLd data={softwareLd({ description: ANVIL_DEFINITION })} />
         {/* Matches the FAQ ApexLanding renders, item for item. */}
-        <JsonLd data={faqLd(GENERAL_FAQ)} />
-        <ApexLanding stats={await platformStats()} />
+        <JsonLd data={faqLd(LANDING_FAQ)} />
+        <ApexLanding stats={await platformStats()} clans={await landingClans()} />
       </>
     );
   }

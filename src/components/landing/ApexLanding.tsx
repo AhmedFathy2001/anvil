@@ -4,10 +4,11 @@ import HeroShowcase from '@/components/landing/HeroShowcase';
 import TileKinds, { TILE_KIND_COUNT } from '@/components/landing/TileKinds';
 import FeatureGroups from '@/components/landing/FeatureGroups';
 import Faq from '@/components/landing/Faq';
-import { FEATURE_PAGES, GENERAL_FAQ } from '@/lib/answers';
+import ClanCrest from '@/components/ClanCrest';
+import { FEATURE_PAGES, LANDING_FAQ } from '@/lib/answers';
 import { EVENT_MODES } from '@/lib/eventModes';
 import { PLANS } from '@/lib/plans';
-import { DISCORD_LOCALES } from '@/lib/discordI18n';
+import { heroCounts, type ShowcaseClan } from '@/lib/landingClansRules';
 import type { PlatformStats } from '@/lib/platformStats';
 
 /**
@@ -35,7 +36,8 @@ import type { PlatformStats } from '@/lib/platformStats';
  * is real in only three moments — needing a clan, needing an opponent, playing one. Those are
  * utilities you visit on purpose, which is what /clans is for.
  */
-export default function ApexLanding({ stats }: { stats: PlatformStats }) {
+export default function ApexLanding({ stats, clans }: { stats: PlatformStats; clans: ShowcaseClan[] }) {
+  const counts = heroCounts(stats);
   return (
     // The landing bleeds out of the shell's padding on purpose: it is the one page whose bands and
     // hero should touch the rail rather than sit in a column.
@@ -63,7 +65,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             <span className="h-px w-12 bg-gradient-to-r from-gold-dark to-transparent" />
           </div>
           <h1 className="display display-lg text-[clamp(2.1rem,5.5vw,3.7rem)] font-semibold leading-[1.04] [text-wrap:balance]">
-            Everything your clan does,
+            Every event you play,
             <br />
             <span className="bg-gradient-to-b from-gold-light to-gold bg-clip-text text-transparent">
               already counted
@@ -71,28 +73,22 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             .
           </h1>
           <p className="mt-5 max-w-[48ch] text-[16.5px] leading-relaxed text-text-muted">
-            Bingos, tile races, ladders, skill and boss weeks, clan against clan, with Discord posts, a RuneLite side panel and a home for your clan. Anvil holds the
-            board and the roster; the RuneLite plugin watches the game and fills them in. Set it up
-            once — then go play it like everybody else.
+            Bingos, tile races, ladders and skill or boss weeks, with live standings on one page and
+            Discord posts as it happens. The RuneLite plugin watches the game and fills the board in
+            while you play.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <ClanLink
-              href="/clans/new"
+              href="/clans"
               className="rounded-lg bg-gold px-5 py-3 font-semibold text-brown-dark transition-colors hover:bg-gold-light"
             >
-              Create your clan
+              Find a clan
             </ClanLink>
             <ClanLink
-              href="/guide/plugin"
+              href="/clans/new"
               className="rounded-lg border border-card-border px-5 py-3 transition-colors hover:border-gold-dark hover:bg-card-bg"
             >
-              Install the plugin
-            </ClanLink>
-            <ClanLink
-              href="/clans"
-              className="px-2 py-3 text-text-muted transition-colors hover:text-gold-light"
-            >
-              Browse clans
+              Create your clan
             </ClanLink>
           </div>
           {/* The second audience: somebody with viewers or friends and no in-game clan. */}
@@ -103,26 +99,27 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             </ClanLink>
           </p>
           <p className="mt-3.5 text-[13px] text-text-dim">
-            {/* The same model as the FAQ and /pricing, off the same PLANS row: "free for one event" was
-                an older plan the free tier no longer matches. */}
-            Free for clans up to {PLANS.free.memberCap} members · bigger clans get a 30-day trial
+            {/* The same model as the FAQ and /pricing, off the same PLANS row. */}
+            Free for clans up to {PLANS.free.memberCap} members · bigger clans get a 30-day trial ·{' '}
+            <ClanLink href="/pricing" className="text-gold hover:text-gold-light">
+              Pricing
+            </ClanLink>
           </p>
-          {/* BOTH CTAs above address the organiser, because they are who signs a clan up. That left
-              the far larger group — the members they bring, and anyone who just wants their own
-              account tracked — with no door at all on the front page of a platform for players. */}
-          <p className="mt-2 text-[13px] text-text-dim">
-            Not the one organising?{' '}
-            <ClanLink href="/welcome" className="text-gold hover:text-gold-light">
-              Set your player account up
-            </ClanLink>{' '}
-            and find a clan.
-          </p>
+          {/* Real counts, each only once it is big enough to say. See lib/landingClansRules. */}
+          {counts.length > 0 && (
+            <p className="mt-2 font-mono text-[11.5px] text-text-dim">
+              {counts.map((c) => `${c.n.toLocaleString()} ${c.label}`).join(' · ')}
+            </p>
+          )}
         </div>
 
         {/* Capped while stacked: given the whole 1180 column the board grows to a wall of sprites.
             A board wants to be about as wide as it is tall. */}
         <div className="relative w-full min-w-0 max-w-[620px] xl:max-w-none">
           <HeroShowcase />
+          <p className="mt-2 text-center text-[11.5px] text-text-dim">
+            A sample board, not a real clan. Every clan builds its own.
+          </p>
         </div>
         </div>
       </header>
@@ -130,12 +127,49 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
       {/* The molten rule: the boundary between the pitch and the platform under it. */}
       <div className="h-0.5 bg-gradient-to-r from-transparent via-gold to-transparent" />
 
+      {clans.length > 0 && (
+        <div className="border-b border-card-border">
+          <div className="mx-auto max-w-[1180px] px-5 py-6 sm:px-8">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.15em] text-text-muted">
+                Clans playing this week
+              </h2>
+              <ClanLink href="/clans" className="text-[13px] font-medium text-gold hover:text-gold-light">
+                See all clans →
+              </ClanLink>
+            </div>
+            <ul className="m-0 grid list-none gap-2.5 p-0 sm:grid-cols-2 lg:grid-cols-3">
+              {clans.map((c) => (
+                <li key={c.slug}>
+                  <ClanLink
+                    href={`/c/${c.slug}`}
+                    className="flex items-center gap-3 rounded-xl border border-card-border bg-card-bg px-3.5 py-3 transition-colors hover:border-gold-dark"
+                  >
+                    <ClanCrest slug={c.slug} name={c.name} logoUrl={c.logoUrl ?? null} size={36} rounded="rounded-lg" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14.5px] font-semibold">{c.name}</span>
+                      <span className="block truncate text-[12px] text-text-muted">
+                        {c.activeThisWeek} played this week · {c.members} members
+                      </span>
+                    </span>
+                    {c.recruiting && (
+                      <span className="shrink-0 rounded-full border border-gold-dark px-2 py-0.5 text-[10.5px] text-gold">
+                        Recruiting
+                      </span>
+                    )}
+                  </ClanLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       <div className="border-b border-card-border">
-        <div className="mx-auto grid max-w-[1180px] grid-cols-2 sm:grid-cols-4">
+        <div className="mx-auto grid max-w-[1180px] grid-cols-3">
           <Figure n={String(EVENT_MODES.length)} k="Event formats" />
           <Figure n={String(TILE_KIND_COUNT)} k="Things a tile can track" />
-          <Figure n={compact(stats.xpThisWeek)} k="XP counted this week" />
-          <Figure n={String(DISCORD_LOCALES.length)} k="Bot languages" />
+          {stats.xpThisWeek > 0 && <Figure n={compact(stats.xpThisWeek)} k="XP counted this week" />}
         </div>
       </div>
 
@@ -201,10 +235,10 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             what it costs, what it needs — in sentences a search engine or an AI answer can quote
             whole. The FAQPage markup on this page (app/page.tsx) is these exact items. */}
         <Section
-          title="Questions organisers ask."
-          lede="What it is, what it costs, and what your members need to install."
+          title="Questions people ask."
+          lede="What it is, what it costs, and what Anvil can and cannot see."
         >
-          <Faq items={GENERAL_FAQ} />
+          <Faq items={LANDING_FAQ} open={false} />
           <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[13.5px]">
             {FEATURE_PAGES.map((p) => (
               <li key={p.slug}>
@@ -258,12 +292,6 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
               Read the admin guide
             </ClanLink>
           </div>
-          {stats.clans > 0 && (
-            <p className="mt-7 font-mono text-[11.5px] text-text-dim">
-              {stats.clans.toLocaleString()} clans · {stats.members.toLocaleString()} members ·{' '}
-              {stats.eventsRun.toLocaleString()} events run
-            </p>
-          )}
         </div>
       </div>
     </div>
@@ -301,7 +329,7 @@ function Figure({ n, k }: { n: string; k: string }) {
     // The dividers go BETWEEN cells and the grid rewraps, so which cell ends a row changes with the
     // breakpoint: two columns want a divider after 1 and 3, four columns after 1, 2 and 3. Restoring
     // it at `sm` for every even cell put one back after the fourth, hanging off the end of the band.
-    <div className="border-b border-r border-card-border px-5 py-5 sm:border-b-0 sm:px-8 [&:nth-child(2n)]:border-r-0 [&:nth-child(n+3)]:border-b-0 sm:[&:nth-child(2)]:border-r">
+    <div className="border-r border-card-border px-5 py-5 last:border-r-0 sm:px-8">
       <div className="font-mono text-[clamp(1.4rem,2.6vw,1.9rem)] font-medium tabular-nums tracking-tight">
         {n}
       </div>

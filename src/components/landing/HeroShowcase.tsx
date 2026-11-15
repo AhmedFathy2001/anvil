@@ -13,8 +13,8 @@ import { itemIconUrl } from '@/lib/tileIcons';
  * hand-drawn facsimile would look right today and drift the first time a tile gains a state nobody
  * remembered to mirror here.
  *
- * FIVE FORMATS, not one. Bingo opens because everyone recognises it, but leading with it alone sold
- * a quarter of the product: Anvil runs seven formats, and the four beside bingo are what make it a
+ * A FEW FORMATS, not one. Bingo opens because everyone recognises it, but leading with it alone sold
+ * a quarter of the product: Anvil runs every format in EVENT_MODES, and the ones beside bingo are what make it a
  * platform rather than a bingo site. Each panel is the format's own shape — a board, a task list, a
  * track, a table — because "we also do X" as a bullet point convinces nobody.
  */
