@@ -18,6 +18,7 @@ import { parseContributionSnapshot } from '@/lib/statTracking';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { ladderLifecycle } from '@/lib/ladderView';
 import { monthWindow } from '@/lib/ladderInsights';
+import { inWindow } from '@/lib/monthWindow';
 import { eventParticipants as playersTable, submissions as submissionsTable } from '@/db/schema';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
 import { listClanEvents } from '@/lib/clanEvents';
@@ -498,7 +499,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
             // The frozen KC/XP split is stored as JSON text; the breakdown wants it parsed, or a
             // completed stat tile would score for nobody.
             completions: ladderCompletions
-              .filter((c) => !seasonWindow || (c.completedAt >= seasonWindow.start && c.completedAt < seasonWindow.end))
+              .filter((c) => !seasonWindow || inWindow(c.completedAt, seasonWindow))
               .map((c) => ({ ...c, statContributions: parseContributionSnapshot(c.statContributions) })),
             submissions: ladderSubs,
             ownerByPlayerId: await loadPlayerOwners(ladderPlayers),
