@@ -49,6 +49,37 @@ export const MEMBER_ONBOARDING: FunnelDef = {
   ],
 };
 
+/**
+ * The creation flows, counted per clan from the action rows each step writes where it is served
+ * (lib/analytics). Step keys ARE the action names, so the read can hand them straight over. These
+ * exist to measure a before and an after: how many clans start, how far each gets, and where it ends.
+ */
+export const NEW_EVENT_FLOW: FunnelDef = {
+  key: 'new-event',
+  title: 'New event',
+  actor: 'clans that opened the format picker',
+  steps: [
+    { key: 'flow.event.picker', label: 'Picker opened', hint: 'saw the "What are you running?" screen' },
+    { key: 'flow.event.form', label: 'Form opened', hint: 'chose a format and reached the form' },
+    { key: 'event.created', label: 'Event created', hint: 'the event row exists' },
+    { key: 'tile.created', label: 'First tile added', hint: 'a tile was added by hand' },
+    { key: 'event.started', label: 'Event started', hint: 'the event began' },
+  ],
+};
+
+export const FIRST_EVENT_FLOW: FunnelDef = {
+  key: 'first-event',
+  title: 'First event',
+  actor: 'new clans that opened setup',
+  steps: [
+    { key: 'flow.setup.opened', label: 'Setup opened', hint: 'the setup wizard was served' },
+    { key: 'flow.first.opened', label: 'Quick event screen', hint: 'reached the fast first-event page' },
+    { key: 'event.created', label: 'Event created', hint: 'the event row exists' },
+    { key: 'tile.created', label: 'First tile added', hint: 'a tile was added by hand' },
+    { key: 'event.started', label: 'Event started', hint: 'the event began' },
+  ],
+};
+
 export interface FunnelRow {
   key: string;
   label: string;

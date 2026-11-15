@@ -1,4 +1,5 @@
 import { requireClan } from '@/lib/clanContext';
+import { track } from '@/lib/analytics';
 import { db } from '@/db';
 import { eventPresets, events } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
@@ -32,6 +33,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
   // A creator space (lib/creatorSpaces): the same wizard with the clan-only parts left out — no
   // weeklies (feature forced off), no "Clan event", no multi-clan co-hosting.
   const creator = isCreatorSpace(clan);
+  track(chosen ? 'flow.event.form' : 'flow.event.picker', { clanId: clan.id });
   if (!chosen) {
     return (
       <FormatPicker

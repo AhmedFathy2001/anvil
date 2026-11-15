@@ -994,5 +994,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     .where(and(eq(submissions.id, sId), inArray(submissions.tileId, eventTileIds)))
     .returning({ id: submissions.id });
   if (updated.length === 0) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+  track('proof.reviewed');
   return NextResponse.json({ ok: true });
 }

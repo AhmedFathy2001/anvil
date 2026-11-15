@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { parseJsonArray } from '@/lib/tileKinds';
+import { parseJsonArray, tileKindLabel } from '@/lib/tileKinds';
 import { clogTileError, MAX_CLOG_TILE_ITEMS } from '@/lib/clogTiles';
 import { killSourceOf } from '@/lib/killSource';
 import { eventForRequest } from '@/lib/eventScope';
@@ -1055,7 +1055,7 @@ export async function POST(
     actorUserId: editor.userId,
   });
 
-  track('tile.created', { clanId: event.clanId, userId: editor.userId, props: { duplicate: !!source, mission: !!asMission } });
+  track('tile.created', { clanId: event.clanId, userId: editor.userId, props: { duplicate: !!source, mission: !!asMission, kind: tileKindLabel(created) } });
 
   return NextResponse.json(created, { status: 201 });
 }

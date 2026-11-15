@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -63,5 +64,6 @@ export async function POST(
       set: { answers: JSON.stringify(validated.clean), submittedAt: new Date().toISOString() },
     });
 
+  track('survey.answered', { userId: session.userId });
   return NextResponse.json({ ok: true });
 }

@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
@@ -34,5 +35,6 @@ export async function POST(request: Request) {
     exclude: Array.isArray(body.exclude) ? body.exclude.filter((n: unknown) => Number.isInteger(n)) : undefined,
   });
 
+  track('tasks.drawn', { clanId: clan.id, userId: editor.userId });
   return NextResponse.json(result);
 }

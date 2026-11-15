@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 
 import { resolvePluginMember } from '@/lib/auth';
@@ -21,5 +22,6 @@ export async function POST(request: Request) {
   if (!(await competitionForClan(member.clanId, id))) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const r = await setOptOut(id, { accountId: member.accountId }, body.optOut);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+  track(body.optOut ? 'weekly.optedout' : 'weekly.joined', { clanId: member.clanId, userId: null });
   return NextResponse.json(await entryStatus(id, { accountId: member.accountId }));
 }

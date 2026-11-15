@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -48,5 +49,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   }
   if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status ?? 400 });
+  if (action === 'accept') track('challenge.accepted');
   return NextResponse.json(out);
 }

@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -34,5 +35,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (typeof body?.optOut !== 'boolean') return NextResponse.json({ error: 'optOut must be true or false' }, { status: 400 });
   const r = await setOptOut(s.id, { playerId: s.playerId }, body.optOut);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+  track(body.optOut ? 'weekly.optedout' : 'weekly.joined');
   return NextResponse.json(await entryStatus(s.id, { playerId: s.playerId }));
 }

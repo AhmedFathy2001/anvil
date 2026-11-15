@@ -6,6 +6,7 @@ import { ownerOverview, CONVERSION_KINDS, type ConversionKind } from '@/lib/anal
 import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
 import { analyticsOverview, type DailyPoint } from '@/lib/analyticsRead';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
+import { unusedFeatures, type FeatureUsage } from '@/lib/featureRegistry';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,53 @@ export default async function StaffAnalyticsPage({
         </Card>
       </Section>
 
+      <Section title="Feature use">
+        <Card>
+          <p className="mb-3 text-xs text-text-muted">
+            Last 30 days whatever the window above, from page views, actions and plugin panel views. Trend is the last 30
+            days against the 30 before. Proof submission is left out: every board needs it.
+          </p>
+          <div className="overflow-x-auto overflow-y-hidden">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-text-muted">
+                <tr>
+                  <th className="py-1.5 pr-4 font-medium">Feature</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Clans</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">People</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Uses 7d</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Uses 30d</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Trend</th>
+                  <th className="py-1.5 text-right font-medium">Last used</th>
+                </tr>
+              </thead>
+              <tbody>
+                {a.features.filter((f) => f.lastUsed !== null).map((f) => (
+                  <tr key={f.key} className="border-t border-card-border">
+                    <td className="py-1.5 pr-4 text-gray-200">
+                      {f.label}
+                      <span className="ml-2 text-xs text-text-muted">{f.group}</span>
+                    </td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.clans.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.people.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.uses7.toLocaleString()}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.uses30.toLocaleString()}</td>
+                    <td className={`py-1.5 pr-3 text-right tabular-nums ${trendTone(f)}`}>{trendText(f)}</td>
+                    <td className="py-1.5 text-right text-xs text-text-muted">{f.lastUsed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {a.features.every((f) => f.lastUsed === null) && <Empty />}
+          {unusedFeatures(a.features).length > 0 && (
+            <div className="mt-4 border-t border-card-border pt-3">
+              <div className="text-xs font-medium text-text-muted">Not used in 90 days</div>
+              <p className="mt-1 text-sm text-amber-400">{unusedFeatures(a.features).map((f) => f.label).join(' · ')}</p>
+            </div>
+          )}
+        </Card>
+      </Section>
+
       <div className="grid gap-6 xl:grid-cols-2">
         <Section title="Top pages">
           <Card>
@@ -88,7 +136,7 @@ export default async function StaffAnalyticsPage({
             )}
           </Card>
         </Section>
-        <Section title="Feature use">
+        <Section title="Actions">
           <Card>
             {a.topActions.length === 0 ? (
               <Empty />
@@ -202,6 +250,12 @@ export default async function StaffAnalyticsPage({
         </Section>
         <Section title="Invite links">
           <Funnel rows={o.invite} actor="invite links opened" />
+        </Section>
+        <Section title="New event">
+          <Funnel rows={a.newEventFlow} actor={`clans that opened the format picker in the last ${days} days`} />
+        </Section>
+        <Section title="First event">
+          <Funnel rows={a.firstEventFlow} actor={`new clans that opened setup in the last ${days} days`} />
         </Section>
       </div>
 
@@ -334,6 +388,9 @@ const KIND_LABEL: Record<ConversionKind, string> = {
   'plugin.linked': 'Plugin linked',
 };
 const JOURNEY_COLS: [string, string][] = [['discord', 'Discord'], ['roster', 'Roster'], ['event', 'First event'], ['started', 'Started']];
+
+const trendText = (f: FeatureUsage) => (f.trend === null ? (f.uses30 > 0 ? 'new' : '—') : `${f.trend >= 0 ? '+' : ''}${Math.round(f.trend * 100)}%`);
+const trendTone = (f: FeatureUsage) => (f.trend === null ? 'text-text-muted' : f.trend < 0 ? 'text-amber-400' : 'text-gray-200');
 
 const sum = (s: DailyPoint[]) => s.reduce((n, p) => n + p.count, 0);
 const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : '—');

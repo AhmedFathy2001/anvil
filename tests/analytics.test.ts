@@ -13,6 +13,7 @@ import {
   clanSlugOf,
   isBotUserAgent,
   isSessionId,
+  panelViewOf,
   routePattern,
   scrubPattern,
 } from '../src/lib/analyticsPattern.ts';
@@ -129,4 +130,140 @@ test('a daily series fills the quiet days with zeros', () => {
     { day: '2026-10-11', count: 0 },
     { day: '2026-10-12', count: 1 },
   ]);
+});
+
+// ── Feature registry and ranking ────────────────────────────────────────────────────────────────
+
+import { ACTION_NAMES } from '../src/lib/analyticsActions.ts';
+import { FORMAT_CARDS } from '../src/lib/formatCatalog.ts';
+import {
+  FEATURES,
+  ageInDays,
+  buildMatcher,
+  featureOf,
+  rankFeatures,
+  stripClanPrefix,
+  tileKindLabels,
+  trendOf,
+  unusedFeatures,
+  type FeatureDef,
+  type UsageRow,
+} from '../src/lib/featureRegistry.ts';
+
+const matchKey = (a: { name: string; prop?: string; value?: string }) => (a.prop ? `${a.name}|${a.prop}=${a.value}` : a.name);
+
+test('every registry action is a real action name', () => {
+  const known = new Set<string>(ACTION_NAMES);
+  for (const f of FEATURES) for (const a of f.actions ?? []) assert.ok(known.has(a.name), `${f.key}: ${a.name}`);
+  assert.equal(new Set(ACTION_NAMES).size, ACTION_NAMES.length, 'no action name listed twice');
+});
+
+test('an action belongs to at most one feature (a narrowed action counts once per value)', () => {
+  const seen = new Map<string, string>();
+  const plain = new Map<string, string>();
+  for (const f of FEATURES) {
+    for (const a of f.actions ?? []) {
+      const k = matchKey(a);
+      assert.ok(!seen.has(k), `${k} is in both ${seen.get(k)} and ${f.key}`);
+      seen.set(k, f.key);
+      if (!a.prop) plain.set(a.name, f.key);
+      else assert.equal(a.value !== undefined, true, `${f.key}: prop without value`);
+    }
+  }
+  // A whole-name entry may not share its name with a narrowed one: that would count a row twice.
+  for (const f of FEATURES) {
+    for (const a of f.actions ?? []) if (a.prop) assert.ok(!plain.has(a.name), `${a.name} is both whole and narrowed`);
+  }
+  // Feature keys and pages are unique too.
+  assert.equal(new Set(FEATURES.map((f) => f.key)).size, FEATURES.length);
+  const pages = FEATURES.flatMap((f) => f.pages ?? []);
+  assert.equal(new Set(pages).size, pages.length);
+});
+
+test('formats and tile kinds come from their catalogs', () => {
+  for (const c of FORMAT_CARDS) assert.ok(FEATURES.some((f) => f.key === `format.${c.key}`), c.key);
+  const kinds = FEATURES.filter((f) => f.group === 'Tile kinds');
+  assert.equal(kinds.length, tileKindLabels().length);
+  assert.ok(kinds.length >= 12);
+});
+
+test('stripping the clan prefix, and matching pages, narrowed actions and plugin views', () => {
+  assert.equal(stripClanPrefix('/c/[clan]/coffer'), '/coffer');
+  assert.equal(stripClanPrefix('/s/[clan]'), '/');
+  assert.equal(stripClanPrefix('/coffer'), '/coffer');
+  const m = buildMatcher();
+  const name = (row: Partial<UsageRow>) => {
+    const i = featureOf(m, { kind: 'page', name: '', clanId: null, userId: null, accountId: null, day: '2026-11-01', n: 1, ...row });
+    return i === null ? null : FEATURES[i].key;
+  };
+  assert.equal(name({ name: '/c/[clan]/coffer' }), 'coffer');
+  assert.equal(name({ name: '/guide/admin' }), 'guides');
+  assert.equal(name({ name: '/guides/[slug]' }), 'guides-ingame');
+  assert.equal(name({ name: '/staff/analytics' }), null);
+  assert.equal(name({ kind: 'action', name: 'event.created', fmt: 'race' }), 'format.race');
+  assert.equal(name({ kind: 'action', name: 'event.created', fmt: 'nope' }), null);
+  assert.equal(name({ kind: 'action', name: 'weekly.created', type: 'boss' }), 'format.botw');
+  assert.equal(name({ kind: 'action', name: 'tile.created', tileKind: 'Collection log' }), 'tile.collection-log');
+  assert.equal(name({ kind: 'plugin', name: '/api/plugin/ui?v=feed' }), 'chat');
+  assert.equal(name({ kind: 'plugin', name: '/api/plugin/ui?v=nope' }), null);
+});
+
+test('the panel view is a short word or nothing', () => {
+  assert.equal(panelViewOf('https://x.test/api/plugin/ui?v=feed&rsn=Zezima'), 'feed');
+  assert.equal(panelViewOf('https://x.test/api/plugin/ui?v=clan-compare'), 'clan-compare');
+  assert.equal(panelViewOf('https://x.test/api/plugin/ui?v=Zezima%20x'), null);
+  assert.equal(panelViewOf('https://x.test/api/plugin/board?v=feed'), null);
+  assert.equal(panelViewOf('not a url'), null);
+});
+
+const NOW = new Date('2026-11-15T12:00:00Z');
+const row = (o: Partial<UsageRow>): UsageRow => ({ kind: 'action', name: 'coffer.donated', clanId: 1, userId: 1, accountId: null, day: '2026-11-15', n: 1, ...o });
+
+test('ranking: windows, distinct clans and people, last used', () => {
+  assert.equal(ageInDays('2026-11-15', NOW), 0);
+  assert.equal(ageInDays('2026-11-08', NOW), 7);
+  const out = rankFeatures(
+    [
+      row({ day: '2026-11-15', n: 2 }),
+      row({ day: '2026-11-10', clanId: 2, userId: 2 }),
+      row({ day: '2026-11-10', clanId: 2, userId: 2, n: 3 }),
+      row({ day: '2026-10-20', clanId: 3, userId: 3 }),
+      row({ day: '2026-10-05', clanId: 4, userId: 4, n: 4 }),
+      row({ day: '2026-09-01', clanId: 5, userId: 5 }),
+      row({ day: '2026-06-01', clanId: 6, userId: 6 }),
+      row({ kind: 'plugin', name: '/api/plugin/coffer', clanId: 1, userId: null, accountId: 9 }),
+    ],
+    NOW,
+  );
+  const coffer = out.find((f) => f.key === 'coffer')!;
+  assert.equal(coffer.uses7, 2 + 1 + 3 + 1); // today, twice on the 10th, and the plugin row
+  assert.equal(coffer.uses30, 2 + 1 + 3 + 1 + 1);
+  assert.equal(coffer.prev30, 4);
+  assert.equal(coffer.clans, 3);
+  assert.equal(coffer.people, 4);
+  assert.equal(coffer.lastUsed, '2026-11-15');
+  assert.equal(out[0].key, 'coffer', 'most used first');
+});
+
+test('ranking: trend maths and the unused list', () => {
+  assert.equal(trendOf(6, 4), 0.5);
+  assert.equal(trendOf(2, 4), -0.5);
+  assert.equal(trendOf(3, 0), null);
+  const out = rankFeatures([row({ day: '2026-08-20' }), row({ name: 'weekly.joined', day: '2026-11-14' })], NOW);
+  assert.equal(out.find((f) => f.key === 'coffer')!.lastUsed, '2026-08-20');
+  assert.equal(out.find((f) => f.key === 'weekly')!.uses7, 1);
+  const unused = unusedFeatures(out).map((f) => f.key);
+  assert.ok(unused.includes('draft'));
+  assert.ok(!unused.includes('weekly'));
+  // 2026-08-20 is 87 days back, inside the 90-day window; one day older is out of it.
+  assert.equal(rankFeatures([row({ day: '2026-08-15' })], NOW).find((f) => f.key === 'coffer')!.lastUsed, null);
+});
+
+test('ranking leaves proof submission out, though it is tracked', () => {
+  const out = rankFeatures([row({ name: 'submission.created', n: 500 }), row({ name: 'submission.removed' })], NOW);
+  assert.equal(out.some((f) => f.key === 'submissions'), false);
+  assert.equal(FEATURES.find((f) => f.key === 'submissions')?.ranked, false);
+  assert.ok(!unusedFeatures(out).some((f) => f.key === 'submissions'));
+  const custom: FeatureDef[] = [{ key: 'a', label: 'A', group: 'g', actions: [{ name: 'coffer.donated' }] }];
+  assert.equal(rankFeatures([row({})], NOW, custom)[0].uses7, 1);
 });

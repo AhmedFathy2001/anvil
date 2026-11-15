@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -68,5 +69,6 @@ export async function POST(request: Request) {
     public: body.public === true,
   });
   if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status ?? 400 });
+  track('challenge.sent');
   return NextResponse.json({ id: out.id });
 }

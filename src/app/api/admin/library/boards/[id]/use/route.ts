@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
@@ -15,5 +16,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const eventId = Number(body?.eventId);
   if (!Number.isInteger(eventId)) return NextResponse.json({ error: 'eventId required' }, { status: 400 });
   await recordBoardUse(Number((await params).id), eventId, clan.id);
+  track('board.library', { clanId: clan.id, userId: session.userId });
   return NextResponse.json({ ok: true });
 }

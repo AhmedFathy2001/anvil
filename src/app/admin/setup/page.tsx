@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
+import { track } from '@/lib/analytics';
 import { verifyUser } from '@/lib/auth';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { listBotChannels } from '@/lib/discord-broadcast';
@@ -21,6 +22,7 @@ export default async function SetupPage() {
   // its checklist lives on the dashboard and its first step is the event wizard.
   if (isCreatorSpace(clan)) redirect(await clanHref('/admin/dashboard'));
 
+  track('flow.setup.opened', { clanId: clan.id, userId: session.userId });
   // Channels feed the in-wizard webhook creation flow (steps 2–3); empty/off when no bot is connected.
   const [status, bot] = await Promise.all([getSetupStatus(clan.id), listBotChannels(clan.id)]);
   return (
