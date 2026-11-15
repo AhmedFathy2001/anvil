@@ -42,7 +42,8 @@ import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/t
 import { findBoardProblems } from '@/lib/boardMisconfig';
 import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvRow, tilesToCsvText } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import { clanFetch } from '@/lib/clanFetch';
+import { downloadFromApi } from '@/lib/downloadFile';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import RaceRouteEditor from './RaceRouteEditor';
@@ -1236,9 +1237,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 },
                 {
                   label: 'Download spreadsheet',
-                  onClick: () => {
-                    window.location.href = clanUrl(`/api/events/${event.id}/tiles/spreadsheet`);
-                    notify('Your spreadsheet is downloading. Check your downloads folder.');
+                  onClick: async () => {
+                    const err = await downloadFromApi(`/api/events/${event.id}/tiles/spreadsheet`, 'tiles.xlsx');
+                    if (err) notify(err, 'error');
+                    else notify('Your spreadsheet is downloading. Check your downloads folder.');
                   },
                   title: 'Excel workbook with the current tiles, dropdowns, the item list and instructions',
                 },
@@ -1251,9 +1253,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 },
                 {
                   label: 'Export as task pack',
-                  onClick: () => {
-                    window.location.href = clanUrl(`/api/admin/tile-library/export?eventId=${event.id}`);
-                    notify('Your task pack is downloading. Check your downloads folder.');
+                  onClick: async () => {
+                    const err = await downloadFromApi(`/api/admin/tile-library/export?eventId=${event.id}`, 'tile-seed-pack.json');
+                    if (err) notify(err, 'error');
+                    else notify('Your task pack is downloading. Check your downloads folder.');
                   },
                 },
               ]}
