@@ -99,7 +99,7 @@ export function clientEvent<T extends { inviteToken?: string | null }>(event: T)
  * board shows "counts · staff checking" on purpose.
  */
 export function playerSubmission<T extends object>(row: T): Omit<T, 'proofFacts' | 'imageSha256' | 'coopGroup'> {
-  const rest: Record<string, unknown> = { ...row };
+  const rest = { ...row } as Record<string, unknown>;
   delete rest.proofFacts;
   delete rest.imageSha256;
   delete rest.coopGroup;

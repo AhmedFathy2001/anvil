@@ -1,4 +1,5 @@
 import { formatJoinDate } from '@/lib/clanJoinDate';
+import { viewerIsClanInsider } from '@/lib/clanInsider';
 import RecordsCard from '@/components/records/RecordsCard';
 import { getAccountRecords, type AccountRecord } from '@/lib/records';
 import Persona from '@/app/members/[rsn]/Persona';
@@ -265,7 +266,11 @@ export default async function CharacterProfile({
     clanCtx ? ingameJoinDates([clanCtx.seat.id]).then((m) => m.get(clanCtx.seat.id) ?? null) : Promise.resolve(null),
     clanCtx ? getStandings(clanCtx.seat.id) : Promise.resolve(NO_STANDINGS),
     clanCtx ? getCompetitionHistory(clanCtx.seat.id, rsn) : Promise.resolve(NO_COMPETITIONS),
-    clanCtx && show.persona ? getPersona(clanCtx.seat.id) : Promise.resolve(null),
+    // A clanmate sees who plays this (Discord name, the characters seated here); a signed-in visitor
+    // from outside sees only what the person published and linked (lib/rosterVisibility).
+    clanCtx && show.persona
+      ? viewerIsClanInsider(clanCtx.clanId).then((insider) => getPersona(clanCtx.seat.id, { insider }))
+      : Promise.resolve(null),
     // Standings are a clan's answer — "#3 of 47" says nothing on a page with no clan behind it.
     clanCtx ? getActivityStandings(clanCtx.clanId, rsn) : Promise.resolve({} as Record<string, ActivityStanding>),
     // The drops, pets and combat tasks we watched happen. Keyed by the SEAT: a moment belongs to

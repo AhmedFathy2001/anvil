@@ -4,6 +4,8 @@
 // rows, the milestone log. Opening a profile never triggers a hiscores fetch, which is what keeps a
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
+import { avatarUrl } from '@/lib/discord-oauth';
+import { personaCharacterVisible } from '@/lib/rosterVisibility';
 import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
 import { notFriendsEvent } from '@/lib/friendEventsSql';
@@ -1344,10 +1346,10 @@ export interface PersonaAccount {
 }
 
 export interface Persona {
-  userId: number;
-  discordId: string | null;
+  /** Clan insiders only (lib/rosterVisibility); null for anyone else. */
   discordUsername: string | null;
-  discordAvatar: string | null;
+  /** Clan insiders only. Built here so the Discord id is never a field of its own. */
+  avatarUrl: string | null;
   accounts: PersonaAccount[];
   totalEhp: number;
   totalEhb: number;
@@ -1364,7 +1366,7 @@ export interface Persona {
  * Returns null when the member has no linked account or is the only one on it: a "persona" of one is
  * just the profile you're already looking at.
  */
-export async function getPersona(clanMemberId: number): Promise<Persona | null> {
+export async function getPersona(clanMemberId: number, viewer: { insider: boolean } = { insider: false }): Promise<Persona | null> {
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.playerId) return null;
@@ -1410,12 +1412,21 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
     columns: { linkAccountsPublicly: true, banned: true },
   });
   const linkable = !!ownerRow?.linkAccountsPublicly && !ownerRow?.banned;
+  //
+  // AND WHO IS LOOKING. Any signed-in visitor to a public clan's member page used to get the whole
+  // card: the Discord name and face, and every character seated here, shared or not. Someone outside
+  // the clan now gets only what the person published and agreed to link, and no Discord identity.
   for (let i = owned.length - 1; i >= 0; i--) {
-    if (seatByAccount.has(owned[i].accountId)) continue;
-    if (!linkable || !owned[i].shared) owned.splice(i, 1);
+    const visible = personaCharacterVisible({
+      insider: viewer.insider,
+      seatedHere: seatByAccount.has(owned[i].accountId),
+      shared: owned[i].shared,
+      linkable,
+    });
+    if (!visible) owned.splice(i, 1);
   }
   // An unclaimed seat on this person (rare — a roster entry under a placeholder) still belongs here.
-  for (const seat of seatsHere) {
+  for (const seat of viewer.insider ? seatsHere : []) {
     if (!owned.some((o) => o.accountId === seat.accountId)) {
       const row = rows.find((r) => r.id === seat.id);
       owned.push({ accountId: seat.accountId, rsn: row?.rsn ?? '', isPrimary: 0, accountType: null, overallXp: row?.overallXp ?? null, shared: true });
@@ -1449,10 +1460,8 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
         Number(b.isPrimary) - Number(a.isPrimary) || rank[a.status] - rank[b.status] || (b.ehp ?? 0) - (a.ehp ?? 0),
     );
   return {
-    userId: member.playerId,
-    discordId: user?.discordId ?? null,
-    discordUsername: user?.discordUsername ?? null,
-    discordAvatar: user?.discordAvatar ?? null,
+    discordUsername: viewer.insider ? user?.discordUsername ?? null : null,
+    avatarUrl: viewer.insider && user?.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null,
     accounts: characters,
     // Summed, not averaged: hours spent on an alt are still hours this person played.
     totalEhp: characters.reduce((sum, a) => sum + (a.ehp ?? 0), 0),

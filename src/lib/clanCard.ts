@@ -1,4 +1,6 @@
 import { normalizeHex } from '@/lib/artPalette';
+import { unsharedRosterNames } from '@/lib/clanInsider';
+import { withoutHiddenKeys, withoutHiddenRows } from '@/lib/rosterVisibility';
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -129,6 +131,10 @@ export async function loadClanCard(clan: {
   }
   const members = await listMembers(clan.id);
   const roster = members.filter((m) => !m.isGuest);
+  // The card is the clan's public face (the showcase, link previews, the compare page), so it names
+  // only characters whose owner left "Show publicly" on (lib/rosterVisibility). The counts and
+  // totals still cover the whole roster.
+  const hidden = await unsharedRosterNames(clan.id);
   const [analytics, moments, weekly, clogRows] = await Promise.all([
     getClanAnalytics(members),
     momentsForClan(clan.id, 12),
@@ -145,7 +151,7 @@ export async function loadClanCard(clan: {
   // Pets and clog-only items arrive by NAME (a chat line), so their moment carries no item id and the
   // plugin drew a blank where the icon goes. Resolve them by name against the item list (which holds
   // untradeables too, and prefers the collection-log id). An outage just leaves the gap, as before.
-  const highlightMoments = moments.filter((m) => FEED_KINDS.has(m.kind)).slice(0, 5);
+  const highlightMoments = withoutHiddenRows(moments, hidden).filter((m) => FEED_KINDS.has(m.kind)).slice(0, 5);
   const idByName = new Map<string, number>();
   if (highlightMoments.some((m) => m.itemId == null && m.itemName)) {
     try {
@@ -168,9 +174,9 @@ export async function loadClanCard(clan: {
       .then((h) => ({
         heat: h.total ? { on: h.on, total: h.total, pct: h.heat, weeks: h.weeks, change: h.on - h.onLastWeek } : null,
         // A one-week streak is just "played this week": only 2+ weeks are worth a mark.
-        streaks: Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks >= 2).map(([rsn, s]) => [rsn, s.weeks])),
+        streaks: withoutHiddenKeys(Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks >= 2).map(([rsn, s]) => [rsn, s.weeks])), hidden),
         // The clan's top three: already public, since /members shows (and sorts by) every member's streak.
-        hottest: h.top.filter((t) => t.weeks >= 2).slice(0, 3),
+        hottest: withoutHiddenRows(h.top, hidden).filter((t) => t.weeks >= 2).slice(0, 3),
       }))
       .catch(() => ({ heat: null, streaks: {}, hottest: [] }))),
     members: analytics.memberCount,
@@ -178,8 +184,8 @@ export async function loadClanCard(clan: {
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
     totalEhp: Math.round(analytics.totalEhp * 10) / 10,
     totalEhb: Math.round(analytics.totalEhb * 10) / 10,
-    topWeek: analytics.topWeek.slice(0, 3).map((t) => ({ rsn: t.rsn, hours: Math.round(t.hours * 10) / 10 })),
-    topPlayers: roster
+    topWeek: withoutHiddenRows(analytics.topWeek, hidden).slice(0, 3).map((t) => ({ rsn: t.rsn, hours: Math.round(t.hours * 10) / 10 })),
+    topPlayers: withoutHiddenRows(roster, hidden)
       .filter((m) => (m.overallXp ?? 0) > 0)
       .sort((a, b) => (b.overallXp ?? 0) - (a.overallXp ?? 0))
       .slice(0, 5)

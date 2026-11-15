@@ -34,8 +34,6 @@ export interface ClaimRequest {
   accountId: number;
   /** Who is asking — the requester's Discord identity, for the mod to recognise or not. */
   requester: {
-    userId: number;
-    playerId: number | null;
     displayName: string | null;
     discordUsername: string | null;
     avatarUrl: string | null;
