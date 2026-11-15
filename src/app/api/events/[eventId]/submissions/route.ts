@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
-import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
+import { eventForPluginRequest, eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { tilesForViewer } from '@/lib/tilesForViewer';
@@ -62,8 +62,9 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  const scopedEvent = await eventForRequest(request, eId);
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  // Proofs are the board's contents: an invite-only board's are not for whoever guesses its id.
+  const scopedEvent = await readableEventForRequest(request, eId);
   if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

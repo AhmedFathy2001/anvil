@@ -21,7 +21,7 @@ import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyPlayer, verifyPluginTokenUser, verifyUser } from '@/lib/auth';
 import { labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
-import { viewerTeamIds } from '@/lib/standingsAccess';
+import { isStandingsStaff, viewerTeamIds } from '@/lib/standingsAccess';
 import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import { provenPath } from '@/lib/requestHeaderProof';
 
@@ -65,16 +65,23 @@ export async function eventForRequest(request: Request, eventId: number): Promis
  * whichever client asked. Asked signed-out first, because that is the whole answer for a public
  * event and for a public clan's own events, and it costs no identity lookup.
  *
- * AND ANYONE ON ONE OF ITS TEAMS. A visiting clan's captain or team-staff seat holds no seat in the
- * host clan, yet /team/<id> and /captain/<id> show them their team's board and poll these routes for
- * it. They were let onto the event by being put on a team; that is not an outsider guessing an id.
+ * TWO MORE KINDS OF PEOPLE the page rule does not name, because they reach the event through other
+ * pages that poll these same routes:
+ *
+ *   - Anyone on one of its teams. A visiting clan's captain or team-staff seat holds no seat in the
+ *     host clan, yet /team/<id> and /captain/<id> show them their team's board.
+ *   - Its staff. A board-scoped editor, a co-host's staff the host let onto the board, and Anvil
+ *     staff all work in /admin on an event they hold no seat for (lib/standingsAccess
+ *     isStandingsStaff — the people who can already open every team's board there).
+ *
+ * Both were put on the event by its host; neither is an outsider guessing an id.
  */
-export async function requestMaySeeEvent(request: Request, eventId: number): Promise<boolean> {
-  if (!Number.isInteger(eventId)) return false;
+export async function requestMaySeeEvent(request: Request, event: { id: number; clanId: number }): Promise<boolean> {
+  const eventId = event.id;
   if (await canSeeEvent({ eventId, playerId: null })) return true;
 
   const session = await verifyUser();
-  if (session && (await personMaySeeEvent(eventId, session))) return true;
+  if (session && (await personMaySeeEvent(event, session))) return true;
 
   // The legacy player cookie names one roster row; it opens the event that row plays in.
   const legacy = await verifyPlayer();
@@ -91,12 +98,16 @@ export async function requestMaySeeEvent(request: Request, eventId: number): Pro
   if (!tokenUser || tokenUser.userId === session?.userId) return false;
   // clan-scope: global -- the token's own person.
   const row = await db.query.users.findFirst({ where: eq(users.id, tokenUser.userId), columns: { playerId: true } });
-  return personMaySeeEvent(eventId, { userId: tokenUser.userId, playerId: row?.playerId ?? null });
+  return personMaySeeEvent(event, { userId: tokenUser.userId, playerId: row?.playerId ?? null });
 }
 
-async function personMaySeeEvent(eventId: number, person: { userId: number; playerId: number | null }): Promise<boolean> {
-  if (person.playerId != null && (await canSeeEvent({ eventId, playerId: person.playerId }))) return true;
-  return (await viewerTeamIds(eventId, person)).length > 0;
+async function personMaySeeEvent(
+  event: { id: number; clanId: number },
+  person: { userId: number; playerId: number | null },
+): Promise<boolean> {
+  if (person.playerId != null && (await canSeeEvent({ eventId: event.id, playerId: person.playerId }))) return true;
+  if ((await viewerTeamIds(event.id, person)).length > 0) return true;
+  return isStandingsStaff(event, person.userId);
 }
 
 /**
@@ -113,7 +124,7 @@ async function personMaySeeEvent(eventId: number, person: { userId: number; play
 export async function readableEventForRequest(request: Request, eventId: number): Promise<ScopedEvent | null> {
   const event = await eventForRequest(request, eventId);
   if (!event) return null;
-  return (await requestMaySeeEvent(request, event.id)) ? event : null;
+  return (await requestMaySeeEvent(request, event)) ? event : null;
 }
 
 /**
