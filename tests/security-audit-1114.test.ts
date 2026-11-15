@@ -63,7 +63,7 @@ test('discord names: one account per name, and a contested name matches nobody',
 });
 
 test('discord names: a match is refused when something proven disagrees', () => {
-  const base = { matchedDiscordId: 'D2', seatPlayerId: null, seatOwnerDiscordId: null, matchedPlayerId: null, matchedHoldsOtherSeat: false };
+  const base = { matchByNickname: true, matchedDiscordId: 'D2', seatPlayerId: null, seatOwnerDiscordId: null, matchedPlayerId: null, matchedHoldsOtherSeat: false };
   // Nobody has signed in on either side: the name is all there is, and it is allowed (as before).
   assert.equal(nameMatchAllowed(base), true);
   // The seat's owner signed in with a different Discord account.

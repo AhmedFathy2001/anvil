@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isSafeAutomatedRole } from '../src/lib/discordRoleSafety.ts';
+import {
+  countSeatsNotLinked,
+  isSafeAutomatedRole,
+  nameMatchAllowed,
+  nicknameMatchingOn,
+  ROLE_MATCH_BY_NICKNAME_KEY,
+} from '../src/lib/discordRoleSafety.ts';
 
 const bit = (position: number) => (BigInt(1) << BigInt(position)).toString();
 
@@ -70,4 +76,44 @@ test('guild binding requires Discord ownership, Administrator, or Manage Server'
     if (realDatabaseUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = realDatabaseUrl;
   }
+});
+
+// ── Nickname matching is opt-in per clan ──────────────────────────────────────────────────────
+
+test('nickname matching is off unless the clan stored an explicit yes', () => {
+  assert.equal(ROLE_MATCH_BY_NICKNAME_KEY, 'discord_role_match_by_nickname');
+  for (const raw of [undefined, null, '', 'false', '0', 'yes', 'TRUE']) {
+    assert.equal(nicknameMatchingOn(raw), false, `${String(raw)} is off`);
+  }
+  assert.equal(nicknameMatchingOn('true'), true);
+  assert.equal(nicknameMatchingOn('1'), true);
+});
+
+test('with nickname matching off, no name match earns roles, however clean it looks', () => {
+  // The best case for a name: nobody signed in on either side, nothing proven disagrees.
+  const clean = { matchedDiscordId: 'D2', seatPlayerId: null, seatOwnerDiscordId: null, matchedPlayerId: null, matchedHoldsOtherSeat: false };
+  assert.equal(nameMatchAllowed({ ...clean, matchByNickname: false }), false);
+  assert.equal(nameMatchAllowed({ ...clean, matchByNickname: true }), true);
+  // Even the seat's own owner, matched by name: off means the Discord id has to do the matching.
+  const owner = { matchedDiscordId: 'D1', seatPlayerId: 5, seatOwnerDiscordId: 'D1', matchedPlayerId: 5, matchedHoldsOtherSeat: false };
+  assert.equal(nameMatchAllowed({ ...owner, matchByNickname: false }), false);
+});
+
+test('turning nickname matching on does not loosen the checks against what is proven', () => {
+  const on = { matchByNickname: true, matchedDiscordId: 'D2', seatPlayerId: 5, seatOwnerDiscordId: 'D1', matchedPlayerId: null, matchedHoldsOtherSeat: false };
+  assert.equal(nameMatchAllowed(on), false, 'the owner signed in with a different Discord account');
+  assert.equal(nameMatchAllowed({ ...on, seatOwnerDiscordId: null, matchedPlayerId: 6 }), false, 'the match is somebody else');
+});
+
+test('the not-linked count: seats with neither a signed-in owner nor a linked Discord account', () => {
+  assert.equal(countSeatsNotLinked([]), 0);
+  assert.equal(
+    countSeatsNotLinked([
+      { ownerDiscordId: 'D1', linkedDiscordId: null }, // signed in
+      { ownerDiscordId: null, linkedDiscordId: 'D2' }, // linked to a Discord account
+      { ownerDiscordId: null, linkedDiscordId: null }, // nickname only
+      { ownerDiscordId: '', linkedDiscordId: '' }, // blank is not a link
+    ]),
+    2,
+  );
 });

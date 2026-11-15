@@ -26,10 +26,17 @@ import { getSetting } from '@/lib/settings';
 import { clanAuditLog, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
-import { isSafeAutomatedRole, nameMatchAllowed, uniqueAliasIndex } from '@/lib/discordRoleSafety';
+import {
+  countSeatsNotLinked,
+  isSafeAutomatedRole,
+  nameMatchAllowed,
+  nicknameMatchingOn,
+  ROLE_MATCH_BY_NICKNAME_KEY,
+  uniqueAliasIndex,
+} from '@/lib/discordRoleSafety';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -160,6 +167,12 @@ interface RoleSyncConfig {
   // everyone's nick pinned to their RSN(s) so name-matching + readability stay correct even after
   // an in-game rename. Gated by `discord_nickname_overwrite`. Off by default (opt-in).
   overwriteNickname: boolean;
+  /**
+   * `discord_role_match_by_nickname`, OFF by default. Off = roles go only to Discord accounts the
+   * database knows (signed in to Anvil with Discord, or linked by an admin). On = a member with no
+   * link is also matched by a Discord nickname / username that reads as their in-game name.
+   */
+  matchByNickname: boolean;
   /** Rank rules (lib/rankRules): roles that add up as people climb the clan's rank ladder. */
   rankRules: RankRule[];
   rankOrder: string[];
@@ -322,6 +335,7 @@ export async function loadRoleSyncConfig(clanId: number): Promise<RoleSyncConfig
     autoMatchRankByName,
     setNicknameOnLink: (await getSetting(clanId, 'discord_nickname_sync_enabled')) === 'true',
     overwriteNickname: (await getSetting(clanId, 'discord_nickname_overwrite')) === 'true',
+    matchByNickname: nicknameMatchingOn(await getSetting(clanId, ROLE_MATCH_BY_NICKNAME_KEY)),
     rankRules: parseRankRules(await getSetting(clanId, RANK_RULES_KEY)),
     rankOrder: parseRankOrder(await getSetting(clanId, RANK_ORDER_KEY)),
     rankRulesRemove: (await getSetting(clanId, RANK_RULES_REMOVE_KEY)) !== 'false',
@@ -687,6 +701,8 @@ function splitDisplayAliases(name: string | null | undefined): string[] {
 export async function findDiscordIdByRsn(clanId: number, rsn: string): Promise<string | null> {
   const cfg = await loadRoleSyncConfig(clanId);
   if (!cfg) return null;
+  // The clan has not turned nickname matching on: no name search at all.
+  if (!cfg.matchByNickname) return null;
   const target = normalizeRsn(rsn);
   if (!target) return null;
 
@@ -726,7 +742,9 @@ async function nameMatchTrusted(
   clanId: number,
   member: { id: number; playerId: number | null },
   matchedDiscordId: string,
+  matchByNickname: boolean,
 ): Promise<boolean> {
+  if (!matchByNickname) return false;
   const seatOwnerDiscordId = member.playerId != null ? await discordIdForPerson(member.playerId) : null;
   // clan-scope: global -- a login is not a clan's; this asks who signed in with one Discord account.
   const matched = await db.query.users.findFirst({ where: eq(users.discordId, matchedDiscordId), columns: { playerId: true } });
@@ -740,7 +758,37 @@ async function nameMatchTrusted(
       .limit(1);
     matchedHoldsOtherSeat = !!seat;
   }
-  return nameMatchAllowed({ matchedDiscordId, seatPlayerId: member.playerId, seatOwnerDiscordId, matchedPlayerId, matchedHoldsOtherSeat });
+  return nameMatchAllowed({ matchByNickname, matchedDiscordId, seatPlayerId: member.playerId, seatOwnerDiscordId, matchedPlayerId, matchedHoldsOtherSeat });
+}
+
+/**
+ * How many of the clan's current members role sync cannot reach by Discord id (the same seats the
+ * sweep covers). Database only, no Discord call: shown on the admin Discord page beside the
+ * nickname-matching switch.
+ */
+export async function countRosterSeatsNotLinked(clanId: number): Promise<number> {
+  const rows = await db
+    .select({ id: clanRoster.id, linkedDiscordId: clanRoster.discordId, ownerDiscordId: users.discordId })
+    .from(clanRoster)
+    .leftJoin(users, and(eq(users.playerId, clanRoster.playerId), isNotNull(users.discordId)))
+    .where(
+      and(
+        eq(clanRoster.clanId, clanId),
+        isNull(clanRoster.leftAt),
+        or(eq(clanRoster.kind, 'member'), isNotNull(clanRoster.verifiedAt)),
+        rosterClanSeat(),
+      ),
+    );
+  // One row per seat: a person with two logins must not count their seat twice.
+  const bySeat = new Map<number, { ownerDiscordId: string | null; linkedDiscordId: string | null }>();
+  for (const r of rows) {
+    const held = bySeat.get(r.id);
+    bySeat.set(r.id, {
+      ownerDiscordId: held?.ownerDiscordId || r.ownerDiscordId || null,
+      linkedDiscordId: r.linkedDiscordId ?? null,
+    });
+  }
+  return countSeatsNotLinked(bySeat.values());
 }
 
 // =============================================================================
@@ -819,7 +867,7 @@ export async function resolveDiscordIdForMember(
   }
   // A name match: used for this call, never written back (see cacheDiscordId).
   const searched = await findDiscordIdByRsn(clanId, member.rsn);
-  if (searched && (await nameMatchTrusted(clanId, member, searched))) {
+  if (searched && (await nameMatchTrusted(clanId, member, searched, cfg.matchByNickname))) {
     const gm = await getGuildMember(cfg, searched);
     if (gm.member) return searched;
   }
@@ -942,7 +990,7 @@ export async function syncRolesForClanMember(
       const norm = normalizeRsn(member.rsn);
       const id = norm ? ctx.byAlias.get(norm) : undefined;
       const m = id ? ctx.byId.get(id) : undefined;
-      if (id && m && (await nameMatchTrusted(member.clanId, member, id))) {
+      if (id && m && (await nameMatchTrusted(member.clanId, member, id, cfg.matchByNickname))) {
         discordUserId = id;
         currentMember = m;
         viaName = true;
@@ -959,9 +1007,9 @@ export async function syncRolesForClanMember(
       }
       if (!gm.notFound) sawTransient = true;
     }
-    if (!currentMember) {
+    if (!currentMember && cfg.matchByNickname) {
       const searched = await findDiscordIdByRsn(member.clanId, member.rsn);
-      if (searched && !candidates.includes(searched) && (await nameMatchTrusted(member.clanId, member, searched))) {
+      if (searched && !candidates.includes(searched) && (await nameMatchTrusted(member.clanId, member, searched, cfg.matchByNickname))) {
         const gm = await getGuildMember(cfg, searched);
         if (gm.member) {
           discordUserId = searched;
@@ -978,7 +1026,9 @@ export async function syncRolesForClanMember(
     return {
       ok: false,
       reason: !anyId
-        ? 'no Discord id linkable to this RSN'
+        ? cfg.matchByNickname
+          ? 'no Discord id linkable to this RSN'
+          : 'has not signed in to Anvil with Discord'
         : sawTransient
           ? 'Discord API error (rate-limited?) — re-run'
           : 'user not in guild',
@@ -1212,7 +1262,9 @@ export async function syncRolesForClanMember(
     if (!res.ok) log.warn('discord-roles.remove-fail', { roleId, status: res.status, discordUserId });
   }
 
-  if ((added.length > 0 || removed.length > 0) && !member.discordId && discordUserId) {
+  // Never for a name match: once stored it would read as a real link on every later sync, whether or
+  // not the clan still allows nickname matching.
+  if (!viaName && (added.length > 0 || removed.length > 0) && !member.discordId && discordUserId) {
     // Cache the resolved Discord id on the ACCOUNT so we don't rerun the expensive name-match every
     // time — and so a match made in one clan counts in every clan that account plays in. Doesn't
     // conflict with the OAuth path: if the user later logs in via Discord, users.discord_id becomes

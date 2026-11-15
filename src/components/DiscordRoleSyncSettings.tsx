@@ -5,18 +5,21 @@ import DiscordLinkMember from './DiscordLinkMember';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { nicknameMatchingOn, ROLE_MATCH_BY_NICKNAME_KEY } from '@/lib/discordRoleSafety';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
 // explicitly disabled (null/'' = on). Mirrors loadRoleSyncConfig() in lib/discord-roles.ts.
-export default function DiscordRoleSyncSettings() {
+export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?: number }) {
   const [roleSync, setRoleSync] = useState(false);
   const [nicknameSync, setNicknameSync] = useState(false);
   const [nicknameOverwrite, setNicknameOverwrite] = useState(false);
   const [autoMatch, setAutoMatch] = useState(true);
+  // Off unless the clan turns it on (lib/discordRoleSafety ROLE_MATCH_BY_NICKNAME_KEY).
+  const [nicknameMatch, setNicknameMatch] = useState(false);
 
-  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true });
+  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true, nicknameMatch: false });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -60,11 +63,13 @@ export default function DiscordRoleSyncSettings() {
           nicknameSync: data.discord_nickname_sync_enabled === 'true',
           nicknameOverwrite: data.discord_nickname_overwrite === 'true',
           autoMatch: data.discord_auto_match_rank_by_name !== 'false',
+          nicknameMatch: nicknameMatchingOn(data[ROLE_MATCH_BY_NICKNAME_KEY]),
         };
         setRoleSync(next.roleSync);
         setNicknameSync(next.nicknameSync);
         setNicknameOverwrite(next.nicknameOverwrite);
         setAutoMatch(next.autoMatch);
+        setNicknameMatch(next.nicknameMatch);
         setOriginal(next);
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -87,11 +92,12 @@ export default function DiscordRoleSyncSettings() {
           discord_nickname_overwrite: nicknameOverwrite ? 'true' : '',
           // On = clear the override (defaults to on); Off = explicit 'false'.
           discord_auto_match_rank_by_name: autoMatch ? '' : 'false',
+          [ROLE_MATCH_BY_NICKNAME_KEY]: nicknameMatch ? 'true' : '',
         }),
       });
       if (res.ok) {
         invalidateSettings();
-        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch });
+        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch, nicknameMatch });
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
         const data = await res.json();
@@ -108,7 +114,8 @@ export default function DiscordRoleSyncSettings() {
     roleSync !== original.roleSync ||
     nicknameSync !== original.nicknameSync ||
     nicknameOverwrite !== original.nicknameOverwrite ||
-    autoMatch !== original.autoMatch;
+    autoMatch !== original.autoMatch ||
+    nicknameMatch !== original.nicknameMatch;
   useUnsavedChanges(hasChanges);
 
   if (loading) {
@@ -126,6 +133,34 @@ export default function DiscordRoleSyncSettings() {
         label="Enable Discord role sync"
         description="Gives members who have signed in to Anvil the Discord role that matches their in-game clan rank, plus any default roles. Needs the Anvil bot in your server (Connection, above). Nickname sync below also needs this on."
       />
+
+      <Checkbox
+        checked={nicknameMatch}
+        onChange={setNicknameMatch}
+        disabled={!roleSync}
+        label="Also match members by Discord nickname"
+        description={
+          <>
+            Off: only people who signed in to Anvil with Discord get roles. On: a member who has not signed in
+            also gets their roles when someone in your server has a nickname or username that matches their
+            in-game name. Anyone in your server can set their nickname to such a member&apos;s name and receive
+            that member&apos;s roles, without signing in to Anvil. Members who signed in are never affected.
+            {nicknameMatch && notLinked > 0 && (
+              <>
+                {' '}
+                {notLinked} current {notLinked === 1 ? 'member has' : 'members have'} not linked Discord and can
+                only be matched by nickname.
+              </>
+            )}
+          </>
+        }
+      />
+      {original.roleSync && !original.nicknameMatch && notLinked > 0 && (
+        <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-300">
+          {notLinked} {notLinked === 1 ? 'member has' : 'members have'} not linked Discord and will not get roles
+          until they sign in or you turn this on.
+        </p>
+      )}
 
       <Checkbox
         checked={nicknameSync}
@@ -184,7 +219,7 @@ export default function DiscordRoleSyncSettings() {
       </div>
 
       {/* Force a full re-sync now — applies roles + nicknames to everyone and reports who was
-          skipped and why (e.g. no Discord id linkable). Needs role sync enabled + saved. */}
+          skipped and why (e.g. has not signed in with Discord). Needs role sync enabled + saved. */}
       <div className="border-t border-card-border pt-4">
         <button
           onClick={runSync}

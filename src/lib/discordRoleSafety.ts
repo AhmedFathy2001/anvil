@@ -48,6 +48,29 @@ export function isSafeAutomatedRole(role: AssignableDiscordRole, guildId: string
 // member can type. These two rules decide when the guess is too weak to act on.
 
 /**
+ * The per-clan switch for name matching. OFF unless the clan turned it on: with it off, role sync
+ * gives roles only to people who signed in to Anvil with Discord (matched by Discord id), because a
+ * nickname is something anyone in the server can set to an unlinked member's in-game name.
+ */
+export const ROLE_MATCH_BY_NICKNAME_KEY = 'discord_role_match_by_nickname';
+
+/** Only an explicit 'true' / '1' turns it on; unset, blank or anything else is off. */
+export function nicknameMatchingOn(raw: string | null | undefined): boolean {
+  return raw === 'true' || raw === '1';
+}
+
+/**
+ * How many seats role sync cannot reach by Discord id: the character's owner has not signed in with
+ * Discord and no Discord account was linked to the seat. With nickname matching off these get no
+ * roles; with it on they are the ones matched by nickname only.
+ */
+export function countSeatsNotLinked(seats: Iterable<{ ownerDiscordId: string | null; linkedDiscordId: string | null }>): number {
+  let n = 0;
+  for (const s of seats) if (!s.ownerDiscordId && !s.linkedDiscordId) n++;
+  return n;
+}
+
+/**
  * One Discord account per name, or none.
  *
  * `entries` are (normalised name, Discord id) pairs in the order the guild listed them. The first
@@ -75,6 +98,8 @@ export function uniqueAliasIndex(entries: Iterable<readonly [string, string]>): 
  * matched Discord account is somebody else.
  */
 export function nameMatchAllowed(m: {
+  /** The clan turned "match by Discord nickname" on (nicknameMatchingOn). Off = no name match at all. */
+  matchByNickname: boolean;
   /** The Discord account whose name matched. */
   matchedDiscordId: string;
   /** The person who owns the seat's character, or null while nobody has claimed it. */
@@ -86,6 +111,8 @@ export function nameMatchAllowed(m: {
   /** That person already holds a different live seat in this clan. */
   matchedHoldsOtherSeat: boolean;
 }): boolean {
+  // The clan has not opted in: roles go only to people who signed in to Anvil with Discord.
+  if (!m.matchByNickname) return false;
   // The owner has a Discord account on record and this is not it.
   if (m.seatOwnerDiscordId && m.seatOwnerDiscordId !== m.matchedDiscordId) return false;
   if (m.matchedPlayerId != null) {
