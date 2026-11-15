@@ -23,6 +23,14 @@ export function pickShowcaseClans<T extends ShowcaseClan>(rows: T[], limit = 6):
     .slice(0, limit);
 }
 
+/** Clans taking members now, for somebody with no clan: real clans only, the most active first. */
+export function pickRecruitingClans<T extends ShowcaseClan>(rows: T[], limit = 3): T[] {
+  return rows
+    .filter((r) => r.kind === 'clan' && r.recruiting === true)
+    .sort((a, b) => b.activeThisWeek - a.activeThisWeek || b.members - a.members || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
 export interface HeroCount {
   n: number;
   label: string;

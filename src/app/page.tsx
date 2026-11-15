@@ -1,4 +1,5 @@
-import { landingClans } from '@/lib/landingClans';
+import { landingClans, recruitingClans } from '@/lib/landingClans';
+import { onboardingState } from '@/lib/onboarding';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
@@ -172,8 +173,16 @@ async function ApexRoot() {
     // Their Supporter look, once: every character name the signed-in home draws is their own.
     supporterForUser(session.userId),
   ]);
+  // The clanless home also offers somewhere to go and shows the setup progress already computed for
+  // /welcome. Only read for people in no clan; everyone else's home does not use them.
+  const clanless = view.clans.length === 0;
+  const [recruiting, setup] = clanless
+    ? await Promise.all([recruitingClans(), onboardingState(session.userId, session.playerId)])
+    : [[], null];
   return (
     <ApexHome
+      recruiting={recruiting}
+      setup={setup ? { doneCount: setup.doneCount, total: setup.total, next: setup.steps.find((st) => st.key === setup.current) ?? null } : null}
       view={view}
       signals={signals}
       displayName={userRow?.displayName ?? 'there'}

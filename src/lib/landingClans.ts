@@ -1,20 +1,20 @@
 import { directoryClans } from '@/lib/apexDirectory';
-import { pickShowcaseClans, type ShowcaseClan } from '@/lib/landingClansRules';
+import { pickRecruitingClans, pickShowcaseClans, type ShowcaseClan } from '@/lib/landingClansRules';
 
 const TTL_MS = 60_000;
 let cached: { at: number; value: Promise<ShowcaseClan[]> } | null = null;
 
 /**
- * Clans that were active this week, for the signed-out landing. Shares one answer for a minute for
- * the same reason lib/platformStats does: crawlers arrive in bursts and each directory read is
- * several queries. A failed read is an empty row, never a broken page.
+ * Every listed clan, trimmed to what the landing and the clanless home show. One shared answer for a
+ * minute, for the same reason lib/platformStats does: crawlers arrive in bursts and each directory
+ * read is several queries. A failed read is an empty list, never a broken page.
  */
-export function landingClans(): Promise<ShowcaseClan[]> {
+function listed(): Promise<ShowcaseClan[]> {
   const now = Date.now();
   if (cached && now - cached.at < TTL_MS) return cached.value;
   const value = directoryClans()
     .then((rows) =>
-      pickShowcaseClans(rows).map((r) => ({
+      rows.map((r) => ({
         slug: r.slug,
         name: r.name,
         kind: r.kind,
@@ -28,4 +28,14 @@ export function landingClans(): Promise<ShowcaseClan[]> {
     .catch(() => [] as ShowcaseClan[]);
   cached = { at: now, value };
   return value;
+}
+
+/** Clans that were active this week, for the signed-out landing. */
+export async function landingClans(): Promise<ShowcaseClan[]> {
+  return pickShowcaseClans(await listed());
+}
+
+/** Clans taking members, for a signed-in player who is in none. */
+export async function recruitingClans(): Promise<ShowcaseClan[]> {
+  return pickRecruitingClans(await listed());
 }
