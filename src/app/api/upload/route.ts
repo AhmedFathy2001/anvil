@@ -101,13 +101,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'File too large. Max 10MB' }, { status: 400 });
   }
 
-  // EVERY image is re-encoded, which is also what removes its metadata (EXIF location, camera, text
-  // chunks): lib/stripImageMetadata. An image that cannot be read is refused rather than stored with
-  // whatever it carries — that includes HEIC where the server has no decoder (the phone's share sheet
-  // can send a JPG instead).
+  // Images the server can read are re-saved (which drops location, camera and text details); the
+  // re-encoded copy is always what is stored, even when it is a little larger. A proof the server
+  // cannot decode (HEIC without a decoder, an odd file) is stored as it came, so a submission never
+  // silently drops.
   const clean = await stripImageMetadata(Buffer.from(await file.arrayBuffer()), {
     maxDimension: MAX_DIMENSION,
     quality: WEBP_QUALITY,
+    onUnreadable: 'keep',
+    keepExt: ext,
   });
   if (!clean) return NextResponse.json({ error: UNREADABLE_IMAGE }, { status: 400 });
   const body: Buffer = clean.bytes;
