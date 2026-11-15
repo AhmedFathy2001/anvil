@@ -4813,7 +4813,9 @@ export const guestPresence = pgTable('guest_presence', {
 }, (t) => [index('guest_presence_clan_idx').on(t.clanId, t.seenAt)]);
 
 // The chat feed's sender-side idempotency: a retried item (same character, same plugin key) goes to
-// nobody twice. Swept after a couple of days (lib/chatFeed sweepFeedItems).
+// nobody twice. Swept after a couple of days (lib/chatFeed sweepChatFeed).
+// Also where plugin fact ids are remembered (lib/pluginFacts/factIdStore, keys starting `fact:`), so a
+// re-sent fact is never credited twice; the same sweep is their two-day retention.
 export const feedItems = pgTable('feed_items', {
   id: serial('id').primaryKey(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),

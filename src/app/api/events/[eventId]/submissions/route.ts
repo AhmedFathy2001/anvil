@@ -44,6 +44,11 @@ import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } fro
 import { claimUploads } from '@/lib/uploadClaims';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
 import { provenClanSlug } from '@/lib/requestHeaderProof';
+import { decideFactClaim, parseFactIds } from '@/lib/pluginFacts/factIds';
+import { claimTileFacts, tileFactIds, type FactOwner } from '@/lib/pluginFacts/factIdStore';
+
+/** Thrown inside the credit's transaction to roll it back: one of its fact ids was already taken. */
+class FactsTaken extends Error {}
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -168,7 +173,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments, proofKey: rawProofKey } = await request.json();
+  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments, proofKey: rawProofKey, factIds: rawFactIds } = await request.json();
 
   // CAPPED counter tiles (lib/tileCaps): the plugin config hands out VIRTUAL negative tile ids for a
   // tile's cap counters (slots 1..n). Every plugin build credits them like any kill tile, so they
@@ -236,6 +241,22 @@ export async function POST(
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
     ({ captain, player, pluginAuth, membership } = access);
   }
+
+  // FACT IDS (lib/pluginFacts/factIds): the facts route names the plugin facts this credit is made
+  // of. One already in on this tile is never filed twice: answered as accepted, nothing stored.
+  // Plugin only, and remembered under the token's own person and character, never a body's word.
+  const factIds = pluginAuth?.userId != null ? parseFactIds(rawFactIds) : [];
+  const owner: FactOwner | null = factIds.length ? { userId: pluginAuth!.userId!, accountId: pluginAuth!.accountId } : null;
+  const factReplay = async () => {
+    const seen = owner ? await tileFactIds(owner, factIds, rawTileId) : new Set<string>();
+    const claim = decideFactClaim(factIds.length, seen.size);
+    if (claim === 'duplicate') return NextResponse.json({ ok: true, duplicate: true, completed: false });
+    // Some of its facts are in and some are not: nothing is filed, the facts route sends it back.
+    if (claim === 'mixed') return NextResponse.json({ error: 'Part of this was already counted', factsSeen: [...seen] }, { status: 409 });
+    return null;
+  };
+  const replayed = await factReplay();
+  if (replayed) return replayed;
 
   // Get event and check start date
   const event = await db.query.events.findFirst({
@@ -715,34 +736,46 @@ export async function POST(
   // File the pictures under this event (lib/uploadClaims) — what the media purge goes by.
   await claimUploads([...(upload && imageUrlValue ? [imageUrlValue] : []), ...extraItems.filter((a) => a.kind === 'image').map((a) => a.url)], eId);
 
-  const [inserted] = await db
-    .insert(submissions)
-    .values({
-      tileId,
-      teamId,
-      playerId: uploaderId,
-      creditPlayerId: resolvedCreditPlayerId,
-      amount: creditedAmount,
-      imageUrl: imageUrlValue,
-      note: creditNote,
-      itemId: itemId || null,
-      durationSeconds: durationSecondsValue,
-      coopGroup: coopGroupJson,
-      coopPartySize: coopPartySizeValue,
-      flaggedReason,
-      source: pluginAuth ? 'plugin' : 'web',
-      worldMode: pluginAuth ? (worldModeOf(request)?.key ?? null) : null,
-      imageSha256: upload?.sha256 ?? null,
-      goal: goalValue,
-      ...(pendingKey
-        ? {
-            proofKey: pendingKey,
-            proofDueAt: proofDueAt(receivedAt),
-            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: await provenClanSlug(request.headers), announce: null, sender: pluginAuth?.userId ?? null }),
-          }
-        : {}),
-    })
-    .returning();
+  const row: typeof submissions.$inferInsert = {
+    tileId,
+    teamId,
+    playerId: uploaderId,
+    creditPlayerId: resolvedCreditPlayerId,
+    amount: creditedAmount,
+    imageUrl: imageUrlValue,
+    note: creditNote,
+    itemId: itemId || null,
+    durationSeconds: durationSecondsValue,
+    coopGroup: coopGroupJson,
+    coopPartySize: coopPartySizeValue,
+    flaggedReason,
+    source: pluginAuth ? 'plugin' : 'web',
+    worldMode: pluginAuth ? (worldModeOf(request)?.key ?? null) : null,
+    imageSha256: upload?.sha256 ?? null,
+    goal: goalValue,
+    ...(pendingKey
+      ? {
+          proofKey: pendingKey,
+          proofDueAt: proofDueAt(receivedAt),
+          proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: await provenClanSlug(request.headers), announce: null, sender: pluginAuth?.userId ?? null }),
+        }
+      : {}),
+  };
+  // The fact ids are taken in the SAME transaction as the row, insert-if-absent on the store's unique
+  // index: the credit and its ids are in together or not at all, and of two requests carrying the
+  // same id at once the second waits for the first, finds the id taken and files nothing.
+  const inserted = owner
+    ? await db.transaction(async (tx) => {
+        if (!(await claimTileFacts(tx, owner, factIds, rawTileId))) throw new FactsTaken();
+        return (await tx.insert(submissions).values(row).returning())[0];
+      }).catch((e) => {
+        if (e instanceof FactsTaken) return null;
+        throw e;
+      })
+    : (await db.insert(submissions).values(row).returning())[0];
+  if (!inserted) {
+    return (await factReplay()) ?? NextResponse.json({ error: 'Try again' }, { status: 503 });
+  }
 
   // The extras sent with it, and the start screenshot this person saved on the tile before the grind
   // (a draft) — both ride on this proof. Web only: a plugin token speaks for a character, not a person
