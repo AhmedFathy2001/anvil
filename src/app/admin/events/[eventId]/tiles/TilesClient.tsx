@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import TileCreator from '@/components/tile-creator/TileCreator';
 import BulkQuickAdd from '@/components/tile-creator/BulkQuickAdd';
+import { tilesAddedSince, undoableAdd } from '@/lib/quickAddUndo';
 import { draftToTileConfig } from '@/lib/tileCreatorConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
@@ -167,6 +168,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
+  // The tiles the last Quick add created, so a wrong paste can be taken back without hunting them
+  // down one by one. Only tiles that were ADDED to the board: a blank square it filled in was already
+  // there, and the delete route cannot remove it. Kept for this visit; a later Quick add replaces it.
+  const [lastQuickAdd, setLastQuickAdd] = useState<{ ids: number[]; filled: number } | null>(null);
+  const [undoingQuickAdd, setUndoingQuickAdd] = useState(false);
   const { confirm, ask, notify } = useDialog();
   // A green "Added 12 tiles" line is about THAT action: let it go after a while rather than sit
   // there through every later save.
@@ -915,11 +921,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // Re-fetch the whole tile set after a bulk operation (CSV import, clog generation) that returns
   // counts rather than the created rows, so both updated and new tiles render immediately. Clears
   // filters so freshly-added tiles aren't hidden. router.refresh() re-syncs the server component too.
-  async function syncTilesFromServer() {
+  async function syncTilesFromServer(): Promise<Tile[] | null> {
+    let fresh: Tile[] | null = null;
     try {
       const refreshed = await clanFetch(`/api/events/${event.id}/tiles`);
       if (refreshed.ok) {
-        const fresh = (await refreshed.json()) as Tile[];
+        fresh = (await refreshed.json()) as Tile[];
         setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
         setSearch('');
         setKindFilter('all');
@@ -930,6 +937,38 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       /* ignore — router.refresh below still re-syncs server data */
     }
     router.refresh();
+    return fresh;
+  }
+
+  /** Take back the tiles the last Quick add created, through the same delete route the editor uses. */
+  async function undoQuickAdd() {
+    if (!lastQuickAdd || undoingQuickAdd) return;
+    setUndoingQuickAdd(true);
+    let removed = 0;
+    let failure = '';
+    try {
+      for (const id of [...lastQuickAdd.ids].reverse()) {
+        const res = await clanFetch(`/api/events/${event.id}/tiles/${id}`, { method: 'DELETE' });
+        // Already gone (deleted by hand since): nothing to take back.
+        if (!res.ok && res.status !== 404) {
+          failure = (await res.json().catch(() => ({}))).error || 'Could not remove a tile.';
+          break;
+        }
+        if (res.ok) removed++;
+      }
+    } finally {
+      setUndoingQuickAdd(false);
+    }
+    await syncTilesFromServer();
+    setLastQuickAdd(null);
+    setImportMsg(
+      failure
+        ? { type: 'error', text: `Removed ${removed} of the tiles you added. ${failure}` }
+        : {
+            type: 'success',
+            text: `Removed the ${removed} ${removed === 1 ? 'tile' : 'tiles'} you just added.${lastQuickAdd.filled > 0 ? ` The ${lastQuickAdd.filled} blank ${lastQuickAdd.filled === 1 ? 'square' : 'squares'} it filled stay: open one to change it.` : ''}`,
+          },
+    );
   }
 
   async function handleClogCreated(summary: { created: number; ignored: number; activity: string }) {
@@ -1241,6 +1280,25 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         {importMsg && (
           <p className={`text-sm mb-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
             {importMsg.text}
+          </p>
+        )}
+
+        {lastQuickAdd && !editLocked && (
+          <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+            <span>
+              Last Quick add: {lastQuickAdd.ids.length} {lastQuickAdd.ids.length === 1 ? 'tile' : 'tiles'} added.
+            </span>
+            <button
+              type="button"
+              onClick={() => void undoQuickAdd()}
+              disabled={undoingQuickAdd}
+              className="rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1 text-gold hover:bg-gold/20 disabled:opacity-50"
+            >
+              {undoingQuickAdd ? 'Removing…' : 'Undo'}
+            </button>
+            <button type="button" onClick={() => setLastQuickAdd(null)} className="hover:text-foreground">
+              Dismiss
+            </button>
           </p>
         )}
 
@@ -1898,7 +1956,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               type: 'success',
               text: `Added ${summary.created + summary.applied} tile${summary.created + summary.applied === 1 ? '' : 's'} from your list${summary.ignored ? ` · ${summary.ignored} skipped (no room left on the board)` : ''}.`,
             });
-            await syncTilesFromServer();
+            const before = new Set(localTiles.map((t) => t.id));
+            const fresh = await syncTilesFromServer();
+            const added = fresh ? tilesAddedSince(before, fresh) : [];
+            setLastQuickAdd(undoableAdd(summary.created, added) ? { ids: added, filled: summary.applied } : null);
           }}
         />
       )}
