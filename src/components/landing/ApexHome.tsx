@@ -245,11 +245,6 @@ export default function ApexHome({
             </Section>
           )}
 
-          {/* Somewhere new to play. Public boards from clans that list themselves, in clans this
-              person is not in — below everything that is already theirs, and one click to hide. */}
-          {view.discover && view.discover.length > 0 && <Discover discover={view.discover} title="Open to everyone" />}
-          {view.discover === null && <DiscoverToggle show variant="offer" />}
-
           {needsYou.length > 0 && (
             <Section title="Clans you run, with nothing on" note={`${needsYou.length}`}>
               <div className="flex flex-col gap-2.5">
@@ -272,6 +267,11 @@ export default function ApexHome({
               </div>
             </Section>
           )}
+
+          {/* Somewhere new to play. Public boards from clans that list themselves, in clans this
+              person is not in — below everything that is already theirs, and one click to hide. */}
+          {view.discover && view.discover.length > 0 && <Discover discover={view.discover} title="Open to everyone" />}
+          {view.discover === null && <DiscoverToggle show variant="offer" />}
 
           {quiet && (
             <div className="rounded-xl border border-card-border bg-card-bg px-5 py-6 text-[14.5px] text-text-muted">

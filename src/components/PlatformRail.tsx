@@ -303,7 +303,7 @@ export default function PlatformRail({
             </a>
           </>
         ) : (
-          item('/login', 'Sign in', <PersonIcon />)
+          item(pathname !== '/' && pathname !== '/login' ? `/login?return=${encodeURIComponent(pathname)}` : '/login', 'Sign in', <PersonIcon />)
         )}
       </div>
 
