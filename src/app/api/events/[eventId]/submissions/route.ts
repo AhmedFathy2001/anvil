@@ -989,11 +989,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const body = await request.json().catch(() => null);
-  if (body?.action !== 'clear-flag') {
-    return NextResponse.json({ error: "Expected { action: 'clear-flag' }" }, { status: 400 });
-  }
   const sId = parseInt(new URL(request.url).searchParams.get('submissionId') ?? '', 10);
   if (!Number.isInteger(sId)) return NextResponse.json({ error: 'submissionId required' }, { status: 400 });
+
+  // CORRECT A CREDIT'S AMOUNT in place (clan admins): the plugin counted 1 of a 450 stack, or a typo.
+  // The row keeps its picture, player and time; the change is written into its note, and the tile's
+  // completion is worked out again either way (up to done, or back to not done).
+  if (body?.action === 'set-amount') {
+    if (!atLeast(actingUser?.role, 'admin')) return NextResponse.json({ error: 'Only a clan admin can change a credit’s amount' }, { status: 403 });
+    const amount = body.amount;
+    if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 1 || amount > 2_147_483_647) {
+      return NextResponse.json({ error: 'amount must be a whole number of at least 1' }, { status: 400 });
+    }
+    const [row] = await db
+      .select({ id: submissions.id, tileId: submissions.tileId, teamId: submissions.teamId, amount: submissions.amount, note: submissions.note })
+      .from(submissions)
+      .innerJoin(tiles, eq(tiles.id, submissions.tileId))
+      .where(and(eq(submissions.id, sId), eq(tiles.eventId, eId)))
+      .limit(1);
+    if (!row) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+    if (row.amount !== amount) {
+      const who = (await db.query.users.findFirst({ where: eq(users.id, actingUser!.userId) }))?.displayName || actingUser!.username || 'an admin';
+      const trail = `[Staff] amount ${row.amount} → ${amount} by ${who}`;
+      await db
+        .update(submissions)
+        .set({ amount, note: [row.note, trail].filter(Boolean).join(' · ').slice(0, 1000) })
+        .where(eq(submissions.id, sId));
+      await syncDropTileCompletion(row.tileId, row.teamId);
+    }
+    return NextResponse.json({ ok: true, amount });
+  }
+  if (body?.action !== 'clear-flag') {
+    return NextResponse.json({ error: "Expected { action: 'clear-flag' | 'set-amount' }" }, { status: 400 });
+  }
 
   // Only a submission on a tile of THIS event: the id came from the caller.
   const eventTileIds = db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId));
