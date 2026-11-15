@@ -69,6 +69,8 @@ export interface EventRecap {
     tilesCompleted: number;
     submissions: number;
     gpLooted: number;
+    /** Everyone's plugin-tracked loot for the event, summed: the number Loot Lord is ranked on. */
+    lootGp?: number;
   };
   /**
    * Everyone's account-wide XP and boss KC over the event, tile or no tile — the "By the numbers"
@@ -645,12 +647,12 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   );
   pushAward(
     award('warmonger', '⚔️', 'Warmonger', 'Most kills credited', (s) =>
-      s.kills > 0 ? toEntry(s, s.kills, `${s.kills.toLocaleString()} kills`) : null,
+      s.kills > 0 ? toEntry(s, s.kills, `${s.kills.toLocaleString()} ${s.kills === 1 ? 'kill' : 'kills'}`) : null,
     ),
   );
   pushAward(
     award('loot-goblin', '🎣', 'Loot Goblin', 'Most drops credited', (s) =>
-      s.drops > 0 ? toEntry(s, s.drops, `${s.drops.toLocaleString()} drops`) : null,
+      s.drops > 0 ? toEntry(s, s.drops, `${s.drops.toLocaleString()} ${s.drops === 1 ? 'drop' : 'drops'}`) : null,
     ),
   );
   pushAward(
@@ -697,13 +699,13 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     // counter. Take the max, never the sum — on a board WITH pvp tiles both see the same kills.
     award('pker', '🗡️', 'PKer', 'Most PvP kills', (s) => {
       const pks = Math.max(s.pvpKills, s.pvpKillCounter);
-      return pks > 0 ? toEntry(s, pks, `${pks.toLocaleString()} PvP kills`) : null;
+      return pks > 0 ? toEntry(s, pks, `${pks.toLocaleString()} PvP ${pks === 1 ? 'kill' : 'kills'}`) : null;
     }),
   );
   pushAward(
     award('untouchable', '🛡️', 'Untouchable', 'Most deathless clears', (s) =>
       s.deathlessClears > 0
-        ? toEntry(s, s.deathlessClears, `${s.deathlessClears.toLocaleString()} clears`)
+        ? toEntry(s, s.deathlessClears, `${s.deathlessClears.toLocaleString()} ${s.deathlessClears === 1 ? 'clear' : 'clears'}`)
         : null,
     ),
   );
@@ -720,7 +722,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     // award counts how many DIFFERENT tiles someone put work into instead.
     award('jack-of-all-trades', '🧩', 'Jack of All Trades', 'Put work into the most different tiles', (s) =>
       s.tilesTouched.size >= 2
-        ? toEntry(s, s.tilesTouched.size, `${s.tilesTouched.size} different tiles`)
+        ? toEntry(s, s.tilesTouched.size, s.tilesTouched.size === 1 ? '1 tile' : `${s.tilesTouched.size} different tiles`)
         : null,
     ),
   );
@@ -786,7 +788,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
         if (s.shareCount < 3 || s.soloFinishes > 0) return null;
         const avg = s.shareSum / s.shareCount;
         if (avg >= 0.34) return null; // a real third of the work isn't a passenger
-        return toEntry(s, avg, `${Math.round(avg * 100)}% average share`, `${s.shareCount} tiles`);
+        return toEntry(s, avg, `${Math.round(avg * 100)}% average share`, `${s.shareCount} ${s.shareCount === 1 ? 'tile' : 'tiles'}`);
       },
       { asc: true },
     ),
@@ -906,6 +908,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     // Turn-ins, not rows (lib/turnIns): a kill tile's per-kill rows count once per person.
     submissions: contenders.reduce((sum, s) => sum + s.submissions, 0),
     gpLooted: totalGpLooted,
+    lootGp: contenders.reduce((sum, s) => sum + s.lootGpTotal, 0),
   };
 
   return {
