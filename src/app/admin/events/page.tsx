@@ -1,3 +1,4 @@
+import { placementOf } from '@/lib/teamPlacement';
 import { eventStage } from '@/lib/eventStage';
 import { weeklyStage } from '@/lib/weeklyStage';
 import { db } from '@/db';
@@ -196,6 +197,7 @@ export default async function AdminEventsPage() {
         expectedTiles: eventTileCount(e.format, e.scoringMode, e.boardSize),
         draftStatus: e.draftStatus,
         hasDates: !!e.startDate && !!e.endDate,
+        placement: placementOf(e),
       })),
     ),
     getPastEventResults(pastEventIds),

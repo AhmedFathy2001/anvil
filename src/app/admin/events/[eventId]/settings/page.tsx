@@ -2,6 +2,10 @@ import ClanLink from '@/components/ClanLink';
 import { clientEvent } from '@/lib/clientRows';
 import { tabHref } from '@/lib/eventSettingsTabs';
 import SettingsClient from './SettingsClient';
+import SettingsMap from './SettingsMap';
+import { eventModeLabel } from '@/lib/utils';
+import { parseEventRules } from '@/lib/eventRules';
+import { placementOf } from '@/lib/teamPlacement';
 import EventLookPanel from './EventLookPanel';
 import { boardTiles, loadSettings } from './load';
 
@@ -18,7 +22,7 @@ export default async function EventSettingsPage({
   params: Promise<{ eventId: string }>;
   searchParams: Promise<{ uninvited?: string }>;
 }) {
-  const { id, event, clan } = await loadSettings((await params).eventId);
+  const { id, event, clan, kind } = await loadSettings((await params).eventId);
   // Clans the create form could not invite — a typo, or the multi-clan plan gate. The fix is on the
   // entry tab; this only says so, because the create form lands here.
   const uninvited = ((await searchParams).uninvited ?? '')
@@ -43,6 +47,27 @@ export default async function EventSettingsPage({
           </div>
         </div>
       )}
+      <SettingsMap
+        eventId={id}
+        kind={kind}
+        facts={{
+          name: event.name,
+          formatLabel: eventModeLabel(event.format, event.scoringMode, event.rules),
+          boardSize: event.boardSize,
+          startDate: event.startDate ?? null,
+          endDate: event.endDate ?? null,
+          tilesRevealed: !!event.tilesRevealed,
+          tilesRevealAt: event.tilesRevealAt ?? null,
+          revealPolicy: parseEventRules(event.rules).revealPolicy,
+          standings: parseEventRules(event.rules).standings.visibility,
+          worldModeCount: parseEventRules(event.rules).worldModes.length,
+          visibility: event.visibility,
+          signupsEnabled: event.signupsEnabled !== false,
+          signupFee: event.signupFee ?? null,
+          teamPlacement: placementOf(event),
+          teamCount: event.teamCount ?? null,
+        }}
+      />
       <div id="look" className="scroll-mt-28 rounded-xl">
         <EventLookPanel
           eventId={event.id}

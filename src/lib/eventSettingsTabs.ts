@@ -4,8 +4,11 @@
 //
 // A creator space and a clan are DIFFERENT shapes, not one page with parts hidden:
 //
-//   space   Event · Viewers · Stream · Board & play · Rules · More
-//   clan    Event · Board & play · Rules · Entry & co-hosts · Staff · More      (+ Stream when it streams)
+//   space   Event · Board & play · Viewers · Rules · Stream · More
+//   clan    Event · Board & play · Entry & co-hosts · Rules · Staff · (Stream) · More
+//
+// The order is the order a host needs them, matching the guide strip: what the event is and when it
+// runs, how its board opens, who can get in, the rules they play by, who helps run it.
 //
 // The same panels back both where they mean the same thing; the words are the host's.
 
@@ -23,20 +26,32 @@ export interface TabInfo {
   /** Path under /settings ('' for the first tab). */
   slug: string;
   label: string;
+  /** One line on what is in it, shown under the tab strip and on the settings map. */
+  blurb: string;
 }
+
+const BLURB: Record<SettingsTab, (kind: SettingsKind) => string> = {
+  event: () => 'The name and look, the format and board size, and when it starts and ends.',
+  board: () => 'When tiles are revealed, how they open, who sees the standings, and which game-mode worlds count.',
+  access: (k) => (k.creator ? 'Who can see this event and who can join it, by their channel or role.' : 'Who can see and enter this event, and any clans you co-host it with.'),
+  rules: () => 'The rules your players follow, and posting them to Discord.',
+  staff: () => 'The people who help run this event: board editors and treasurers.',
+  stream: (k) => (k.creator ? 'The stream overlay, channel panels, and the moderators for the stream.' : 'The stream overlay and channel panels.'),
+  more: () => 'Copy this event, save it as a template, share the board, repair counts, or delete it.',
+};
 
 const SLUG: Record<SettingsTab, string> = { event: '', board: 'board', rules: 'rules', access: 'access', staff: 'staff', stream: 'stream', more: 'more' };
 
 export function tabsFor(kind: SettingsKind): TabInfo[] {
-  const t = (key: SettingsTab, label: string): TabInfo => ({ key, slug: SLUG[key], label });
+  const t = (key: SettingsTab, label: string): TabInfo => ({ key, slug: SLUG[key], label, blurb: BLURB[key](kind) });
   if (kind.creator) {
-    return [t('event', 'Event'), t('access', 'Viewers'), t('stream', 'Stream'), t('board', 'Board & play'), t('rules', 'Rules'), t('more', 'More')];
+    return [t('event', 'Event'), t('board', 'Board & play'), t('access', 'Viewers'), t('rules', 'Rules'), t('stream', 'Stream'), t('more', 'More')];
   }
   return [
     t('event', 'Event'),
     t('board', 'Board & play'),
-    t('rules', 'Rules'),
     t('access', 'Entry & co-hosts'),
+    t('rules', 'Rules'),
     t('staff', 'Staff'),
     ...(kind.streams ? [t('stream', 'Stream')] : []),
     t('more', 'More'),

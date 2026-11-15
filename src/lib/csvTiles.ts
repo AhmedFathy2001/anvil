@@ -789,3 +789,38 @@ export function tileToCsvCells(t: Tile): string[] {
     t.countMode === 'distinct' || t.countMode === 'complete' ? t.countMode : '',
   ];
 }
+
+// ── Writing the template CSV ─────────────────────────────────────────────────────────────────────
+
+/** One CSV field, quoted when it holds a comma, a quote or a line break. */
+export function csvField(v: string): string {
+  return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+/**
+ * Worked examples for an empty board's template, keyed by column NAME so they cannot drift out of
+ * step with TILE_CSV_COLUMNS (they once were positional and slid into the wrong columns when the
+ * effort columns were added): skill and boss by name, "10m" numbers, "30:00" times, items by name.
+ */
+const TEMPLATE_EXAMPLES: Record<string, string>[] = [
+  { label: '10M Mining XP', type: 'standard', points: '10', category: 'Skilling', statType: 'skill', trackedStat: 'Mining', statGoal: '10m' },
+  { label: '50 Zulrah KC', type: 'standard', points: '8', category: 'Zulrah', statType: 'boss', trackedStat: 'Zulrah', statGoal: '50' },
+  { label: 'Any Bandos unique', type: 'drop', points: '15', category: 'GWD', requiredAmount: '1', items: 'Bandos chestplate; Bandos tassets; Bandos boots' },
+  { label: 'Kill 100 cows', type: 'kill', points: '3', category: 'Skilling', requiredAmount: '100', targetNpcs: 'Cow, Cow calf' },
+  { label: 'Sub-30 Inferno', type: 'timed', points: '50', category: 'Inferno', timedActivity: 'Inferno', timeThresholdSeconds: '30:00' },
+];
+
+/** The example rows as cells, in TILE_CSV_COLUMNS order. */
+export function templateExampleCells(): string[][] {
+  return TEMPLATE_EXAMPLES.map((ex) => TILE_CSV_COLUMNS.map((c) => ex[c] ?? ''));
+}
+
+/**
+ * The text of the template CSV: the header, then the board's tiles (so a round trip edits in place),
+ * or the worked examples when the board is empty. `hasExamples` tells the caller to say so.
+ */
+export function tilesToCsvText(tiles: Tile[]): { text: string; hasExamples: boolean } {
+  const rows = tiles.length > 0 ? tiles.map((t) => tileToCsvCells(t)) : templateExampleCells();
+  const lines = [TILE_CSV_COLUMNS.join(','), ...rows.map((cells) => cells.map(csvField).join(','))];
+  return { text: lines.join('\n'), hasExamples: tiles.length === 0 };
+}

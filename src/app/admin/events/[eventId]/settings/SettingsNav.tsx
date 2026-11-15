@@ -53,8 +53,10 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
     router.push(clanUrl(href));
   }
 
+  const activeTab = tabs.find((t) => (t.slug ? pathname.startsWith(tabHref(eventId, t.key)) : pathname === tabHref(eventId, t.key)));
   return (
-    <div className="mb-6 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
+    <>
+    <div className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
       <ScrollStrip className="-mb-px flex max-w-full flex-none gap-1 overflow-x-auto overflow-y-hidden scroll-quiet" aria-label="Settings">
         {tabs.map((t) => {
           const href = tabHref(eventId, t.key);
@@ -145,5 +147,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
         )}
       </div>
     </div>
+    {activeTab && <p className="mb-6 text-sm text-text-muted">{activeTab.blurb}</p>}
+    </>
   );
 }

@@ -64,3 +64,20 @@ test('a tile race is built on its map: the next step opens the race map, with th
   // A finished race board moves on like any other.
   assert.equal(nextStep({ ...base, race: true }).title, nextStep(base).title);
 });
+
+test('auto-balance boards are told to share the link, not to make teams', () => {
+  const none = { ...base, placement: 'auto', signupCount: 0, teamCount: 0, assignedPlayers: 0 };
+  const s = nextStep(none);
+  assert.equal(s.key, 'share');
+  assert.match(s.body, /teams are made from sign-ups/);
+  // Teams may exist (made on demand) with nobody on them yet: still the sign-up link.
+  assert.equal(nextStep({ ...none, teamCount: 4 }).key, 'share');
+  // A hand-built board keeps the old wording.
+  assert.match(nextStep({ ...base, placement: 'draft', signupCount: 0, teamCount: 0, assignedPlayers: 0 }).body, /then make teams/);
+});
+
+test('auto-balance with sign-ups but no teams points at adding everyone', () => {
+  const s = nextStep({ ...base, placement: 'auto', signupCount: 5, teamCount: 0, assignedPlayers: 0 });
+  assert.equal(s.key, 'teams');
+  assert.match(s.body, /add everyone/);
+});

@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from "react";
 import EventForm from "@/components/EventForm";
+import DialogFrame from "@/components/DialogFrame";
 
 // Renders the "+ New event" button. Click opens a centered modal containing the
 // event creation form. Putting the form in a modal (instead of inline) keeps the
 // page layout stable — no surrounding sections shift around when the form opens.
 export default function CreateEventToggle() {
   const [open, setOpen] = useState(false);
+  // Typed-in form: closing asks first (DialogFrame -> useGuardedClose).
+  const [dirty, setDirty] = useState(false);
+  const close = () => {
+    setDirty(false);
+    setOpen(false);
+  };
 
   // Lock body scroll while modal is open. Cleaned up on unmount or close.
   useEffect(() => {
@@ -17,16 +24,6 @@ export default function CreateEventToggle() {
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
-
-  // Close on Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
   return (
@@ -39,37 +36,34 @@ export default function CreateEventToggle() {
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-event-title"
-          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
+        <DialogFrame
+          dirty={dirty}
+          onClose={close}
+          ariaLabel="Create event"
+          overlayClassName="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:p-8"
+          panelClassName="relative w-full max-w-4xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50"
         >
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
-          />
-          <div className="relative w-full max-w-4xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
-            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-card-border">
-              <div className="flex items-center gap-2">
-                <span className="w-1 h-5 bg-gold rounded-full" />
-                <h2 id="create-event-title" className="font-semibold text-lg">
-                  Create Event
-                </h2>
+          {(requestClose) => (
+            <>
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-card-border">
+                <div className="flex items-center gap-2">
+                  <span className="w-1 h-5 bg-gold rounded-full" />
+                  <h2 className="font-semibold text-lg">Create Event</h2>
+                </div>
+                <button
+                  onClick={requestClose}
+                  aria-label="Close"
+                  className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light transition-colors"
+                >
+                  ×
+                </button>
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-                className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light transition-colors"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-6">
-              <EventForm />
-            </div>
-          </div>
-        </div>
+              <div className="p-6">
+                <EventForm onDirtyChange={setDirty} />
+              </div>
+            </>
+          )}
+        </DialogFrame>
       )}
     </>
   );

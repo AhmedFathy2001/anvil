@@ -12,9 +12,18 @@ const clan = { creator: false, streams: false };
 const streamingClan = { creator: false, streams: true };
 
 test('a space and a clan get their own tab sets', () => {
-  assert.deepEqual(tabsFor(space).map((t) => t.label), ['Event', 'Viewers', 'Stream', 'Board & play', 'Rules', 'More']);
-  assert.deepEqual(tabsFor(clan).map((t) => t.label), ['Event', 'Board & play', 'Rules', 'Entry & co-hosts', 'Staff', 'More']);
+  assert.deepEqual(tabsFor(space).map((t) => t.label), ['Event', 'Board & play', 'Viewers', 'Rules', 'Stream', 'More']);
+  assert.deepEqual(tabsFor(clan).map((t) => t.label), ['Event', 'Board & play', 'Entry & co-hosts', 'Rules', 'Staff', 'More']);
   assert.ok(tabsFor(streamingClan).some((t) => t.key === 'stream'), 'a streaming clan gets the Stream tab');
+});
+
+test('every tab says in one line what is in it', () => {
+  for (const kind of [space, clan, streamingClan]) {
+    for (const t of tabsFor(kind)) {
+      assert.ok(t.blurb.length > 20 && t.blurb.length < 140, `${t.label}: ${t.blurb}`);
+      assert.ok(t.blurb.endsWith('.'));
+    }
+  }
 });
 
 test('tab links', () => {

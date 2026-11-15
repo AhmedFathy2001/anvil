@@ -130,7 +130,9 @@ function copyFor(e: RunEventInput, next: NextStep, base: string): Omit<FlowStepC
       };
     case 'share':
       return {
-        sentence: e.usesSignups
+        sentence: e.placement === 'auto' || e.placement === 'solo'
+          ? 'Teams are made from sign-ups, so there is nothing to build yet: copy the link and post it in your Discord. Once someone signs up they are placed on a team and the event can start.'
+          : e.usesSignups
           ? 'Sign-ups are already open, so there is nothing to switch on: copy the link and post it in your Discord so people can join.'
           : 'Nobody is in yet: copy the link and post it in your Discord so members can join, then make teams from who turns up.',
         action,
@@ -140,7 +142,9 @@ function copyFor(e: RunEventInput, next: NextStep, base: string): Omit<FlowStepC
       return {
         sentence:
           e.teamCount === 0
-            ? `${plural(e.signupCount, 'person has', 'people have')} signed up, and the event cannot start until they are on teams: create the teams, then draft or place players.`
+            ? e.placement === 'auto' || e.placement === 'solo'
+              ? `${plural(e.signupCount, 'person has', 'people have')} signed up but no teams were made, and the event cannot start until they are on teams: open Teams and add everyone.`
+              : `${plural(e.signupCount, 'person has', 'people have')} signed up, and the event cannot start until they are on teams: create the teams, then draft or place players.`
             : 'The teams exist but nobody is on one, and the event cannot start like that: run the draft or place players by hand.',
         action,
         guideHref: '/guide/admin#teams',

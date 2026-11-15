@@ -2,7 +2,7 @@ import { parseStamp } from '@/lib/dbTime';
 import { notifyBoardPeople } from '@/lib/pushNotify';
 import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
 import { NextResponse } from 'next/server';
-import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
+import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount, placementOf } from '@/lib/teamPlacement';
 import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
@@ -300,7 +300,7 @@ export async function PATCH(
     // monthly is meant to run until it's ended.
     if (body.force !== true) {
       const [readiness, emptyTeams, [blank]] = await Promise.all([
-        getEventStartReadiness(event.id, event.draftStatus),
+        getEventStartReadiness(event.id, event.draftStatus, placementOf(event)),
         emptyTeamCount(event.id),
         db
           .select({ n: count() })

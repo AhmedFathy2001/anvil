@@ -6,7 +6,7 @@ import ClanLink from '@/components/ClanLink';
 import { ensureClanCheckoutRef } from '@/lib/billing';
 import { requireClan } from '@/lib/clanContext';
 import { freemiumEnforced } from '@/lib/entitlements';
-import { PLANS, checkoutUrlWithRef, planOf, type Plan } from '@/lib/plans';
+import { PLANS, checkoutUrlWithRef, planOf, truthfulFeatures, type Plan } from '@/lib/plans';
 import { SITE } from '@/lib/site';
 import { parseBillingInterval, usd, withBilling, yearlyPriceUsd } from '@/lib/billingInterval';
 import { redirect } from 'next/navigation';
@@ -112,8 +112,11 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                 From ${fits.priceUsd} a month
                 {checkoutYearly && yearly != null && <> or {usd(yearly)} a year (two months free)</>}
               </p>
+              <p className="text-[13px] leading-relaxed text-text-muted">
+                Discord posts, every event format and drop tracking are already on the free plan. A plan is about roster size.
+              </p>
               <ul className="grid gap-1 text-[13.5px] text-text-muted">
-                {fits.features.map((f) => (
+                {truthfulFeatures(fits).map((f) => (
                   <li key={f}>{f}</li>
                 ))}
               </ul>

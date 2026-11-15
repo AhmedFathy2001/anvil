@@ -10,7 +10,7 @@ import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
-import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { useDirtyForm, useGuardedClose, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 // Admin modal for writing sign-up answers on a member's behalf. Two modes:
 //   add  → pick a clan member (must have a linked Discord user — sign-ups hang off the
@@ -150,6 +150,8 @@ export default function SignupAnswersModal({
   const answerValues = { memberId, teamId, activeDailyMin, activeDailyMax, activeWeeklyMin, activeWeeklyMax, afkDailyMin, afkDailyMax, afkWeeklyMin, afkWeeklyMax, timezone, bosses, skills, notes };
   const { dirty: answersDirty, markSaved: markAnswersSaved } = useDirtyForm(answerValues);
 
+  const requestClose = useGuardedClose(answersDirty, onClose);
+
   const isEdit = editTarget !== null;
   // The two things the server would 409 on, flagged up-front so the admin reaches for "Edit answers"
   // on the existing row instead: this CHARACTER is already in, or this PERSON has already entered as
@@ -235,7 +237,7 @@ export default function SignupAnswersModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
+      onClick={requestClose}
     >
       <div
         className="w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-card-border rounded-xl bg-card-bg p-5"
@@ -247,7 +249,7 @@ export default function SignupAnswersModal({
             {isEdit ? `Edit answers · ${editTarget.displayName} (${editTarget.rsn})` : creator ? 'Add a player' : 'Add member sign-up'}
           </h3>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             className="text-text-muted hover:text-foreground text-xl leading-none px-1"
           >
@@ -475,7 +477,7 @@ export default function SignupAnswersModal({
             <UnsavedIndicator dirty={answersDirty} />
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2"
             >
               Cancel

@@ -321,7 +321,7 @@ export default function ClanEventsClient() {
         {events == null ? (
           <p className="text-sm text-text-muted">Loading…</p>
         ) : events.length === 0 ? (
-          <p className="text-sm text-text-muted">Nothing scheduled. Add one with the form.</p>
+          <p className="text-sm text-text-muted">Nothing scheduled yet. Use the form to add the first one.</p>
         ) : (
           <ul className="divide-y divide-card-border">
             {events.map((ev) => (
