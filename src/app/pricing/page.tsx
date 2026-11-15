@@ -2,10 +2,11 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
-import { eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans } from '@/db/schema';
+import { clans, clanStaff } from '@/db/schema';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { ownedCreatorSpace } from '@/lib/clanCreate';
@@ -74,6 +75,19 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
     space: owned && ownedPlan ? { slug: owned.slug, plan: ownedPlan.id } : null,
   };
 
+  // Someone who already runs a clan is here to pay for THAT clan, not to make another: the paid cards
+  // lead to its own plan page (admin → Plan and billing), where the checkout carries the clan's ref.
+  // clan-scope: global -- the apex pricing page; the caller's own owner/admin seats.
+  const [ownClan] = session
+    ? await db
+        .select({ slug: clans.slug, name: clans.name, kind: clans.kind })
+        .from(clans)
+        .innerJoin(clanStaff, and(eq(clanStaff.clanId, clans.id), eq(clanStaff.userId, session.userId), inArray(clanStaff.role, ['owner', 'admin'])))
+        .where(eq(clans.kind, 'clan'))
+        .orderBy(desc(clanStaff.role), asc(clans.id)) // a clan they own before one they only administer
+        .limit(1)
+    : [];
+
   // The four buyable tiers, in order. `custom` is negotiated, not bought, so it gets a footnote
   // rather than a card — a card with no price reads as broken.
   const tiers = [PLANS.free, PLANS.bronze, PLANS.silver, PLANS.gold];
@@ -111,7 +125,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
-          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} />
+          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} own={ownClan ?? null} />
         ))}
       </div>
 
@@ -166,7 +180,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   );
 }
 
-function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean; interval: BillingInterval }) {
+function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boolean; interval: BillingInterval; own: { slug: string; name: string; kind: string } | null }) {
   const paid = plan.priceUsd != null && plan.priceUsd > 0;
   const yearly = interval === 'yearly' && paid;
   const price =
@@ -215,7 +229,22 @@ function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean;
       {/* Once caps bite, the tier (and ?billing=) rides along and the create form ends on its Gumroad
           checkout — that is where the trial starts. Until then every clan size is free, so no button
           asks for a card. */}
-      {yearlyMissing ? (
+      {own && paid ? (
+        <>
+          <a
+            // eslint-disable-next-line clan-scope/clan-prefix -- the viewer's own clan, addressed whole from the apex
+            href={withBilling(clanPathOf(own, `/admin/plan?plan=${plan.id}`), interval)}
+            className={`mt-5 rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
+              plan.popular ? 'bg-gold text-brown-dark hover:bg-gold-light' : 'border border-card-border hover:border-gold/45'
+            }`}
+          >
+            Get {plan.name} for {own.name}
+          </a>
+          <ClanLink href="/clans/new" className="mt-2 text-center text-[12.5px] text-text-muted hover:text-gold">
+            or start a new clan
+          </ClanLink>
+        </>
+      ) : yearlyMissing ? (
         <span
           aria-disabled="true"
           className="mt-5 cursor-default rounded-lg border border-card-border px-4 py-2.5 text-center text-sm font-semibold text-text-dim opacity-60"

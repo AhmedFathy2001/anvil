@@ -22,9 +22,10 @@ export const dynamic = 'force-dynamic';
  * where nobody running a clan looks. The tone is AWARENESS, not a paywall: Anvil is free for small
  * clans, and the big ones are what keep it running. Nothing here takes anything away from anybody.
  */
-export default async function AdminPlanPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
+export default async function AdminPlanPage({ searchParams }: { searchParams: Promise<{ billing?: string; plan?: string }> }) {
   const clan = await requireClan();
-  const billing = parseBillingInterval((await searchParams).billing);
+  const query = await searchParams;
+  const billing = parseBillingInterval(query.billing);
   // A creator space is billed from its own catalogue, on its dashboard's plan card — never offered the
   // clan tiers this page sells (lib/creatorCatalog).
   if (isCreatorSpace(clan)) redirect(await clanHref('/admin/dashboard#plan'));
@@ -39,8 +40,12 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
   const freeCap = free.memberCap ?? 0;
   const paying = plan.id !== 'free';
   // The smallest plan that holds this roster — the one worth showing, rather than a price table.
-  const fits: Plan | null =
-    (['bronze', 'silver', 'gold'] as const).map((id) => PLANS[id]).find((p) => (p.memberCap ?? Infinity) >= members) ?? PLANS.gold;
+  const paidTiers = (['bronze', 'silver', 'gold'] as const).map((id) => PLANS[id]);
+  const smallest: Plan = paidTiers.find((p) => (p.memberCap ?? Infinity) >= members) ?? PLANS.gold;
+  // Every tier that holds the roster can be bought, not only the smallest: a clan may want Gold's room
+  // ahead of time. ?plan= (from /pricing, or the picks below) says which one this page is offering.
+  const choices = paidTiers.filter((p) => (p.memberCap ?? Infinity) >= (smallest.memberCap ?? Infinity));
+  const fits: Plan | null = choices.find((p) => p.id === query.plan) ?? smallest;
   const ref = paying ? null : await ensureClanCheckoutRef(clan.id);
   const checkout = fits && ref ? checkoutUrlWithRef(fits, ref) : null;
   // Yearly = ten months (lib/billingInterval), offered only once that tier's yearly checkout is set.
@@ -103,7 +108,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
           fits && (
             <section className="flex flex-col gap-3 rounded-xl border border-gold/45 bg-gradient-to-b from-card-bg-hover to-card-bg p-5">
               <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-gold">
-                {over ? 'Fits your clan' : 'When you grow'}
+                {fits.id !== smallest.id ? 'Your pick' : over ? 'Fits your clan' : 'When you grow'}
               </p>
               <h2 className="text-xl font-semibold">
                 {fits.name} · {fits.capLabel.toLowerCase()}
@@ -131,6 +136,21 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                   {b.label}
                 </a>
               ))}
+              {choices.length > 1 && (
+                <p className="text-center text-[13px] text-text-muted">
+                  Or pick another:{' '}
+                  {choices
+                    .filter((p) => p.id !== fits.id)
+                    .map((p, i) => (
+                      <span key={p.id}>
+                        {i > 0 && ' · '}
+                        <ClanLink href={withBilling(`/admin/plan?plan=${p.id}`, billing)} className="text-gold hover:text-gold-light">
+                          {p.name} (${p.priceUsd}/mo)
+                        </ClanLink>
+                      </span>
+                    ))}
+                </p>
+              )}
               <ClanLink href={withBilling('/pricing', billing)} className="text-center text-[13px] text-gold hover:text-gold-light">
                 Compare all plans
               </ClanLink>
