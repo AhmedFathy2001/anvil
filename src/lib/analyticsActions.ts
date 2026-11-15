@@ -53,6 +53,10 @@ export const ACTION_NAMES = [
   'flow.event.form',
   'flow.first.opened',
   'flow.setup.opened',
+  // The guide strip (components/GuidedFlow): its step button used, or the guide dismissed. Props are
+  // the flow and step keys only, both checked against lib/guidedFlow FLOW_STEP_KEYS.
+  'guidedflow.step',
+  'guidedflow.dismissed',
 ] as const;
 
 export type ActionName = (typeof ACTION_NAMES)[number];

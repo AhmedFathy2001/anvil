@@ -54,6 +54,23 @@ export interface StageCounts {
   blockers: string[];
 }
 
+/**
+ * The three setup facts every surface asks about an event before it starts. One definition, read by
+ * the lifecycle steps below, the event home's checklist and the guide strip (lib/guidedFlows/runEvent),
+ * so they cannot tick differently.
+ */
+export function setupFacts(
+  counts: Pick<StageCounts, 'tileCount' | 'expectedTiles' | 'teamCount' | 'assignedPlayers'>,
+  event: { startDate: string | null },
+): { tilesDone: boolean; teamsDone: boolean; datesDone: boolean } {
+  return {
+    tilesDone: counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles,
+    teamsDone: counts.teamCount > 0 && counts.assignedPlayers > 0,
+    // A start date is what schedules it. No end date is a legitimate open-ended board.
+    datesDone: !!event.startDate,
+  };
+}
+
 export type StepState = 'done' | 'now' | 'todo';
 
 export interface LifecycleStep {
@@ -80,8 +97,7 @@ export function lifecycleSteps(
   now: number = Date.now(),
 ): LifecycleStep[] {
   const stage = eventStage(event, now);
-  const tilesDone = counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles;
-  const teamsDone = counts.teamCount > 0 && counts.assignedPlayers > 0;
+  const { tilesDone, teamsDone } = setupFacts(counts, event);
   const ended = stage === 'wrap';
   const paidUp = counts.payoutCount > 0 && counts.unpaidPayouts === 0;
 

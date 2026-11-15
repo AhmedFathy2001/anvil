@@ -42,7 +42,26 @@ export type NextStepAction =
   | { kind: 'start'; label: string }
   | { kind: 'none' };
 
+/**
+ * Which of the decisions below was taken. Stable, so the guide strip (lib/guidedFlows/runEvent) can
+ * place the same answer on its list of steps without reading the wording.
+ */
+export type NextStepKey =
+  | 'tiles'
+  | 'approve'
+  | 'share'
+  | 'teams'
+  | 'dates'
+  | 'blocked'
+  | 'ready'
+  | 'proofs'
+  | 'running'
+  | 'prizes-set'
+  | 'prizes-pay'
+  | 'wrapped';
+
 export interface NextStep {
+  key: NextStepKey;
   title: string;
   body: string;
   action: NextStepAction;
@@ -64,6 +83,7 @@ export function nextStep(e: NextStepInput): NextStep {
       // A race is built on its map: the roads' shape first, then each tile written in place.
       const left = e.expectedTiles - e.tileCount;
       return {
+        key: 'tiles',
         title: e.tileCount === 0 ? 'Lay out your race' : `Write ${plural(left, `more ${e.noun.one}`, `more ${e.noun.many}`)}`,
         body:
           e.tileCount === 0
@@ -76,6 +96,7 @@ export function nextStep(e: NextStepInput): NextStep {
     if (e.expectedTiles > 0 && e.tileCount < e.expectedTiles) {
       const left = e.expectedTiles - e.tileCount;
       return {
+        key: 'tiles',
         title: e.tileCount === 0 ? `Add your ${e.noun.many}` : `Add ${plural(left, `more ${e.noun.one}`, `more ${e.noun.many}`)}`,
         body:
           e.tileCount === 0
@@ -86,6 +107,7 @@ export function nextStep(e: NextStepInput): NextStep {
     }
     if (e.pendingSignups > 0) {
       return {
+        key: 'approve',
         title: `Approve ${plural(e.pendingSignups, 'sign-up', 'sign-ups')}`,
         body: 'People are waiting to hear if they’re in. Approve them before you make teams.',
         action: { kind: 'link', label: 'Review sign-ups', tab: 'signups' },
@@ -95,6 +117,7 @@ export function nextStep(e: NextStepInput): NextStep {
       // Sign-ups are open from the moment an event exists, so "open" them was a step with nothing to
       // press. What's actually missing is people knowing where to go.
       return {
+        key: 'share',
         title: 'Share the sign-up link',
         body: 'The board is ready and sign-ups are open. Post the link in your Discord, then make teams from who signs up.',
         action: { kind: 'copy', label: 'Copy sign-up link', path: 'signup' },
@@ -102,6 +125,7 @@ export function nextStep(e: NextStepInput): NextStep {
     }
     if (!e.individual && (e.teamCount === 0 || e.assignedPlayers === 0)) {
       return {
+        key: 'teams',
         title: 'Make the teams',
         body:
           e.teamCount === 0
@@ -112,19 +136,22 @@ export function nextStep(e: NextStepInput): NextStep {
     }
     if (!e.startDate) {
       return {
+        key: 'dates',
         title: 'Pick the dates',
         body: 'Everything is ready except when it runs. Set a start and end, or start it right now.',
-        action: { kind: 'link', label: 'Set the dates', tab: 'settings' },
+        action: { kind: 'link', label: 'Set the dates', tab: 'settings#schedule' },
       };
     }
     if (e.blockers.length > 0) {
       return {
+        key: 'blocked',
         title: 'Almost ready',
         body: `It can’t start yet: ${e.blockers[0]}.`,
         action: { kind: 'link', label: 'Fix it', tab: 'teams' },
       };
     }
     return {
+      key: 'ready',
       title: `Ready. It starts on ${day(e.startDate)}`,
       body: 'Nothing left to do. It opens by itself on schedule, or you can start it now.',
       action: { kind: 'start', label: 'Start now' },
@@ -134,12 +161,14 @@ export function nextStep(e: NextStepInput): NextStep {
   if (e.stage === 'run') {
     if (e.flaggedProofs > 0) {
       return {
+        key: 'proofs',
         title: `Check ${plural(e.flaggedProofs, 'proof', 'proofs')}`,
         body: 'Most things count by themselves through the plugin. These were flagged for a human look.',
         action: { kind: 'link', label: 'Check proofs', tab: '#proofs' },
       };
     }
     return {
+      key: 'running',
       title: 'It’s running',
       body: e.endDate
         ? `Nothing needs you right now. It ends on ${day(e.endDate)}.`
@@ -151,6 +180,7 @@ export function nextStep(e: NextStepInput): NextStep {
   // wrap
   if (e.flaggedProofs > 0) {
     return {
+      key: 'proofs',
       title: `Check ${plural(e.flaggedProofs, 'proof', 'proofs')} before paying out`,
       body: 'Settle anything flagged first, so the final standings are right.',
       action: { kind: 'link', label: 'Check proofs', tab: '#proofs' },
@@ -158,6 +188,7 @@ export function nextStep(e: NextStepInput): NextStep {
   }
   if (e.payoutCount === 0) {
     return {
+      key: 'prizes-set',
       title: 'Set the prizes',
       body: 'The event is over. Decide who gets what, then mark each prize paid as you hand it out.',
       action: { kind: 'link', label: 'Set prizes', tab: 'payouts' },
@@ -165,6 +196,7 @@ export function nextStep(e: NextStepInput): NextStep {
   }
   if (e.unpaidPayouts > 0) {
     return {
+      key: 'prizes-pay',
       title: `Pay ${plural(e.unpaidPayouts, 'prize', 'prizes')}`,
       body: 'Hand out the gp in game, then mark each one paid.',
       action: { kind: 'link', label: 'Pay prizes', tab: 'payouts' },
@@ -173,6 +205,7 @@ export function nextStep(e: NextStepInput): NextStep {
   // Not "nothing left": proof screenshots leave storage 90 days after the end (lib/eventMediaRetention)
   // and the archive card at the bottom of this page was the only place that said so.
   return {
+    key: 'wrapped',
     title: 'All wrapped up',
     body:
       'Prizes are paid. Proof screenshots are deleted 90 days after the end, so download the archive if you want to keep them.' +
