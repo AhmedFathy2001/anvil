@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useUrlTile } from '@/hooks/useUrlTile';
 import { eventStage } from '@/lib/eventStage';
 import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
@@ -30,8 +31,6 @@ import { completionMarkers } from '@/lib/tileClaimsView';
 import { prefetchTileDialog } from '@/lib/tileData';
 
 interface Props {
-  /** `?tile=` on the link: open this tile's dialog (the board's "Submit proof" button lands here). */
-  initialTileId?: number | null;
   event: Event;
   team: Team;
   tiles: Tile[];
@@ -72,13 +71,13 @@ export default function MyTeamClient({
   tierBands = DEFAULT_TIER_BANDS,
   boardHidden = false,
   tools = null,
-  initialTileId = null,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
-  const [selectedTileId, setSelectedTileId] = useState<number | null>(() => (initialTileId != null && tiles.some((t) => t.id === initialTileId) ? initialTileId : null));
+  // The open tile lives in the URL (?tile=ID), same as the event page: deep link, Back closes.
+  const [selectedTileId, setSelectedTileId] = useUrlTile((id) => tiles.some((t) => t.id === id));
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(initialTeam.name);
   const [newColor, setNewColor] = useState(initialTeam.color);

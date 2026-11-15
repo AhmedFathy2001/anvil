@@ -5,9 +5,10 @@ import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/li
 import { isRaceHidden } from '@/lib/raceHideAhead';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
 import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useUrlTile } from '@/hooks/useUrlTile';
 import { eventStage } from '@/lib/eventStage';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
@@ -223,31 +224,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   // The open tile lives in the URL (?tile=ID): it deep-links, and Back closes the dialog instead of
   // leaving the event. The URL is the single source of truth, so Back/Forward just work.
   const searchParams = useSearchParams();
-  const urlTile = Number(searchParams.get('tile'));
-  const tileParam = Number.isInteger(urlTile) && urlTile > 0 ? urlTile : null; // initialTileId is the same ?tile=, already in the URL
-  const selectedTileId: number | null = tileParam != null && tiles.some((tile) => tile.id === tileParam) ? tileParam : null;
-  // Did WE push the history entry for the open tile? Then closing steps back over it.
-  const pushedTile = useRef(false);
-  const setSelectedTileId = useCallback((id: number | null) => {
-    const url = new URL(window.location.href);
-    if (id == null) {
-      if (pushedTile.current) {
-        pushedTile.current = false;
-        window.history.back();
-        return;
-      }
-      url.searchParams.delete('tile');
-      window.history.replaceState(window.history.state, '', url);
-      return;
-    }
-    const alreadyOpen = url.searchParams.has('tile');
-    url.searchParams.set('tile', String(id));
-    if (alreadyOpen) window.history.replaceState(window.history.state, '', url);
-    else {
-      pushedTile.current = true;
-      window.history.pushState(window.history.state, '', url);
-    }
-  }, []);
+  const [selectedTileId, setSelectedTileId] = useUrlTile((id) => tiles.some((tile) => tile.id === id));
   const [fullscreen, setFullscreen] = useState(false);
   // Phones only: search + filters start folded (see the toggle above the board).
   const [filtersOpen, setFiltersOpen] = useState(false);
