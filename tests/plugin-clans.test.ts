@@ -318,8 +318,10 @@ async function weekly(clanId: number, title: string, status = 'active') {
       type: 'skill',
       metric: 'slayer',
       title,
-      startDate: iso(-1),
-      endDate: iso(6),
+      // The dates agree with the status: what is live is decided by the clock (lib/weeklyStage
+      // weeklyStatus), so an 'upcoming' week that had already started would rightly read as live.
+      startDate: iso(status === 'upcoming' ? 1 : -1),
+      endDate: iso(status === 'upcoming' ? 8 : 6),
       status,
     })
     .returning();
