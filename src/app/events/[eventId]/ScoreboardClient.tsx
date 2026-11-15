@@ -8,6 +8,7 @@ import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCa
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { dropProgressFor } from '@/hooks/useDropProgress';
 import { useUrlTile } from '@/hooks/useUrlTile';
 import { eventStage } from '@/lib/eventStage';
 import EventBoard from '@/components/EventBoard';
@@ -179,6 +180,11 @@ interface Props {
   teamMembers?: Record<number, string[]>;
   /** A streamed board's tile clips by tile id (lib/highlights), already cut to what this viewer may see. */
   tileHighlights?: Record<number, ShownHighlight[]>;
+  /**
+   * The viewer's OWN teams' plans (lib/tileClaims), by team id: who is going for which tile. From the
+   * server page, so the board's hover card never fetches. Never holds another team's.
+   */
+  ownClaims?: Record<number, { tileId: number; name: string; mine: boolean }[]>;
 }
 
 /**
@@ -211,7 +217,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], proofTeamId = null, signedIn = false, manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], proofTeamId = null, signedIn = false, manyTeams = false, teamMembers, ownClaims }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -462,6 +468,43 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     }
     return map;
   }, [statTiles, teamGains]);
+
+  // Count progress ("12 of 50") for the board and its hover card, from the submissions this page
+  // already holds: the team the board is drawn for, or with nobody picked the furthest team's, as
+  // statProgressMap does.
+  const boardTeamId = event.format === 'tilerace' ? (lensTeamId ?? myTeamIds[0] ?? null) : lensTeamId;
+  const dropProgressMap = useMemo(() => {
+    const byTeam = new Map<number, FullSubmission[]>();
+    for (const s of submissions as unknown as FullSubmission[]) {
+      const list = byTeam.get(s.teamId);
+      if (list) list.push(s);
+      else byTeam.set(s.teamId, [s]);
+    }
+    const all = tiles as unknown as FullTile[];
+    if (boardTeamId != null) return dropProgressFor(all, byTeam.get(boardTeamId) ?? [], completions, boardTeamId).dropProgress;
+    // Nobody picked: only what is still open for everyone and counts past one. A tile some team has
+    // finished shows that team's marker, not a count.
+    const doneByAnyone = new Set(completions.map((c) => c.tileId));
+    const best = new Map<number, { current: number; required: number; text?: string; note?: string }>();
+    for (const [teamId, subs] of byTeam) {
+      for (const [tileId, p] of dropProgressFor(all, subs, completions, teamId).dropProgress) {
+        if (doneByAnyone.has(tileId) || (p.required <= 1 && !p.text)) continue;
+        if (p.current > 0 && p.current > (best.get(tileId)?.current ?? 0)) best.set(tileId, p);
+      }
+    }
+    return best;
+  }, [tiles, submissions, completions, boardTeamId]);
+  // Who on the viewer's own team is going for each tile: through their own team's lens, or with
+  // nobody picked when they are on exactly one team here.
+  const claimedByMap = useMemo(() => {
+    const ownIds = Object.keys(ownClaims ?? {}).map(Number);
+    const teamId = boardTeamId ?? (ownIds.length === 1 ? ownIds[0] : null);
+    const rows = teamId != null ? ownClaims?.[teamId] : undefined;
+    if (!rows || rows.length === 0) return null;
+    const map = new Map<number, { name: string; mine: boolean }[]>();
+    for (const r of rows) map.set(r.tileId, [...(map.get(r.tileId) ?? []), { name: r.name, mine: r.mine }]);
+    return map;
+  }, [ownClaims, boardTeamId]);
 
   // ---- Format surfaces -------------------------------------------------------------------------
   // Every format below is multi-claim: each team can complete every tile, so nothing here is "who
@@ -757,6 +800,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             onTileClick={setSelectedTileId}
             onTileIntent={intentTile}
             statProgress={statProgressMap}
+            dropProgress={dropProgressMap}
+            claimedBy={claimedByMap}
             expanded
             pointsMode={pointsMode}
             matchedTileIds={null}
@@ -1152,6 +1197,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             onTileClick={setSelectedTileId}
             onTileIntent={intentTile}
             statProgress={statProgressMap}
+            dropProgress={dropProgressMap}
+            claimedBy={claimedByMap}
             expanded={fullscreen}
             pointsMode={pointsMode}
             matchedTileIds={matchedTileIds}

@@ -21,6 +21,8 @@ export interface TileHoverInput {
   /** Teammates planning to go for it. */
   claimedBy?: { name: string; mine?: boolean }[];
   points?: number;
+  /** The whole-event view (no one team picked): the count shown is the furthest team's. */
+  overview?: boolean;
 }
 
 export interface TileHoverView {
@@ -53,10 +55,12 @@ export function tileHoverView(i: TileHoverInput): TileHoverView {
   }
   let progress: string | null = null;
   if (done.length === 0) {
-    if (i.progress && i.progress.required > 0) progress = i.progress.text ?? `${num(i.progress.current)} of ${num(i.progress.required)}`;
+    // A one-off ("0 of 1") says nothing the state line doesn't.
+    if (i.progress && (i.progress.text || i.progress.required > 1)) progress = i.progress.text ?? `${num(i.progress.current)} of ${num(i.progress.required)}`;
     else if (i.stat && i.stat.goal > 0) progress = `${num(i.stat.current)} of ${num(i.stat.goal)}`;
   }
   if (progress === null && done.length === 0 && i.progressText) progress = i.progressText;
+  if (progress !== null && i.overview) progress = `Furthest team: ${progress}`;
   const claims = i.claimedBy ?? [];
   const who = claims.length > 0 && done.length === 0 ? `Going for it: ${claims.map((c) => (c.mine ? 'you' : c.name)).join(', ')}` : null;
   const points = i.points !== undefined ? `${i.points} point${i.points === 1 ? '' : 's'}` : null;
