@@ -234,6 +234,27 @@ export async function sessionUserIdForAnalytics(): Promise<number | null> {
 }
 
 /**
+ * When this browser's session was signed (ms since epoch), and for which login. Null when signed out.
+ *
+ * For the few acts that want a FRESH sign-in rather than a 30-day cookie (deleting the account).
+ * It reads the token's own `iat`, so "sign in again" through the ordinary Discord login is all it
+ * takes to pass: no second factor, no new mechanism. Never a permission check on its own.
+ */
+export async function sessionIssuedAt(): Promise<{ userId: number; issuedAtMs: number } | null> {
+  try {
+    const token = (await cookies()).get('admin_session')?.value;
+    if (!token) return null;
+    const payload = verify(token, ADMIN_SESSION_SECRET);
+    if (!payload) return null;
+    const data = JSON.parse(payload);
+    if (!Number.isInteger(data.userId) || !isFreshIat(data.iat)) return null;
+    return { userId: data.userId, issuedAtMs: data.iat };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Who is signed in, and what they may do in the clan this request is for.
  *
  * MEMOISED PER RENDER (React `cache`). A single admin page ran this five to seven times — the root

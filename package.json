@@ -161,6 +161,8 @@
     "test:cofferpool": "npx tsx --test tests/coffer-pool.test.ts",
     "test:weeklyhold": "npx tsx --test tests/weekly-prize-hold.test.ts",
     "test:merge": "npx tsx --test tests/merge-people.test.ts",
+    "test:erase": "npx tsx --test tests/person-data-inventory.test.ts tests/erase-rules.test.ts",
+    "test:erasedb": "npx tsx --test tests/erase-person.test.ts",
     "test:mergeseats": "npx tsx --test tests/merge-seats.test.ts",
     "test:leaverguest": "npx tsx --test tests/leaver-stays-guest.test.ts",
     "test:leaveclan": "npx tsx --test tests/leave-clan.test.ts",
