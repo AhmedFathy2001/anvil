@@ -1,7 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useModalA11y } from '@/hooks/useModalA11y';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
@@ -83,6 +84,10 @@ export default function PlatformRail({
   const [avatarFailed, setAvatarFailed] = useState(false);
   // Phones: the links fold behind a menu button instead of a sideways-scrolling strip.
   const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  // Escape, focus and scroll lock while the phone menu is open (modal only then; on the desktop rail
+  // the same element is just the sidebar content).
+  const menuRef = useModalA11y<HTMLDivElement>({ onClose: closeMenu, modal: menuOpen });
 
   const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
@@ -93,7 +98,7 @@ export default function PlatformRail({
         key={href}
         href={href}
         aria-current={active ? 'page' : undefined}
-        className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13.5px] transition-colors ${
+        className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13.5px] transition-colors max-lg:min-h-11 ${
           active
             ? 'bg-gold/[0.09] text-gold shadow-[inset_2px_0_0_var(--gold)]'
             : 'text-text-muted hover:bg-brown-light hover:text-foreground'
@@ -125,7 +130,8 @@ export default function PlatformRail({
       {/* Every link: a drawer under the bar on a phone (menu button), the rail itself on a desktop. */}
       <div
         id="platform-menu"
-        className={`order-4 basis-full flex-col gap-4 pb-2 lg:order-none lg:flex lg:basis-auto lg:gap-6 lg:pb-0 ${menuOpen ? 'flex' : 'hidden'}`}
+        ref={menuRef}
+        className={`order-4 basis-full flex-col gap-4 pb-2 max-lg:absolute max-lg:inset-x-0 max-lg:top-full max-lg:max-h-[calc(100dvh-3.5rem)] max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:border-b max-lg:border-card-border max-lg:bg-brown-dark max-lg:p-2 max-lg:shadow-xl lg:order-none lg:flex lg:basis-auto lg:gap-6 lg:pb-0 ${menuOpen ? 'flex' : 'hidden'}`}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('a')) setMenuOpen(false);
         }}
@@ -152,6 +158,8 @@ export default function PlatformRail({
             role confers it — so an operator had to know the URL to reach the platform's own admin. */}
         {platformStaff && item('/staff', 'Platform', <ShieldIcon />, false, platformBadge)}
         {guideLibrary && item('/staff/guides', 'Guide library', <ShieldIcon />)}
+        {/* Phones only: the account links live at the bottom of the menu, not in the bar. */}
+        {signedIn && <div className="flex flex-col lg:hidden">{item('/settings', 'Settings', <PersonIcon />)}</div>}
       </div>
 
       {/* "Your clans", then "Your spaces" (creator spaces are not clans — lib/creatorSpaces). An
@@ -234,6 +242,15 @@ export default function PlatformRail({
         </ClanLink>
       )}
 
+      {signedIn && (
+        <a
+          href="/api/auth/logout?return=/"
+          className="mt-1 flex min-h-11 shrink-0 items-center justify-center gap-2 border-t border-card-border px-2.5 pt-3 text-[13.5px] font-medium text-foreground/70 transition-colors hover:text-accent-red lg:hidden"
+        >
+          <SignOutIcon />
+          Sign out
+        </a>
+      )}
       </div>
 
       {/* The way out. The first cut of this rail had no sign-out at all, because it lived in the
@@ -241,7 +258,7 @@ export default function PlatformRail({
       <div className="order-2 ml-auto flex min-w-0 shrink items-center gap-2.5 pl-2 lg:order-none lg:ml-0 lg:mt-auto lg:shrink-0 lg:border-t lg:border-card-border-soft lg:pt-3">
         {signedIn ? (
           <>
-            <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5">
+            <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5 max-lg:min-h-11">
               {avatarUrl && !avatarFailed ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -281,7 +298,7 @@ export default function PlatformRail({
               href="/api/auth/logout?return=/"
               title="Sign out"
               aria-label="Sign out"
-              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-card-border px-2 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-card-border px-2 py-1 text-[12px] max-lg:hidden font-medium text-foreground/80 transition-colors hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
             >
               <SignOutIcon />
               <span className="hidden sm:inline">Sign out</span>
@@ -294,7 +311,7 @@ export default function PlatformRail({
 
       <button
         type="button"
-        className="order-3 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-card-border text-text-muted hover:border-gold/40 hover:text-gold lg:hidden"
+        className="order-3 grid h-8 w-8 max-lg:h-11 max-lg:w-11 shrink-0 place-items-center rounded-md border border-card-border text-text-muted hover:border-gold/40 hover:text-gold lg:hidden"
         aria-expanded={menuOpen}
         aria-controls="platform-menu"
         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
