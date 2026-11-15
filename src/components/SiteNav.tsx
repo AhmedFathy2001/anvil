@@ -248,18 +248,18 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                   </div>
                 )}
                 <div className="border-t border-card-border py-1">
-                  <ClanLink href="/clans" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
+                  <ClanLink prefetch={false} href="/clans" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
                     <span className="w-[18px] text-center">⛨</span> All clans
                   </ClanLink>
                   {signedIn && (
-                    <ClanLink href="/clans/new" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
+                    <ClanLink prefetch={false} href="/clans/new" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
                       <span className="w-[18px] text-center text-gold">＋</span> Create a clan
                     </ClanLink>
                   )}
-                  <ClanLink href="/host" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
+                  <ClanLink prefetch={false} href="/host" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
                     <span className="w-[18px] text-center text-gold">▶</span> Host an event
                   </ClanLink>
-                  <ClanLink href="/" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
+                  <ClanLink prefetch={false} href="/" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
                     <span className="w-[18px] text-center">⌂</span> Anvil
                   </ClanLink>
                 </div>
@@ -305,7 +305,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               buttonClass="text-gold/80 hover:text-gold hover:bg-gold/10"
               pathname={pathname}
             >
-              <ClanLink href={adminHref} role="menuitem" className={MENU_ITEM}>
+              <ClanLink prefetch={false} href={adminHref} role="menuitem" className={MENU_ITEM}>
                 {adminMenuLabel(clan?.kind)}
               </ClanLink>
               <a href="/staff" role="menuitem" className={MENU_ITEM}>
@@ -358,18 +358,18 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               align="right"
               pathname={pathname}
             >
-              <ClanLink href="/profile" role="menuitem" className={MENU_ITEM}>
+              <ClanLink prefetch={false} href="/profile" role="menuitem" className={MENU_ITEM}>
                 Your profile
               </ClanLink>
               {/* Head-to-head lives on the apex and belongs to the person, like the profile. */}
-              <ClanLink href="/challenges" role="menuitem" className={MENU_ITEM}>
+              <ClanLink prefetch={false} href="/challenges" role="menuitem" className={MENU_ITEM}>
                 Challenges
               </ClanLink>
-              <ClanLink href="/settings" role="menuitem" className={MENU_ITEM}>
+              <ClanLink prefetch={false} href="/settings" role="menuitem" className={MENU_ITEM}>
                 Settings
               </ClanLink>
               {/* Anvil is paid for by its supporters, so the way in is one click from every page. */}
-              <ClanLink href="/supporter" role="menuitem" className={`${MENU_ITEM} text-gold`}>
+              <ClanLink prefetch={false} href="/supporter" role="menuitem" className={`${MENU_ITEM} text-gold`}>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
                 Support Anvil
               </ClanLink>

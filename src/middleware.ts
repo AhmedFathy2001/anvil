@@ -179,6 +179,15 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(to, 308);
     }
 
+    // `/admin` is only a door to the dashboard (app/admin/page.tsx redirects). Doing it here, one hop,
+    // spares the browser rendering the admin shell just to be sent on. Built from the forwarded
+    // host for the same reason as the platform-path redirect above.
+    if (inner === '/admin' || inner === '/admin/') {
+      const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
+      const forwardedHost = request.headers.get('host') ?? request.nextUrl.host;
+      return NextResponse.redirect(new URL(`/${segment}/${slug}/admin/dashboard${request.nextUrl.search}`, `${proto}://${forwardedHost}`), 307);
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = inner;
     // The slug, the prefix (so anything building a link back out can reproduce it without

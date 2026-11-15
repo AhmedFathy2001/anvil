@@ -189,6 +189,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
 
           {primary && (
             <ClanLink
+ prefetch={false}
               href={primary.href}
               onClick={() => setMobileOpen(false)}
               className="block text-center mb-5 px-4 py-2.5 rounded-lg border border-gold/35 bg-gold/10 text-gold font-semibold hover:bg-gold/15 transition-colors"
@@ -211,6 +212,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                     return (
                       <li key={item.href} className={kids.length ? 'relative' : undefined}>
                         <ClanLink
+ prefetch={false}
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
                           className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
@@ -263,6 +265,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                               return (
                                 <li key={kid.href}>
                                   <ClanLink
+ prefetch={false}
                                     href={kid.href}
                                     onClick={() => setMobileOpen(false)}
                                     aria-current={on ? 'page' : undefined}
@@ -287,6 +290,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
 
           {guideHref && (
             <ClanLink
+ prefetch={false}
               href={guideHref}
               onClick={() => setMobileOpen(false)}
               className="mt-6 flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-tile-border text-sm text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
