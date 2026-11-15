@@ -5,7 +5,7 @@ import DropOdds from '@/components/DropOdds';
 import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
 import { TileStateBanner } from '@/components/board/TileState';
 import { missionTileState } from '@/lib/tileState';
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
@@ -32,6 +32,7 @@ import { MomentStreamLinks } from './HighlightsStrip';
 import type { ShownHighlight } from '@/lib/highlights/rules';
 import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useGuardedClose } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import { clogTileLooseSpec, clogTileSetupNote } from '@/lib/clogTileWords';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
@@ -143,6 +144,10 @@ const PART_PROOF_TYPES = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'diary',
 
 /** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
 const CONTRIBUTOR_PREVIEW = 8;
+
+// The Submit button rides the bottom edge of the dialog while its form is on screen, so it is
+// always one tap away however long the form is. Bleeds to the form's own edges (its p-3).
+const SUBMIT_BAR = 'sticky bottom-0 z-[5] -mx-3 -mb-3 rounded-b-lg border-t border-card-border bg-card-bg px-3 py-3';
 
 export default function TileDetailModal({
   tile,
@@ -653,14 +658,37 @@ export default function TileDetailModal({
     }
   }
 
-  const modalRef = useModalA11y<HTMLDivElement>({ onClose });
+  // Escape, the x and a click outside all ask first once a proof is half written (a screenshot
+  // attached, a note, a time or a value typed). Cleared again by a successful submit.
+  const proofStarted =
+    !!note.trim() || !!clearTime.trim() || !!valueGp.trim() || imageUrls.some((u) => !!u.trim()) || extras.length > 0;
+  const guardedClose = useGuardedClose(proofStarted, onClose);
+  const modalRef = useModalA11y<HTMLDivElement>({ onClose: guardedClose });
   const titleId = `tile-modal-title-${tile.id}`;
+  // Is there a proof form, and is it scrolled out of sight below? (Drives the jump button.)
+  const [proofFormBelow, setProofFormBelow] = useState(false);
+  const proofFormWatch = useRef<IntersectionObserver | null>(null);
+  const proofFormRef = useCallback(
+    (form: HTMLFormElement | null) => {
+      proofFormWatch.current?.disconnect();
+      proofFormWatch.current = null;
+      if (!form) return setProofFormBelow(false);
+      // No root: the observer already counts the dialog's own scroll clipping, and this runs before
+      // the dialog's ref is set.
+      const io = new IntersectionObserver(([entry]) => setProofFormBelow(!entry.isIntersecting && entry.boundingClientRect.top > 0));
+      io.observe(form);
+      proofFormWatch.current = io;
+    },
+    [],
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Pinned near the top, not centred: a centred box moves every time its content grows (adding a
+    // screenshot preview made the whole dialog jump).
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh]">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={guardedClose}
         aria-hidden="true"
       />
       <div
@@ -672,7 +700,8 @@ export default function TileDetailModal({
         className="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl focus:outline-none"
       >
         {/* Header */}
-        <div className="sticky top-0 bg-card-bg border-b border-card-border p-4 rounded-t-2xl flex items-start justify-between">
+        {/* z-10: links in the body with their own stacking (the "Why?" tap area) slid over the title. */}
+        <div className="sticky top-0 z-10 bg-card-bg border-b border-card-border p-4 rounded-t-2xl flex items-start justify-between">
           <div className="flex items-start gap-3 min-w-0">
             {tile.icon && (
               <div className="w-10 h-10 flex-shrink-0">
@@ -769,7 +798,7 @@ export default function TileDetailModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={guardedClose}
             aria-label="Close dialog"
             className="text-text-muted hover:text-foreground text-xl leading-none flex-shrink-0 ml-2 -mr-1 -mt-1 p-2"
           >
@@ -1461,7 +1490,7 @@ export default function TileDetailModal({
             }
 
             return (
-            <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+            <form data-proof-form ref={proofFormRef} onSubmit={handleSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Add Submission</h3>
               {remaining !== undefined && (
                 <p className="text-xs text-yellow-400">
@@ -1622,20 +1651,22 @@ export default function TileDetailModal({
               )}
               {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit'}
-              </button>
+              <div className={SUBMIT_BAR}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
             </form>
             );
           })()}
 
           {/* Submit form for timed tiles */}
           {isTimed && canSubmit && onSubmit && teamId && !isCompleted && (
-            <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+            <form data-proof-form ref={proofFormRef} onSubmit={handleSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Submit a Clear</h3>
               <p className="text-xs text-text-muted">
                 Normally the plugin bakes &amp; submits this automatically. Use this only as a manual fallback.
@@ -1694,19 +1725,21 @@ export default function TileDetailModal({
               {error && <p className="text-xs text-red-400">{error}</p>}
               {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit Clear'}
-              </button>
+              <div className={SUBMIT_BAR}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Clear'}
+                </button>
+              </div>
             </form>
           )}
 
           {/* Submit form for loot-value tiles — a gp-valued haul + one proof screenshot. */}
           {isValue && canSubmit && onSubmit && teamId && !isCompleted && (
-            <form onSubmit={handleValueSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+            <form data-proof-form ref={proofFormRef} onSubmit={handleValueSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Submit Loot Value</h3>
               <p className="text-xs text-text-muted">
                 Normally the plugin prices &amp; submits hauls automatically. Use this only as a manual fallback.
@@ -1771,16 +1804,31 @@ export default function TileDetailModal({
               {error && <p className="text-xs text-red-400">{error}</p>}
               {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit Loot Value'}
-              </button>
+              <div className={SUBMIT_BAR}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Loot Value'}
+                </button>
+              </div>
             </form>
           )}
         </div>
+        {/* The form sits under the progress and the proofs already in, so on a phone it can open
+            below the fold. While it is out of sight, one button at the bottom edge goes to it. */}
+        {proofFormBelow && (
+          <div className="sticky bottom-0 z-10 border-t border-card-border bg-card-bg p-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => modalRef.current?.querySelector('[data-proof-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="w-full py-2.5 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 transition-colors"
+            >
+              Add your proof
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
