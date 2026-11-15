@@ -17,6 +17,7 @@ import {
   redactRow,
   retainedBan,
   sessionIsRecent,
+  recentSessionUntil,
   tiedSince,
   type EraseFacts,
 } from '../src/lib/personData.ts';
@@ -226,4 +227,15 @@ test('a merge entry keeps what moved and loses who', () => {
   assert.equal(redactMergeSide(side, 120), side, 'somebody else’s side');
   assert.equal(redactMergeSide('not json', 12), 'not json');
   assert.equal(redactMergeSide(null, 12), null);
+});
+
+test('recentSessionUntil: the click-time deadline the delete button checks before asking', () => {
+  const now = 1_800_000_000_000;
+  assert.equal(recentSessionUntil(now - 60_000, now), now - 60_000 + ERASE_RECENT_SESSION_MS);
+  // Already past the window when the page is drawn: no deadline, the gate shows straight away.
+  assert.equal(recentSessionUntil(now - ERASE_RECENT_SESSION_MS - 1, now), null);
+  assert.equal(recentSessionUntil(null, now), null);
+  // A page drawn in time and clicked late is past its deadline.
+  const until = recentSessionUntil(now, now)!;
+  assert.equal(now + ERASE_RECENT_SESSION_MS + 1 > until, true);
 });

@@ -6,6 +6,11 @@ import { ACCOUNT_DELETED_FLAG } from '@/components/AccountDeletedNotice';
 import { useDialog } from '@/components/Confirm';
 import { BTN, BTN_DANGER } from './_client';
 
+/** Sign out, sign in with Discord, land back on Settings > Account at "Your data". */
+const SIGN_IN_AGAIN_HREF = `/api/auth/logout?return=${encodeURIComponent(
+  `/api/auth/discord/start?return=${encodeURIComponent('/settings/account#your-data')}`,
+)}`;
+
 export interface DeleteBlockerView {
   message: string;
   links: { href: string; label: string; external: boolean }[];
@@ -20,18 +25,19 @@ export interface DeleteBlockerView {
 export default function DeleteAccountClient({
   displayName,
   blockers,
-  recent,
+  recentUntil,
   disabledReason,
 }: {
   displayName: string;
   blockers: DeleteBlockerView[];
-  recent: boolean;
+  /** When this sign-in stops being recent enough to delete (ms); null when it already is not. */
+  recentUntil: number | null;
   disabledReason: string | null;
 }) {
   const { ask, notify } = useDialog();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [needsSignIn, setNeedsSignIn] = useState(!recent);
+  const [needsSignIn, setNeedsSignIn] = useState(recentUntil == null);
 
   if (disabledReason) return <p className="text-[13px] text-text-muted">{disabledReason}</p>;
 
@@ -58,13 +64,15 @@ export default function DeleteAccountClient({
 
   if (needsSignIn) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" role="status">
+        <p className="text-[13px] text-foreground">Sign out and sign in again, then delete your account.</p>
         <p className="text-[13px] text-text-muted">
-          To delete your account, sign in again first. It has been a while since you signed in, and this makes sure it is really you.
+          Deleting only works in the first 15 minutes after you sign in, so nobody else can do it from a browser you left open. The
+          button signs you out, takes you to Discord to sign in, and brings you back here.
         </p>
-        {/* Straight to Discord: /login skips somebody already signed in, and a fresh sign-in is the point. */}
-        <a href="/api/auth/discord/start?return=%2Fsettings%2Faccount%23your-data" /* clan-prefix: platform */ className={BTN}>
-          Sign in again
+        {/* Out first, then straight to Discord: /login skips somebody already signed in, and a fresh sign-in is the point. */}
+        <a href={SIGN_IN_AGAIN_HREF} /* clan-prefix: platform */ className={BTN}>
+          Sign out and sign in again
         </a>
       </div>
     );
@@ -72,6 +80,12 @@ export default function DeleteAccountClient({
 
   async function deleteAccount() {
     setError('');
+    // Checked at the click, every time: the page may have been open longer than the window. The
+    // server checks again, but by then they would have typed the confirmation for nothing.
+    if (recentUntil == null || Date.now() > recentUntil) {
+      setNeedsSignIn(true);
+      return;
+    }
     const typed = await ask({
       title: 'Delete your account?',
       body:
