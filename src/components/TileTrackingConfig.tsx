@@ -1160,7 +1160,12 @@ function TileTrackingEditor({
         } catch { /* ignore */ }
         return { id, name: `Item #${id}`, perItemAmount: 1 };
       }),
-    ).then(setTrackedItems);
+      // Names only, onto whatever the list holds by now: replacing the list here undid any item
+      // added or removed while the lookups were still out.
+    ).then((named) => {
+      const nameOf = new Map(named.map((n: { id: number; name: string }) => [n.id, n.name]));
+      setTrackedItems((prev) => prev.map((i) => (nameOf.has(i.id) && i.name === `Item #${i.id}` ? { ...i, name: nameOf.get(i.id)! } : i)));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
