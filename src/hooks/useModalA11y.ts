@@ -69,8 +69,11 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
     };
 
     if (trapped) {
-      const focusables = getFocusable();
-      (focusables[0] ?? el).focus({ preventScroll: true });
+      // An autoFocus field inside has already taken focus: leave it there.
+      if (!el.contains(document.activeElement) || document.activeElement === el) {
+        const focusables = getFocusable();
+        (focusables[0] ?? el).focus({ preventScroll: true });
+      }
     }
 
     const onKeyDown = (e: KeyboardEvent) => {

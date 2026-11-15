@@ -637,6 +637,13 @@ export default function SignupAdminPanel({
             </p>
           </label>
 
+          <p className="sm:col-span-2 text-xs text-text-muted">
+            These are the sign-up dates. When the event itself starts and ends is under{' '}
+            <ClanLink href={`/admin/events/${event.id}/settings#schedule`} className="text-gold hover:underline underline-offset-2">
+              Settings, Schedule
+            </ClanLink>
+            .
+          </p>
           <div>
             <span className="text-xs text-text-muted">Sign-ups open</span>
             <div className="mt-1">

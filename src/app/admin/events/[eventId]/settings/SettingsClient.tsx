@@ -3,6 +3,7 @@
 import type { Event, Tile } from '@/lib/types';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import ClanLink from '@/components/ClanLink';
 import DateRangeField from '@/components/DateRangeField';
 import DateTimePicker from '@/components/DateTimePicker';
 import NumberInput from '@/components/NumberInput';
@@ -429,7 +430,20 @@ export default function SettingsClient({ event, tiles, section }: Props) {
       </SettingsCard>
 
       {/* Schedule */}
-      <SettingsCard id="schedule" title="Schedule" description="When it starts and ends, in your timezone.">
+      <SettingsCard
+        id="schedule"
+        title="Schedule"
+        description={
+          <>
+            When it starts and ends, in your timezone. Sign-up open and deadline dates, the payment deadline and the
+            captains deadline are on the{' '}
+            <ClanLink href={`/admin/events/${event.id}/signups`} className="text-gold hover:underline underline-offset-2">
+              Sign-ups tab
+            </ClanLink>
+            .
+          </>
+        }
+      >
 
         {editDates ? (
           <>

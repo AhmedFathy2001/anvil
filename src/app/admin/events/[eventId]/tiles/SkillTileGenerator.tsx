@@ -215,9 +215,14 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
 
             {lastBatch && <p className="text-xs text-accent-green-light mb-2">{lastBatch} Pick the next batch, or close.</p>}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex items-center justify-end gap-2">
+              {!creating && (selected.size === 0 || parseXp(xpText) == null) && (
+                <span className="mr-auto text-[11px] text-text-muted">
+                  {parseXp(xpText) == null ? 'Type an XP goal like 2m or 500k to continue.' : 'Pick at least one skill to continue.'}
+                </span>
+              )}
               <button onClick={requestClose} className="text-xs px-3 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors">
-                Done
+                {lastBatch ? 'Done' : 'Cancel'}
               </button>
               <button
                 onClick={create}
