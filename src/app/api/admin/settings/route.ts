@@ -64,6 +64,10 @@ const EXPOSED_KEYS = [
   'drop_default_rarity',
   // 'and' = members' drops need the value AND the rarity; blank = either.
   'drop_default_mode',
+  // The clan's default tiers for members' combat-task, quest and diary posts (lib/notifyPrefs tierGates).
+  'ca_default_tier',
+  'quest_default_tier',
+  'diary_default_tier',
   'fun_death_messages',
   'death_taunts',
   'spoon_taunts',

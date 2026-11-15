@@ -13,7 +13,7 @@ import { getItemPrices } from '@/lib/itemPrices';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 import { ttlMemo } from '@/lib/ttlMemo';
-import { DROP_MINIMUMS, type ClanDropSettings } from '@/lib/notifyPrefs';
+import { DROP_MINIMUMS, storedCaTier, storedDiaryTier, storedQuestTier, type ClanDropSettings } from '@/lib/notifyPrefs';
 import { parseClanKinds, type ClanKinds } from '@/lib/notifyKinds';
 import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 import { clanSeat } from '@/lib/seatScope';
@@ -742,14 +742,17 @@ export async function getClanKindDefaults(clanId: number): Promise<ClanKinds> {
 }
 
 export async function getClanDropDefaults(clanId: number): Promise<ClanDropSettings> {
-  const [value, rarity, floor, mode] = await Promise.all([
+  const [value, rarity, floor, mode, ca, quests, diaryTier] = await Promise.all([
     getSetting(clanId, DROP_DEFAULT_VALUE_SETTING_KEY),
     getSetting(clanId, DROP_DEFAULT_RARITY_SETTING_KEY),
     getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY),
     getSetting(clanId, DROP_DEFAULT_MODE_SETTING_KEY),
+    getSetting(clanId, 'ca_default_tier'),
+    getSetting(clanId, 'quest_default_tier'),
+    getSetting(clanId, 'diary_default_tier'),
   ]);
   // The defaults are the clan's own call (1 gp, 1 in 1 if it likes); only the hard floor keeps a minimum.
-  return { value: settingNumber(value, 1), rarity: settingNumber(rarity, 1), mode: mode === 'and' ? 'and' : null, hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity) };
+  return { value: settingNumber(value, 1), rarity: settingNumber(rarity, 1), mode: mode === 'and' ? 'and' : null, hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity), ca: storedCaTier(ca), quests: storedQuestTier(quests), diaryTier: storedDiaryTier(diaryTier) };
 }
 
 // --- Clan naming ----------------------------------------------------------------------------

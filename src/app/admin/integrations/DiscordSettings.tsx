@@ -1,5 +1,7 @@
 'use client';
 
+import TierSetting from '@/components/TierSetting';
+import { CA_TIERS, DIARY_TIERS, QUEST_TIERS } from '@/lib/notifyPrefs';
 import { useState, type ReactNode } from 'react';
 
 import FoldSection from '@/components/FoldSection';
@@ -174,6 +176,30 @@ export default function DiscordSettings({
           creator={creator}
           filters={{
             milestones: <ClanKindDefaults />,
+            ca: (
+              <TierSetting
+                settingKey="ca_default_tier"
+                label="Default: post combat tasks from this tier"
+                helpText="The default for your members: combat tasks at or above this tier post, plus tier clears. Members follow it, and can only pick a stricter tier (or Off) for themselves. Left on Anvil's default, members choose freely."
+                options={[{ value: '', label: 'Anvil default (Master)' }, ...CA_TIERS.map((t) => ({ value: t as string, label: `${t.charAt(0)}${t.slice(1).toLowerCase()} and up` })), { value: 'OFF', label: 'Off' }]}
+              />
+            ),
+            quests: (
+              <TierSetting
+                settingKey="quest_default_tier"
+                label="Default: post quests from this difficulty"
+                helpText="The default for your members: quests at or above this difficulty post. Members follow it, and can only pick a stricter one (or Off) for themselves. Left on Anvil's default, members choose freely."
+                options={[{ value: '', label: 'Anvil default (Master)' }, { value: 'ALL', label: 'Every quest' }, ...QUEST_TIERS.filter((t) => t !== 'ALL').map((t) => ({ value: t as string, label: `${t.charAt(0)}${t.slice(1).toLowerCase()} and up` })), { value: 'OFF', label: 'Off' }]}
+              />
+            ),
+            diaries: (
+              <TierSetting
+                settingKey="diary_default_tier"
+                label="Default: post diary completions from this tier"
+                helpText="The default for your members: diary completions at or above this tier post. Members follow it, and can only pick a stricter tier for themselves. Left on Anvil's default, members choose freely."
+                options={[{ value: '', label: 'Anvil default (every tier)' }, ...DIARY_TIERS.filter((t) => t !== 'EASY').map((t) => ({ value: t as string, label: `${t.charAt(0)}${t.slice(1).toLowerCase()} and up` }))]}
+              />
+            ),
             drops: (
               <>
                 <PlainSetting

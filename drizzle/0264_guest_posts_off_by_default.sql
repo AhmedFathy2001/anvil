@@ -6,7 +6,7 @@
 -- default does. A player's own clan is unaffected, bingo proofs still reach the clan running the
 -- board, and a single guest clan can still be allowed from the character's page in Settings.
 --
--- Numbered 0263 because beta already holds 0262_submission_world_mode.
+-- Numbered 0264 because beta already holds 0263_notify_tier_inherit.
 
 -- 1. New accounts: quiet in guest clans by default.
 ALTER TABLE "users" ALTER COLUMN "block_guest_emissions" SET DEFAULT true;
