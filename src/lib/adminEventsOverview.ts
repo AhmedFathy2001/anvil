@@ -15,7 +15,8 @@
 
 import { db } from '@/db';
 import { completions, eventSignups, events, payouts, playerEventFacts, eventParticipants, signupFees, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { getTeamStandings } from '@/lib/statStandings';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
 import { formatGp, SPARK_DAYS } from '@/lib/adminEventsFormat';
@@ -292,6 +293,9 @@ export async function getAttentionItems(opts: {
       .select({
         competitionId: weeklyParticipants.competitionId,
         title: weeklyCompetitions.title,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+        status: weeklyCompetitions.status,
         n: count(),
       })
       .from(weeklyParticipants)
@@ -302,11 +306,18 @@ export async function getAttentionItems(opts: {
       .where(
         and(
           eq(weeklyParticipants.flagged, 1),
-          eq(weeklyCompetitions.status, 'active'),
+          ne(weeklyCompetitions.status, 'completed'),
           eq(weeklyCompetitions.clanId, clanId),
         ),
       )
-      .groupBy(weeklyParticipants.competitionId, weeklyCompetitions.title),
+      .groupBy(
+        weeklyParticipants.competitionId,
+        weeklyCompetitions.title,
+        weeklyCompetitions.startDate,
+        weeklyCompetitions.endDate,
+        weeklyCompetitions.status,
+      )
+      .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active')),
   ]);
 
   const names = openIds.length || endedEventIds.length

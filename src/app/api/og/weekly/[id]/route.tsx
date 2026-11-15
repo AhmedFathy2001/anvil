@@ -14,6 +14,7 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { idOrNull } from '@/lib/routeIds';
 import { competitionImageUrl, itemIconUrl } from '@/lib/tileIcons';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { weeklyStatus } from '@/lib/weeklyStage';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,10 +46,7 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
 
   const kind = weeklyKind(comp.type);
   const label = weeklyMetricLabel(kind, comp.metric) || comp.title;
-  const stage = (['upcoming', 'active', 'completed'].includes(comp.status) ? comp.status : 'active') as
-    | 'upcoming'
-    | 'active'
-    | 'completed';
+  const stage = weeklyStatus(comp);
 
   const [participants, clanName] = await Promise.all([getEffectiveParticipants(comp.id), getClanDisplayName(clan.id, clan.name)]);
   const board = computeLeaderboard(participants).filter((e) => e.gained > 0);

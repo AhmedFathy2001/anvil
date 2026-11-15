@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { clanRoster, clans, completions, eventParticipants, events, tiles, weeklyCompetitions } from '@/db/schema';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
 import { parseEventRules } from '@/lib/eventRules';
 import { clansRunningEvents } from '@/lib/coHost';
@@ -243,10 +244,12 @@ async function activeWeeklyByClan(clanIds: number[]): Promise<Map<number, { id: 
   const out = new Map<number, { id: number; title: string }>();
   if (clanIds.length === 0) return out;
   const rows = await db
-    .select({ id: weeklyCompetitions.id, clanId: weeklyCompetitions.clanId, title: weeklyCompetitions.title })
+    .select({ id: weeklyCompetitions.id, clanId: weeklyCompetitions.clanId, title: weeklyCompetitions.title, startDate: weeklyCompetitions.startDate, endDate: weeklyCompetitions.endDate, status: weeklyCompetitions.status })
     .from(weeklyCompetitions)
-    .where(and(inArray(weeklyCompetitions.clanId, clanIds), eq(weeklyCompetitions.status, 'active')));
+    .where(and(inArray(weeklyCompetitions.clanId, clanIds), ne(weeklyCompetitions.status, 'completed')));
+  const nowMs = Date.now();
   for (const r of rows) {
+    if (weeklyStatus(r, nowMs) !== 'active') continue;
     // A clan should have one active competition at a time; if it somehow has two, the first is as
     // good an answer as any and the dropdown row only has space for one.
     if (!out.has(r.clanId)) out.set(r.clanId, { id: r.id, title: r.title });

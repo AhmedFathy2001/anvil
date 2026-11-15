@@ -11,7 +11,8 @@ import { db } from '@/db';
 import { resolveBothBySlug, resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
-import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { requireSecret } from '@/lib/env';
 import { provenClan } from '@/lib/requestHeaderProof';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -804,10 +805,15 @@ async function clanOfPerson(
         )
         .limit(1),
       db
-        .select({ id: weeklyCompetitions.id })
+        .select({
+          id: weeklyCompetitions.id,
+          startDate: weeklyCompetitions.startDate,
+          endDate: weeklyCompetitions.endDate,
+          status: weeklyCompetitions.status,
+        })
         .from(weeklyCompetitions)
-        .where(and(eq(weeklyCompetitions.clanId, homeId), eq(weeklyCompetitions.status, 'active')))
-        .limit(1),
+        .where(and(eq(weeklyCompetitions.clanId, homeId), ne(weeklyCompetitions.status, 'completed')))
+        .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active')),
     ]);
     if (homeBoards.length > 0 || homeWeeklies.length > 0) {
       return resolveClanById(homeId);

@@ -6,7 +6,8 @@ import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { reportedAnvilClanId } from '@/lib/gameClans';
-import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
+import { eq, and, lte, gt, isNull, ne, or } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { weeklyMetricLabel } from '@/lib/constants';
@@ -22,9 +23,17 @@ async function activeNow(clan: { id: number }) {
   const nowIso = new Date().toISOString();
   const [activeWeekly, activeBingos] = await Promise.all([
     db
-      .select({ type: weeklyCompetitions.type, title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
+      .select({
+        type: weeklyCompetitions.type,
+        title: weeklyCompetitions.title,
+        metric: weeklyCompetitions.metric,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+        status: weeklyCompetitions.status,
+      })
       .from(weeklyCompetitions)
-      .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active'))),
+      .where(and(eq(weeklyCompetitions.clanId, clan.id), ne(weeklyCompetitions.status, 'completed')))
+      .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active').map(({ type, title, metric }) => ({ type, title, metric }))),
     db
       .select({ name: events.name })
       .from(events)
