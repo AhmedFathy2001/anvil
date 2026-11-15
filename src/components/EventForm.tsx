@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
@@ -20,9 +20,12 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
+import { useDirtyForm } from '@/components/UnsavedChanges';
 import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
 interface EventFormProps {
+  /** Told whenever the form differs from how it opened, so a dialog around it can ask before closing. */
+  onDirtyChange?: (dirty: boolean) => void;
   presets?: EventPreset[];
   suggestedName?: string;
   /**
@@ -145,7 +148,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, onDirtyChange }: EventFormProps) {
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
@@ -230,6 +233,21 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   // event once it exists so its use is counted and the host can suggest changes back.
   const [libraryBoardId, setLibraryBoardId] = useState<number | null>(null);
   const [drawn, setDrawn] = useState<LibraryTask[] | null>(null);
+
+  // Dirty against how the form opened. Only reported upward (the page-leave guard stays off: a
+  // successful create navigates away on purpose).
+  const { dirty: formDirty } = useDirtyForm(
+    {
+      name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
+      decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
+      multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
+      weeklyType, weeklyMetric, includeGuests, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+    },
+    { guard: false },
+  );
+  useEffect(() => {
+    onDirtyChange?.(formDirty);
+  }, [formDirty, onDirtyChange]);
 
   const meta = MODES.find((m) => m.key === mode)!;
   // The reveal policy actually in effect: a ladder uses its rotation sub-choice; every other mode
