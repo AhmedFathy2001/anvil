@@ -472,7 +472,8 @@ export default function MyTeamClient({
       </div>
       <p className="text-text-muted text-sm mb-2">
         {event.name}
-        {!boardHidden && (isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
+        {/* A finished event takes nothing more: no marking, no proof (the server refuses both). */}
+        {!boardHidden && (finished ? ' · Tap a tile to see how it went' : isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
         {/* "Where did my screenshot go?" — the member panel already lists a player's own proof; this
             opens it on them without having to know you can click your own name in the roster. */}
         {!boardHidden && myPlayerId != null && (
@@ -516,7 +517,7 @@ export default function MyTeamClient({
 
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
-      {isCaptain && eventStarted && (
+      {isCaptain && eventStarted && !finished && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
@@ -649,14 +650,17 @@ export default function MyTeamClient({
               </div>
             ) : (
               <>
-            <TeamPlanPanel
-              claims={claims}
-              tiles={tiles}
-              completedIds={completedTileIds}
-              filter={claimFilter}
-              onFilter={setClaimFilter}
-              onOpenTile={handleTileClick}
-            />
+            {/* Planning is for a board still in play. */}
+            {!finished && (
+              <TeamPlanPanel
+                claims={claims}
+                tiles={tiles}
+                completedIds={completedTileIds}
+                filter={claimFilter}
+                onFilter={setClaimFilter}
+                onOpenTile={handleTileClick}
+              />
+            )}
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
             <EventBoard
               format={event.format}
@@ -716,9 +720,9 @@ export default function MyTeamClient({
           race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
-          canSubmit={eventStarted}
-          canManage={isCaptain && eventStarted}
-          canToggle={isCaptain && !selectedTile.trackedStat && eventStarted}
+          canSubmit={eventStarted && !finished}
+          canManage={isCaptain && eventStarted && !finished}
+          canToggle={isCaptain && !selectedTile.trackedStat && eventStarted && !finished}
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
           onToggle={handleToggle}

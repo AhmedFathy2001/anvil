@@ -80,7 +80,7 @@ const FEE_BUCKET: Record<string, { label: string; cls: string }> = {
   closed: { label: 'Closed', cls: 'text-text-muted border-card-border' },
 };
 
-export default function TeamManageClient({ teamId }: { teamId: number }) {
+export default function TeamManageClient({ teamId, eventEnded = false }: { teamId: number; /** The event is over (lib/eventStage 'wrap'). */ eventEnded?: boolean }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [startingStats, setStartingStats] = useState<Record<number, StartingStatsStatus>>({});
   const { confirm, ask, notify } = useDialog();
@@ -468,7 +468,9 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                       disabled={busy === r.playerId || eventStarted}
                       title={
                         eventStarted
-                          ? 'The event has started — an admin subs people out, which keeps scoring history straight'
+                          ? eventEnded
+                            ? 'The event has ended. The roster is final'
+                            : 'The event has started — an admin subs people out, which keeps scoring history straight'
                           : 'Take them off this team, back to the event pool'
                       }
                       onClick={() => removePlayer(r.playerId, r.name)}
@@ -481,8 +483,9 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
               )}
               {eventStarted && (
                 <p className="text-xs text-text-muted mt-1">
-                  The event is live, so the roster is fixed here — subbing someone out changes what
-                  their tiles scored, so it stays with the host.
+                  {eventEnded
+                    ? 'The event has ended, so this roster is final.'
+                    : 'The event is live, so the roster is fixed here — subbing someone out changes what their tiles scored, so it stays with the host.'}
                 </p>
               )}
             </div>

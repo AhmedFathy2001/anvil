@@ -658,6 +658,9 @@ export default function TileDetailModal({
     }
   }
 
+  // This team's tile is completed although its proofs on file fall short of the count: a captain or
+  // staff marked it done. Then there is no "N more needed" and no "0/1".
+  const doneShort = isCompleted && teamId != null && !!dropProgress && dropProgress.current < dropProgress.required;
   // Tile race: no proof form on a tile the viewer's team has not reached (the server refuses it too).
   const raceBlock = useRaceProofBlock(race, tile.id, eventId);
   const canFile = canSubmit && raceBlock === null;
@@ -957,15 +960,17 @@ export default function TileDetailModal({
                   )}
                 </span>
                 <span className="font-medium text-accent-green-light">
-                  {dropProgress.current}/{dropProgress.required}
+                  {/* Marked done with fewer proofs on file than the count (a captain or staff ticked
+                      it): it is done, so it does not read "0/1" beside "Completed". */}
+                  {doneShort ? 'Done' : `${dropProgress.current}/${dropProgress.required}`}
                 </span>
               </div>
               <div className="w-full bg-brown-dark rounded-full h-3 overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (dropProgress.current / dropProgress.required) * 100)}%`,
-                    background: dropProgress.current >= dropProgress.required
+                    width: `${doneShort ? 100 : Math.min(100, (dropProgress.current / dropProgress.required) * 100)}%`,
+                    background: doneShort || dropProgress.current >= dropProgress.required
                       ? 'linear-gradient(90deg, #22c55e, #4ade80)'
                       : 'linear-gradient(90deg, #eab308cc, #eab308)',
                   }}
@@ -1486,13 +1491,15 @@ export default function TileDetailModal({
           {isCount && canFile && onSubmit && teamId && (() => {
             const remaining = dropProgress ? Math.max(0, dropProgress.required - dropProgress.current) : undefined;
             const maxAmount = remaining ?? 99;
-            const isComplete = remaining === 0;
+            const isComplete = remaining === 0 || doneShort;
 
             if (isComplete) {
               return (
                 <div className="border border-accent-green/30 rounded-lg p-3 bg-accent-green/10 text-center">
                   <p className="text-sm text-accent-green-light font-medium">Tile Complete!</p>
-                  <p className="text-xs text-text-muted mt-1">All required {countNoun}s have been submitted.</p>
+                  <p className="text-xs text-text-muted mt-1">
+                    {doneShort ? 'Marked done for your team. Nothing more is needed.' : `All required ${countNoun}s have been submitted.`}
+                  </p>
                 </div>
               );
             }
