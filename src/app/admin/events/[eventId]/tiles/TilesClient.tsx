@@ -151,6 +151,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const boardRef = useRef<HTMLDivElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
+  // Follow a server refresh (a co-host or a suggestion changed the board) when nothing here is being
+  // edited or reordered; otherwise the host keeps looking at a list that has gone stale.
+  const tilesSig = useMemo(() => JSON.stringify(tiles), [tiles]);
+  const lastTilesSig = useRef(tilesSig);
+  const busyRef = useRef({ editing: false, reordering: false });
+  useEffect(() => {
+    if (lastTilesSig.current === tilesSig) return;
+    if (busyRef.current.editing || busyRef.current.reordering) return;
+    lastTilesSig.current = tilesSig;
+    setLocalTiles([...tiles].sort((a, b) => a.position - b.position));
+  }, [tilesSig, tiles]);
   // Opening another tile or closing the editor throws away an open tile's unsaved edits: ask first.
   const leaveGuard = useLeaveGuard();
   const openTileGuarded = (id: number | null) => {
@@ -182,6 +193,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     return () => clearTimeout(t);
   }, [importMsg]);
   const [reordering, setReordering] = useState(false);
+  useEffect(() => {
+    busyRef.current = { editing: editingTileId != null, reordering };
+  }, [editingTileId, reordering]);
   // What authoring THIS board involves — which views it offers, what its entries are called, and
   // what its format still needs from you (lib/tileAuthoring). Everything below asks the model
   // rather than re-deriving "is this a bingo?" from the columns.
@@ -821,6 +835,21 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       return ids.map((id, i) => ({ ...byId.get(id)!, position: i }));
     });
     void applyOrder(ids, 'Tile order updated.');
+  }
+
+  // Move earlier / later: the keyboard and phone way to reorder, same route as drag.
+  function moveTile(tileId: number, delta: -1 | 1) {
+    const ids = localTiles.map((t) => t.id);
+    const from = ids.indexOf(tileId);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, tileId);
+    setLocalTiles((prev) => {
+      const byId = new Map(prev.map((t) => [t.id, t]));
+      return ids.map((id, i) => ({ ...byId.get(id)!, position: i }));
+    });
+    void applyOrder(ids, `Moved to #${to + 1}.`);
   }
 
   async function handleShuffle() {
@@ -1697,6 +1726,30 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             No {model.nounPlural} match your search.
           </div>
         ) : (
+        <>
+        {editingTile && !editingTile.mission && !eventStarted && !listFiltered && localTiles.some((t) => t.id === editingTile.id) && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+            <span>
+              {editingTile.label || 'This tile'} is #{localTiles.findIndex((t) => t.id === editingTile.id) + 1} of {localTiles.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => moveTile(editingTile.id, -1)}
+              disabled={reordering || localTiles[0]?.id === editingTile.id}
+              className="px-2.5 py-1 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
+            >
+              Move earlier
+            </button>
+            <button
+              type="button"
+              onClick={() => moveTile(editingTile.id, 1)}
+              disabled={reordering || localTiles[localTiles.length - 1]?.id === editingTile.id}
+              className="px-2.5 py-1 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
+            >
+              Move later
+            </button>
+          </div>
+        )}
         <div
           // Fewer, wider cards when the editor is open beside them — a tile clipped to "Til e…" is
           // no use for finding the one you want.
@@ -1800,6 +1853,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             );
           })}
         </div>
+        </>
         )}
 
         {filteredTiles.length > visibleTiles.length && (
