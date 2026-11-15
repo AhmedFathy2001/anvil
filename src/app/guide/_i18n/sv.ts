@@ -4348,7 +4348,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Vart dina inlägg går',
-          body: '**Keep my announcements out of clans I only guest in**, och **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** listar varje karaktär med en länk **Clans →** för att stänga av inlägg för en klan.',
+          body: '**Post my drops and levels in clans where I am a guest**, och **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** listar varje karaktär med en länk **Clans →** för att stänga av inlägg för en klan.',
         },
         {
           term: 'Skärmbilder per typ',

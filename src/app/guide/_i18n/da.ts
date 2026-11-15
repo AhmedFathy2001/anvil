@@ -4357,7 +4357,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Hvor dine opslag går',
-          body: '**Keep my announcements out of clans I only guest in**, og **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** lister hver karakter med et **Clans →**-link, så du kan slå opslag fra for én klan.',
+          body: '**Post my drops and levels in clans where I am a guest**, og **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** lister hver karakter med et **Clans →**-link, så du kan slå opslag fra for én klan.',
         },
         {
           term: 'Skærmbilleder pr. type',

@@ -76,11 +76,12 @@ export function AnnouncementsGeneral({ initial }: { initial: EmissionSettingsVie
     <div className="grid gap-5">
       <ErrorLine error={error} />
       <Checkbox
-        checked={view.blockGuestEmissions}
-        onChange={(v) => patch({ blockGuestEmissions: v })}
+        // Shown as "sharing on"; stored as its inverse (users.block_guest_emissions, true = quiet).
+        checked={!view.blockGuestEmissions}
+        onChange={(v) => patch({ blockGuestEmissions: !v })}
         disabled={busy}
-        label="Keep my announcements out of clans I only guest in"
-        description="Your own clan and your bingo boards are unaffected. Allow single clans on each character's page."
+        label="Post my drops and levels in clans where I am a guest"
+        description="Off unless you turn it on. Covers drops, pets, deaths, levels and achievements. Your own clan always posts, and bingo proofs always reach the board. To allow or mute one clan, use each character's page."
       />
       {/* Level posts in clan channels — stricter-only on top of each clan's own rules. */}
       <div className="flex flex-wrap items-center justify-between gap-3">

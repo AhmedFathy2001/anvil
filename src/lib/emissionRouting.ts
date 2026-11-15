@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, userWebhooks, users } from '@/db/schema';
+import { emissionDecision, GUEST_POSTS_BLOCKED_BY_DEFAULT } from '@/lib/emissionRule';
 import { clanSeat } from '@/lib/seatScope';
 import { getSetting } from '@/lib/settings';
 
@@ -46,7 +47,7 @@ export function markGuestPost(
   return { embed, content: content ? `[Guest] ${content}` : content };
 }
 
-/** The person's own "don't broadcast to clans I guest in" preference (default: don't block). */
+/** The person's own "don't broadcast to clans I guest in" preference (default: block, drizzle/0263). */
 async function personBlocksGuestEmissions(playerId: number): Promise<boolean> {
   const rows = await db
     .select({ block: users.blockGuestEmissions })
@@ -54,6 +55,8 @@ async function personBlocksGuestEmissions(playerId: number): Promise<boolean> {
     .where(eq(users.playerId, playerId));
   // Any login of this person having it on is enough — a person has one today, but "on wins" is the
   // safe reading if that ever changes.
+  // No login at all: nobody could have turned sharing on, so the default (quiet) answers.
+  if (rows.length === 0) return GUEST_POSTS_BLOCKED_BY_DEFAULT;
   return rows.some((r) => r.block);
 }
 
@@ -100,10 +103,9 @@ async function memberClanIdsOfPerson(playerId: number): Promise<Set<number>> {
  *                      the `shared` floor — an unshared account never announces to a clan it only
  *                      guests in.
  *
- * THE PREFERENCE NOW DEFAULTS TO QUIET (players.block_guest_emissions, drizzle/0080). Sharing became
- * the default in the same migration, and `shared` on its own says "the leaderboards may see this
- * character" — not "post my drops in a clan I visited once". Visible and announced are separate
- * disclosures, and only the first one got easier.
+ * THE PREFERENCE DEFAULTS TO QUIET (users.block_guest_emissions = true, drizzle/0263): a player's
+ * drops post in a clan they only guest in once they turn that on in Settings, or allow that one clan.
+ * `shared` says "the leaderboards may see this character", not "post my drops in a clan I visited".
  *
  * MEMBER clans are unaffected: your own clan announces for you unless you silence it. The default
  * still needs no rows at all — account_clan_emission, the clan setting and the user column hold only
@@ -140,7 +142,7 @@ export async function socialEmissionClans(accountId: number): Promise<EmissionCl
   const toggleOf = new Map(toggleRows.map((t) => [t.clanId, t.enabled]));
 
   const userBlocksGuests =
-    account.playerId != null ? await personBlocksGuestEmissions(account.playerId) : false;
+    account.playerId != null ? await personBlocksGuestEmissions(account.playerId) : GUEST_POSTS_BLOCKED_BY_DEFAULT;
   // The "connected to a member" set: a whitelisted alt may announce to a clan it has no seat of its
   // own in, but only one its OWNER is a member of — never an arbitrary clan.
   const personMemberClans =
@@ -155,35 +157,14 @@ export async function socialEmissionClans(accountId: number): Promise<EmissionCl
 
   const out: EmissionClan[] = [];
   for (const clanId of candidates) {
-    const kind = seatKindOf.get(clanId); // 'member' | 'guest' | undefined (whitelisted, no seat here)
-    const e = toggleOf.get(clanId); // true (whitelist) | false (silence) | undefined (default)
-
-    if (kind === 'member') {
-      // The member clan is your home: it announces unless YOU explicitly silence it. A clan cannot
-      // block its own members, and its guest setting does not apply to them.
-      if (e !== false) out.push({ clanId, kind: 'member' });
-      continue;
-    }
-
-    // A guest here, or a whitelisted alt with no seat of its own — either way, not a member.
-    if (e === false) continue; // explicit silence
-    // RECEIVER VETO, and it is absolute — a clan that refuses guest noise gets none, even one this
-    // person whitelisted, because it is the clan's channel and its call.
-    if (await clanBlocksGuestEmissions(clanId)) continue;
-    if (e === true) {
-      out.push({ clanId, kind: 'guest' }); // explicit whitelist — the person opted this one in
-      continue;
-    }
-    // No explicit entry: the person's guest preference, and then the SEAT.
-    //
-    // BEING VISIBLE AND BEING ANNOUNCED ARE DIFFERENT DISCLOSURES, and this used to fall back to
-    // `shared` — a flag that meant "public on Anvil" and was on by default, so it read as permission
-    // to post your drops in any clan that had ever heard of you. What answers here now is the same
-    // thing that answers everywhere else: a guest seat in this clan, which the clan's own door
-    // granted. No seat, nothing announced — the whitelist above is how somebody opts in a clan they
-    // are not seated in.
-    if (userBlocksGuests) continue;
-    if (kind === 'guest') out.push({ clanId, kind: 'guest' });
+    const seat = seatKindOf.get(clanId); // 'member' | 'guest' | undefined (whitelisted, no seat here)
+    const override = toggleOf.get(clanId); // true (whitelist) | false (silence) | undefined (default)
+    // The rule itself is pure and lives in lib/emissionRule. The clan's veto is only looked up where
+    // it can matter: never for the member clan, never after an explicit silence.
+    const clanBlocksGuests =
+      seat !== 'member' && override !== false ? await clanBlocksGuestEmissions(clanId) : false;
+    const kind = emissionDecision({ seat, override, clanBlocksGuests, userBlocksGuests });
+    if (kind) out.push({ clanId, kind });
   }
   return out;
 }

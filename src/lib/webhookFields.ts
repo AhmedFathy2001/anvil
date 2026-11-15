@@ -254,7 +254,7 @@ export const WEBHOOK_SECTIONS = [
         kind: 'toggle',
         key: 'block_guest_emissions',
         label: 'Only announce your own members',
-        help: "Off by default, so the guests you've admitted to an event have their drops, deaths and combat achievements announced here too. Turn this ON to carry your MEMBERS only, so a visitor guesting for one event doesn't fill your feed with unrelated activity. Bingo submissions from guests always post regardless — this is only about the social notifications. A guest who'd rather stay quiet can silence your clan from their own profile.",
+        help: "Off by default, so a guest who chose to post in clans they guest in has their drops, deaths and combat achievements announced here too (guests are quiet until they turn that on in their own settings). Turn this ON to carry your MEMBERS only, so a visitor guesting for one event doesn't fill your feed with unrelated activity. Bingo submissions from guests always post regardless — this is only about the social notifications. A guest who'd rather stay quiet can silence your clan from their own profile.",
       },
       {
         kind: 'toggle',

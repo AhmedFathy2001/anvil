@@ -1541,13 +1541,12 @@ export const users = pgTable('users', {
   // It defaulted to off while `accounts.shared` was itself off by default — the two together meant
   // silence, and turning sharing on was a deliberate act that fairly read as "announce me". Sharing
   // is the default now (drizzle/0080), and it says only that the leaderboards may see the character.
-  // It DEFAULTS TO ANNOUNCE (drizzle/0086, "opt in by default"): a clan announces the guests it
-  // admitted (a seat there) unless the clan refuses via its own veto ("Only announce your own
-  // members"), the person turns THIS on to go quiet in every clan they guest in, or the person
-  // silences one clan explicitly. The per-clan whitelist still opts one back in past a global mute.
-  // The old default was quiet, but the guest-social feature never actually emitted under it, so the
-  // migration reset every existing row to false as well — nobody was relying on it as a real mute.
-  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(false),
+  // true = QUIET in guest clans. It DEFAULTS TO TRUE (drizzle/0263): nothing posts in a clan where the
+  // person only guests until they switch it on in Settings ("Post my drops and levels in clans where
+  // I am a guest" — the UI shows the inverse of this column), or allow one clan from a character's
+  // page. The clan's own veto ("Only announce your own members") still wins. History: 0080 quiet,
+  // 0086 announce, 0263 quiet again.
+  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(true),
   // Level / XP milestone posts (lib/levelRules). On the LOGIN, like the guest toggle above and the
   // personal webhooks, so the choice follows the person into every clan.
   //   level_posts_clan  'clan' | 'ninetyNinesAndMax' | 'off' — what of the clan's level rules this

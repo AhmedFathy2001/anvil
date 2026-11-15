@@ -1394,6 +1394,13 @@
       "when": 1794540191870,
       "tag": "0261_auto_enroll_late",
       "breakpoints": true
+    },
+    {
+      "idx": 263,
+      "version": "7",
+      "when": 1794716688274,
+      "tag": "0263_guest_posts_off_by_default",
+      "breakpoints": true
     }
   ]
 }

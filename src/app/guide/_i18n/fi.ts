@@ -4348,7 +4348,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Minne julkaisusi menevät',
-          body: '**Keep my announcements out of clans I only guest in** ja **Level posts in clan channels**: **Clan rules**, **Only 99s & max** tai **Off**. **Per character** listaa jokaisen hahmon linkillä **Clans →**, jolla julkaisun voi kytkeä pois yhdeltä klaanilta.',
+          body: '**Post my drops and levels in clans where I am a guest** ja **Level posts in clan channels**: **Clan rules**, **Only 99s & max** tai **Off**. **Per character** listaa jokaisen hahmon linkillä **Clans →**, jolla julkaisun voi kytkeä pois yhdeltä klaanilta.',
         },
         {
           term: 'Kuvakaappaukset tyypeittäin',
