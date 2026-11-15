@@ -111,7 +111,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
           className={cn(
             'absolute top-1 left-1 rounded px-1 font-bold leading-none',
             'bg-purple-500/25 text-purple-200 border border-purple-400/30',
-            size <= 5 ? 'text-[8px] sm:text-[10px] py-0.5' : 'text-[7px] sm:text-[8px] py-px',
+            // 12px on phones, like every other label there; the small sizes are for wide screens.
+            size <= 5 ? 'text-[12px] sm:text-[10px] py-0.5' : 'text-[12px] sm:text-[8px] py-px',
           )}
           title={`${points} point${points !== 1 ? 's' : ''}`}
         >
@@ -143,7 +144,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
             />
           ))}
           {completedBy.length > 5 && (
-            <span className="text-[8px] text-text-muted pl-1.5 leading-none self-center">+{completedBy.length - 5}</span>
+            <span className="text-[12px] sm:text-[8px] text-text-muted pl-1.5 leading-none self-center">+{completedBy.length - 5}</span>
           )}
         </div>
       )}
@@ -188,7 +189,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       <span
         className={cn(
           // Phones: at most two lines, anywhere-wrapping; the full name is in the tile dialog on tap.
-          'leading-tight font-medium px-0.5 max-sm:line-clamp-2 max-sm:[overflow-wrap:anywhere]',
+          // A word too long for the tile breaks with a hyphen ("Void-waker"), not bare mid-word.
+          'leading-tight font-medium px-0.5 max-sm:line-clamp-2 max-sm:[overflow-wrap:anywhere] max-sm:[hyphens:auto]',
           icon ? 'mt-0.5' : '',
           // Phones: the count under the name is 12px now; lift the name clear of it.
           !isCompleted && ((isDrop && progress) || (statProgress && statProgress.goal > 0)) ? 'max-sm:mb-3.5' : '',

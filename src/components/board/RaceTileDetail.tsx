@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { raceGraph, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
+import { raceGraph, raceProofBlock, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
 import { raceTileState } from '@/lib/tileState';
 import { racePickUrl, useTileData } from '@/lib/tileData';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,8 @@ export interface RaceDetailContext {
   completions: { teamId: number; tileId: number; completedAt?: string | null }[];
   teams: { id: number; name: string; color: string }[];
   viewerTeamId?: number | null;
+  /** The team a proof from this viewer would be filed for, when it is not the team being viewed (the public board's lens). */
+  proofTeamId?: number | null;
   onOpenTile?: (id: number) => void;
 }
 
@@ -20,16 +22,16 @@ export interface RaceDetailContext {
  * A race's road mode for a team (GET /api/events/:id/race-pick): the picks on a "Choose and lock
  * in" race (null elsewhere) and teamRoute's options ("Roads stay open").
  */
-export function useRacePicks(eventId: number | undefined, teamId: number | null | undefined): { picks: Map<number, number> | null; opts: TeamRouteOpts } {
+export function useRacePicks(eventId: number | undefined, teamId: number | null | undefined): { picks: Map<number, number> | null; opts: TeamRouteOpts; bank: boolean; loaded: boolean } {
   // Through the shared read cache: the board's own read of the same picks (and a hover prefetch)
   // answers this at once instead of asking again when the dialog opens.
-  const d = useTileData<{ mode?: RaceRoadMode | null; picks?: Record<string, number> }>(eventId != null && teamId != null ? racePickUrl(eventId, teamId) : null);
+  const d = useTileData<{ mode?: RaceRoadMode | null; bank?: boolean; picks?: Record<string, number> }>(eventId != null && teamId != null ? racePickUrl(eventId, teamId) : null);
   const mode = d?.mode ?? null;
   const picks = useMemo(
     () => (d && mode === 'choose' ? new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])) : null),
     [d, mode],
   );
-  return { picks, opts: raceRouteOpts(mode) };
+  return { picks, opts: raceRouteOpts(mode), bank: !!d?.bank, loaded: d !== undefined };
 }
 
 /**
@@ -103,4 +105,22 @@ export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext
       )}
     </div>
   );
+}
+
+/**
+ * Why the viewer's team cannot file proof for this race tile now (lib/raceRoutes raceProofBlock), or
+ * null when it can. The server refuses the same way; this keeps the form from being offered.
+ * `undefined` while the race's road mode is still loading: nothing is offered until it is known.
+ */
+export function useRaceProofBlock(ctx: RaceDetailContext | null | undefined, tileId: number, eventId?: number): string | null | undefined {
+  const tiles = ctx?.tiles;
+  const teamId = ctx?.proofTeamId ?? ctx?.viewerTeamId ?? null;
+  const graph = useMemo(() => (tiles ? raceGraph(tiles) : null), [tiles]);
+  const { picks, opts, bank, loaded } = useRacePicks(ctx ? (eventId ?? tiles?.[0]?.eventId) : undefined, teamId);
+  if (!ctx || !graph || teamId == null) return null;
+  if (!loaded) return undefined;
+  const done = ctx.completions.filter((c) => c.teamId === teamId).map((c) => c.tileId);
+  // A combo part answers for its combo, which is the tile on the route.
+  const self = ctx.tiles.find((t) => t.id === tileId);
+  return raceProofBlock(graph, teamRoute(graph, done, picks, opts), self?.parentTileId ?? tileId, { bank });
 }

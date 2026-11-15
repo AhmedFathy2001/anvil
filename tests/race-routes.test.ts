@@ -460,3 +460,38 @@ test('removing one of two tiles on a step keeps the step', async () => {
   assert.deepEqual(both.find((e) => e.id === 1), { id: 1, step: 0, next: [4] });
   assert.equal(both.find((e) => e.id === 4)?.step, 1);
 });
+
+// ── Proof filed by hand ──────────────────────────────────────────────────────────────────────────
+
+import { raceProofBlock } from '../src/lib/raceRoutes.ts';
+
+test('a person may file proof only on a tile that is open (or done) for their team', () => {
+  const g = raceGraph(branch);
+  // Nothing done: the starts are open, everything else is locked ahead.
+  const fresh = teamRoute(g, []);
+  assert.equal(raceProofBlock(g, fresh, 10), null);
+  assert.match(raceProofBlock(g, fresh, 20)!, /locked for your team/);
+  assert.match(raceProofBlock(g, fresh, 40)!, /locked for your team/);
+  // 10, 20 and 30 done: 40 is open, 31 and 41 are closed roads, the done ones still take proof.
+  const mid = teamRoute(g, [10, 20, 30]);
+  assert.equal(raceProofBlock(g, mid, 40), null);
+  assert.equal(raceProofBlock(g, mid, 30), null);
+  assert.match(raceProofBlock(g, mid, 31)!, /closed for your team/);
+  assert.match(raceProofBlock(g, mid, 41)!, /closed for your team/);
+});
+
+test('banked early finishes open a tile further along the road to proof, never a closed road', () => {
+  const g = raceGraph(branch);
+  const fresh = teamRoute(g, []);
+  assert.equal(raceProofBlock(g, fresh, 20, { bank: true }), null);
+  const mid = teamRoute(g, [10, 20, 30]);
+  assert.match(raceProofBlock(g, mid, 31, { bank: true })!, /closed for your team/);
+});
+
+test('a fork the team has not picked at takes no proof; a mission is not the race to refuse', () => {
+  const g = raceGraph(branch);
+  const atFork = teamRoute(g, [10, 20], new Map());
+  assert.match(raceProofBlock(g, atFork, 30)!, /pick its road/);
+  assert.match(raceProofBlock(g, atFork, 30, { bank: true })!, /pick its road/);
+  assert.equal(raceProofBlock(g, atFork, 99), null);
+});

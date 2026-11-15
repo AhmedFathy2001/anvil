@@ -7,6 +7,7 @@ import { playerCardLine } from '@/lib/eventWrappedRules';
 import { CardImage, Notice, PlayerFacts } from './parts';
 import { loadWrappedPage, wrappedMetadata } from './load';
 import PlayerList from './PlayerList';
+import EndsAt from './EndsAt';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export default async function WrappedPage({ params }: { params: Promise<{ eventI
   if (!open) {
     return (
       <div>{header}
-        <Notice title="Cards aren’t out yet">Everyone gets theirs when the event ends. Check back then.</Notice>
+        <Notice title="Cards aren’t out yet">Everyone gets theirs when the event ends.{event.endDate ? <EndsAt endDate={event.endDate} /> : null} Check back then.</Notice>
       </div>
     );
   }

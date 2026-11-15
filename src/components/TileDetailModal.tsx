@@ -2,7 +2,7 @@
 
 import { modeTag } from '@/lib/worldModes';
 import DropOdds from '@/components/DropOdds';
-import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
+import RaceTileDetail, { useRaceProofBlock, type RaceDetailContext } from '@/components/board/RaceTileDetail';
 import { TileStateBanner } from '@/components/board/TileState';
 import { missionTileState } from '@/lib/tileState';
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
@@ -658,6 +658,13 @@ export default function TileDetailModal({
     }
   }
 
+  // This team's tile is completed although its proofs on file fall short of the count: a captain or
+  // staff marked it done. Then there is no "N more needed" and no "0/1".
+  const doneShort = isCompleted && teamId != null && !!dropProgress && dropProgress.current < dropProgress.required;
+  // Tile race: no proof form on a tile the viewer's team has not reached (the server refuses it too).
+  const raceBlock = useRaceProofBlock(race, tile.id, eventId);
+  const canFile = canSubmit && raceBlock === null;
+
   // Escape, the x and a click outside all ask first once a proof is half written (a screenshot
   // attached, a note, a time or a value typed). Cleared again by a successful submit.
   const proofStarted =
@@ -832,7 +839,11 @@ export default function TileDetailModal({
           <TileBeforeYouStart tile={tile} eventId={eventId} />
 
           {/* The board is read-only: the proof form is on the team page, which opens on this tile. */}
-          {submitProof && !canSubmit && (
+          {/* A race tile the team has not reached takes no proof: say why instead of a form or a link to one. */}
+          {raceBlock && (canSubmit || (submitProof && 'href' in submitProof)) && (
+            <p className="rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2 text-xs text-text-muted">{raceBlock}</p>
+          )}
+          {submitProof && !canSubmit && raceBlock === null && (
             'href' in submitProof ? (
               <ClanLink
                 href={submitProof.href}
@@ -916,7 +927,7 @@ export default function TileDetailModal({
                             </button>
                           )}
                           {/* A part that takes screenshots gets the same form its own tile would have. */}
-                          {canSubmit && onSubmit && teamId && !st?.state.done && PART_PROOF_TYPES.has(p.tileType ?? '') && (
+                          {canFile && onSubmit && teamId && !st?.state.done && PART_PROOF_TYPES.has(p.tileType ?? '') && (
                             <button type="button" onClick={() => setOpenPart(p)} className="text-[11px] text-gold hover:underline">
                               Add screenshot
                             </button>
@@ -949,15 +960,17 @@ export default function TileDetailModal({
                   )}
                 </span>
                 <span className="font-medium text-accent-green-light">
-                  {dropProgress.current}/{dropProgress.required}
+                  {/* Marked done with fewer proofs on file than the count (a captain or staff ticked
+                      it): it is done, so it does not read "0/1" beside "Completed". */}
+                  {doneShort ? 'Done' : `${dropProgress.current}/${dropProgress.required}`}
                 </span>
               </div>
               <div className="w-full bg-brown-dark rounded-full h-3 overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (dropProgress.current / dropProgress.required) * 100)}%`,
-                    background: dropProgress.current >= dropProgress.required
+                    width: `${doneShort ? 100 : Math.min(100, (dropProgress.current / dropProgress.required) * 100)}%`,
+                    background: doneShort || dropProgress.current >= dropProgress.required
                       ? 'linear-gradient(90deg, #22c55e, #4ade80)'
                       : 'linear-gradient(90deg, #eab308cc, #eab308)',
                   }}
@@ -1475,16 +1488,18 @@ export default function TileDetailModal({
           )}
 
           {/* Submit form for drop / kill tiles */}
-          {isCount && canSubmit && onSubmit && teamId && (() => {
+          {isCount && canFile && onSubmit && teamId && (() => {
             const remaining = dropProgress ? Math.max(0, dropProgress.required - dropProgress.current) : undefined;
             const maxAmount = remaining ?? 99;
-            const isComplete = remaining === 0;
+            const isComplete = remaining === 0 || doneShort;
 
             if (isComplete) {
               return (
                 <div className="border border-accent-green/30 rounded-lg p-3 bg-accent-green/10 text-center">
                   <p className="text-sm text-accent-green-light font-medium">Tile Complete!</p>
-                  <p className="text-xs text-text-muted mt-1">All required {countNoun}s have been submitted.</p>
+                  <p className="text-xs text-text-muted mt-1">
+                    {doneShort ? 'Marked done for your team. Nothing more is needed.' : `All required ${countNoun}s have been submitted.`}
+                  </p>
                 </div>
               );
             }
@@ -1665,7 +1680,7 @@ export default function TileDetailModal({
           })()}
 
           {/* Submit form for timed tiles */}
-          {isTimed && canSubmit && onSubmit && teamId && !isCompleted && (
+          {isTimed && canFile && onSubmit && teamId && !isCompleted && (
             <form data-proof-form ref={proofFormRef} onSubmit={handleSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Submit a Clear</h3>
               <p className="text-xs text-text-muted">
@@ -1738,7 +1753,7 @@ export default function TileDetailModal({
           )}
 
           {/* Submit form for loot-value tiles — a gp-valued haul + one proof screenshot. */}
-          {isValue && canSubmit && onSubmit && teamId && !isCompleted && (
+          {isValue && canFile && onSubmit && teamId && !isCompleted && (
             <form data-proof-form ref={proofFormRef} onSubmit={handleValueSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Submit Loot Value</h3>
               <p className="text-xs text-text-muted">

@@ -402,6 +402,20 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
   .race-road-flow { animation: none; }
 }
 
+/* A grid with no columns set gets ONE column that cannot be wider than its box, on phones.
+   Tailwind's bare `grid` leaves the single column `auto`, which grows to the widest one-line
+   (truncate / nowrap) child: the profile history, the admin events list and the clan home cards
+   each ran 30 to 200px past the screen that way, and body clips sideways so it could not even be
+   panned. In the base layer, so any `grid-cols-*` utility or inline template still wins; grids
+   that flow in columns are left alone. */
+@layer base {
+  @media (max-width: 639.98px) {
+    .grid:not(.grid-flow-col) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
 /* ── Phone floors ───────────────────────────────────────────────────────────────────────────────
    Phones only (under Tailwind's `sm`, 640px); desktop is untouched.
    1. Text: the shared tiny sizes (9-11.5px, and their rem spellings) are raised to 12px. The unlayered rule beats the

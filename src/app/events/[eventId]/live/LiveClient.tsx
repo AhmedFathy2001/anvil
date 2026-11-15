@@ -234,7 +234,8 @@ export default function LiveClient({
       let pass: { url: string; ticket: string };
       try {
         const res = await clanFetch(`${base}/ticket?${seatQ.slice(1)}`, { cache: 'no-store' });
-        if (res.status === 404) {
+        // 204: no push server here (404 from a server not yet on this build, or no access): poll.
+        if (res.status === 204 || res.status === 404) {
           noPush = true;
           return;
         }

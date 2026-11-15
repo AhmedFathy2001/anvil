@@ -1,3 +1,4 @@
+import { eventStage } from '@/lib/eventStage';
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { boardPlayer, clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
@@ -251,7 +252,7 @@ export default async function MyTeamPage({
       {membership.canManage && (
               <div className="mb-6">
                 {/* Roster, requests, proof, fees and invite links in one shut card. */}
-                <TeamManageClient teamId={tId} />
+                <TeamManageClient teamId={tId} eventEnded={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'} />
               </div>
             )}
           </>

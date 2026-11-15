@@ -1,5 +1,6 @@
 'use client';
 
+import { useModalA11y } from '@/hooks/useModalA11y';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
@@ -570,12 +571,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
 
       {/* Editor — the board's own tile editor, driving a task instead of a tile row. */}
       {editing && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={editing === 'new' ? 'New task' : `Edit ${editing.label}`}
-          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
-        >
+        <EditorFrame label={editing === 'new' ? 'New task' : `Edit ${editing.label}`} onClose={() => leaveGuard(closeEditor)}>
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => leaveGuard(closeEditor)} />
           <div className="relative w-full max-w-2xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
             <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
@@ -608,8 +604,25 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
               )}
             </div>
           </div>
-        </div>
+        </EditorFrame>
       )}
+    </div>
+  );
+}
+
+/** The task editor's shell: a real modal, so Escape closes it (through the same "leave without saving?" ask as the x). */
+function EditorFrame({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
+  const ref = useModalA11y<HTMLDivElement>({ onClose });
+  return (
+    <div
+      ref={ref}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8 focus:outline-none"
+    >
+      {children}
     </div>
   );
 }

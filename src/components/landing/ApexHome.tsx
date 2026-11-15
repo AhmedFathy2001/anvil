@@ -421,7 +421,7 @@ function Empty({
   return (
     <div className="rounded-2xl border border-card-border bg-card-bg p-7 sm:p-8">
       <h2 className="display text-xl font-semibold">
-        {guided ? 'Other ways in' : hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
+        {guided ? 'Or start something yourself' : hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
       </h2>
       {!guided && (
         <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-text-muted">
@@ -439,16 +439,17 @@ function Empty({
             Connect my RuneScape account
           </ClanLink>
         )}
-        <ClanLink
-          href="/clans"
-          className={`rounded-lg px-4 py-2.5 text-sm transition-colors ${
-            hasCharacters && !guided
-              ? 'bg-gold font-semibold text-brown-dark hover:bg-gold-light'
-              : 'border border-card-border hover:border-gold-dark'
-          }`}
-        >
-          Find a clan
-        </ClanLink>
+        {/* Not beside the strip: its open step is already "Find your clan" with this same button. */}
+        {!guided && (
+          <ClanLink
+            href="/clans"
+            className={`rounded-lg px-4 py-2.5 text-sm transition-colors ${
+              hasCharacters ? 'bg-gold font-semibold text-brown-dark hover:bg-gold-light' : 'border border-card-border hover:border-gold-dark'
+            }`}
+          >
+            Find a clan
+          </ClanLink>
+        )}
         <ClanLink
           href="/clans/new"
           className="rounded-lg border border-card-border px-4 py-2.5 text-sm transition-colors hover:border-gold-dark"

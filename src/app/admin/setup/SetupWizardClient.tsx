@@ -366,7 +366,8 @@ function StepDots({ current, total, checklist }: { current: number; total: numbe
       ))}
       <span className="ml-2 text-xs text-text-muted">
         {checklist
-          ? `${checklist.completedCount} of ${checklist.totalCount} setup steps done · this guide, part ${current + 1} of ${total}`
+          ? // One number. The bars beside it already show which part of this guide is open.
+            `${checklist.completedCount} of ${checklist.totalCount} setup steps done`
           : `Part ${current + 1} of ${total}`}
       </span>
     </div>

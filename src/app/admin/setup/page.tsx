@@ -30,11 +30,10 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const stepParam = (await searchParams).step;
   const guide = status.guide;
   // No strip on this page: the wizard IS the guide here, and the two side by side showed two
-  // counters ("Step 3 of 5" over "part 2 of 3") naming two different tasks. Instead the wizard
-  // opens at the part the strip's open step lives in, so the dashboard's "Step 3, Prove it is
-  // yours" and this page agree on what is next. An explicit ?step= still wins.
-  const guidePart = guide?.current ? (guide.current.key === 'clan' ? 0 : guide.current.key === 'event' ? undefined : 2) : undefined;
-  const openAt = stepParam === 'clan' ? 0 : stepParam === 'game' ? 2 : guidePart;
+  // counters naming two different tasks. The wizard opens at its own first unfinished part (for a
+  // new clan that is Discord, part 2, which can be skipped); an explicit ?step= from the dashboard
+  // strip's button still opens the part that button names.
+  const openAt = stepParam === 'clan' ? 0 : stepParam === 'game' ? 2 : undefined;
   return (
     <>
       <SetupWizardClient

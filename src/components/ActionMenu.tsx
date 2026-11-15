@@ -99,7 +99,7 @@ export default function ActionMenu({
         onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="px-2 py-1 text-xs border border-card-border rounded hover:border-gold/40 transition-colors inline-flex items-center gap-1"
+        className="px-2 py-1 max-sm:min-h-11 max-sm:px-3 text-xs border border-card-border rounded hover:border-gold/40 transition-colors inline-flex items-center gap-1"
       >
         {label}
         <svg
@@ -144,7 +144,7 @@ export default function ActionMenu({
                   it.onClick();
                 }}
                 className={cn(
-                  'w-full text-left px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
+                  'w-full text-left px-3 py-1.5 max-sm:min-h-11 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
                   it.variant === 'danger'
                     ? 'text-red-300 hover:bg-red-500/10'
                     : it.variant === 'gold'

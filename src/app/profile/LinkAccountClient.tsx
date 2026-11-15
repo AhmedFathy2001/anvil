@@ -374,6 +374,10 @@ function StatDeltaPath({
           onClick={() => {
             setAttempt(null);
             setCheck(null);
+            // End it on the server too (it is stored there), then redraw the page's "check running" banner.
+            void fetch('/api/auth/verify-stat-delta/pending', { method: 'DELETE' })
+              .then(() => router.refresh())
+              .catch(() => {});
           }}
           className="text-sm text-text-muted hover:text-foreground underline-offset-2 hover:underline"
         >

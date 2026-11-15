@@ -1097,7 +1097,7 @@ export default function SignupAdminPanel({
                       <button
                         onClick={() => approveOne(s)}
                         disabled={actingId === s.id || approvingAll}
-                        className="text-xs font-medium px-3 py-1 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                        className="text-xs font-medium px-3 py-1 max-sm:min-h-11 max-sm:px-4 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
                       >
                         Approve
                       </button>
@@ -1111,7 +1111,7 @@ export default function SignupAdminPanel({
                           if (ok) performAction(s.id, { action: 'reject' });
                         }}
                         disabled={actingId === s.id || approvingAll}
-                        className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                        className="text-xs font-medium px-3 py-1 max-sm:min-h-11 max-sm:px-4 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
                       >
                         Reject
                       </button>
@@ -1262,7 +1262,7 @@ export default function SignupAdminPanel({
                                   if (ok) performAction(s.id, { action: 'demote-captain' });
                                 }}
                                 disabled={actingId === s.id}
-                                className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                                className="text-xs font-medium px-3 py-1 max-sm:min-h-11 max-sm:px-4 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
                               >
                                 {actingId === s.id ? '…' : 'Demote captain'}
                               </button>
@@ -1282,7 +1282,7 @@ export default function SignupAdminPanel({
                               <button
                                 onClick={() => approveOne(s)}
                                 disabled={actingId === s.id}
-                                className="text-xs font-medium px-3 py-1 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                                className="text-xs font-medium px-3 py-1 max-sm:min-h-11 max-sm:px-4 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
                               >
                                 Approve
                               </button>
@@ -1298,7 +1298,7 @@ export default function SignupAdminPanel({
                                   if (ok) performAction(s.id, { action: 'reject' });
                                 }}
                                 disabled={actingId === s.id}
-                                className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                                className="text-xs font-medium px-3 py-1 max-sm:min-h-11 max-sm:px-4 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
                               >
                                 Reject
                               </button>

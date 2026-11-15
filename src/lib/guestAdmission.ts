@@ -301,13 +301,16 @@ export async function rejectRequest(
     .returning();
   if (!row) return false;
 
+  // The in-game name goes on the record (never a Discord identity): a declined request has no roster
+  // seat to name it by, and the log read "member ?".
+  const [who] = await db.select({ rsn: accounts.rsn }).from(accounts).where(eq(accounts.id, row.accountId)).limit(1);
   await db
     .insert(clanAuditLog)
     .values({
       clanId,
       eventType: 'guest_rejected',
       actorUserId: byUserId,
-      newValue: JSON.stringify({ requestId, accountId: row.accountId, note: note ?? null }),
+      newValue: JSON.stringify({ requestId, accountId: row.accountId, rsn: who?.rsn ?? null, note: note ?? null }),
     })
     .catch(() => {});
   // A decline used to be silent: the row flipped and the person kept waiting on a request nobody

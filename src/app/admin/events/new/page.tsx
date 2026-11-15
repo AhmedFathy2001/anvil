@@ -111,6 +111,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
           suggestedName={suggestedName}
           choice={chosen.choice}
           creator={creator}
+          guardLeave
         />
       </div>
     </div>

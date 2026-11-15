@@ -1,3 +1,4 @@
+import { runningXpCheck } from '@/lib/xpCheckRead';
 import { detectedFor, settingsCharacters } from '@/lib/settingsData';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
@@ -14,6 +15,7 @@ export async function AddGroups({ searchParams }: { searchParams: Promise<{ conn
   const session = await settingsSession();
   const suggestedRsn = ((await searchParams).connect ?? '').trim().slice(0, 12);
   const characters = session.playerId ? await settingsCharacters(session.playerId) : [];
+  const checkRunning = !!(await runningXpCheck(session.userId).catch(() => null));
   const detected = await detectedFor(session.userId, characters);
 
   return (
@@ -31,6 +33,7 @@ export async function AddGroups({ searchParams }: { searchParams: Promise<{ conn
           <AddCharacterClient
             first={characters.length === 0}
             suggestedRsn={suggestedRsn}
+            checkRunning={checkRunning}
             linkedCount={characters.length}
             detectedCount={detected.pending.length}
           />
