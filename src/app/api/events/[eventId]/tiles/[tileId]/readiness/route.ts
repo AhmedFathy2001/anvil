@@ -7,7 +7,7 @@ import { verifyUser } from '@/lib/auth';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { eventForRequest } from '@/lib/eventScope';
 import { tileReadiness } from '@/lib/tileReadiness';
-import { raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
+import { raceTileHiddenForAuthoring } from '@/lib/raceHideAheadDb';
 
 // "Before you start" — the viewer's own checks for one tile (lib/tileReadiness): "you haven't synced
 // your collection log", "your plugin is too old for this tile", "you're not ranked for Zulrah".
@@ -35,7 +35,7 @@ export async function GET(
     return NextResponse.json({ results: [] });
   }
   // A race tile this viewer only sees as a locked "?" (lib/raceHideAhead): nothing to say about it.
-  if (await raceTileHiddenForSession(event, tile)) return NextResponse.json({ results: [] });
+  if (await raceTileHiddenForAuthoring(event, tile)) return NextResponse.json({ results: [] });
 
   const parts = tile.tileType === 'combo'
     ? await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id))

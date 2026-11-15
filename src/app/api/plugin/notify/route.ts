@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { duplicateClogSlot } from '@/lib/notifyDedupe';
+import { duplicateClogSlot, duplicateNotableDrop } from '@/lib/notifyDedupe';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanDrops, characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
@@ -234,6 +234,11 @@ export async function POST(request: Request) {
     if (!judged) return NextResponse.json({ ok: true, declined: 1 });
     facts = judged.facts;
     dropVerdict = judged;
+    // One notable item, one post (lib/notifyDedupe): its loot and its collection-log unlock both arrive.
+    const jf = judged.facts as { notable?: unknown; items?: { name?: unknown }[] };
+    if (jf.notable && duplicateNotableDrop(clan.id, auth.userId, jf.items?.[0]?.name)) {
+      return NextResponse.json({ ok: true, declined: 1 });
+    }
   }
   if (kind === 'pet') facts = await withPetRarity(facts);
   // WHO POSTED IS THE TOKEN'S CHARACTER, for every kind: the `rsn` a body names is ignored and replaced

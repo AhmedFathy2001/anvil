@@ -141,7 +141,11 @@ export async function raceViewerForSession(event: RaceHideEvent, mode: Exclude<R
 export async function raceSeenForSession(event: RaceHideEvent): Promise<{ veil: RaceVeil | null; seen: Set<number> | null }> {
   const veil = await loadRaceVeil(event);
   if (!veil) return { veil: null, seen: null };
-  return { veil, seen: raceSeenFor(veil, await raceViewerForSession(event, veil.mode)) };
+  const viewer = await raceViewerForSession(event, veil.mode);
+  // Staff read what some team can already see so they can review its proof. Before the start no
+  // team is playing, so there is nothing to review and nothing shows: not the start tile either.
+  if (viewer === 'staff' && event.startDate && new Date(event.startDate) > new Date()) return { veil, seen: new Set() };
+  return { veil, seen: raceSeenFor(veil, viewer) };
 }
 
 /** The tiles as this web request may read them: hidden ones masked (lib/raceHideAhead maskRaceTiles). */
@@ -183,6 +187,26 @@ export async function raceTileHiddenForSession(event: RaceHideEvent, tile: { id:
   if (!raceHideOn(event)) return false;
   const { veil, seen } = await raceSeenForSession(event);
   return raceTileHidden(veil, seen, tile);
+}
+
+/**
+ * Tile authoring (the Board & tiles page, one tile's read, save and delete) under "Also hide from
+ * event staff": a caller it keeps out gets EVERY tile as a locked "?", the start and the tiles some
+ * team has reached included. What a team can see is for reviewing its proof, not for reading or
+ * rewriting the board. Anyone else reads the board as their session does.
+ */
+export async function maskRaceTilesForAuthoring<T extends { id: number; label?: string | null; parentTileId?: number | null }>(
+  event: RaceHideEvent,
+  list: T[],
+): Promise<T[]> {
+  if (!(await staffHideBlocksSession(event))) return maskRaceTilesForSession(event, list);
+  return maskRaceTiles(await loadRaceVeil(event), new Set(), list);
+}
+
+/** Is this one tile a locked "?" for the web caller on the authoring side (above)? */
+export async function raceTileHiddenForAuthoring(event: RaceHideEvent, tile: { id: number; parentTileId?: number | null }): Promise<boolean> {
+  if (!(await staffHideBlocksSession(event))) return raceTileHiddenForSession(event, tile);
+  return raceTileHidden(await loadRaceVeil(event), new Set(), tile);
 }
 
 /** staffHideBlocksSession by event id, for the routes that haven't loaded the event yet. */
