@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -85,7 +86,7 @@ export async function generateMetadata({
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,
     // Who's winning, said the way the card shows it, so the line and the picture agree.
-    description: weeklyLinkDescription(competition, participants.length, board),
+    description: weeklyLinkDescription({ ...competition, status: weeklyStatus(competition) }, participants.length, board),
     image: `/api/og/weekly/${compId}`,
   });
 }
@@ -133,7 +134,7 @@ export default async function WeeklyLeaderboardPage({
   const groups = mode === 'solo' ? null : await buildGroupStandings(competition, { memberIds: myMemberIds });
   const myRsns = new Set(view.entries.filter((e) => e.isMe).map((e) => e.rsn.toLowerCase()));
   // "You're in · Opt out" — every competition, any clan's side. Opted-out players are off the board.
-  const entry = session?.playerId && competition.status !== 'completed' ? await entryStatus(compId, { playerId: session.playerId }) : null;
+  const entry = session?.playerId && weeklyStatus(competition) !== 'completed' ? await entryStatus(compId, { playerId: session.playerId }) : null;
 
   const leader = view.entries[0]?.gained > 0
     ? {
@@ -165,7 +166,7 @@ export default async function WeeklyLeaderboardPage({
         type={view.type}
         metricLabel={view.metricLabel}
         unit={view.unit}
-        status={competition.status}
+        status={weeklyStatus(competition)}
         startDate={competition.startDate}
         endDate={competition.endDate}
         iconUrl={competitionIconUrl(competition.type, competition.metric)}
