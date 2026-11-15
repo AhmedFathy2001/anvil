@@ -136,7 +136,7 @@ export default function PlatformRail({
         </div>
         {item('/', 'Home', <HomeIcon />)}
         {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
-        {myProfileHref && item(myProfileHref, 'My profile', <ProfileIcon />)}
+        {myProfileHref && item(myProfileHref, 'Public page', <ProfileIcon />)}
         {/* Head-to-head (lib/h2h): yours across every clan, and free (one open at a time). Only a
             profile card and a DM linked it, so most people never learned it existed. */}
         {signedIn && item('/challenges', 'Challenges', <SwordsIcon />)}

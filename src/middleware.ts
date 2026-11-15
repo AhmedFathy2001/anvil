@@ -159,6 +159,13 @@ export async function middleware(request: NextRequest) {
     // rewrite a POST body's destination under clients that handle 308 badly, for no gain — nothing
     // legitimate builds these, since every link and fetch goes through withClanPrefix, which does
     // not prefix a platform path in the first place. Dropping the header is the part that matters.
+    // The one exception: a clan's own leaderboard is its roster ranking (/members), which exists per
+    // clan. Everything else platform-side is global and goes to the apex.
+    if (inner === '/leaderboard' && kind === 'clan') {
+      const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
+      const forwardedHost = request.headers.get('host') ?? request.nextUrl.host;
+      return NextResponse.redirect(new URL(`/${segment}/${slug}/members`, `${proto}://${forwardedHost}`), 308);
+    }
     if (isPlatformPath(inner)) {
       const url = request.nextUrl.clone();
       url.pathname = inner;

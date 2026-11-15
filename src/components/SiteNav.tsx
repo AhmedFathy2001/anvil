@@ -1,5 +1,6 @@
 'use client';
 
+import { switchTargetPath } from '@/lib/clanSwitchTarget';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
@@ -231,7 +232,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                         {g.items.map((o) => (
                           <ClanLink
                             key={o.slug}
-                            href={clanBasePath(o)}
+                            href={switchTargetPath(pathname ?? '/', o)}
                             role="menuitem"
                             className="flex items-center gap-2.5 px-3 py-2 hover:bg-brown-light transition-all"
                           >
@@ -446,7 +447,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     {g.items.map((o) => (
                       <ClanLink
                         key={o.slug}
-                        href={clanBasePath(o)}
+                        href={switchTargetPath(pathname ?? '/', o)}
                         onClick={() => setOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
                       >
