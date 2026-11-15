@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { readableEventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -17,8 +17,8 @@ export async function GET(
 ) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
-  // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  if (!(await readableEventForRequest(request, id))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (Number.isNaN(id)) return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
