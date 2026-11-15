@@ -44,7 +44,7 @@ export function reconcileTypedAmount(lineText: string, candidate: TaskCandidate)
   };
   return {
     candidate: fixed,
-    note: `Your library has ${have.value.toLocaleString('en-US')}. Using the ${typed.toLocaleString('en-US')} you typed.`,
+    note: `${candidate.key.startsWith('anvil-') ? 'The starter task has' : 'Your library has'} ${have.value.toLocaleString('en-US')}. Using the ${typed.toLocaleString('en-US')} you typed.`,
   };
 }
 

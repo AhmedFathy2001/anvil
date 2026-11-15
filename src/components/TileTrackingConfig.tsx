@@ -4191,7 +4191,7 @@ function TileTrackingEditor({
         disabled={saving}
         className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
       >
-        {saving ? "Saving..." : asPart ? "Done with this part" : "Save Configuration"}
+        {saving ? "Saving..." : asPart ? "Done with this part" : "Save tile"}
       </button>
       <UnsavedIndicator dirty={tileDirty && !saving} className="justify-center w-full" />
     </div>

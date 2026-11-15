@@ -104,6 +104,17 @@ function runOfDays(days: number): { start: string; end: string } {
   return { start, end: new Date(Date.parse(start) + days * 86_400_000).toISOString() };
 }
 
+/** Next Monday 00:00 local for seven days: the "next week" window a weekly competition usually wants. */
+function nextWeekSlot(): { start: string; end: string } {
+  const start = new Date();
+  const daysUntilMonday = (8 - start.getDay()) % 7 || 7;
+  start.setDate(start.getDate() + daysUntilMonday);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 /**
  * Which run preset the current dates ARE, rather than which button was pressed last.
  *
@@ -111,8 +122,10 @@ function runOfDays(days: number): { start: string; end: string } {
  * "Two weeks" lit "This weekend" and the fortnight looked like it hadn't taken. Deriving it from
  * the dates also means editing them by hand correctly un-highlights both.
  */
-function activeRunPreset(startIso: string, endIso: string): 'weekend' | 'week' | 'fortnight' | null {
+function activeRunPreset(startIso: string, endIso: string): 'weekend' | 'week' | 'fortnight' | 'nextweek' | null {
   if (!startIso || !endIso) return null;
+  const next = nextWeekSlot();
+  if (startIso === next.start && endIso === next.end) return 'nextweek';
   const weekend = weekendSlot(0);
   if (startIso === weekend.start && endIso === weekend.end) return 'weekend';
   const week = runOfDays(7);
@@ -699,7 +712,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               }}
               required
               className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
-              placeholder="Summer Bingo 2026"
+              placeholder={weeklyType ? defaultWeeklyTitle(weeklyType, weeklyMetric) : 'Summer Bingo 2026'}
             />
           </div>
 
@@ -1505,6 +1518,25 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               >
                 One week
               </button>
+              {weeklyType && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { start, end } = nextWeekSlot();
+                    setStartDate(start);
+                    setEndDate(end);
+                    setCustomDates(false);
+                  }}
+                  aria-pressed={runPreset === 'nextweek'}
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                    runPreset === 'nextweek'
+                      ? 'border-gold/50 text-gold bg-gold/10'
+                      : 'border-card-border text-text-muted hover:text-foreground'
+                  }`}
+                >
+                  Next week
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
