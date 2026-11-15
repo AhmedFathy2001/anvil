@@ -325,7 +325,7 @@ export const en = {
         },
         {
           term: 'Want posts in your own server too?',
-          body: 'Go to your profile → **Announcements & webhooks** → _Your own webhooks_.',
+          body: 'Go to [Settings → Posts & alerts](/settings/posts#webhooks) → _Your webhooks_.',
         },
       ],
     },
@@ -605,7 +605,7 @@ export const en = {
     roles: {
       title: 'Roles and nicknames',
       body: [
-        'Both syncs are off until you enable them under **Admin → Discord → Roles & nicknames**, and both are driven by the roster. Turn on **Enable Discord role sync**, leave **Auto-match in-game rank → Discord role by name** on, select any general **Member roles** and **Guest roles**, save, then press **Sync roles & nicknames now**. Every person also needs a linked Discord identity; the sync report names anyone it could not resolve.',
+        'Both syncs are off until you enable them under **Admin → Discord → Roles & nicknames**, and both are driven by the roster. Turn on **Enable Discord role sync**, leave **Auto-match in-game rank → Discord role by name** on, select any general **Member roles** and **Guest roles**, save, then press **Sync roles & nicknames now**. Roles go to people who signed in to Anvil with Discord. A member who has not signed in only gets roles if you also turn on **Also match members by Discord nickname**, which is off to start in each clan. The sync report names anyone it could not resolve.',
       ],
       ways: [
         {
@@ -734,7 +734,7 @@ export const en = {
         },
         {
           term: 'Is the bot’s role high enough?',
-          body: 'For role or nickname sync, put the bot above every role it manages, check that each person has linked Discord, and check rank-role names exactly as listed above. Save first, then run **Sync roles & nicknames now**; its skipped list tells you who still needs linking.',
+          body: 'For role or nickname sync, put the bot above every role it manages, check that each person has signed in with Discord (or turn on **Also match members by Discord nickname** for your clan), and check rank-role names exactly as listed above. Save first, then run **Sync roles & nicknames now**; its skipped list tells you who still needs linking.',
         },
       ],
       note: {
@@ -826,25 +826,25 @@ export const en = {
         'If the browser doesn’t open on its own, the panel prints the address and the code so you can open it manually. Codes expire after ten minutes — just press the button again.',
       manualHeading: 'Fallback: paste your token by hand',
       manualIntro:
-        'If signing in from the plugin won’t work for you, make a token under [Settings → Plugin](/settings/plugin) (it is shown once, and you can revoke every token there), then click **Paste a token instead** under the sign-in button in the Anvil panel and paste it there.',
+        'If signing in from the plugin won’t work for you, make a token under [Settings → In game → Plugin connection](/settings/in-game#plugin) (it is made once, and you can revoke every token there), then click **Paste a token instead** under the sign-in button in the Anvil panel and paste it there.',
       tokenFigure: {
-        caption: 'Profile → RuneLite plugin',
-        alt: 'The RuneLite plugin card on the profile page, with the token field and the Copy and Revoke buttons boxed',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'The Plugin connection card under Settings → In game, with the token field and the Reveal, Copy token and Revoke all buttons boxed',
         legend: [
           {
             label: 'Your token',
-            body: 'shown once, when you make it. It’s blanked out in this screenshot on purpose. It signs in as you, so treat it like a password and never post it in Discord.',
+            body: 'made once when you press **Make a token**, and masked until you press **Reveal**. It’s blanked out in this screenshot on purpose. It signs in as you, so treat it like a password and never post it in Discord.',
           },
           {
-            label: 'Copy / Revoke all',
-            body: 'copy it, then use **Paste a token instead** in the Anvil panel. Making another token does not cancel the old ones; **Revoke all** does, so press it if you ever think a token leaked.',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token** works without revealing it. Copy it, then use **Paste a token instead** in the Anvil panel. Making another token does not cancel the old ones; **Revoke all** does, so press it if you ever think a token leaked.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Use the sidebar day to day',
         body: [
-          'The **Anvil sidebar is your main workspace**: sign in and out there, see your clans and live events, browse and claim tiles, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences — there’s no token in it. To sign this computer out, open the **⋯** menu next to your name at the top of the panel. If a token may have leaked, that is not enough: use **Revoke all** under Settings → Plugin. One sign-in covers every event you’re signed up for — you never redo it per bingo.',
+          'The **Anvil sidebar is your main workspace**: sign in and out there, see your clans and live events, browse and claim tiles, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences — there’s no token in it. To sign this computer out, open the **⋯** menu next to your name at the top of the panel; that also ends this computer’s sign-in on the site, and your other computers stay signed in. If a token may have leaked, use **Revoke all** under Settings → In game → Plugin connection. One sign-in covers every event you’re signed up for — you never redo it per bingo.',
         ],
       },
     },
@@ -1031,7 +1031,7 @@ export const en = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'The token is wrong or was rotated. Open the **⋯** menu at the top of the Anvil panel, press **Sign out**, then **Sign in with Discord** again — or use **Paste a token instead** with a fresh token from [Profile → RuneLite plugin](/profile#plugin-token).',
+          body: 'The token is wrong or was rotated. Open the **⋯** menu at the top of the Anvil panel, press **Sign out**, then **Sign in with Discord** again — or use **Paste a token instead** with a fresh token from [Settings → In game → Plugin connection](/settings/in-game#plugin).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1120,7 +1120,7 @@ export const en = {
         },
         {
           term: 'Chat colours',
-          body: '**[Anvil] tag colour** and **Message colour** under **Chat messages**. Until you pick, they turn dark gold and black on an opaque chatbox so they stay readable. Hover a Supporter’s name in chat to see their tier, like _Anvil Patron_.',
+          body: '**[Anvil] tag colour** and **Message colour** under **Settings → In game → Chat colours** on the website. Until you pick, they turn dark gold and black on an opaque chatbox so they stay readable. Hover a Supporter’s name in chat to see their tier, like _Anvil Patron_.',
         },
       ],
     },
@@ -1202,7 +1202,7 @@ export const en = {
     setup: {
       title: 'Name the clan, connect Discord',
       intro:
-        '**Settings → Finish setup** is a short wizard (it stays in the menu until you’re done), and the dashboard keeps a five-step checklist until it’s done: name the clan, connect Discord, load your members, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
+        '**Settings → Finish setup** is a short wizard (it stays in the menu until you finish or skip it), and the dashboard keeps a five-step checklist until it’s done: name the clan, connect Discord, load your members, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
       discord:
         'For Discord you have two routes, and they compose: give Anvil a **bot** and it can create webhooks, sync roles and nicknames, and build private team channels for you; give it a single **webhook URL** and it can post announcements and nothing else. Start with the webhook if you want to be live in two minutes, add the bot when you want the automation.',
       permsNote: {
@@ -1275,7 +1275,7 @@ export const en = {
     tiles: {
       title: 'Fill the board',
       body: [
-        'The event’s **Board & tiles** page is where a board becomes a bingo. Each tile is one _kind_ of task, and the kind decides what the plugin watches for: a drop, a boss kill-count, skill XP, an NPC kill, a timed clear, an achievement diary, a Combat Achievement, a collection-log unlock, a PvP kill, an inventory gain, or a deathless run. Manual tiles — the ones a human verifies from a screenshot — are always an option too.',
+        'The event’s **Tiles** tab is where a board becomes a bingo. Each tile is one _kind_ of task, and the kind decides what the plugin watches for: a drop, a boss kill-count, skill XP, an NPC kill, a timed clear, an achievement diary, a Combat Achievement, a collection-log unlock, a PvP kill, an inventory gain, or a deathless run. Manual tiles — the ones a human verifies from a screenshot — are always an option too.',
         'For a full board, author in bulk: export the sheet, fill it in a spreadsheet, and import it back. CSV and .xlsx both round-trip, and rows map to positions, so you can rewrite a whole 25-tile grid in one paste.',
       ],
       rows: [
@@ -1341,7 +1341,7 @@ export const en = {
       rows: [
         {
           term: 'Submissions to verify',
-          body: 'manual tiles and anything the plugin flagged. Approve or reject with the proof in front of you.',
+          body: 'manual tiles and anything the plugin flagged. Press **Looks fine**, or **Remove…** with a reason, with the proof in front of you.',
         },
         {
           term: 'Stats',
@@ -1459,7 +1459,7 @@ export const en = {
     staff: {
       title: 'Hand their moderator a seat',
       body: [
-        'The **Team staff** panel on the team page is how the visiting clan’s own moderator gets to work without you granting them anything on your site. Press **Add someone**, search for them, add a note like “Ironforge’s mod” so the next admin knows why they’re there, and press **Give a seat**.',
+        'The **Team staff** panel on the team page is how the visiting clan’s own moderator gets to work without you granting them anything on your site. Press **Add someone**, search for them, add a note like “Ironforge’s mod” so the next admin knows why they’re there, and press **Add to team staff**.',
       ],
       figure: {
         caption: 'Event → Teams & draft → the team → Team staff',
@@ -1745,7 +1745,7 @@ export const en = {
         'Clicking out a 25-tile grid is fine. Clicking out a 200-task Point Hunt board is not, and neither is proof-reading it afterwards. The Tiles tab has a round trip built for exactly this.',
       ],
       steps: [
-        '**Download spreadsheet** on the event’s **Board & tiles** page. You get an .xlsx of the board as it stands, with dropdowns, the item list and the column instructions on their own sheets.',
+        '**Tiles** tab → **Add tiles** → **Download spreadsheet** on the event. You get an .xlsx of the board as it stands, with dropdowns, the item list and the column instructions on their own sheets.',
         'Edit it. One row per tile; row order is tile order.',
         '**Upload CSV / Excel** on the same tab. Only the **Tiles** sheet is read.',
       ],
@@ -1882,7 +1882,7 @@ export const en = {
       title: 'Tile race tracks',
       intro: 'On a tile race board you build a track instead of a grid. Tiles sit on numbered steps, and a team moves along them.',
       body: [
-        'Open **Tiles** and use the **Route** section. Pick a template (**Diamond** is the default), add your tiles to the steps and press **Save route**. Every tile you link must sit on the next step.',
+        'Open **Tiles** and use the **Route** section. Pick a template (**Diamond** is the default), add your tiles to the steps and press **Save roads**. Every tile you link must sit on the next step.',
         'Roads can split and merge, but there is one finish. At a fork you choose whether finishing a tile sets the road, or the captain picks it and locks it in. The full list of choices, and what players see, is in [Formats, and how tiles open]({formatsGuide}).',
       ],
     },
@@ -2107,7 +2107,7 @@ export const en = {
         'Open the event’s **Tiles** page and find **Route**.',
         'Pick a **Route template** and press **Apply template**. **Diamond** is the default: one start, two roads, one finish. **Two roads**, **Braid**, **Straight line** and **Free** (no links) are there too.',
         'Choose **How a team’s road is set at a fork**: by achievement, or choose and lock in.',
-        'Add or move steps with **+ Step before**, **Move step earlier/later** and **Remove step**, then press **Save route**.',
+        'Add or move steps with **+ Empty step before**, **Move step earlier/later** and **Remove step**, then press **Save roads**.',
         'If the event is already live, Anvil asks what to do with finishes the new route cuts off: **Keep** them or **Roll back**.',
       ],
       outro: 'Players see a **Race track** on the event page, with a gold **You** marker on their own team’s tile. **Fullscreen board** makes it big, and **Esc** closes it. In the plugin, the side panel shows **Your road** and **After that**.',
@@ -2252,16 +2252,16 @@ export const en = {
       ],
       rows: [
         {
-          term: 'Held',
+          term: 'Confirmed total',
           body: 'approved donations and adjustments. What the clan has been given, minus what it has written off.',
         },
         {
-          term: 'Committed',
+          term: 'Promised',
           body: 'gp a prize has claimed — won but not yet sent, plus any pool set aside for a board. Spoken for, even if it is still in somebody’s bank.',
         },
         {
-          term: 'Free to promise',
-          body: 'held minus committed. The only number a new prize is checked against, because the alternative is promising the same 50m to two winners while a treasurer is asleep.',
+          term: 'Available',
+          body: 'the confirmed total minus what is promised. The only number a new prize is checked against, because the alternative is promising the same 50m to two winners while a treasurer is asleep.',
         },
       ],
       note: {
@@ -2417,12 +2417,12 @@ export const en = {
       ],
       rows: [
         {
-          term: 'Approve when it is plausible',
-          body: 'you are not auditing a bank. If the picture shows the thing, the account is on the roster and the timestamp is inside the event, approve it and move on.',
+          term: 'Press Looks fine when it is plausible',
+          body: 'you are not auditing a bank. If the picture shows the thing, the account is on the roster and the timestamp is inside the event, press **Looks fine** and move on.',
         },
         {
-          term: 'Reject with a reason',
-          body: 'a rejection with no explanation comes back as a DM to you within the hour. Say what was missing so the second attempt is right.',
+          term: 'Remove with a reason',
+          body: '**Remove** asks for a reason, and the team sees it. Say what was missing so the second attempt is right.',
         },
         {
           term: 'A flagged submission is a question, not an accusation',
@@ -2442,7 +2442,7 @@ export const en = {
         },
         {
           term: 'Verify by XP',
-          body: 'for players without the plugin. The site picks a random skill and they gain 1,000 XP in it within thirty minutes. It checks itself — you only see the ones that fail.',
+          body: 'for players without the plugin. The site picks a random skill and they gain 1,000 XP in it within thirty minutes. It checks itself, and a pass still lands in **Needs review** for your yes or no, because XP shows someone trained, not who. A failed check is the one to look at more closely.',
         },
         {
           term: 'Manual review',
@@ -2458,7 +2458,7 @@ export const en = {
     roster: {
       title: 'Keeping the roster true',
       body: [
-        'The roster comes from one place: an admin runs a sync from the in-game clan list, with the **Anvil** button in the clan window’s title bar (or **Sync roster** in the plugin’s side panel). Everything else — verifications, links, sign-ups — hangs off it.',
+        'The roster comes from one place: an admin runs a sync from the in-game clan list, with the **Anvil** button in the clan window’s title bar (or **Sync clan roster** in the plugin’s side panel). Everything else — verifications, links, sign-ups — hangs off it.',
         'So the maintenance job is small but real: ask an admin to run the sync after any recruitment round (it turns guests who joined in game into members), answer the join requests at the top of the **Roster** tab, and work through **Needs review** rather than waiting for people to complain. See [Your people]({peopleGuide}).',
       ],
       note: {
@@ -3228,7 +3228,7 @@ export const en = {
     roster: {
       title: 'Where the roster comes from',
       body: [
-        'The roster is your in-game clan list, copied onto the site. An admin sends it from RuneLite with the Anvil plugin: press the **Anvil** button in the clan window’s title bar, or **Sync roster** in the plugin’s side panel. Everyone on the list arrives as a **member**, with their in-game rank. Only someone with the Admin role on the site can send it. Anyone else is told so in game.',
+        'The roster is your in-game clan list, copied onto the site. An admin sends it from RuneLite with the Anvil plugin: press the **Anvil** button in the clan window’s title bar, or **Sync clan roster** in the plugin’s side panel. Everyone on the list arrives as a **member**, with their in-game rank. Only someone with the Admin role on the site can send it. Anyone else is told so in game.',
         'A sync is the only thing that makes someone a member by itself. Someone who leaves the clan in game is marked as departed by the next sync, and someone who rejoins comes back on the sync after that. Their history stays either way.',
         'Every other seat is a **guest** seat: someone who plays in your events without being in your in-game clan. Guests are tracked and can enter events. They are not members, and they do not count towards your plan.',
       ],
@@ -3601,7 +3601,7 @@ export const en = {
       { strong: 'Nothing deleted', rest: 'when you stop' },
     ],
     footnote:
-      'Everything here is set on the website under **Settings** → **Supporter**, **Profile look** and **Clan boosts**. For boosts in detail, see [Boosting a clan]({boostsGuide}). For where your colours show in RuneLite, see [The side panel, tab by tab]({panelGuide}).',
+      'Everything here is set on the website under **Settings**: **Account** → **Your plan & billing**, and **Profile & look** with its **Name colours** and **Clan boosts**. For boosts in detail, see [Boosting a clan]({boostsGuide}). For where your colours show in RuneLite, see [The side panel, tab by tab]({panelGuide}).',
 
     tiers: {
       title: 'The three tiers',
@@ -3622,7 +3622,7 @@ export const en = {
       ],
       note: {
         tag: 'Time from invites',
-        body: 'Under Settings → Supporter you get an invite link. When a friend you invited pays, you earn free months; the reward lands two weeks after their first payment. Time earned this way gives every perk of its tier except clan boosts.',
+        body: 'Under Settings → Account → Your plan & billing you get an invite link. When a friend you invited pays, you earn free months; the reward lands two weeks after their first payment. Time earned this way gives every perk of its tier except clan boosts.',
       },
     },
 
@@ -3651,7 +3651,7 @@ export const en = {
     names: {
       title: 'Name colours',
       intro:
-        'Set them under **Settings** → **Supporter**, in **Your name’s look**. The preview shows your name on a dark background and on a light one.',
+        'Set them under **Settings** → **Profile & look** → **Name colours**. The preview shows your name on a dark background and on a light one.',
       rows: [
         {
           term: 'Supporter',
@@ -3701,13 +3701,13 @@ export const en = {
       ],
       note: {
         tag: 'Only on characters proven to be yours',
-        body: 'Colours show only on characters the plugin has confirmed are yours, on the site and in game. To keep them off your names in other people’s game chat, untick **Show my colours on my characters’ names in game chat** under Settings → Supporter.',
+        body: 'Colours show only on characters the plugin has confirmed are yours, on the site and in game. To keep them off your names in other people’s game chat, untick **Show my colours on my characters’ names in game chat** under Settings → Account → Your plan & billing.',
       },
     },
 
     profile: {
       title: 'Avatar, banner and display case',
-      intro: 'All three are under **Settings** → **Profile look**.',
+      intro: 'All three are under **Settings** → **Profile & look**.',
       rows: [
         {
           term: 'Avatar & banner',
@@ -3756,7 +3756,7 @@ export const en = {
         'Pay. Your perks switch on as soon as Gumroad tells Anvil, and your tier shows on the Supporter page as **Your tier**.',
       ],
       outro:
-        'To change tier, use **Change tier** under Settings → Supporter. To cancel or update your card, use **Manage on Gumroad** there. A cancelled membership keeps every perk until the end of the term you paid for.',
+        'To change tier, use **Change tier** under Settings → Account → Your plan & billing. To cancel or update your card, use **Manage on Gumroad** there. A cancelled membership keeps every perk until the end of the term you paid for.',
       note: {
         tag: 'Always start from /supporter',
         body: 'The **Choose** button carries a code that tells Anvil which account paid. Anvil never matches a payment by email, so buying from Gumroad directly, without that button, leaves the payment unlinked. If that happened, ask in the Anvil Discord and staff can attach it to your account by hand.',
@@ -3787,7 +3787,7 @@ export const en = {
       ],
       note: {
         tag: 'A temporary upgrade from Anvil staff',
-        body: 'Staff can give someone a higher tier for a while, for example as a thank-you. It sits on top of what you pay and never changes your subscription. Settings → Supporter shows **A gift from Anvil** and when it ends; after that you are back on your paid tier. A gift only gives clan boost slots when staff include them.',
+        body: 'Staff can give someone a higher tier for a while, for example as a thank-you. It sits on top of what you pay and never changes your subscription. Settings → Account → Your plan & billing shows **A gift from Anvil** and when it ends; after that you are back on your paid tier. A gift only gives clan boost slots when staff include them.',
       },
     },
   },
@@ -3845,7 +3845,7 @@ export const en = {
         },
         {
           term: 'Events',
-          body: 'every live and upcoming board, Skill or Boss of the Week and clan event, with where you stand. Then **Your other boards**, **Also live** and **Your clan**.',
+          body: 'every live and upcoming board, Skill or Boss of the Week and clan event, with where you stand. Then **Running**, **Coming up**, **Also live** and **Your clan**.',
         },
         {
           term: 'A board',
@@ -3857,7 +3857,7 @@ export const en = {
         },
         {
           term: 'A clan event',
-          body: '**I’m going**, **Sign me up** or **Answer the survey**, depending on the event.',
+          body: '**I’m going**, **Register** (or **Register on Anvil** when the host has questions) or **Answer the survey**, depending on the event.',
         },
       ],
     },
@@ -3882,7 +3882,7 @@ export const en = {
       ],
       note: {
         tag: 'Not the same as the in-game chat feed',
-        body: 'The Feed tab works whatever your plugin settings say. **Show feed in game chat** (step 8) is the separate setting that also prints it in your chatbox.',
+        body: 'The Feed tab works whatever your plugin settings say. **Anvil messages in chat** (step 8) is the separate setting that also prints it in your chatbox.',
       },
     },
 
@@ -3924,7 +3924,7 @@ export const en = {
         },
         {
           term: 'Sending',
-          body: 'type in the box and press Enter. Lines are up to 200 characters, and only the host and mods can post links.',
+          body: 'type in the box and press Enter. Lines are up to 80 characters (a longer one is refused), and only the host and mods can post links.',
         },
         {
           term: 'How often',
@@ -3988,27 +3988,19 @@ export const en = {
     settings: {
       title: 'Settings that change what you see',
       intro:
-        'In RuneLite’s configuration for Anvil, under **Chat messages**. All are on to start with.',
+        'In RuneLite’s configuration for Anvil, under **General**. All are on to start with.',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: 'also prints the feed in your chatbox as it happens: big drops, pets and achievements from boards whose host turned it on and clans you guest in, your teammates’ tile progress, and other teams’ finished tiles.',
         },
         {
           term: 'Supporter names in chat',
-          body: 'Supporters’ colours (and a Patron’s star) in public, clan, friends and private chat, and on your friends list and channel member lists. The list of names is downloaded from Anvil; nothing about who you see is sent.',
+          body: 'Supporters’ colours (and a Patron’s star) in public, clan, friends and private chat, and on your friends list and channel member lists. The list of names is downloaded from Anvil; nothing about who you see is sent. Choose **Animated** (a Patron’s gradient slides), **Still colours** or **Off**.',
         },
         {
-          term: 'Animated names',
-          body: 'lets a Patron’s gradient slide in the panel, the Feed and event chat. Off keeps it still. In the next plugin update it also covers boosted clan names and animated banners in the panel.',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: 'Supporters’ colours on their name when you right-click them, never on PvP worlds or in the Wilderness.',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: 'on, a Supporter’s colours replace a name colour another plugin set, such as Player Indicators. Off leaves those names alone.',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: 'Supporters’ colours on their name when you right-click them and on friends and channel member lists, and a boosted clan’s name in the clan panel. Never on PvP worlds or in the Wilderness.',
         },
       ],
     },
@@ -4027,7 +4019,7 @@ export const en = {
       { strong: 'Once a week', rest: 'a boost can move' },
     ],
     footnote:
-      'Members place boosts under **Settings** → **Clan boosts**. Clan staff see the level and its options under Admin → **Clan settings** → **Boosts**. For the tiers themselves, see [Anvil Supporter: tiers and perks]({supporterGuide}).',
+      'Members place boosts under **Settings** → **Profile & look** → **Clan boosts**. Clan staff see the level and its options under Admin → **Clan settings** → **Boosts**. For the tiers themselves, see [Anvil Supporter: tiers and perks]({supporterGuide}).',
 
     what: {
       title: 'Who has boosts',
@@ -4041,7 +4033,7 @@ export const en = {
         },
       ],
       outro:
-        'Boosts belong to you, not to a character: three characters in three clans still share one set. **Settings** → **Clan boosts** only appears in your settings while you are a Supporter or still have a boost placed.',
+        'Boosts belong to you, not to a character: three characters in three clans still share one set. **Settings** → **Profile & look** → **Clan boosts** always shows, but only a Champion or Patron membership gives slots; without one you see the rules and a link to Supporter.',
     },
 
     place: {
@@ -4050,7 +4042,7 @@ export const en = {
       steps: [
         'Open **Settings** → **Clan boosts**. **Your boosts** lists what you have placed and any **Free slot**.',
         'Under **Clans you can boost**, press **Boost** beside a clan. You can also press **Boost this clan** in the Boosters section of the clan’s own page.',
-        'To move one, use **Move to…** on its row and pick another clan. **Remove** takes it off.',
+        'To move one, press **Move** on its row and pick another clan under **Move to…**. **Remove** takes it off.',
       ],
       rows: [
         {
@@ -4149,7 +4141,7 @@ export const en = {
         },
         {
           term: 'Recruitment post in the Anvil Discord',
-          body: 'Level 3. Once a calendar month, 20 to 500 characters, written by you and posted when you press **Post it**, with a link to your clan page. Mentions are removed and nobody is pinged. You can’t edit it or send another until next month.',
+          body: 'Level 3. Once a calendar month, 20 to 500 characters, written by you and posted when you press **Post to the Anvil Discord** and then **Post it** to confirm, with a link to your clan page. Mentions are removed and nobody is pinged. You can’t edit it or send another until next month.',
         },
         {
           term: 'Boosters',
@@ -4291,7 +4283,7 @@ export const en = {
       title: 'Finding a setting',
       body: [
         'The first page, **Overview & search**, has a search box. Type what you want in your own words, like _private messages_, _rare drop value_, _death message_, _name colour_ or _plugin token_, and it takes you to the right switch.',
-        'The menu down the side has two groups. **Account** holds the pages below. **Characters** has one page per character you have linked (your main is marked **main**), then **Add character**. A number on **Add character** means Anvil has seen you play characters you haven’t linked yet.',
+        'The menu down the side has five pages: **Profile & look**, **Characters**, **In game**, **Posts & alerts** and **Account**. Under **Characters** there is one page per character you have linked (your main is marked **main**), then **Add character**. A number on **Add character** means Anvil has seen you play characters you haven’t linked yet.',
       ],
     },
 
@@ -4310,7 +4302,7 @@ export const en = {
         },
         {
           term: 'Where your posts go',
-          body: '**Post my drops and levels in clans where I am a guest**, and **Level posts in clan channels**: **Clan rules**, **Only 99s & max** or **Off**. **Per character** lists each character with a **Clans →** link to switch posting off for one clan.',
+          body: '**Post my drops and levels in clans where I am a guest** (off until you turn it on), and **Level posts in clan channels**: **Clan rules**, **Only 99s & max** or **Off**. **Per character** lists each character with a **Clans →** link to switch posting off for one clan.',
         },
         {
           term: 'Screenshots per kind',
@@ -4342,7 +4334,7 @@ export const en = {
     chat: {
       title: 'In-game chat feed',
       intro:
-        'What the plugin prints in your chatbox when the plugin setting **Show feed in game chat** is on.',
+        'What the plugin prints in your chatbox when the plugin setting **Anvil messages in chat** is on.',
       rows: [
         {
           term: 'Where from',
@@ -4369,15 +4361,15 @@ export const en = {
       rows: [
         {
           term: 'Plugin connection',
-          body: 'your plugin token, for the rare case you paste it by hand. Normally **Sign in with Discord** in the side panel does this for you.',
+          body: 'under **In game**: your plugin token, for the rare case you paste it by hand. It is made once and masked until you press **Reveal**, and **Revoke all** cancels every token. Normally **Sign in with Discord** in the side panel does this for you.',
         },
         {
           term: 'Login & devices',
-          body: 'every computer the plugin is signed in on, as **RuneLite sign-in 1**, **2**… with when it was made and last used. **Revoke** signs one out, for example a computer you sold. **Enter a code** links another computer. **Sessions** signs you out of the website everywhere.',
+          body: 'under **Account**: every computer the plugin is signed in on, as **RuneLite sign-in 1**, **2**… with when it was made and last used. **Revoke** signs one out, for example a computer you sold. **Enter a code** links another computer. **Sessions** signs you out of the website everywhere.',
         },
         {
           term: 'Clan billing',
-          body: 'clan owners get **Open portal →** here, for the clan’s billing.',
+          body: 'under **Account**, clan owners get **Open portal →** here, for the clan’s billing.',
         },
       ],
     },
@@ -4415,11 +4407,11 @@ export const en = {
       rows: [
         {
           term: 'Supporter & name colours',
-          body: 'your tier, your perks and your invite link: bring friends and earn free months. Tiers are explained in [Anvil Supporter]({supporterGuide}).',
+          body: 'under **Account** → **Your plan & billing**: your tier, your perks and your invite link: bring friends and earn free months. Tiers are explained in [Anvil Supporter]({supporterGuide}).',
         },
         {
           term: 'Profile look',
-          body: 'avatar and banner (animated from Champion), different ones per character if you like, and the **Display case**: 4, 8 or 12 pins by tier.',
+          body: 'under **Profile & look**: avatar and banner (animated from Champion), different ones per character if you like, and the **Display case**: 4, 8 or 12 pins by tier.',
         },
         {
           term: 'Streaming accounts',
@@ -4427,7 +4419,7 @@ export const en = {
         },
         {
           term: 'Clan boosts',
-          body: 'only shown once you can boost: your slots, where they are placed and the clans you can boost. See [Boosting a clan]({boostsGuide}).',
+          body: 'under **Profile & look**: your slots, where they are placed and the clans you can boost. Without a Champion or Patron membership it shows the rules. See [Boosting a clan]({boostsGuide}).',
         },
       ],
     },
@@ -4518,7 +4510,7 @@ export const en = {
         },
         {
           term: 'Starting lines',
-          body: 'every player’s **Started at**, **Now** and **Gained**. Correct a starting line by hand when a pre-competition grind was counted, and the leaderboard follows. **Pull current stats** refreshes everyone; **Reset baselines** starts everyone again from their hiscores now and wipes all gains.',
+          body: 'every player’s **Started at**, **Now** and **Gained**. Correct a starting line by hand when a pre-competition grind was counted, and the leaderboard follows. **Pull current stats** refreshes everyone; **Reset every baseline** starts everyone again from their hiscores now and wipes all gains.',
         },
         {
           term: 'Participants',
@@ -4815,7 +4807,7 @@ export const en = {
     players: {
       title: 'What members see',
       body: [
-        'The event page shows **When**, **Where**, **Host**, **Discord**, **Entry** and **Prizes**, with **Live now** while it is on. Members press **I’m going** or **Sign me up**, or **Ask to sign up** when staff approve each one. It is also in the plugin side panel’s **Clan** tab, with the same buttons.',
+        'The event page shows **When**, **Where**, **Host**, **Discord**, **Entry** and **Prizes**, with **Live now** while it is on. Members press **I’m going** or **Register**, or **Ask to sign up** when staff approve each one. It is also in the plugin side panel’s **Clan** tab, with the same buttons.',
         'Only members of the clan can say they are going or sign up.',
       ],
     },
@@ -4954,7 +4946,7 @@ export const en = {
       title: 'Find an event to join',
       body: [
         '[Events](/events) lists what is live and coming up across Anvil. Filter by **Live now**, **Open to join** or **Starting this week**, by format or **Solo**, by **Anyone can join** or **Ask or meet a rule**, and by **Clans** or **Creators**. **Join** takes you to sign up.',
-        'Only events whose host turned on **Advertise on Anvil** appear. Members-only and invite-only events never do.',
+        'Only events whose host turned on **List on Anvil** appear. Members-only and invite-only events never do.',
       ],
     },
 

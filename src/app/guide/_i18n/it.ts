@@ -317,7 +317,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Vuoi i post anche sul tuo server?',
-          body: 'Vai al tuo profilo → **Announcements & webhooks** → _Your own webhooks_.',
+          body: 'Vai a [Settings → Posts & alerts](/settings/posts#webhooks) → _Your webhooks_.',
         },
       ],
     },
@@ -606,7 +606,7 @@ const it: PartialGuideDict = {
     roles: {
       title: 'Ruoli e nickname',
       body: [
-        'Entrambe le sincronizzazioni restano spente finché non le attivi in **Admin → Discord → Roles & nicknames**, ed entrambe dipendono dal roster. Attiva **Enable Discord role sync**, lascia acceso **Auto-match in-game rank → Discord role by name**, scegli gli eventuali **Member roles** e **Guest roles** generali, salva e poi premi **Sync roles & nicknames now**. Ogni persona deve anche avere un’identità Discord collegata; il resoconto della sincronizzazione nomina chiunque non sia riuscita a risolvere.',
+        'Entrambe le sincronizzazioni restano spente finché non le attivi in **Admin → Discord → Roles & nicknames**, ed entrambe dipendono dal roster. Attiva **Enable Discord role sync**, lascia acceso **Auto-match in-game rank → Discord role by name**, scegli gli eventuali **Member roles** e **Guest roles** generali, salva e poi premi **Sync roles & nicknames now**. I ruoli vanno alle persone che hanno effettuato l’accesso ad Anvil con Discord. Un membro che non ha ancora effettuato l’accesso riceve ruoli solo se attivi anche **Also match members by Discord nickname**, che all’inizio è disattivata in ogni clan. Il resoconto della sincronizzazione nomina chiunque non sia riuscita a risolvere.',
       ],
       ways: [
         {
@@ -702,7 +702,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Il ruolo del bot è abbastanza in alto?',
-          body: 'Solo per la sincronizzazione di ruoli e nickname — vedi sopra. È quella che fallisce in silenzio.',
+          body: 'Per la sincronizzazione di ruoli o nickname, metti il bot sopra ogni ruolo che gestisce, controlla che ogni persona abbia effettuato l’accesso con Discord (oppure attiva **Also match members by Discord nickname** per il tuo clan) e controlla i nomi dei ruoli di grado esattamente come elencati sopra. Salva prima, poi esegui **Sync roles & nicknames now**; la sua lista degli esclusi ti dice chi deve ancora essere collegato.',
         },
       ],
       note: {
@@ -820,24 +820,24 @@ const it: PartialGuideDict = {
         'Se il browser non si apre da solo, il pannello stampa l’indirizzo e il codice così puoi aprirlo a mano. I codici scadono dopo dieci minuti —— basta premere di nuovo il pulsante.',
       manualHeading: 'Ripiego: incolla il token a mano',
       manualIntro:
-        'Se l’accesso dal plugin non funziona per te, copia il tuo token qui sotto (o da [Profile → plugin token](/profile#plugin-token), dove puoi anche ruotarlo), poi clicca **Paste a token instead** sotto il pulsante di accesso nel pannello Anvil e incollalo lì.',
+        'Se l’accesso dal plugin non funziona per te, crea un token in [Settings → In game → Plugin connection](/settings/in-game#plugin) (viene creato una sola volta, e puoi revocare tutti i token da lì), poi clicca **Paste a token instead** sotto il pulsante di accesso nel pannello Anvil e incollalo lì.',
       tokenFigure: {
-        caption: 'Profilo → RuneLite plugin',
-        alt: 'La scheda RuneLite plugin sulla pagina del profilo, con il campo del token e i pulsanti Reveal, Copy e Rotate evidenziati',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'La scheda Plugin connection sotto Settings → In game, con il campo del token e i pulsanti Reveal, Copy token e Revoke all evidenziati',
         legend: [
           {
             label: 'Il tuo token',
-            body: 'nascosto finché non premi Reveal. In questo screenshot è oscurato apposta; non pubblicare mai il tuo su Discord.',
+            body: 'creato una sola volta quando premi **Make a token**, e nascosto finché non premi **Reveal**. In questo screenshot è oscurato apposta. Accede come te, quindi trattalo come una password e non pubblicarlo mai su Discord.',
           },
           {
-            label: 'Copy / Rotate',
-            body: 'copialo, poi usa **Paste a token instead** nel pannello Anvil. Rotate ne emette uno nuovo e annulla il vecchio —— usalo se sospetti che il tuo token sia trapelato.',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token** funziona senza rivelarlo. Copialo, poi usa **Paste a token instead** nel pannello Anvil. Creare un altro token non annulla quelli vecchi; **Revoke all** sì, quindi premilo se pensi che un token sia trapelato.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Usa il pannello laterale ogni giorno',
-        body: ['**Il pannello laterale di Anvil è il tuo spazio di lavoro principale**: accedi ed esci da lì, guarda i tuoi clan e gli eventi attivi, sfoglia e rivendica le caselle, segui i progressi, scatta le immagini iniziali, avvia le sincronizzazioni e apri gli strumenti di supporto. **Configuration → Anvil**, mostrato qui sotto, serve solo per le preferenze —— lì non c’è nessun token. Per disconnettere questo computer, apri il menu **⋯** accanto al tuo nome in cima al pannello. Un solo accesso copre tutti gli eventi a cui sei iscritto — non devi rifarlo per ogni bingo.'],
+        body: ['**Il pannello laterale di Anvil è il tuo spazio di lavoro principale**: accedi ed esci da lì, guarda i tuoi clan e gli eventi attivi, sfoglia e rivendica le caselle, segui i progressi, scatta le immagini iniziali, avvia le sincronizzazioni e apri gli strumenti di supporto. **Configuration → Anvil**, mostrato qui sotto, serve solo per le preferenze — lì non c’è nessun token. Per disconnettere questo computer, apri il menu **⋯** accanto al tuo nome in cima al pannello; questo termina anche l’accesso di questo computer al sito, mentre i tuoi altri computer restano connessi. Se un token potrebbe essere trapelato, usa **Revoke all** in Settings → In game → Plugin connection. Un solo accesso copre ogni evento a cui sei iscritto — non devi rifarlo per ogni bingo.'],
       },
     },
 
@@ -1056,7 +1056,7 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Il token è sbagliato o è stato rigenerato. Apri il menu **⋯** in cima al pannello Anvil, premi **Sign out**, poi di nuovo **Sign in with Discord** —— oppure usa **Paste a token instead** con un token nuovo da [Profilo → RuneLite plugin](/profile#plugin-token).',
+          body: 'Il token è sbagliato o è stato rigenerato. Apri il menu **⋯** in cima al pannello Anvil, premi **Sign out**, poi di nuovo **Sign in with Discord** — oppure usa **Paste a token instead** con un token nuovo da [Settings → In game → Plugin connection](/settings/in-game#plugin).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1144,7 +1144,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Colori della chat',
-          body: '**[Anvil] tag colour** e **Message colour** sotto **Chat messages**. Finché non scegli, diventano oro scuro e nero su una chatbox opaca, così restano leggibili. Passa sopra il nome di un Supporter in chat per vederne il livello, come _Anvil Patron_.',
+          body: '**[Anvil] tag colour** e **Message colour** sotto **Settings → In game → Chat colours** sul sito. Finché non scegli, diventano oro scuro e nero su una chatbox opaca, così restano leggibili. Passa sopra il nome di un Supporter in chat per vederne il livello, come _Anvil Patron_.',
         },
       ],
     },
@@ -1223,7 +1223,7 @@ const it: PartialGuideDict = {
     setup: {
       title: 'Dai un nome al clan, collega Discord',
       intro:
-        '**Settings → Finish setup** è una procedura guidata breve (resta nel menu finché non hai finito), e la dashboard tiene una lista di controllo in cinque passi finché non sono fatti: nomina il clan, collega Discord, carica i tuoi membri, crea un evento, aggiungi caselle. Lo stato è calcolato su dati reali, quindi un passo si spunta solo quando è davvero concluso.',
+        '**Settings → Finish setup** è una procedura guidata breve (resta nel menu finché non la completi o non la salti), e la dashboard tiene una lista di controllo in cinque passi finché non è completata: dai un nome al clan, collega Discord, carica i tuoi membri, crea un evento, aggiungi caselle. Lo stato è calcolato su dati reali, quindi un passo si spunta solo quando è davvero completato.',
       discord:
         'Per Discord hai due strade, e si combinano: dai ad Anvil un **bot** e potrà creare webhook, sincronizzare ruoli e nickname e costruire canali privati per le squadre; dagli un singolo **URL di webhook** e potrà pubblicare annunci e nient’altro. Parti dal webhook se vuoi essere operativo in due minuti, aggiungi il bot quando vuoi l’automazione.',
       permsNote: {
@@ -1296,7 +1296,7 @@ const it: PartialGuideDict = {
     tiles: {
       title: 'Riempi il tabellone',
       body: [
-        'La pagina **Board & tiles** dell’evento è dove un tabellone diventa un bingo. Ogni casella è un solo _tipo_ di compito, e il tipo decide cosa cerca il plugin: un drop, un killcount di boss, XP di skill, l’uccisione di un NPC, un clear a tempo, un achievement diary, un Combat Achievement, uno sblocco del Collection Log, una kill PvP, un guadagno d’inventario o una run senza morti. Le caselle manuali —— quelle che una persona verifica da uno screenshot —— restano sempre un’opzione.',
+        'La scheda **Tiles** dell’evento è dove un tabellone diventa un bingo. Ogni casella è un solo _tipo_ di compito, e il tipo decide cosa cerca il plugin: un drop, un killcount di boss, XP di skill, l’uccisione di un NPC, un clear a tempo, un achievement diary, un Combat Achievement, uno sblocco del Collection Log, una kill PvP, un guadagno d’inventario o una run senza morti. Anche le caselle manuali — quelle che una persona verifica da uno screenshot — sono sempre un’opzione.',
         'Per un tabellone intero, scrivile in blocco: esporta il foglio, compilalo in un foglio di calcolo e reimportalo. CSV e .xlsx fanno entrambi il giro completo, e le righe corrispondono alle posizioni, così puoi riscrivere un’intera griglia da 25 caselle in un solo incolla.',
       ],
       rows: [
@@ -1362,7 +1362,7 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: 'Prove da verificare',
-          body: 'le caselle manuali e tutto ciò che il plugin ha segnalato. Approva o rifiuta con la prova davanti.',
+          body: 'le caselle manuali e tutto ciò che il plugin ha segnalato. Premi **Looks fine**, oppure **Remove…** con un motivo, con la prova davanti a te.',
         },
         {
           term: 'Statistiche',
@@ -1478,7 +1478,7 @@ const it: PartialGuideDict = {
     staff: {
       title: 'Dai un posto al loro moderatore',
       body: [
-        'Il pannello **Team staff** nella pagina della squadra è il modo in cui il moderatore del clan in visita si mette al lavoro senza che tu gli conceda nulla sul tuo sito. Premi **Add someone**, cercalo, aggiungi una nota tipo “moderatore di Ironforge” così il prossimo admin capisce perché è lì, e premi **Give a seat**.',
+        'Il pannello **Team staff** nella pagina della squadra è il modo in cui il moderatore del clan in visita si mette al lavoro senza che tu gli conceda nulla sul tuo sito. Premi **Add someone**, cercalo, aggiungi una nota tipo “moderatore di Ironforge” così il prossimo admin capisce perché è lì, e premi **Add to team staff**.',
       ],
       figure: {
         caption: 'Evento → Teams & draft → la squadra → Team staff',
@@ -1757,7 +1757,7 @@ const it: PartialGuideDict = {
         'Cliccare a mano una griglia da 25 caselle va bene. Cliccare a mano un tabellone Point Hunt da 200 compiti no, e nemmeno rileggerlo dopo. La scheda Tiles ha un giro completo pensato esattamente per questo.',
       ],
       steps: [
-        '**Download spreadsheet** nella pagina **Board & tiles** dell’evento. Ottieni un .xlsx del tabellone com’è, con i menu a tendina, la lista degli oggetti e le istruzioni delle colonne in fogli separati.',
+        'Scheda **Tiles** → **Add tiles** → **Download spreadsheet** nell’evento. Ottieni un .xlsx del tabellone com’è, con i menu a tendina, la lista degli oggetti e le istruzioni delle colonne in fogli separati.',
         'Modificalo. Una riga per casella; l’ordine delle righe è l’ordine delle caselle.',
         '**Upload CSV / Excel** nella stessa scheda. Viene letto solo il foglio **Tiles**.',
       ],
@@ -1890,7 +1890,7 @@ const it: PartialGuideDict = {
       intro:
         'In una bacheca di corsa a tessere costruisci un percorso invece di una griglia. Le tessere stanno su passi numerati, e una squadra avanza lungo di essi.',
       body: [
-        'Apri **Tiles** e usa la sezione **Route**. Scegli un modello (**Diamond** è quello predefinito), aggiungi le tue tessere ai passi e premi **Save route**. Ogni tessera che colleghi deve trovarsi sul passo successivo.',
+        'Apri **Tiles** e usa la sezione **Route**. Scegli un modello (**Diamond** è quello predefinito), aggiungi le tue tessere ai passi e premi **Save roads**. Ogni tessera che colleghi deve trovarsi sul passo successivo.',
         'Le strade possono dividersi e riunirsi, ma c\'è un solo traguardo. A un bivio scegli se completare una tessera imposta la strada, oppure se il capitano la sceglie e la blocca. L\'elenco completo delle scelte, e cosa vedono i giocatori, è in [Formats, and how tiles open]({formatsGuide}).',
       ],
     },
@@ -2142,7 +2142,7 @@ const it: PartialGuideDict = {
         'Apri la pagina **Tiles** dell\'evento e trova **Route**.',
         'Scegli un **Route template** e premi **Apply template**. **Diamond** è quello predefinito: un inizio, due strade, un traguardo. Ci sono anche **Two roads**, **Braid**, **Straight line** e **Free** (senza collegamenti).',
         'Scegli **How a team’s road is set at a fork**: per completamento, oppure scegli e blocca.',
-        'Aggiungi o sposta passi con **+ Step before**, **Move step earlier/later** e **Remove step**, poi premi **Save route**.',
+        'Aggiungi o sposta passi con **+ Empty step before**, **Move step earlier/later** e **Remove step**, poi premi **Save roads**.',
         'Se l\'evento è già in corso, Anvil chiede cosa fare dei completamenti che il nuovo percorso taglia fuori: **Keep** li mantiene oppure **Roll back**.',
       ],
       outro:
@@ -2273,16 +2273,16 @@ const it: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'In cassa',
+          term: 'Confirmed total',
           body: 'donazioni approvate e rettifiche. Ciò che il clan ha ricevuto, meno ciò che ha svalutato.',
         },
         {
-          term: 'Impegnato',
+          term: 'Promised',
           body: 'gp che un premio ha rivendicato — vinti ma non ancora inviati, più l\'eventuale fondo messo da parte per una board. Vincolati, anche se sono ancora nella banca di qualcuno.',
         },
         {
-          term: 'Libero da promettere',
-          body: 'in cassa meno impegnato. L\'unico numero contro cui viene verificato un nuovo premio, perché l\'alternativa è promettere gli stessi 50M a due vincitori mentre il tesoriere dorme.',
+          term: 'Available',
+          body: 'Confirmed total meno Promised. L’unico numero contro cui viene verificato un nuovo premio, perché l’alternativa è promettere gli stessi 50M a due vincitori mentre il tesoriere dorme.',
         },
       ],
       note: {
@@ -2669,12 +2669,12 @@ const it: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'Approva quando è plausibile',
-          body: 'non stai facendo la revisione contabile di una banca. Se l’immagine mostra la cosa, l’account è nel roster e l’orario cade dentro l’evento, approva e vai avanti.',
+          term: 'Premi Looks fine quando è plausibile',
+          body: 'non stai facendo la revisione contabile di una banca. Se l’immagine mostra la cosa, l’account è nel roster e l’orario cade dentro l’evento, premi **Looks fine** e vai avanti.',
         },
         {
-          term: 'Rifiuta spiegando perché',
-          body: 'un rifiuto senza spiegazione ti torna indietro come messaggio privato entro un’ora. Di’ cosa mancava, così il secondo tentativo è quello giusto.',
+          term: 'Remove con un motivo',
+          body: '**Remove** chiede un motivo, e il team lo vede. Di’ cosa mancava, così il secondo tentativo è quello giusto.',
         },
         {
           term: 'Un invio segnalato è una domanda, non un’accusa',
@@ -2694,7 +2694,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'per i giocatori senza plugin. Il sito estrae una skill a caso e loro devono guadagnarci 1.000 XP entro trenta minuti. Si verifica da sé —— tu vedi solo quelli che falliscono.',
+          body: 'per i giocatori senza plugin. Il sito estrae una skill a caso e loro devono guadagnarci 1.000 XP entro trenta minuti. Si verifica da sé, ma un superamento finisce comunque in **Needs review** per il tuo sì o no, perché gli XP mostrano che qualcuno si è allenato, non chi è. Un controllo fallito è quello da guardare più da vicino.',
         },
         {
           term: 'Revisione manuale',
@@ -2710,7 +2710,7 @@ const it: PartialGuideDict = {
     roster: {
       title: 'Tenere il roster veritiero',
       body: [
-        'Il roster viene da un solo posto: un admin lancia una sincronizzazione dalla lista del clan in gioco, con il pulsante **Anvil** nella barra del titolo della finestra del clan (o **Sync roster** nel pannello laterale del plugin). Tutto il resto —— verifiche, collegamenti, iscrizioni —— pende da lì.',
+        'Il roster viene da un solo posto: un admin lancia una sincronizzazione dalla lista del clan in gioco, con il pulsante **Anvil** nella barra del titolo della finestra del clan (o **Sync clan roster** nel pannello laterale del plugin). Tutto il resto — verifiche, collegamenti, iscrizioni — pende da lì.',
         'Quindi la manutenzione è piccola ma reale: chiedi a un admin di lanciare la sincronizzazione dopo ogni tornata di reclutamento (trasforma in membri gli ospiti entrati nel clan in gioco), rispondi alle richieste di adesione in cima alla scheda **Roster**, e smaltisci **Needs review** invece di aspettare che la gente si lamenti. Vedi [La tua gente]({peopleGuide}).',
       ],
       note: {
@@ -3237,7 +3237,7 @@ const it: PartialGuideDict = {
     roster: {
       title: 'Da dove arriva il roster',
       body: [
-        'Il roster è la lista del tuo clan in gioco, copiata sul sito. Un admin la invia da RuneLite con il plugin Anvil: premi il pulsante **Anvil** nella barra del titolo della finestra del clan, oppure **Sync roster** nel pannello laterale del plugin. Tutti quelli nella lista arrivano come **membri**, con il loro grado in gioco. Solo chi ha il ruolo Admin sul sito può inviarla. Gli altri lo vengono a sapere in gioco.',
+        'Il roster è la lista del tuo clan in gioco, copiata sul sito. Un admin la invia da RuneLite con il plugin Anvil: premi il pulsante **Anvil** nella barra del titolo della finestra del clan, oppure **Sync clan roster** nel pannello laterale del plugin. Tutti quelli nella lista arrivano come **membri**, con il loro grado in gioco. Solo chi ha il ruolo Admin sul sito può inviarla. Gli altri lo vengono a sapere in gioco.',
         'Una sincronizzazione è l’unica cosa che rende qualcuno membro da sola. Chi lascia il clan in gioco viene segnato come uscito alla sincronizzazione successiva, e chi rientra torna con quella dopo. La sua cronologia resta in ogni caso.',
         'Ogni altro posto è un posto da **ospite**: qualcuno che gioca i tuoi eventi senza essere nel tuo clan in gioco. Gli ospiti sono tracciati e possono partecipare agli eventi. Non sono membri e non contano per il tuo piano.',
       ],
@@ -3609,7 +3609,7 @@ const it: PartialGuideDict = {
       { strong: 'Niente cancellato', rest: 'quando smetti' },
     ],
     footnote:
-      'Tutto questo si imposta sul sito in **Settings** → **Supporter**, **Profile look** e **Clan boosts**. Per i boost nel dettaglio, vedi [Potenziare un clan con i boost]({boostsGuide}). Per dove compaiono i tuoi colori in RuneLite, vedi [Il pannello laterale, scheda per scheda]({panelGuide}).',
+      'Tutto questo si imposta sul sito in **Settings**: **Account** → **Your plan & billing**, e **Profile & look** con i suoi **Name colours** e **Clan boosts**. Per i boost nel dettaglio, vedi [Potenziare un clan con i boost]({boostsGuide}). Per dove compaiono i tuoi colori in RuneLite, vedi [Il pannello laterale, scheda per scheda]({panelGuide}).',
 
     tiers: {
       title: 'Le tre fasce',
@@ -3630,7 +3630,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Tempo dagli inviti',
-        body: 'In Settings → Supporter trovi un link di invito. Quando un amico che hai invitato paga, guadagni mesi gratis; il premio arriva due settimane dopo il suo primo pagamento. Il tempo guadagnato così dà tutti i vantaggi della sua fascia tranne i boost del clan.',
+        body: 'In Settings → Account → Your plan & billing trovi un link di invito. Quando un amico che hai invitato paga, guadagni mesi gratis; il premio arriva due settimane dopo il suo primo pagamento. Il tempo guadagnato così dà tutti i vantaggi della sua fascia tranne i boost del clan.',
       },
     },
 
@@ -3659,7 +3659,7 @@ const it: PartialGuideDict = {
     names: {
       title: 'Colori del nome',
       intro:
-        'Si impostano in **Settings** → **Supporter**, in **Your name’s look**. L’anteprima mostra il tuo nome su uno sfondo scuro e su uno chiaro.',
+        'Si impostano in **Settings** → **Profile & look** → **Name colours**. L’anteprima mostra il tuo nome su uno sfondo scuro e su uno chiaro.',
       rows: [
         {
           term: 'Supporter',
@@ -3709,13 +3709,13 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Solo sui personaggi che risultano tuoi',
-        body: 'I colori compaiono solo sui personaggi che il plugin ha confermato come tuoi, sul sito e in gioco. Per toglierli dai tuoi nomi nella chat di gioco degli altri, togli la spunta a **Show my colours on my characters’ names in game chat** in Settings → Supporter.',
+        body: 'I colori compaiono solo sui personaggi che il plugin ha confermato come tuoi, sul sito e in gioco. Per toglierli dai tuoi nomi nella chat di gioco degli altri, togli la spunta a **Show my colours on my characters’ names in game chat** in Settings → Account → Your plan & billing.',
       },
     },
 
     profile: {
       title: 'Avatar, banner e vetrina',
-      intro: 'Tutti e tre stanno in **Settings** → **Profile look**.',
+      intro: 'Tutti e tre stanno in **Settings** → **Profile & look**.',
       rows: [
         {
           term: 'Avatar e banner',
@@ -3764,7 +3764,7 @@ const it: PartialGuideDict = {
         'Paga. I tuoi vantaggi si attivano appena Gumroad lo comunica ad Anvil, e la tua fascia compare sulla pagina Supporter come **Your tier**.',
       ],
       outro:
-        'Per cambiare fascia, usa **Change tier** in Settings → Supporter. Per disdire o aggiornare la carta, usa **Manage on Gumroad** nello stesso punto. Un abbonamento disdetto mantiene tutti i vantaggi fino alla fine del periodo che hai pagato.',
+        'Per cambiare fascia, usa **Change tier** in Settings → Account → Your plan & billing. Per disdire o aggiornare la carta, usa **Manage on Gumroad** lì. Un abbonamento disdetto mantiene tutti i vantaggi fino alla fine del periodo che hai pagato.',
       note: {
         tag: 'Parti sempre da /supporter',
         body: 'Il pulsante **Choose** porta un codice che dice ad Anvil quale account ha pagato. Anvil non abbina mai un pagamento tramite email, quindi comprare direttamente da Gumroad, senza quel pulsante, lascia il pagamento scollegato. Se ti è successo, chiedi nel Discord di Anvil e lo staff può collegarlo al tuo account a mano.',
@@ -3795,7 +3795,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Un upgrade temporaneo dallo staff di Anvil',
-        body: 'Lo staff può dare a qualcuno una fascia più alta per un periodo, per esempio come ringraziamento. Si aggiunge a ciò che paghi e non cambia mai il tuo abbonamento. Settings → Supporter mostra **A gift from Anvil** e quando finisce; dopo torni alla fascia che paghi. Un regalo dà spazi per i boost del clan solo se lo staff li include.',
+        body: 'Lo staff può dare a qualcuno una fascia più alta per un periodo, per esempio come ringraziamento. Si aggiunge a ciò che paghi e non cambia mai il tuo abbonamento. Settings → Account → Your plan & billing mostra **A gift from Anvil** e quando finisce; dopo torni alla fascia che paghi. Un regalo dà spazi per i boost del clan solo se lo staff li include.',
       },
     },
   },
@@ -3856,7 +3856,7 @@ const it: PartialGuideDict = {
         {
           term: 'Eventi',
           body:
-            'ogni bacheca in corso e in arrivo, Skill o Boss of the Week ed evento del clan, con la tua posizione. Poi **Your other boards**, **Also live** e **Your clan**.',
+            'ogni bacheca in corso e in arrivo, Skill o Boss of the Week ed evento del clan, con la tua posizione. Poi **Running**, **Coming up**, **Also live** e **Your clan**.',
         },
         {
           term: 'Una bacheca',
@@ -3870,7 +3870,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Un evento del clan',
-          body: '**I’m going**, **Sign me up** o **Answer the survey**, a seconda dell\'evento.',
+          body: '**I’m going**, **Register** (o **Register on Anvil** quando l’ospite ha domande) oppure **Answer the survey**, a seconda dell’evento.',
         },
       ],
     },
@@ -3897,7 +3897,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Non è il feed nella chat di gioco',
-        body: 'La scheda Feed funziona qualunque cosa dicano le impostazioni del plugin. **Show feed in game chat** (passo 8) è l’impostazione separata che lo stampa anche nella tua chatbox.',
+        body: 'La scheda Feed funziona qualunque cosa dicano le impostazioni del plugin. **Anvil messages in chat** (passo 8) è l’impostazione separata che lo stampa anche nella tua chatbox.',
       },
     },
 
@@ -3941,7 +3941,7 @@ const it: PartialGuideDict = {
         {
           term: 'Invio',
           body:
-            'scrivi nella casella e premi Invio. Le righe possono avere fino a 200 caratteri, e solo host e moderatori possono inviare link.',
+            'scrivi nella casella e premi Invio. Le righe possono avere fino a 80 caratteri (una più lunga viene rifiutata), e solo host e moderatori possono inviare link.',
         },
         {
           term: 'Frequenza',
@@ -4011,27 +4011,19 @@ const it: PartialGuideDict = {
     settings: {
       title: 'Impostazioni che cambiano ciò che vedi',
       intro:
-        'Nella configurazione di Anvil in RuneLite, sotto **Chat messages**. Sono tutte attive all’inizio.',
+        'Nella configurazione di Anvil in RuneLite, sotto **General**. Sono tutte attive all’inizio.',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: 'stampa anche il feed nella tua chatbox mentre accade: grossi drop, pet e achievement dalle board il cui host l’ha attivato e dai clan in cui sei ospite, i progressi sulle caselle dei tuoi compagni di squadra, e le caselle completate dalle altre squadre.',
         },
         {
           term: 'Supporter names in chat',
-          body: 'i colori dei Supporter (e la stella di un Patron) nella chat pubblica, del clan, degli amici e privata, e nella lista amici e nelle liste dei membri dei canali. La lista dei nomi viene scaricata da Anvil; non viene inviato nulla su chi vedi.',
+          body: 'i colori dei Supporter (e la stella di un Patron) nella chat pubblica, del clan, degli amici e privata, e nella lista amici e nelle liste dei membri dei canali. La lista dei nomi viene scaricata da Anvil; non viene inviato nulla su chi vedi. Scegli **Animated** (scorre il gradiente di un Patron), **Still colours** o **Off**.',
         },
         {
-          term: 'Animated names',
-          body: 'fa scorrere la sfumatura di un Patron nel pannello, nel Feed e nella chat dell’evento. Disattivata, resta ferma. Con il prossimo aggiornamento del plugin vale anche per i nomi dei clan potenziati e per i banner animati nel pannello.',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: 'i colori dei Supporter sul loro nome quando fai clic destro su di loro, mai sui mondi PvP o nel Wilderness.',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: 'se attiva, i colori di un Supporter sostituiscono il colore del nome impostato da un altro plugin, come Player Indicators. Se disattivata, quei nomi restano come sono.',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: 'i colori dei Supporter sul loro nome quando fai clic destro su di loro e nelle liste degli amici e dei membri dei canali, e il nome di un clan potenziato nel pannello del clan. Mai nei mondi PvP o nel Wilderness.',
         },
       ],
     },
@@ -4050,7 +4042,7 @@ const it: PartialGuideDict = {
       { strong: 'Una volta a settimana', rest: 'un boost si può spostare' },
     ],
     footnote:
-      'I membri piazzano i boost in **Settings** → **Clan boosts**. Lo staff del clan vede il livello e le sue opzioni in Admin → **Clan settings** → **Boosts**. Per le fasce in sé, vedi [Anvil Supporter: fasce e vantaggi]({supporterGuide}).',
+      'I membri piazzano i boost in **Settings** → **Profile & look** → **Clan boosts**. Lo staff del clan vede il livello e le sue opzioni in Admin → **Clan settings** → **Boosts**. Per le fasce in sé, vedi [Anvil Supporter: fasce e vantaggi]({supporterGuide}).',
 
     what: {
       title: 'Chi ha i boost',
@@ -4064,7 +4056,7 @@ const it: PartialGuideDict = {
         },
       ],
       outro:
-        'I boost appartengono a te, non a un personaggio: tre personaggi in tre clan condividono comunque una sola dotazione. **Settings** → **Clan boosts** compare nelle tue impostazioni solo finché sei Supporter o hai ancora un boost piazzato.',
+        'I boost appartengono a te, non a un personaggio: tre personaggi in tre clan condividono comunque una sola dotazione. **Settings** → **Profile & look** → **Clan boosts** compare sempre, ma solo un abbonamento Champion o Patron dà slot; senza, vedi le regole e un link a Supporter.',
     },
 
     place: {
@@ -4073,7 +4065,7 @@ const it: PartialGuideDict = {
       steps: [
         'Apri **Settings** → **Clan boosts**. **Your boosts** elenca ciò che hai piazzato e ogni **Free slot**.',
         'In **Clans you can boost**, premi **Boost** accanto a un clan. Puoi anche premere **Boost this clan** nella sezione Boosters della pagina del clan.',
-        'Per spostarne uno, usa **Move to…** sulla sua riga e scegli un altro clan. **Remove** lo toglie.',
+        'Per spostarne uno, premi **Move** sulla sua riga e scegli un altro clan sotto **Move to…**. **Remove** lo toglie.',
       ],
       rows: [
         {
@@ -4172,7 +4164,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Post di reclutamento nel Discord di Anvil',
-          body: 'Livello 3. Una volta per mese di calendario, da 20 a 500 caratteri, scritto da te e pubblicato quando premi **Post it**, con un link alla pagina del tuo clan. Le menzioni vengono rimosse e nessuno riceve un ping. Non puoi modificarlo né mandarne un altro fino al mese successivo.',
+          body: 'Livello 3. Una volta al mese di calendario, da 20 a 500 caratteri, scritto da te e pubblicato quando premi **Post to the Anvil Discord** e poi **Post it** per confermare, con un link alla pagina del tuo clan. Le menzioni vengono rimosse e nessuno riceve un ping. Non puoi modificarlo né mandarne un altro fino al mese successivo.',
         },
         {
           term: 'Boosters',
@@ -4321,7 +4313,7 @@ const it: PartialGuideDict = {
       title: 'Trovare un’impostazione',
       body: [
         'La prima pagina, **Overview & search**, ha una casella di ricerca. Scrivi quello che cerchi con parole tue, come _private messages_, _rare drop value_, _death message_, _name colour_ o _plugin token_, e ti porta all’interruttore giusto.',
-        'Il menu a lato ha due gruppi. **Account** contiene le pagine qui sotto. **Characters** ha una pagina per ogni personaggio collegato (il tuo principale è segnato **main**), poi **Add character**. Un numero su **Add character** significa che Anvil ti ha visto giocare personaggi che non hai ancora collegato.',
+        'Il menu a lato ha cinque pagine: **Profile & look**, **Characters**, **In game**, **Posts & alerts** e **Account**. Sotto **Characters** c’è una pagina per ogni personaggio collegato (il tuo principale è segnato **main**), poi **Add character**. Un numero su **Add character** significa che Anvil ti ha visto giocare personaggi che non hai ancora collegato.',
       ],
     },
     posts: {
@@ -4338,7 +4330,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Dove vanno i tuoi post',
-          body: '**Post my drops and levels in clans where I am a guest**, e **Level posts in clan channels**: **Clan rules**, **Only 99s & max** o **Off**. **Per character** elenca ogni personaggio con un link **Clans →** per disattivare la pubblicazione per un solo clan.',
+          body: '**Post my drops and levels in clans where I am a guest** (disattivato finché non lo attivi), e **Level posts in clan channels**: **Clan rules**, **Only 99s & max** o **Off**. **Per character** elenca ogni personaggio con un link **Clans →** per disattivare la pubblicazione per un solo clan.',
         },
         {
           term: 'Screenshot per tipo',
@@ -4368,7 +4360,7 @@ const it: PartialGuideDict = {
     },
     chat: {
       title: 'Feed della chat in gioco',
-      intro: 'Cosa stampa il plugin nella tua chatbox quando l’impostazione del plugin **Show feed in game chat** è attiva.',
+      intro: 'Cosa stampa il plugin nella tua chatbox quando l’impostazione del plugin **Anvil messages in chat** è attiva.',
       rows: [
         {
           term: 'Da dove',
@@ -4394,15 +4386,15 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: 'Connessione del plugin',
-          body: 'il tuo plugin token, per il caso raro in cui lo incolli a mano. Di solito **Sign in with Discord** nel pannello laterale fa questo per te.',
+          body: 'sotto **In game**: il tuo plugin token, per il caso raro in cui lo incolli a mano. Viene creato una sola volta e nascosto finché non premi **Reveal**, e **Revoke all** annulla ogni token. Di solito **Sign in with Discord** nel pannello laterale fa questo per te.',
         },
         {
           term: 'Accesso e dispositivi',
-          body: 'ogni computer su cui il plugin è connesso, come **RuneLite sign-in 1**, **2**… con la data di creazione e dell’ultimo utilizzo. **Revoke** disconnette uno, per esempio un computer venduto. **Enter a code** collega un altro computer. **Sessions** ti disconnette dal sito ovunque.',
+          body: 'sotto **Account**: ogni computer su cui il plugin è connesso, come **RuneLite sign-in 1**, **2**… con la data di creazione e dell’ultimo utilizzo. **Revoke** disconnette uno, per esempio un computer venduto. **Enter a code** collega un altro computer. **Sessions** ti disconnette dal sito ovunque.',
         },
         {
           term: 'Fatturazione del clan',
-          body: 'i proprietari di clan trovano qui **Open portal →**, per la fatturazione del clan.',
+          body: 'sotto **Account**, i proprietari di clan trovano qui **Open portal →**, per la fatturazione del clan.',
         },
       ],
     },
@@ -4437,11 +4429,11 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: 'Supporter & name colours',
-          body: 'il tuo livello, i tuoi vantaggi e il tuo link di invito: porta amici e guadagna mesi gratuiti. I livelli sono spiegati in [Anvil Supporter: fasce e vantaggi]({supporterGuide}).',
+          body: 'sotto **Account** → **Your plan & billing**: il tuo livello, i tuoi vantaggi e il tuo link di invito: porta amici e guadagna mesi gratuiti. I livelli sono spiegati in [Anvil Supporter]({supporterGuide}).',
         },
         {
           term: 'Profile look',
-          body: 'avatar e banner (animati da Champion), diversi per ogni personaggio se vuoi, e la **Display case**: 4, 8 o 12 spille a seconda del livello.',
+          body: 'sotto **Profile & look**: avatar e banner (animati da Champion), diversi per ogni personaggio se vuoi, e la **Display case**: 4, 8 o 12 spille a seconda del livello.',
         },
         {
           term: 'Streaming accounts',
@@ -4449,7 +4441,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Clan boosts',
-          body: 'visibile solo quando puoi potenziare: i tuoi slot, dove sono piazzati e i clan che puoi potenziare. Vedi [Potenziare un clan con i boost]({boostsGuide}).',
+          body: 'sotto **Profile & look**: i tuoi slot, dove sono piazzati e i clan che puoi potenziare. Senza un abbonamento Champion o Patron mostra le regole. Vedi [Potenziare un clan con i boost]({boostsGuide}).',
         },
       ],
     },
@@ -4539,7 +4531,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Starting lines',
-          body: 'ogni **Started at**, **Now** e **Gained** del giocatore. Correggi a mano una partenza quando un grind precedente alla competizione è stato contato, e la classifica segue. **Pull current stats** aggiorna tutti; **Reset baselines** riparte tutti dalle loro classifiche di adesso e cancella tutti i guadagni.',
+          body: 'ogni **Started at**, **Now** e **Gained** del giocatore. Correggi a mano una partenza quando un grind precedente alla competizione è stato contato, e la classifica segue. **Pull current stats** aggiorna tutti; **Reset every baseline** riparte tutti dalle loro classifiche di adesso e cancella tutti i guadagni.',
         },
         {
           term: 'Participants',
@@ -4772,7 +4764,7 @@ const it: PartialGuideDict = {
     players: {
       title: 'Cosa vedono i membri',
       body: [
-        'La pagina dell’evento mostra **When**, **Where**, **Host**, **Discord**, **Entry** e **Prizes**, con **Live now** mentre è in corso. I membri premono **I’m going** o **Sign me up**, oppure **Ask to sign up** quando lo staff approva ogni iscrizione. È anche nella scheda **Clan** del pannello laterale del plugin, con gli stessi pulsanti.',
+        'La pagina dell’evento mostra **When**, **Where**, **Host**, **Discord**, **Entry** e **Prizes**, con **Live now** mentre è in corso. I membri premono **I’m going** o **Register**, oppure **Ask to sign up** quando lo staff approva ogni iscrizione. È anche nella scheda **Clan** del pannello laterale del plugin, con gli stessi pulsanti.',
         'Solo i membri del clan possono dire che ci saranno o iscriversi.',
       ],
     },
@@ -4934,7 +4926,7 @@ const it: PartialGuideDict = {
       title: 'Trova un evento a cui unirti',
       body: [
         '[Events](/events) elenca ciò che è in corso e in arrivo su Anvil. Filtra per **Live now**, **Open to join** o **Starting this week**, per formato o **Solo**, per **Anyone can join** o **Ask or meet a rule**, e per **Clans** o **Creators**. **Join** ti porta a iscriverti.',
-        'Compaiono solo gli eventi il cui ospite ha attivato **Advertise on Anvil**. Gli eventi solo per membri e quelli su invito non compaiono mai.',
+        'Compaiono solo gli eventi il cui ospite ha attivato **List on Anvil**. Gli eventi solo per membri e quelli su invito non compaiono mai.',
       ],
     },
     ghost: {

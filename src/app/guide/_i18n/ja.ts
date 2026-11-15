@@ -314,7 +314,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '自分のサーバーにも投稿してほしいですか？',
-          body: 'プロフィール → **Announcements & webhooks** → _Your own webhooks_ を開いてください。',
+          body: '[Settings → Posts & alerts](/settings/posts#webhooks) を開き、_Your webhooks_ を選んでください。',
         },
       ],
     },
@@ -602,7 +602,7 @@ const ja: PartialGuideDict = {
     roles: {
       title: 'ロールとニックネーム',
       body: [
-        '二つの同期は **Admin → Discord → Roles & nicknames** で有効にするまでオフで、どちらも名簿をもとに動きます。**Enable Discord role sync** をオンにし、**Auto-match in-game rank → Discord role by name** はオンのままにして、必要なら共通の **Member roles** と **Guest roles** を選び、保存してから **Sync roles & nicknames now** を押します。各人には Discord アカウントの連携も必要です。解決できなかった人は同期レポートに名前が出ます。',
+        '二つの同期は **Admin → Discord → Roles & nicknames** で有効にするまでオフで、どちらも名簿をもとに動きます。**Enable Discord role sync** をオンにし、**Auto-match in-game rank → Discord role by name** はオンのままにして、必要に応じて共通の **Member roles** と **Guest roles** を選び、保存してから **Sync roles & nicknames now** を押します。ロールは、Discord で Anvil にサインインした人に付与されます。まだサインインしていないメンバーには、**Also match members by Discord nickname** もオンにした場合のみロールが付きます（これは各クランで最初はオフです）。解決できなかった人は同期レポートに名前が出ます。',
       ],
       ways: [
         {
@@ -698,7 +698,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'ボットのロールは十分に上ですか？',
-          body: 'ロール同期とニックネーム同期にだけ関係します——上記参照。黙って失敗するのはこれです。',
+          body: 'ロールやニックネームの同期では、ボットを管理対象のすべてのロールより上に置き、各人が Discord でサインイン済みか確認してください（またはクランで **Also match members by Discord nickname** をオンにしてください）。ランクロールの名前は上記のとおり正確に入力します。まず保存してから **Sync roles & nicknames now** を実行します。スキップされた一覧に、まだ連携が必要な人が出ます。',
         },
       ],
       note: {
@@ -816,24 +816,24 @@ const ja: PartialGuideDict = {
         'ブラウザが自動で開かない場合、パネルにアドレスとコードが表示されるので手動で開けます。コードは 10 分で失効します —— もう一度ボタンを押すだけで大丈夫です。',
       manualHeading: '予備の方法：トークンを手で貼り付ける',
       manualIntro:
-        'プラグインからのログインがうまくいかない場合は、下のトークンをコピーし（[Profile → plugin token](/profile#plugin-token) からでもコピーでき、そこでローテーションもできます）、Anvil パネルのサインインボタンの下にある **Paste a token instead** を押して、そこに貼り付けてください。',
+        'プラグインからのサインインがうまくいかない場合は、[Settings → In game → Plugin connection](/settings/in-game#plugin) でトークンを作成してください（トークンは作成時に一度だけ表示され、同じ場所ですべてのトークンを取り消せます）。その後、Anvil パネルのサインインボタンの下にある **Paste a token instead** を押し、そこに貼り付けてください。',
       tokenFigure: {
-        caption: 'Profile → RuneLite plugin',
-        alt: 'プロフィールページの RuneLite plugin カード。トークン欄と Reveal・Copy・Rotate ボタンが枠で囲まれている',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'Settings → In game 配下の Plugin connection カード。トークン欄と、Reveal、Copy token、Revoke all の各ボタンが枠で囲まれている',
         legend: [
           {
             label: 'あなたのトークン',
-            body: 'Reveal を押すまでは隠れています。このスクリーンショットでは意図的に伏せてあります。自分のものを Discord に貼らないでください。',
+            body: '**Make a token** を押したときに一度だけ発行され、**Reveal** を押すまでは伏せられています。このスクリーンショットでは意図的に伏せてあります。サインインは自分として行われるので、パスワードと同じように扱い、Discord には決して貼らないでください。',
           },
           {
-            label: 'Copy / Rotate',
-            body: 'コピーしたら、Anvil パネルの **Paste a token instead** を使います。Rotate は新しいものを発行し古いものを無効化します —— 漏れたかもしれないと少しでも思ったら使ってください。',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token** は、トークンを表示しなくてもコピーできます。コピーしたら、Anvil パネルの **Paste a token instead** を使います。別のトークンを作成しても古いものは無効になりません。すべて無効にするには **Revoke all** を押します。トークンが漏れたかもしれないと思ったら押してください。',
           },
         ],
       },
       goodToKnow: {
         tag: '普段はサイドパネルを使う',
-        body: ['**Anvil サイドパネルがメインの作業場所です**。ここからサインイン・サインアウトし、クランや開催中のイベントを確認し、マスを閲覧・申請し、進捗を追い、開始時のスクリーンショットを撮り、同期やサポートツールを使います。下に示す **Configuration → Anvil** は設定変更のためだけに使い、トークンはありません。このパソコンをサインアウトするには、パネル上部の自分の名前の横にある **⋯** メニューを開いてください。1 回のサインインで参加登録したすべてのイベントに対応し、ビンゴごとにやり直す必要はありません。'],
+        body: ['**Anvil サイドパネルがメインの作業場所です**。ここからサインイン・サインアウトし、クランや開催中のイベントを確認し、マスを閲覧・申請し、進捗を追い、開始時のスクリーンショットを撮り、同期やサポートツールを使います。下に示す **Configuration → Anvil** は設定変更のためだけに使い、トークンはありません。このパソコンをサインアウトするには、パネル上部の自分の名前の横にある **⋯** メニューを開いてください。これはこのパソコンのサイト上でのサインインも終わらせますが、他のパソコンのサインインは続きます。トークンが漏れたかもしれない場合は、Settings → In game → Plugin connection の **Revoke all** を使ってください。1 回のサインインで参加登録したすべてのイベントに対応し、ビンゴごとにやり直す必要はありません。'],
       },
     },
 
@@ -1053,7 +1053,7 @@ const ja: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'トークンが違うか、ローテートされました。Anvil パネル上部の **⋯** メニューを開いて **Sign out** を押し、もう一度 **Sign in with Discord** してください —— または [Profile → RuneLite plugin](/profile#plugin-token) の新しいトークンで **Paste a token instead** を使ってください。',
+          body: 'トークンが違うか、ローテートされています。Anvil パネル上部の **⋯** メニューを開いて **Sign out** を押し、もう一度 **Sign in with Discord** してください。または、[Settings → In game → Plugin connection](/settings/in-game#plugin) で新しいトークンを取得し、**Paste a token instead** で使ってください。',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1141,7 +1141,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'チャットの色',
-          body: '**Chat messages** の下の **[Anvil] tag colour** と **Message colour**。選ぶまでは、チャットボックスが不透明な状態で読みやすいように、暗めの金と黒になります。チャットで Supporter の名前にカーソルを合わせると、_Anvil Patron_ のようにティアが表示されます。',
+          body: 'ウェブサイトの **Settings → In game → Chat colours** にある **[Anvil] tag colour** と **Message colour**。選ぶまでは、チャットボックスが不透明な状態で読みやすいように、暗めの金と黒になります。チャットで Supporter の名前にカーソルを合わせると、_Anvil Patron_ のようにティアが表示されます。',
         },
       ],
     },
@@ -1220,7 +1220,7 @@ const ja: PartialGuideDict = {
     setup: {
       title: 'クラン名を決め、Discord をつなぐ',
       intro:
-        '**Settings → Finish setup** は短いウィザードで（終わるまでメニューに残ります）、ダッシュボードには完了まで 5 ステップのチェックリストが残ります：クラン名を決める、Discord をつなぐ、メンバーを読み込む、イベントを作る、マスを追加する。状態は実データから計算されるので、本当に終わったときにしかチェックは付きません。',
+        '**Settings → Finish setup** は短いウィザードです（完了するかスキップするまでメニューに残ります）。ダッシュボードには、完了するまで 5 ステップのチェックリストが残ります：クラン名を決める、Discord をつなぐ、メンバーを読み込む、イベントを作る、マスを追加する。状態は実データから計算されるので、本当に終わったときにしかチェックは付きません。',
       discord:
         'Discord には 2 つの道があり、併用できます：Anvil に**ボット**を与えれば、webhook の作成、ロールとニックネームの同期、プライベートなチームチャンネルの作成までできます。**webhook の URL** を 1 本だけ与えた場合は、告知の投稿だけができます。2 分で動かしたいなら webhook から始め、自動化が欲しくなったらボットを足してください。',
       permsNote: {
@@ -1302,7 +1302,7 @@ const ja: PartialGuideDict = {
     tiles: {
       title: 'ボードを埋める',
       body: [
-        'イベントの **Board & tiles** ページが、ボードをビンゴに変える場所です。各マスは 1 つの_種別_のタスクであり、その種別がプラグインの見張る対象を決めます：ドロップ、ボスの討伐数、スキル経験値、NPC 討伐、時間内クリア、achievement diary、Combat Achievement、collection log の解放、PvP キル、アイテム入手、あるいは無死亡の周回。人がスクリーンショットを見て承認する手動マスも、いつでも選べます。',
+        'イベントの **Tiles** タブが、ボードをビンゴに変える場所です。各マスは 1 つの_種別_のタスクで、種別によってプラグインが見張る対象が決まります：ドロップ、ボスの討伐数、スキル経験値、NPC 討伐、時間内クリア、achievement diary、Combat Achievement、collection log の解放、PvP キル、アイテム入手、あるいは無死亡の周回。人がスクリーンショットを見て確認する手動マスも、いつでも選べます。',
         'ボード全体を埋めるなら一括で作成を：シートを書き出し、表計算で埋め、取り込み直します。CSV も .xlsx も往復でき、行は位置に対応するので、25 マスのグリッド全体を 1 回の貼り付けで書き換えられます。',
       ],
       rows: [
@@ -1368,7 +1368,7 @@ const ja: PartialGuideDict = {
       rows: [
         {
           term: '確認待ちの提出',
-          body: '手動マスと、プラグインが印を付けたものすべて。証跡を目の前に置いて承認または却下してください。',
+          body: '手動マスと、プラグインが印を付けたものすべて。証跡を目の前に置いて、**Looks fine** を押すか、理由を添えて **Remove…** を押してください。',
         },
         {
           term: '統計',
@@ -1484,7 +1484,7 @@ const ja: PartialGuideDict = {
     staff: {
       title: '相手のモデレーターに席を渡す',
       body: [
-        'チームページの **Team staff** パネルが、来訪クラン自身のモデレーターが動き出すための入口です —— あなたのサイト上で何かを与える必要はありません。**Add someone** を押し、その人を検索し、「Ironforge’s mod」のようなメモを添えて（次の管理者がなぜその人がいるのか分かるように）、**Give a seat** を押してください。',
+        'チームページの **Team staff** パネルが、来訪クラン自身のモデレーターが動き出すための入口です —— あなたのサイト上で何かを与える必要はありません。**Add someone** を押し、その人を検索し、「Ironforge’s mod」のようなメモを添えて（次の管理者がなぜその人がいるのか分かるように）、**Add to team staff** を押してください。',
       ],
       figure: {
         caption: 'イベント → Teams & draft → 該当チーム → Team staff',
@@ -1765,7 +1765,7 @@ const ja: PartialGuideDict = {
         '25 マスのグリッドをクリックで作るのは問題ありません。200 タスクの Point Hunt ボードをクリックで作るのは無理ですし、そのあと読み合わせるのはもっと無理です。Tiles タブには、まさにそのための往復の仕組みがあります。',
       ],
       steps: [
-        'イベントの **Board & tiles** ページで **Download spreadsheet**。現在のボードの .xlsx が手に入り、ドロップダウン、アイテム一覧、列の説明がそれぞれ別シートに入っています。',
+        'イベントの **Tiles** タブ → **Add tiles** → **Download spreadsheet**。現在のボードの .xlsx が手に入り、ドロップダウン、アイテム一覧、列の説明がそれぞれ別シートに入っています。',
         '編集します。1 行 1 マス、行の順序がマスの順序です。',
         '同じタブで **Upload CSV / Excel**。読まれるのは **Tiles** シートだけです。',
       ],
@@ -1897,7 +1897,7 @@ const ja: PartialGuideDict = {
       title: 'タイルレースのコース',
       intro: 'タイルレースのボードでは、グリッドではなくコースを作ります。タイルは番号付きのステップに配置され、チームはそこを進みます。',
       body: [
-        '**Tiles** を開き、**Route** セクションを使います。テンプレートを選び（初期値は **Diamond**）、タイルをステップに追加して **Save route** を押します。リンクするすべてのタイルは次のステップにある必要があります。',
+        '**Tiles** を開き、**Route** セクションを使います。テンプレートを選び（初期値は **Diamond**）、タイルをステップに追加して **Save roads** を押します。リンクするすべてのタイルは次のステップにある必要があります。',
         '道は分岐して合流することもできますが、ゴールは1つです。分岐点では、タイルを完了すると道が決まるか、キャプテンが選んで確定するかを選べます。すべての選択肢と、プレイヤーに見える内容は [Formats, and how tiles open]({formatsGuide}) にあります。',
       ],
     },
@@ -2144,7 +2144,7 @@ const ja: PartialGuideDict = {
         'イベントの **Tiles** ページを開き、**Route** を探します。',
         '**Route template** を選び、**Apply template** を押します。初期設定は **Diamond** で、スタートが1つ、道が2本、ゴールが1つです。**Two roads**、**Braid**、**Straight line**、**Free**（リンクなし）もあります。',
         '**How a team’s road is set at a fork** を選びます: 達成順、または選んで確定。',
-        '**+ Step before**、**Move step earlier/later**、**Remove step** でステップを追加または移動し、**Save route** を押します。',
+        '**+ Empty step before**、**Move step earlier/later**、**Remove step** でステップを追加または移動し、**Save roads** を押します。',
         'イベントがすでに開始している場合、Anvil は新しいルートで切り捨てられる完了をどうするか尋ねます: **Keep**（残す）または **Roll back**（巻き戻す）。',
       ],
       outro:
@@ -2275,16 +2275,16 @@ const ja: PartialGuideDict = {
       ],
       rows: [
         {
-          term: '手元',
+          term: 'Confirmed total',
           body: '承認済みの寄付と調整。クランが受け取った額から、帳消しにした分を引いたもの。',
         },
         {
-          term: '拘束済み',
+          term: 'Promised',
           body: '賞金が名乗りを上げた gp — 勝ち取られたがまだ送られていない分と、ボードのために取り分けたプール。誰かの銀行にまだあっても、行き先は決まっています。',
         },
         {
-          term: '約束できる分',
-          body: '手元から拘束済みを引いた額。新しい賞金が突き合わせられる唯一の数字です。そうしないと、会計担当が寝ている間に同じ 5000 万を二人の勝者に約束することになります。',
+          term: 'Available',
+          body: 'Confirmed total から Promised を引いた額。新しい賞金が突き合わせられる唯一の数字です。そうしないと、会計担当が寝ている間に同じ 5000 万を二人の勝者に約束することになります。',
         },
       ],
       note: {
@@ -2437,12 +2437,12 @@ const ja: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'もっともらしければ承認する',
-          body: '銀行の監査をしているわけではありません。写っているものが該当していて、アカウントが名簿にあり、時刻がイベント期間内なら、承認して次へ進んでください。',
+          term: 'もっともらしければ Looks fine を押す',
+          body: '銀行の監査をしているわけではありません。写っているものが該当していて、アカウントが名簿にあり、時刻がイベント期間内なら、**Looks fine** を押して次へ進んでください。',
         },
         {
-          term: '却下には理由を添える',
-          body: '説明のない却下は、1 時間以内にあなた宛ての DM として返ってきます。何が足りなかったのかを書けば、2 回目は正しくなります。',
+          term: '理由を添えて Remove',
+          body: '**Remove** では理由を入力する必要があり、チームもそれを見ます。何が足りなかったのかを書けば、2 回目は正しくなります。',
         },
         {
           term: '印の付いた提出は疑問であって告発ではない',
@@ -2462,7 +2462,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'プラグインのないプレイヤー向け。サイトがスキルを 1 つ無作為に選び、30 分以内にそのスキルで 1,000 経験値を稼いでもらいます。自動で判定されるので、あなたが見るのは失敗した分だけです。',
+          body: 'プラグインのないプレイヤー向け。サイトがスキルを 1 つ無作為に選び、30 分以内にそのスキルで 1,000 経験値を稼いでもらいます。サイトが自動で判定しますが、合格した場合も、経験値は誰かが訓練したことしか示さない（誰なのかは分からない）ため、**Needs review** に入ってあなたが yes か no を判断します。失敗したものは特に注意して確認してください。',
         },
         {
           term: '手動レビュー',
@@ -2478,7 +2478,7 @@ const ja: PartialGuideDict = {
     roster: {
       title: 'メンバー名簿を正しく保つ',
       body: [
-        'メンバー名簿の出どころは 1 つだけです：管理者が、クランウィンドウのタイトルバーの **Anvil** ボタン（またはプラグインのサイドパネルの **Sync roster**）から、ゲーム内のクラン一覧の同期を実行します。他のすべて —— 確認、紐づけ、参加登録 —— はそこにぶら下がっています。',
+        '名簿の出どころは 1 つだけです：管理者が、クランウィンドウのタイトルバーの **Anvil** ボタン（またはプラグインのサイドパネルの **Sync clan roster**）から、ゲーム内のクラン一覧の同期を実行します。他のすべて —— 確認、紐づけ、参加登録 —— はそこにぶら下がっています。',
         'だから保守の手間は小さいけれど実在します：勧誘のたびに管理者に同期を頼む（ゲーム内で加入したゲストがメンバーになります）、**Roster** タブの一番上にある参加申請に返答する、そして苦情が来るのを待たずに **Needs review** を片付ける。[メンバーの管理]({peopleGuide})を見てください。',
       ],
       note: {
@@ -3238,7 +3238,7 @@ const ja: PartialGuideDict = {
     roster: {
       title: '名簿はどこから来るのか',
       body: [
-        '名簿は、ゲーム内のクラン名簿をサイトに写したものです。管理者が Anvil プラグインを入れた RuneLite から送ります：クランウィンドウのタイトルバーにある **Anvil** ボタンか、プラグインのサイドパネルにある **Sync roster** を押します。名簿に載っている全員が、ゲーム内のランク付きで**メンバー**として入ってきます。送れるのはサイトで Admin の役割を持つ人だけで、それ以外の人にはゲーム内でその旨が表示されます。',
+        '名簿は、ゲーム内のクラン名簿をサイトに写したものです。管理者が Anvil プラグインを入れた RuneLite から送ります：クランウィンドウのタイトルバーにある **Anvil** ボタンか、プラグインのサイドパネルにある **Sync clan roster** を押します。名簿に載っている全員が、ゲーム内のランク付きで**メンバー**として入ってきます。送れるのはサイトで Admin の役割を持つ人だけで、それ以外の人にはゲーム内でその旨が表示されます。',
         '同期は、それだけで誰かをメンバーにできる唯一のものです。ゲーム内でクランを抜けた人は次の同期で「抜けた」扱いになり、戻ってきた人はその次の同期で戻ります。どちらの場合も履歴は残ります。',
         'それ以外の席はすべて**ゲスト**の席です：ゲーム内のクランには入っていないけれど、イベントに参加する人です。ゲストは記録され、イベントにも参加できます。メンバーではなく、プランの人数にも数えられません。',
       ],
@@ -3609,7 +3609,7 @@ const ja: PartialGuideDict = {
       { strong: '何も消えない', rest: 'やめたときも' },
     ],
     footnote:
-      'ここにあるものはすべて、ウェブサイトの **Settings** → **Supporter**、**Profile look**、**Clan boosts** で設定します。ブーストの詳細は[クランをブーストする]({boostsGuide})を、RuneLite で色がどこに出るかは[サイドパネルをタブごとに]({panelGuide})を見てください。',
+      'ここにあるものはすべて、ウェブサイトの **Settings** で設定します：**Account** → **Your plan & billing**、そして **Profile & look** の **Name colours** と **Clan boosts**。ブーストの詳細は[クランをブーストする]({boostsGuide})を、RuneLite で色がどこに出るかは[サイドパネルをタブごとに]({panelGuide})を見てください。',
 
     tiers: {
       title: '三つのティア',
@@ -3630,7 +3630,7 @@ const ja: PartialGuideDict = {
       ],
       note: {
         tag: '招待でもらえる期間',
-        body: 'Settings → Supporter に招待リンクがあります。招待した友だちが支払うと、無料の月がもらえます。報酬はその人の最初の支払いから 2 週間後に届きます。こうして得た期間には、クランブースト以外のそのティアの特典がすべて付きます。',
+        body: 'Settings → Account → Your plan & billing に招待リンクがあります。招待した友だちが支払うと、無料の月がもらえます。報酬はその人の最初の支払いから 2 週間後に届きます。こうして得た期間には、クランブースト以外のそのティアの特典がすべて付きます。',
       },
     },
 
@@ -3659,7 +3659,7 @@ const ja: PartialGuideDict = {
     names: {
       title: '名前の色',
       intro:
-        '**Settings** → **Supporter** の **Your name’s look** で設定します。プレビューには、暗い背景と明るい背景の上の自分の名前が表示されます。',
+        '**Settings** → **Profile & look** → **Name colours** で設定します。プレビューには、暗い背景と明るい背景の上の自分の名前が表示されます。',
       rows: [
         {
           term: 'Supporter',
@@ -3709,13 +3709,13 @@ const ja: PartialGuideDict = {
       ],
       note: {
         tag: '自分のものと証明されたキャラクターだけ',
-        body: '色が出るのは、サイトでもゲーム内でも、プラグインがあなたのものだと確認したキャラクターだけです。ほかの人のゲーム内チャットで自分の名前に色を出したくなければ、Settings → Supporter の **Show my colours on my characters’ names in game chat** のチェックを外してください。',
+        body: '色が出るのは、サイトでもゲーム内でも、プラグインがあなたのものだと確認したキャラクターだけです。ほかの人のゲーム内チャットで自分の名前に色を出したくなければ、Settings → Account → Your plan & billing の **Show my colours on my characters’ names in game chat** のチェックを外してください。',
       },
     },
 
     profile: {
       title: 'アバター、バナー、陳列ケース',
-      intro: '三つとも **Settings** → **Profile look** にあります。',
+      intro: '三つとも **Settings** → **Profile & look** にあります。',
       rows: [
         {
           term: 'アバターとバナー',
@@ -3764,7 +3764,7 @@ const ja: PartialGuideDict = {
         '支払います。Gumroad から Anvil に知らせが届いた時点で特典が有効になり、Supporter のページにあなたのティアが **Your tier** として表示されます。',
       ],
       outro:
-        'ティアを変えるには、Settings → Supporter の **Change tier** を使います。解約やカードの更新は、同じ場所の **Manage on Gumroad** から行います。解約したメンバーシップでも、支払い済みの期間が終わるまで特典はすべて残ります。',
+        'ティアを変えるには、Settings → Account → Your plan & billing の **Change tier** を使います。解約やカードの更新は、同じ場所の **Manage on Gumroad** から行います。解約したメンバーシップでも、支払い済みの期間が終わるまで特典はすべて残ります。',
       note: {
         tag: '必ず /supporter から始める',
         body: '**Choose** ボタンには、どのアカウントが支払ったかを Anvil に伝えるコードが付いています。Anvil はメールアドレスで支払いを照合しないので、そのボタンを使わずに Gumroad で直接買うと、支払いがどのアカウントにも紐づきません。そうなってしまったら Anvil の Discord で相談してください。スタッフが手作業であなたのアカウントに紐づけます。',
@@ -3795,7 +3795,7 @@ const ja: PartialGuideDict = {
       ],
       note: {
         tag: 'Anvil スタッフからの一時的なアップグレード',
-        body: 'スタッフは、お礼などとして、誰かに一定期間上のティアを渡せます。これは支払っているものの上に重なるだけで、サブスクリプションは変わりません。Settings → Supporter に **A gift from Anvil** といつ終わるかが表示され、終わったら支払っているティアに戻ります。ギフトでクランブーストの枠が付くのは、スタッフがそれを含めたときだけです。',
+        body: 'スタッフは、お礼などとして、誰かに一定期間上のティアを渡せます。これは支払っているものの上に重なるだけで、サブスクリプションは変わりません。Settings → Account → Your plan & billing に **A gift from Anvil** といつ終わるかが表示され、終わったら支払っているティアに戻ります。ギフトでクランブーストの枠が付くのは、スタッフがそれを含めたときだけです。',
       },
     },
   },
@@ -3855,7 +3855,7 @@ const ja: PartialGuideDict = {
         {
           term: 'イベント',
           body:
-            'ライブ中と開始予定のすべてのボード、Skill・Boss of the Week、クランのイベントを、あなたの順位とともに表示します。その後に **Your other boards**、**Also live**、**Your clan** が続きます。',
+            'ライブ中と開始予定のすべてのボード、Skill・Boss of the Week、クランのイベントを、あなたの順位とともに表示します。その後に **Running**、**Coming up**、**Also live**、**Your clan** が続きます。',
         },
         {
           term: 'ボード',
@@ -3868,7 +3868,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'クランのイベント',
-          body: 'イベントに応じて **I’m going**、**Sign me up**、**Answer the survey** が表示されます。',
+          body: 'イベントに応じて **I’m going**、**Register**（ホストが質問を持っている場合は **Register on Anvil**）、または **Answer the survey** が表示されます。',
         },
       ],
     },
@@ -3894,7 +3894,7 @@ const ja: PartialGuideDict = {
       ],
       note: {
         tag: 'ゲーム内のチャットフィードとは別物',
-        body: 'Feed タブはプラグインの設定に関係なく動きます。**Show feed in game chat**（ステップ 8）は、それをチャットボックスにも表示する別の設定です。',
+        body: 'Feed タブはプラグインの設定に関係なく動きます。**Anvil messages in chat**（ステップ 8）は、それをチャットボックスにも表示する別の設定です。',
       },
     },
 
@@ -3937,7 +3937,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '送信',
-          body: '入力欄に書いて Enter を押します。行は最大200文字で、リンクを投稿できるのはホストとモッズだけです。',
+          body: '入力欄に書いて Enter を押します。行は最大 80 文字まで（それより長いものは拒否されます）で、リンクを投稿できるのはホストとモッズだけです。',
         },
         {
           term: '投稿の間隔',
@@ -4006,27 +4006,19 @@ const ja: PartialGuideDict = {
     settings: {
       title: '見えるものを変える設定',
       intro:
-        'RuneLite の Anvil の設定の **Chat messages** にあります。最初はすべてオンです。',
+        'RuneLite の Anvil の設定の **General** にあります。最初はすべてオンです。',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: 'フィードを、起きたそばからチャットボックスにも表示します：主催者がオンにしたボードやゲストとして参加しているクランの大きなドロップ・ペット・アチーブメント、チームメイトのマスの進み具合、ほかのチームが完了したマス。',
         },
         {
           term: 'Supporter names in chat',
-          body: '公開・クラン・フレンド・個人チャット、そしてフレンドリストとチャンネルのメンバー一覧で、Supporter の色（と Patron の星マーク）を表示します。名前の一覧は Anvil からダウンロードされ、あなたが誰を見ているかについては何も送られません。',
+          body: '公開・クラン・フレンド・個人チャット、そしてフレンドリストとチャンネルのメンバー一覧で、Supporter の色（と Patron の星マーク）を表示します。名前の一覧は Anvil からダウンロードされ、あなたが誰を見ているかについては何も送られません。**Animated**（Patron のグラデーションが流れます）、**Still colours**、**Off** から選べます。',
         },
         {
-          term: 'Animated names',
-          body: 'パネル、Feed、イベントチャットで Patron のグラデーションを流します。オフにすると止まったままになります。次のプラグイン更新では、ブーストされたクラン名とパネルの動くバナーにも効くようになります。',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: '右クリックしたときに、Supporter の名前をその人の色で表示します。PvP ワールドとウィルダネスでは出ません。',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: 'オンにすると、Player Indicators などほかのプラグインが付けた名前の色を、Supporter の色で置き換えます。オフなら、そうした名前には手を付けません。',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: '右クリックしたときや、フレンドリストとチャンネルのメンバー一覧で、Supporter の名前をその人の色で表示します。ブーストされたクランの名前はクランパネルにも表示されます。PvP ワールドとウィルダネスでは出ません。',
         },
       ],
     },
@@ -4045,7 +4037,7 @@ const ja: PartialGuideDict = {
       { strong: '週に一度', rest: 'ブーストを移せる' },
     ],
     footnote:
-      'メンバーは **Settings** → **Clan boosts** でブーストを置きます。クランのスタッフは Admin → **Clan settings** → **Boosts** でレベルと設定を確認します。ティアそのものについては[Anvil Supporter：ティアと特典]({supporterGuide})を見てください。',
+      'メンバーはブーストを **Settings** → **Profile & look** → **Clan boosts** で置きます。クランのスタッフは Admin → **Clan settings** → **Boosts** でレベルと設定を確認します。ティアそのものについては[Anvil Supporter：ティアと特典]({supporterGuide})を見てください。',
 
     what: {
       title: '誰がブーストを持っているか',
@@ -4059,7 +4051,7 @@ const ja: PartialGuideDict = {
         },
       ],
       outro:
-        'ブーストはキャラクターではなくあなたのものです：三つのクランに三人のキャラクターがいても、ブーストは一組を共有します。**Settings** → **Clan boosts** が設定に出るのは、Supporter である間か、まだブーストを置いている間だけです。',
+        'ブーストはキャラクターではなくあなたのものです：三つのクランに三人のキャラクターがいても、ブーストは一組を共有します。**Settings** → **Profile & look** → **Clan boosts** は常に表示されますが、スロットをもらえるのは Champion または Patron のメンバーシップだけです。それ以外の場合は、ルールと Supporter へのリンクが表示されます。',
     },
 
     place: {
@@ -4068,7 +4060,7 @@ const ja: PartialGuideDict = {
       steps: [
         '**Settings** → **Clan boosts** を開きます。**Your boosts** に、置いたブーストと空いている **Free slot** が並びます。',
         '**Clans you can boost** で、クランの横の **Boost** を押します。クラン自身のページの Boosters 欄にある **Boost this clan** でも置けます。',
-        '移すには、その行の **Move to…** で別のクランを選びます。**Remove** で外せます。',
+        '移すには、その行の **Move** を押し、**Move to…** で別のクランを選びます。**Remove** で外せます。',
       ],
       rows: [
         {
@@ -4167,7 +4159,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'Recruitment post in the Anvil Discord',
-          body: 'レベル 3。暦の月に一度、20〜500 文字。あなたが書き、**Post it** を押したときにクランページへのリンク付きで投稿されます。メンションは取り除かれ、誰にも通知は飛びません。翌月までは編集も、もう一度送ることもできません。',
+          body: 'レベル 3。暦の月に一度、20〜500 文字。あなたが書き、**Post to the Anvil Discord** を押してから **Post it** で確定したときに、クランページへのリンク付きで投稿されます。メンションは取り除かれ、誰にも通知は飛びません。翌月までは編集も、もう一度送ることもできません。',
         },
         {
           term: 'Boosters',
@@ -4316,7 +4308,7 @@ const ja: PartialGuideDict = {
       title: '設定を探す',
       body: [
         '最初のページ **Overview & search** には検索ボックスがあります。やりたいことを自分の言葉で入力してください。例：_private messages_、_rare drop value_、_death message_、_name colour_、_plugin token_。適切なスイッチへ案内します。',
-        '左側のメニューには 2 つのグループがあります。**Account** には以下のページがあります。**Characters** には、リンクしたキャラクターごとに 1 ページ（メインには **main** の印が付きます）と、その下に **Add character**。**Add character** の数字は、まだリンクしていないキャラクターでプレイしているのを Anvil が検出したことを意味します。',
+        '左側のメニューには 5 つのページがあります：**Profile & look**、**Characters**、**In game**、**Posts & alerts**、**Account**。**Characters** の下には、リンクしたキャラクターごとに 1 ページ（メインには **main** の印が付きます）があり、その後に **Add character** が続きます。**Add character** の数字は、まだリンクしていないキャラクターでプレイしているのを Anvil が検出したことを意味します。',
       ],
     },
     posts: {
@@ -4333,7 +4325,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '投稿先',
-          body: '**Post my drops and levels in clans where I am a guest**、そして **Level posts in clan channels**：**Clan rules**、**Only 99s & max**、または **Off**。**Per character** には各キャラクターが並び、**Clans →** リンクで、1 つのクランへの投稿をオフにできます。',
+          body: '**Post my drops and levels in clans where I am a guest**（オンにするまではオフ）、そして **Level posts in clan channels**：**Clan rules**、**Only 99s & max**、または **Off**。**Per character** には各キャラクターが並び、**Clans →** リンクで、1 つのクランへの投稿をオフにできます。',
         },
         {
           term: '種類ごとのスクリーンショット',
@@ -4363,7 +4355,7 @@ const ja: PartialGuideDict = {
     },
     chat: {
       title: 'ゲーム内チャットフィード',
-      intro: 'プラグイン設定 **Show feed in game chat** がオンのとき、プラグインがチャットボックスに表示する内容。',
+      intro: 'プラグイン設定 **Anvil messages in chat** がオンのとき、プラグインがチャットボックスに表示する内容。',
       rows: [
         {
           term: '発生元',
@@ -4389,15 +4381,15 @@ const ja: PartialGuideDict = {
       rows: [
         {
           term: 'プラグイン接続',
-          body: 'プラグインのトークン。手で貼り付けるまれなケース用です。通常は、サイドパネルの **Sign in with Discord** がこれを自動で行います。',
+          body: '**In game** の下にあるプラグインのトークン。手で貼り付けるまれなケース用です。作成時に一度だけ発行され、**Reveal** を押すまで伏せられ、**Revoke all** ですべてのトークンを取り消せます。通常は、サイドパネルの **Sign in with Discord** がこれを自動で行います。',
         },
         {
           term: 'ログインとデバイス',
-          body: 'プラグインがサインインしているすべてのコンピュータを、作成日時と最終使用日時とともに **RuneLite sign-in 1**、**2**… の形で表示します。**Revoke** で 1 台をサインアウトします（例：売却したコンピュータ）。**Enter a code** で別のコンピュータをリンクします。**Sessions** は、すべての場所でウェブサイトからサインアウトします。',
+          body: '**Account** の下：プラグインがサインインしているすべてのコンピュータを、作成日時と最終使用日時とともに **RuneLite sign-in 1**、**2**… の形で表示します。**Revoke** で 1 台をサインアウトします（例：売却したコンピュータ）。**Enter a code** で別のコンピュータをリンクします。**Sessions** は、すべての場所でウェブサイトからサインアウトします。',
         },
         {
           term: 'クランの請求',
-          body: 'クランのオーナーは、ここで **Open portal →** を押すと、クランの請求画面を開けます。',
+          body: '**Account** の下にある **Open portal →** で、クランの請求画面を開けます（クランのオーナーのみ）。',
         },
       ],
     },
@@ -4432,11 +4424,11 @@ const ja: PartialGuideDict = {
       rows: [
         {
           term: 'Supporter と名前の色',
-          body: 'あなたのティア、特典、招待リンク：友達を連れてくると、無料の月を獲得できます。ティアは [Anvil Supporter]({supporterGuide}) で説明しています。',
+          body: '**Account** → **Your plan & billing** で確認できる、あなたのティア、特典、招待リンク：友達を連れてくると、無料の月を獲得できます。ティアは [Anvil Supporter]({supporterGuide}) で説明しています。',
         },
         {
           term: 'プロフィールの見た目',
-          body: 'アバターとバナー（Champion からはアニメーション）。好みで、キャラクターごとに異なるものを設定できます。また **Display case**：ティアに応じて 4、8、または 12 個のピン。',
+          body: '**Profile & look** の下で：アバターとバナー（Champion からはアニメーション）。好みで、キャラクターごとに異なるものを設定できます。また **Display case**：ティアに応じて 4、8、または 12 個のピン。',
         },
         {
           term: '配信アカウント',
@@ -4444,7 +4436,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'クランのブースト',
-          body: 'ブーストできるようになって初めて表示されます：あなたのスロット、その配置、ブーストできるクラン。[Boosting a clan]({boostsGuide}) を参照してください。',
+          body: '**Profile & look** の下で：あなたのスロット、その配置、ブーストできるクラン。Champion または Patron のメンバーシップがない場合は、ルールが表示されます。[Boosting a clan]({boostsGuide}) を参照してください。',
         },
       ],
     },
@@ -4534,7 +4526,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '開始ライン',
-          body: '各プレイヤーの **Started at**、**Now**、**Gained**。コンペ前の作業がカウントされていた場合は、開始ラインを手で修正すると、リーダーボードも追従します。**Pull current stats** で全員を更新できます。**Reset baselines** は、全員を今のハイスコアから開始し直し、すべての増加分を消去します。',
+          body: '各プレイヤーの **Started at**、**Now**、**Gained**。コンペ前の作業がカウントされていた場合は、開始ラインを手で修正すると、リーダーボードも追従します。**Pull current stats** で全員を更新できます。**Reset every baseline** は、全員を今のハイスコアから開始し直し、すべての増加分を消去します。',
         },
         {
           term: '参加者',
@@ -4767,7 +4759,7 @@ const ja: PartialGuideDict = {
     players: {
       title: 'メンバーに見えるもの',
       body: [
-        'イベントページには **When**、**Where**、**Host**、**Discord**、**Entry**、**Prizes** が表示され、放送中は **Live now** が出ます。メンバーは **I’m going** または **Sign me up** を押します。スタッフが一人ずつ承認する場合は **Ask to sign up** です。プラグインのサイドパネルの **Clan** タブにも、同じボタンとともに表示されます。',
+        'イベントページには **When**、**Where**、**Host**、**Discord**、**Entry**、**Prizes** が表示され、放送中は **Live now** が出ます。メンバーは **I’m going** または **Register** を押します。スタッフが一人ずつ承認する場合は **Ask to sign up** です。プラグインのサイドパネルの **Clan** タブにも、同じボタンとともに表示されます。',
         '参加する意思を示せたり、参加登録できたりするのは、クランのメンバーだけです。',
       ],
     },
@@ -4929,7 +4921,7 @@ const ja: PartialGuideDict = {
       title: '参加できるイベントを探す',
       body: [
         '[Events](/events) は、Anvil 全体で今行われているものと、これから開催されるものを一覧表示します。**Live now**、**Open to join**、**Starting this week** で、フォーマットや **Solo** で、**Anyone can join** または **Ask or meet a rule** で、そして **Clans** または **Creators** で絞り込めます。**Join** で参加登録画面へ移動します。',
-        'ホストが **Advertise on Anvil** をオンにしたイベントだけが表示されます。メンバー限定と招待制のイベントは、決して表示されません。',
+        'ホストが **List on Anvil** をオンにしたイベントだけが表示されます。メンバー限定と招待制のイベントは、決して表示されません。',
       ],
     },
     ghost: {
