@@ -256,3 +256,22 @@ export function parseClanPrefix(path: string): { kind: AddressKind; slug: string
 export function stripClanPrefix(path: string): string {
   return path.replace(TENANT_PREFIX_RE, '') || '/';
 }
+
+/**
+ * The sign-in link that comes back to `path` afterwards, with the tenant prefix kept.
+ *
+ * THE one place a `/login?return=` for "the page you are on" is built. `path` is whatever the
+ * caller has: under a `/c/<slug>` address the server sees the path with the prefix already taken
+ * off (`/members`), the browser sees it with the prefix on; `prefix` is the tenant the request is
+ * under ('' on the apex). Either way the return names the clan page, not a platform page of the
+ * same name: without the prefix, signing in from a clan's page landed on the apex.
+ */
+export function loginHref(prefix: string, path: string | null | undefined): string {
+  const p = path && path.startsWith('/') ? path : '/';
+  let target: string;
+  if (parseClanPrefix(p)) target = p;
+  else if (prefix && (p === '/' || p.startsWith('/?'))) target = `${prefix}${p.slice(1)}`;
+  else target = withClanPrefix(prefix, p);
+  if (target === '/' || target === '/login' || target.startsWith('/login?')) return '/login';
+  return `/login?return=${encodeURIComponent(target)}`;
+}
