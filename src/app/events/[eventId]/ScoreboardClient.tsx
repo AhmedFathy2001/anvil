@@ -184,7 +184,6 @@ interface Props {
    * The viewer's OWN teams' plans (lib/tileClaims), by team id: who is going for which tile. From the
    * server page, so the board's hover card never fetches. Never holds another team's.
    */
-  ownClaims?: Record<number, { tileId: number; name: string; mine: boolean }[]>;
 }
 
 /**
@@ -217,7 +216,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], proofTeamId = null, signedIn = false, manyTeams = false, teamMembers, ownClaims }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], proofTeamId = null, signedIn = false, manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -494,17 +493,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     }
     return best;
   }, [tiles, submissions, completions, boardTeamId]);
-  // Who on the viewer's own team is going for each tile: through their own team's lens, or with
-  // nobody picked when they are on exactly one team here.
-  const claimedByMap = useMemo(() => {
-    const ownIds = Object.keys(ownClaims ?? {}).map(Number);
-    const teamId = boardTeamId ?? (ownIds.length === 1 ? ownIds[0] : null);
-    const rows = teamId != null ? ownClaims?.[teamId] : undefined;
-    if (!rows || rows.length === 0) return null;
-    const map = new Map<number, { name: string; mine: boolean }[]>();
-    for (const r of rows) map.set(r.tileId, [...(map.get(r.tileId) ?? []), { name: r.name, mine: r.mine }]);
-    return map;
-  }, [ownClaims, boardTeamId]);
 
   // ---- Format surfaces -------------------------------------------------------------------------
   // Every format below is multi-claim: each team can complete every tile, so nothing here is "who
@@ -801,7 +789,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             onTileIntent={intentTile}
             statProgress={statProgressMap}
             dropProgress={dropProgressMap}
-            claimedBy={claimedByMap}
             expanded
             pointsMode={pointsMode}
             matchedTileIds={null}
@@ -1198,7 +1185,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             onTileIntent={intentTile}
             statProgress={statProgressMap}
             dropProgress={dropProgressMap}
-            claimedBy={claimedByMap}
             expanded={fullscreen}
             pointsMode={pointsMode}
             matchedTileIds={matchedTileIds}
