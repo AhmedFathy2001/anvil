@@ -6,17 +6,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { weeklyLifecycleSteps, weeklyStage, type WeeklyCounts } from '../src/lib/weeklyStage.ts';
+import { weeklyLifecycleSteps, weeklyStage, weeklyStatus, type WeeklyCounts } from '../src/lib/weeklyStage.ts';
 
 const NOW = Date.parse('2026-08-14T12:00:00Z');
 const iso = (days: number) => new Date(NOW + days * 86_400_000).toISOString();
 
 const FULL: WeeklyCounts = { participants: 12, withBaseline: 12, moving: 7, flagged: 0, leavers: 0 };
 
-test('the recorded status wins over the clock', () => {
-  // Mid-window but marked complete: the badge, the public page and the workspace must agree.
+test('completed sticks; the clock decides everything else', () => {
   assert.equal(weeklyStage({ startDate: iso(-2), endDate: iso(5), status: 'completed' }, NOW), 'wrap');
-  assert.equal(weeklyStage({ startDate: iso(-2), endDate: iso(5), status: 'upcoming' }, NOW), 'build');
+  // A stale recorded status never beats the dates.
+  assert.equal(weeklyStage({ startDate: iso(-2), endDate: iso(5), status: 'upcoming' }, NOW), 'run');
+  assert.equal(weeklyStage({ startDate: iso(-30), endDate: iso(-24), status: 'active' }, NOW), 'wrap');
+  assert.equal(weeklyStatus({ startDate: iso(-30), endDate: iso(-24), status: 'active' }, NOW), 'completed');
+  assert.equal(weeklyStatus({ startDate: iso(2), endDate: iso(9), status: 'active' }, NOW), 'upcoming');
+});
+
+test('space-separated stored dates are read as UTC', () => {
+  assert.equal(weeklyStatus({ startDate: '2026-08-01 00:00:00', endDate: '2026-08-08 00:00:00', status: 'active' }, NOW), 'completed');
 });
 
 test('an active competition follows its window', () => {

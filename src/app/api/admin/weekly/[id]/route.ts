@@ -1,3 +1,4 @@
+import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
 import { parseCompetitionMode } from '@/lib/competitionTeams';
 import { setCompetitionMode } from '@/lib/competitionTeamsDb';
@@ -88,6 +89,12 @@ export async function PUT(
         ? repeat.rotation.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0).slice(0, 52)
         : null;
     await setWeeklyRepeat(scoped.clanId, compId, repeat ? { rotation: rotation && rotation.length > 0 ? rotation : null } : null);
+  }
+
+  const finalStart = parseStamp(startDate !== undefined ? startDate : scoped.startDate);
+  const finalEnd = parseStamp(endDate !== undefined ? endDate : scoped.endDate);
+  if ((startDate !== undefined || endDate !== undefined) && finalStart !== null && finalEnd !== null && finalEnd <= finalStart) {
+    return NextResponse.json({ error: 'The end has to come after the start.' }, { status: 400 });
   }
 
   const updates: Record<string, unknown> = {};

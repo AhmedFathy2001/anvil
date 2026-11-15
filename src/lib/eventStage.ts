@@ -10,6 +10,8 @@
 // Node type-stripping, the same way lib/eventReadiness and lib/eventRules do. Callers pass the
 // counts in.
 
+import { parseStamp } from './dbTime.ts';
+
 export type EventStage = 'build' | 'run' | 'wrap';
 
 export interface StageEvent {
@@ -28,9 +30,11 @@ export interface StageEvent {
  */
 export function eventStage(event: StageEvent, now: number = Date.now()): EventStage {
   if (event.forceEndedAt) return 'wrap';
-  if (event.endDate && Date.parse(event.endDate) <= now) return 'wrap';
-  if (!event.startDate) return 'build';
-  return Date.parse(event.startDate) <= now ? 'run' : 'build';
+  const end = parseStamp(event.endDate);
+  if (end !== null && end <= now) return 'wrap';
+  const start = parseStamp(event.startDate);
+  if (start === null) return 'build';
+  return start <= now ? 'run' : 'build';
 }
 
 export interface StageCounts {
@@ -147,7 +151,7 @@ export function lifecycleSteps(
 
 function startsLabel(event: StageEvent, now: number): string {
   if (!event.startDate) return 'not scheduled';
-  const ms = Date.parse(event.startDate) - now;
+  const ms = (parseStamp(event.startDate) ?? now) - now;
   if (ms <= 0) return 'due to start';
   return `starts in ${humanDays(ms)}`;
 }

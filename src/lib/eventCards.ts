@@ -7,6 +7,8 @@ import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { hasRevealPolicy, parseEventRules } from '@/lib/eventRules';
 import { eventShapeBadge, isPointsMode } from '@/lib/utils';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { eventStage } from '@/lib/eventStage';
+import { START_WAITING_WORDS } from '@/lib/eventsDirectory';
 
 /**
  * One event, reduced to what a card needs.
@@ -107,14 +109,13 @@ export async function loadEventCards(
     .orderBy(desc(events.createdAt));
 
   // A draft has no start date and no forced end: the host is still building it, so it is not public.
-  const isDraft = (e: (typeof all)[number]) => !e.forceEndedAt && !e.startDate;
-  const live = all.filter(
-    (e) => !e.forceEndedAt && !isDraft(e) && !(e.endDate && e.endDate < nowIso) && !(e.startDate && e.startDate > nowIso),
-  );
-  const upcoming = opts.includeUpcoming
-    ? all.filter((e) => !e.forceEndedAt && !!e.startDate && e.startDate > nowIso)
-    : [];
-  const past = all.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < nowIso));
+  // ONE derivation (lib/eventStage) for live / upcoming / past, so a card can never disagree with
+  // the event page's badge, and an event past its end date can't sit under "Happening now".
+  const nowMs = Date.parse(nowIso);
+  const stageOf = (e: (typeof all)[number]) => eventStage(e, nowMs);
+  const live = all.filter((e) => !!e.startDate && stageOf(e) === 'run');
+  const upcoming = opts.includeUpcoming ? all.filter((e) => !!e.startDate && stageOf(e) === 'build') : [];
+  const past = all.filter((e) => stageOf(e) === 'wrap');
   const shownPast = opts.pastLimit != null ? past.slice(0, opts.pastLimit) : past;
   const shown = [...live, ...upcoming, ...shownPast];
   if (shown.length === 0) return [];
@@ -307,7 +308,9 @@ export async function loadEventCards(
       foot:
         status === 'upcoming'
           ? event.startDate
-            ? `starts ${dateShort(event.startDate)}`
+            ? event.startHoldNotified === 1 && !event.startNotified
+              ? START_WAITING_WORDS
+              : `starts ${dateShort(event.startDate)}`
             : 'not scheduled yet'
           : status === 'live'
             ? event.endDate

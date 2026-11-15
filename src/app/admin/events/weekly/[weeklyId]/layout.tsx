@@ -44,7 +44,7 @@ export default async function WeeklyLayout({
     stage === 'wrap'
       ? { label: 'Ended', cls: 'bg-text-muted/15 text-text-muted border-text-muted/25' }
       : stage === 'run'
-        ? { label: 'Active', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
+        ? { label: 'Live', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
         : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' };
 
   const rail = weeklyRailGroups({ weeklyId: id, stage, counts, mode: comp.mode });

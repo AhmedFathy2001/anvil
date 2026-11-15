@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { clanStreaks } from '@/lib/activityStreaks';
 import { clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
@@ -162,7 +163,13 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'completed')))
       .then((r) => r[0]?.c ?? 0),
   ]);
-  const railComps = [...live, ...upcoming, ...finished].slice(0, RAIL_LIMIT);
+  // The recorded status lags the clock, so bucket by the shared derivation (lib/weeklyStage): a week
+  // past its end date is finished here even if the cron has not flipped it yet.
+  const nowMs = now.getTime();
+  const pool = [...new Map([...live, ...upcoming, ...finished].map((c) => [c.id, c])).values()];
+  const byStatus = (st: 'active' | 'upcoming' | 'completed') =>
+    pool.filter((c) => weeklyStatus(c, nowMs) === st).sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+  const railComps = [...byStatus('active'), ...byStatus('upcoming'), ...byStatus('completed')].slice(0, RAIL_LIMIT);
 
   const railIds = railComps.map((c) => c.id);
   const partRows = railIds.length
@@ -261,7 +268,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       type,
       metricLabel: metricLabel(c.type, c.metric),
       iconUrl: competitionIconUrl(c.type, c.metric),
-      status: (c.status as HomeWeekly['status']) ?? 'completed',
+      status: weeklyStatus(c, nowMs),
       startDate: c.startDate,
       endDate: c.endDate,
       entrants: parts.length,
