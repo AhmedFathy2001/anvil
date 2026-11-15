@@ -1,5 +1,6 @@
 'use client';
 
+import ScrollStrip from '@/components/ScrollStrip';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 export interface SectionPage {
@@ -38,13 +39,14 @@ export default function SectionHeader({ pages }: { pages: SectionPage[] }) {
       </header>
       {visible.length > 1 && (
         <div className="relative -mx-1 mb-8">
-          <nav className="flex items-center gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden px-1">
+          <ScrollStrip className="flex items-center gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden px-1">
             {visible.map((p) => {
               const active = p === here;
               return (
                 <ClanLink
                   key={p.href}
                   href={p.href}
+                  aria-current={active ? 'page' : undefined}
                   className={`relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
                     active ? 'text-gold-light' : 'text-text-muted hover:text-foreground'
                   }`}
@@ -57,7 +59,7 @@ export default function SectionHeader({ pages }: { pages: SectionPage[] }) {
                 </ClanLink>
               );
             })}
-          </nav>
+          </ScrollStrip>
         </div>
       )}
     </>

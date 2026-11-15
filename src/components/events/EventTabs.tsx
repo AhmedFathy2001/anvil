@@ -1,5 +1,6 @@
 'use client';
 
+import ScrollStrip from '@/components/ScrollStrip';
 import { useState, type ReactNode } from 'react';
 import ClanLink from '@/components/ClanLink';
 import type { EventTabsData } from '@/lib/eventTabs';
@@ -44,7 +45,7 @@ export default function EventTabs({
 
   return (
     <div id={rules ? 'rules' : undefined} className="mb-6 scroll-mt-20">
-      <nav
+      <ScrollStrip
         aria-label="Event pages"
         className="flex items-stretch gap-0.5 overflow-x-auto border-b border-card-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -114,7 +115,7 @@ export default function EventTabs({
             Moderate
           </ClanLink>
         )}
-      </nav>
+      </ScrollStrip>
       {rules && open && (
         <div id="event-rules-panel" className="rounded-b-xl border border-t-0 border-card-border bg-card-bg p-4">
           {rules}

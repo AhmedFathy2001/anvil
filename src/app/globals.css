@@ -428,15 +428,16 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
   }
 }
 
-/* Edge fade for sideways-scrolling tab strips: the strip's own scroll shadow, so "there is more
-   this way" shows without a scrollbar. Used by TabFade (components/TabFade.tsx). */
-.tab-fade {
-  --fade: 1.75rem;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    #000 var(--fade-l, 0px),
-    #000 calc(100% - var(--fade-r, 0px)),
-    transparent 100%
-  );
+/* Edge fade for sideways-scrolling tab strips (components/ScrollStrip.tsx sets --fade-l/--fade-r to
+   28px on whichever edge has more beyond it). Phones only. */
+@media (max-width: 639.98px) {
+  .tab-fade {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--fade-l, 0px),
+      #000 calc(100% - var(--fade-r, 0px)),
+      transparent 100%
+    );
+  }
 }
