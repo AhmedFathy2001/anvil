@@ -1548,7 +1548,7 @@ export const users = pgTable('users', {
   // person only guests until they switch it on in Settings ("Post my drops and levels in clans where
   // I am a guest" — the UI shows the inverse of this column), or allow one clan from a character's
   // page. The clan's own veto ("Only announce your own members") still wins. History: 0080 quiet,
-  // 0086 announce, 0263 quiet again.
+  // 0086 announce, 0264 quiet again.
   blockGuestEmissions: boolean('block_guest_emissions').notNull().default(true),
   // Level / XP milestone posts (lib/levelRules). On the LOGIN, like the guest toggle above and the
   // personal webhooks, so the choice follows the person into every clan.
