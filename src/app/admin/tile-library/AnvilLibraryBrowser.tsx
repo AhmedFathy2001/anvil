@@ -100,6 +100,15 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
   }
 
   async function answer(rowIds: number[], a: 'take' | 'keep') {
+    if (a === 'take' && rowIds.length > 1) {
+      const ok = await confirm({
+        title: `Replace ${rowIds.length} of your edited tasks with Anvil’s?`,
+        body: 'Your changes to these tasks are overwritten and they follow Anvil again. This can’t be undone.',
+        confirmLabel: `Replace ${rowIds.length}`,
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       await clanFetch('/api/admin/library/offers', {
