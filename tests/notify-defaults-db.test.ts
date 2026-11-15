@@ -101,7 +101,8 @@ test('personal webhooks: their drop filters are read, and unset ones fall back t
   assert.ok(mid);
   assert.equal(mid.clan, false);
   assert.deepEqual(mid.hooks, [loose.id]);
-  const rich = J.judgeDropFor({ source: 'X', sourceKind: 'npc', items: [{ id: 2, name: 'Rich', qty: 1, value: 9_000_000 }] }, ctx, hooks);
+  // Zulrah has a drop table, so rarity can be asked (a source with none posts on value alone).
+  const rich = J.judgeDropFor({ source: 'Zulrah', sourceKind: 'npc', items: [{ id: 2, name: 'Rich', qty: 1, value: 9_000_000 }] }, ctx, hooks);
   assert.ok(rich);
   assert.equal(rich.clan, true);
   assert.deepEqual(rich.hooks.sort(), [plain.id, loose.id].sort()); // the "both" hook wants rarity too

@@ -1,6 +1,6 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import type { GuaranteedDrops } from '@/lib/dropFacts';
-import { dropGates, hookGates, modeGate, type ClanDropSettings, type DropGates, type HookDropFilter, type NotifyPrefs } from '@/lib/notifyPrefs';
+import { DROP_MINIMUMS, dropGates, hookGates, modeGate, type ClanDropSettings, type DropGates, type HookDropFilter, type NotifyPrefs } from '@/lib/notifyPrefs';
 
 /**
  * Which drops post to the clan, decided here instead of in the plugin. The plugin screenshots in the
@@ -251,6 +251,9 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: D
   // only when the main game AND the mode ask; each clan's channel then applies its exact filter
   // (modeDropAllows), and `modeOnly` still marks what the main game alone would not have posted.
   const combine = ctx.mode && !ctx.mode.dropBoth ? 'or' : gates.mode;
+  // A source with no drop table on record (a raid chest, a clue casket, a pickpocket): rarity can't be
+  // asked of its loot, so under 'both' the value alone decides.
+  const known = KINDS.has(c.sourceKind ?? '') && !!c.source && dropTables().has(c.source.toLowerCase());
   let modeOnly = true;
   const qualifying: (CandidateItem & { rate: number | null })[] = [];
   for (const it of c.items) {
@@ -260,12 +263,12 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: D
       const p = dropRarity(c.sourceKind, c.source, it, ctx.nameOf);
       if (p != null && p > 0 && lte(p, 1 / rarityGate)) rate = p;
     }
-    if (!dropPasses(combine, valueGate, rarityGate, valueOk, rate != null)) continue;
+    if (!dropPasses(combine, valueGate, known ? rarityGate : 0, valueOk, rate != null)) continue;
     qualifying.push({ ...it, rate });
     modeOnly &&= !dropPasses(
       gates.mode,
       mainValue,
-      mainRarity,
+      known ? mainRarity : 0,
       mainValue > 0 && it.value >= mainValue,
       rate != null && mainRarity > 0 && lte(rate, 1 / mainRarity),
     );
@@ -287,6 +290,8 @@ export function dropPasses(mode: 'or' | 'and', valueGate: number, rarityGate: nu
 export interface DropVerdict {
   facts: Record<string, unknown>;
   clan: boolean;
+  /** It would also post at Anvil's own minimums: a clan the person only guests in takes nothing looser. */
+  shared: boolean;
   hooks: number[];
 }
 
@@ -311,7 +316,9 @@ export function judgeDropFor(c: DropCandidate, ctx: JudgeContext, hooks: HookDro
     ids.push(h.id);
     facts ??= own;
   }
-  return facts ? { facts, clan: !!person, hooks: ids } : null;
+  const strict = { ...base, value: base.value > 0 ? Math.max(DROP_MINIMUMS.value, base.value) : 0, rarity: base.rarity > 0 ? Math.max(DROP_MINIMUMS.rarity, base.rarity) : 0 };
+  const shared = !!person && (c.notable != null || c.key === true || (strict.value === base.value && strict.rarity === base.rarity) || !!judgeDrop(c, ctx, strict));
+  return facts ? { facts, clan: !!person, shared, hooks: ids } : null;
 }
 
 /**

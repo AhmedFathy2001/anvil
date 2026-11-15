@@ -389,6 +389,12 @@ export async function POST(request: Request) {
   // Destinations where this account only GUESTS and the clan asked for guests' posts to be marked.
   const markAsGuest = new Set<string>();
   for (const ec of emissionClans) {
+    // A clan may set its own drop bars as loose as it likes; a clan the person only guests in still
+    // gets nothing looser than Anvil's minimums.
+    if (dropVerdict && !dropVerdict.shared && ec.kind === 'guest') {
+      declined++;
+      continue;
+    }
     // A main-game level post follows the clan's rules; a game mode's follows the mode's own (below).
     if (levelPost && levelPrefs && !mode) {
       const rules = effectiveClanRules(await getClanMilestoneRules(ec.clanId), levelPrefs.clanChoice);

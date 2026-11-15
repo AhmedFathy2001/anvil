@@ -155,13 +155,13 @@ export default function DiscordSettings({
                   settingKey="drop_default_value"
                   label="Default minimum drop value (gp)"
                   placeholder="1000000"
-                  helpText="The default for your members: drops worth at least this post. Each member can set their own number in /settings; until they do, they follow this one. Blank = Anvil's default, 1,000,000 (and never below it)."
+                  helpText="The default for your members: drops worth at least this post. Each member can set their own number in /settings; until they do, they follow this one. Blank = Anvil's default, 1,000,000."
                 />
                 <PlainSetting
                   settingKey="drop_default_rarity"
                   label="Default: post drops rarer than 1 in…"
                   placeholder="1000"
-                  helpText="The default for your members, on rarity alone. Members can override it for themselves. Blank = Anvil's default, 1 in 1,000 (never looser)."
+                  helpText="The default for your members, on rarity alone. Members can override it for themselves. Blank = Anvil's default, 1 in 1,000. Any number works: 1 in 128 posts a lot more, 1 in 1 posts every drop."
                 />
                 <DropModeToggle />
                 <PlainSetting

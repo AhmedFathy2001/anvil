@@ -236,9 +236,13 @@ export function dropGates(p: Pick<NotifyPrefs, 'dropMin' | 'rarity'> & { dropMod
   const value = p.dropMin ?? clanValue ?? PLATFORM_DROP_DEFAULTS.value;
   const rarity = p.rarity ?? clanRarity ?? PLATFORM_DROP_DEFAULTS.rarity;
   const hard = clan.hardFloor != null && clan.hardFloor > 0 ? clan.hardFloor : 0;
+  // A clan's own default is the clan's call, however loose. A member's own number may go as loose as
+  // their clan's default or DROP_MINIMUMS, whichever is looser — never past both.
+  const minValue = Math.min(DROP_MINIMUMS.value, clanValue ?? Infinity);
+  const minRarity = Math.min(DROP_MINIMUMS.rarity, clanRarity ?? Infinity);
   return {
-    value: value <= 0 ? 0 : Math.max(DROP_MINIMUMS.value, value),
-    rarity: rarity <= 0 ? 0 : Math.max(DROP_MINIMUMS.rarity, rarity, hard),
+    value: value <= 0 ? 0 : Math.max(minValue, value),
+    rarity: rarity <= 0 ? 0 : Math.max(minRarity, rarity, hard),
     mode: p.dropMode ?? clan.mode ?? PLATFORM_DROP_DEFAULTS.mode,
     valueSource,
     raritySource,

@@ -12,7 +12,7 @@ import {
   pluginMe,
   prefsFromRuneLite,
 } from '../src/lib/notifyPrefs';
-import { deservesSpoonLine, dropRarity, isGuaranteed, isTrollDrop, judgeDrop, rareTable, type JudgeContext } from '../src/lib/notifyDrops';
+import { deservesSpoonLine, dropRarity, isGuaranteed, isTrollDrop, judgeDrop, judgeDropFor, rareTable, type JudgeContext } from '../src/lib/notifyDrops';
 
 const ALL_ON = {
   rareDrops: true, deaths: true, combatAchievements: true, pvpKills: true, pets: true,
@@ -116,15 +116,34 @@ test('several qualifying items make one combined post; the haul total decides th
 });
 
 test('a mode with its own bars uses its own both/either switch, not the main game’s', () => {
-  const pricey = { source: 'X', sourceKind: 'npc', items: [{ id: 1, name: 'A', qty: 1, value: 15_000_000 }] };
+  // One fang of Zulrah's two rolls: about 1 in 512, on the tables, and not rare enough for 1 in 1,000.
+  const pricey = { source: 'Zulrah', sourceKind: 'npc', items: [{ id: 12922, name: 'Tanzanite fang', qty: 1, value: 15_000_000 }] };
   const main = { clan: { ...NO_CLAN_DROPS, mode: 'and' as const } };
-  // Main game asks for both: a 15m drop with no rate does not post there…
+  // Main game asks for both: a 15m drop that isn't rare enough does not post there…
   assert.equal(judgeDrop(pricey, ctx(main)), null);
   // …but on a mode world whose clan takes either bar, it does, marked as the mode's doing.
   const either = judgeDrop(pricey, ctx({ ...main, mode: { dropMinValue: 1_000_000, dropRarityFloor: 1_000 } }));
   assert.equal(either?.modeOnly, true);
   // A mode that asks for both too still declines it.
   assert.equal(judgeDrop(pricey, ctx({ ...main, mode: { dropMinValue: 1_000_000, dropRarityFloor: 1_000, dropBoth: true } })), null);
+});
+
+test('both bars: a drop with no rate on record (a raid chest) posts on its value alone', () => {
+  const purple = { source: 'Chambers of Xeric', sourceKind: 'event', items: [{ id: 1, name: 'Twisted bow', qty: 1, value: 1_500_000_000 }] };
+  const both = ctx({ clan: { ...NO_CLAN_DROPS, mode: 'and' as const } });
+  assert.ok(judgeDrop(purple, both));
+  assert.equal(judgeDrop({ ...purple, items: [{ id: 2, name: 'Rune', qty: 1, value: 50_000 }] }, both), null);
+});
+
+test('a clan default may be looser than Anvil’s minimums; a guest clan still gets nothing looser', () => {
+  const loose = { ...NO_CLAN_DROPS, rarity: 128 };
+  assert.equal(dropGates(NOTIFY_DEFAULTS, loose).rarity, 128);
+  // A member's own number can go as loose as the clan's, not past it.
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, rarity: 5 }, loose).rarity, 128);
+  const fang = { source: 'Zulrah', sourceKind: 'npc', items: [{ id: 12922, name: 'Tanzanite fang', qty: 1, value: 0 }] };
+  const v = judgeDropFor(fang, ctx({ clan: loose }), []);
+  assert.deepEqual([v?.clan, v?.shared], [true, false]);
+  assert.equal(judgeDropFor(fang, ctx(), []), null);
 });
 
 test('loot keys: one post for the lot, gated only by the total', () => {

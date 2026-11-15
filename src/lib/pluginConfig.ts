@@ -741,7 +741,8 @@ export async function getClanDropDefaults(clanId: number): Promise<ClanDropSetti
     getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY),
     getSetting(clanId, DROP_DEFAULT_MODE_SETTING_KEY),
   ]);
-  return { value: settingNumber(value, DROP_MINIMUMS.value), rarity: settingNumber(rarity, DROP_MINIMUMS.rarity), mode: mode === 'and' ? 'and' : null, hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity) };
+  // The defaults are the clan's own call (1 gp, 1 in 1 if it likes); only the hard floor keeps a minimum.
+  return { value: settingNumber(value, 1), rarity: settingNumber(rarity, 1), mode: mode === 'and' ? 'and' : null, hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity) };
 }
 
 // --- Clan naming ----------------------------------------------------------------------------

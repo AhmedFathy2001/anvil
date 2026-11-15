@@ -189,7 +189,9 @@ export function modeDropAllows(facts: unknown, filters: ModeFilters, mainRarityF
   const worth = dropWorth(f);
   const value = filters.dropMinValue != null ? worth >= filters.dropMinValue : !modeOnly && worth >= MAIN_GAME_MIN_VALUE;
   // Both: each bar the mode set must clear; a blank one isn't asked for (like the main game's 'and').
-  if (filters.dropBoth) return (filters.dropFloor == null || rarity) && (filters.dropMinValue == null || value);
+  // A drop with no rate on record (a raid chest, a haul) can't be asked for rarity: its value decides.
+  const unrated = typeof f.dropRate !== 'number' && f.guaranteed !== true;
+  if (filters.dropBoth) return (filters.dropFloor == null || rarity || unrated) && (filters.dropMinValue == null || value);
   return rarity || value;
 }
 
