@@ -315,7 +315,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Vill du ha inlägg på din egen server också?',
-          body: 'Gå till din profil → **Announcements & webhooks** → _Your own webhooks_.',
+          body: 'Gå till [Settings → Posts & alerts](/settings/posts#webhooks) → _Your webhooks_.',
         },
       ],
     },
@@ -605,7 +605,7 @@ const sv: PartialGuideDict = {
     roles: {
       title: 'Roller och smeknamn',
       body: [
-        'Båda synkroniseringarna är av tills du aktiverar dem under **Admin → Discord → Roles & nicknames**, och båda styrs av medlemslistan. Slå på **Enable Discord role sync**, lämna **Auto-match in-game rank → Discord role by name** på, välj eventuella allmänna **Member roles** och **Guest roles**, spara och tryck sedan på **Sync roles & nicknames now**. Varje person måste också ha en länkad Discord-identitet; synkrapporten namnger alla den inte kunde koppla.',
+        'Båda synkroniseringarna är av tills du aktiverar dem under **Admin → Discord → Roles & nicknames**, och båda styrs av medlemslistan. Slå på **Enable Discord role sync**, lämna **Auto-match in-game rank → Discord role by name** på, välj eventuella allmänna **Member roles** och **Guest roles**, spara och tryck sedan på **Sync roles & nicknames now**. Roller går till personer som loggat in på Anvil med Discord. En medlem som inte loggat in får bara roller om du dessutom slår på **Also match members by Discord nickname**, som är av från start i varje klan. Synkrapporten namnger alla den inte kunde koppla.',
       ],
       ways: [
         {
@@ -701,7 +701,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Ligger botens roll tillräckligt högt?',
-          body: 'Bara för roll- och smeknamnssynk — se ovan. Det är den som misslyckas tyst.',
+          body: 'För roll- och smeknamnssynk: lägg boten över alla roller den hanterar, kontrollera att varje person har loggat in med Discord (eller slå på **Also match members by Discord nickname** för din klan), och kontrollera rollnamnen för rang exakt som de står ovan. Spara först och kör sedan **Sync roles & nicknames now**; dess hoppade-över-lista visar vem som fortfarande behöver kopplas.',
         },
       ],
       note: {
@@ -819,24 +819,24 @@ const sv: PartialGuideDict = {
         'Om webbläsaren inte öppnas av sig själv skriver panelen ut adressen och koden så att du kan öppna den manuellt. Koder går ut efter tio minuter — tryck bara på knappen igen.',
       manualHeading: 'Reservväg: klistra in din token för hand',
       manualIntro:
-        'Om inloggningen från pluginet inte fungerar för dig, kopiera din token nedan (eller från [Profile → plugin token](/profile#plugin-token), där du också kan rotera den), klicka sedan på **Paste a token instead** under inloggningsknappen i Anvil-panelen och klistra in den där.',
+        'Om inloggningen från pluginet inte fungerar för dig, skapa en token under [Settings → In game → Plugin connection](/settings/in-game#plugin) (den visas bara en gång när du skapar den, och du kan återkalla alla tokens där), klicka sedan på **Paste a token instead** under inloggningsknappen i Anvil-panelen och klistra in den där.',
       tokenFigure: {
-        caption: 'Profile → RuneLite plugin',
-        alt: 'RuneLite plugin-kortet på profilsidan, med tokenfältet och knapparna Reveal, Copy och Rotate inramade',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'Plugin connection-kortet under Settings → In game, med tokenfältet och knapparna Reveal, Copy token och Revoke all inramade',
         legend: [
           {
             label: 'Din token',
-            body: 'dold tills du trycker Reveal. Den är maskad på den här skärmbilden med flit; posta aldrig din egen i Discord.',
+            body: 'skapad en gång när du trycker på **Make a token**, och dold tills du trycker på **Reveal**. Den är maskad på den här skärmbilden med flit; den loggar in som dig, så behandla den som ett lösenord och posta aldrig den i Discord.',
           },
           {
-            label: 'Copy / Rotate',
-            body: 'kopiera den och använd sedan **Paste a token instead** i Anvil-panelen. Rotate utfärdar en ny och dödar den gamla — använd den om du någonsin misstänker att din token läckt.',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token** fungerar utan att visa den. Kopiera den och använd sedan **Paste a token instead** i Anvil-panelen. Att skapa en ny token avbryter inte de gamla; **Revoke all** gör det, så tryck på den om du någonsin tror att en token läckt.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Använd sidopanelen till vardags',
-        body: ['**Anvils sidopanel är din huvudsakliga arbetsyta**: logga in och ut där, se dina klaner och aktiva event, bläddra bland och gör anspråk på rutor, följ framsteg, ta startbilder, kör synkroniseringar och öppna supportverktyg. **Configuration → Anvil**, som visas nedan, är bara till för inställningar — där finns ingen token. För att logga ut den här datorn, öppna **⋯**-menyn bredvid ditt namn högst upp i panelen. En inloggning räcker för alla event du är anmäld till — du gör den aldrig om per bingo.'],
+        body: ['**The Anvil sidebar is your main workspace**: logga in och ut där, se dina klaner och aktiva event, bläddra bland och gör anspråk på rutor, följ framsteg, ta startbilder, kör synkroniseringar och öppna supportverktyg. **Configuration → Anvil**, som visas nedan, är bara till för inställningar — där finns ingen token. För att logga ut den här datorn, öppna **⋯**-menyn bredvid ditt namn högst upp i panelen; det avslutar också den här datorns inloggning på webbplatsen, och dina andra datorer förblir inloggade. Om en token kan ha läckt räcker inte det: använd **Revoke all** under Settings → In game → Plugin connection. En inloggning räcker för alla event du är anmäld till — du gör den aldrig om per bingo.'],
       },
     },
 
@@ -1056,7 +1056,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Token är fel eller har roterats. Öppna **⋯**-menyn högst upp i Anvil-panelen, tryck på **Sign out** och sedan **Sign in with Discord** igen — eller använd **Paste a token instead** med en ny token från [Profile → RuneLite plugin](/profile#plugin-token).',
+          body: 'Token är fel eller har roterats. Öppna **⋯**-menyn högst upp i Anvil-panelen, tryck på **Sign out** och sedan **Sign in with Discord** igen — eller använd **Paste a token instead** med en ny token från [Settings → In game → Plugin connection](/settings/in-game#plugin).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1144,7 +1144,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Chattfärger',
-          body: '**[Anvil] tag colour** och **Message colour** under **Chat messages**. Tills du väljer blir de mörk guld och svart på en ogenomskinlig chatbox så att de går att läsa. Håll muspekaren över en Supporters namn i chatten för att se dess nivå, som _Anvil Patron_.',
+          body: '**[Anvil] tag colour** och **Message colour** under **Settings → In game → Chat colours** på webbplatsen. Tills du väljer blir de mörk guld och svart på en ogenomskinlig chatbox så att de går att läsa. Håll muspekaren över en Supporters namn i chatten för att se dess nivå, som _Anvil Patron_.',
         },
       ],
     },
@@ -1223,7 +1223,7 @@ const sv: PartialGuideDict = {
     setup: {
       title: 'Namnge klanen, koppla Discord',
       intro:
-        '**Settings → Finish setup** är en kort guide (den ligger kvar i menyn tills du är klar), och instrumentpanelen håller kvar en checklista i fem steg tills de är klara: namnge klanen, koppla Discord, läs in dina medlemmar, skapa ett event, lägg till rutor. Statusen räknas ut från riktiga data, så ett steg bockas av först när det verkligen är färdigt.',
+        '**Settings → Finish setup** är en kort guide (den ligger kvar i menyn tills du är klar eller hoppar över den), och instrumentpanelen håller kvar en checklista i fem steg tills de är klara: namnge klanen, koppla Discord, läs in dina medlemmar, skapa ett event, lägg till rutor. Statusen räknas ut från riktiga data, så ett steg bockas av först när det verkligen är färdigt.',
       discord:
         'För Discord har du två vägar, och de går att kombinera: ge Anvil en **bot** så kan den skapa webhooks, synka roller och smeknamn och bygga privata lagkanaler; ge den en enda **webhook-URL** så kan den posta meddelanden och inget annat. Börja med webhooken om du vill vara igång på två minuter, och lägg till boten när du vill ha automatiken.',
       permsNote: {
@@ -1305,7 +1305,7 @@ const sv: PartialGuideDict = {
     tiles: {
       title: 'Fyll brädan',
       body: [
-        'Eventets **Board & tiles**-sida är där en bräda blir en bingo. Varje ruta är en _sorts_ uppgift, och sorten avgör vad pluginet håller utkik efter: en drop, ett boss-killcount, färdighets-XP, ett NPC-kill, en klarning på tid, en achievement diary, en Combat Achievement, en upplåsning i collection log, ett PvP-kill, en föremålsvinst, eller en dödsfri runda. Manuella rutor — de som en människa godkänner från en skärmbild — finns alltid som alternativ också.',
+        'Eventets **Tiles**-flik är där en bräda blir en bingo. Varje ruta är en _sorts_ uppgift, och sorten avgör vad pluginet håller utkik efter: en drop, ett boss-killcount, färdighets-XP, ett NPC-kill, en klarning på tid, en achievement diary, en Combat Achievement, en upplåsning i collection log, ett PvP-kill, en föremålsvinst, eller en dödsfri runda. Manuella rutor — de som en människa godkänner från en skärmbild — finns alltid som alternativ också.',
         'För en full bräda, redigera i klump: exportera arket, fyll i det i ett kalkylprogram och importera tillbaka. Både CSV och .xlsx går fram och tillbaka, och rader följer positioner, så du kan skriva om ett helt 25-rutors nät med en enda inklistring.',
       ],
       rows: [
@@ -1371,7 +1371,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Inskickat att granska',
-          body: 'manuella rutor och allt pluginet flaggat. Godkänn eller avslå med beviset framför dig.',
+          body: 'manuella rutor och allt pluginet flaggat. Tryck **Looks fine**, eller **Remove…** med en anledning, med beviset framför dig.',
         },
         {
           term: 'Statistik',
@@ -1487,7 +1487,7 @@ const sv: PartialGuideDict = {
     staff: {
       title: 'Ge deras moderator en plats',
       body: [
-        'Panelen **Team staff** på lagsidan är hur gästklanens egen moderator kommer igång utan att du ger dem något alls på din sajt. Tryck **Add someone**, sök upp dem, lägg till en notering som “Ironforge’s mod” så nästa admin vet varför de är där, och tryck **Give a seat**.',
+        'Panelen **Team staff** på lagsidan är hur gästklanens egen moderator kommer igång utan att du ger dem något alls på din sajt. Tryck **Add someone**, sök upp dem, lägg till en notering som “Ironforge’s mod” så nästa admin vet varför de är där, och tryck **Add to team staff**.',
       ],
       figure: {
         caption: 'Eventet → Teams & draft → laget → Team staff',
@@ -1768,7 +1768,7 @@ const sv: PartialGuideDict = {
         'Att klicka fram ett 25-rutors nät går bra. Att klicka fram en Point Hunt-bräda med 200 uppgifter gör det inte, och inte heller att korrekturläsa den efteråt. Tiles-fliken har en tur-och-retur byggd för precis det.',
       ],
       steps: [
-        '**Download spreadsheet** på eventets **Board & tiles**-sida. Du får en .xlsx av brädan som den ser ut nu, med rullgardiner, föremålslistan och kolumnanvisningarna på egna blad.',
+        '**Tiles**-fliken → **Add tiles** → **Download spreadsheet** på eventet. Du får en .xlsx av brädan som den ser ut nu, med rullgardiner, föremålslistan och kolumnanvisningarna på egna blad.',
         'Redigera den. En rad per ruta; radordningen är rutordningen.',
         '**Upload CSV / Excel** i samma flik. Bara **Tiles**-bladet läses.',
       ],
@@ -1901,7 +1901,7 @@ const sv: PartialGuideDict = {
       intro:
         'På ett tile-kapplöpningsboard bygger du en bana i stället för ett rutnät. Rutor ligger på numrerade steg, och ett lag rör sig längs dem.',
       body: [
-        'Öppna **Tiles** och använd sektionen **Route**. Välj en mall (**Diamond** är standard), lägg till dina rutor på stegen och tryck på **Save route**. Varje ruta du länkar måste ligga på nästa steg.',
+        'Öppna **Tiles** och använd sektionen **Route**. Välj en mall (**Diamond** är standard), lägg till dina rutor på stegen och tryck på **Save roads**. Varje ruta du länkar måste ligga på nästa steg.',
         'Vägar kan dela sig och mötas igen, men det finns bara ett mål. Vid en förgrening väljer du om det att slutföra en ruta bestämmer vägen, eller om kaptenen väljer och låser den. Hela listan över val, och vad spelarna ser, finns i [Formats, and how tiles open]({formatsGuide}).',
       ],
     },
@@ -2153,7 +2153,7 @@ const sv: PartialGuideDict = {
         'Öppna eventets **Tiles**-sida och hitta **Route**.',
         'Välj en **Route template** och tryck på **Apply template**. **Diamond** är standard: en start, två vägar, ett mål. **Two roads**, **Braid**, **Straight line** och **Free** (inga länkar) finns också.',
         'Välj **How a team’s road is set at a fork**: med prestation, eller välj och lås.',
-        'Lägg till eller flytta steg med **+ Step before**, **Move step earlier/later** och **Remove step**, tryck sedan på **Save route**.',
+        'Lägg till eller flytta steg med **+ Empty step before**, **Move step earlier/later** och **Remove step**, tryck sedan på **Save roads**.',
         'Om eventet redan är igång frågar Anvil vad som ska göras med slutföranden som den nya rutten skär bort: **Keep** dem eller **Roll back**.',
       ],
       outro:
@@ -2284,16 +2284,16 @@ const sv: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'I kassan',
+          term: 'Confirmed total',
           body: 'godkända donationer och justeringar. Vad klanen har fått, minus vad den skrivit av.',
         },
         {
-          term: 'Lovat bort',
+          term: 'Promised',
           body: 'gp som ett pris gjort anspråk på — vunnet men inte skickat än, plus en pott avsatt för en tavla. Intecknat, även om det fortfarande står på någons bank.',
         },
         {
-          term: 'Fritt att lova',
-          body: 'i kassan minus lovat bort. Det enda tal ett nytt pris prövas mot, eftersom alternativet är att lova samma 50m till två vinnare medan kassören sover.',
+          term: 'Available',
+          body: 'Confirmed total minus Promised. Det enda tal ett nytt pris prövas mot, eftersom alternativet är att lova samma 50m till två vinnare medan kassören sover.',
         },
       ],
       note: {
@@ -2680,12 +2680,12 @@ const sv: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'Godkänn när det är rimligt',
-          body: 'du reviderar ingen bank. Visar bilden saken, står kontot på medlemslistan och ligger tidsstämpeln inom eventet, godkänn och gå vidare.',
+          term: 'Tryck Looks fine när det är rimligt',
+          body: 'du reviderar ingen bank. Visar bilden saken, står kontot på medlemslistan och ligger tidsstämpeln inom eventet, tryck **Looks fine** och gå vidare.',
         },
         {
-          term: 'Avslå med en anledning',
-          body: 'ett avslag utan förklaring kommer tillbaka som ett DM till dig inom en timme. Säg vad som saknades så att andra försöket blir rätt.',
+          term: 'Remove med en anledning',
+          body: '**Remove** kräver en anledning, och teamet ser den. Säg vad som saknades så att andra försöket blir rätt.',
         },
         {
           term: 'En flaggad inskickning är en fråga, inte en anklagelse',
@@ -2705,7 +2705,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'för spelare utan pluginet. Sajten väljer en slumpmässig färdighet och de ska tjäna 1 000 XP i den inom trettio minuter. Den kontrollerar sig själv — du ser bara dem som misslyckas.',
+          body: 'för spelare utan pluginet. Sajten väljer en slumpmässig färdighet och de ska tjäna 1 000 XP i den inom trettio minuter. Den kontrollerar sig själv, och ett godkänt test hamnar ändå i **Needs review** för ditt ja eller nej, eftersom XP visar att någon tränat, inte vem. Ett misslyckat test är det du bör titta närmare på.',
         },
         {
           term: 'Manuell granskning',
@@ -2721,7 +2721,7 @@ const sv: PartialGuideDict = {
     roster: {
       title: 'Att hålla medlemslistan ärlig',
       body: [
-        'Medlemslistan kommer från ett enda ställe: en admin kör en synkning från klanlistan i spelet, med **Anvil**-knappen i titelraden på klanfönstret (eller **Sync roster** i pluginets sidopanel). Allt annat — verifieringar, kopplingar, anmälningar — hänger på den.',
+        'Medlemslistan kommer från ett enda ställe: en admin kör en synkning från klanlistan i spelet, med **Anvil**-knappen i titelraden på klanfönstret (eller **Sync clan roster** i pluginets sidopanel). Allt annat — verifieringar, kopplingar, anmälningar — hänger på den.',
         'Underhållsjobbet är alltså litet men verkligt: be en admin köra synkningen efter varje rekryteringsomgång (den gör gäster som gått med i spelet till medlemmar), svara på ansökningarna om att gå med överst på fliken **Roster**, och beta av **Needs review** i stället för att vänta på att folk klagar. Se [Dina medlemmar]({peopleGuide}).',
       ],
       note: {
@@ -3248,7 +3248,7 @@ const sv: PartialGuideDict = {
     roster: {
       title: 'Var medlemslistan kommer ifrån',
       body: [
-        'Medlemslistan är klanlistan från spelet, kopierad till sajten. En admin skickar den från RuneLite med Anvil-pluginet: tryck på **Anvil**-knappen i klanfönstrets titelrad, eller på **Sync roster** i pluginets sidopanel. Alla på listan kommer in som **medlem**, med sin rang från spelet. Bara någon med Admin-rollen på sajten kan skicka den. Alla andra får veta det i spelet.',
+        'Medlemslistan är klanlistan från spelet, kopierad till sajten. En admin skickar den från RuneLite med Anvil-pluginet: tryck på **Anvil**-knappen i klanfönstrets titelrad, eller på **Sync clan roster** i pluginets sidopanel. Alla på listan kommer in som **medlem**, med sin rang från spelet. Bara någon med Admin-rollen på sajten kan skicka den. Alla andra får veta det i spelet.',
         'En synk är det enda som gör någon till medlem av sig själv. Lämnar någon klanen i spelet markeras hen som utträdd vid nästa synk, och går hen med igen kommer hen tillbaka vid synken efter det. Historiken ligger kvar i båda fallen.',
         'Alla andra platser är **gästplatser**: folk som spelar i era event utan att vara med i klanen i spelet. Gäster spåras och kan delta i event. De är inte medlemmar, och de räknas inte in i er plan.',
       ],
@@ -3619,7 +3619,7 @@ const sv: PartialGuideDict = {
       { strong: 'Inget raderas', rest: 'när du slutar' },
     ],
     footnote:
-      'Allt här ställs in på webbplatsen under **Settings** → **Supporter**, **Profile look** och **Clan boosts**. Boosts i detalj finns i [Boosta en klan]({boostsGuide}). Var dina färger syns i RuneLite står i [Sidopanelen, flik för flik]({panelGuide}).',
+      'Allt här ställs in på webbplatsen under **Settings**: **Account** → **Your plan & billing**, och **Profile & look** med dess **Name colours** och **Clan boosts**. Boosts i detalj finns i [Boosta en klan]({boostsGuide}). Var dina färger syns i RuneLite står i [Sidopanelen, flik för flik]({panelGuide}).',
 
     tiers: {
       title: 'De tre nivåerna',
@@ -3640,7 +3640,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Tid från inbjudningar',
-        body: 'Under Settings → Supporter får du en inbjudningslänk. När en vän du bjudit in betalar tjänar du gratis månader; belöningen kommer två veckor efter deras första betalning. Tid som tjänats in så ger alla förmåner på sin nivå utom klanboosts.',
+        body: 'Under Settings → Account → Your plan & billing får du en inbjudningslänk. När en vän du bjudit in betalar tjänar du gratis månader; belöningen kommer två veckor efter deras första betalning. Tid som tjänats in på det sättet ger alla förmåner på sin nivå utom klanboosts.',
       },
     },
 
@@ -3669,7 +3669,7 @@ const sv: PartialGuideDict = {
     names: {
       title: 'Namnfärger',
       intro:
-        'Ställ in dem under **Settings** → **Supporter**, i **Your name’s look**. Förhandsvisningen visar ditt namn på en mörk och på en ljus bakgrund.',
+        'Ställ in dem under **Settings** → **Profile & look** → **Name colours**. Förhandsvisningen visar ditt namn på en mörk och på en ljus bakgrund.',
       rows: [
         {
           term: 'Supporter',
@@ -3719,13 +3719,13 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Bara på karaktärer som bevisats vara dina',
-        body: 'Färgerna syns bara på karaktärer som pluginet har bekräftat är dina, på sajten och i spelet. För att hålla dem borta från dina namn i andras spelchatt, kryssa ur **Show my colours on my characters’ names in game chat** under Settings → Supporter.',
+        body: 'Färgerna syns bara på karaktärer som pluginet har bekräftat är dina, på sajten och i spelet. För att hålla dem borta från dina namn i andras spelchatt, kryssa ur **Show my colours on my characters’ names in game chat** under Settings → Account → Your plan & billing.',
       },
     },
 
     profile: {
       title: 'Avatar, banner och monter',
-      intro: 'Alla tre finns under **Settings** → **Profile look**.',
+      intro: 'Alla tre finns under **Settings** → **Profile & look**.',
       rows: [
         {
           term: 'Avatar och banner',
@@ -3774,7 +3774,7 @@ const sv: PartialGuideDict = {
         'Betala. Dina förmåner slås på så fort Gumroad meddelar Anvil, och din nivå visas på Supporter-sidan som **Your tier**.',
       ],
       outro:
-        'Byt nivå med **Change tier** under Settings → Supporter. Säg upp eller uppdatera ditt kort med **Manage on Gumroad** på samma ställe. Ett uppsagt medlemskap behåller alla förmåner till slutet av perioden du betalat för.',
+        'Byt nivå med **Change tier** under Settings → Account → Your plan & billing. Säg upp eller uppdatera ditt kort med **Manage on Gumroad** på samma ställe. Ett uppsagt medlemskap behåller alla förmåner till slutet av perioden du betalat för.',
       note: {
         tag: 'Börja alltid från /supporter',
         body: 'Knappen **Choose** bär en kod som talar om för Anvil vilket konto som betalade. Anvil matchar aldrig en betalning via e-post, så om du köper direkt från Gumroad utan den knappen blir betalningen inte kopplad. Har det hänt, fråga i Anvils Discord så kan staben koppla den till ditt konto för hand.',
@@ -3805,7 +3805,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'En tillfällig uppgradering från Anvils stab',
-        body: 'Staben kan ge någon en högre nivå ett tag, till exempel som tack. Den ligger ovanpå det du betalar och ändrar aldrig din prenumeration. Settings → Supporter visar **A gift from Anvil** och när den tar slut; efter det är du tillbaka på din betalda nivå. En gåva ger bara platser för klanboosts när staben tar med dem.',
+        body: 'Staben kan ge någon en högre nivå ett tag, till exempel som tack. Den ligger ovanpå det du betalar och ändrar aldrig din prenumeration. Settings → Account → Your plan & billing visar **A gift from Anvil** och när den tar slut; efter det är du tillbaka på din betalda nivå. En gåva ger bara platser för klanboosts när staben tar med dem.',
       },
     },
   },
@@ -3866,7 +3866,7 @@ const sv: PartialGuideDict = {
         {
           term: 'Händelser',
           body:
-            'varje live- och kommande board, Skill eller Boss of the Week och klanhändelse, med var du står. Sedan **Your other boards**, **Also live** och **Your clan**.',
+            'varje live- och kommande board, Skill eller Boss of the Week och klanhändelse, med var du står. Sedan **Running**, **Coming up**, **Also live** och **Your clan**.',
         },
         {
           term: 'Ett board',
@@ -3880,7 +3880,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'En klanhändelse',
-          body: '**I’m going**, **Sign me up** eller **Answer the survey**, beroende på eventet.',
+          body: '**I’m going**, **Register** (eller **Register on Anvil** när värden har frågor) eller **Answer the survey**, beroende på eventet.',
         },
       ],
     },
@@ -3907,7 +3907,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Inte samma sak som chattflödet i spelet',
-        body: 'Feed-fliken fungerar oavsett vad dina plugininställningar säger. **Show feed in game chat** (steg 8) är den separata inställningen som också skriver ut det i din chattruta.',
+        body: 'Feed-fliken fungerar oavsett vad dina plugininställningar säger. **Anvil messages in chat** (steg 8) är den separata inställningen som också skriver ut det i din chattruta.',
       },
     },
 
@@ -3951,7 +3951,7 @@ const sv: PartialGuideDict = {
         {
           term: 'Skicka',
           body:
-            'skriv i rutan och tryck Enter. Rader får vara upp till 200 tecken, och bara hosten och moderatorerna kan posta länkar.',
+            'skriv i rutan och tryck Enter. Rader får vara upp till 80 tecken (en längre nekas), och bara hosten och moderatorerna kan posta länkar.',
         },
         {
           term: 'Hur ofta',
@@ -4021,27 +4021,19 @@ const sv: PartialGuideDict = {
     settings: {
       title: 'Inställningar som ändrar vad du ser',
       intro:
-        'I RuneLites konfiguration för Anvil, under **Chat messages**. Alla är påslagna från början.',
+        'I RuneLites konfiguration för Anvil, under **General**. Alla är påslagna från början.',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: 'skriver också ut flödet i din chattruta medan det händer: stora drops, pets och achievements från brädor vars värd slagit på det och klaner du är gäst i, dina lagkamraters framsteg på rutor och andra lags klara rutor.',
         },
         {
           term: 'Supporter names in chat',
-          body: 'Supporters färger (och en Patrons stjärna) i offentlig chatt, klan-, vän- och privatchatt, och på din vänlista och kanalernas medlemslistor. Listan med namn laddas ner från Anvil; inget om vilka du ser skickas.',
+          body: 'Supporters färger (och en Patrons stjärna) i offentlig chatt, klan-, vän- och privatchatt, och på din vänlista och kanalernas medlemslistor. Listan med namn laddas ner från Anvil; inget om vilka du ser skickas. Välj **Animated** (en Patrons gradient glider), **Still colours** eller **Off**.',
         },
         {
-          term: 'Animated names',
-          body: 'låter en Patrons gradient glida i panelen, Feed och eventchatten. Avslaget står den still. I nästa pluginuppdatering gäller den också boostade klannamn och animerade banners i panelen.',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: 'Supporters färger på deras namn när du högerklickar på dem, aldrig på PvP-världar eller i Wilderness.',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: 'påslagen ersätter en Supporters färger en namnfärg som ett annat plugin satt, till exempel Player Indicators. Avslagen låter de namnen vara.',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: 'Supporters färger på deras namn när du högerklickar på dem och på vän- och kanallistor med medlemmar, samt en boostad klans namn i klanpanelen. Aldrig på PvP-världar eller i Wilderness.',
         },
       ],
     },
@@ -4060,7 +4052,7 @@ const sv: PartialGuideDict = {
       { strong: 'En gång i veckan', rest: 'kan en boost flyttas' },
     ],
     footnote:
-      'Medlemmar placerar boosts under **Settings** → **Clan boosts**. Klanens stab ser nivån och dess alternativ under Admin → **Clan settings** → **Boosts**. Om själva Supporter-nivåerna, se [Anvil Supporter: nivåer och förmåner]({supporterGuide}).',
+      'Medlemmar placerar boosts under **Settings** → **Profile & look** → **Clan boosts**. Klanens stab ser nivån och dess alternativ under Admin → **Clan settings** → **Boosts**. Om själva Supporter-nivåerna, se [Anvil Supporter: nivåer och förmåner]({supporterGuide}).',
 
     what: {
       title: 'Vem som har boosts',
@@ -4074,7 +4066,7 @@ const sv: PartialGuideDict = {
         },
       ],
       outro:
-        'Boosts tillhör dig, inte en karaktär: tre karaktärer i tre klaner delar ändå på en uppsättning. **Settings** → **Clan boosts** syns bara i dina inställningar medan du är Supporter eller fortfarande har en boost placerad.',
+        'Boosts tillhör dig, inte en karaktär: tre karaktärer i tre klaner delar ändå på en uppsättning. **Settings** → **Profile & look** → **Clan boosts** visas alltid, men bara ett Champion- eller Patron-medlemskap ger platser; utan ett sådant ser du reglerna och en länk till Supporter.',
     },
 
     place: {
@@ -4083,7 +4075,7 @@ const sv: PartialGuideDict = {
       steps: [
         'Öppna **Settings** → **Clan boosts**. **Your boosts** listar vad du har placerat och eventuella **Free slot**.',
         'Under **Clans you can boost**, tryck på **Boost** bredvid en klan. Du kan också trycka på **Boost this clan** i Boosters-delen på klanens egen sida.',
-        'För att flytta en, använd **Move to…** på dess rad och välj en annan klan. **Remove** tar bort den.',
+        'För att flytta en, tryck **Move** på dess rad och välj en annan klan under **Move to…**. **Remove** tar bort den.',
       ],
       rows: [
         {
@@ -4182,7 +4174,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Rekryteringsinlägg i Anvils Discord',
-          body: 'Nivå 3. En gång per kalendermånad, 20 till 500 tecken, skrivet av dig och postat när du trycker på **Post it**, med en länk till er klansida. Omnämnanden tas bort och ingen pingas. Du kan inte redigera det eller skicka ett nytt förrän nästa månad.',
+          body: 'Nivå 3. En gång per kalendermånad, 20 till 500 tecken, skrivet av dig och postat när du trycker på **Post to the Anvil Discord** och sedan **Post it** för att bekräfta, med en länk till er klansida. Omnämnanden tas bort och ingen pingas. Du kan inte redigera det eller skicka ett nytt förrän nästa månad.',
         },
         {
           term: 'Boosters',
@@ -4331,7 +4323,7 @@ const sv: PartialGuideDict = {
       title: 'Hitta en inställning',
       body: [
         'Första sidan, **Overview & search**, har en sökruta. Skriv det du vill ha med egna ord, som _private messages_, _rare drop value_, _death message_, _name colour_ eller _plugin token_, så tar den dig till rätt knapp.',
-        'Menyn längs sidan har två grupper. **Account** rymmer sidorna nedan. **Characters** har en sida per karaktär du har länkat (din huvudkaraktär är märkt **main**), och sedan **Add character**. En siffra på **Add character** betyder att Anvil har sett dig spela karaktärer du inte har länkat än.',
+        'Menyn längs sidan har fem sidor: **Profile & look**, **Characters**, **In game**, **Posts & alerts** och **Account**. Under **Characters** finns en sida per karaktär du har länkat (din huvudkaraktär är märkt **main**), och sedan **Add character**. En siffra på **Add character** betyder att Anvil har sett dig spela karaktärer du inte har länkat än.',
       ],
     },
     posts: {
@@ -4348,7 +4340,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Vart dina inlägg går',
-          body: '**Post my drops and levels in clans where I am a guest**, och **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** listar varje karaktär med en länk **Clans →** för att stänga av inlägg för en klan.',
+          body: '**Post my drops and levels in clans where I am a guest** (av tills du slår på den), och **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** listar varje karaktär med en länk **Clans →** för att stänga av inlägg för en klan.',
         },
         {
           term: 'Skärmbilder per typ',
@@ -4378,7 +4370,7 @@ const sv: PartialGuideDict = {
     },
     chat: {
       title: 'Chattflödet i spelet',
-      intro: 'Vad pluginet skriver i din chatbox när plugininställningen **Show feed in game chat** är på.',
+      intro: 'Vad pluginet skriver i din chatbox när plugininställningen **Anvil messages in chat** är på.',
       rows: [
         {
           term: 'Varifrån',
@@ -4404,15 +4396,15 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Pluginanslutning',
-          body: 'din plugintoken, för det sällsynta fallet att du klistrar in den för hand. Normalt gör **Sign in with Discord** i sidopanelen det här åt dig.',
+          body: 'under **In game**: din plugintoken, för det sällsynta fallet att du klistrar in den för hand. Den skapas en gång och maskeras tills du trycker på **Reveal**, och **Revoke all** avbryter alla tokens. Normalt gör **Sign in with Discord** i sidopanelen det här åt dig.',
         },
         {
           term: 'Inloggning och enheter',
-          body: 'varje dator pluginet är inloggat på, som **RuneLite sign-in 1**, **2**… med när den skapades och senast användes. **Revoke** loggar ut en, till exempel en dator du sålt. **Enter a code** länkar en annan dator. **Sessions** loggar ut dig från webbplatsen överallt.',
+          body: 'under **Account**: varje dator pluginet är inloggat på, som **RuneLite sign-in 1**, **2**… med när den skapades och senast användes. **Revoke** loggar ut en, till exempel en dator du sålt. **Enter a code** länkar en annan dator. **Sessions** loggar ut dig från webbplatsen överallt.',
         },
         {
           term: 'Klanfakturering',
-          body: 'klanägare får **Open portal →** här, för klanens fakturering.',
+          body: 'under **Account**, klanägare får **Open portal →** här, för klanens fakturering.',
         },
       ],
     },
@@ -4447,11 +4439,11 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Supporter & namnfärger',
-          body: 'din nivå, dina förmåner och din inbjudningslänk: ta med vänner och tjäna gratismånader. Nivåerna förklaras i [Anvil Supporter]({supporterGuide}).',
+          body: 'under **Account** → **Your plan & billing**: din nivå, dina förmåner och din inbjudningslänk: ta med vänner och tjäna gratismånader. Nivåerna förklaras i [Anvil Supporter]({supporterGuide}).',
         },
         {
           term: 'Profilutseende',
-          body: 'avatar och banner (animerade från Champion), olika för varje karaktär om du vill, och **Display case**: 4, 8 eller 12 märken beroende på nivå.',
+          body: 'under **Profile & look**: avatar och banner (animerade från Champion), olika för varje karaktär om du vill, och **Display case**: 4, 8 eller 12 märken beroende på nivå.',
         },
         {
           term: 'Streamingkonton',
@@ -4459,7 +4451,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Klanboosts',
-          body: 'visas bara när du kan boosta: dina platser, var de är placerade och klanerna du kan boosta. Se [Boosta en klan]({boostsGuide}).',
+          body: 'under **Profile & look**: dina platser, var de är placerade och klanerna du kan boosta. Utan ett Champion- eller Patron-medlemskap visas reglerna. Se [Boosta en klan]({boostsGuide}).',
         },
       ],
     },
@@ -4549,7 +4541,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Startlinjer',
-          body: 'varje spelares **Started at**, **Now** och **Gained**. Rätta en startlinje för hand när en grind före tävlingen räknades, så följer ledartavlan. **Pull current stats** uppdaterar alla; **Reset baselines** startar alla på nytt från deras hiscores nu och raderar alla vinster.',
+          body: 'varje spelares **Started at**, **Now** och **Gained**. Rätta en startlinje för hand när en grind före tävlingen räknades, så följer ledartavlan. **Pull current stats** uppdaterar alla; **Reset every baseline** startar alla på nytt från deras hiscores nu och raderar alla vinster.',
         },
         {
           term: 'Deltagare',
@@ -4782,7 +4774,7 @@ const sv: PartialGuideDict = {
     players: {
       title: 'Vad medlemmarna ser',
       body: [
-        'Eventsidan visar **When**, **Where**, **Host**, **Discord**, **Entry** och **Prizes**, med **Live now** medan det pågår. Medlemmar trycker på **I’m going** eller **Sign me up**, eller **Ask to sign up** när stabben godkänner var och en. Det finns också i plugins sidopanel under fliken **Clan**, med samma knappar.',
+        'Eventsidan visar **When**, **Where**, **Host**, **Discord**, **Entry** och **Prizes**, med **Live now** medan det pågår. Medlemmar trycker på **I’m going** eller **Register**, eller **Ask to sign up** när stabben godkänner var och en. Det finns också i plugins sidopanel under fliken **Clan**, med samma knappar.',
         'Bara klanens medlemmar kan säga att de är med eller anmäla sig.',
       ],
     },
@@ -4944,7 +4936,7 @@ const sv: PartialGuideDict = {
       title: 'Hitta ett event att gå med i',
       body: [
         '[Events](/events) listar vad som pågår och kommer upp på hela Anvil. Filtrera på **Live now**, **Open to join** eller **Starting this week**, efter format eller **Solo**, efter **Anyone can join** eller **Ask or meet a rule**, och efter **Clans** eller **Creators**. **Join** tar dig till anmälan.',
-        'Bara event vars värd slagit på **Advertise on Anvil** visas. Medlemsevent och inbjudningsevent visas aldrig.',
+        'Bara event vars värd slagit på **List on Anvil** visas. Medlemsevent och inbjudningsevent visas aldrig.',
       ],
     },
     ghost: {
