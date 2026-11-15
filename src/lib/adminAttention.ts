@@ -484,8 +484,12 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       severity: 'info',
       // An open-ended gap gets a date, not a duration: "33 days" was only ever the distance to the
       // edge of a six-week window, and would have read 47 over eight.
+      // A gap that has already begun has no "last day something is on" ahead of the reader: naming
+      // yesterday ("after November 14" on the 15th) reads as a stale page, so it says from today.
       title: facts.gap.openEnded
-        ? `Nothing is scheduled after ${facts.gap.startsOn}`
+        ? facts.gap.startsInDays <= 0
+          ? 'Nothing is scheduled from today on'
+          : `Nothing is scheduled after ${facts.gap.startsOn}`
         : `Nothing runs for ${plural(facts.gap.days, 'day')}${
             facts.gap.startsInDays > 0 ? `, starting ${inDays(facts.gap.startsInDays * DAY)}` : ''
           }`,

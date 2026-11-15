@@ -63,6 +63,7 @@ export default function PersonProfile({
   /** Their Anvil Supporter subscription, for the name's flair. */
   supporter?: SupporterView | null;
 }) {
+  const clanCount = clans.filter((c) => c.clanKind !== 'creator').length;
   return (
     <div className="mx-auto max-w-6xl">
       {unfinishedSetup && (
@@ -98,8 +99,9 @@ export default function PersonProfile({
             <SupporterName name={displayName} tier={supporter?.tier} style={supporter?.style} plain />
           </h1>
           <p className="text-sm text-text-muted">
-            {characters.length} character{characters.length === 1 ? '' : 's'} · {clans.filter((c) => c.seat).length} clan
-            {clans.filter((c) => c.seat).length === 1 ? '' : 's'}
+            {/* The clans listed under "Your clans" below: a seat, or running it (an owner is in their clan). */}
+            {characters.length} character{characters.length === 1 ? '' : 's'} · {clanCount} clan
+            {clanCount === 1 ? '' : 's'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

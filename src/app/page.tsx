@@ -1,6 +1,5 @@
-import { clanPathOf } from '@/lib/clanScopedPaths';
 import { landingClans, recruitingClans } from '@/lib/landingClans';
-import { clanlessStartGuide, memberStartGuide } from '@/lib/guidedFlowFacts';
+import { memberStartGuide, personStartGuide } from '@/lib/guidedFlowFacts';
 import GuidedFlow from '@/components/GuidedFlow';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
@@ -180,15 +179,8 @@ async function ApexRoot() {
   const recruiting = clanless ? await recruitingClans() : [];
   // The "Getting started" guide strip (lib/guidedFlows/memberStart): for somebody in no clan, the
   // clanless one; otherwise the member one, pointed at their first clan's events and team page.
-  const firstClan = view.clans.find((c) => c.clanKind !== 'creator') ?? null;
-  const guide = clanless
-    ? await clanlessStartGuide(session.userId, session.playerId, view.discover?.length ?? 0)
-    : firstClan
-      ? await memberStartGuide(session.userId, session.playerId, {
-          eventsHref: clanPathOf({ slug: firstClan.slug, kind: firstClan.clanKind }, '/events'),
-          teamHref: clanPathOf({ slug: firstClan.slug, kind: firstClan.clanKind }, '/team'),
-        })
-      : null;
+  // The same choice /profile makes (lib/guidedFlowFacts personStartGuide), so the two never disagree.
+  const guide = await personStartGuide(session.userId, session.playerId, view.clans, view.discover?.length ?? 0);
   return (
     <ApexHome
       recruiting={recruiting}

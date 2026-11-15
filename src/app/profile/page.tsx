@@ -9,7 +9,7 @@ import LegacyAnchors from './LegacyAnchors';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import OtherAccountsClient from './OtherAccountsClient';
 import { onboardingState } from '@/lib/onboarding';
-import { clanlessStartGuide, memberStartGuide } from '@/lib/guidedFlowFacts';
+import { memberStartGuide, personStartGuide } from '@/lib/guidedFlowFacts';
 import GuidedFlow from '@/components/GuidedFlow';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
@@ -143,8 +143,8 @@ export default async function ProfilePage({
     // Their clan boosts and badges: this page is private, so it's the one place they're listed whole.
     const boosts = await myBoosts(session.userId, session.playerId ?? null).catch(() => null);
     // The "Getting started" guide strip for somebody in no clan (the same one their home page shows).
-    const noClan = !myClans.some((c) => c.seat === 'member' && c.clanKind !== 'creator');
-    const startGuide = noClan ? await clanlessStartGuide(session.userId, session.playerId ?? null, null) : null;
+    // The same strip their home page shows, chosen the same way: running a clan counts as being in it.
+    const startGuide = await personStartGuide(session.userId, session.playerId ?? null, myClans, null);
     return (
       <>
         <LegacyAnchors />

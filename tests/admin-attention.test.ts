@@ -223,6 +223,13 @@ test('an open-ended gap is dated, never given a made-up length', () => {
   assert.doesNotMatch(gap.title, /33/);
 });
 
+test('an open-ended gap that has already begun says from today, not after yesterday', () => {
+  const q = attentionQueue(facts({ gap: { days: 42, startsInDays: 0, openEnded: true, startsOn: '14 November' } }));
+  const gap = q.find((i) => i.key === 'gap')!;
+  assert.equal(gap.title, 'Nothing is scheduled from today on');
+  assert.doesNotMatch(gap.title, /14 November/);
+});
+
 test('a gap with nothing waiting sends you to the schedule instead', () => {
   const q = attentionQueue(facts({ gap: { days: 10, startsInDays: 2, openEnded: false, startsOn: '17 August' } }));
   assert.equal(q.find((i) => i.key === 'gap')?.action, 'Open schedule');
