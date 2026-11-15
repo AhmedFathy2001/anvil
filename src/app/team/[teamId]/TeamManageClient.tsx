@@ -441,7 +441,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                     className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate" title={r.name}>
                         {r.name}
                         {r.frozenAt && <span className="text-xs text-yellow-400 ml-2">subbed out</span>}
                       </div>
@@ -499,7 +499,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                     className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate" title={r.rsn}>
                         {r.rsn}
                         {r.displayName && r.displayName !== r.rsn && (
                           <span className="text-text-muted font-normal"> · {r.displayName}</span>
@@ -584,7 +584,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                     className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{f.rsn}</div>
+                      <div className="text-sm font-medium truncate" title={f.rsn}>{f.rsn}</div>
                       <div className="text-[11px] text-text-muted truncate">
                         {(f.amount / 1_000_000).toFixed(1)}M
                         {f.collectedByName && (
@@ -658,7 +658,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
               {payouts.map((p) => (
                 <div key={p.id} className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{p.rsn}</div>
+                    <div className="text-sm font-medium truncate" title={p.rsn}>{p.rsn}</div>
                     <div className="text-[11px] text-text-muted">
                       {(p.amount / 1_000_000).toFixed(1)}M{p.place != null ? ` · ${p.place}${['th', 'st', 'nd', 'rd'][p.place] ?? 'th'} place` : ''}
                     </div>
