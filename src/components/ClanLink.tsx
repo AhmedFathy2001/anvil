@@ -59,7 +59,8 @@ export default function ClanLink({ href, children, ...rest }: ComponentProps<typ
   // navigation, which is nearly all of the clicking anyone does.
   if (typeof resolved === 'string' && clanOf(resolved) !== clanOf(prefix)) {
     // `prefetch` and friends are next/link's own: on a plain <a> React warns about them.
-    const { href: _drop, prefetch: _prefetch, replace: _replace, scroll: _scroll, ...anchor } = rest as Record<string, unknown>;
+    const anchor = { ...(rest as Record<string, unknown>) };
+    for (const own of ['href', 'prefetch', 'replace', 'scroll']) delete anchor[own];
     // A hard navigation gets the browser's own loading indicator, so it needs none of ours.
     return (
       <a href={resolved} {...(anchor as ComponentProps<'a'>)}>
