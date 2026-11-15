@@ -207,14 +207,18 @@ export default function PublicClanHome({
           <div className="flex-1">
             <div className="text-sm font-semibold text-[var(--sa-text)]">This clan is recruiting</div>
             <div className="text-[13px] text-text-muted">
+              {/* "Recruiting" is the clan saying it takes new members. With the site's own door closed
+                  that still holds: the way in is their Discord, or asking in game — never "closed". */}
               {view.guestPolicy === 'closed'
-                ? 'Applications are currently closed.'
+                ? view.discordInvite
+                  ? 'Ask to join on their Discord, or ask a member in game.'
+                  : 'Ask a member in game to join. This clan doesn’t take applications on the site.'
                 : view.guestPolicy === 'open'
                   ? 'Open to join — hop in.'
                   : 'New members are reviewed before joining.'}
             </div>
           </div>
-          {view.guestPolicy !== 'closed' &&
+          {(view.guestPolicy !== 'closed' || !!view.discordInvite) &&
             (view.discordInvite ? (
               <a
                 href={view.discordInvite}
