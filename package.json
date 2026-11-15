@@ -31,6 +31,7 @@
     "test:balance": "npx tsx --test tests/balance-effort.test.ts",
     "test:deathsource": "npx tsx --test tests/death-source.test.ts tests/lab-feed.test.ts",
     "test:pluginfacts": "npx tsx --test tests/plugin-facts.test.ts",
+    "test:factids": "npx tsx --test tests/plugin-fact-ids-db.test.ts",
     "test:notifyprefs": "npx tsx --test tests/notify-prefs.test.ts",
     "test:dropsource": "npx tsx --test tests/drop-source-check.test.ts",
     "harness:plugin": "node scripts/plugin-harness.mjs",

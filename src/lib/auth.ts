@@ -2193,7 +2193,7 @@ export async function verifyPluginToken(
 export async function verifyPluginTokenOnEvent(
   request: Request,
   eventId: number,
-): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string; accountId: number } | null> {
   const live = await verifyPluginToken(request);
   if (live && live.eventId === eventId) return live;
   if (!request.headers.get('Authorization')?.startsWith('Bearer ')) return live;
@@ -2209,7 +2209,7 @@ export async function verifyPluginTokenForEvent(
   request: Request,
   eventId: number,
   opts?: { hintOnly?: boolean },
-): Promise<{ playerId: number; teamId: number; eventId: number; userId: number; rsn: string } | null> {
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number; rsn: string; accountId: number } | null> {
   if (!Number.isInteger(eventId) || eventId <= 0) return null;
   const member = await resolvePluginMember(request, opts);
   if (!member) return null;
@@ -2228,6 +2228,8 @@ export async function verifyPluginTokenForEvent(
     eventId,
     userId: member.userId,
     rsn: participant.name,
+    // The character being played: what a fact id is remembered under (lib/pluginFacts/factIdStore).
+    accountId: member.accountId,
   };
 }
 

@@ -1,3 +1,4 @@
+import { parseFactId } from '@/lib/pluginFacts/factIds';
 import type { Fact, SourceKind } from '@/lib/pluginFacts/match';
 
 const KINDS = new Set<SourceKind>(['npc', 'event', 'pvp', 'pickpocket', 'clog']);
@@ -56,6 +57,9 @@ export function parseFacts(raw: unknown, max = MAX_FACTS): Fact[] {
       const done = (o.done as unknown[]).filter((t): t is number => Number.isInteger(t) && Math.abs(t as number) <= 2_147_483_647).slice(0, 100);
       if (done.length) out[n].done = done;
     }
+    // Its id, when it carries a well-formed one; a malformed id is no id (never a refused batch).
+    const id = out.length > n ? parseFactId(o.id) : null;
+    if (id) out[n].id = id;
   }
   return out;
 }

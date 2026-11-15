@@ -182,7 +182,11 @@ export interface TileFact {
  * `done`: a fact the plugin re-sends after a transient filing failure carries the tiles it already
  * landed on (or was refused by), so only the ones that failed are filed again.
  */
-export type Fact = (LootFact | ValueFact | KillFact | TileFact) & { done?: number[] };
+export type Fact = (LootFact | ValueFact | KillFact | TileFact) & {
+  done?: number[];
+  /** The plugin's own id for this fact (lib/pluginFacts/factIds): made once, sent again unchanged. */
+  id?: string;
+};
 
 export type CreditKind = 'drop' | 'value' | 'kill' | 'tile';
 
