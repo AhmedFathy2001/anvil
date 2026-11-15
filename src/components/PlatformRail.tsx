@@ -127,6 +127,9 @@ export default function PlatformRail({
         <span className="display text-[18px] font-semibold text-gold">Anvil</span>
       </ClanLink>
 
+      {/* Phones: a layer under the open menu that takes an outside tap (and closes), so the tap does
+          not also land on the page. */}
+      {menuOpen && <div aria-hidden onClick={closeMenu} className="absolute inset-x-0 top-full h-[100dvh] bg-black/40 lg:hidden" />}
       {/* Every link: a drawer under the bar on a phone (menu button), the rail itself on a desktop. */}
       <div
         id="platform-menu"

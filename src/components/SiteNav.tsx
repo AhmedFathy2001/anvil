@@ -574,32 +574,29 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
 }
 
 /**
- * The phone menu's frame: Escape, focus and scroll lock come from useModalA11y; a tap outside also
- * closes it. Positioned under the bar and capped to the screen so the menu scrolls inside itself
+ * The phone menu's frame: Escape, focus and scroll lock come from useModalA11y; a tap outside (on
+ * the layer under it) also closes it. Positioned under the bar and capped to the screen so the menu scrolls inside itself
  * instead of pushing the page down.
  */
 function PhoneSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   const ref = useModalA11y<HTMLDivElement>({ onClose });
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (!t || ref.current?.contains(t) || t.closest('[data-menu-toggle]')) return;
-      onClose();
-    };
-    document.addEventListener('pointerdown', onDown);
-    return () => document.removeEventListener('pointerdown', onDown);
-  }, [onClose, ref]);
   return (
-    <div
-      ref={ref}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Menu"
-      tabIndex={-1}
-      className="lg:hidden absolute top-full inset-x-0 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-b-2 border-gold/20 bg-card-bg shadow-xl focus:outline-none"
-    >
-      {children}
-    </div>
+    <>
+      {/* A real layer under the menu, over the page. A document-level listener closed the menu on an
+          outside tap but let the same tap through, so it also opened whatever row was under the
+          finger. This takes the tap and nothing else gets it. */}
+      <div aria-hidden onClick={onClose} className="lg:hidden absolute inset-x-0 top-full h-[100dvh] bg-black/40" />
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        tabIndex={-1}
+        className="lg:hidden absolute top-full inset-x-0 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-b-2 border-gold/20 bg-card-bg shadow-xl focus:outline-none"
+      >
+        {children}
+      </div>
+    </>
   );
 }
 
