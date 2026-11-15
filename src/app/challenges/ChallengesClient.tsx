@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
 import Combobox from '@/components/Combobox';
 import { clanFetch } from '@/lib/clanFetch';
 import type { H2hCharacter, H2hPrefs, H2hView } from '@/lib/h2h';
@@ -224,6 +225,16 @@ type Act = (id: number, body: Record<string, unknown>) => Promise<void>;
 
 function Invite({ c, now, busy, act }: { c: H2hView; now: number; busy: boolean; act: Act }) {
   const [pub, setPub] = useState(false);
+  const { confirm } = useDialog();
+  const declineAndBlock = async () => {
+    const ok = await confirm({
+      title: `Decline and block ${c.them.rsn}?`,
+      body: `This declines the challenge and turns away any new challenges from ${c.them.rsn}. You can unblock from the settings at the bottom of this page.`,
+      confirmLabel: 'Decline and block',
+      tone: 'danger',
+    });
+    if (ok) await act(c.id, { action: 'decline', block: true });
+  };
   return (
     <div className="rounded-xl border border-gold/40 bg-card-bg px-4 py-3">
       <div className="font-semibold">{c.them.rsn} challenged you</div>
@@ -236,7 +247,7 @@ function Invite({ c, now, busy, act }: { c: H2hView; now: number; busy: boolean;
         <button type="button" disabled={busy} onClick={() => act(c.id, { action: 'decline' })} className="rounded-lg border border-card-border px-3 py-1.5 text-sm hover:border-gold/40 disabled:opacity-50">
           Decline
         </button>
-        <button type="button" disabled={busy} onClick={() => act(c.id, { action: 'decline', block: true })} className="text-xs text-text-dim hover:text-gold disabled:opacity-50" title={`Decline, and refuse any more challenges from ${c.them.rsn}`}>
+        <button type="button" disabled={busy} onClick={declineAndBlock} className="text-xs text-text-dim hover:text-gold disabled:opacity-50" title={`Decline, and refuse any more challenges from ${c.them.rsn}`}>
           Decline and block
         </button>
         <label className="ml-auto flex items-center gap-2 text-xs text-text-dim">

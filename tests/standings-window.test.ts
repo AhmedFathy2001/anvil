@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 import {
   competitionRanks,
+  gapToPlaceAbove,
   rankMove,
   teamRanksFromDay,
   isManyTeams,
@@ -161,4 +162,20 @@ test('rank moves: places climbed since the day began; nothing unchanged or witho
   const day = teamRanksFromDay({ teams: { '1': { score: 9, rank: 1 }, '2': { score: 9, rank: 2 }, '3': { score: 4, rank: 3 } } });
   assert.deepEqual([...day.entries()].sort((a, b) => a[0] - b[0]), [[1, 1], [2, 1], [3, 3]]);
   assert.equal(teamRanksFromDay(null).size, 0);
+});
+
+test('gapToPlaceAbove: score that passes the row directly above, null at the top', () => {
+  const rows = [
+    { id: 1, rank: 1, s: 50 },
+    { id: 2, rank: 2, s: 40 },
+    { id: 3, rank: 2, s: 40 },
+    { id: 4, rank: 4, s: 30 },
+  ];
+  const sc = (r: { s: number }) => r.s;
+  assert.deepEqual(gapToPlaceAbove(rows, (r) => r.id === 4, sc), { toPass: 11, aboveRank: 2 });
+  assert.deepEqual(gapToPlaceAbove(rows, (r) => r.id === 3, sc), { toPass: 11, aboveRank: 1 });
+  assert.equal(gapToPlaceAbove(rows, (r) => r.id === 1, sc), null);
+  assert.equal(gapToPlaceAbove(rows, () => false, sc), null);
+  // best of several of the viewer's lines
+  assert.deepEqual(gapToPlaceAbove(rows, (r) => r.id === 4 || r.id === 2, sc), { toPass: 11, aboveRank: 1 });
 });

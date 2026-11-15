@@ -18,6 +18,20 @@ export interface StageEvent {
   startDate: string | null;
   endDate: string | null;
   forceEndedAt: string | null;
+  /** The start was due but is waiting on teams (the hold latch the lifecycle tick sets). */
+  startHoldNotified?: number | null;
+  startNotified?: number | null;
+}
+
+/** One wording for a start that is waiting on teams — the hero, the lists, cards, link previews and the stage line all say this. */
+export const START_WAITING_WORDS = 'Start is waiting on teams';
+
+/**
+ * The start time came but the event has not started: the lifecycle tick is holding it for teams.
+ * The one derivation every "when does it start" line uses (the date is not a promise while held).
+ */
+export function startIsHeld(e: Pick<StageEvent, 'startHoldNotified' | 'startNotified'>, live = false): boolean {
+  return !live && e.startHoldNotified === 1 && !e.startNotified;
 }
 
 /**
@@ -171,6 +185,7 @@ export function lifecycleSteps(
 
 function startsLabel(event: StageEvent, now: number): string {
   if (!event.startDate) return 'not scheduled';
+  if (startIsHeld(event)) return START_WAITING_WORDS.toLowerCase();
   const ms = (parseStamp(event.startDate) ?? now) - now;
   if (ms <= 0) return 'due to start';
   return `starts in ${humanDays(ms)}`;

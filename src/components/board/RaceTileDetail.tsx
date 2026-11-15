@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { raceGraph, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
 import { raceTileState } from '@/lib/tileState';
-import { clanFetch } from '@/lib/clanFetch';
+import { racePickUrl, useTileData } from '@/lib/tileData';
 import { cn } from '@/lib/utils';
 import { TileStateBanner } from './TileState';
 import { RoadBadge } from './RaceRouteMap';
@@ -21,23 +21,14 @@ export interface RaceDetailContext {
  * in" race (null elsewhere) and teamRoute's options ("Roads stay open").
  */
 export function useRacePicks(eventId: number | undefined, teamId: number | null | undefined): { picks: Map<number, number> | null; opts: TeamRouteOpts } {
-  const [picks, setPicks] = useState<Map<number, number> | null>(null);
-  const [mode, setMode] = useState<RaceRoadMode | null>(null);
-  useEffect(() => {
-    if (eventId == null || teamId == null) return;
-    let gone = false;
-    clanFetch(`/api/events/${eventId}/race-pick?teamId=${teamId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (gone || !d) return;
-        setMode(d.mode ?? null);
-        if (d.mode === 'choose') setPicks(new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])));
-      })
-      .catch(() => {});
-    return () => {
-      gone = true;
-    };
-  }, [eventId, teamId]);
+  // Through the shared read cache: the board's own read of the same picks (and a hover prefetch)
+  // answers this at once instead of asking again when the dialog opens.
+  const d = useTileData<{ mode?: RaceRoadMode | null; picks?: Record<string, number> }>(eventId != null && teamId != null ? racePickUrl(eventId, teamId) : null);
+  const mode = d?.mode ?? null;
+  const picks = useMemo(
+    () => (d && mode === 'choose' ? new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])) : null),
+    [d, mode],
+  );
   return { picks, opts: raceRouteOpts(mode) };
 }
 

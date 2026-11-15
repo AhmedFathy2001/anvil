@@ -34,6 +34,8 @@ import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
 import { clanFetch } from '@/lib/clanFetch';
+import { prefetchTileDialog, tileProofUrl, useTileData } from '@/lib/tileData';
+import type { TileNeedsLike } from '@/lib/tileRequirements';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { tileMatchesSearch } from '@/lib/tileSearch';
@@ -165,6 +167,9 @@ interface Props {
   solo?: boolean;
   /** The viewer's own teams on this board (one per account of theirs entered). */
   myTeamIds?: number[];
+  /** The viewer's own team in this event (any board shape), for the tile dialog's "Submit proof" hand-off. */
+  proofTeamId?: number | null;
+  signedIn?: boolean;
   /**
    * A board of many teams of any size (lib/standingsWindow isManyTeams): the same cut list as `solo`,
    * worded as teams. `teamMembers` carries each team's member names for the row count and the search.
@@ -205,7 +210,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], proofTeamId = null, signedIn = false, manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -244,6 +249,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     }
   }, []);
   const [fullscreen, setFullscreen] = useState(false);
+  // Phones only: search + filters start folded (see the toggle above the board).
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   // Which team's board the viewer is looking at. Null = everyone's, the shared view.
   // Behind the curtain a one-team viewer looks through their own team's lens from the start.
@@ -277,30 +284,17 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   // Stamped with the tile it belongs to rather than cleared on close: that way the modal can only
   // ever show proof for the tile actually open, with no flash of the previous one's while the next
   // is in flight — and the effect never has to setState just to reset.
-  const [tileProof, setTileProof] = useState<{ tileId: number; teamId: number | null; rows: FullSubmission[] } | null>(null);
-  useEffect(() => {
-    if (!selectedTileId) return;
-    let cancelled = false;
-    const tileId = selectedTileId;
-    // Capped: a kill tile on a busy board can hold thousands of auto-logs, and the panel only ever
-    // shows totals per contributor plus their proof. The API's own ceiling is 500.
-    // The lens scopes the PROOF too: looking at Frost's board and opening a tile has to show
-    // Frost's proof, not every team's. Without this the modal quietly contradicted the board.
-    const teamParam = lensTeamId != null ? `&teamId=${lensTeamId}` : '';
-    clanFetch(`/api/events/${event.id}/submissions?tileId=${tileId}${teamParam}&limit=500`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: FullSubmission[]) => {
-        if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: Array.isArray(rows) ? rows : [] });
-      })
-      .catch(() => {
-        if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: [] });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTileId, event.id, lensTeamId]);
-  const proofForOpenTile =
-    tileProof && tileProof.tileId === selectedTileId && tileProof.teamId === lensTeamId ? tileProof.rows : null;
+  // Read through the tile-data cache: a hover/focus on the tile warmed it already, a reopened tile
+  // paints its last proof at once, and the fresh read replaces it when it lands.
+  const proofRows = useTileData<FullSubmission[]>(selectedTileId ? tileProofUrl(event.id, selectedTileId, lensTeamId) : null, []);
+  const proofForOpenTile = selectedTileId ? (Array.isArray(proofRows) ? proofRows : null) : null;
+  const intentTile = useCallback(
+    (tileId: number) => {
+      const t = tiles.find((x) => x.id === tileId);
+      if (t) prefetchTileDialog({ eventId: event.id, tile: t as unknown as TileNeedsLike & { id: number }, teamId: lensTeamId, race: event.format === 'tilerace' });
+    },
+    [tiles, event.id, event.format, lensTeamId],
+  );
 
   const staffOnlySet = useMemo(
     () => (staffOnlyTileIds.length > 0 ? new Set(staffOnlyTileIds) : null),
@@ -671,6 +665,14 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     return () => clearInterval(t);
   }, [isRace]);
 
+  // Proof is filed on the team page (the one copy of the form); from here we point at it. Nothing to
+  // offer once the event is over, and a plain reason when the viewer has no team to file for.
+  const submitProof = (tileId: number): { href: string } | { reason: string } | null => {
+    if (finished) return null;
+    if (proofTeamId != null) return { href: `/team/${proofTeamId}?tile=${tileId}` };
+    return { reason: signedIn ? 'You can submit proof once you are on a team in this event.' : 'Sign in to submit proof for your team.' };
+  };
+
   const tileModal = selectedTile ? (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
@@ -706,6 +708,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           }
           pointsMode={pointsMode}
           highlights={tileHighlights?.[selectedTile.id]}
+          submitProof={submitProof(selectedTile.id)}
         />
   ) : null;
 
@@ -775,6 +778,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             teams={teams}
             activeTeamId={raceViewer ?? undefined}
             onTileClick={setSelectedTileId}
+            onTileIntent={intentTile}
             statProgress={statProgressMap}
             expanded
             pointsMode={pointsMode}
@@ -841,10 +845,11 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   }
 
   return (
-    <div>
+    // Phones: the board comes straight after its controls; the MVP cards follow it.
+    <div className="max-sm:flex max-sm:flex-col">
       {/* Identity, prize and countdown now live in the EventHero above the board; this row keeps just
           the board-level controls. */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3 max-sm:order-1">
         {draftActive && (
           <ClanLink
             href={`/events/${event.id}/draft`}
@@ -867,7 +872,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       </div>
 
       {(mvpToday || mvp) && (
-        <div className={`mb-6 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
+        <div className={`mb-6 grid gap-3 max-sm:order-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
           {mvpToday && (
             <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />
           )}
@@ -877,7 +882,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
         </div>
       )}
 
-      <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
+      <div className={`grid gap-8 items-start max-sm:order-2 ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
         {!fullscreen && (
           <div className="min-w-0 max-lg:order-2">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
@@ -968,6 +973,17 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             />
           ) : (
           <>
+          {/* Phones: search and filters fold into one bar so the board is the first thing under the title. */}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            className="mb-3 flex min-h-11 w-full items-center justify-between rounded-lg border border-card-border bg-card-bg px-3 text-sm text-text-muted sm:hidden"
+          >
+            <span>Search &amp; filter{filterActive ? <span className="ml-1.5 text-gold">· on</span> : null}</span>
+            <span aria-hidden>{filtersOpen ? '−' : '+'}</span>
+          </button>
+          <div className={filtersOpen ? undefined : 'max-sm:hidden'}>
           <div className="relative mb-3">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none"
@@ -1043,6 +1059,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               )}
             </div>
           )}
+          </div>
 
           {/* Staff-only preview notice. The hidden COUNT is deliberately not shown to members on a
               mission board (it would leak how many surprises are left), but the host still needs to
@@ -1144,6 +1161,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             teams={teams}
             activeTeamId={lensTeamId ?? undefined}
             onTileClick={setSelectedTileId}
+            onTileIntent={intentTile}
             statProgress={statProgressMap}
             expanded={fullscreen}
             pointsMode={pointsMode}

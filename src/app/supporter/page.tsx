@@ -2,7 +2,7 @@ import { cookies, headers } from 'next/headers';
 import { supporterWall, type SupporterWall } from '@/lib/supporterWall';
 import { giftCheckoutConfigured, topGivers, type TopGiver } from '@/lib/supporterGiftCheckout';
 import { SupporterStar } from '@/components/SupporterName';
-import { TENURE_LADDER } from '@/lib/supporterTiers';
+import { TENURE_LADDER, tenureProgress } from '@/lib/supporterTiers';
 import { REFERRAL_COOKIE } from '@/lib/referrals';
 import { isReferralCode } from '@/lib/referralRules';
 import { eq } from 'drizzle-orm';
@@ -133,6 +133,17 @@ export default async function SupporterPage() {
             <span className="-ml-1">. Thank you.</span>
           </p>
         )}
+        {current && (() => {
+          const tp = tenureProgress(current.tenureMonths, current.tenure, current.nextTenure);
+          return (
+            <div className="relative mx-auto mt-3 w-full max-w-sm">
+              <p className="text-[13px] text-text-muted">{tp.line}</p>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-brown-dark" role="img" aria-label={tp.line}>
+                <div className="h-full rounded-full bg-gold" style={{ width: `${tp.pct}%` }} />
+              </div>
+            </div>
+          );
+        })()}
         {current && (
           <p className="relative mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1 text-[13.5px]">
             <ClanLink href="/host/friends" className="text-gold hover:text-gold-light">

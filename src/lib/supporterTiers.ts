@@ -317,3 +317,21 @@ export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | 
   // `v=2`: the badge now follows the whole gradient; a new URL so Discord and the CDN drop the one-colour copy.
   return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}${framed ? `?t=${tenure}&v=2` : ''}`;
 }
+
+/**
+ * Where a supporter is on the tenure ladder, in words and as a bar: "Journeyman · 4 months so far.
+ * 2 months to Artisan." `pct` is the way from this step to the next (100 at the top).
+ */
+export function tenureProgress(
+  months: number,
+  step: TenureStep,
+  next: TenureStep | null,
+): { line: string; pct: number } {
+  const plural = (n: number) => `${n} month${n === 1 ? '' : 's'}`;
+  const so = months > 0 ? `${step.name} · ${plural(months)} of support so far.` : `${step.name} · just started.`;
+  if (!next) return { line: `${so} That is the top step.`, pct: 100 };
+  const left = Math.max(1, next.months - months);
+  const span = Math.max(1, next.months - step.months);
+  const pct = Math.min(100, Math.max(0, Math.round(((months - step.months) / span) * 100)));
+  return { line: `${so} ${plural(left)} to ${next.name}.`, pct };
+}

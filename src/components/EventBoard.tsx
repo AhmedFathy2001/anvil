@@ -52,6 +52,8 @@ interface EventBoardProps {
   activeTeamId?: number;
   interactive?: boolean;
   onTileClick?: (tileId: number) => void;
+  /** Steady hover/focus on a tile (grid and race boards): warm what its dialog needs. */
+  onTileIntent?: (tileId: number) => void;
   dropProgress?: Map<number, { current: number; required: number }>;
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
@@ -94,6 +96,7 @@ export default function EventBoard({
   raceLayout,
   raceFit,
   raceLens,
+  onTileIntent,
   ...rest
 }: EventBoardProps) {
   const { completions, activeTeamId, dropProgress, statProgress, matchedTileIds } = rest;
@@ -149,14 +152,14 @@ export default function EventBoard({
   const boardRest = { ...rest, matchedTileIds: combinedMatched };
 
   const board = isTileRaceFormat(format) ? (
-    <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} raceFit={raceFit} raceLens={raceLens} />
+    <TileRaceBoard tiles={iconedTiles} {...boardRest} onTileIntent={onTileIntent} raceLayout={raceLayout} raceFit={raceFit} raceLens={raceLens} />
   ) : pointsMode ? (
     // Point Hunt (points scoring) renders as a task-list accordion, not a square grid —
     // so it isn't bound to a perfect-square tile count. The status map lets it sort
     // incomplete-first by default, like the plugin's collection-log list.
     <LeaguesBoard tiles={iconedTiles} {...boardRest} statusById={statusById} closestFirst={closestFirst} />
   ) : (
-    <BingoBoard boardSize={boardSize} pointsMode={pointsMode} tiles={iconedTiles} {...boardRest} />
+    <BingoBoard boardSize={boardSize} pointsMode={pointsMode} tiles={iconedTiles} {...boardRest} onTileIntent={onTileIntent} />
   );
 
   // The ✋ corner mark explains itself only on hover, which a phone never does. One visible line under

@@ -2,6 +2,8 @@ import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import { settingsCharacters } from '@/lib/settingsData';
 import { supporterForUser } from '@/lib/supporter';
+import { runningXpCheck } from '@/lib/xpCheckRead';
+import { xpCheckLine } from '@/lib/xpCheck';
 import { settingsSession } from '@/app/settings/settingsSession';
 import { AddGroups } from '../_parts/add';
 import { ClaimsGroups } from '../_parts/claims';
@@ -16,9 +18,10 @@ export const dynamic = 'force-dynamic';
  */
 export default async function CharactersSettingsPage({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
   const session = await settingsSession();
-  const [characters, supporter] = await Promise.all([
+  const [characters, supporter, xpCheck] = await Promise.all([
     session.playerId ? settingsCharacters(session.playerId) : Promise.resolve([]),
     supporterForUser(session.userId),
+    runningXpCheck(session.userId).catch(() => null),
   ]);
 
   return (
@@ -27,6 +30,17 @@ export default async function CharactersSettingsPage({ searchParams }: { searchP
         Your RuneScape characters on Anvil. Play one with the Anvil plugin and it links itself; open a character to choose its clans, who
         sees it, or remove it.
       </SettingsTitle>
+      {xpCheck && (
+        <div className="mb-4 rounded-lg border border-gold/40 bg-gold/10 px-4 py-3 text-sm">
+          <p className="font-semibold text-gold">{xpCheckLine(xpCheck)}</p>
+          <p className="mt-0.5 text-xs text-text-muted">
+            Gain {xpCheck.minDelta.toLocaleString('en-US')} XP in {xpCheck.targetSkill ? xpCheck.targetSkill : 'the skill we picked'} before it runs out. You can leave this page and come back.{' '}
+            <ClanLink href="/settings/characters#link-account" className="text-gold hover:text-gold-light">
+              Open the check →
+            </ClanLink>
+          </p>
+        </div>
+      )}
       <PartJumps
         parts={[
           { id: 'your-characters', label: 'Your characters' },

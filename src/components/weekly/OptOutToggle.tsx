@@ -53,7 +53,7 @@ export default function OptOutToggle({
       <span className="inline-flex items-center gap-1.5 text-xs">
         <span className={optedOut ? 'text-text-muted' : 'text-accent-green-light'}>{label}</span>
         <span className="text-text-muted">·</span>
-        <button type="button" onClick={flip} disabled={busy} className="text-gold hover:underline disabled:opacity-50">
+        <button type="button" onClick={flip} disabled={busy} className="text-gold hover:underline disabled:opacity-50 max-sm:min-h-11 max-sm:px-2">
           {action}
         </button>
         {error && <span className="text-red-300">{error}</span>}

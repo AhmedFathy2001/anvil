@@ -434,3 +434,9 @@ test('moderator: once the queue is clear, the people waiting come next, then it 
   assertWellFormed(done);
   assert.equal(done.complete, true);
 });
+
+test('member start: a running XP check is named on the character step', () => {
+  const v = memberStartFlow({ ...newMember, inClan: true, pluginConnected: true, xpCheck: { rsn: 'Zezima', minutesLeft: 12 } });
+  assert.equal(v.current?.key, 'character');
+  assert.match(v.current?.sentence ?? '', /Your XP check for Zezima is running: 12 min left\./);
+});

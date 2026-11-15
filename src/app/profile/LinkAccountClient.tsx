@@ -178,6 +178,25 @@ function StatDeltaPath({
     return () => clearInterval(id);
   }, [attempt]);
 
+  // Come back to a check already running: the attempt (start, skill, expiry) is stored server-side,
+  // only the polling lives on the page. Pick it up and check once at once.
+  useEffect(() => {
+    let gone = false;
+    fetch('/api/auth/verify-stat-delta/pending')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { attempt?: { attemptId: number; rsn: string; expiresAt: string; minDelta: number; targetSkill: string } | null } | null) => {
+        const a = d?.attempt;
+        if (gone || !a) return;
+        setAttempt((prev) => prev ?? { attemptId: a.attemptId, rsn: a.rsn, expiresAt: a.expiresAt, minDelta: a.minDelta, targetSkill: a.targetSkill });
+        void doCheck(a.attemptId);
+      })
+      .catch(() => {});
+    return () => {
+      gone = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-poll /check every 30s while pending. Don't blast the Hiscores API.
   useEffect(() => {
     if (!attempt || check?.status === 'succeeded' || check?.status === 'failed') return;
@@ -219,14 +238,15 @@ function StatDeltaPath({
     }
   }
 
-  async function doCheck() {
-    if (!attempt || checkInFlight.current) return;
+  async function doCheck(idOverride?: number) {
+    const attemptId = idOverride ?? attempt?.attemptId;
+    if (attemptId == null || checkInFlight.current) return;
     checkInFlight.current = true;
     try {
       const res = await fetch('/api/auth/verify-stat-delta/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attemptId: attempt.attemptId }),
+        body: JSON.stringify({ attemptId }),
       });
       const data = (await res.json()) as CheckResult;
       setCheck(data);
@@ -337,7 +357,7 @@ function StatDeltaPath({
       )}
       <div className="flex items-center gap-2">
         <button
-          onClick={doCheck}
+          onClick={() => doCheck()}
           disabled={expired}
           className="bg-gold hover:bg-gold-light text-brown-dark font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
         >

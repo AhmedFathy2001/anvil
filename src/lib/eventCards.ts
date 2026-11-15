@@ -7,8 +7,7 @@ import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { hasRevealPolicy, parseEventRules } from '@/lib/eventRules';
 import { eventShapeBadge, isPointsMode } from '@/lib/utils';
 import { standingsHidden } from '@/lib/standingsVisibility';
-import { eventStage } from '@/lib/eventStage';
-import { START_WAITING_WORDS } from '@/lib/eventsDirectory';
+import { eventStage, START_WAITING_WORDS, startIsHeld } from '@/lib/eventStage';
 
 /**
  * One event, reduced to what a card needs.
@@ -308,7 +307,7 @@ export async function loadEventCards(
       foot:
         status === 'upcoming'
           ? event.startDate
-            ? event.startHoldNotified === 1 && !event.startNotified
+            ? startIsHeld(event)
               ? START_WAITING_WORDS
               : `starts ${dateShort(event.startDate)}`
             : 'not scheduled yet'

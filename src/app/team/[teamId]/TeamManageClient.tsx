@@ -307,6 +307,13 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   // Settle one of our own team's winnings — only offered under `each-settles` (the pay route enforces
   // the same, server-side).
   const payWinnings = async (payoutId: number) => {
+    const row = payouts.find((x) => x.id === payoutId);
+    const ok = await confirm({
+      title: 'Mark winnings as paid?',
+      body: `${row ? `${(row.amount / 1_000_000).toFixed(1)}M to ${row.rsn}` : 'These winnings'} will show as paid. You can undo it from the row until the winners are announced.`,
+      confirmLabel: 'Mark paid',
+    });
+    if (!ok) return;
     setBusy(payoutId);
     setError(null);
     try {
@@ -320,6 +327,25 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
         throw new Error(b?.error ?? 'Could not mark paid');
       }
       await load();
+      notify('Marked paid. Use Undo on the row if that was a mistake.');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const undoWinnings = async (payoutId: number) => {
+    setBusy(payoutId);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/team/${teamId}/payouts/${payoutId}/pay`, { method: 'DELETE' });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.error ?? 'Could not undo that');
+      }
+      await load();
+      notify('Back to “To pay”.');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -415,7 +441,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                     className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate" title={r.name}>
                         {r.name}
                         {r.frozenAt && <span className="text-xs text-yellow-400 ml-2">subbed out</span>}
                       </div>
@@ -473,7 +499,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                     className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate" title={r.rsn}>
                         {r.rsn}
                         {r.displayName && r.displayName !== r.rsn && (
                           <span className="text-text-muted font-normal"> · {r.displayName}</span>
@@ -558,7 +584,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                     className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{f.rsn}</div>
+                      <div className="text-sm font-medium truncate" title={f.rsn}>{f.rsn}</div>
                       <div className="text-[11px] text-text-muted truncate">
                         {(f.amount / 1_000_000).toFixed(1)}M
                         {f.collectedByName && (
@@ -632,7 +658,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
               {payouts.map((p) => (
                 <div key={p.id} className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{p.rsn}</div>
+                    <div className="text-sm font-medium truncate" title={p.rsn}>{p.rsn}</div>
                     <div className="text-[11px] text-text-muted">
                       {(p.amount / 1_000_000).toFixed(1)}M{p.place != null ? ` · ${p.place}${['th', 'st', 'nd', 'rd'][p.place] ?? 'th'} place` : ''}
                     </div>
@@ -644,6 +670,16 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                   >
                     {p.status === 'paid' ? 'Paid' : 'To pay'}
                   </span>
+                  {p.status === 'paid' && (
+                    <button
+                      type="button"
+                      disabled={busy === p.id}
+                      onClick={() => undoWinnings(p.id)}
+                      className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-card-border text-text-muted transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-50"
+                    >
+                      {busy === p.id ? 'Saving…' : 'Undo'}
+                    </button>
+                  )}
                   {p.status !== 'paid' && (
                     <button
                       type="button"

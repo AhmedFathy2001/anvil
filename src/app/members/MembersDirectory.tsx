@@ -175,6 +175,9 @@ export default function MembersDirectory({
           <button type="button" onClick={() => setMembership('all')} className={chip(membership === 'all')}>
             All {members.length}
           </button>
+          {/* With no guests, Members is the same list as All and Guests is an empty one: show neither. */}
+          {(guestCount > 0 || membership !== 'all') && (
+            <>
           <button type="button" onClick={() => setMembership('members')} className={chip(membership === 'members')}>
             Members {members.length - guestCount}
           </button>
@@ -186,6 +189,8 @@ export default function MembersDirectory({
           >
             Guests {guestCount}
           </button>
+            </>
+          )}
         </div>
       </div>
 

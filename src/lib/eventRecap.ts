@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { events, teams, tiles, eventParticipants, completions, submissions, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
+import { withOtherCharacters } from '@/lib/personLabel';
 import { computeEventMvp, computeMemberBreakdown, contributionRows, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
@@ -540,9 +541,9 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     }
   }
 
-  // Finalize display names (append "+N" for merged multi-account people).
+  // Finalize display names (say "and N other characters" for merged multi-account people).
   for (const s of byPerson.values()) {
-    if (s.accounts > 1) s.name = `${s.name} +${s.accounts - 1}`;
+    if (s.accounts > 1) s.name = withOtherCharacters(s.name, s.accounts - 1);
   }
 
   // ── Award builders ──────────────────────────────────────────────────────────────────────────

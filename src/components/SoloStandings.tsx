@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import type { TeamScore } from '@/lib/boardScoring';
-import { competitionRanks, standingsPage, standingsWindow, STANDINGS_PAGE_SIZE } from '@/lib/standingsWindow';
+import { competitionRanks, gapToPlaceAbove, standingsPage, standingsWindow, STANDINGS_PAGE_SIZE } from '@/lib/standingsWindow';
 
 // The standings of a players board — solo placement, or a big board of one-person teams
 // (lib/standingsWindow isSoloLike). A card per team is right for six teams and a wall for 170, so
@@ -77,6 +77,13 @@ export default function SoloStandings({
   const mine = useMemo(() => new Set(myTeamIds), [myTeamIds]);
   const cut = useMemo(() => standingsWindow(rows, (r) => mine.has(r.id)), [rows, mine]);
 
+  // Not for a tile race: its order is first to the finish, so score gaps mean nothing there.
+  const gap = useMemo(
+    () => (ranked ? null : gapToPlaceAbove(rows, (r) => mine.has(r.id), (r) => r.score.score)),
+    [rows, mine, ranked],
+  );
+  const myUnit = rows.find((r) => mine.has(r.id))?.score.unit === 'pts' ? 'points' : 'tiles';
+
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -106,6 +113,11 @@ export default function SoloStandings({
           ),
         )}
       </div>
+      {gap && (
+        <p className="mt-1.5 text-[11px] text-accent-green-light">
+          {gap.toPass.toLocaleString()} more {gap.toPass === 1 ? myUnit.replace(/s$/, '') : myUnit} to pass #{gap.aboveRank}.
+        </p>
+      )}
       {cut.mineMore > 0 && (
         <p className="mt-1.5 text-[11px] text-text-muted">
           +{cut.mineMore} more {teamsMode ? 'of your teams' : 'of your accounts'} — find them under View all.
@@ -190,7 +202,7 @@ function StandingRow({ row, eventId, pointsMode, mine, memberCount }: { row: Row
       <span className="min-w-0">
         <span className="flex items-center gap-2 text-sm">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
-          <span className={`truncate ${mine ? 'font-bold' : 'font-medium'}`}>{row.name}</span>
+          <span title={row.name} className={`truncate ${mine ? 'font-bold' : 'font-medium'}`}>{row.name}</span>
           {memberCount && (
             <span className="shrink-0 text-[11px] text-text-muted">
               {memberCount(row.id)} member{memberCount(row.id) === 1 ? '' : 's'}

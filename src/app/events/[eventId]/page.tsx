@@ -398,17 +398,20 @@ export default async function EventScoreboardPage({
     teamMembers = Object.fromEntries(eventTeams.map((t) => [t.id, [] as string[]]));
     for (const p of eventPlayers) if (p.teamId != null && teamMembers[p.teamId]) teamMembers[p.teamId].push(p.name);
   }
-  let myTeamIds: number[] = [];
-  if ((soloBoard || manyTeamsBoard) && session?.playerId != null) {
+  // The viewer's own team(s) on any board shape: the tile dialog's "Submit proof" hand-off needs one,
+  // and the players board's lens marks them (that one only on a players / many-teams board).
+  let viewerTeamIds: number[] = [];
+  if (session?.playerId != null) {
     const myAccountIds = new Set(
       (await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, session.playerId))).map((a) => a.id),
     );
-    myTeamIds = [...new Set(
+    viewerTeamIds = [...new Set(
       eventPlayers
         .filter((p) => p.teamId != null && (myPlayerIds.includes(p.id) || (p.accountId != null && myAccountIds.has(p.accountId))))
         .map((p) => p.teamId!),
     )];
   }
+  const myTeamIds = soloBoard || manyTeamsBoard ? viewerTeamIds : [];
 
   // Playing, but the plugin hasn't been heard from since the start? Then drop, kill and lap tiles
   // are silently not counting for them, and nothing on the board said so.
@@ -982,6 +985,8 @@ export default async function EventScoreboardPage({
           manyTeams={manyTeamsBoard}
           teamMembers={teamMembers}
           myTeamIds={myTeamIds}
+          proofTeamId={viewerTeamIds[0] ?? null}
+          signedIn={!!session?.userId}
         />
         {luck && <EventLuck luck={luck} />}
         </>

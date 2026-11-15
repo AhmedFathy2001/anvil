@@ -6,7 +6,7 @@
 import { accountTypeLabel } from '@/lib/accountType';
 import { EFFICIENCY_SCALE, SKILLS } from '@/lib/constants';
 import { parseStamp } from '@/lib/dbTime';
-import { eventStage } from '@/lib/eventStage';
+import { eventStage, START_WAITING_WORDS, startIsHeld, type StageEvent } from '@/lib/eventStage';
 
 export type WeeklyKind = 'skill' | 'boss' | 'efficiency';
 
@@ -85,7 +85,7 @@ export function isLiveWindow(start: string | null | undefined, end: string | nul
  * description is as public as a card.
  */
 export function eventLinkDescription(
-  event: { startDate: string | null; endDate: string | null; forceEndedAt: string | null },
+  event: StageEvent,
   standings: { name: string; score: number; unit: string }[],
   now = Date.now(),
   /** Hidden standings (lib/standingsVisibility): say so, and name no leader and no score. */
@@ -106,7 +106,9 @@ export function eventLinkDescription(
 
   if (stage === 'build') {
     const until = timeLeft(event.startDate, now);
-    return [until ? `Starts in ${until}` : 'Coming up', teams ? `${teams} ready` : null].filter(Boolean).join(' · ');
+    // The same start line the home card and the events list use.
+    const start = startIsHeld(event) ? START_WAITING_WORDS : until ? `Starts in ${until}` : 'Coming up';
+    return [start, teams ? `${teams} ready` : null].filter(Boolean).join(' · ');
   }
   if (stage === 'wrap') {
     return ['Finished', scored && !tie ? `${leader.name} won with ${score}` : null, teams].filter(Boolean).join(' · ');

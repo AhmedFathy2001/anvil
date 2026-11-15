@@ -27,8 +27,11 @@ import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingSt
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import { claimFilterIds, TeamPlanPanel, TileClaimSection, useTeamClaims, type ClaimFilter } from './TeamClaims';
 import { completionMarkers } from '@/lib/tileClaimsView';
+import { prefetchTileDialog } from '@/lib/tileData';
 
 interface Props {
+  /** `?tile=` on the link: open this tile's dialog (the board's "Submit proof" button lands here). */
+  initialTileId?: number | null;
   event: Event;
   team: Team;
   tiles: Tile[];
@@ -69,12 +72,13 @@ export default function MyTeamClient({
   tierBands = DEFAULT_TIER_BANDS,
   boardHidden = false,
   tools = null,
+  initialTileId = null,
 }: Props) {
   const [team, setTeam] = useState(initialTeam);
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
-  const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [selectedTileId, setSelectedTileId] = useState<number | null>(() => (initialTileId != null && tiles.some((t) => t.id === initialTileId) ? initialTileId : null));
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(initialTeam.name);
   const [newColor, setNewColor] = useState(initialTeam.color);
@@ -601,9 +605,9 @@ export default function MyTeamClient({
                 {teamPlayers.map((player) => (
                   <span
                     key={player.id}
-                    className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 ${player.frozenAt ? 'bg-brown-dark/50 text-text-muted' : 'bg-brown-dark'}`}
+                    className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 max-w-full ${player.frozenAt ? 'bg-brown-dark/50 text-text-muted' : 'bg-brown-dark'}`}
                   >
-                    <span className={player.frozenAt ? 'line-through' : ''}>{player.name}</span>
+                    <span title={player.name} className={`min-w-0 truncate ${player.frozenAt ? 'line-through' : ''}`}>{player.name}</span>
                     {player.frozenAt && (
                       <span
                         className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px"
@@ -664,6 +668,10 @@ export default function MyTeamClient({
               activeTeamId={team.id}
               interactive={isCaptain}
               onTileClick={handleTileClick}
+              onTileIntent={(id) => {
+                const t = tiles.find((x) => x.id === id);
+                if (t) prefetchTileDialog({ eventId: event.id, tile: t as never, teamId: team.id, skipProof: true });
+              }}
               dropProgress={dropProgress}
               statProgress={statProgress}
               pointsMode={pointsMode}

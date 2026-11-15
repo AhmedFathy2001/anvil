@@ -3,6 +3,8 @@
 import { cn, exactTitle, formatNumber } from '@/lib/utils';
 import ClaimAvatars from '@/components/ClaimAvatars';
 import type { ClaimMarker } from '@/lib/tileClaimsView';
+import { useTileHover } from '@/components/TileHoverCard';
+import { tileHoverView } from '@/lib/tileHover';
 
 interface TileCellProps {
   label: string;
@@ -38,9 +40,11 @@ interface TileCellProps {
   needed?: boolean;
   /** Teammates planning to go for it (team view only, lib/tileClaims). */
   claimedBy?: ClaimMarker[];
+  /** Steady hover or keyboard focus on the tile: warm the dialog's data. */
+  onIntent?: () => void;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly, inLine, needed, claimedBy }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly, inLine, needed, claimedBy, onIntent }: TileCellProps) {
   const anyCompleted = completedBy.length > 0;
   // In markers-only mode the tile never takes a team's "completed" fill — the dots carry that info.
   const isCompleted = anyCompleted && !markersOnly;
@@ -50,8 +54,23 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
   const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 
+  const hover = useTileHover(
+    tileHoverView({
+      label,
+      doneBy: completedBy.map((c) => ({ name: c.teamName })),
+      manualOnly,
+      progress,
+      stat: statProgress,
+      claimedBy,
+      points,
+    }),
+    onIntent,
+  );
+
   return (
+    <>
     <button
+      {...hover.bind}
       onClick={onClick}
       disabled={!interactive && !onClick}
       className={cn(
@@ -84,13 +103,6 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
               boxShadow: `0 0 12px ${teamColor}30, inset 0 0 20px ${teamColor}10`,
             }
           : undefined
-      }
-      title={
-        anyCompleted
-          ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}`
-          : claimedBy && claimedBy.length > 0
-            ? `${label} — claimed by ${claimedBy.map((c) => (c.mine ? 'you' : c.name)).join(', ')}`
-            : label
       }
     >
       {/* Point value badge (points-scoring events) — top-left so it clears the checkmark */}
@@ -183,12 +195,12 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
               ? 'text-sm sm:text-base'
               : size <= 5
                 ? 'text-xs sm:text-sm'
-                : 'text-[10px] sm:text-xs'
+                : 'text-[11px] sm:text-xs'
             : size <= 3
               ? 'text-[11px] sm:text-sm'
               : size <= 5
                 ? 'text-xs sm:text-xs'
-                : 'text-[10px] sm:text-[9px]',
+                : 'text-[11px] sm:text-[10px]',
           isCompleted ? 'text-foreground' : 'text-text-muted',
         )}
       >
@@ -236,5 +248,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       )}
 
     </button>
+    {hover.card}
+    </>
   );
 }

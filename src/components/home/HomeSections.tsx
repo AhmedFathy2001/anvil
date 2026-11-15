@@ -905,7 +905,7 @@ function SectionHead({
       </h2>
       {note && <span className="text-xs text-text-muted">{note}</span>}
       {more && (
-        <ClanLink href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold">
+        <ClanLink href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
           {more.label}
         </ClanLink>
       )}

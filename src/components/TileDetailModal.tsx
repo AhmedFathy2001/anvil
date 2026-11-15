@@ -131,6 +131,11 @@ interface Props {
   extra?: ReactNode;
   /** A branching tile race (lib/raceRoutes): the tile's route banner, links and who is on it. */
   race?: RaceDetailContext | null;
+  /**
+   * The public board's hand-off to the proof form (which lives on the team page): a link for a player
+   * with a team, or the plain reason there is none. Omit where the form is already here.
+   */
+  submitProof?: { href: string } | { reason: string } | null;
 }
 
 /** Combo parts that take a screenshot of their own (the kinds the submission forms below serve). */
@@ -165,6 +170,7 @@ export default function TileDetailModal({
   extra,
   race,
   highlights,
+  submitProof,
 }: Props) {
   // Public board's Team Progress: which team's row is opened into its members.
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
@@ -795,6 +801,20 @@ export default function TileDetailModal({
           {/* What this tile needs from a player and what it can't do (lib/tileRequirements), with the
               viewer's own problems on top ("you haven't synced your collection log yet"). */}
           <TileBeforeYouStart tile={tile} eventId={eventId} />
+
+          {/* The board is read-only: the proof form is on the team page, which opens on this tile. */}
+          {submitProof && !canSubmit && (
+            'href' in submitProof ? (
+              <ClanLink
+                href={submitProof.href}
+                className="flex min-h-11 w-full items-center justify-center rounded-lg border border-gold/50 bg-gold/15 px-4 py-2 text-sm font-semibold text-gold hover:bg-gold/25"
+              >
+                Submit proof for this tile
+              </ClanLink>
+            ) : (
+              <p className="rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2 text-xs text-text-muted">{submitProof.reason}</p>
+            )
+          )}
 
           {/* Completion status */}
           {completedBy.length > 0 && (

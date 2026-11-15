@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { completions, events as eventsTable, tiles as tilesTable } from '@/db/schema';
 import { resolveClanById } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
-import { eventStage } from '@/lib/eventStage';
+import { eventStage, START_WAITING_WORDS, startIsHeld } from '@/lib/eventStage';
 import { visibilityOf } from '@/lib/eventVisibility';
 import { eventCard, siteCard, type BoardCell } from '@/lib/ogCard';
 import { cachedCard, remoteSprite } from '@/lib/ogKit';
@@ -124,6 +124,7 @@ async function load(_request: Request, { params }: { params: Promise<{ eventId: 
       : stage === 'build'
         ? (() => {
             const until = timeLeft(event.startDate);
+            if (startIsHeld(event)) return START_WAITING_WORDS;
             return until ? `Starts in ${until}` : null;
           })()
         : leader && anyScore

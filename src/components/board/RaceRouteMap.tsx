@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { RaceTileState } from '@/lib/raceRoutes';
 import { TileStateIcon } from './TileState';
+import { TileHoverButton } from '@/components/TileHoverCard';
+import { tileHoverView } from '@/lib/tileHover';
 import { H_COL, H_LANE, H_PAD, V_GUTTER, layoutFor } from '@/lib/raceMapLayout';
 
 /**
@@ -46,6 +48,8 @@ interface Props {
   teams?: (RouteMapTeam & { path: number[] })[];
   viewerTeamId?: number | null;
   onTileClick?: (id: number) => void;
+  /** Steady hover/focus on a tile: warm what its dialog needs. */
+  onTileIntent?: (id: number) => void;
   /** Editor: the tile being linked from, tiles with a problem, tiles that can be linked to it. */
   selectedId?: number | null;
   problemIds?: Set<number>;
@@ -166,6 +170,7 @@ export default function RaceRouteMap({
   teams = [],
   viewerTeamId = null,
   onTileClick,
+  onTileIntent,
   selectedId = null,
   problemIds,
   linkable,
@@ -405,11 +410,17 @@ export default function RaceRouteMap({
                   {here.length > 3 && <span className="text-[9px] text-text-muted">+{here.length - 3} more</span>}
                 </div>
               )}
-              <button
+              <TileHoverButton
                 type="button"
+                view={tileHoverView({
+                  label: n.label,
+                  doneBy: st === 'done' ? [{ name: '' }] : [],
+                  locked: st === 'ahead' || st === 'closed' || (lockedIds?.has(n.id) ?? false),
+                  progressText: line ?? null,
+                })}
+                onIntent={onTileIntent ? () => onTileIntent(n.id) : undefined}
                 onClick={onTileClick ? () => onTileClick(n.id) : undefined}
                 disabled={!onTileClick}
-                title={n.label}
                 aria-label={`${n.label}${st ? ` — ${st === 'open' ? 'next' : st === 'ahead' ? 'locked' : st}` : ''}`}
                 className={cn(
                   'relative rounded-full flex items-center justify-center bg-[#1c1714] border-[3px] border-[#332a22] transition-transform',
@@ -449,7 +460,7 @@ export default function RaceRouteMap({
                 {youTileId === n.id && (
                   <span className="absolute -top-2 -left-3 rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark shadow ring-2 ring-[#141010]">You</span>
                 )}
-              </button>
+              </TileHoverButton>
               <span title={n.label} className={cn('mt-1 text-[11px] leading-tight text-center line-clamp-2 px-1', st === 'closed' ? 'text-text-muted/60' : st === 'open' || st === 'done' ? 'text-foreground' : 'text-text-muted')}>
                 {shortLabel(n.label)}
               </span>
