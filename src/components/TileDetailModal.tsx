@@ -265,7 +265,8 @@ export default function TileDetailModal({
   const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms || isClog;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
-  const perUnitProof = isDrop;
+  // A drop tile that counts a big stack ("500 Demon tears") is the same: one amount, one screenshot.
+  const perUnitProof = isDrop && (tile.requiredAmount ?? 1) <= 10;
   // Collection tile = a drop tile with per-item requirements. Its submissions must name WHICH item in
   // the set (itemId), so the count form gets an item picker and handleSubmit requires a selection.
   const itemReqs: { itemId: number; name: string }[] = (() => {
@@ -479,13 +480,16 @@ export default function TileDetailModal({
 
     // Validate all images are uploaded
     const validImages = imageUrls.filter((url) => url && url.trim());
-    if (validImages.length === 0) {
+    // Staff managing the board may add a count with no picture (a correction for something the
+    // plugin missed); the server allows it for clan admins only and refuses anyone else.
+    const adjusting = validImages.length === 0 && !!canManage;
+    if (validImages.length === 0 && !adjusting) {
       setError('Please upload at least one image as evidence');
       return;
     }
 
     // Real drops want one screenshot per unit; other count tiles take a single proof for the amount.
-    if (perUnitProof && parsedAmount > 1 && validImages.length < parsedAmount) {
+    if (!adjusting && perUnitProof && parsedAmount > 1 && validImages.length < parsedAmount) {
       setError(`Please upload ${parsedAmount} images (one for each drop)`);
       return;
     }
@@ -509,13 +513,13 @@ export default function TileDetailModal({
     try {
       // Submit each image as a separate submission with amount=1
       // Or if only 1 image, submit with the full amount
-      if (validImages.length === 1) {
+      if (validImages.length <= 1) {
         await onSubmit({
           tileId: tile.id,
           teamId,
           amount: parsedAmount,
-          imageUrl: validImages[0],
-          note,
+          imageUrl: validImages[0] ?? '',
+          note: adjusting && !note.trim() ? 'Added by staff, no screenshot' : note,
           creditPlayerId: parseInt(creditPlayerId, 10),
           itemId: submittedItemId,
           attachments: extras,
@@ -1449,6 +1453,12 @@ export default function TileDetailModal({
             return (
             <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Add Submission</h3>
+              {canManage && (
+                <p className="text-xs text-text-muted">
+                  Correcting a count the plugin missed? A clan admin can submit an amount with no screenshot; it is
+                  filed as a staff correction.
+                </p>
+              )}
               {remaining !== undefined && (
                 <p className="text-xs text-yellow-400">
                   {remaining} more {countNoun}{remaining !== 1 ? 's' : ''} needed to complete this tile

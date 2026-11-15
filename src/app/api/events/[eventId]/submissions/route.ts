@@ -299,9 +299,12 @@ export async function POST(
       );
     }
     imageUrlValue = imageUrl.trim();
-  } else if (!isPluginKillPing && !pendingKey) {
+  } else if (!isPluginKillPing && !pendingKey && !(isAdmin && !pluginToken)) {
+    // A clan admin on the site may add a credit with no picture: a correction for something the
+    // plugin missed. It is filed like any other row, under the admin's name, and says what it is.
     return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
   }
+  const staffAdjustment = !imageUrlValue && !pendingKey && !isPluginKillPing && isAdmin && !pluginToken;
   const hasShot = !!imageUrlValue || !!pendingKey;
 
   // Shared-kill fingerprint: what the client could see of its company at kill time (lib/coopRuns
@@ -466,6 +469,7 @@ export async function POST(
   // runs toward requiredAmount, so a stray amount must never stand in for several runs.
   let creditedAmount: number = tile.tileType === 'timed' ? 1 : amount || 1;
   let creditNote: string | null = note || null;
+  if (staffAdjustment) creditNote = `[Staff] ${creditNote ?? 'Added without a screenshot'}`;
   // A cap counter's ping follows the same rule, its ceiling off that one counter.
   if (isPluginKillPing && !hasShot && PING_CAPPED_KINDS.has(tile.tileType)) {
     const capAt = capIndex(goalValue);
@@ -722,7 +726,8 @@ export async function POST(
       coopGroup: coopGroupJson,
       coopPartySize: coopPartySizeValue,
       flaggedReason,
-      source: pluginAuth ? 'plugin' : 'web',
+      // 'staff': a clan admin's correction with no picture, which stands as its own proof (lib/submissions).
+      source: staffAdjustment ? 'staff' : pluginAuth ? 'plugin' : 'web',
       worldMode: pluginAuth ? (worldModeOf(request)?.key ?? null) : null,
       imageSha256: upload?.sha256 ?? null,
       goal: goalValue,
