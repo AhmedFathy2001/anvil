@@ -1820,10 +1820,15 @@ export default function TileDetailModal({
       )}
       {openPart && (() => {
         const st = dropProgress?.combo?.parts.find((x) => x.id === openPart.id)?.state;
+        // A part's state may carry only "done": fall back to the part's own goal and what has been
+        // submitted for it, or the form asked for "0/99" screenshots on a one-item part already done.
+        const partSubs = submissions.filter((sub) => sub.tileId === openPart.id);
+        const partRequired = st?.required ?? openPart.requiredAmount ?? null;
+        const partCurrent = st?.current ?? (st?.done && partRequired != null ? partRequired : partSubs.reduce((n, sub) => n + sub.amount, 0));
         return (
           <TileDetailModal
             tile={openPart}
-            submissions={submissions.filter((sub) => sub.tileId === openPart.id)}
+            submissions={partSubs}
             submissionsLoading={submissionsLoading}
             completedBy={[]}
             canSubmit={canSubmit}
@@ -1834,7 +1839,7 @@ export default function TileDetailModal({
             onClose={() => setOpenPart(null)}
             eventId={eventId}
             teamId={teamId}
-            dropProgress={st?.required != null ? { current: st.current ?? 0, required: st.required } : undefined}
+            dropProgress={partRequired != null ? { current: partCurrent, required: partRequired } : undefined}
             teamPlayers={teamPlayers}
             currentPlayerId={currentPlayerId}
             pointsMode={pointsMode}
