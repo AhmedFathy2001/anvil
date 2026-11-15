@@ -60,13 +60,55 @@ export function nicknameMatchingOn(raw: string | null | undefined): boolean {
 }
 
 /**
- * How many seats role sync cannot reach by Discord id: the character's owner has not signed in with
- * Discord and no Discord account was linked to the seat. With nickname matching off these get no
- * roles; with it on they are the ones matched by nickname only.
+ * Where a seat's Discord id can come from. The first three are PROVEN: somebody signed in to Anvil
+ * with that Discord account and the database ties their login to this seat. The last is only a
+ * stored id on the character: it may have been saved by an earlier nickname match or typed in by an
+ * admin, and nothing records which, so on its own it proves nothing.
  */
-export function countSeatsNotLinked(seats: Iterable<{ ownerDiscordId: string | null; linkedDiscordId: string | null }>): number {
+export interface SeatDiscordSources {
+  /** The character's owner signed in with Discord (their users.discordId). */
+  ownerDiscordId: string | null;
+  /** A signed-in user signed up for an event as this seat. */
+  signupDiscordId: string | null;
+  /** A signed-in user's plugin reported playing this character. */
+  pluginDiscordId: string | null;
+  /** accounts.discordId: a stored id with no record of where it came from. */
+  cachedDiscordId: string | null;
+}
+
+/**
+ * The Discord ids role sync may try for a seat, strongest first, no repeats.
+ *
+ * Nickname matching OFF: proven ids only. A stored id that no proven source backs is ignored (not
+ * deleted), including one that disagrees with the owner's own sign-in, so a past nickname match
+ * cannot keep earning roles after the clan said names are not enough.
+ * Nickname matching ON: as before, the stored id is tried last.
+ */
+export function trustedDiscordIds(src: SeatDiscordSources, matchByNickname: boolean): string[] {
+  const out: string[] = [];
+  const add = (id: string | null | undefined) => {
+    if (id && !out.includes(id)) out.push(id);
+  };
+  add(src.ownerDiscordId);
+  add(src.signupDiscordId);
+  add(src.pluginDiscordId);
+  if (matchByNickname) add(src.cachedDiscordId);
+  return out;
+}
+
+/** Is this Discord id one a proven source gives for the seat? A stored-only id is not. */
+export function isProvenDiscordId(discordId: string | null | undefined, src: SeatDiscordSources): boolean {
+  return !!discordId && trustedDiscordIds(src, false).includes(discordId);
+}
+
+/**
+ * How many seats have no proven Discord id: nobody signed in with Discord for them. With nickname
+ * matching off these get no roles, even when an id is stored on the character; with it on they are
+ * the ones reached by a stored id or a nickname only.
+ */
+export function countSeatsNotLinked(seats: Iterable<SeatDiscordSources>): number {
   let n = 0;
-  for (const s of seats) if (!s.ownerDiscordId && !s.linkedDiscordId) n++;
+  for (const s of seats) if (trustedDiscordIds(s, false).length === 0) n++;
   return n;
 }
 

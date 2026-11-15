@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 
 import {
   countSeatsNotLinked,
+  isProvenDiscordId,
   isSafeAutomatedRole,
   nameMatchAllowed,
   nicknameMatchingOn,
   ROLE_MATCH_BY_NICKNAME_KEY,
+  trustedDiscordIds,
 } from '../src/lib/discordRoleSafety.ts';
 
 const bit = (position: number) => (BigInt(1) << BigInt(position)).toString();
@@ -105,15 +107,60 @@ test('turning nickname matching on does not loosen the checks against what is pr
   assert.equal(nameMatchAllowed({ ...on, seatOwnerDiscordId: null, matchedPlayerId: 6 }), false, 'the match is somebody else');
 });
 
-test('the not-linked count: seats with neither a signed-in owner nor a linked Discord account', () => {
+// ── Which Discord id is proven ────────────────────────────────────────────────────────────────
+
+const none = { ownerDiscordId: null, signupDiscordId: null, pluginDiscordId: null, cachedDiscordId: null };
+
+test('proven by the owner signing in with Discord', () => {
+  const src = { ...none, ownerDiscordId: 'OWNER' };
+  assert.deepEqual(trustedDiscordIds(src, false), ['OWNER']);
+  assert.equal(isProvenDiscordId('OWNER', src), true);
+});
+
+test('proven by a signed-in event sign-up, or by a plugin report from a signed-in user', () => {
+  assert.deepEqual(trustedDiscordIds({ ...none, signupDiscordId: 'SIGNUP' }, false), ['SIGNUP']);
+  assert.deepEqual(trustedDiscordIds({ ...none, pluginDiscordId: 'PLUGIN' }, false), ['PLUGIN']);
+  assert.equal(isProvenDiscordId('SIGNUP', { ...none, signupDiscordId: 'SIGNUP' }), true);
+  // Strongest first, no repeats.
+  assert.deepEqual(
+    trustedDiscordIds({ ownerDiscordId: 'A', signupDiscordId: 'A', pluginDiscordId: 'B', cachedDiscordId: 'A' }, false),
+    ['A', 'B'],
+  );
+});
+
+test('a stored-only id earns nothing while nickname matching is off', () => {
+  const src = { ...none, cachedDiscordId: 'CACHED' };
+  assert.deepEqual(trustedDiscordIds(src, false), [], 'off: ignored');
+  assert.equal(isProvenDiscordId('CACHED', src), false);
+  assert.deepEqual(trustedDiscordIds(src, true), ['CACHED'], 'on: tried, as before');
+});
+
+test('a stored id that disagrees with the owner sign-in: the owner id is used, the stored one dropped', () => {
+  const src = { ...none, ownerDiscordId: 'OWNER', cachedDiscordId: 'IMPOSTOR' };
+  assert.deepEqual(trustedDiscordIds(src, false), ['OWNER']);
+  assert.equal(isProvenDiscordId('IMPOSTOR', src), false);
+  // On keeps the old order: the stored id is only ever tried after every proven one.
+  assert.deepEqual(trustedDiscordIds(src, true), ['OWNER', 'IMPOSTOR']);
+});
+
+test('a stored id that agrees with a proven one is just that proven id', () => {
+  const src = { ...none, ownerDiscordId: 'OWNER', cachedDiscordId: 'OWNER' };
+  assert.deepEqual(trustedDiscordIds(src, false), ['OWNER']);
+  assert.equal(isProvenDiscordId('OWNER', src), true);
+  assert.equal(isProvenDiscordId(null, src), false);
+});
+
+test('the not-linked count: seats no sign-in vouches for, stored ids included', () => {
   assert.equal(countSeatsNotLinked([]), 0);
   assert.equal(
     countSeatsNotLinked([
-      { ownerDiscordId: 'D1', linkedDiscordId: null }, // signed in
-      { ownerDiscordId: null, linkedDiscordId: 'D2' }, // linked to a Discord account
-      { ownerDiscordId: null, linkedDiscordId: null }, // nickname only
-      { ownerDiscordId: '', linkedDiscordId: '' }, // blank is not a link
+      { ...none, ownerDiscordId: 'D1' }, // signed in
+      { ...none, signupDiscordId: 'D2' }, // signed up while signed in
+      { ...none, pluginDiscordId: 'D3' }, // plugin report
+      { ...none, cachedDiscordId: 'D4' }, // stored only: not linked
+      none, // nothing at all
+      { ...none, ownerDiscordId: '' }, // blank is not a link
     ]),
-    2,
+    3,
   );
 });

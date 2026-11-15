@@ -141,15 +141,15 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
         label="Also match members by Discord nickname"
         description={
           <>
-            Off: only people who signed in to Anvil with Discord get roles. On: a member who has not signed in
+            Off: only people who signed in to Anvil with Discord get roles; a Discord account that was matched by name before, or linked by hand, no longer counts. On: a member who has not signed in
             also gets their roles when someone in your server has a nickname or username that matches their
             in-game name. Anyone in your server can set their nickname to such a member&apos;s name and receive
             that member&apos;s roles, without signing in to Anvil. Members who signed in are never affected.
             {nicknameMatch && notLinked > 0 && (
               <>
                 {' '}
-                {notLinked} current {notLinked === 1 ? 'member has' : 'members have'} not linked Discord and can
-                only be matched by nickname.
+                {notLinked} current {notLinked === 1 ? 'member has' : 'members have'} not signed in with Discord and
+                can only be matched this way.
               </>
             )}
           </>

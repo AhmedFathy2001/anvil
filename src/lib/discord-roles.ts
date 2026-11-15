@@ -26,11 +26,13 @@ import { getSetting } from '@/lib/settings';
 import { clanAuditLog, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
-import { and, desc, eq, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
 import {
   countSeatsNotLinked,
+  type SeatDiscordSources,
+  trustedDiscordIds,
   isSafeAutomatedRole,
   nameMatchAllowed,
   nicknameMatchingOn,
@@ -768,9 +770,8 @@ async function nameMatchTrusted(
  */
 export async function countRosterSeatsNotLinked(clanId: number): Promise<number> {
   const rows = await db
-    .select({ id: clanRoster.id, linkedDiscordId: clanRoster.discordId, ownerDiscordId: users.discordId })
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, playerId: clanRoster.playerId, discordId: clanRoster.discordId })
     .from(clanRoster)
-    .leftJoin(users, and(eq(users.playerId, clanRoster.playerId), isNotNull(users.discordId)))
     .where(
       and(
         eq(clanRoster.clanId, clanId),
@@ -779,16 +780,43 @@ export async function countRosterSeatsNotLinked(clanId: number): Promise<number>
         rosterClanSeat(),
       ),
     );
-  // One row per seat: a person with two logins must not count their seat twice.
-  const bySeat = new Map<number, { ownerDiscordId: string | null; linkedDiscordId: string | null }>();
-  for (const r of rows) {
-    const held = bySeat.get(r.id);
-    bySeat.set(r.id, {
-      ownerDiscordId: held?.ownerDiscordId || r.ownerDiscordId || null,
-      linkedDiscordId: r.linkedDiscordId ?? null,
-    });
-  }
-  return countSeatsNotLinked(bySeat.values());
+  if (rows.length === 0) return 0;
+
+  // The same three proven sources the sync reads (seatDiscordSources), fetched in bulk.
+  const playerIds = [...new Set(rows.map((r) => r.playerId).filter((x): x is number => x != null))];
+  const owners = playerIds.length
+    ? await db
+        .select({ playerId: users.playerId, discordId: users.discordId })
+        .from(users)
+        .where(and(inArray(users.playerId, playerIds), isNotNull(users.discordId)))
+    : [];
+  const ownerOf = new Map(owners.map((o) => [o.playerId, o.discordId]));
+
+  const signups = await db
+    .select({ seatId: eventSignups.clanMemberId, discordId: users.discordId })
+    .from(eventSignups)
+    .innerJoin(users, eq(users.id, eventSignups.userId))
+    .where(and(inArray(eventSignups.clanMemberId, rows.map((r) => r.id)), isNotNull(users.discordId)));
+  const signupOf = new Map(signups.map((x) => [x.seatId, x.discordId]));
+
+  const norms = [...new Set(rows.map((r) => normalizeRsn(r.rsn)).filter(Boolean))];
+  const detected = norms.length
+    ? await db
+        .select({ rsn: detectedAccounts.rsnNormalized, discordId: users.discordId })
+        .from(detectedAccounts)
+        .innerJoin(users, eq(users.id, detectedAccounts.userId))
+        .where(and(inArray(detectedAccounts.rsnNormalized, norms), isNotNull(users.discordId)))
+    : [];
+  const pluginOf = new Map(detected.map((d) => [d.rsn, d.discordId]));
+
+  return countSeatsNotLinked(
+    rows.map((r) => ({
+      ownerDiscordId: (r.playerId != null ? ownerOf.get(r.playerId) : null) ?? null,
+      signupDiscordId: signupOf.get(r.id) ?? null,
+      pluginDiscordId: pluginOf.get(normalizeRsn(r.rsn)) ?? null,
+      cachedDiscordId: r.discordId ?? null,
+    })),
+  );
 }
 
 // =============================================================================
@@ -857,7 +885,7 @@ export async function resolveDiscordIdForMember(
   if (!cfg) return null;
   // Try every candidate against the guild and return the first that's ACTUALLY a member — the same
   // rule the role sweep uses, so team/bingo assignment can't hand a role to a stale id. Cached on hit.
-  const candidates = await gatherDiscordIdCandidates(member);
+  const candidates = await gatherDiscordIdCandidates(member, cfg.matchByNickname);
   for (const c of candidates) {
     const gm = await getGuildMember(cfg, c);
     if (gm.member) {
@@ -880,7 +908,9 @@ export async function resolveDiscordIdForMember(
  *   1) the clan member's linked user (OAuth login)     — their current, real id
  *   2) a user who signed up playing this account
  *   3) a user whose plugin self-report matched this RSN
- *   4) the cached clan_members.discordId               — can be a STALE legacy value, so it's LAST
+ *   4) the cached clan_members.discordId               — can be a STALE legacy value, so it's LAST,
+ *      and it is left out entirely while the clan's nickname matching is off: nothing records
+ *      whether a nickname match or an admin put it there
  * The role sweep tries each against the guild and uses the first that's actually a member, so a
  * dead cached id can no longer shadow a live link, and no nickname/RSN needs to change.
  */
@@ -900,29 +930,34 @@ export async function provenDiscordIdForSeat(member: { id: number; playerId: num
   return signup?.userId != null ? discordIdForUser(signup.userId) : null;
 }
 
-async function gatherDiscordIdCandidates(member: MinimalClanMember): Promise<string[]> {
-  const out: string[] = [];
-  const add = (id: string | null | undefined) => {
-    if (id && !out.includes(id)) out.push(id);
-  };
-
-  if (member.playerId != null) add(await discordIdForPerson(member.playerId));
+/** Every source the database holds for a seat's Discord id (lib/discordRoleSafety SeatDiscordSources). */
+async function seatDiscordSources(member: MinimalClanMember): Promise<SeatDiscordSources> {
+  const ownerDiscordId = member.playerId != null ? await discordIdForPerson(member.playerId) : null;
 
   const signup = await db.query.eventSignups.findFirst({
     where: and(eq(eventSignups.clanMemberId, member.id), isNotNull(eventSignups.userId)),
   });
-  if (signup?.userId != null) add(await discordIdForUser(signup.userId));
+  const signupDiscordId = signup?.userId != null ? await discordIdForUser(signup.userId) : null;
 
+  let pluginDiscordId: string | null = null;
   const norm = normalizeRsn(member.rsn);
   if (norm) {
     const detected = await db.query.detectedAccounts.findFirst({
       where: eq(detectedAccounts.rsnNormalized, norm),
     });
-    if (detected?.userId != null) add(await discordIdForUser(detected.userId));
+    if (detected?.userId != null) pluginDiscordId = await discordIdForUser(detected.userId);
   }
 
-  add(member.discordId); // cached last — may be a stale legacy id
-  return out;
+  // The stored id last: it may be a stale legacy value, an old nickname match or an admin's link.
+  return { ownerDiscordId, signupDiscordId, pluginDiscordId, cachedDiscordId: member.discordId };
+}
+
+/**
+ * The ids to try for a seat. With the clan's nickname matching off, only ids a sign-in proves; the
+ * stored id counts only with it on (trustedDiscordIds).
+ */
+async function gatherDiscordIdCandidates(member: MinimalClanMember, matchByNickname: boolean): Promise<string[]> {
+  return trustedDiscordIds(await seatDiscordSources(member), matchByNickname);
 }
 
 // =============================================================================
@@ -969,7 +1004,7 @@ export async function syncRolesForClanMember(
   // the rate-limited name search (which matches nick / username / global_name, so no rename is
   // needed). The first candidate that's a live guild member wins and is cached — so a stale legacy
   // id can't win, and "user not in guild" only fires when NONE of their ids are really present.
-  const candidates = await gatherDiscordIdCandidates(member);
+  const candidates = await gatherDiscordIdCandidates(member, cfg.matchByNickname);
   let discordUserId: string | null = null;
   let currentMember: DiscordGuildMember | null = null;
   let sawTransient = false;
@@ -1068,7 +1103,12 @@ export async function syncRolesForClanMember(
     );
   ownedRows.push(...viaOauth);
 
-  const viaLegacy = await db
+  // Seats that merely have this id STORED on them count toward the rank only while nickname matching
+  // is on. With it off a stored id proves nothing, and counting it would hand a signed-in member the
+  // rank of every character an old nickname match once pointed at them.
+  const viaLegacy = !cfg.matchByNickname
+    ? []
+    : await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
     // This clan's seats: the roles being computed belong to one guild, and someone's rank in

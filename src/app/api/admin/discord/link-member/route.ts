@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { seatInClan, updateAccountOfSeat } from '@/lib/roster';
 import { verifyAdmin } from '@/lib/auth';
-import { isGuildMember, syncRolesForClanMember } from '@/lib/discord-roles';
+import { isGuildMember, loadRoleSyncConfig, syncRolesForClanMember } from '@/lib/discord-roles';
 
 // POST { clanMemberId, discordUserId } — point an UNCLAIMED roster entry at a Discord user (for the
 // stragglers auto-resolution can't reach). Validates the user is in the guild, caches the id on the
@@ -40,6 +40,19 @@ export async function POST(request: Request) {
         code: 'reportToAnvil',
       },
       { status: 403 },
+    );
+  }
+  // A hand-made link is stored in the same place as an old nickname match and nothing records which
+  // is which, so role sync only uses it while the clan allows matching without a sign-in. Saying so
+  // here beats storing a link that then silently earns no roles.
+  const cfg = await loadRoleSyncConfig(clan.id);
+  if (cfg && !cfg.matchByNickname) {
+    return NextResponse.json(
+      {
+        error:
+          'Linking by hand only gives roles while "Also match members by Discord nickname" is on. Turn it on, or ask them to sign in to Anvil with Discord.',
+      },
+      { status: 409 },
     );
   }
   await updateAccountOfSeat(clanMemberId, { discordId: discordUserId });
