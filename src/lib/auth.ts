@@ -454,6 +454,9 @@ export async function verifyTileEditorForEvent(
 // Non-event authoring gate for the shared tile-editor helper APIs (item/NPC/clog/CA search) that
 // carry no event-specific data. Passes admins, global editors, and anyone holding at least one
 // board grant — i.e. anyone who can author tiles *somewhere* needs these lookups.
+//
+// PLATFORM-WIDE DATA ONLY. The fallback below is not clan-scoped, on purpose. Anything that reads a
+// clan's own data (its task library) must use verifyTileEditorInClan instead.
 export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
@@ -463,6 +466,28 @@ export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
     columns: { id: true },
   });
   return grant ? user : null;
+}
+
+/**
+ * The same gate for anything that reads or writes THIS clan's own authoring data — its task library,
+ * its starters, a draw from it, its export.
+ *
+ * verifyTileEditorAnywhere is right for platform-wide lookups (items, NPCs, the collection log): a
+ * grant on any board anywhere is reason enough to search them. It is wrong for a clan's catalogue,
+ * where it let a board editor of clan A open clan B's library by visiting clan B's address. Here the
+ * board grant has to be on one of this clan's boards (or a co-hosted one reached from it), which is
+ * the question verifyUser already asks through hasBoardGrantInClan.
+ */
+export async function verifyTileEditorInClan(): Promise<UserPayload | null> {
+  const user = await verifyUser();
+  if (!user) return null;
+  if (user.canEditTiles) return user;
+  // verifyUser only looks for a board grant when the person holds no seat at all, so a moderator
+  // (staff, but not a tile author) who was given one board still has to be asked about it here.
+  const clan = await currentClan();
+  if (!clan) return null;
+  if (!(await hasBoardGrantInClan(clan.id, user.userId))) return null;
+  return (await isBannedFromClan(clan.id, user.playerId)) ? null : user;
 }
 
 // Fee-collection gate. Regular moderators cannot collect sign-up fees — only admins
@@ -2197,11 +2222,14 @@ export async function pluginTokenPerson(request: Request): Promise<{ userId: num
 
   // The legacy token still has to name a live user; authority is asked for separately below, so a
   // revoked grant stops it just as it stops the account-token path.
+  //
+  // AND AN UNBANNED ONE. userByPluginToken above already refuses a barred login on this same link,
+  // and this fallback then looked the link up again and let them straight back in.
   const linkUser = await db.query.users.findFirst({
     where: eq(users.id, link.userId),
-    columns: { id: true },
+    columns: { id: true, banned: true, playerId: true },
   });
-  if (!linkUser) return null;
+  if (!linkUser || (await pluginLoginBarred(linkUser))) return null;
 
   // Fire-and-forget lastUsedAt bump — ok if it races
   db.update(pluginLinks)
