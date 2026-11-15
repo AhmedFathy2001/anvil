@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clanStreaks } from '@/lib/activityStreaks';
-import { clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanMemberships, clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
@@ -186,10 +186,32 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   const earliestDay = shapeComps.length
     ? shapeComps.map((c) => c.startDate.slice(0, 10)).sort()[0]
     : null;
-  const dailyRows = earliestDay
+  // A participant names a SEAT; daily stats are kept per ACCOUNT. Those are different id sequences,
+  // so each seat is resolved to its account first. Comparing them raw drew an empty chart for most
+  // weeks and, where a seat id happened to equal some other clan's account id, drew that account's.
+  // The read is also bounded to exactly these accounts rather than every clan's rows since the day.
+  const shapeIds = new Set(shapeComps.map((c) => c.id));
+  const shapeSeatIds = [
+    ...new Set(
+      partRows
+        .filter((p) => shapeIds.has(p.competitionId))
+        .map((p) => p.clanMemberId)
+        .filter((id): id is number => id != null),
+    ),
+  ];
+  // clan-scope: global -- seats named by this clan's own competitions' participants, by id.
+  const seatAccounts = shapeSeatIds.length
+    ? await db
+        .select({ seatId: clanMemberships.id, accountId: clanMemberships.accountId })
+        .from(clanMemberships)
+        .where(inArray(clanMemberships.id, shapeSeatIds))
+    : [];
+  const accountBySeat = new Map(seatAccounts.map((r) => [r.seatId, r.accountId]));
+  const shapeAccountIds = [...new Set(seatAccounts.map((r) => r.accountId))];
+  const dailyRows = earliestDay && shapeAccountIds.length
     ? await db
         .select({
-          clanMemberId: memberDailyStats.accountId,
+          accountId: memberDailyStats.accountId,
           day: memberDailyStats.day,
           xpGained: memberDailyStats.xpGained,
           ehpMilliGained: memberDailyStats.ehpMilliGained,
@@ -197,7 +219,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
           deltas: memberDailyStats.deltas,
         })
         .from(memberDailyStats)
-        .where(gte(memberDailyStats.day, earliestDay))
+        .where(and(inArray(memberDailyStats.accountId, shapeAccountIds), gte(memberDailyStats.day, earliestDay)))
     : [];
   const parsedDaily = dailyRows.map((r) => ({
     ...r,
@@ -222,10 +244,14 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     let days: number[] = [];
     if (shapeComps.some((s) => s.id === c.id)) {
       const range = dayRange(c.startDate, c.endDate);
-      const memberIds = new Set(parts.map((p) => p.clanMemberId).filter((id): id is number => id != null));
+      const accountIds = new Set(
+        parts
+          .map((p) => (p.clanMemberId != null ? accountBySeat.get(p.clanMemberId) : undefined))
+          .filter((id): id is number => id != null),
+      );
       const byDay = new Map(range.map((d) => [d, 0]));
       for (const row of parsedDaily) {
-        if (!memberIds.has(row.clanMemberId) || !byDay.has(row.day)) continue;
+        if (!accountIds.has(row.accountId) || !byDay.has(row.day)) continue;
         byDay.set(
           row.day,
           (byDay.get(row.day) ?? 0) +
