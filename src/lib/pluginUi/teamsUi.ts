@@ -32,19 +32,38 @@ export function teamLine(t: RosterTeamOut): string {
   return [t.rank != null ? `#${t.rank}` : null, t.score, plural(t.members, 'member')].filter(Boolean).join(' · ');
 }
 
+/**
+ * Names on a team that still owe a starting shot, from the enrolments the shot is asked of: the
+ * shot is not yet accepted (none, or rejected), and the ask is still open. Pure.
+ */
+export function missingStartShots(members: { id: number; name: string }[], statusById: Map<number, string>, open: boolean): string[] {
+  if (!open) return [];
+  return members.filter((m) => {
+    const st = statusById.get(m.id);
+    return !st || st === 'rejected';
+  }).map((m) => m.name).sort((a, b) => a.localeCompare(b));
+}
+
+/** "Missing starting shot: A, B +2 more", or null when nobody is. */
+export function missingShotsLine(names: string[], shown = 4): string | null {
+  if (!names.length) return null;
+  const more = names.length - shown;
+  return `Missing starting shot: ${names.slice(0, shown).join(', ')}${more > 0 ? ` +${more} more` : ''}`;
+}
+
 /** The page with its search box; the results live in slot `roster`. */
-export function teamsUi(data: RosterPage | null, s: TeamsState, q: string): Node {
+export function teamsUi(data: RosterPage | null, s: TeamsState, q: string, missingShots: string[] = []): Node {
   return col([
     muted('Search players'),
     gap(2),
     { t: 'input', name: 'q', kind: 'search', value: q, tip: data && (data.mode === 'players' || (data.mode === 'search' && data.ranked)) ? 'Find a player by name' : 'Find a player on any team', on: load({ event: s.event }) },
     gap(8),
-    { t: 'slot', id: 'roster', c: rosterUi(data, s) },
+    { t: 'slot', id: 'roster', c: rosterUi(data, s, missingShots) },
   ]);
 }
 
 /** The results under the search box. */
-export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
+export function rosterUi(data: RosterPage | null, s: TeamsState, missingShots: string[] = []): Node {
   if (!data) return col([text('Couldn’t load the teams.', 'error'), gap(6), button('Try again', load(s))]);
   const parts: Node[] = [];
   if (data.mode === 'teams') {
@@ -85,6 +104,8 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
     const t = data.team;
     parts.push(text('‹ All teams', '#cdcdcd', { on: load({ event: s.event, page: s.back }) }), gap(6));
     parts.push(card([row(swatch(t.color, 10), text(t.name, 'white', { font: 'bold' }), undefined), gap(3), muted(teamLine(t))]), gap(8));
+    const missing = missingShotsLine(missingShots);
+    if (missing) parts.push(muted(missing, { wrap: true }), gap(8));
     if (!data.players.length) parts.push(muted('Nobody on this team yet.'));
     else {
       parts.push(header('Members'), gap(3));

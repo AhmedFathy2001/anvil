@@ -525,3 +525,17 @@ test('a long mission run stays short: live always, the latest two finished, the 
   assert.ok(all.includes('4 earlier missions finished') && !all.includes('Old 3') && all.includes('Old 4') && all.includes('Old 5'));
   assert.ok(all.includes('Kill 5') && all.includes('Soon 1') && !all.includes('Soon 2') && all.includes('+3 more locked'));
 });
+
+test('the weekly page of a team competition shows your team and the standings', () => {
+  const g = (rank: number, name: string, you: boolean) => ({ rank, name, colour: null, total: 1000 * (5 - rank), average: 100, members: 4, you, top: [{ rsn: 'Secret', gained: 1 }] });
+  const standings = [g(1, 'Red', false), g(2, 'Blue', true)];
+  const groups = { mode: 'teams' as const, noun: 'team' as const, of: 2, you: { ...standings[1], line: '' }, standings };
+  const top = [{ rank: 1, rsn: 'P1', gained: 5000, self: false }];
+  const ui = eventUi(base(liveCfg({ panel: { weeklies: [{ id: 3, title: 'KC week', type: 'boss', metric: 'zulrah', metricLabel: 'Zulrah', status: 'active', startDate: '2026-10-20T00:00:00Z', endDate: '2026-10-27T00:00:00Z' }] } }), {
+    weekly: new Map([[3, { total: 8, top, you: null, groups }]]),
+  }), 'weekly:3')!;
+  const all = texts(ui);
+  assert.ok(all.includes('Team standings') && all.includes('1. Red') && all.includes('2. Blue (you)'));
+  assert.ok(all.some((t) => t.startsWith('Your team: 2nd of 2')));
+  assert.ok(!all.includes('Secret'), 'standings carry names and totals only');
+});

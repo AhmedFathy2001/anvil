@@ -16,6 +16,7 @@ import type { Board as RaceBoard, BoardContext } from './boardUi';
 import { racePageUi } from './raceUi';
 import { type PinRow, trackedCard } from './trackedUi';
 import { ordinal } from '@/lib/raceSummary';
+import { type WeeklyGroupsPayload, groupStandingsNodes, yourGroupCard } from './teamStandingsUi';
 import { BLUE, CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, big, cells, chip, clip, clock, compactStandings, goldCard, link, more, openRow, pageHead, section, small, standingsCard, stop, thin, title, withMove } from './sections';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
@@ -122,7 +123,7 @@ export interface HomeData {
   /** Set while the host keeps the standings hidden (lib/standingsVisibility): the notice to show. */
   standingsNotice?: string | null;
   /** Live weeklies' boards by competition id: the caller's line and the top. */
-  weekly: Map<number, { total: number; top: WeeklyStanding[]; you: WeeklyStanding | null }>;
+  weekly: Map<number, { total: number; top: WeeklyStanding[]; you: WeeklyStanding | null; /** Team / clan standings of a group competition (weekly-leaderboard `groups`); null when solo. */ groups?: WeeklyGroupsPayload | null }>;
   /** Tiles this client has pinned on the live board; null where it can't pin. */
   pins: number[] | null;
   /** Every pin with its name, board and count (views.ts pinRowsFor), this board's and the others'. */
@@ -1146,6 +1147,12 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
       const line = (r: WeeklyStanding) => standingRow(w, r);
       parts.push(standingsCard(compactStandings(rows, (r) => r.self, line, { a: 'site', path }, `weekly:${w.id}`, Math.max(s.total, rows.length), WEEKLY_SHOWN), headcount ?? undefined));
     }
+  }
+  // A team or clan-vs-clan weekly: where your group stands, then every group (names and totals only).
+  if (!upcoming && s?.groups) {
+    const mine = yourGroupCard(w.type, s.groups);
+    if (mine) parts.push(mine);
+    parts.push(section(groupStandingsNodes(w.type, s.groups, 6), { gap: 3 }));
   }
   // The rest of the clan's weekly schedule, one line each.
   const rest = (d.cfg.panel?.weeklies ?? []).filter((x) => x.id !== w.id);
