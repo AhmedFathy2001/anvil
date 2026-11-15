@@ -8,11 +8,6 @@
 
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 
-/** Does the reply say whether this name holds a seat here? Only to a signed-in client. */
-export function helloNamesSeat(signedIn: boolean): boolean {
-  return signedIn;
-}
-
 /** Does the reply list what is running? To a signed-in client, or for a clan that is public anyway. */
 export function helloListsActivity(signedIn: boolean, clanVisibility: string | null | undefined): boolean {
   return signedIn || clanVisibilityOf(clanVisibility) === 'public';

@@ -18,7 +18,7 @@ import { handleFor, isWholeEmail, maskEmail, operatorEmail, peopleListIdentity, 
 import { auditValuesForClient } from '../src/lib/auditView.ts';
 import { hiddenNameSet, personaCharacterVisible, withoutHiddenKeys, withoutHiddenNames, withoutHiddenRows } from '../src/lib/rosterVisibility.ts';
 import { cofferName, donorBoard } from '../src/lib/cofferView.ts';
-import { helloListsActivity, helloNamesSeat } from '../src/lib/pluginHelloRules.ts';
+import { helloListsActivity } from '../src/lib/pluginHelloRules.ts';
 import { historyEventShown, historyRowIsThisSeats, nicknameNamesFor } from '../src/lib/clanScopeRules.ts';
 
 const src = (path: string) => readFileSync(join(import.meta.dirname, '..', 'src', path), 'utf8');
@@ -271,16 +271,11 @@ test('coffer amounts are public; who gave is for people inside the clan', () => 
   assert.equal(cofferName(null, false), null, 'a line with no name (the clan itself) stays unnamed');
 });
 
-test('the plugin greeting tells an anonymous caller nothing about a name', () => {
-  assert.equal(helloNamesSeat(false), false);
-  assert.equal(helloNamesSeat(true), true);
+test('the plugin greeting lists what is running to an anonymous caller only for a public clan', () => {
   assert.equal(helloListsActivity(false, 'public'), true);
   assert.equal(helloListsActivity(false, 'members'), false);
   assert.equal(helloListsActivity(false, null), false, 'anything but exactly public is closed');
   assert.equal(helloListsActivity(true, 'members'), true);
-  // The anonymous branch answers before the seat is ever consulted for the reply.
-  const route = src('app/api/plugin/hello/route.ts');
-  assert.match(route, /if \(!helloNamesSeat\(signedIn\)\) \{[\s\S]{0,700}knownMember: false, isGuest: false/);
 });
 
 // ── B. One clan's view is that clan's own data ───────────────────────────────────────────────────

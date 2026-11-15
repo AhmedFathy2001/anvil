@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { helloListsActivity, helloNamesSeat } from '@/lib/pluginHelloRules';
+import { helloListsActivity } from '@/lib/pluginHelloRules';
 import { db } from '@/db';
 import { LAST_SEEN_REFRESH_MS, resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
@@ -105,10 +105,12 @@ export async function POST(request: Request) {
   // clan-scope: this clan -- `here` carries the clan predicate.
   const existing = (await findRosterSeat(and(here, rosterClanSeat()))) ?? (await findRosterSeat(here));
 
-  if (!helloNamesSeat(signedIn)) {
-    // Not signed in: touch nothing, and say nothing about this name. The same reply whether or not
-    // the name holds a seat here — otherwise the greeting is a roster probe for anyone with curl
-    // (lib/pluginHelloRules). What is running is listed only for a clan that is public anyway.
+  if (!existing && !signedIn) {
+    // Not signed in and no seat here: answer the question, touch nothing. A name that DOES hold a
+    // seat still gets its true answer below: plugin builds in the field greet without a token and
+    // tell a member "Tracked as a guest" when this says knownMember false, so hiding the seat from
+    // unsigned callers has to wait for a plugin that stops reading it. What is running is listed
+    // only for a clan that is public anyway.
     const running = helloListsActivity(signedIn, clan.visibility) ? await activeNow(clan) : { activeWeekly: [], activeBingos: [] };
     return NextResponse.json({ clanName: clan.name, clanSlug: clan.slug, rsn, knownMember: false, isGuest: false, ...running });
   }
