@@ -6,8 +6,8 @@ import { eventInClan } from '@/lib/eventScope';
 
 // Staff-only player-profile ratings (balance-engine plan). ?eventId=N rates that event's roster /
 // sign-up pool (the draft + pre-start view); without it, the whole active clan is rated. Ratings
-// are sensitive by design — staff and draft captains only, never public; players may later see
-// their OWN profile through a separate surface.
+// are sensitive by design — this clan's staff only, never public — and are built from this clan's
+// own events and roster alone (lib/playerProfile), never from what a member did in another clan.
 export async function GET(request: Request) {
   const clan = await requireClan();
   const staff = await verifyAdminOrModerator();
