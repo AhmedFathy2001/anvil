@@ -211,8 +211,9 @@ export default function MembersDirectory({
           // Capped, not endless: a long roster scrolls inside its own frame so the page below stays
           // reachable. Under the cap the container just fits the rows and never scrolls.
           <div
-            className="overflow-y-auto"
-            style={{ maxHeight: shown.length > VISIBLE_ROWS ? VISIBLE_ROWS * ROW_PX : undefined }}
+            // Phones: no inner scroller (nested scrolling traps the thumb); the page scrolls instead.
+            className="sm:max-h-[var(--roster-cap)] sm:overflow-y-auto"
+            style={{ ['--roster-cap' as string]: shown.length > VISIBLE_ROWS ? `${VISIBLE_ROWS * ROW_PX}px` : 'none' }}
           >
             {shown.map((m, i) => {
               const mv = movement[m.id];
@@ -220,7 +221,7 @@ export default function MembersDirectory({
                 <ClanLink
                   key={m.id}
                   href={`/members/${encodeURIComponent(m.rsn)}`}
-                  className={`grid ${cols} gap-2 px-4 py-2.5 text-sm items-center hover:bg-brown-light transition-colors ${
+                  className={`grid ${cols} gap-2 px-4 py-2.5 max-sm:min-h-11 text-sm items-center hover:bg-brown-light transition-colors ${
                     i % 2 ? 'bg-card-bg' : ''
                   }`}
                 >
