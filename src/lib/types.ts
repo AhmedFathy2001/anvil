@@ -239,6 +239,8 @@ export interface ItemRequirementProgress extends ItemRequirement {
 }
 
 export interface TileConfig {
+  /** The picture the host picked for the tile (one of our cached asset paths); null/absent = automatic. */
+  icon?: string | null;
   label: string;
   description: string | null;
   tileType: string;

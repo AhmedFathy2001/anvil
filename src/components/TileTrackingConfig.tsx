@@ -1,5 +1,6 @@
 "use client";
 
+import { itemIconUrl } from '@/lib/tileIcons';
 import { useUnsavedChanges, UnsavedIndicator } from "@/components/UnsavedChanges";
 import { stableKey } from "@/lib/unsavedChanges";
 import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react";
@@ -873,6 +874,28 @@ function TileTrackingEditor({
   const [comboRule, setComboRule] = useState<ComboRule>(initial.comboRule ?? { mode: 'any' });
   const [comboParts, setComboParts] = useState<ComboPartDraft[]>(() => draftsFromParts(initial.parts));
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
+  // The tile's own picture (an item's), when the host wants one other than what the tile works out.
+  const [iconUrl, setIconUrl] = useState<string | null>(initial.icon ?? null);
+  const [iconQuery, setIconQuery] = useState('');
+  const [iconHits, setIconHits] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => {
+    const q = iconQuery.trim();
+    if (q.length < 2) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await clanFetch(`${lookupApi}/items-search?q=${encodeURIComponent(q)}`);
+        const hits = res.ok ? ((await res.json()) as { id: number; name: string }[]) : [];
+        if (!cancelled) setIconHits(hits.slice(0, 8));
+      } catch {
+        /* no results: the field just stays as it is */
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [iconQuery, lookupApi]);
   const [category, setCategory] = useState<string>(initial.category || "");
   // Balance-only calibration. These values never alter plugin matching or completion; they only
   // tell the effort audit what kind of raid/skill burden the author intended.
@@ -1785,6 +1808,7 @@ function TileTrackingEditor({
         } : {}),
       },
       category: category.trim() || null,
+      ...(asPart ? {} : { icon: iconUrl }),
       // A counter's cap rides only a plugin kills tile (lib/tileCaps); cleared on every other kind.
       capBy: isKill && capBy.length > 0 ? capBy : null,
       // A combo's rule and parts (lib/combo) — the parts saved with it, each its own tile row.
@@ -2040,6 +2064,7 @@ function TileTrackingEditor({
         setBaseStamp(updated.updatedAt ?? null);
         markTileSaved();
         (quiet ? onAutoSaved : onSaved)?.({
+          icon: updated.icon ?? null,
           label: updated.label,
           description: updated.description,
           tileType: updated.tileType,
@@ -4146,6 +4171,55 @@ function TileTrackingEditor({
       {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
           on every tile it triples the length of the form for no one's benefit. Opens by default when
           any of it is actually in use, so an existing tile never hides its own configuration. */}
+      {/* The tile's picture: automatic from what it tracks, or an item the host picks (a combo otherwise
+          shows its first part's, and a tile with nothing to show gets its name's first letter). */}
+      {!asPart && (
+        <div className="space-y-2 rounded-lg border border-card-border/60 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-foreground">Tile picture</span>
+            {iconUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- a 24px item sprite from our own asset cache */}
+                <img src={iconUrl} alt="" className="h-6 w-6 object-contain" />
+                <button type="button" onClick={() => setIconUrl(null)} className="text-[11px] text-gold hover:underline">
+                  Use the automatic one
+                </button>
+              </>
+            ) : (
+              <span className="text-[11px] text-text-muted">Automatic, from what the tile tracks</span>
+            )}
+          </div>
+          <Input
+            type="search"
+            value={iconQuery}
+            onChange={(e) => setIconQuery(e.target.value)}
+            placeholder="Search an item to use its picture…"
+            aria-label="Search an item for the tile picture"
+            className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+          />
+          {iconQuery.trim().length >= 2 && iconHits.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {iconHits.map((hit) => (
+                <button
+                  key={hit.id}
+                  type="button"
+                  onClick={() => {
+                    setIconUrl(itemIconUrl(hit.id));
+                    setIconQuery('');
+                    setIconHits([]);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded border border-card-border px-2 py-1 text-xs text-foreground hover:border-gold/50"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- an item sprite from our own asset cache */}
+                  <img src={itemIconUrl(hit.id)} alt="" className="h-5 w-5 object-contain" />
+                  {hit.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {!asPart && (
       <details open={optional || lottery || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
         <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">

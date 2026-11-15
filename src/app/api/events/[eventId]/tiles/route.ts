@@ -1,3 +1,4 @@
+import { isAssetPath } from '@/lib/assetUrls';
 import { NextResponse } from 'next/server';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { clogTileError, MAX_CLOG_TILE_ITEMS } from '@/lib/clogTiles';
@@ -302,7 +303,7 @@ async function applyTileUpdate(
 ): Promise<NextResponse> {
   const { eId, editor, event, eventStarted, liveOverrideActive } = ctx;
   const tileId = tile.id;
-  const { label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, capBy, comboRule, comboWeight } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, capBy, comboRule, comboWeight, icon } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // Validate inputs
   if (requiredAmount !== undefined && requiredAmount !== null) {
@@ -626,6 +627,9 @@ async function applyTileUpdate(
     ...(effortConfigJson !== undefined ? { effortConfig: effortConfigJson } : {}),
     // category (free-text grouping for plugin filters) is always editable
     category: category !== undefined ? (category ? String(category).slice(0, 120) : null) : tile.category,
+    // The tile's own picture, when the host picked one (an item's, from our cached assets only); null =
+    // worked out from what the tile tracks (lib/tileIcons).
+    icon: icon !== undefined ? (isAssetPath(typeof icon === 'string' ? icon : null) ? String(icon).slice(0, 300) : null) : tile.icon,
     // source-NPC restriction (drop tiles only) is always editable
     ...(sourceNpcsJson !== undefined ? { sourceNpcs: sourceNpcsJson } : {}),
     // kill-tile target NPCs and timed-tile activity/threshold are always editable

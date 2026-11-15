@@ -54,6 +54,7 @@ import type { ComboPartConfig, TileConfig } from '@/lib/types';
 // "More options" on a new tile and the whole panel on a written one).
 function tileToTrackingInitial(tile: Tile): TileConfig {
   return {
+    icon: tile.icon ?? null,
     label: tile.label,
     description: tile.description ?? null,
     tileType: tile.tileType || 'standard',
