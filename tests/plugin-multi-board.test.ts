@@ -264,3 +264,18 @@ test('a game-mode world no live board counts makes the config quiet', async () =
   assert.equal((await config({ 'X-World-Types': 'SEASONAL', 'X-Anvil-Boards': '1' })).quiet, true, 'a mode it does not count');
   await pool.query('UPDATE events SET rules = NULL WHERE id = $1', [ids.bEvent]);
 });
+
+test('a mode-only board ignores the main game: quiet config, and a plugin credit from a normal world is dropped', async () => {
+  const before = await pool.query('SELECT id, rules FROM events');
+  const only = JSON.stringify({ worldModes: ['hardcore'], mainGameOff: true });
+  await pool.query('UPDATE events SET rules = $1', [only]);
+  try {
+    assert.equal((await config({ 'X-Anvil-Boards': '1' })).quiet, true, 'no board counts the main game');
+    assert.equal((await config({ 'X-World-Types': 'HARDCORE_MAIN', 'X-Anvil-Boards': '1' })).quiet, undefined);
+    const res = await submit('alpha', ids.cEvent, { tileId: ids.cKill, teamId: ids.cTeam, amount: 1 });
+    assert.equal(res.status, 202, await res.clone().text());
+    assert.equal(((await res.json()) as { ignored?: string }).ignored, 'world-mode');
+  } finally {
+    for (const r of before.rows) await pool.query('UPDATE events SET rules = $1 WHERE id = $2', [r.rules, r.id]);
+  }
+});

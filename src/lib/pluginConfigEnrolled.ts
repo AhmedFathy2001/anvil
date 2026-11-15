@@ -498,6 +498,8 @@ export async function buildEnrolledConfig(args: {
         const gained = current - baseline;
         if (gained > 0) playerGained += gained;
       }
+      // A mode-only board (rules.mainGameOff): nothing of the main game's is this board's progress.
+      if (worldModes.mainOff) playerGained = 0;
       // A game mode this board counts (rules.worldModes) raises the gain per key (lib/modeStats).
       if (!benched && !milestone && worldModes.length > 0) {
         playerGained = Math.max(

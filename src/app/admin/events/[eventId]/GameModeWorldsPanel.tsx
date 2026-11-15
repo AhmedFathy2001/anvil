@@ -21,12 +21,15 @@ import { WORLD_MODES } from '@/lib/worldModes';
 export default function GameModeWorldsPanel({ event }: { event: Event }) {
   const router = useRouter();
   const stored = parseEventRules(event.rules).worldModes;
+  const storedMainOff = parseEventRules(event.rules).mainGameOff;
   const [picked, setPicked] = useState<string[]>(stored);
+  // A mode-only board: the main game doesn't count. Only means anything with a mode ticked.
+  const [mainOff, setMainOff] = useState(storedMainOff);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const dirty = picked.length !== stored.length || picked.some((k) => !stored.includes(k));
+  const dirty = picked.length !== stored.length || picked.some((k) => !stored.includes(k)) || (picked.length > 0 && mainOff) !== storedMainOff;
   // One save bar per settings tab (settings/SaveBar); its own Save button only outside one.
-  const inBar = useSaveBar('worlds', 'Game-mode worlds', dirty, () => save(), () => setPicked(stored));
+  const inBar = useSaveBar('worlds', 'Game-mode worlds', dirty, () => save(), () => { setPicked(stored); setMainOff(storedMainOff); });
 
   async function save(): Promise<boolean> {
     setSaving(true);
@@ -36,7 +39,7 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         // null clears the key: counting no mode is the default and stores nothing.
-        body: JSON.stringify({ rules: { worldModes: picked.length ? picked : null } }),
+        body: JSON.stringify({ rules: { worldModes: picked.length ? picked : null, mainGameOff: picked.length && mainOff ? true : null } }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -98,6 +101,24 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
           />
         ))}
       </div>
+      {picked.length > 0 && (
+        <div className="mt-4 border-t border-card-border/60 pt-4">
+          <Checkbox
+            checked={mainOff}
+            disabled={saving}
+            onChange={(on) => {
+              setMainOff(on);
+              setMsg(null);
+            }}
+            label="The main game doesn't count"
+          />
+          <p className="mt-1.5 text-xs text-text-muted">
+            Only the modes ticked above count. Anything the plugin sends from a normal world is ignored, kill count and XP come
+            from the mode&apos;s own numbers only, and whole-page collection log tiles can&apos;t be earned (they read the main
+            game&apos;s log). Screenshots uploaded on the website still count, since they don&apos;t say which world they&apos;re from.
+          </p>
+        </div>
+      )}
       {(!inBar || msg) && (
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {!inBar && (

@@ -126,6 +126,20 @@ test('countedModes reads the board’s rules', () => {
   assert.deepEqual(countedModes(null), []);
 });
 
+test('a mode-only board takes nothing from the main game', () => {
+  const only = countedModes({ worldModes: ['hardcore'], mainGameOff: true });
+  assert.equal(only.mainOff, true);
+  assert.equal(countedModes({ worldModes: [], mainGameOff: true }).mainOff, undefined, 'no mode named: the main game still counts');
+  const modes = two('hardcore', { zulrah: 1 }, { zulrah: 5 });
+  // 40 main-game kills since the start and 5 on Hardcore: a shared board takes the larger, a mode-only one the mode's.
+  assert.equal(statGainWithModes(snap(0), snap(40), {}, ['zulrah'], 'boss', modes, ['hardcore']), 40);
+  assert.equal(statGainWithModes(snap(0), snap(40), {}, ['zulrah'], 'boss', modes, only), 5);
+  assert.equal(statGainWithModes(snap(0), snap(40), {}, ['zulrah'], 'boss', null, only), 0, 'no mode reading yet');
+  // The main game reaching a lifetime goal completes nothing here.
+  const reached = { lifetime: 500, eligible: true, reached: true };
+  assert.equal(milestoneWithModes(reached, null, only, ['zulrah'], 'boss', 100).reached, false);
+});
+
 // ── Checked against the mode's own hiscores ────────────────────────────────────────────────────
 
 test('a reading the table has caught up to counts, and the table counts where it is ahead', () => {
