@@ -31,8 +31,13 @@ export interface ComboRule {
 }
 
 export const COMBO_TILE_TYPE = 'combo';
-/** Parts a combo may have. Small on purpose: a combo is "this or that", not a board inside a cell. */
-export const MAX_COMBO_PARTS = 6;
+/**
+ * Parts a combo may have. No real limit for the host ("any one of these twenty uniques" is a fair
+ * tile); the number only stops one request from writing rows without end.
+ */
+export const MAX_COMBO_PARTS = 50;
+/** The most parts a typed line is read as when guessing a combo from text (lib/taskMatch): a bounded search. */
+export const MAX_PARSED_COMBO_PARTS = 6;
 export const MIN_COMBO_PARTS = 2;
 
 export function isComboTile(t: { tileType?: string | null }): boolean {
