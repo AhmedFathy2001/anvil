@@ -166,6 +166,31 @@ export function describeInvite(invite: InviteRecord, now: number): string {
   return left === 0 ? `${used} · full` : `${used} · ${left} of ${invite.maxUses} seats left`;
 }
 
+/** Clan roles that host a team's links. Spelled out here because this file imports nothing. */
+const INVITE_ADMIN_ROLES = new Set(['moderator', 'admin', 'owner']);
+
+/**
+ * Whether a clan role counts as "host" for a team's links.
+ *
+ * The role a session carries is the caller's role in the clan the REQUEST is addressed to, and team
+ * ids are global. So the role only means anything here when that clan is the one that owns the
+ * team's event: a moderator of some other clan is a stranger to this team, however senior.
+ *
+ * Moderator tier and up. Treasurer ties with moderator in lib/clanRoles but is money-only, and this
+ * is a moderation surface, so it stays out.
+ */
+export function isInviteAdmin(who: {
+  role: string;
+  /** The clan this request is addressed to, or null on a host that names none. */
+  requestClanId: number | null | undefined;
+  /** The clan that owns the team's event. */
+  eventClanId: number | null | undefined;
+}): boolean {
+  if (who.requestClanId == null || who.eventClanId == null) return false;
+  if (who.requestClanId !== who.eventClanId) return false;
+  return INVITE_ADMIN_ROLES.has(who.role);
+}
+
 /**
  * Who may mint a link for a team.
  *
