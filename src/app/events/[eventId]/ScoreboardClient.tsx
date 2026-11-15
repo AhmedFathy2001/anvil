@@ -630,7 +630,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       )
     : null;
   // Tier bands only make sense when tiles carry distinct point values.
-  const showTierFilter = pointsMode && tierBands.length > 0;
+  // A tier filter only means something when the tiles actually span more than one tier.
+  const showTierFilter = pointsMode && tierBands.length > 0 && new Set(board.map((t) => tileTierKey(t.points, tierBands))).size > 1;
   const showFilters = categories.length > 0 || showTierFilter || showTypeFilter;
 
   // ---- Tile race: its own page layout (components/board/RaceEventSections) ----------------------

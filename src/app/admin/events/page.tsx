@@ -149,7 +149,6 @@ export default async function AdminEventsPage() {
   // closes it (and indefinitely wherever that cron isn't firing). The Finished bucket fills its row
   // from weekly_participants (getPastWeeklyResults), which never needed the 'completed' status.
   // The shared derivations (lib/eventStage, lib/weeklyStage) — the same ones every badge reads.
-  const nowMs = Date.parse(now);
   const stageOfItem = (item: ListItem): 'build' | 'run' | 'wrap' =>
     item.kind === 'event'
       ? eventStage(item, nowMs)
