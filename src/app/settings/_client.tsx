@@ -17,13 +17,23 @@ export function Switch({
   onChange,
   disabled,
   label,
+  tall = false,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
   disabled?: boolean;
   /** Accessible name — the visible label sits in the row beside it. */
   label: string;
+  /** A 44px-tall touch target around the same switch (the pill itself is unchanged). */
+  tall?: boolean;
 }) {
+  const pill = (
+    <span className={`relative block h-[22px] w-[38px] rounded-full transition-colors ${checked ? 'bg-accent-green' : 'bg-tile-border'}`}>
+      <span
+        className={`absolute top-[3px] h-4 w-4 rounded-full bg-foreground transition-[left] ${checked ? 'left-[19px]' : 'left-[3px]'}`}
+      />
+    </span>
+  );
   return (
     <button
       type="button"
@@ -32,13 +42,9 @@ export function Switch({
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-        checked ? 'bg-accent-green' : 'bg-tile-border'
-      }`}
+      className={`shrink-0 transition-colors disabled:opacity-50 ${tall ? 'grid h-11 w-12 place-items-center rounded-lg' : 'rounded-full'}`}
     >
-      <span
-        className={`absolute top-[3px] h-4 w-4 rounded-full bg-foreground transition-[left] ${checked ? 'left-[19px]' : 'left-[3px]'}`}
-      />
+      {pill}
     </button>
   );
 }

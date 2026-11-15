@@ -8,6 +8,7 @@
 // Pure (no `@/` imports): tests/guided-flows.test.ts runs it directly.
 
 import { xpCheckLine, type PendingXpCheck } from '../xpCheck.ts';
+import type { QuickSettingsView } from '../quickSettings.ts';
 import { buildFlow, type FlowStepCopy, type FlowStepDef, type FlowView } from '../guidedFlow.ts';
 
 export const MEMBER_START_NAME = 'Getting started';
@@ -30,6 +31,11 @@ export interface MemberStartFacts {
   /** A character's XP check is running (lib/xpCheck): the character step says so. */
   xpCheck?: Pick<PendingXpCheck, 'rsn' | 'minutesLeft'> | null;
   /**
+   * The quick switches for the clan they are in (lib/quickSettingsRead); absent or null when there is
+   * nothing to ask, or it was already dealt with, and the step then counts as done.
+   */
+  quick?: QuickSettingsView | null;
+  /**
    * Where this clan's events and their team page are, when the strip is drawn outside the clan (the
    * platform home): there the bare paths belong to no clan. Inside a clan the defaults are right.
    */
@@ -44,6 +50,8 @@ export function memberStartFlow(f: MemberStartFacts): FlowView {
   const done = (fact: boolean) => fact || f.hasProof;
   const steps: FlowStepDef[] = [
     { key: 'clan', label: 'Join a clan', done: done(f.inClan) },
+    // Done once it was dealt with, or when there is nothing to ask. Never before they are in a clan.
+    { key: 'settings', label: 'Quick settings', done: done(f.inClan && !f.quick) },
     { key: 'plugin', label: 'Plugin', done: done(f.pluginConnected) },
     { key: 'character', label: 'Character', done: done(f.hasCharacter) },
     { key: 'join', label: 'Join an event', done: done(f.inEvent) },
@@ -68,6 +76,17 @@ export function memberStartFlow(f: MemberStartFacts): FlowView {
                   fix: { label: 'Link a character', ...LINK_CHARACTER },
                 },
               }),
+        };
+      case 'settings':
+        return {
+          title: 'Quick settings',
+          sentence: f.quick
+            ? f.quick.seat === 'member'
+              ? `A few choices worth making now you are in ${f.quick.clanName}. Each one saves as soon as you press it.`
+              : `A few choices worth making now you are a guest in ${f.quick.clanName}. Each one saves as soon as you press it.`
+            : 'A few choices worth making once you are in a clan.',
+          action: { kind: 'none' },
+          ...(f.quick ? { quick: f.quick } : {}),
         };
       case 'plugin':
         return {

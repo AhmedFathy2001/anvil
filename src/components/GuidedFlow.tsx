@@ -4,6 +4,7 @@ import { useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
+import QuickSettings from '@/components/QuickSettings';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import { revealHash } from '@/components/HashReveal';
 import { clanSlugOf } from '@/lib/analyticsPattern';
@@ -178,6 +179,11 @@ export default function GuidedFlow({
             <p className="mt-2 max-w-[68ch] rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-sm text-amber-200">
               {cur.blocked.reason}
             </p>
+          )}
+          {cur.quick && (
+            <div className="mt-3 max-w-[68ch]">
+              <QuickSettings view={cur.quick} mode="strip" />
+            </div>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
             {link ? (

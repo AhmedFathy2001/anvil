@@ -318,7 +318,7 @@ const newMember: MemberStartFacts = { inClan: false, pluginConnected: false, has
 test('member start: with nothing done, joining a clan is open and blocked on a linked character', () => {
   const v = memberStartFlow(newMember);
   assertWellFormed(v);
-  assert.deepEqual(keys(v), ['clan', 'plugin', 'character', 'join', 'proof']);
+  assert.deepEqual(keys(v), ['clan', 'settings', 'plugin', 'character', 'join', 'proof']);
   assert.equal(v.current?.key, 'clan');
   assert.equal(v.doneCount, 0);
   assert.match(v.current!.blocked!.reason, /linked character/);
@@ -338,7 +338,8 @@ test('member start: each step done in turn moves the open step along', () => {
     const v = memberStartFlow({ ...newMember, ...patch });
     assertWellFormed(v);
     assert.equal(v.current?.key, step);
-    assert.equal(v.doneCount, i + 1);
+    // The quick-settings step counts as done with the clan when it has nothing to ask.
+    assert.equal(v.doneCount, i + 2);
   });
   // A character linked by hand before the plugin: the plugin is still the open step.
   assert.equal(memberStartFlow({ ...newMember, inClan: true, hasCharacter: true }).current?.key, 'plugin');
@@ -510,4 +511,94 @@ test('member start: a running XP check is named on the character step', () => {
   const v = memberStartFlow({ ...newMember, inClan: true, pluginConnected: true, xpCheck: { rsn: 'Zezima', minutesLeft: 12 } });
   assert.equal(v.current?.key, 'character');
   assert.match(v.current?.sentence ?? '', /Your XP check for Zezima is running: 12 min left\./);
+});
+
+// ── Quick settings (lib/quickSettings): which switches, for whom, and how completion is kept ──
+import { buildQuickSettings, keepQuickEntries, quickSettingsDone, withQuickSettingsDone, type QuickFacts } from '../src/lib/quickSettings.ts';
+
+const quickBase: QuickFacts = {
+  clanId: 7,
+  clanName: 'Oak Hall',
+  seat: 'member',
+  clanPosts: { drops: true, deaths: true, levels: true },
+  clanRefusesGuests: false,
+  prefs: { drops: true, deaths: false, levels: true },
+  blockGuestPosts: true,
+  guestCharacters: [],
+  main: { accountId: 3, rsn: 'Zezima', shared: true },
+  characterCount: 2,
+  dms: false,
+};
+const ids = (v: ReturnType<typeof buildQuickSettings>) => v!.groups.flatMap((g) => g.items.map((i) => i.id));
+
+test('quick settings: a member sees member wording and current values, at most six switches', () => {
+  const v = buildQuickSettings(quickBase)!;
+  assert.deepEqual(ids(v), ['drops', 'deaths', 'levels', 'visible', 'dms']);
+  assert.ok(ids(v).length <= 6);
+  assert.match(v.groups[0].items[0].label, /Oak Hall's Discord/);
+  assert.equal(v.groups[0].items.find((i) => i.id === 'deaths')!.checked, false, 'shows the stored value, changes nothing');
+  assert.ok(v.groups.flatMap((g) => g.items).every((i) => i.sentence.length > 20 && i.on.length > 0 && i.off.length > 0));
+});
+
+test('quick settings: a clan with no Discord shows no Discord switches', () => {
+  const v = buildQuickSettings({ ...quickBase, clanPosts: { drops: false, deaths: false, levels: false } })!;
+  assert.deepEqual(ids(v), ['visible', 'dms']);
+  assert.deepEqual(ids(buildQuickSettings({ ...quickBase, clanPosts: { drops: true, deaths: false, levels: false } })), ['drops', 'visible', 'dms']);
+});
+
+test('quick settings: a guest sees guest wording, the clan by name, and the per-clan allow', () => {
+  const g = buildQuickSettings({ ...quickBase, seat: 'guest', guestCharacters: [{ accountId: 3, allowed: false }, { accountId: 4, allowed: true }] })!;
+  assert.deepEqual(ids(g), ['guest-clan', 'guest-all', 'visible', 'dms']);
+  const [clan, all] = g.groups[0].items;
+  assert.match(clan.label, /Oak Hall/);
+  assert.equal(clan.checked, false, 'only on when every guest character is allowed');
+  assert.equal(clan.hideWhenOn, 'guest-all');
+  assert.equal(clan.on.length, 2, 'one allow per character that guests here');
+  assert.deepEqual(clan.on[0].body, { accountId: 3, clanId: 7, state: 'always' });
+  assert.deepEqual(clan.off[0].body, { accountId: 3, clanId: 7, state: 'default' });
+  assert.equal(all.checked, false, 'posting in guest clans is off by default');
+  assert.deepEqual(all.on[0].body, { blockGuestEmissions: false }, 'the row says "post", the column stores the inverse');
+  assert.ok(!ids(g).includes('drops'), 'a guest is not offered the member channel switches');
+});
+
+test('quick settings: a guest in a clan that refuses guest posts, or has no Discord, is not offered them', () => {
+  const guest = { ...quickBase, seat: 'guest' as const, guestCharacters: [{ accountId: 3, allowed: false }] };
+  assert.deepEqual(ids(buildQuickSettings({ ...guest, clanRefusesGuests: true })), ['visible', 'dms']);
+  assert.deepEqual(ids(buildQuickSettings({ ...guest, clanPosts: { drops: false, deaths: false, levels: false } })), ['visible', 'dms']);
+});
+
+test('quick settings: no character means no visibility switch; each switch names its existing route', () => {
+  const v = buildQuickSettings({ ...quickBase, main: null, characterCount: 0 })!;
+  assert.ok(!ids(v).includes('visible'));
+  const full = buildQuickSettings(quickBase)!.groups.flatMap((g) => g.items);
+  assert.equal(full.find((i) => i.id === 'visible')!.on[0].url, '/api/profile/accounts/3/share');
+  assert.equal(full.find((i) => i.id === 'dms')!.on[0].url, '/api/notices');
+  assert.equal(full.find((i) => i.id === 'drops')!.on[0].url, '/api/profile/emissions');
+});
+
+test('quick settings: completion is a per-clan entry in the stored skipped list and keeps the rest', () => {
+  assert.equal(quickSettingsDone('[]', 7), false);
+  const stored = withQuickSettingsDone('["plugin"]', 7);
+  assert.deepEqual(JSON.parse(stored), ['plugin', 'qs:7']);
+  assert.equal(quickSettingsDone(stored, 7), true);
+  assert.equal(quickSettingsDone(stored, 8), false, 'another clan asks again');
+  assert.equal(withQuickSettingsDone(stored, 7), stored, 'twice is once');
+  assert.equal(quickSettingsDone('not json', 7), false);
+  // The first-run steps rewrite their own list and must not drop the quick entries.
+  assert.deepEqual(JSON.parse(keepQuickEntries(stored, ['character'])), ['character', 'qs:7']);
+});
+
+test('member-start strip: the quick settings step opens right after the clan, once, and carries its switches', () => {
+  const quick = buildQuickSettings(quickBase)!;
+  const facts: MemberStartFacts = { ...newMember, inClan: true, hasCharacter: true, quick };
+  const v = memberStartFlow(facts);
+  assert.equal(v.current?.key, 'settings');
+  assert.equal(v.current?.quick, quick);
+  assertWellFormed(v);
+  assert.deepEqual(keys(v), ['clan', 'settings', 'plugin', 'character', 'join', 'proof']);
+  // Dealt with (or nothing to ask): the strip moves on and never comes back to it.
+  assert.equal(memberStartFlow({ ...facts, quick: null }).current?.key, 'plugin');
+  // Not before they are in a clan.
+  assert.equal(memberStartFlow({ ...newMember, quick }).current?.key, 'clan');
+  assert.match(memberStartFlow({ ...facts, quick: buildQuickSettings({ ...quickBase, seat: 'guest', guestCharacters: [{ accountId: 3, allowed: false }] })! }).current!.sentence, /guest in Oak Hall/);
 });
