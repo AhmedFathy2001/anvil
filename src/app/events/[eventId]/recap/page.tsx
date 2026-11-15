@@ -13,6 +13,7 @@ import { submittedDropsForEvent } from '@/lib/submittedDrops';
 import RecapClient from './RecapClient';
 import MomentsSummaryPanel from './MomentsSummaryPanel';
 import { atLeast } from '@/lib/clanRoles';
+import EndsAt from '../wrapped/EndsAt';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export default async function EventRecapPage({
   if (!ended && !isStaff) {
     return (
       <div>{header}
-        <Notice title="The recap isn’t ready yet">The awards are handed out once this event ends. Check back then.</Notice>
+        <Notice title="The recap isn’t ready yet">The awards are handed out once this event ends.{event.endDate ? <EndsAt endDate={event.endDate} /> : null} Check back then.</Notice>
       </div>
     );
   }
