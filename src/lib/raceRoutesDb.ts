@@ -4,7 +4,7 @@ import { afterReply } from '@/lib/proofFinish';
 import { db } from '@/db';
 import { completions, events, eventParticipants, raceBankedCredits, raceRoadPicks, teams, tiles, tileAuditLog, userNotices } from '@/db/schema';
 import { and, eq, gte, inArray, isNull } from 'drizzle-orm';
-import { raceGraph, rankRaceTeams, teamRoute, canPickRaceTile, raceTileNeedsBaseline, routeEditImpact } from '@/lib/raceRoutes';
+import { raceGraph, rankRaceTeams, teamRoute, canPickRaceTile, raceProofBlock, raceTileNeedsBaseline, routeEditImpact } from '@/lib/raceRoutes';
 import { notifyTeamTiles } from '@/lib/pushNotify';
 import { teamUserIds } from '@/lib/panelRows';
 import { captureRaceOpenStats, clearRaceOpenStats } from '@/lib/revealStatsCapture';
@@ -43,6 +43,25 @@ export async function branchingRaceWin(
 }
 
 type EventRow = typeof events.$inferSelect;
+
+/**
+ * raceProofBlock for a real team: why a hand-filed proof on this tile is refused right now, or null.
+ * A combo part answers for its combo (the part has no place on the route); a mission is not the
+ * race's to refuse. Null off a tile race.
+ */
+export async function raceProofBlockFor(
+  event: EventRow,
+  tile: { id: number; parentTileId: number | null; mission?: number | boolean | null },
+  teamId: number,
+): Promise<string | null> {
+  if (event.format !== 'tilerace' || tile.mission) return null;
+  // clan-scope: global -- the event row came from a caller that already scoped it.
+  const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
+  const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
+  const graph = raceGraph(board);
+  const route = teamRoute(graph, done, await loadRacePicks(event, teamId), eventRaceOpts(event));
+  return raceProofBlock(graph, route, tile.parentTileId ?? tile.id, { bank: parseEventRules(event.rules).raceBank });
+}
 
 /**
  * "Bank early finishes" (events.rules.raceBank): keep a VALID finish on a race tile the team hasn't

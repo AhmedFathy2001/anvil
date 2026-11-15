@@ -311,6 +311,25 @@ export function canCreditRaceTile(
   return teamRoute(graph, doneIds, picks, opts).open.includes(tileId);
 }
 
+/**
+ * Why a PERSON may not file proof for this tile for this team now, or null when they may.
+ *
+ * The same route rule as canCreditRaceTile, asked before the proof is taken instead of after: a
+ * hand-filed proof on a tile the team has not reached used to be accepted, sat on the tile as if it
+ * counted ("Tile Complete!" under a Locked banner) and would have credited by itself the moment the
+ * road got there. Open and done tiles take proof. A tile further along the team's own road takes it
+ * only when the event banks early finishes (rules.raceBank); a closed road never does.
+ */
+export function raceProofBlock(graph: RaceGraph, route: TeamRoute, tileId: number, opts: { bank?: boolean } = {}): string | null {
+  if (!graph.byId.has(tileId)) return graph.unplaced.includes(tileId) ? 'This tile is not on the race route yet, so it cannot take proof.' : null;
+  const state = route.state.get(tileId);
+  if (state === 'open' || state === 'done') return null;
+  if (route.pickFrom.includes(tileId)) return 'Your team has to pick its road at this fork before proof counts here.';
+  if (state === 'closed') return 'This tile is closed for your team: your road does not lead here.';
+  if (opts.bank) return null;
+  return 'This tile is locked for your team: finish the tile before it on your road first.';
+}
+
 /** May the team pick this tile now ("Choose and lock in")? Only from the fork it stands at. */
 export function canPickRaceTile(graph: RaceGraph, doneIds: Iterable<number>, picks: Map<number, number>, tileId: number): boolean {
   return teamRoute(graph, doneIds, picks).pickFrom.includes(tileId);

@@ -653,7 +653,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const tileModal = selectedTile ? (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
-          race={event.format === 'tilerace' ? { tiles: board, completions: completions, teams: teams, viewerTeamId: raceViewer ?? lensTeamId, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
+          race={event.format === 'tilerace' ? { tiles: board, completions: completions, teams: teams, viewerTeamId: raceViewer ?? lensTeamId, proofTeamId, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           partCompletedBy={partCompletedBy}
           dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
           submissions={proofForOpenTile ?? []}

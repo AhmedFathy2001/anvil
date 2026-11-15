@@ -42,6 +42,7 @@ import { playerSubmission } from '@/lib/clientRows';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { claimUploads } from '@/lib/uploadClaims';
+import { raceProofBlockFor } from '@/lib/raceRoutesDb';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
 import { provenClanSlug } from '@/lib/requestHeaderProof';
 import { decideFactClaim, parseFactIds } from '@/lib/pluginFacts/factIds';
@@ -285,6 +286,16 @@ export async function POST(
   });
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
+  }
+  // TILE RACE: a person cannot file proof on a tile their team has not reached (lib/raceRoutes
+  // raceProofBlock). The completion gate already refuses the CREDIT, but the proof itself used to be
+  // stored: the tile then read "complete" under a Locked banner, and the stored count would credit
+  // by itself the moment the road got there. The plugin is not refused here on purpose: it reports
+  // what happened in game when it happened, and its evidence waits on the gate (or is banked) as
+  // before. Staff are let through so they can correct a board, the same as on completions.
+  if (!isAdmin && !pluginAuth) {
+    const raceBlock = await raceProofBlockFor(event, tile, teamId);
+    if (raceBlock) return NextResponse.json({ error: raceBlock, code: 'race-locked' }, { status: 409 });
   }
   // What this row credits: null = the tile's own count; 'cap:N' = one of its cap counters.
   const capBy = capEligible(tile) ? parseCapBy(tile.capBy) : [];
