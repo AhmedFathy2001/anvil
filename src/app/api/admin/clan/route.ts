@@ -9,6 +9,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { latestClanReportByAccount } from '@/lib/characterReports';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { rosterClanSeat } from '@/lib/seatScope';
+import { staffEnteredDiscordLink } from '@/lib/discordLink';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
@@ -139,9 +140,15 @@ export async function POST(request: Request) {
   if (existing && existing.leftAt) {
     // The character itself is only this clan's to touch while nobody has claimed it.
     if (existing.claimedAt == null) {
+      // A Discord id typed here is stored with its source (lib/discordLink); none typed leaves
+      // whatever is stored, and its source, alone.
+      const link =
+        body.discordId != null
+          ? await staffEnteredDiscordLink({ clanId: clan.id, seatId: existing.id, claimed: false, discordId: body.discordId, actor: user })
+          : {};
       await db
         .update(accounts)
-        .set({ rsn, discordId: body.discordId ?? existing.discordId })
+        .set({ rsn, ...link })
         .where(eq(accounts.id, existing.accountId));
     }
     await db
@@ -158,7 +165,8 @@ export async function POST(request: Request) {
 
   const account = await findOrCreateAccount({ rsn, rsnNormalized });
   if (body.discordId && !account.claimedAt) {
-    await db.update(accounts).set({ discordId: body.discordId }).where(eq(accounts.id, account.id));
+    const link = await staffEnteredDiscordLink({ clanId: clan.id, seatId: null, claimed: false, discordId: body.discordId, actor: user });
+    await db.update(accounts).set(link).where(eq(accounts.id, account.id));
   }
   // An admin saying so is one of the three ways membership is granted, so this may seat a member.
   const seatId = await findOrCreateSeat(clan.id, account.id, {

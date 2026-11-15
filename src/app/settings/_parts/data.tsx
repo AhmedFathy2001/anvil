@@ -84,8 +84,9 @@ export async function DataGroups() {
                 <li>Proof screenshots that are part of a clan&rsquo;s event</li>
               </ul>
               <p className="mt-1.5">
-                This is each clan&rsquo;s own event history. It stays under your in-game name and no longer points at you. A clan ban that
-                is still in force keeps working.
+                This is each clan&rsquo;s own event history. It stays under your in-game name and no longer points at you. A ban that
+                is still in force keeps working: Anvil keeps your Discord ID with it, and a clan&rsquo;s own note about why, and
+                nothing else about you.
               </p>
             </div>
           </div>

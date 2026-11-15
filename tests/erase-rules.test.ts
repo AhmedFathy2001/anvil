@@ -13,9 +13,10 @@ import {
   eraseBlockers,
   neverExported,
   redactAuditText,
+  redactBanReason,
   redactMergeSide,
   redactRow,
-  retainedBan,
+  retainedBans,
   sessionIsRecent,
   recentSessionUntil,
   tiedSince,
@@ -75,36 +76,73 @@ test('every blocker is reported at once', () => {
 
 // ── What a ban keeps ──────────────────────────────────────────────────────────────────────────────
 
-const noBan = { discordId: '123456789012345678', userBanned: false, userBannedAt: null, playerBanned: false, playerBannedAt: null, liveClanBanIds: [] };
+const DISCORD = '123456789012345678';
+const noBan = { discordId: DISCORD, userBanned: false, userBannedAt: null, playerBanned: false, playerBannedAt: null, liveClanBans: [] };
+const clanBan = (clanId: number, reason: string | null = null) => ({ clanId, reason, bannedAt: '2026-02-01 09:00:00', bannedByUserId: 44 });
 
 test('no ban: nothing is kept', () => {
-  assert.equal(retainedBan(noBan), null);
+  assert.deepEqual(retainedBans(noBan), []);
 });
 
-test('a clan ban keeps the Discord id and the ban ids, and not one other thing about the person', () => {
-  const kept = retainedBan({ ...noBan, liveClanBanIds: [7, 9] });
-  assert.deepEqual(kept, {
-    user: { discordId: '123456789012345678', displayName: '', banned: false, bannedAt: null },
-    player: { displayName: null, banned: false, bannedAt: null },
-    clanBanIds: [7, 9],
-  });
+test('a clan ban keeps one row per clan: the Discord id, the clan, the date, who set it and the clan’s reason', () => {
+  const kept = retainedBans({ ...noBan, liveClanBans: [clanBan(7, 'griefed the raid'), clanBan(9)] });
+  assert.deepEqual(kept, [
+    { discordId: DISCORD, scope: 'clan', clanId: 7, reason: 'griefed the raid', bannedAt: '2026-02-01 09:00:00', bannedByUserId: 44 },
+    { discordId: DISCORD, scope: 'clan', clanId: 9, reason: null, bannedAt: '2026-02-01 09:00:00', bannedByUserId: 44 },
+  ]);
   // The exact shape is the promise: adding a field here is keeping more about a deleted person.
-  assert.deepEqual(Object.keys(kept!.user).sort(), ['banned', 'bannedAt', 'discordId', 'displayName']);
-  assert.deepEqual(Object.keys(kept!.player).sort(), ['banned', 'bannedAt', 'displayName']);
+  for (const row of kept) assert.deepEqual(Object.keys(row).sort(), ['bannedAt', 'bannedByUserId', 'clanId', 'discordId', 'reason', 'scope']);
 });
 
-test('a platform ban carries over at the level it was set, with its date and no reason', () => {
-  const kept = retainedBan({ ...noBan, playerBanned: true, playerBannedAt: '2026-03-01 10:00:00' });
-  assert.deepEqual(kept?.player, { displayName: null, banned: true, bannedAt: '2026-03-01 10:00:00' });
-  assert.equal(kept?.user.banned, false);
-  assert.ok(!('bannedReason' in kept!.player) && !('bannedReason' in kept!.user));
-  const login = retainedBan({ ...noBan, userBanned: true, userBannedAt: '2026-04-01 10:00:00' });
-  assert.deepEqual(login?.user, { discordId: '123456789012345678', displayName: '', banned: true, bannedAt: '2026-04-01 10:00:00' });
+test('the same clan twice is one row', () => {
+  assert.equal(retainedBans({ ...noBan, liveClanBans: [clanBan(7, 'first'), clanBan(7, 'second')] }).length, 1);
+});
+
+test('a platform ban is one row with its date, no clan and no reason, whichever level set it', () => {
+  const person = retainedBans({ ...noBan, playerBanned: true, playerBannedAt: '2026-03-01 10:00:00' });
+  assert.deepEqual(person, [{ discordId: DISCORD, scope: 'platform', clanId: null, reason: null, bannedAt: '2026-03-01 10:00:00', bannedByUserId: null }]);
+  const login = retainedBans({ ...noBan, userBanned: true, userBannedAt: '2026-04-01 10:00:00' });
+  assert.deepEqual(login, [{ discordId: DISCORD, scope: 'platform', clanId: null, reason: null, bannedAt: '2026-04-01 10:00:00', bannedByUserId: null }]);
+  // Both levels set: still one platform row, dated by the platform-level ban.
+  const both = retainedBans({ ...noBan, userBanned: true, userBannedAt: '2026-04-01 10:00:00', playerBanned: true, playerBannedAt: '2026-03-01 10:00:00' });
+  assert.equal(both.length, 1);
+  assert.equal(both[0].bannedAt, '2026-03-01 10:00:00');
+});
+
+test('a platform ban and clan bans together: one row each', () => {
+  const kept = retainedBans({ ...noBan, playerBanned: true, playerBannedAt: null, liveClanBans: [clanBan(7)] });
+  assert.deepEqual(kept.map((r) => [r.scope, r.clanId]), [['platform', null], ['clan', 7]]);
 });
 
 test('with no Discord id there is nothing to recognise them by, so nothing is kept', () => {
-  assert.equal(retainedBan({ ...noBan, discordId: null, liveClanBanIds: [7] }), null);
-  assert.equal(retainedBan({ ...noBan, discordId: '', playerBanned: true }), null);
+  assert.deepEqual(retainedBans({ ...noBan, discordId: null, liveClanBans: [clanBan(7)] }), []);
+  assert.deepEqual(retainedBans({ ...noBan, discordId: '', playerBanned: true }), []);
+});
+
+// ── The clan's reason on a kept ban ───────────────────────────────────────────────────────────────
+
+const who = { discordId: DISCORD, names: ['zezima#1', 'Zezima', null] };
+
+test('the clan’s reason is kept as written when it does not name the person on Discord', () => {
+  assert.equal(redactBanReason('Scammed 40m from a clan mate, see screenshots', who), 'Scammed 40m from a clan mate, see screenshots');
+  assert.equal(redactBanReason(null, who), null);
+  assert.equal(redactBanReason('   ', who), null);
+});
+
+test('their Discord id and Discord name inside a reason become [deleted]; the rest stays', () => {
+  assert.equal(redactBanReason(`Discord ${DISCORD} kept spamming`, who), 'Discord [deleted] kept spamming');
+  assert.equal(redactBanReason('zezima#1 (aka ZEZIMA) was abusive in voice', who), '[deleted] (aka [deleted]) was abusive in voice');
+  // Whole words and whole numbers only.
+  assert.equal(redactBanReason(`ticket 9${DISCORD}1, zezimas alt`, who), `ticket 9${DISCORD}1, zezimas alt`);
+  // A one- or two-letter name is not searched for: it would shred the sentence.
+  assert.equal(redactBanReason('a bad apple', { discordId: DISCORD, names: ['a', 'ba'] }), 'a bad apple');
+  // A name with characters that mean something in a pattern is matched literally.
+  assert.equal(redactBanReason('banned x.y(z) today', { discordId: DISCORD, names: ['x.y(z)'] }), 'banned [deleted] today');
+});
+
+test('retainedBans redacts the reason with the names it is given', () => {
+  const [row] = retainedBans({ ...noBan, names: ['zezima#1'], liveClanBans: [clanBan(7, `zezima#1 / ${DISCORD}: rude`)] });
+  assert.equal(row.reason, '[deleted] / [deleted]: rude');
 });
 
 // ── Export redaction ──────────────────────────────────────────────────────────────────────────────

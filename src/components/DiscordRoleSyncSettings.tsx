@@ -11,7 +11,14 @@ import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
 // explicitly disabled (null/'' = on). Mirrors loadRoleSyncConfig() in lib/discord-roles.ts.
-export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?: number }) {
+export default function DiscordRoleSyncSettings({
+  notLinked = 0,
+  unconfirmedLinks = 0,
+}: {
+  notLinked?: number;
+  /** Members whose stored Discord link has no recorded source, so it earns no roles with matching off. */
+  unconfirmedLinks?: number;
+}) {
   const [roleSync, setRoleSync] = useState(false);
   const [nicknameSync, setNicknameSync] = useState(false);
   const [nicknameOverwrite, setNicknameOverwrite] = useState(false);
@@ -33,6 +40,42 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
     reports: Array<{ memberId: number; rsn: string; ok: boolean; reason?: string; resolved?: boolean; added?: number; removed?: number; nickSet?: string }>;
   } | null>(null);
 
+  // Links this clan's admins made by hand (the "link…" control beside a skipped member), so one can
+  // be removed. Character names and dates only.
+  const [handLinks, setHandLinks] = useState<{ memberId: number; rsn: string; linkedAt: string | null }[]>([]);
+  const [removingLink, setRemovingLink] = useState<number | null>(null);
+
+  async function loadHandLinks() {
+    try {
+      const res = await clanFetch('/api/admin/discord/link-member');
+      if (res.ok) setHandLinks((await res.json()).links ?? []);
+    } catch {
+      // The list is a convenience; the settings above work without it.
+    }
+  }
+
+  async function removeHandLink(memberId: number) {
+    setRemovingLink(memberId);
+    setMessage(null);
+    try {
+      const res = await clanFetch('/api/admin/discord/link-member', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clanMemberId: memberId }),
+      });
+      if (res.ok) {
+        setHandLinks((links) => links.filter((l) => l.memberId !== memberId));
+        setMessage({ type: 'success', text: 'Link removed. Roles they already hold stay until you remove them in Discord.' });
+      } else {
+        setMessage({ type: 'error', text: (await res.json().catch(() => ({}))).error || 'Could not remove the link' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Could not remove the link' });
+    } finally {
+      setRemovingLink(null);
+    }
+  }
+
   // Force a full re-sync of every member's Discord roles + nicknames now (empty body = sweep).
   async function runSync() {
     setSyncing(true);
@@ -45,8 +88,11 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
         body: '{}',
       });
       const data = await res.json();
-      if (res.ok) setSyncResult(data);
-      else setMessage({ type: 'error', text: data.error || 'Sync failed' });
+      if (res.ok) {
+        setSyncResult(data);
+        // A link made from the last result's "link…" control shows up in the list below.
+        void loadHandLinks();
+      } else setMessage({ type: 'error', text: data.error || 'Sync failed' });
     } catch {
       setMessage({ type: 'error', text: 'Sync failed' });
     } finally {
@@ -76,6 +122,7 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
       } finally {
         setLoading(false);
       }
+      await loadHandLinks();
     })();
   }, []);
 
@@ -141,7 +188,8 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
         label="Also match members by Discord nickname"
         description={
           <>
-            Off: only people who signed in to Anvil with Discord get roles; a Discord account that was matched by name before, or linked by hand, no longer counts. On: a member who has not signed in
+            Off: only people who signed in to Anvil with Discord, or whom an admin linked by hand, get roles; a
+            Discord account that was matched by name before no longer counts. On: a member who has not signed in
             also gets their roles when someone in your server has a nickname or username that matches their
             in-game name. Anyone in your server can set their nickname to such a member&apos;s name and receive
             that member&apos;s roles, without signing in to Anvil. Members who signed in are never affected.
@@ -158,7 +206,15 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
       {original.roleSync && !original.nicknameMatch && notLinked > 0 && (
         <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-300">
           {notLinked} {notLinked === 1 ? 'member has' : 'members have'} not linked Discord and will not get roles
-          until they sign in or you turn this on.
+          until they sign in, an admin links them by hand, or you turn this on.
+          {unconfirmedLinks > 0 && (
+            <>
+              {' '}
+              {unconfirmedLinks} of them {unconfirmedLinks === 1 ? 'has' : 'have'} a Discord link saved before Anvil
+              recorded who made it, so it does not count. To confirm one, sync below and use &quot;link…&quot; beside
+              their name, or ask them to sign in with Discord.
+            </>
+          )}
         </p>
       )}
 
@@ -319,6 +375,33 @@ export default function DiscordRoleSyncSettings({ notLinked = 0 }: { notLinked?:
           </div>
         )}
       </div>
+
+      {handLinks.length > 0 && (
+        <details className="border-t border-card-border pt-4">
+          <summary className="cursor-pointer text-sm text-text-muted hover:text-foreground">
+            Linked by hand ({handLinks.length})
+          </summary>
+          <p className="mt-1.5 text-xs text-text-muted">
+            Members an admin pointed at a Discord account. They get roles like anyone who signed in. If the member
+            signs in with a different Discord account, their own sign-in is used instead.
+          </p>
+          <ul className="mt-1.5 space-y-0.5 max-h-52 overflow-y-auto">
+            {handLinks.map((l) => (
+              <li key={l.memberId} className="text-xs text-text-muted">
+                <span className="text-foreground/80">{l.rsn}</span>
+                {l.linkedAt && <> · linked {l.linkedAt.slice(0, 10)}</>}
+                <button
+                  onClick={() => removeHandLink(l.memberId)}
+                  disabled={removingLink === l.memberId}
+                  className="ml-2 text-[10px] text-red-300 hover:underline disabled:opacity-50"
+                >
+                  {removingLink === l.memberId ? 'Removing…' : 'Remove link'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

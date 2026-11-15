@@ -61,6 +61,7 @@ export default function DiscordSettings({
   siteUrl,
   creator = false,
   notLinkedForRoles = 0,
+  unconfirmedLinks = 0,
 }: {
   channels: BroadcastChannel[];
   botEnabled: boolean;
@@ -74,6 +75,8 @@ export default function DiscordSettings({
   creator?: boolean;
   /** Current members role sync cannot reach by Discord id (lib/discord-roles countRosterSeatsNotLinked). */
   notLinkedForRoles?: number;
+  /** How many of them carry a stored Discord link of unknown source (lib/discord-roles rosterLinkCounts). */
+  unconfirmedLinks?: number;
 }) {
   // Bumped after quick setup rewrites the routing, so the by-hand fields remount and re-read it.
   const [panelKey, setPanelKey] = useState(0);
@@ -303,7 +306,7 @@ export default function DiscordSettings({
               <Field title="Match Discord to the clan" aside={<GuideLink href="/guide/discord#roles">How role sync works</GuideLink>}>
                 Give linked members their rank and default roles, and optionally set nicknames to their in-game name.
               </Field>
-              <DiscordRoleSyncSettings notLinked={notLinkedForRoles} />
+              <DiscordRoleSyncSettings notLinked={notLinkedForRoles} unconfirmedLinks={unconfirmedLinks} />
               <div>
                 <p className="font-medium mb-1">Roles the sync gives out</p>
                 <DiscordAssignedRoles />

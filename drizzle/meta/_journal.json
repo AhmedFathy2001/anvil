@@ -1415,6 +1415,20 @@
       "when": 1794716688274,
       "tag": "0264_guest_posts_off_by_default",
       "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1794720288274,
+      "tag": "0265_discord_id_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1794723888274,
+      "tag": "0266_banned_discord_ids",
+      "breakpoints": true
     }
   ]
 }

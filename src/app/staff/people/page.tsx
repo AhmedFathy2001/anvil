@@ -4,6 +4,8 @@ import { allClans, browsePeople, PEOPLE_SORTS, personDetail, type PeopleSort } f
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import PeopleClient from './PeopleClient';
+import DeletedAccountBans from './DeletedAccountBans';
+import { deletedAccountPlatformBans } from '@/lib/deletedAccountBans';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +41,9 @@ export default async function StaffPeoplePage({
     sort,
   };
 
-  const [browse, clans] = await Promise.all([
+  const [deletedBans, browse, clans] = await Promise.all([
+    // Platform bans whose account has since been deleted: no person to list above.
+    deletedAccountPlatformBans(),
     browsePeople(
       {
         q,
@@ -83,6 +87,10 @@ export default async function StaffPeoplePage({
           viewerPlayerId={actor.user.playerId}
         />
       </div>
+      <DeletedAccountBans
+        initial={deletedBans.map((b) => ({ id: b.id, discordId: b.discordId, bannedAt: b.bannedAt }))}
+        canWrite={hasPlatformRole(actor.role, 'staff')}
+      />
     </div>
   );
 }

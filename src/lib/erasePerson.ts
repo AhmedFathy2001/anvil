@@ -7,7 +7,9 @@
 // WHAT IT DOES, in the order it does it:
 //   1. Locks the login row. No row = already deleted = success (running it twice is safe).
 //   2. Refuses while they own a clan or space, or a paid plan still renews (lib/personData eraseBlockers).
-//   3. Keeps a ban working: a ban still in force moves to an empty stand-in that holds only the Discord id.
+//   3. Keeps a ban working: a ban still in force (platform, or a clan's) is written to
+//      banned_discord_ids as the Discord id, the date and, for a clan ban, the clan's own reason.
+//      No stand-in login or person is left behind.
 //      The audit log is never deleted from: their Discord id and name inside a row are replaced.
 //   4. Runs every `sql` row of the list, then the named steps the list marks `custom`.
 //   5. Characters: one on a clan's roster or in a clan's event stays as an unclaimed name, exactly
@@ -15,6 +17,17 @@
 //      no clan record is deleted.
 //   6. Deletes the login and the person. The schema's ON DELETE does the rest (the `fk` rows).
 //   7. Writes one audit entry with counts and nothing that identifies anybody.
+//
+// WHAT SURVIVES A DELETION, all of it:
+//   - banned_discord_ids: one row per ban still in force. Discord id, platform or which clan, the
+//     date, who set it, and a clan's reason with the person's Discord id and name replaced.
+//   - A character on a clan's roster or in a clan's event, as an unclaimed in-game name, with that
+//     clan's seat, event entries, submissions and other records of the character.
+//   - The audit log, every row, with their Discord id and name replaced by [deleted].
+//   - Event sign-ups (detached, answers emptied), proof uploads a clan's event uses (detached),
+//     payment lines (without the email), and one platform_account_deleted entry of counts.
+// Nothing else: no login, no person, no name, email, avatar, token or preference.
+//
 // After the commit, the stored images are deleted. A failure there is logged, never fatal: the
 // database no longer points at them, and the retention sweep is the backstop.
 //
@@ -26,6 +39,7 @@ import { db } from '@/db';
 import {
   accountMedia,
   accounts,
+  bannedDiscordIds,
   billingLedger,
   clanAuditLog,
   clanBans,
@@ -44,6 +58,7 @@ import {
   unmatchedPurchases,
   users,
 } from '@/db/schema';
+import { storedDiscordLink } from '@/lib/discordRoleSafety';
 import { log } from '@/lib/logger';
 import {
   PERSON_DATA,
@@ -51,7 +66,7 @@ import {
   isDiscordId,
   redactAuditText,
   redactMergeSide,
-  retainedBan,
+  retainedBans,
   type EraseBlocker,
   type EraseFacts,
   type PersonKey,
@@ -185,25 +200,32 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
   storedImages.push(...feeProofs.map((r) => r.url));
 
   // ── A ban survives ────────────────────────────────────────────────────────────────────────────
+  // Written to banned_discord_ids, which is all that is kept: the Discord id, which ban, when, and
+  // a clan's own reason (lib/personData retainedBans). The clan_bans rows themselves go with the
+  // person below; lib/deletedAccountBans puts a clan's ban back if that Discord account returns.
   // clan-scope: global -- every clan that has barred this person; each ban must go on working.
-  const liveBans = playerId == null ? [] : await tx.select({ id: clanBans.id }).from(clanBans).where(and(eq(clanBans.playerId, playerId), isNull(clanBans.liftedAt)));
-  const keep = retainedBan({
+  const liveBans =
+    playerId == null
+      ? []
+      : await tx
+          .select({ clanId: clanBans.clanId, reason: clanBans.reason, bannedAt: clanBans.bannedAt, bannedByUserId: clanBans.bannedByUserId })
+          .from(clanBans)
+          .where(and(eq(clanBans.playerId, playerId), isNull(clanBans.liftedAt)));
+  const keep = retainedBans({
     discordId,
+    names: [user.discordUsername, user.discordGlobalName, user.displayName],
     userBanned: user.banned,
     userBannedAt: user.bannedAt,
     playerBanned: person?.banned ?? false,
     playerBannedAt: person?.bannedAt ?? null,
-    liveClanBanIds: liveBans.map((b) => b.id),
+    liveClanBans: liveBans,
   });
-  let standInPlayerId: number | null = null;
-  if (keep) {
-    const [standIn] = await tx.insert(players).values(keep.player).returning({ id: players.id });
-    standInPlayerId = standIn.id;
-    if (keep.clanBanIds.length > 0) {
-      // Moved off the person before the person is deleted (the column cascades). The reason and the
-      // character that prompted it are about the person, not needed to enforce it, and are cleared.
-      await tx.update(clanBans).set({ playerId: standIn.id, accountId: null, reason: null }).where(inArray(clanBans.id, keep.clanBanIds));
-    }
+  if (keep.length > 0) {
+    await tx
+      .insert(bannedDiscordIds)
+      // A missing date falls back to the column default (now).
+      .values(keep.map(({ bannedAt, ...row }) => ({ ...row, ...(bannedAt ? { bannedAt } : {}) })))
+      .onConflictDoNothing();
   }
 
   // ── Their private friends host: nobody's now, and no longer named after them ──────────────────
@@ -255,7 +277,8 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
     .delete(eventDiscordMembers)
     .where(or(eq(eventDiscordMembers.userId, userId), discordId ? eq(eventDiscordMembers.discordId, discordId) : undefined));
   if (discordId) {
-    await tx.update(accounts).set({ discordId: null }).where(eq(accounts.discordId, discordId));
+    // The id and everything recorded about how it got there (source, who linked it, when).
+    await tx.update(accounts).set(storedDiscordLink(null, null)).where(eq(accounts.discordId, discordId));
   }
   if (isDiscordId(discordId)) {
     // THE AUDIT LOG IS NEVER DELETED FROM. What a clan did about someone (a ban, a role change) is
@@ -376,7 +399,7 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
           verificationMethod: null,
           verifiedByUserId: null,
           accountHash: null,
-          discordId: null,
+          ...storedDiscordLink(null, null),
           supporterStyle: null,
           shared: false,
           liveStats: null,
@@ -400,18 +423,12 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
     await tx.delete(players).where(eq(players.id, playerId));
   }
 
-  // The stand-in login, after the real one is gone (the Discord id is unique). It carries the id and
-  // the ban flags and nothing else; signing in with that Discord account lands on it, still banned.
-  if (keep && standInPlayerId != null) {
-    await tx.insert(users).values({ ...keep.user, playerId: standInPlayerId });
-  }
-
   const summary: EraseSummary = {
     charactersKept,
     charactersDeleted,
     seatsKept: ids.seat.length,
     eventEntriesKept: ids.participant.length,
-    banRecordKept: keep != null,
+    banRecordKept: keep.length > 0,
     storedImages: storedImages.length,
   };
 

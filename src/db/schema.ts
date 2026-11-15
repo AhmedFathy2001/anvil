@@ -347,6 +347,19 @@ export const accounts = pgTable('accounts', {
   // users.discordId, which is a proven OAuth link — this is a cache, and the only handle there is on
   // a member who has never signed in. Readers should prefer the account's player and fall back here.
   discordId: text('discord_id'),
+  // WHERE THAT STORED ID CAME FROM (drizzle/0265, lib/discordRoleSafety DiscordIdSource):
+  //   'login' | 'signup' | 'plugin'  copied from a source the database can prove
+  //   'admin'                         a clan admin linked the member by hand (who / when / which clan below)
+  //   'name'                          a nickname match
+  //   null                            unknown: stored before this was recorded
+  // With a clan's nickname matching off, role sync trusts a stored id only when it is 'admin' AND
+  // was made by that same clan. Every writer of discordId sets this (lib/discordLink).
+  discordIdSource: text('discord_id_source'),
+  discordIdLinkedByUserId: integer('discord_id_linked_by_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  discordIdLinkedAt: text('discord_id_linked_at'),
+  // A character is one row for every clan that seats it, so a hand link names the clan that made it
+  // and is trusted there only: one clan's admin must not decide who earns roles in another's server.
+  discordIdLinkedClanId: integer('discord_id_linked_clan_id').references((): AnyPgColumn => clans.id, { onDelete: 'set null' }),
   // 'active' | 'unranked' | 'banned' | 'archived' — drives whether the hiscores sweep polls it.
   // Jagex-side health, not a clan's opinion: 'banned' here means Jagex banned the account. Being
   // barred from a clan is a property of that clan's membership, and lives there.
@@ -433,6 +446,7 @@ export const accounts = pgTable('accounts', {
   // indexed: the sweep loads its candidates by seat and decides due-ness in JS (api/cron/stats), and
   // the only query the old index served filters on `status` alone.
   index('accounts_status_idx').on(table.status),
+  check('accounts_discord_id_source_check', sql`${table.discordIdSource} IS NULL OR ${table.discordIdSource} IN ('admin', 'name', 'login', 'signup', 'plugin')`),
 ]);
 
 /**
@@ -1951,6 +1965,38 @@ export const clanBans = pgTable('clan_bans', {
   // One live ban per person per clan. Partial, so a lifted ban does not block a later one.
   uniqueIndex('clan_bans_live_unique').on(table.clanId, table.playerId).where(sql`lifted_at is null`),
   index('clan_bans_clan_idx').on(table.clanId),
+]);
+
+/**
+ * A ban that outlives a deleted account (drizzle/0266, lib/deletedAccountBans).
+ *
+ * A ban is keyed on the person, and deleting an account deletes the person. What still recognises
+ * the same human afterwards is the Discord account they sign in with, so that id is kept here with
+ * the ban and NOTHING ELSE about them: no name, no email, no character.
+ *
+ *   scope 'platform'  that Discord account cannot sign in. clan_id is null.
+ *   scope 'clan'      on that account's next sign-in the ban goes back onto the new person as an
+ *                     ordinary clan_bans row and this row is deleted. `reason` is the clan's own
+ *                     note, with the person's Discord id and name taken out of it.
+ *
+ * Staff lift one by deleting the row.
+ */
+export const bannedDiscordIds = pgTable('banned_discord_ids', {
+  id: serial('id').primaryKey(),
+  discordId: text('discord_id').notNull(),
+  scope: text('scope').notNull(),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  bannedAt: text('banned_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  bannedByUserId: integer('banned_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  // One row per (discord_id, scope, clan_id): two partial indexes, because clan_id is null for a
+  // platform ban and a plain unique index treats nulls as different.
+  uniqueIndex('banned_discord_ids_platform_unique').on(table.discordId).where(sql`scope = 'platform'`),
+  uniqueIndex('banned_discord_ids_clan_unique').on(table.discordId, table.clanId).where(sql`scope = 'clan'`),
+  index('banned_discord_ids_clan_idx').on(table.clanId),
+  check('banned_discord_ids_scope_check', sql`(${table.scope} = 'platform' AND ${table.clanId} IS NULL) OR (${table.scope} = 'clan' AND ${table.clanId} IS NOT NULL)`),
 ]);
 
 /**

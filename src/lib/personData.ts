@@ -136,7 +136,7 @@ export const PERSON_DATA: PersonDataEntry[] = [
   e('account_stat_snapshots', 'account_id', 'account', 'keep', 'none', 'the last hiscores page for the character'),
   e('analytics_events', 'account_id', 'account', 'delete', 'sql', 'usage events tied to the character'),
   e('character_reports', 'account_id', 'account', 'delete', 'sql', 'reports and claim requests about the character'),
-  e('clan_bans', 'account_id', 'account', 'detach', 'custom', 'which character prompted a ban; cleared on a ban that is kept'),
+  e('clan_bans', 'account_id', 'account', 'delete', 'custom', 'which character prompted a ban; the ban row goes with the person (clan_bans.player_id), so nothing is left to clear'),
   e('clan_join_requests', 'account_id', 'account', 'delete', 'sql', 'their requests to join a clan', tied({ writer: 'player_id', key: 'player' }, ex('clan_join_requests', 'clan_id', 'account_id', 'status', 'message', 'source', 'requested_at', 'decided_at'))),
   e('clan_memberships', 'account_id', 'account', 'keep', 'none', 'THE SEAT: the clan’s record that this in-game name is or was in the clan',
     tied({ unowned: true }, ex('clan_memberships', 'id', 'clan_id', 'account_id', 'kind', 'rank', 'source', 'joined_at', 'left_at', 'ingame_joined_on'))),
@@ -167,8 +167,8 @@ export const PERSON_DATA: PersonDataEntry[] = [
   e('account_ownership_claims', 'claimant_player_id', 'player', 'delete', 'fk', 'their claim on a character'),
   e('account_ownership_claims', 'owner_player_id', 'player', 'delete', 'fk', 'a claim made against them'),
   e('character_reports', 'claimant_player_id', 'player', 'detach', 'fk', 'who asked for somebody else’s character'),
-  e('clan_bans', 'player_id', 'player', 'keep', 'custom',
-    'A BAN SURVIVES. A ban still in force moves to a blank stand-in person that holds only the Discord id; the reason and the character are cleared. A lifted ban is deleted.'),
+  e('clan_bans', 'player_id', 'player', 'delete', 'fk',
+    'A BAN SURVIVES, BUT NOT HERE. Before the person is deleted, a ban still in force is copied to banned_discord_ids (Discord id, clan, date, and the clan’s own reason with their Discord id and name taken out); these rows then go with the person. A lifted ban is simply deleted.'),
   e('clan_join_requests', 'player_id', 'player', 'delete', 'sql', 'their requests to join a clan'),
   e('event_invites', 'player_id', 'player', 'delete', 'fk', 'an invite is an offer to them, not a record of anything that happened'),
   e('h2h_challenges', 'cancel_requested_by', 'player', 'detach', 'fk', 'who asked to cancel'),
@@ -268,7 +268,8 @@ export const PERSON_DATA: PersonDataEntry[] = [
     ex('audit_my_actions', 'clan_id', 'event_type', 'occurred_at')),
   e('clans', 'friends_owner_user_id', 'user', 'detach', 'custom', 'their private friends host stays for the friends who played in it, with no owner and a plain name'),
   ...[
-    ['account_change_requests', 'decided_by_user_id'], ['account_ownership_claims', 'decided_by_user_id'], ['blocked_webhooks', 'blocked_by_user_id'],
+    ['account_change_requests', 'decided_by_user_id'], ['account_ownership_claims', 'decided_by_user_id'], ['accounts', 'discord_id_linked_by_user_id'],
+    ['banned_discord_ids', 'banned_by_user_id'], ['blocked_webhooks', 'blocked_by_user_id'],
     ['character_reports', 'reported_by_user_id'], ['character_reports', 'resolved_by_user_id'], ['chat_pattern_overrides', 'updated_by'],
     ['clan_bans', 'banned_by_user_id'], ['clan_bans', 'lifted_by_user_id'], ['clan_blocks', 'blocked_by_user_id'], ['clan_boost_state', 'gifted_by'],
     ['clan_boost_state', 'last_recruit_post_by'], ['clan_event_payouts', 'paid_by_user_id'], ['clan_events', 'created_by_id'],
@@ -299,7 +300,13 @@ export const PERSON_DATA: PersonDataEntry[] = [
  * handled by a named step in erasePerson; listed here so the report and the tests can see them.
  */
 export const PERSON_VALUE_COLUMNS: { table: string; column: string; handling: Handling; why: string }[] = [
-  { table: 'accounts', column: 'discord_id', handling: 'detach', why: 'their Discord id written on a character (any character, not only theirs): cleared' },
+  { table: 'accounts', column: 'discord_id', handling: 'detach', why: 'their Discord id written on a character (any character, not only theirs): cleared, with its source and who linked it' },
+  {
+    table: 'banned_discord_ids',
+    column: 'discord_id',
+    handling: 'keep',
+    why: 'KEPT BY DESIGN, and written BY the deletion: one row per ban still in force (platform, or one clan), so the ban holds if the same Discord account signs in again. It holds the Discord id, the date and the clan’s own reason text; no name, email, avatar or character. Staff lifting the ban deletes the row; a clan row is also deleted once it has been put back on a returning account.',
+  },
   { table: 'event_discord_members', column: 'discord_id', handling: 'delete', why: 'their Discord id in an event’s Discord server list: row deleted' },
   { table: 'billing_ledger', column: 'buyer_email', handling: 'detach', why: 'the payment line stays for the books; the email on it is cleared' },
   { table: 'unmatched_purchases', column: 'buyer_email', handling: 'detach', why: 'the payment record stays; the email on it is cleared' },
@@ -426,39 +433,69 @@ export function eraseBlockers(facts: EraseFacts): EraseBlocker[] {
 
 export interface BanFacts {
   discordId: string | null;
+  /** Their Discord username, Discord display name and Anvil display name: taken out of a kept reason. */
+  names?: (string | null | undefined)[];
   userBanned: boolean;
   userBannedAt: string | null;
   playerBanned: boolean;
   playerBannedAt: string | null;
-  /** Ids of clan bans still in force on the person. */
-  liveClanBanIds: number[];
+  /** Clan bans still in force on the person. */
+  liveClanBans: { clanId: number; reason: string | null; bannedAt: string | null; bannedByUserId: number | null }[];
 }
 
-/** The stand-in left behind so a ban still works: a login and a person with nothing on them but this. */
-export interface RetainedBan {
-  user: { discordId: string; displayName: ''; banned: boolean; bannedAt: string | null };
-  player: { displayName: null; banned: boolean; bannedAt: string | null };
-  clanBanIds: number[];
+/** One row of `banned_discord_ids`: everything that outlives the account, and nothing else. */
+export interface RetainedBanRow {
+  discordId: string;
+  scope: 'platform' | 'clan';
+  clanId: number | null;
+  /** The clan's own note, with the person's Discord id and names replaced. Never set for a platform ban. */
+  reason: string | null;
+  bannedAt: string | null;
+  bannedByUserId: number | null;
 }
 
 /**
- * What survives so a platform ban or a clan ban still holds after the account is gone, or null when
- * there is no ban to keep.
+ * What survives so a platform ban or a clan ban still holds after the account is gone: the rows to
+ * write to `banned_discord_ids`. Empty when there is no ban to keep.
  *
  * Bans are keyed on the person (`players.id`), and the only thing that ties a returning human to a
- * person is the Discord id they sign in with. So that id is the one identifier kept, on an otherwise
- * empty login pointing at an otherwise empty person that the live clan bans are moved to. No name,
- * no email, no avatar, no characters, no reason text. Without a Discord id there is nothing to
- * recognise them by, so nothing is kept.
+ * person is the Discord id they sign in with. So that id is the one identifier kept, with which ban
+ * it is and when. No login, no person, no name, no email, no avatar, no characters. Without a
+ * Discord id there is nothing to recognise them by, so nothing is kept.
+ *
+ * A CLAN BAN KEEPS ITS REASON. The reason is the clan's own note about why it barred someone: the
+ * clan's record, not the person's data. What IS the person's inside it (their Discord id, their
+ * Discord name) is replaced with [deleted]; the rest stays. A platform ban keeps no reason.
  */
-export function retainedBan(f: BanFacts): RetainedBan | null {
-  if (!f.discordId) return null;
-  if (!f.userBanned && !f.playerBanned && f.liveClanBanIds.length === 0) return null;
-  return {
-    user: { discordId: f.discordId, displayName: '', banned: f.userBanned, bannedAt: f.userBanned ? f.userBannedAt : null },
-    player: { displayName: null, banned: f.playerBanned, bannedAt: f.playerBanned ? f.playerBannedAt : null },
-    clanBanIds: [...f.liveClanBanIds],
-  };
+export function retainedBans(f: BanFacts): RetainedBanRow[] {
+  const discordId = f.discordId?.trim() || null;
+  if (!discordId) return [];
+  const out: RetainedBanRow[] = [];
+  if (f.userBanned || f.playerBanned) {
+    out.push({
+      discordId,
+      scope: 'platform',
+      clanId: null,
+      reason: null,
+      // The platform-level ban's date when there is one; else the login-level one's.
+      bannedAt: (f.playerBanned ? f.playerBannedAt : null) ?? (f.userBanned ? f.userBannedAt : null) ?? null,
+      bannedByUserId: null,
+    });
+  }
+  const seen = new Set<number>();
+  for (const b of f.liveClanBans) {
+    if (seen.has(b.clanId)) continue;
+    seen.add(b.clanId);
+    out.push({
+      discordId,
+      scope: 'clan',
+      clanId: b.clanId,
+      reason: redactBanReason(b.reason, { discordId, names: f.names }),
+      bannedAt: b.bannedAt,
+      bannedByUserId: b.bannedByUserId,
+    });
+  }
+  return out;
 }
 
 // ── Tying an exported row to the person asking ────────────────────────────────────────────────────
@@ -507,6 +544,30 @@ export function redactAuditText(
     const n = (name ?? '').trim();
     if (n.length < 2) continue;
     out = out.replace(new RegExp(escapeRe(JSON.stringify(n)), 'g'), JSON.stringify(REDACTED));
+  }
+  return out;
+}
+
+/**
+ * A clan's ban reason with the banned person taken out of it, for a ban kept after they delete
+ * their account. The note is the clan's; their Discord id and Discord name inside it are not.
+ *
+ * redactAuditText replaces the id (as a whole number) and a name that stands as a quoted value. A
+ * reason is free text, so a name written bare ("zezima#1 kept spamming") is replaced here as well:
+ * whole word only, any letter case, three characters or more so a one-letter name cannot shred the
+ * sentence. Everything else in the note is kept. Blank stays blank.
+ */
+export function redactBanReason(
+  reason: string | null | undefined,
+  who: { discordId: string; names?: (string | null | undefined)[] },
+): string | null {
+  const text = reason?.trim();
+  if (!text) return null;
+  let out = redactAuditText(text, who, true) ?? text;
+  for (const name of who.names ?? []) {
+    const n = (name ?? '').trim();
+    if (n.length < 3) continue;
+    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRe(n)}(?![\\p{L}\\p{N}_])`, 'giu'), REDACTED);
   }
   return out;
 }

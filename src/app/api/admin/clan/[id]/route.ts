@@ -7,6 +7,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { isEventSeat } from '@/lib/seatKinds';
+import { staffEnteredDiscordLink } from '@/lib/discordLink';
 
 // An event player's seat is not a roster seat — it is managed only under "Past viewers"
 // (/api/admin/viewers), never edited, promoted or removed here.
@@ -79,7 +80,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         { status: 403 },
       );
     }
-    accountPatch.discordId = body.discordId;
+    // Stored with its source (lib/discordLink): a hand link only when an admin typed a real Discord
+    // id; clearing it clears the source too.
+    Object.assign(
+      accountPatch,
+      await staffEnteredDiscordLink({ clanId: existing.clanId, seatId: existing.id, claimed: false, discordId: body.discordId, actor: user }),
+    );
   }
 
   if (Object.keys(seatPatch).length === 0 && Object.keys(accountPatch).length === 0) {

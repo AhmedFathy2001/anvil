@@ -191,3 +191,19 @@ test('answers and messages only leave through the row’s own writer', () => {
   const proofs = PERSON_DATA.find((p) => p.table === 'submissions' && p.column === 'player_id')!;
   assert.deepEqual(proofs.export!.tie, { since: 'created_at' });
 });
+
+// A ban outlives the account it was set on, in a table of its own (drizzle/0266).
+
+test('banned_discord_ids is known to the list, kept by design, and points at no person', () => {
+  const kept = PERSON_VALUE_COLUMNS.find((v) => v.table === 'banned_discord_ids' && v.column === 'discord_id');
+  assert.equal(kept?.handling, 'keep', 'the Discord id on a kept ban is listed as kept on purpose');
+  const cols = TABLES.get('banned_discord_ids')!;
+  // Everything the table can hold about anybody: nothing beyond the id, the ban and the clan's note.
+  assert.deepEqual([...cols.keys()].sort(), ['banned_at', 'banned_by_user_id', 'clan_id', 'created_at', 'discord_id', 'id', 'reason', 'scope']);
+  const personPointers = [...cols].filter(([, c]) => c.ref && PERSON_TABLES.has(c.ref.table)).map(([name]) => name);
+  assert.deepEqual(personPointers, ['banned_by_user_id'], 'only who set the ban, which is cleared when that staff member is deleted');
+  // The ban rows on the person go with the person; what survives was copied to the table above.
+  const live = PERSON_DATA.find((p) => p.table === 'clan_bans' && p.column === 'player_id')!;
+  assert.equal(live.handling, 'delete');
+  assert.match(live.why, /banned_discord_ids/);
+});
