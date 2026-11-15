@@ -18,7 +18,7 @@ import { eventTileCount, isLadderFormat } from '@/lib/utils';
 import { writtenTile } from '@/lib/writtenTiles';
 import { getSetupStatus } from '@/lib/setupStatus';
 import CreatorDashboard from './CreatorDashboard';
-import SetupChecklist from '@/components/SetupChecklist';
+import GuidedFlow from '@/components/GuidedFlow';
 import MemberCapNotice from '@/components/MemberCapNotice';
 import { rosterCapStatus } from '@/lib/member-cap';
 import { pendingRequestCount } from '@/lib/guestAdmission';
@@ -493,14 +493,10 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
 
       {!creator && <MemberCapNotice status={capStatus} />}
 
-      {!setup.allDone && !setup.dismissed && (
-        <SetupChecklist
-          steps={setup.steps}
-          completedCount={setup.completedCount}
-          totalCount={setup.totalCount}
-          creator={creator}
-        />
-      )}
+      {/* The owner's guide (lib/guidedFlows/clanSetup), for admins: every button leads to a page only
+          they can open. It stays until every step is done; "Hide" in the old checklist or "Skip" in the
+          wizard only folds it down to a Show guide control. */}
+      {setup.guide && atLeast(session?.role, 'admin') && <GuidedFlow view={setup.guide} scope={clan.id} startDismissed={setup.dismissed} />}
 
       <NowBar running={running} nextUp={nextUp} now={now} canReach={canReach} />
 

@@ -325,7 +325,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       label: 'Settings',
       items: [
         // SETUP IS A STATE, NOT A PLACE: listed only while unfinished, and first while it is.
-        ...(!setup || setup.allDone || setup.dismissed
+        // Finished means the guide strip's steps are (lib/guidedFlows/clanSetup); a creator space has
+        // no guide and keeps its own checklist's count.
+        ...(!setup || (setup.guide ? setup.guide.complete : setup.allDone) || setup.dismissed
           ? []
           : [{ href: creator ? '/admin/dashboard' : '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
         { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },

@@ -247,3 +247,64 @@ test('run an event agrees with the Next step card, the checklist facts and the r
                   }
   assert.ok(checked > 5000, `walked ${checked} sample events`);
 });
+
+// ── Flow b: a new clan owner ──────────────────────────────────────────────────────────────────
+
+import { clanSetupFlow, type ClanSetupFacts } from '../src/lib/guidedFlows/clanSetup.ts';
+
+const newClan: ClanSetupFacts = { clanName: 'Iron Oaks', inGameClanName: 'Iron Oaks', pluginSeen: false, verified: false, memberCount: 1, hasEvent: false };
+
+test('clan setup: a clan that has only been created starts at the plugin', () => {
+  const v = clanSetupFlow(newClan);
+  assertWellFormed(v);
+  assert.deepEqual(keys(v), ['clan', 'plugin', 'prove', 'members', 'event']);
+  assert.equal(v.current?.key, 'plugin');
+  assert.equal(v.stepNumber, 2);
+  assert.equal(v.doneCount, 1);
+  assert.equal(v.total, 5);
+  // Nothing at all: the clan step is open.
+  const empty = clanSetupFlow({ ...newClan, clanName: '', inGameClanName: '' });
+  assertWellFormed(empty);
+  assert.equal(empty.current?.key, 'clan');
+  assert.equal(empty.doneCount, 0);
+});
+
+test('clan setup: each step done in turn moves the open step along', () => {
+  const walk: [Partial<ClanSetupFacts>, string, number][] = [
+    [{}, 'plugin', 1],
+    [{ pluginSeen: true }, 'prove', 2],
+    [{ pluginSeen: true, verified: true }, 'members', 3],
+    [{ pluginSeen: true, verified: true, memberCount: 40 }, 'event', 4],
+  ];
+  for (const [patch, step, done] of walk) {
+    const v = clanSetupFlow({ ...newClan, ...patch });
+    assertWellFormed(v);
+    assert.equal(v.current?.key, step);
+    assert.equal(v.doneCount, done);
+    assert.equal(v.current?.action.kind, 'link');
+  }
+  // The buttons name the part of the wizard they mean, and the last one hands over to the event flow.
+  assert.deepEqual(clanSetupFlow({ ...newClan, pluginSeen: true }).current?.action, { kind: 'link', label: 'Show me the steps', href: '/admin/setup?step=game' });
+  assert.deepEqual(clanSetupFlow({ ...newClan, pluginSeen: true, verified: true, memberCount: 40 }).current?.action, { kind: 'link', label: 'Create an event', href: '/admin/events/first' });
+});
+
+test('clan setup: a verified name or a loaded roster proves the plugin connected', () => {
+  assert.equal(clanSetupFlow({ ...newClan, verified: true }).current?.key, 'members');
+  // Members added by hand, the name never proved: proving it is still the open step.
+  assert.equal(clanSetupFlow({ ...newClan, memberCount: 12 }).current?.key, 'prove');
+});
+
+test('clan setup: proving the clan is blocked while there is no in-game name to match', () => {
+  const v = clanSetupFlow({ ...newClan, inGameClanName: ' ', pluginSeen: true });
+  assertWellFormed(v);
+  assert.equal(v.current?.key, 'prove');
+  assert.match(v.current!.blocked!.reason, /no in-game clan name/);
+  assert.equal(v.current!.blocked!.fix.href, '/admin/setup?step=clan');
+  assert.equal(clanSetupFlow({ ...newClan, pluginSeen: true }).current?.blocked, undefined);
+});
+
+test('clan setup: complete once the first event exists, and the event flow takes over', () => {
+  const v = clanSetupFlow({ ...newClan, pluginSeen: true, verified: true, memberCount: 40, hasEvent: true });
+  assertWellFormed(v);
+  assert.equal(v.complete, true);
+});

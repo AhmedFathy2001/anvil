@@ -1,9 +1,11 @@
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users } from '@/db/schema';
-import { and, count, eq, isNull, notInArray } from 'drizzle-orm';
+import { and, count, eq, isNotNull, isNull, notInArray } from 'drizzle-orm';
 import { creatorSetupSteps, isCreatorSpace } from '@/lib/creatorSpaces';
 import { writtenTile } from '@/lib/writtenTiles';
+import type { FlowView } from '@/lib/guidedFlow';
+import { clanSetupFlow } from '@/lib/guidedFlows/clanSetup';
 
 // The five "zero-to-first-bingo" milestones a fresh clan needs to hit. Step status is
 // always computed live from real data (settings + counts) so the dashboard checklist and
@@ -43,6 +45,11 @@ export interface SetupStatus {
   provisioned: boolean;
   /** A creator space (lib/creatorSpaces): its own checklist, and no setup wizard. */
   creator: boolean;
+  /**
+   * The owner's guide strip (lib/guidedFlows/clanSetup), built from the facts read here: the one the
+   * dashboard, the sidebar and /admin/setup all show. Null for a creator space, which has no wizard.
+   */
+  guide: FlowView | null;
   /** Prefill values for the wizard, so it opens showing whatever is already set. */
   values: {
     clanName: string;
@@ -56,6 +63,8 @@ export interface SetupStatus {
     verified: boolean;
     /** Live member seats. The owner alone is 1, so "loaded" means more than that. */
     memberCount: number;
+    /** Somebody who runs this clan has the plugin signed in (a character of theirs has reported in). */
+    pluginSeen: boolean;
   };
 }
 
@@ -97,7 +106,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // counted everybody's, so a brand-new clan with nothing in it opened the checklist with two of
   // four steps already ticked and the wizard's Done screen congratulating it. Tiles reach their clan
   // through their event; there is no tiles.clan_id to filter on.
-  const [[ec], [tc], [mc]] = await Promise.all([
+  const [[ec], [tc], [mc], pluginRows] = await Promise.all([
     db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
     db
       .select({ c: count() })
@@ -109,7 +118,17 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       .select({ c: count() })
       .from(clanMemberships)
       .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), eq(clanMemberships.kind, 'member'))),
+    // Has the plugin reached us from anyone who runs this clan? `live_stats_at` is stamped on the
+    // account by the plugin's own reports (the same fact lib/onboarding's plugin step reads).
+    db
+      .select({ id: accounts.id })
+      .from(clanStaff)
+      .innerJoin(users, eq(users.id, clanStaff.userId))
+      .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+      .where(and(eq(clanStaff.clanId, clanId), isNotNull(accounts.liveStatsAt)))
+      .limit(1),
   ]);
+  const pluginSeen = pluginRows.length > 0;
   const eventsCount = ec?.c ?? 0;
   const tilesCount = tc?.c ?? 0;
 
@@ -168,6 +187,14 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
 
   return {
     creator: false,
+    guide: clanSetupFlow({
+      clanName,
+      inGameClanName,
+      pluginSeen,
+      verified: row?.ingameNameVerifiedAt != null,
+      memberCount: mc?.c ?? 0,
+      hasEvent: eventsCount > 0,
+    }),
     steps,
     completedCount,
     totalCount: steps.length,
@@ -190,6 +217,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       deaths: get('webhook_deaths'),
       verified: row?.ingameNameVerifiedAt != null,
       memberCount: mc?.c ?? 0,
+      pluginSeen,
     },
   };
 }
@@ -233,6 +261,7 @@ async function creatorSetupStatus(clanId: number, map: Map<string, string | null
   const completedCount = counted.filter((st) => st.done).length;
   return {
     creator: true,
+    guide: null,
     steps,
     completedCount,
     totalCount: counted.length,
@@ -251,6 +280,7 @@ async function creatorSetupStatus(clanId: number, map: Map<string, string | null
       deaths: get('webhook_deaths'),
       verified: false,
       memberCount: 0,
+      pluginSeen: false,
     },
   };
 }
