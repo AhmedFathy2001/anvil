@@ -83,6 +83,11 @@ export default function GoalsCard({
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-gold">
           <span className="h-5 w-1 rounded bg-gold" />
           Goals
+          {goals.length > 0 && (
+            <span className="text-xs font-normal normal-case tracking-normal text-text-muted">
+              {goals.filter((g) => g.done).length} of {goals.length} done
+            </span>
+          )}
         </h2>
         {editable && !adding && (
           <button type="button" onClick={() => setAdding(true)} className="text-sm text-gold hover:underline">
@@ -103,7 +108,7 @@ export default function GoalsCard({
             return (
               <li key={g.id}>
                 <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className={g.done ? 'text-accent-green-light' : 'text-foreground'}>{g.label}</span>
+                  <span title={g.label} className={`min-w-0 truncate ${g.done ? 'text-accent-green-light' : 'text-foreground'}`}>{g.label}</span>
                   <span className="flex items-center gap-3">
                     <span className={`tabular-nums ${g.done ? 'text-accent-green-light' : 'text-text-muted'}`}>{g.text}</span>
                     {editable && (
