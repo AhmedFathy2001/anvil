@@ -7,7 +7,8 @@ import type { SupporterTierId } from '@/lib/supporterTiers';
 
 import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import ClanLink from '@/components/ClanLink';
 import NoticeBell from '@/components/NoticeBell';
 import PendingBadge from '@/components/PendingBadge';
@@ -91,6 +92,7 @@ const DiscordIcon = (
 
 export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, platformBadge = null, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
+  const closeMenu = useCallback(() => setOpen(false), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
@@ -406,7 +408,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
       <div className="flex lg:hidden items-center gap-1">
         {signedIn && user && <NoticeBell />}
         {signedIn && user && (
-          <ClanLink href="/profile" className="p-1.5 rounded-md hover:bg-brown-light" title={user.displayName}>
+          <ClanLink href="/profile" className="p-1.5 rounded-md hover:bg-brown-light max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center" title={user.displayName}>
             {avatar}
           </ClanLink>
         )}
@@ -414,7 +416,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
-          className="p-2 rounded-md text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+          data-menu-toggle
+          className="p-2 rounded-md text-text-muted hover:text-foreground hover:bg-brown-light transition-all max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
         >
           {open ? (
             <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -428,9 +431,10 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         </button>
       </div>
 
-      {/* Mobile menu panel */}
+      {/* Mobile menu panel: overlays the page (absolute under the bar, scrolls inside), closes on
+          navigation, Escape and an outside tap. */}
       {open && (
-        <div className="lg:hidden absolute top-full inset-x-0 border-b-2 border-gold/20 bg-card-bg shadow-xl">
+        <PhoneSheet onClose={closeMenu}>
           <div className="px-4 py-3 flex flex-col gap-1">
             {/* Your clans — the switcher, on mobile. Present with one clan too: the way back is here. */}
             {clan && (
@@ -439,30 +443,30 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                   <div className="flex items-center gap-2.5 px-3 py-1.5">
                     <Crest slug={current.slug} name={current.name} logoUrl={current.logoUrl ?? clan?.logoUrl} size={22} />
                     <span className="text-sm font-semibold text-foreground truncate">{current.name}</span>
-                    <span className="ml-auto text-[10px] text-text-muted">here</span>
+                    <span className="ml-auto text-xs text-text-muted">here</span>
                   </div>
                 )}
                 {otherGroups.map((g) => (
                   <div key={g.key} className="flex flex-col gap-0.5">
-                    <div className="px-3 pt-1.5 text-[10px] uppercase tracking-wider text-text-muted/70">{g.label}</div>
+                    <div className="px-3 pt-1.5 text-xs uppercase tracking-wider text-text-muted/70">{g.label}</div>
                     {g.items.map((o) => (
                       <ClanLink
                         key={o.slug}
                         href={switchTargetPath(pathname ?? '/', o)}
-                        onClick={() => setOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
+                        onClick={closeMenu}
+                        className="flex min-h-11 items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
                       >
                         <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} />
                         <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
                         {g.key === 'spaces' && <CreatorChip />}
-                        {roleLabel(o) && <span className="text-[10px] text-text-muted">{roleLabel(o)}</span>}
+                        {roleLabel(o) && <span className="text-xs text-text-muted">{roleLabel(o)}</span>}
                       </ClanLink>
                     ))}
                   </div>
                 ))}
                 <div className="flex gap-1 px-1 pt-1">
-                  <ClanLink href="/clans" onClick={() => setOpen(false)} className="flex-1 text-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">All clans</ClanLink>
-                  <ClanLink href="/" onClick={() => setOpen(false)} className="flex-1 text-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">Anvil</ClanLink>
+                  <ClanLink href="/clans" onClick={closeMenu} className="flex min-h-11 flex-1 items-center justify-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">All clans</ClanLink>
+                  <ClanLink href="/" onClick={closeMenu} className="flex min-h-11 flex-1 items-center justify-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">Anvil</ClanLink>
                 </div>
               </div>
             )}
@@ -470,8 +474,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               <ClanLink
                 key={l.href}
                 href={l.href}
-                onClick={() => setOpen(false)}
-                className="px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+                onClick={closeMenu}
+                className="flex min-h-11 items-center px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
               >
                 {l.label}
               </ClanLink>
@@ -479,8 +483,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             {signedIn && (
               <ClanLink
                 href="/challenges"
-                onClick={() => setOpen(false)}
-                className="px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+                onClick={closeMenu}
+                className="flex min-h-11 items-center px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
               >
                 Challenges
               </ClanLink>
@@ -488,22 +492,22 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             {isStaff && (
               <ClanLink
                 href={adminHref}
-                onClick={() => setOpen(false)}
-                className="px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
+                onClick={closeMenu}
+                className="flex min-h-11 items-center px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
               >
                 Admin
               </ClanLink>
             )}
             {platformBadge && (
-              <a href="/staff" className="flex items-center gap-1.5 px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all">
+              <a href="/staff" className="flex min-h-11 items-center gap-1.5 px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all">
                 Platform
                 {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
               </a>
             )}
             <ClanLink
               href="/supporter"
-              onClick={() => setOpen(false)}
-              className="px-3 py-2.5 rounded-md text-sm text-gold hover:text-gold-light hover:bg-gold/10 transition-all flex items-center gap-1.5"
+              onClick={closeMenu}
+              className="min-h-11 px-3 py-2.5 rounded-md text-sm text-gold hover:text-gold-light hover:bg-gold/10 transition-all flex items-center gap-1.5"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
               Support Anvil
@@ -513,19 +517,19 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                 href={discordInvite}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-2.5 rounded-md text-sm text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all flex items-center gap-1.5"
+                className="min-h-11 px-3 py-2.5 rounded-md text-sm text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all flex items-center gap-1.5"
               >
                 {DiscordIcon}
                 Discord
               </a>
             )}
-            <div className="border-t border-card-border mt-1 pt-2">
+            <div className="border-t border-card-border mt-1 pt-2 flex flex-col gap-1">
               {signedIn && user ? (
-                <div className="flex items-center justify-between gap-2">
+                <>
                   <ClanLink
                     href="/profile"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-brown-light transition-all min-w-0"
+                    onClick={closeMenu}
+                    className="flex min-h-11 items-center gap-2 px-3 py-2 rounded-md hover:bg-brown-light transition-all min-w-0"
                   >
                     {avatar}
                     <SupporterName
@@ -536,28 +540,67 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                       className="text-sm text-foreground/80 truncate"
                     />
                   </ClanLink>
+                  <ClanLink
+                    prefetch={false}
+                    href="/settings"
+                    onClick={closeMenu}
+                    className="flex min-h-11 items-center px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+                  >
+                    Settings
+                  </ClanLink>
+                  {/* Sign out is last and set apart, so it is never next to something you tap often. */}
                   <a
                     href="/api/auth/logout?return=/"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-card-border text-sm font-medium text-foreground/80 hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/10 transition-all shrink-0"
+                    className="mt-3 flex min-h-11 items-center justify-center gap-1.5 border-t border-card-border px-3 py-2 pt-3 text-sm font-medium text-foreground/70 transition-all hover:text-accent-red"
                   >
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>
                     Sign out
                   </a>
-                </div>
+                </>
               ) : (
                 <ClanLink
                   href={loginHref}
-                  onClick={() => setOpen(false)}
-                  className="block text-center px-3 py-2.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
+                  onClick={closeMenu}
+                  className="flex min-h-11 items-center justify-center px-3 py-2.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
                 >
                   Sign in
                 </ClanLink>
               )}
             </div>
           </div>
-        </div>
+        </PhoneSheet>
       )}
     </>
+  );
+}
+
+/**
+ * The phone menu's frame: Escape, focus and scroll lock come from useModalA11y; a tap outside also
+ * closes it. Positioned under the bar and capped to the screen so the menu scrolls inside itself
+ * instead of pushing the page down.
+ */
+function PhoneSheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const ref = useModalA11y<HTMLDivElement>({ onClose });
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || ref.current?.contains(t) || t.closest('[data-menu-toggle]')) return;
+      onClose();
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [onClose, ref]);
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Menu"
+      tabIndex={-1}
+      className="lg:hidden absolute top-full inset-x-0 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-b-2 border-gold/20 bg-card-bg shadow-xl focus:outline-none"
+    >
+      {children}
+    </div>
   );
 }
 

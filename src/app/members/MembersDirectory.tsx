@@ -216,7 +216,7 @@ export default function MembersDirectory({
                 <ClanLink
                   key={m.id}
                   href={`/members/${encodeURIComponent(m.rsn)}`}
-                  className={`grid ${cols} gap-2 px-4 py-2.5 text-sm items-center hover:bg-brown-light transition-colors ${
+                  className={`grid ${cols} gap-2 px-4 py-2.5 max-sm:min-h-11 text-sm items-center hover:bg-brown-light transition-colors ${
                     i % 2 ? 'bg-card-bg' : ''
                   }`}
                 >

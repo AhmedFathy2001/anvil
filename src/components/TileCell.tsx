@@ -157,7 +157,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {icon && (
         <div className={cn(
           'flex-shrink-0',
-          size <= 3 ? 'w-10 h-10 sm:w-14 sm:h-14' : size <= 5 ? 'w-7 h-7 sm:w-10 sm:h-10' : 'w-5 h-5 sm:w-7 sm:h-7',
+          size <= 3 ? 'w-10 h-10 sm:w-14 sm:h-14' : size <= 5 ? 'w-5 h-5 sm:w-10 sm:h-10' : 'w-5 h-5 sm:w-7 sm:h-7',
         )}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -175,7 +175,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {/* Label */}
       <span
         className={cn(
-          'leading-tight font-medium px-0.5',
+          // Phones: at most two lines, anywhere-wrapping; the full name is in the tile dialog on tap.
+          'leading-tight font-medium px-0.5 max-sm:line-clamp-2 max-sm:[overflow-wrap:anywhere]',
           icon ? 'mt-0.5' : '',
           expanded
             ? size <= 3
@@ -186,8 +187,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
             : size <= 3
               ? 'text-[11px] sm:text-sm'
               : size <= 5
-                ? 'text-[9px] sm:text-xs'
-                : 'text-[7px] sm:text-[9px]',
+                ? 'text-xs sm:text-xs'
+                : 'text-[10px] sm:text-[9px]',
           isCompleted ? 'text-foreground' : 'text-text-muted',
         )}
       >

@@ -171,15 +171,10 @@ export function buildLeadsDigest(
   // list would BE the message.
   if (people.length > 0) {
     const named = people.slice(0, PEOPLE_SHOWN).map((p) => {
-<<<<<<< ours
       // The Discord profile link and nothing else. These are people who only looked: no clan, no
-      // character. Their email used to be printed into the channel beside the name; an owner's still
-      // is (above), because a clan owner is someone we do business with.
+      // character. Their email used to be printed into the channel beside the name; an owner's is
+      // shown masked (above).
       return p.discordId ? `[${p.displayName ?? 'someone'}](https://discord.com/users/${p.discordId})` : (p.displayName ?? 'someone');
-=======
-      const who = p.discordId ? `[${p.displayName ?? 'someone'}](https://discord.com/users/${p.discordId})` : (p.displayName ?? 'someone');
-      return p.email ? `${who} · \`${maskEmail(p.email)}\`` : who;
->>>>>>> theirs
     });
     const rest = people.length - named.length;
     fields.push({

@@ -158,7 +158,7 @@ export default function NoticeBell({ className = '' }: { className?: string }) {
         aria-label={unread ? `Notices from Anvil, ${unread} unread` : 'Notices from Anvil'}
         aria-expanded={open}
         title="Notices from Anvil"
-        className="relative rounded-md p-2 text-gray-400 transition-all hover:bg-gold/10 hover:text-gold"
+        className="relative rounded-md p-2 text-gray-400 transition-all hover:bg-gold/10 hover:text-gold max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
       >
         {BellIcon}
         {unread > 0 && (

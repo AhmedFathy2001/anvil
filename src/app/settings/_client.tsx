@@ -3,6 +3,7 @@
 import ClanLink from '@/components/ClanLink';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
+import Select from '@/components/Select';
 
 import { useDialog } from '@/components/Confirm';
 import SupporterName from '@/components/SupporterName';
@@ -200,6 +201,7 @@ export function SettingsNav({
   flair?: { tier: SupporterTierId | null; style: SupporterStyle | null } | null;
 }) {
   const path = usePathname();
+  const nav = useRouter();
   const item = (href: string, active: boolean, children: ReactNode, extra = '') => (
     <ClanLink
       key={href}
@@ -223,8 +225,34 @@ export function SettingsNav({
   const badge = (n: number) =>
     n > 0 ? <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-brown-dark">{n}</span> : null;
 
+  // Phones: one compact picker instead of a sideways strip of up to a dozen chips.
+  const pickerOptions = [
+    { value: '/settings', label: 'Overview & search' },
+    ...PAGES.map((p) => ({ value: p.href, label: p.label })),
+    ...characters.map((c) => ({ value: `/settings/characters/${c.accountId}`, label: `Character: ${c.rsn}` })),
+  ];
+  const picker = (
+    <div className="sm:hidden">
+      <Select
+        value={
+          pickerOptions.find((o) => o.value === path)?.value ??
+          // A sub-page (e.g. /settings/characters/<id>) selects its parent section.
+          [...pickerOptions].filter((o) => o.value !== '/settings' && path?.startsWith(`${o.value}/`)).sort((x, y) => y.value.length - x.value.length)[0]?.value ??
+          '/settings'
+        }
+        onChange={(href) => nav.push(href)}
+        options={pickerOptions}
+        ariaLabel="Settings section"
+        searchable={false}
+        className="mb-2"
+      />
+    </div>
+  );
+
   return (
-    <nav aria-label="Settings" className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden scroll-quiet px-4 pb-2 lg:sticky lg:top-20 lg:mx-0 lg:block lg:overflow-visible lg:px-0 lg:pb-0">
+    <>
+    {picker}
+    <nav aria-label="Settings" className="max-sm:hidden -mx-4 flex gap-1 overflow-x-auto overflow-y-hidden scroll-quiet px-4 pb-2 lg:sticky lg:top-20 lg:mx-0 lg:block lg:overflow-visible lg:px-0 lg:pb-0">
       {item('/settings', path === '/settings', <>{icon('⌂')}Overview & search</>)}
       {heading('Settings')}
       {PAGES.map((p) =>
@@ -252,5 +280,6 @@ export function SettingsNav({
         );
       })}
     </nav>
+    </>
   );
 }

@@ -856,13 +856,13 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
         )}
         <button
           onClick={() => setFullscreen(!fullscreen)}
-          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+          className={`text-xs px-3 py-1.5 max-sm:min-h-11 rounded-lg border transition-colors ${
             fullscreen
               ? 'bg-gold/20 border-gold text-gold'
               : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
           }`}
         >
-          {fullscreen ? 'Show Standings' : 'Fullscreen Board'}
+          {fullscreen ? 'Show Standings' : (<><span className="sm:hidden">Hide standings</span><span className="max-sm:hidden">Fullscreen Board</span></>)}
         </button>
       </div>
 
@@ -879,7 +879,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
 
       <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
         {!fullscreen && (
-          <div className="min-w-0">
+          <div className="min-w-0 max-lg:order-2">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
               {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
@@ -940,7 +940,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             )}
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 max-lg:order-1">
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
@@ -1134,6 +1134,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             />
           )}
 
+          {/* Phones: fullscreen lets the board bleed to the screen edges so tiles use every pixel. */}
+          <div className={fullscreen ? 'max-sm:-mx-4' : undefined}>
           <EventBoard
             format={event.format}
             tiles={board}
@@ -1151,6 +1153,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             neededPositions={neededPositions}
             tierBands={tierBands}
           />
+          </div>
 
           {/* What a classic board is really played for, and what a race is really about. */}
           {isGrid && teams.length > 0 && (
