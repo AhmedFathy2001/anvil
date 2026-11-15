@@ -366,7 +366,11 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
     return (
       <Section title="New challenge">
         <p className="rounded-xl border border-dashed border-card-border px-4 py-3 text-sm text-text-muted">
-          Verify one of your characters first (connect the Anvil plugin and log in to it), so Anvil can track you.
+          Verify one of your characters first, so Anvil can track you. Connect the Anvil plugin and log in to it, or
+          use the quick XP check.{' '}
+          <ClanLink href="/settings/characters#link-account" className="font-medium text-gold hover:text-gold-light">
+            Link a character
+          </ClanLink>
         </p>
       </Section>
     );

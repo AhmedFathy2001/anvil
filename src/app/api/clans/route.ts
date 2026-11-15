@@ -33,6 +33,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // SIGNED IN ONLY. The form that calls this is behind sign-in anyway, and answering a stranger
+  // "a clan on Anvil already uses that name" lets anyone enumerate which clans exist (including ones
+  // that keep to themselves). Bounded per person too, since typing fires it on every pause.
+  const session = await verifyUser();
+  if (!session) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
+  const budget = await rateLimitByKey('clan-name-check', String(session.userId), { limit: 120, windowMs: 60_000 });
+  if (!budget.ok) return NextResponse.json({ error: 'Slow down a little.' }, { status: 429 });
+
   const url = new URL(request.url);
   const slug = (url.searchParams.get('slug') ?? '').trim().toLowerCase();
   const domain = (url.searchParams.get('domain') ?? '').trim().toLowerCase();

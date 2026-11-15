@@ -90,7 +90,7 @@ export default function ApplyToClan({
   if (info.options.length === 0) {
     return (
       <ClanLink
-        href="/profile"
+        href="/settings/characters#link-account"
         className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-center text-[13px] font-semibold text-gold transition-colors hover:bg-gold/20"
       >
         Verify a character first
