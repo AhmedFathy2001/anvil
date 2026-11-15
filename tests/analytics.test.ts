@@ -19,6 +19,9 @@ import {
 } from '../src/lib/analyticsPattern.ts';
 import {
   CLAN_ONBOARDING,
+  FIRST_EVENT_FLOW,
+  FIRST_EVENT_TRACKED,
+  firstEventReached,
   computeFunnel,
   densifyDays,
   parseWindow,
@@ -266,4 +269,57 @@ test('ranking leaves proof submission out, though it is tracked', () => {
   assert.ok(!unusedFeatures(out).some((f) => f.key === 'submissions'));
   const custom: FeatureDef[] = [{ key: 'a', label: 'A', group: 'g', actions: [{ name: 'coffer.donated' }] }];
   assert.equal(rankFeatures([row({})], NOW, custom)[0].uses7, 1);
+});
+
+// ── First-event funnel: derived from each clan's own records ──────────────────────────────────
+
+const noRecords = { verified: false, plugin: false, members: false, event: false, tile: false, started: false };
+const allRecords = { verified: true, plugin: true, members: true, event: true, tile: true, started: true };
+
+test('first event: the steps are the ones a clan leaves records for, in order', () => {
+  assert.deepEqual(
+    FIRST_EVENT_FLOW.steps.map((s) => s.key),
+    ['created', 'verified', 'plugin', 'members', 'event', 'tile', 'started'],
+  );
+  // No page-view step gates it any more: those have no record and would empty it for older clans.
+  assert.ok(FIRST_EVENT_FLOW.steps.every((s) => !s.key.startsWith('flow.')));
+});
+
+test('first event: a clan with nothing tracked at all is counted from its records', () => {
+  // A clan made long before the tracking shipped: no action rows, everything in the tables.
+  assert.deepEqual(firstEventReached(allRecords), ['created', 'verified', 'plugin', 'members', 'event', 'tile', 'started']);
+  assert.deepEqual(firstEventReached(noRecords), ['created']);
+  assert.deepEqual(firstEventReached({ ...noRecords, verified: true, plugin: true }), ['created', 'verified', 'plugin']);
+});
+
+test('first event: a tracked action stands in only where the record is missing', () => {
+  // The event was created, then deleted: no row, but the action remembers.
+  const deleted = { ...allRecords, event: false, tile: false, started: false };
+  assert.deepEqual(firstEventReached(deleted, ['event.created']), ['created', 'verified', 'plugin', 'members', 'event']);
+  assert.deepEqual(
+    firstEventReached(deleted, ['event.created', 'tile.created', 'event.started']),
+    ['created', 'verified', 'plugin', 'members', 'event', 'tile', 'started'],
+  );
+  // The record already says yes: tracked rows change nothing.
+  assert.deepEqual(firstEventReached(allRecords, ['event.created']), firstEventReached(allRecords));
+});
+
+test('first event: verified and plugin have no tracked stand-in, and unrelated actions are ignored', () => {
+  assert.equal(FIRST_EVENT_TRACKED.verified, undefined);
+  assert.equal(FIRST_EVENT_TRACKED.plugin, undefined);
+  assert.deepEqual(firstEventReached(noRecords, ['flow.setup.opened', 'plugin.linked', 'clan.created']), ['created']);
+  assert.deepEqual(firstEventReached(noRecords, ['roster.synced']), ['created', 'members']);
+});
+
+test('first event: per clan, each counted as far as its first missing step', () => {
+  const rows = computeFunnel(FIRST_EVENT_FLOW, [
+    firstEventReached(allRecords),
+    firstEventReached({ ...allRecords, started: false }),
+    // An event and tiles but never verified: stops at "created", whatever came later.
+    firstEventReached({ ...allRecords, verified: false }),
+    firstEventReached({ ...noRecords, verified: true }),
+    firstEventReached(noRecords),
+  ]);
+  assert.deepEqual(rows.map((r) => r.count), [5, 3, 2, 2, 2, 2, 1]);
+  assert.equal(worstStep(rows)?.key, 'started');
 });

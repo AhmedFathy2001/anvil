@@ -4334,7 +4334,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '게시물이 가는 곳',
-          body: '**Keep my announcements out of clans I only guest in**, 그리고 클랜 채널의 **Level posts in clan channels**: **Clan rules**, **Only 99s & max** 또는 **Off**. **Per character**에는 캐릭터마다 목록이 있고, **Clans →** 링크로 한 클랜에 대해서만 게시를 끌 수 있습니다.',
+          body: '**Post my drops and levels in clans where I am a guest**, 그리고 클랜 채널의 **Level posts in clan channels**: **Clan rules**, **Only 99s & max** 또는 **Off**. **Per character**에는 캐릭터마다 목록이 있고, **Clans →** 링크로 한 클랜에 대해서만 게시를 끌 수 있습니다.',
         },
         {
           term: '종류별 스크린샷',

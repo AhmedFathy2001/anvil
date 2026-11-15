@@ -4,6 +4,7 @@ import { listBotChannels } from '@/lib/discord-broadcast';
 import { configuredOrigin } from '@/lib/request-origin';
 import GuideLink from '@/components/GuideLink';
 import DiscordSettings from './DiscordSettings';
+import { countRosterSeatsNotLinked } from '@/lib/discord-roles';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,9 @@ export default async function AdminDiscordPage() {
     getClanFeatures(clan.id),
   ]);
   const creator = isCreatorSpace(clan);
+  // Members role sync cannot reach by Discord id, for the notice beside the nickname-matching switch.
+  // A count from the roster only (no Discord call). A creator space has no roster to sync.
+  const notLinkedForRoles = creator ? 0 : await countRosterSeatsNotLinked(clan.id);
   return (
     <div className="max-w-3xl">
       <header className="mb-8">
@@ -36,6 +40,7 @@ export default async function AdminDiscordPage() {
         clanHallOn={features.on('clanHall')}
         siteUrl={configuredOrigin() ?? ''}
         creator={creator}
+        notLinkedForRoles={notLinkedForRoles}
       />
     </div>
   );

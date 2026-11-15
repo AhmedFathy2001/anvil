@@ -6,7 +6,8 @@
 // trusted to read correctly at the call site.
 //
 //   member clan       announces (default on); silenced only by an explicit per-clan off.
-//   guest + shared    announces by default.
+//   guest + shared    announces once the person turned guest-clan posting ON (off by default, 0263).
+//                     Every case below that expects a guest post has it switched on (clearOverrides).
 //   guest + unshared  announces NOWHERE but the member clan — the shared floor.
 //   clan block        RECEIVER VETO — a clan that refuses guest noise gets none, whitelist or not.
 //   user block        the person stops ALL guest emissions, except a whitelisted (account, clan).
@@ -43,6 +44,7 @@ async function seat(accountId: number, clanId: number, kind: 'member' | 'guest')
 async function clearOverrides() {
   const { db, schema: s } = await loadDb();
   await db.delete(s.accountClanEmission);
+  // Guest-clan posting switched ON: the column defaults to true (quiet) since drizzle/0263.
   await db.update(s.users).set({ blockGuestEmissions: false }).where(eq(s.users.id, login));
   await db.delete(s.settings);
 }
@@ -110,13 +112,10 @@ test('a shared account announces to its member clan and every clan it guests in'
   assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
 });
 
-test('a brand-new person ANNOUNCES in clans it guests in, and its own (opt in by default)', async () => {
-  // THE DEFAULT ITSELF (drizzle/0086, "opt in by default"). A clan announces the guests it admitted
-  // — a seat there — by default; the person goes quiet only by turning ON their own guest-mute
-  // (users.block_guest_emissions, now default false) or silencing one clan explicitly, and a clan
-  // refuses guests only via its own veto. Nothing here is configured; this is what somebody gets for
-  // doing nothing. (Before 0086 the guest clan was silent here — but that path never actually
-  // emitted, which is the bug 0086 fixes.)
+test('a brand-new person announces in its own clan only — guest clans stay quiet until they turn it on', async () => {
+  // THE DEFAULT ITSELF (drizzle/0263). users.block_guest_emissions now defaults to true: nothing is
+  // posted in a clan where the person only holds a guest seat until they switch it on in Settings
+  // (or allow that one clan). Nothing here is configured; this is what somebody gets for doing nothing.
   const { db, schema: s } = await loadDb();
   const [person] = await db.insert(s.players).values({ displayName: 'Fresh' }).returning();
   await db.insert(s.users).values({ playerId: person.id, displayName: 'Fresh', discordId: 'fresh-1' });
@@ -132,13 +131,14 @@ test('a brand-new person ANNOUNCES in clans it guests in, and its own (opt in by
   ]);
 
   const targets = await R.socialEmissionClans(acct.id);
-  assert.deepEqual(
-    clanIds(targets),
-    [clanMember, clanGuestA].sort((a, b) => a - b),
-    'its own clan and the clan it guests in both announce',
-  );
-  assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
-  assert.equal(targets.find((t) => t.clanId === clanGuestA)!.kind, 'guest');
+  assert.deepEqual(clanIds(targets), [clanMember], 'only its own clan announces');
+  assert.equal(targets[0].kind, 'member');
+
+  // Turning the switch on is what makes the guest clan announce.
+  await db.update(s.users).set({ blockGuestEmissions: false }).where(eq(s.users.playerId, person.id));
+  const after = await R.socialEmissionClans(acct.id);
+  assert.deepEqual(clanIds(after), [clanMember, clanGuestA].sort((a, b) => a - b), 'switched on: the guest clan too');
+  assert.equal(after.find((t) => t.clanId === clanGuestA)!.kind, 'guest');
 });
 
 test('a clanless account routes to NO clan — not to whichever one addressed it', async () => {

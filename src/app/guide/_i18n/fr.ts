@@ -4353,7 +4353,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Où vont tes publications',
-          body: '**Keep my announcements out of clans I only guest in**, et **Level posts in clan channels** : **Clan rules**, **Only 99s & max** ou **Off**. **Per character** liste chaque personnage avec un lien **Clans →** pour désactiver les publications pour un seul clan.',
+          body: '**Post my drops and levels in clans where I am a guest**, et **Level posts in clan channels** : **Clan rules**, **Only 99s & max** ou **Off**. **Per character** liste chaque personnage avec un lien **Clans →** pour désactiver les publications pour un seul clan.',
         },
         {
           term: 'Captures d’écran par type',

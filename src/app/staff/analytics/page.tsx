@@ -255,7 +255,7 @@ export default async function StaffAnalyticsPage({
           <Funnel rows={a.newEventFlow} actor={`clans that opened the format picker in the last ${days} days`} />
         </Section>
         <Section title="First event">
-          <Funnel rows={a.firstEventFlow} actor={`new clans that opened setup in the last ${days} days`} />
+          <Funnel rows={a.firstEventFlow} actor={`clans created in the last ${days} days, from their own records`} />
         </Section>
       </div>
 

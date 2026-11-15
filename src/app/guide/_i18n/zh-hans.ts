@@ -4326,7 +4326,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '你的发布去向',
-          body: '**Keep my announcements out of clans I only guest in**，以及 **Level posts in clan channels**：**Clan rules**、**Only 99s & max** 或 **Off**。**Per character** 会列出每个角色，并附带 **Clans →** 链接，以便为某个氏族单独关闭发布。',
+          body: '**Post my drops and levels in clans where I am a guest**，以及 **Level posts in clan channels**：**Clan rules**、**Only 99s & max** 或 **Off**。**Per character** 会列出每个角色，并附带 **Clans →** 链接，以便为某个氏族单独关闭发布。',
         },
         {
           term: '按类型设置截图',

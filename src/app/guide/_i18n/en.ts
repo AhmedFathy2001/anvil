@@ -4310,7 +4310,7 @@ export const en = {
         },
         {
           term: 'Where your posts go',
-          body: '**Keep my announcements out of clans I only guest in**, and **Level posts in clan channels**: **Clan rules**, **Only 99s & max** or **Off**. **Per character** lists each character with a **Clans →** link to switch posting off for one clan.',
+          body: '**Post my drops and levels in clans where I am a guest**, and **Level posts in clan channels**: **Clan rules**, **Only 99s & max** or **Off**. **Per character** lists each character with a **Clans →** link to switch posting off for one clan.',
         },
         {
           term: 'Screenshots per kind',

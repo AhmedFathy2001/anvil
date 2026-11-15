@@ -4342,7 +4342,7 @@ const ar: PartialGuideDict = {
         },
         {
           term: 'إلى أين تذهب منشوراتك',
-          body: '**Keep my announcements out of clans I only guest in**، و**Level posts in clan channels**: **Clan rules** أو **Only 99s & max** أو **Off**. **Per character** يعرض كل شخصية مع رابط **Clans →** لإيقاف النشر لعشيرة واحدة.',
+          body: '**Post my drops and levels in clans where I am a guest**، و**Level posts in clan channels**: **Clan rules** أو **Only 99s & max** أو **Off**. **Per character** يعرض كل شخصية مع رابط **Clans →** لإيقاف النشر لعشيرة واحدة.',
         },
         {
           term: 'لقطات الشاشة لكل نوع',

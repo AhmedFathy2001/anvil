@@ -4333,7 +4333,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '投稿先',
-          body: '**Keep my announcements out of clans I only guest in**、そして **Level posts in clan channels**：**Clan rules**、**Only 99s & max**、または **Off**。**Per character** には各キャラクターが並び、**Clans →** リンクで、1 つのクランへの投稿をオフにできます。',
+          body: '**Post my drops and levels in clans where I am a guest**、そして **Level posts in clan channels**：**Clan rules**、**Only 99s & max**、または **Off**。**Per character** には各キャラクターが並び、**Clans →** リンクで、1 つのクランへの投稿をオフにできます。',
         },
         {
           term: '種類ごとのスクリーンショット',

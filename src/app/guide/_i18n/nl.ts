@@ -4349,7 +4349,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Waar je berichten naartoe gaan',
-          body: '**Keep my announcements out of clans I only guest in**, en **Level posts in clan channels**: **Clan rules**, **Only 99s & max** of **Off**. **Per character** toont elk character met een link **Clans →** om het posten voor één clan uit te zetten.',
+          body: '**Post my drops and levels in clans where I am a guest**, en **Level posts in clan channels**: **Clan rules**, **Only 99s & max** of **Off**. **Per character** toont elk character met een link **Clans →** om het posten voor één clan uit te zetten.',
         },
         {
           term: 'Screenshots per soort',
