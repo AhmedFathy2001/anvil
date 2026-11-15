@@ -19,6 +19,8 @@ const STRAIGHT_THROUGH: RegExp[] = [
   /^\/profile\?(?:.*&)?welcome=1/,
   /^\/portal(?:[/?#]|$)/,
   /^\/clans\/new(?:[/?#]|$)/,
+  // Hosting for viewers is its own destination; the clan-focused setup would only get in the way.
+  /^\/host(?:[/?#]|$)/,
   // An event invite, with or without a clan prefix.
   /^(?:\/[cs]\/[^/]+)?\/events\/[^/]+\/join\/[^/?#]+/,
   // A shared event sign-up link: the person signed in to sign up for that event, so the sign-up

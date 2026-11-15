@@ -33,6 +33,8 @@ test('time-sensitive targets are not detoured', () => {
     '/clans/new',
     '/events/7/join/tok123',
     '/c/foo/events/7/join/tok123',
+    '/host',
+    '/host/friends',
     '/events/12/signup',
     '/c/foo/events/12/signup',
   ]) {

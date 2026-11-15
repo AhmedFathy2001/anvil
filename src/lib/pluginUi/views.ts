@@ -611,14 +611,21 @@ async function focusBoard<C extends HomeConfig>(request: Request, cfg: C, eventI
 
 async function homeView(request: Request, a: Args): Promise<View> {
   const res = await configRoute(request);
-  const noClan = 'You’re not in a clan or an event on Anvil yet — join one on the site and it shows here.';
+  // No dead end: the two ways to get a clan are one click each. Your own characters are on the You tab.
+  const noClan = () =>
+    message('You’re not in a clan or an event on Anvil yet. Your characters are on the You tab.', [
+      gap(6),
+      button('Find a clan', { a: 'site', path: '/clans' }),
+      gap(4),
+      button('Start one', { a: 'site', path: '/clans/new' }),
+    ]);
   if (!res.ok) {
-    return message(res.status === 404 ? noClan : 'Couldn’t reach Anvil — try again in a moment.');
+    return res.status === 404 ? noClan() : message('Couldn’t reach Anvil — try again in a moment.');
   }
   let cfg = (await res.json()) as HomeConfig & { clanless?: boolean; event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
   // In no clan, but in a head-to-head drop race: the config answered only to carry the race's items
   // (lib/pluginConfigClanless). The Clan tab still has no clan to show.
-  if (cfg.clanless) return message(noClan);
+  if (cfg.clanless) return noClan();
   const now = Date.now();
   // `open: board:<id>`: another board this character is on gets the same event page the followed one
   // does. Only a seat liveBoardsForCharacter names (live, visible clan, this character's own entry),
