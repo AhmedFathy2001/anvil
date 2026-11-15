@@ -155,6 +155,18 @@ export function planHasCapability(plan: Plan, capability: Capability): boolean {
   return PLAN_RANK[plan.id] >= PLAN_RANK[CAPABILITY_MIN_PLAN[capability]];
 }
 
+/**
+ * A plan's feature list as the admin Plan page can say it truthfully. `features` is the marketing
+ * list; two of its lines name capabilities nothing in the app gates (Discord posts work on Free, and
+ * any clan can run several events), so the admin page drops them rather than present a free thing as
+ * paid. Co-hosting events with other clans IS gated (host-multi-clan, Silver) once FREEMIUM_ENFORCED.
+ */
+const NOT_GATED_FEATURES = ['Discord notifications'];
+const FEATURE_REWRITES: Record<string, string> = { 'Run multiple events at once': 'Host events together with other clans' };
+export function truthfulFeatures(plan: Plan): string[] {
+  return plan.features.filter((f) => !NOT_GATED_FEATURES.includes(f)).map((f) => FEATURE_REWRITES[f] ?? f);
+}
+
 /** The ladder's order, Free first — for "the next tier up". */
 export function planRank(plan: Plan): number {
   return PLAN_RANK[plan.id];
