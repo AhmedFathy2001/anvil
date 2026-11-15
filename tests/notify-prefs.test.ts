@@ -115,6 +115,18 @@ test('several qualifying items make one combined post; the haul total decides th
   assert.equal(post.note, undefined); // the vestige line rides single posts only, as before
 });
 
+test('a mode with its own bars uses its own both/either switch, not the main game’s', () => {
+  const pricey = { source: 'X', sourceKind: 'npc', items: [{ id: 1, name: 'A', qty: 1, value: 15_000_000 }] };
+  const main = { clan: { ...NO_CLAN_DROPS, mode: 'and' as const } };
+  // Main game asks for both: a 15m drop with no rate does not post there…
+  assert.equal(judgeDrop(pricey, ctx(main)), null);
+  // …but on a mode world whose clan takes either bar, it does, marked as the mode's doing.
+  const either = judgeDrop(pricey, ctx({ ...main, mode: { dropMinValue: 1_000_000, dropRarityFloor: 1_000 } }));
+  assert.equal(either?.modeOnly, true);
+  // A mode that asks for both too still declines it.
+  assert.equal(judgeDrop(pricey, ctx({ ...main, mode: { dropMinValue: 1_000_000, dropRarityFloor: 1_000, dropBoth: true } })), null);
+});
+
 test('loot keys: one post for the lot, gated only by the total', () => {
   const items = [{ id: 1, name: 'Coins', qty: 1, value: 600_000 }, { id: 2, name: 'Rune', qty: 1, value: 500_000 }];
   assert.ok(judgeDrop({ key: true, source: 'Loot key', items }, ctx()));

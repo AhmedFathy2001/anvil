@@ -254,6 +254,8 @@ export interface PluginModeThresholds {
   dropRarityFloor: number | null;
   /** Post drops worth at least this; null = the main-game gate only. */
   dropMinValue: number | null;
+  /** Every clan that gave the mode drop bars asks for BOTH of them; absent/false = some clan takes either. */
+  dropBoth?: boolean;
   /** Level-ups the mode posts; null = none. */
   levelRules: LevelRules | null;
 }
@@ -290,11 +292,12 @@ const minOrNull = (xs: (number | null)[]): number | null => {
  */
 export function mergeModeThresholds(
   mode: { key: string; label: string },
-  perClan: { dropFloor: number | null; dropMinValue: number | null; levels: LevelRules | null }[],
+  perClan: { dropFloor: number | null; dropMinValue: number | null; dropBoth?: boolean; levels: LevelRules | null }[],
 ): PluginModeThresholds | null {
   const dropRarityFloor = minOrNull(perClan.map((c) => c.dropFloor));
   const dropMinValue = minOrNull(perClan.map((c) => c.dropMinValue));
   const levelRules = unionLevelRules(perClan.map((c) => c.levels));
   if (dropRarityFloor == null && dropMinValue == null && levelRules == null) return null;
-  return { key: mode.key, label: mode.label, dropRarityFloor, dropMinValue, levelRules };
+  const own = perClan.filter((c) => c.dropFloor != null || c.dropMinValue != null);
+  return { key: mode.key, label: mode.label, dropRarityFloor, dropMinValue, ...(own.length && own.every((c) => c.dropBoth) ? { dropBoth: true } : {}), levelRules };
 }

@@ -182,7 +182,7 @@ export interface JudgeContext {
   /** The character's clan defaults + the addressed clan's hard rarity floor (lib/notifyPrefs dropGates). */
   clan: ClanDropSettings;
   /** This world's mode thresholds (lib/worldModeStore pluginModeThresholds), null on the main game. */
-  mode: { dropMinValue: number | null; dropRarityFloor: number | null } | null | undefined;
+  mode: { dropMinValue: number | null; dropRarityFloor: number | null; dropBoth?: boolean } | null | undefined;
   guaranteed: GuaranteedDrops | null | undefined;
   nameOf: (id: number) => string | undefined;
 }
@@ -246,6 +246,11 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: D
   const mainValue = gates.value;
   const valueGate = ctx.mode ? modeGate(mainValue, ctx.mode.dropMinValue) : mainValue;
   const rarityGate = ctx.mode ? modeGate(mainRarity, ctx.mode.dropRarityFloor) : mainRarity;
+  // A mode with its own bars has its own both/either switch (lib/modeFilters dropBoth). The main game's
+  // 'both' must not decline a drop the mode takes on one bar alone, so here both bars are asked for
+  // only when the main game AND the mode ask; each clan's channel then applies its exact filter
+  // (modeDropAllows), and `modeOnly` still marks what the main game alone would not have posted.
+  const combine = ctx.mode && !ctx.mode.dropBoth ? 'or' : gates.mode;
   let modeOnly = true;
   const qualifying: (CandidateItem & { rate: number | null })[] = [];
   for (const it of c.items) {
@@ -255,7 +260,7 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: D
       const p = dropRarity(c.sourceKind, c.source, it, ctx.nameOf);
       if (p != null && p > 0 && lte(p, 1 / rarityGate)) rate = p;
     }
-    if (!dropPasses(gates.mode, valueGate, rarityGate, valueOk, rate != null)) continue;
+    if (!dropPasses(combine, valueGate, rarityGate, valueOk, rate != null)) continue;
     qualifying.push({ ...it, rate });
     modeOnly &&= !dropPasses(
       gates.mode,
