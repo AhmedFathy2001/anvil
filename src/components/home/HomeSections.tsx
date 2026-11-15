@@ -282,6 +282,7 @@ export function YouStrip({
 
       <ClanLink
         href="/profile"
+        title="Your characters, teams and settings"
         className="justify-self-start whitespace-nowrap rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 lg:justify-self-end"
       >
         Your profile →
