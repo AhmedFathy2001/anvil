@@ -57,7 +57,8 @@ function MomentsWall({ moments }: { moments: Moment[] }) {
               className={`relative flex flex-col justify-end overflow-hidden rounded-2xl border border-card-border p-4 ${big ? 'col-span-2 row-span-2 bg-[var(--sa-deep)]' : 'bg-card-bg'}`}
             >
               {m.scene && <SceneBackdrop scene={m.scene} wide={big} />}
-              {m.iconUrl && (
+              {/* The corner icon steps aside where the art already shows the thing: a boss's figure, or the lead card's own big icon. */}
+              {m.iconUrl && !(m.scene && (m.scene.kind === 'figure' || big)) && (
                 // eslint-disable-next-line @next/next/no-img-element -- cached game art (lib/assetUrls)
                 <img
                   src={m.iconUrl}
