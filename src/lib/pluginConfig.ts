@@ -449,9 +449,10 @@ export interface ActiveWeekly {
 // competition the planner happened to reach first ACROSS THE PLATFORM — so a member of a clan with
 // no weekly running would be handed another clan's, and pointed at enrolling in it.
 export async function getActiveWeekly(clanId: number): Promise<ActiveWeekly | null> {
-  // The recorded status lags the clock: ask for everything not finished and let the dates decide.
+  // Feeds plugin enrolment and tracking, so the SAFE intersection: recorded 'active' (the cron has
+  // activated it and taken baselines) AND still inside its dates. Never promotes an un-activated week.
   const rows = await db.query.weeklyCompetitions.findMany({
-    where: and(eq(weeklyCompetitions.clanId, clanId), ne(weeklyCompetitions.status, 'completed')),
+    where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
   const nowMs = Date.now();
   const active = rows.find((w) => weeklyStatus(w, nowMs) === 'active');
@@ -487,7 +488,7 @@ export interface ActiveWeeklyMetric {
 // are running and a pile of work nobody asked for.
 export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeeklyMetric[]> {
   const all = await db.query.weeklyCompetitions.findMany({
-    where: and(eq(weeklyCompetitions.clanId, clanId), ne(weeklyCompetitions.status, 'completed')),
+    where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
   const nowMs = Date.now();
   const rows = all.filter((w) => weeklyStatus(w, nowMs) === 'active');
