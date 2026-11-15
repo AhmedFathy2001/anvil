@@ -120,7 +120,7 @@ export default function LadderClient({
   // Same live-refresh contract as the team scoreboard: poll a cheap ETag'd pulse on tab focus and
   // only re-fetch when the board actually moved.
   const onBoardChange = useCallback(() => router.refresh(), [router]);
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange, enabled: !event.forceEndedAt && !(event.endDate && Date.parse(event.endDate) <= Date.now()) });
 
   // Proof for the tile the viewer opened, fetched on demand (a busy ladder has thousands of rows).
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
