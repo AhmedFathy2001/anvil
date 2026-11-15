@@ -39,7 +39,7 @@ import {
 } from '@/lib/tileKinds';
 import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/tileAuthoring';
 import { findBoardProblems } from '@/lib/boardMisconfig';
-import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvRow, tilesToCsvText } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
@@ -847,31 +847,20 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }
 
   function downloadTemplate() {
-    // Seed the template with the current tiles so the admin edits in-place. tileToCsvCells emits
-    // every column in TILE_CSV_COLUMNS order so a round-trip preserves kill/timed/collection config.
-    const header = TILE_CSV_COLUMNS.join(',');
-    const escape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-    const lines = localTiles.map((t) => tileToCsvCells(t).map(escape).join(','));
-    // Empty board → ship worked examples showing the friendly formats (skill/boss by name,
-    // "10m" numbers, "30:00" times, comma- or pipe-separated NPCs). Delete/replace before import.
-    if (lines.length === 0) {
-      const examples: string[][] = [
-        ['10M Mining XP', '', 'standard', '10', 'Skilling', 'false', '', 'Mining', '', '10m', '', '', '', ''],
-        ['50 Zulrah KC', '', 'standard', '8', 'Zulrah', 'false', '', 'Zulrah', '', '50', '', '', '', ''],
-        ['Any Bandos unique', '', 'drop', '15', 'GWD', 'false', '3', '', '', '', '', '', '', 'Bandos chestplate; Bandos tassets; Bandos boots'],
-        ['Kill 100 cows', '', 'kill', '3', 'Skilling', 'false', '100', '', '', '', 'Cow, Cow calf', '', '', ''],
-        ['Sub-30 Inferno', '', 'timed', '50', 'Inferno', 'false', '', '', '', '', '', 'Inferno', '30:00', ''],
-      ];
-      lines.push(...examples.map((cells) => cells.map(escape).join(',')));
-    }
-    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+    // The board's own tiles so the admin edits in place, or worked examples on an empty board.
+    const { text, hasExamples } = tilesToCsvText(localTiles);
+    const blob = new Blob([text], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${event.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-tiles.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    notify('The template is downloading. Check your downloads folder.');
+    notify(
+      hasExamples
+        ? 'The template is downloading. It has five example rows: delete them before you upload.'
+        : 'The template is downloading. Check your downloads folder.',
+    );
   }
 
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
