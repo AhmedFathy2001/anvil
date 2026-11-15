@@ -128,6 +128,13 @@ export default async function CreatorDashboard({
         </ul>
       )}
 
+      {/* Straight under the events, above the plan and the player list: it was the last thing on the
+          page, two screens down, and a new streamer never saw "Share the link" or "Connect your stream". */}
+      {!setup.allDone && !setup.dismissed && (
+        <div className="mt-8">
+          <SetupChecklist steps={setup.steps} completedCount={setup.completedCount} totalCount={setup.totalCount} creator />
+        </div>
+      )}
       <div className="mt-8">
         <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} canBuy={canBuy} billing={billing} />
       </div>
@@ -136,11 +143,6 @@ export default async function CreatorDashboard({
         <CreatorPlayers players={players} title="Who joined" />
       </div>
 
-      {!setup.allDone && !setup.dismissed && (
-        <div className="mt-8">
-          <SetupChecklist steps={setup.steps} completedCount={setup.completedCount} totalCount={setup.totalCount} creator />
-        </div>
-      )}
     </div>
   );
 }
