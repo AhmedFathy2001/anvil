@@ -9,7 +9,7 @@ import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
 import { replayOutsideLab } from '@/lib/lab';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
-import { parseEventRules } from '@/lib/eventRules';
+import { boardCountsWorld, parseEventRules } from '@/lib/eventRules';
 
 // Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
 // kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
@@ -118,8 +118,8 @@ export async function POST(request: Request) {
       !p.forceEndedAt &&
       eventHasStarted(p, now) &&
       (!p.endDate || (parseStamp(p.endDate) ?? 0) > now) &&
-      // From a mode world, only a board that counts that mode; a main-game-only board never.
-      (!mode || parseEventRules(p.rules).worldModes.includes(mode.key)),
+      // Only a board that counts this world: a mode it named, or the main game unless it is mode-only.
+      boardCountsWorld(parseEventRules(p.rules), mode?.key),
   );
   if (!active) {
     return mode ? worldModeIgnored(request)! : NextResponse.json({ ok: true, updated: 0 });

@@ -95,13 +95,13 @@ test('easy tasks stay quiet until a clan turns them on; a saved list is the whol
 });
 
 test("a mode's own thresholds: unset follows the main game, saved values read back, a cleared one is gone", async () => {
-  const none = { dropFloor: null, dropMinValue: null, levels: null };
+  const none = { dropFloor: null, dropMinValue: null, dropBoth: false, levels: null };
   assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), none);
   const levels = { ninetyNines: true, skillStep: 10, skillFrom: 10, totalStep: 0, totalFrom: 0, maxTotal: true };
   await settings.setSetting(clanId, modes.modeDropFloorKey('hardcore'), '128');
   await settings.setSetting(clanId, modes.modeDropValueKey('hardcore'), '10000');
   await settings.setSetting(clanId, modes.modeLevelsKey('hardcore'), JSON.stringify(levels));
-  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: 128, dropMinValue: 10_000, levels });
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: 128, dropMinValue: 10_000, dropBoth: false, levels });
   assert.deepEqual(await store.getModeFilters(clanId, 'deadman'), none, 'per mode');
 
   // What the plugin is told: only from a mode world, and with no account placed, the addressed clan's.

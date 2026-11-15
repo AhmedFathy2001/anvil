@@ -528,6 +528,7 @@ async function proofsView(request: Request, a: Args): Promise<View> {
     team: p.teamName,
     at: p.at,
     amount: p.amount,
+    mode: p.mode,
     thumb: p.imageUrl ? proofImagePath(p.id, p.imageUrl) : null,
     full: p.imageUrl ? proofImagePath(p.id, p.imageUrl, true) : null,
     canDelete: p.canDelete,
