@@ -16,6 +16,7 @@ import { recordFirstTouch } from '@/lib/analyticsAttribution';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { firstLoginDestination, returnedToClanHost, spaceSlugOf } from '@/lib/firstLogin';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { discordIdPlatformBanned, reattachClanBans } from '@/lib/deletedAccountBans';
 
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -117,6 +118,24 @@ export async function completeDiscordLogin(
   // staff they may become.
   const loginClan = returnHost ? await resolveClanByHost(returnHost) : null;
 
+  // Refused at the door: the identity step is complete but no session cookie is issued.
+  // Same origin and cookie domain as the success path: a cookie set with a domain is only cleared
+  // by a delete carrying that same domain, so omitting it here would leave the state cookies behind.
+  const refuseBanned = (): NextResponse => {
+    const bannedOrigin = returnHost ? originForHost(returnHost) : publicOrigin(request);
+    const bannedDomain = sessionCookieDomain();
+    const banned = NextResponse.redirect(new URL('/login?error=banned', bannedOrigin));
+    for (const c of clearCookies) {
+      banned.cookies.set(c, '', { path: '/', maxAge: 0, ...(bannedDomain ? { domain: bannedDomain } : {}) });
+    }
+    return banned;
+  };
+
+  // A PLATFORM BAN OUTLIVES A DELETED ACCOUNT. Deleting an account keeps the ban as a row holding the
+  // Discord id (lib/deletedAccountBans), and it is checked BEFORE anything is created: a banned
+  // person who deleted their account gets no new login, no person and no session.
+  if (await discordIdPlatformBanned(discordUser.id)) return refuseBanned();
+
   // Find existing user by Discord ID
   let user = await db.query.users.findFirst({ where: eq(users.discordId, discordUser.id) });
   const isNewUser = !user;
@@ -185,6 +204,10 @@ export async function completeDiscordLogin(
   }
 
   if (!user) throw new Error('Could not load or create user.');
+  // A CLAN BAN OUTLIVES A DELETED ACCOUNT TOO. One kept for this Discord account goes back onto the
+  // person as an ordinary clan ban, here, before the name-match claim below or anything else could
+  // seat them, so every existing clan-ban check sees it from the first request.
+  await reattachClanBans(discordUser.id, user.playerId);
   // Every sign-in, with the first one flagged: "new people per week" and "people coming back" are
   // both read off this one action.
   // A new account is credited to where its visit began, once (lib/analyticsAttribution).
@@ -292,17 +315,7 @@ export async function completeDiscordLogin(
         where: eq(players.id, user.playerId ?? -1),
     columns: { banned: true },
   });
-  if (user.banned || personBanned?.banned) {
-    // Same origin and cookie domain as the success path: a cookie set with a domain is only cleared
-    // by a delete carrying that same domain, so omitting it here would leave the state cookies behind.
-    const bannedOrigin = returnHost ? originForHost(returnHost) : publicOrigin(request);
-    const bannedDomain = sessionCookieDomain();
-    const banned = NextResponse.redirect(new URL('/login?error=banned', bannedOrigin));
-    for (const c of clearCookies) {
-      banned.cookies.set(c, '', { path: '/', maxAge: 0, ...(bannedDomain ? { domain: bannedDomain } : {}) });
-    }
-    return banned;
-  }
+  if (user.banned || personBanned?.banned) return refuseBanned();
 
   const token = signUserToken(
     user.id,

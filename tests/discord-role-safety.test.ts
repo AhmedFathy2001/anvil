@@ -2,8 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  adminLinkStands,
   countSeatsNotLinked,
+  countUnconfirmedStoredLinks,
+  handLinkRefusal,
   isProvenDiscordId,
+  mayHandLink,
+  provenSourceOf,
+  storedDiscordLink,
+  storedSourceForClan,
   isSafeAutomatedRole,
   nameMatchAllowed,
   nicknameMatchingOn,
@@ -163,4 +170,105 @@ test('the not-linked count: seats no sign-in vouches for, stored ids included', 
     ]),
     3,
   );
+});
+
+// ── Where a stored id came from ───────────────────────────────────────────────────────────────
+
+test('a hand link by this clan’s admin is trusted with nickname matching off', () => {
+  const src = { ...none, cachedDiscordId: 'LINKED', cachedSource: 'admin' as const };
+  assert.deepEqual(trustedDiscordIds(src, false), ['LINKED']);
+  assert.deepEqual(trustedDiscordIds(src, true), ['LINKED']);
+  assert.equal(adminLinkStands(src), true);
+  // Trusted for roles, but still not something a sign-in proved.
+  assert.equal(isProvenDiscordId('LINKED', src), false);
+});
+
+test('a stored id from a nickname match, or of unknown source, is not trusted with matching off', () => {
+  for (const cachedSource of ['name', null, undefined] as const) {
+    const src = { ...none, cachedDiscordId: 'STORED', cachedSource };
+    assert.deepEqual(trustedDiscordIds(src, false), [], `source ${cachedSource}`);
+    assert.equal(adminLinkStands(src), false);
+    assert.deepEqual(trustedDiscordIds(src, true), ['STORED'], 'on: tried, as before');
+  }
+  // A stored copy of a proven id carries no trust of its own either.
+  for (const cachedSource of ['login', 'signup', 'plugin'] as const) {
+    assert.deepEqual(trustedDiscordIds({ ...none, cachedDiscordId: 'STALE', cachedSource }, false), []);
+  }
+});
+
+test('a hand link that disagrees with the owner’s own sign-in loses to the sign-in', () => {
+  const src = { ...none, ownerDiscordId: 'OWNER', cachedDiscordId: 'LINKED', cachedSource: 'admin' as const };
+  assert.deepEqual(trustedDiscordIds(src, false), ['OWNER'], 'the linked account gets nothing');
+  assert.equal(adminLinkStands(src), false);
+  // Agreeing with the sign-in, it is simply that id.
+  assert.deepEqual(trustedDiscordIds({ ...src, cachedDiscordId: 'OWNER' }, false), ['OWNER']);
+  // Matching on keeps today's order: the stored id is still tried, last.
+  assert.deepEqual(trustedDiscordIds(src, true), ['OWNER', 'LINKED']);
+});
+
+test('a hand link is tried after every proven id', () => {
+  const src = { ...none, signupDiscordId: 'SIGNUP', pluginDiscordId: 'PLUGIN', cachedDiscordId: 'LINKED', cachedSource: 'admin' as const };
+  assert.deepEqual(trustedDiscordIds(src, false), ['SIGNUP', 'PLUGIN', 'LINKED']);
+});
+
+test('a hand link counts only in the clan whose admin made it', () => {
+  assert.equal(storedSourceForClan('admin', 5, 5), 'admin');
+  assert.equal(storedSourceForClan('admin', 5, 6), null, 'another clan reads it as unknown');
+  assert.equal(storedSourceForClan('admin', null, 5), null, 'no clan on record');
+  assert.equal(storedSourceForClan('name', null, 5), 'name');
+  assert.equal(storedSourceForClan('login', null, 5), 'login');
+  assert.equal(storedSourceForClan(null, 5, 5), null);
+  assert.equal(storedSourceForClan('owner', 5, 5), null, 'an unrecognised value is unknown');
+});
+
+test('which proven source gives an id', () => {
+  const src = { ownerDiscordId: 'A', signupDiscordId: 'A', pluginDiscordId: 'B', cachedDiscordId: 'C' };
+  assert.equal(provenSourceOf('A', src), 'login');
+  assert.equal(provenSourceOf('B', src), 'plugin');
+  assert.equal(provenSourceOf('A', { ...src, ownerDiscordId: null }), 'signup');
+  assert.equal(provenSourceOf('C', src), null, 'the stored id proves nothing');
+  assert.equal(provenSourceOf(null, src), null);
+});
+
+test('the counts: a hand link is linked; a stored id of unknown source is unconfirmed', () => {
+  const seats = [
+    { ...none, ownerDiscordId: 'D1' }, // signed in
+    { ...none, cachedDiscordId: 'D2', cachedSource: 'admin' as const }, // linked by hand here
+    { ...none, cachedDiscordId: 'D3' }, // stored, unknown source
+    { ...none, cachedDiscordId: 'D4', cachedSource: 'name' as const }, // an old nickname match
+    { ...none, ownerDiscordId: 'D5', cachedDiscordId: 'D5' }, // unknown source, but the sign-in backs it
+    { ...none, ownerDiscordId: 'D6', cachedDiscordId: 'OLD' }, // signed in; a different old id is stored
+    none,
+  ];
+  assert.equal(countSeatsNotLinked(seats), 3, 'unknown, name and nothing');
+  assert.equal(countUnconfirmedStoredLinks(seats), 3, 'D3, D4 and the stale OLD');
+});
+
+test('what is written with a stored id: always its source, and who only for a hand link', () => {
+  const by = { userId: 9, clanId: 5, at: '2026-11-15T10:00:00.000Z' };
+  assert.deepEqual(storedDiscordLink('111', 'admin', by), {
+    discordId: '111', discordIdSource: 'admin', discordIdLinkedByUserId: 9, discordIdLinkedAt: by.at, discordIdLinkedClanId: 5,
+  });
+  assert.deepEqual(storedDiscordLink('111', 'login', by), {
+    discordId: '111', discordIdSource: 'login', discordIdLinkedByUserId: null, discordIdLinkedAt: null, discordIdLinkedClanId: null,
+  });
+  // 'admin' with nobody behind it is not a hand link.
+  assert.equal(storedDiscordLink('111', 'admin').discordIdSource, null);
+  assert.equal(storedDiscordLink('111', null).discordIdSource, null);
+  // No id: everything cleared, whatever was asked for.
+  const cleared = { discordId: null, discordIdSource: null, discordIdLinkedByUserId: null, discordIdLinkedAt: null, discordIdLinkedClanId: null };
+  assert.deepEqual(storedDiscordLink(null, 'admin', by), cleared);
+  assert.deepEqual(storedDiscordLink('  ', 'login'), cleared);
+});
+
+test('only an admin or the owner links by hand', () => {
+  assert.equal(mayHandLink('owner'), true);
+  assert.equal(mayHandLink('admin'), true);
+  for (const role of ['moderator', 'treasurer', 'editor', 'member', '', null, undefined]) assert.equal(mayHandLink(role), false, String(role));
+});
+
+test('a hand link is refused for a claimed character, and for a Discord account proven to be another member', () => {
+  assert.equal(handLinkRefusal({ seatClaimed: false, provenForOtherSeat: false }), null);
+  assert.match(handLinkRefusal({ seatClaimed: true, provenForOtherSeat: false })!, /belongs to a player/);
+  assert.match(handLinkRefusal({ seatClaimed: false, provenForOtherSeat: true })!, /already belongs to a different member/);
 });

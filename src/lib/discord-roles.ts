@@ -23,7 +23,7 @@ import {
 } from '@/lib/rankRules';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { clanAuditLog, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
@@ -31,7 +31,11 @@ import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
 import {
   countSeatsNotLinked,
+  countUnconfirmedStoredLinks,
+  provenSourceOf,
   type SeatDiscordSources,
+  storedDiscordLink,
+  storedSourceForClan,
   trustedDiscordIds,
   isSafeAutomatedRole,
   nameMatchAllowed,
@@ -769,9 +773,29 @@ async function nameMatchTrusted(
  * nickname-matching switch.
  */
 export async function countRosterSeatsNotLinked(clanId: number): Promise<number> {
+  return (await rosterLinkCounts(clanId)).notLinked;
+}
+
+/**
+ * The two numbers the admin Discord page shows beside the nickname-matching switch:
+ *   notLinked    current members role sync cannot reach with matching off (no sign-in, no hand link
+ *                made by this clan's admin)
+ *   unconfirmed  how many of the clan's current members carry a stored Discord link whose source is
+ *                unknown (saved before sources were recorded) or a nickname match, with no sign-in
+ *                behind it. It earns no roles while matching is off.
+ */
+export async function rosterLinkCounts(clanId: number): Promise<{ notLinked: number; unconfirmed: number }> {
   const rows = await db
-    .select({ id: clanRoster.id, rsn: clanRoster.rsn, playerId: clanRoster.playerId, discordId: clanRoster.discordId })
+    .select({
+      id: clanRoster.id,
+      rsn: clanRoster.rsn,
+      playerId: clanRoster.playerId,
+      discordId: clanRoster.discordId,
+      source: accounts.discordIdSource,
+      linkedClanId: accounts.discordIdLinkedClanId,
+    })
     .from(clanRoster)
+    .innerJoin(accounts, eq(accounts.id, clanRoster.accountId))
     .where(
       and(
         eq(clanRoster.clanId, clanId),
@@ -780,7 +804,7 @@ export async function countRosterSeatsNotLinked(clanId: number): Promise<number>
         rosterClanSeat(),
       ),
     );
-  if (rows.length === 0) return 0;
+  if (rows.length === 0) return { notLinked: 0, unconfirmed: 0 };
 
   // The same three proven sources the sync reads (seatDiscordSources), fetched in bulk.
   const playerIds = [...new Set(rows.map((r) => r.playerId).filter((x): x is number => x != null))];
@@ -809,14 +833,14 @@ export async function countRosterSeatsNotLinked(clanId: number): Promise<number>
     : [];
   const pluginOf = new Map(detected.map((d) => [d.rsn, d.discordId]));
 
-  return countSeatsNotLinked(
-    rows.map((r) => ({
-      ownerDiscordId: (r.playerId != null ? ownerOf.get(r.playerId) : null) ?? null,
-      signupDiscordId: signupOf.get(r.id) ?? null,
-      pluginDiscordId: pluginOf.get(normalizeRsn(r.rsn)) ?? null,
-      cachedDiscordId: r.discordId ?? null,
-    })),
-  );
+  const seats: SeatDiscordSources[] = rows.map((r) => ({
+    ownerDiscordId: (r.playerId != null ? ownerOf.get(r.playerId) : null) ?? null,
+    signupDiscordId: signupOf.get(r.id) ?? null,
+    pluginDiscordId: pluginOf.get(normalizeRsn(r.rsn)) ?? null,
+    cachedDiscordId: r.discordId ?? null,
+    cachedSource: storedSourceForClan(r.source, r.linkedClanId, clanId),
+  }));
+  return { notLinked: countSeatsNotLinked(seats), unconfirmed: countUnconfirmedStoredLinks(seats) };
 }
 
 // =============================================================================
@@ -838,8 +862,13 @@ interface MinimalClanMember {
  * A nickname match is never cached: once written here it is indistinguishable from a real link, so
  * one minute under a borrowed name used to keep that member's roles for good.
  */
-async function cacheDiscordId(memberId: number, discordId: string): Promise<void> {
-  await updateAccountOfSeat(memberId, { discordId }).catch(() => {});
+async function cacheDiscordId(memberId: number, discordId: string, sources: SeatDiscordSources): Promise<void> {
+  // Stored WITH the source that proves it, and only then: the id never changes without its source,
+  // and a proven id replaces whatever was stored before (a hand link included).
+  const source = provenSourceOf(discordId, sources);
+  if (!source) return;
+  if (discordId === sources.cachedDiscordId && sources.cachedSource === source) return;
+  await updateAccountOfSeat(memberId, storedDiscordLink(discordId, source)).catch(() => {});
   // Deliberately do NOT turn this cache into account ownership. The id may have come from a guild
   // nickname/RSN match, which is useful for assigning a Discord role but is not proof that the human
   // owns the RuneScape account. Ownership goes through XP verification, an anchored hash, or a mod
@@ -885,11 +914,12 @@ export async function resolveDiscordIdForMember(
   if (!cfg) return null;
   // Try every candidate against the guild and return the first that's ACTUALLY a member — the same
   // rule the role sweep uses, so team/bingo assignment can't hand a role to a stale id. Cached on hit.
-  const candidates = await gatherDiscordIdCandidates(member, cfg.matchByNickname);
+  const sources = await seatDiscordSources(member);
+  const candidates = trustedDiscordIds(sources, cfg.matchByNickname);
   for (const c of candidates) {
     const gm = await getGuildMember(cfg, c);
     if (gm.member) {
-      if (c !== member.discordId) await cacheDiscordId(member.id, c);
+      await cacheDiscordId(member.id, c, sources);
       return c;
     }
   }
@@ -931,7 +961,7 @@ export async function provenDiscordIdForSeat(member: { id: number; playerId: num
 }
 
 /** Every source the database holds for a seat's Discord id (lib/discordRoleSafety SeatDiscordSources). */
-async function seatDiscordSources(member: MinimalClanMember): Promise<SeatDiscordSources> {
+export async function seatDiscordSources(member: MinimalClanMember): Promise<SeatDiscordSources> {
   const ownerDiscordId = member.playerId != null ? await discordIdForPerson(member.playerId) : null;
 
   const signup = await db.query.eventSignups.findFirst({
@@ -948,16 +978,91 @@ async function seatDiscordSources(member: MinimalClanMember): Promise<SeatDiscor
     if (detected?.userId != null) pluginDiscordId = await discordIdForUser(detected.userId);
   }
 
-  // The stored id last: it may be a stale legacy value, an old nickname match or an admin's link.
-  return { ownerDiscordId, signupDiscordId, pluginDiscordId, cachedDiscordId: member.discordId };
+  // The stored id last, read fresh with what is recorded about how it got there. It may be a stale
+  // legacy value or an old nickname match (source unknown), or a hand link by this clan's admin.
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan.
+  const [stored] = await db
+    .select({
+      clanId: clanMemberships.clanId,
+      discordId: accounts.discordId,
+      source: accounts.discordIdSource,
+      linkedClanId: accounts.discordIdLinkedClanId,
+    })
+    .from(clanMemberships)
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(eq(clanMemberships.id, member.id))
+    .limit(1);
+  return {
+    ownerDiscordId,
+    signupDiscordId,
+    pluginDiscordId,
+    cachedDiscordId: stored ? stored.discordId : member.discordId,
+    cachedSource: stored ? storedSourceForClan(stored.source, stored.linkedClanId, stored.clanId) : null,
+  };
 }
 
 /**
- * The ids to try for a seat. With the clan's nickname matching off, only ids a sign-in proves; the
- * stored id counts only with it on (trustedDiscordIds).
+ * This clan's live seats that an admin OF THIS CLAN linked by hand to a Discord account, for the
+ * rank a hand-linked account is owed. A seat whose owner has since signed in with a different
+ * Discord account is left out: their own sign-in beats the link (lib/discordRoleSafety adminLinkStands).
  */
-async function gatherDiscordIdCandidates(member: MinimalClanMember, matchByNickname: boolean): Promise<string[]> {
-  return trustedDiscordIds(await seatDiscordSources(member), matchByNickname);
+async function adminLinkedSeats(clanId: number, discordUserId: string): Promise<{ rank: string | null; kind: string }[]> {
+  const rows = await db
+    .select({ rank: clanRoster.rank, kind: clanRoster.kind, playerId: clanRoster.playerId })
+    .from(clanRoster)
+    .innerJoin(accounts, eq(accounts.id, clanRoster.accountId))
+    .where(
+      and(
+        eq(clanRoster.clanId, clanId),
+        eq(accounts.discordId, discordUserId),
+        eq(accounts.discordIdSource, 'admin'),
+        eq(accounts.discordIdLinkedClanId, clanId),
+        isNull(clanRoster.leftAt),
+        rosterClanSeat(),
+      ),
+    );
+  const owners = [...new Set(rows.map((r) => r.playerId).filter((x): x is number => x != null))];
+  const signedIn = owners.length
+    ? await db
+        .select({ playerId: users.playerId, discordId: users.discordId })
+        .from(users)
+        .where(and(inArray(users.playerId, owners), isNotNull(users.discordId)))
+    : [];
+  const disagrees = new Set(signedIn.filter((u) => u.discordId !== discordUserId).map((u) => u.playerId));
+  return rows.filter((r) => r.playerId == null || !disagrees.has(r.playerId)).map(({ rank, kind }) => ({ rank, kind }));
+}
+
+/**
+ * Does a sign-in already tie this Discord account to a DIFFERENT live seat in this clan? Asked
+ * before an admin links a seat by hand (lib/discordRoleSafety handLinkRefusal): the same three
+ * proven sources role sync reads, looked up from the Discord account's side.
+ */
+export async function discordProvenForOtherSeat(clanId: number, seatId: number | null, discordId: string): Promise<boolean> {
+  // clan-scope: global -- a login is not a clan's; this asks who signed in with one Discord account.
+  const login = await db.query.users.findFirst({ where: eq(users.discordId, discordId), columns: { id: true, playerId: true } });
+  if (!login) return false;
+  const other = (id: number) => seatId == null || id !== seatId;
+
+  if (login.playerId != null) {
+    const owned = await db
+      .select({ id: clanRoster.id })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, login.playerId), isNull(clanRoster.leftAt), rosterClanSeat()));
+    if (owned.some((r) => other(r.id))) return true;
+  }
+  const signedUp = await db
+    .select({ id: clanRoster.id })
+    .from(eventSignups)
+    .innerJoin(clanRoster, eq(clanRoster.id, eventSignups.clanMemberId))
+    .where(and(eq(eventSignups.userId, login.id), eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), rosterClanSeat()));
+  if (signedUp.some((r) => other(r.id))) return true;
+
+  const played = await db
+    .select({ id: clanRoster.id })
+    .from(detectedAccounts)
+    .innerJoin(clanRoster, eq(clanRoster.rsnNormalized, detectedAccounts.rsnNormalized))
+    .where(and(eq(detectedAccounts.userId, login.id), eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), rosterClanSeat()));
+  return played.some((r) => other(r.id));
 }
 
 // =============================================================================
@@ -1004,7 +1109,8 @@ export async function syncRolesForClanMember(
   // the rate-limited name search (which matches nick / username / global_name, so no rename is
   // needed). The first candidate that's a live guild member wins and is cached — so a stale legacy
   // id can't win, and "user not in guild" only fires when NONE of their ids are really present.
-  const candidates = await gatherDiscordIdCandidates(member, cfg.matchByNickname);
+  const sources = await seatDiscordSources(member);
+  const candidates = trustedDiscordIds(sources, cfg.matchByNickname);
   let discordUserId: string | null = null;
   let currentMember: DiscordGuildMember | null = null;
   let sawTransient = false;
@@ -1073,7 +1179,7 @@ export async function syncRolesForClanMember(
     };
   }
   // A name match earns the roles for this run and is asked again next time; it is never stored.
-  if (!viaName && discordUserId !== member.discordId) await cacheDiscordId(member.id, discordUserId);
+  if (!viaName) await cacheDiscordId(member.id, discordUserId, sources);
 
   // Collect every active clan_member that belongs to this Discord user. The OAuth
   // link (users.discord_id) is the strongest signal — we always pull those. The
@@ -1106,8 +1212,11 @@ export async function syncRolesForClanMember(
   // Seats that merely have this id STORED on them count toward the rank only while nickname matching
   // is on. With it off a stored id proves nothing, and counting it would hand a signed-in member the
   // rank of every character an old nickname match once pointed at them.
+  //
+  // The one stored id that does count with it off is a hand link made by THIS clan's admin, so two
+  // characters an admin pointed at one Discord account give it the higher rank whichever is synced.
   const viaLegacy = !cfg.matchByNickname
-    ? []
+    ? await adminLinkedSeats(member.clanId, discordUserId)
     : await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
@@ -1305,11 +1414,10 @@ export async function syncRolesForClanMember(
   // Never for a name match: once stored it would read as a real link on every later sync, whether or
   // not the clan still allows nickname matching.
   if (!viaName && (added.length > 0 || removed.length > 0) && !member.discordId && discordUserId) {
-    // Cache the resolved Discord id on the ACCOUNT so we don't rerun the expensive name-match every
-    // time — and so a match made in one clan counts in every clan that account plays in. Doesn't
-    // conflict with the OAuth path: if the user later logs in via Discord, users.discord_id becomes
-    // the source of truth and we'd still pick it first.
-    await updateAccountOfSeat(member.id, { discordId: discordUserId });
+    // Cache the resolved Discord id on the ACCOUNT, with the source that proves it, so later syncs
+    // skip the lookup. Doesn't conflict with the OAuth path: if the user later logs in via Discord,
+    // users.discord_id becomes the source of truth and we'd still pick it first.
+    await cacheDiscordId(member.id, discordUserId, sources);
   }
 
   // Nickname sync — set the member's nick to their verified RSN(s). By default only fills a BLANK

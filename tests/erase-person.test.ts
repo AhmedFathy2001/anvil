@@ -3,13 +3,15 @@
 // The pure half (tests/person-data-inventory.test.ts, tests/erase-rules.test.ts) checks the list and
 // the rules. This checks what the list DOES: a person with a login, two characters, a seat, an event
 // entry with a submission, a staff role, plugin sign-ins, goals, pictures and two bans is deleted,
-// and afterwards the person is gone and the clan's records are exactly where they were.
+// and afterwards the person is gone and the clan's records are exactly where they were. Then the
+// bans: they survive in banned_discord_ids (no stand-in login), staff can see and lift them, and the
+// same Discord account signing in again is banned again.
 //
 // Needs the test database (tests/helpers/testDb.ts). Run: npm run test:erasedb
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -20,6 +22,9 @@ let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let erasePerson: typeof import('../src/lib/erasePerson.ts')['erasePerson'];
 let exportPerson: typeof import('../src/lib/exportPerson.ts')['exportPerson'];
+let bans: typeof import('../src/lib/deletedAccountBans.ts');
+let completeDiscordLogin: typeof import('../src/lib/discord-login.ts')['completeDiscordLogin'];
+let isBannedFromClan: typeof import('../src/lib/clanBans.ts')['isBannedFromClan'];
 
 let clanId: number;
 let otherClanId: number;
@@ -40,6 +45,9 @@ before(async () => {
   ({ db, pool, schema: s } = await loadDb());
   ({ erasePerson } = await import('../src/lib/erasePerson.ts'));
   ({ exportPerson } = await import('../src/lib/exportPerson.ts'));
+  bans = await import('../src/lib/deletedAccountBans.ts');
+  ({ completeDiscordLogin } = await import('../src/lib/discord-login.ts'));
+  ({ isBannedFromClan } = await import('../src/lib/clanBans.ts'));
 
   const [clan] = await db.insert(s.clans).values({ slug: 'afk', name: 'The AFK Spot' }).returning();
   clanId = clan.id;
@@ -106,7 +114,9 @@ async function plantPerson(name: string, discordId: string) {
 test('the person goes; the clan’s roster seat and event history stay under the in-game name', async () => {
   const p = await plantPerson('Zezima', DISCORD_ID);
   // A ban still in force in another clan, and one that was lifted long ago.
-  const [liveBan] = await db.insert(s.clanBans).values({ clanId: otherClanId, playerId: p.playerId, accountId: p.seated, reason: 'was rude' }).returning();
+  await db
+    .insert(s.clanBans)
+    .values({ clanId: otherClanId, playerId: p.playerId, accountId: p.seated, reason: `Zezima#1 (${DISCORD_ID}) was rude to new members`, bannedAt: '2026-03-03 12:00:00' });
   await db.insert(s.clanBans).values({ clanId, playerId: p.playerId, reason: 'old', liftedAt: '2026-02-01 00:00:00' });
   // The other clan's own record of banning them, written by its moderator and naming their Discord id.
   const modPlayer = await person('Mod');
@@ -186,25 +196,20 @@ test('the person goes; the clan’s roster seat and event history stay under the
   assert.equal(signup.userId, null);
   assert.equal(signup.profileData, '{}');
 
-  // The ban still in force survives on a stand-in that holds the Discord id and nothing else.
-  const [ban] = await db.select().from(s.clanBans).where(eq(s.clanBans.id, liveBan.id));
-  assert.ok(ban, 'the live ban');
-  assert.equal(ban.liftedAt, null);
-  assert.equal(ban.reason, null);
-  assert.equal(ban.accountId, null);
-  const standIns = await db.select().from(s.users).where(eq(s.users.discordId, DISCORD_ID));
-  assert.equal(standIns.length, 1);
-  const standIn = standIns[0];
-  assert.equal(standIn.playerId, ban.playerId, 'signing in with that Discord account lands on the banned person');
-  assert.equal(standIn.displayName, '');
-  assert.equal(standIn.email, null);
-  assert.equal(standIn.discordUsername, null);
-  assert.equal(standIn.discordAvatar, null);
-  assert.equal(standIn.pluginTokenHash, null);
-  const [standInPerson] = await db.select().from(s.players).where(eq(s.players.id, ban.playerId));
-  assert.equal(standInPerson.displayName, null);
-  assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.playerId, ban.playerId))).length, 0, 'with no characters');
-  assert.equal((await db.select().from(s.clanBans).where(eq(s.clanBans.clanId, clanId))).length, 0, 'a lifted ban is not kept');
+  // The ban still in force survives as ONE ROW OF banned_discord_ids, and nothing else: no stand-in
+  // login, no stand-in person, no clan_bans row left pointing at anybody.
+  assert.equal((await db.select().from(s.users).where(eq(s.users.discordId, DISCORD_ID))).length, 0, 'no login holds their Discord id');
+  assert.equal((await db.select().from(s.users).where(eq(s.users.displayName, ''))).length, 0, 'no nameless login for staff lists to show');
+  assert.equal((await db.select().from(s.players).where(isNull(s.players.displayName))).length, 0, 'no nameless person');
+  assert.equal((await db.select().from(s.clanBans)).length, 0, 'the ban rows went with the person, lifted one included');
+  const keptBans = await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, DISCORD_ID));
+  assert.equal(keptBans.length, 1);
+  assert.equal(keptBans[0].scope, 'clan');
+  assert.equal(keptBans[0].clanId, otherClanId);
+  assert.equal(keptBans[0].bannedAt, '2026-03-03 12:00:00', 'the clan’s own date');
+  // The clan's reason is kept; the person's Discord name and id inside it are not.
+  assert.equal(keptBans[0].reason, '[deleted] ([deleted]) was rude to new members');
+  assert.equal((await db.select().from(s.bannedDiscordIds)).length, 1, 'a lifted ban is not kept, and nobody else’s is touched');
 
   // THE LOG IS NEVER DELETED FROM. The clan's ban entry is still there, same action, clan, actor
   // and reason; only the id and the Discord name inside it are gone.
@@ -297,7 +302,12 @@ test('a paid plan that still renews blocks; once the site sees it cancelled, it 
   const ok = await erasePerson({ userId });
   assert.ok(ok.ok && !ok.alreadyGone);
   assert.equal(ok.summary.banRecordKept, false);
-  assert.equal((await db.select().from(s.users).where(eq(s.users.discordId, '222222222222222222'))).length, 0, 'no ban, so no stand-in');
+  assert.equal((await db.select().from(s.users).where(eq(s.users.discordId, '222222222222222222'))).length, 0);
+  assert.equal(
+    (await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, '222222222222222222'))).length,
+    0,
+    'no ban, so nothing about them is left in the ban table',
+  );
 });
 
 test('the export holds their own rows, as links and dates, and never a token or anyone else', async () => {
@@ -381,4 +391,163 @@ test('a character taken over from someone else does not bring their answers into
   const theirs = JSON.stringify(await exportPerson(firstLogin));
   assert.ok(theirs.includes('first holder secret answer'));
   assert.ok(!theirs.includes('second holder'));
+});
+
+// ── Bans that outlive the account ─────────────────────────────────────────────────────────────
+
+/** Sign in with a Discord account, the way the OAuth callback does once Discord has vouched for it. */
+const signIn = (discordId: string, username: string) =>
+  completeDiscordLogin(
+    { id: discordId, username, globalName: username, avatar: null, email: null } as Parameters<typeof completeDiscordLogin>[0],
+    { returnTo: '/', request: new Request('http://localhost/api/auth/discord/callback') },
+  );
+const sessionCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith('admin_session='));
+
+test('a clan-banned person who deletes: the clan sees "Deleted account" with its reason, and can lift it', async () => {
+  const DISCORD = '700000000000000001';
+  const playerId = await person('Griefer');
+  const userId = await login(playerId, 'Griefer', { discordId: DISCORD, discordUsername: 'griefer99' });
+  const modPerson = await person('BanMod');
+  const mod = await login(modPerson, 'BanMod');
+  // The other clan already holds a kept ban from an earlier deletion; it must be left alone.
+  const otherBefore = (await bans.deletedAccountClanBans(otherClanId)).length;
+  await db.insert(s.clanBans).values({ clanId, playerId, reason: 'griefer99 crashed three raids', bannedByUserId: mod, bannedAt: '2026-05-05 08:00:00' });
+  await db.insert(s.clanBans).values({ clanId: otherClanId, playerId, reason: null, bannedAt: '2026-05-06 08:00:00' });
+
+  const r = await erasePerson({ userId });
+  assert.ok(r.ok && !r.alreadyGone && r.summary.banRecordKept);
+  assert.equal((await db.select().from(s.users).where(eq(s.users.discordId, DISCORD))).length, 0, 'no stand-in login');
+
+  // The clan's ban list: no name, no Discord id, the clan's date and reason.
+  const list = await bans.deletedAccountClanBans(clanId);
+  assert.equal(list.length, 1);
+  assert.deepEqual(Object.keys(list[0]).sort(), ['bannedAt', 'id', 'kind', 'reason']);
+  assert.equal(list[0].kind, 'deleted');
+  assert.equal(list[0].bannedAt, '2026-05-05 08:00:00');
+  assert.equal(list[0].reason, '[deleted] crashed three raids');
+  const [row] = await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.id, list[0].id));
+  assert.equal(row.bannedByUserId, mod, 'who set it is still on record');
+
+  // Another clan cannot lift it, and a made-up id lifts nothing.
+  assert.equal(await bans.liftDeletedAccountClanBan(otherClanId, list[0].id, mod), false);
+  assert.equal(await bans.liftDeletedAccountClanBan(clanId, 999_999, mod), false);
+  assert.equal((await bans.deletedAccountClanBans(clanId)).length, 1);
+
+  // Lifting removes the row, and only that clan's.
+  assert.equal(await bans.liftDeletedAccountClanBan(clanId, list[0].id, mod), true);
+  assert.equal((await bans.deletedAccountClanBans(clanId)).length, 0);
+  assert.equal((await bans.deletedAccountClanBans(otherClanId)).length, otherBefore + 1, 'the other clan’s bans are its own');
+  const lifted = await db.select().from(s.clanAuditLog).where(and(eq(s.clanAuditLog.clanId, clanId), eq(s.clanAuditLog.eventType, 'clan_unbanned')));
+  assert.equal(lifted.at(-1)?.actorUserId, mod, 'and it is on the clan’s record');
+
+  // They come back: banned again where the ban was kept, free where it was lifted.
+  const res = await signIn(DISCORD, 'griefer99');
+  assert.ok(sessionCookie(res), 'a clan ban does not stop them signing in');
+  const [back] = await db.select().from(s.users).where(eq(s.users.discordId, DISCORD));
+  assert.ok(back?.playerId);
+  assert.equal(await isBannedFromClan(otherClanId, back.playerId), true);
+  assert.equal(await isBannedFromClan(clanId, back.playerId), false, 'the lifted one does not come back');
+});
+
+test('the same Discord account signing in again is banned from that clan again, with the clan’s reason', async () => {
+  const DISCORD = '700000000000000002';
+  const playerId = await person('Returner');
+  const userId = await login(playerId, 'Returner', { discordId: DISCORD, discordUsername: 'returner' });
+  await db.insert(s.clanBans).values({ clanId, playerId, reason: 'kept luring members', bannedAt: '2026-06-01 09:30:00' });
+  assert.ok((await erasePerson({ userId })).ok);
+  assert.equal((await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, DISCORD))).length, 1);
+
+  const res = await signIn(DISCORD, 'returner');
+  assert.ok(sessionCookie(res));
+  const [back] = await db.select().from(s.users).where(eq(s.users.discordId, DISCORD));
+  assert.notEqual(back.playerId, playerId, 'a new person');
+  assert.notEqual(back.id, userId);
+
+  // A real clan ban on the new person, through the ordinary code path.
+  assert.equal(await isBannedFromClan(clanId, back.playerId), true);
+  assert.equal(await isBannedFromClan(otherClanId, back.playerId), false);
+  const [ban] = await db.select().from(s.clanBans).where(and(eq(s.clanBans.clanId, clanId), eq(s.clanBans.playerId, back.playerId!)));
+  assert.equal(ban.reason, 'kept luring members');
+  assert.equal(ban.bannedAt, '2026-06-01 09:30:00');
+  assert.equal(ban.liftedAt, null);
+  // The kept row was used up: the ban lives in one place.
+  assert.equal((await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, DISCORD))).length, 0);
+  // The clan can still see it and lift it: there is no character on its roster to show it beside.
+  const shown = (await bans.deletedAccountClanBans(clanId)).filter((b) => b.reason === 'kept luring members');
+  assert.deepEqual(shown.map((b) => [b.kind, b.id, b.bannedAt]), [['returned', ban.id, '2026-06-01 09:30:00']]);
+  assert.equal(await bans.liftDeletedAccountClanBan(otherClanId, ban.id, back.id, 'returned'), false, 'not another clan’s to lift');
+  assert.equal(await bans.liftDeletedAccountClanBan(clanId, ban.id, back.id, 'returned'), true);
+  assert.equal(await isBannedFromClan(clanId, back.playerId), false);
+  assert.equal((await bans.deletedAccountClanBans(clanId)).filter((b) => b.reason === 'kept luring members').length, 0);
+  // Banned again by the clan, for the rest of this test.
+  await db.insert(s.clanBans).values({ clanId, playerId: back.playerId!, reason: 'kept luring members', bannedAt: '2026-06-01 09:30:00' });
+
+  // Signing in again changes nothing.
+  await signIn(DISCORD, 'returner');
+  assert.equal((await db.select().from(s.clanBans).where(and(eq(s.clanBans.playerId, back.playerId!), isNull(s.clanBans.liftedAt)))).length, 1);
+
+  // Deleting AGAIN keeps it again: the cycle cannot be used to shake a ban off.
+  assert.ok((await erasePerson({ userId: back.id })).ok);
+  const again = await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, DISCORD));
+  assert.equal(again.length, 1);
+  assert.equal(again[0].reason, 'kept luring members');
+});
+
+test('a platform-banned person who deletes cannot sign back in, until platform staff lift it', async () => {
+  const DISCORD = '700000000000000003';
+  const playerId = await person('Barred');
+  const userId = await login(playerId, 'Barred', { discordId: DISCORD, discordUsername: 'barred' });
+  await db.update(s.players).set({ banned: true, bannedAt: '2026-07-07 07:00:00', bannedReason: 'staff note that must not be kept' }).where(eq(s.players.id, playerId));
+
+  assert.ok((await erasePerson({ userId })).ok);
+  const kept = await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, DISCORD));
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].scope, 'platform');
+  assert.equal(kept[0].clanId, null);
+  assert.equal(kept[0].reason, null, 'a platform ban keeps no reason');
+  assert.equal(kept[0].bannedAt, '2026-07-07 07:00:00');
+
+  const peopleBefore = (await db.select().from(s.players)).length;
+  const res = await signIn(DISCORD, 'barred');
+  assert.equal(sessionCookie(res), undefined, 'no session');
+  assert.match(res.headers.get('location') ?? '', /\/login\?error=banned/);
+  assert.equal((await db.select().from(s.users).where(eq(s.users.discordId, DISCORD))).length, 0, 'and no new login was made for them');
+  assert.equal((await db.select().from(s.players)).length, peopleBefore, 'nor a new person');
+
+  // Platform staff see it and lift it; then the Discord account can start again.
+  const staffPerson = await person('Staff');
+  const staff = await login(staffPerson, 'Staff');
+  const listed = (await bans.deletedAccountPlatformBans()).filter((b) => b.discordId === DISCORD);
+  assert.equal(listed.length, 1);
+  assert.equal(await bans.liftDeletedAccountPlatformBan(listed[0].id, staff), true);
+  assert.equal(await bans.discordIdPlatformBanned(DISCORD), false);
+  assert.ok(sessionCookie(await signIn(DISCORD, 'barred')));
+});
+
+test('a login-level ban is kept as a platform ban too', async () => {
+  const DISCORD = '700000000000000004';
+  const playerId = await person('LoginBarred');
+  const userId = await login(playerId, 'LoginBarred', { discordId: DISCORD, banned: true, bannedAt: '2026-08-08 08:00:00' });
+  assert.ok((await erasePerson({ userId })).ok);
+  assert.equal(await bans.discordIdPlatformBanned(DISCORD), true);
+  assert.equal(sessionCookie(await signIn(DISCORD, 'loginbarred')), undefined);
+});
+
+test('a person with no bans leaves nothing in the ban table, and signs in again as anyone would', async () => {
+  const DISCORD = '700000000000000005';
+  const before = (await db.select().from(s.bannedDiscordIds)).length;
+  const p = await plantPerson('Clean', DISCORD);
+  // A ban that was lifted long ago is not a ban.
+  await db.insert(s.clanBans).values({ clanId, playerId: p.playerId, reason: 'old', liftedAt: '2026-02-01 00:00:00' });
+  // Their own role is handed on first; an admin may delete.
+  const r = await erasePerson({ userId: p.userId });
+  assert.ok(r.ok && !r.alreadyGone);
+  assert.equal(r.summary.banRecordKept, false);
+  assert.equal((await db.select().from(s.bannedDiscordIds)).length, before);
+  assert.equal((await db.select().from(s.bannedDiscordIds).where(eq(s.bannedDiscordIds.discordId, DISCORD))).length, 0);
+
+  const res = await signIn(DISCORD, 'clean');
+  assert.ok(sessionCookie(res));
+  const [back] = await db.select().from(s.users).where(eq(s.users.discordId, DISCORD));
+  assert.equal(await isBannedFromClan(clanId, back.playerId), false);
 });
