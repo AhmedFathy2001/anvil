@@ -10,7 +10,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { ownedCreatorSpace } from '@/lib/clanCreate';
 import { ensureClanCheckoutRef } from '@/lib/billing';
-import { PLANS, checkoutUrl, type Plan } from '@/lib/plans';
+import { PLANS, checkoutUrl, truthfulFeatures, type Plan } from '@/lib/plans';
 import {
   CREATOR_CAPABILITY_MIN_PLAN,
   CREATOR_PLANS,
@@ -202,7 +202,7 @@ function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean;
       <p className="mt-2.5 text-[13px] leading-relaxed text-text-muted">{plan.blurb}</p>
 
       <ul className="mt-4 flex flex-1 flex-col gap-1.5">
-        {plan.features.map((f) => (
+        {truthfulFeatures(plan).map((f) => (
           <li key={f} className="flex items-start gap-2 text-[12.5px]">
             <span className="mt-0.5 text-text-dim" aria-hidden>
               ·
