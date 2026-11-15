@@ -1,5 +1,6 @@
 'use client';
 
+import { splitUnassigned } from '@/lib/splitUnassigned';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -242,6 +243,42 @@ export default function WeeklyFormatClient(props: {
                 }}
               >
                 Auto-balance by current level/KC
+              </button>
+              <button
+                type="button"
+                className={btn}
+                disabled={busy || ended || teams.length < 1 || (counts.get(null) ?? 0) === 0}
+                onClick={async () => {
+                  const n = counts.get(null) ?? 0;
+                  const ok = await dialog.confirm({
+                    title: `Split ${n} unassigned player${n === 1 ? '' : 's'} evenly?`,
+                    body: 'They go to the smallest teams first. Players already on a team stay where they are.',
+                    confirmLabel: 'Split them',
+                  });
+                  if (!ok) return;
+                  const assignments = splitUnassigned(teams.map((t) => t.id), participants);
+                  takeTeams(await call(`${base}/teams`, { method: 'POST', body: JSON.stringify({ action: 'assign', assignments }) }));
+                }}
+              >
+                Split unassigned evenly
+              </button>
+              <button
+                type="button"
+                className={btn}
+                disabled={busy || ended || participants.every((p) => p.teamId == null)}
+                onClick={async () => {
+                  const placed = participants.filter((p) => p.teamId != null);
+                  const ok = await dialog.confirm({
+                    title: `Take ${placed.length} player${placed.length === 1 ? '' : 's'} off their teams?`,
+                    body: 'Everyone becomes unassigned. Teams stay.',
+                    confirmLabel: 'Clear all',
+                  });
+                  if (!ok) return;
+                  const assignments = placed.map((p) => ({ participantId: p.id, teamId: null }));
+                  takeTeams(await call(`${base}/teams`, { method: 'POST', body: JSON.stringify({ action: 'assign', assignments }) }));
+                }}
+              >
+                Clear all
               </button>
               <Checkbox
                 checked={lateJoin}
