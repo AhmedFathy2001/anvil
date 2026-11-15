@@ -64,7 +64,7 @@ export default function LiveClient({
   const [where, setWhere] = useState<{ f: string; tm: number | null }>({ f: 'team', tm: null });
   const [chatError, setChatError] = useState<string | null>(null);
   // Unsent chat text, kept per channel so switching channel or tab does not lose it.
-  const drafts = useRef<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   // When the lists were last read: times read "14:05" today and "Nov 8 · 14:05" before.
   const [now, setNow] = useState(0);
 
@@ -438,6 +438,7 @@ export default function LiveClient({
           onPause={togglePause}
           onDelete={remove}
           drafts={drafts}
+          onDraft={(k, v) => setDrafts((d) => ({ ...d, [k]: v }))}
           onRetry={() => void loadChat(where)}
           onMute={mute}
           onSend={async (msg) => {
@@ -686,6 +687,7 @@ function ChatPane({
   onMute,
   onSend,
   drafts,
+  onDraft,
   onRetry,
 }: {
   now: number;
@@ -698,7 +700,8 @@ function ChatPane({
   onDelete: (line: LiveChatLine) => void;
   onMute: (line: LiveChatLine) => void;
   onSend: (msg: string) => Promise<string | null>;
-  drafts: { current: Record<string, string> };
+  drafts: Record<string, string>;
+  onDraft: (key: string, text: string) => void;
   onRetry: () => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -777,7 +780,7 @@ function ChatPane({
           <div ref={endRef} />
         </div>
         <div className="sticky bottom-0 z-10 rounded-b-xl border-t border-card-border bg-card-bg px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static">
-          {chat.lock ? <LockLine lock={chat.lock} /> : <Composer key={`${chat.channel}:${chat.team ?? ""}`} chat={chat} onSend={onSend} drafts={drafts} />}
+          {chat.lock ? <LockLine lock={chat.lock} /> : <Composer key={`${chat.channel}:${chat.team ?? ""}`} chat={chat} onSend={onSend} drafts={drafts} onDraft={onDraft} />}
         </div>
       </Card>
     </div>
@@ -816,11 +819,11 @@ function LockLine({ lock }: { lock: NonNullable<LiveChatState['lock']> }) {
   );
 }
 
-function Composer({ chat, onSend, drafts }: { chat: LiveChatState; onSend: (msg: string) => Promise<string | null>; drafts: { current: Record<string, string> } }) {
+function Composer({ chat, onSend, drafts, onDraft }: { chat: LiveChatState; onSend: (msg: string) => Promise<string | null>; drafts: Record<string, string>; onDraft: (key: string, text: string) => void }) {
   const draftKey = `${chat.channel}:${chat.team ?? ''}`;
-  const [text, setTextState] = useState(() => drafts.current[draftKey] ?? '');
+  const [text, setTextState] = useState(() => drafts[draftKey] ?? '');
   const setText = (v: string) => {
-    drafts.current[draftKey] = v;
+    onDraft(draftKey, v);
     setTextState(v);
   };
   const [sending, setSending] = useState(false);
