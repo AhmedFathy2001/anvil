@@ -1,4 +1,5 @@
 import { tileWeight } from './utils';
+import { withOtherCharacters } from './personLabel';
 import type { StatContributionSnapshot } from './statTracking';
 import { turnInsOnTile } from './turnIns';
 import { parseJsonArray } from './tileKinds';
@@ -121,7 +122,7 @@ export function rollupByOwner(
     const lead = grp.reduce((a, b) => (b.points > a.points ? b : a));
     out.push({
       playerId: lead.playerId,
-      name: `${lead.name} +${grp.length - 1}`,
+      name: withOtherCharacters(lead.name, grp.length - 1),
       points: grp.reduce((s, m) => s + m.points, 0),
       tasks: contributions.filter((c) => c.completed).length,
       inProgress: contributions.filter((c) => !c.completed).length,
