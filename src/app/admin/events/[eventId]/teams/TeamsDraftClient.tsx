@@ -36,6 +36,7 @@ import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
 import TeamPlacementCard from './TeamPlacementCard';
 import { PLACEMENT_META, placementOf } from '@/lib/teamPlacement';
+import { TEAMS_CHANGED } from '../EventGuide';
 
 interface DraftState {
   status: string;
@@ -150,6 +151,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);
   const formatStorageKey = `draft-format-${event.id}`;
   const automaticFormat = format === 'individual' || format === 'one_team';
+  // Auto-balance: Anvil makes the teams as people sign up, so "set up teams" is not the host's job.
+  const autoBoard = placement === 'auto' && format === 'preassigned';
   const nonDraft = format === 'preassigned' || automaticFormat;
 
   useEventStream(event.id, {
@@ -291,6 +294,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     const res = await clanFetch(`/api/events/${event.id}/draft`);
     if (res.ok) setDraft(await res.json());
   }, [event.id]);
+
+  // The guide strip's "Team everyone up" changed the rosters from outside this component.
+  useEffect(() => {
+    const reload = () => void fetchDraft();
+    window.addEventListener(TEAMS_CHANGED, reload);
+    return () => window.removeEventListener(TEAMS_CHANGED, reload);
+  }, [fetchDraft]);
 
   useEffect(() => {
     if (draft.status !== 'active' && draft.status !== 'paused') return;
@@ -728,14 +738,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [placeNotice, setPlaceNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   async function placePool() {
     if (mutationsBlocked()) return;
-    if (format !== 'individual' && format !== 'one_team') return;
+    if (format !== 'individual' && format !== 'one_team' && !autoBoard) return;
     setPlacing(true);
     setPlaceNotice(null);
     try {
       const res = await clanFetch(`/api/admin/events/${event.id}/place-pool`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placement: format }),
+        // An auto-balance board seats them the way it seats a sign-up: fewest players first.
+        body: JSON.stringify({ placement: autoBoard ? 'as-set' : format }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -785,7 +796,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const phases = format === 'preassigned'
     ? [
         { label: 'Set up teams', done: teamsDone },
-        { label: 'Add players', done: poolDone },
+        // On an auto-balance board a player counts once they are on a team, not while they wait.
+        { label: 'Add players', done: autoBoard ? allPlaced : poolDone },
         { label: 'Check rosters & start', done: allPlaced && eventStarted },
       ]
     : automaticFormat
@@ -801,7 +813,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       ];
   const stepForPhase = format === 'preassigned' ? [0, 1, 3] : automaticFormat ? [1, 3] : [0, 1, 2, 3];
   const nextHint = format === 'preassigned'
-    ? !teamsDone
+    ? autoBoard && unplacedCount > 0
+      ? `${unplacedCount} player${unplacedCount === 1 ? ' is' : 's are'} signed up and not on a team yet: team them up below.`
+      : autoBoard && !teamsDone
+      ? 'Nothing to build yet: Anvil makes the teams as people sign up. Share the sign-up link.'
+      : !teamsDone
       ? 'Create the team or teams players will join.'
       : !poolDone
         ? 'Add everyone who’s playing; sign-ups can place them directly onto an existing team.'
@@ -835,7 +851,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // The one-click team-up, shared by the enroll step and the rosters step. It used to live only on
   // the enroll step, so anyone who reached "Rosters & start" with teamless players (a restored
   // ?step=3, the step pill, late sign-ups) was told to use a button that wasn't on their screen.
-  const teamUpAction = automaticFormat && draft.status === 'none' && (
+  const teamUpAction = (automaticFormat || autoBoard) && draft.status === 'none' && (
     <>
       <button
         onClick={placePool}
@@ -1155,8 +1171,21 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             })}
           </div>
         ) : (
-          <div className="text-center py-8 border border-dashed border-card-border rounded-xl mb-6">
-            <p className="text-text-muted">No teams yet. Add one below.</p>
+          <div className="text-center py-8 px-4 border border-dashed border-card-border rounded-xl mb-6">
+            {autoBoard ? (
+              unplacedCount > 0 ? (
+                <div className="mx-auto max-w-md space-y-3">
+                  <p className="text-text-muted">
+                    No teams yet. {unplacedCount} player{unplacedCount === 1 ? ' is' : 's are'} waiting: team them up and each one joins the team with the fewest players.
+                  </p>
+                  {teamUpAction}
+                </div>
+              ) : (
+                <p className="text-text-muted">No teams yet. Anvil makes them as people sign up, so there is nothing to build here. You can still add one yourself below.</p>
+              )
+            ) : (
+              <p className="text-text-muted">No teams yet. Add one below.</p>
+            )}
           </div>
         )}
 

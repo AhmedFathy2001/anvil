@@ -22,7 +22,6 @@ export default function DraftStatus({
   status,
   currentTeamId,
   round,
-  pickInRound,
   currentPickNumber,
   totalPicked,
   poolRemaining,
@@ -60,7 +59,8 @@ export default function DraftStatus({
             <span className="font-semibold text-lg">{currentTeam.name}&apos;s pick</span>
           </div>
           <div className="text-sm text-text-muted">
-            Round {round + 1}, Pick {pickInRound + 1} (Overall #{currentPickNumber + 1})
+            {/* The same wording as the captain's clock (team page): the pick number is the draft's, not the round's. */}
+            Round {round + 1} · pick {currentPickNumber + 1}
           </div>
         </div>
       )}

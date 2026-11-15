@@ -1229,7 +1229,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 type="button"
                 onClick={addOneTile}
                 disabled={adding}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 max-sm:min-h-11 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
               >
                 + Add one {model.noun}
               </button>

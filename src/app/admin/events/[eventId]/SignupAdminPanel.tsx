@@ -780,11 +780,12 @@ export default function SignupAdminPanel({
           <div className="text-xs uppercase tracking-wide text-text-muted min-w-0">
             Total prize pool so far
           </div>
+          {/* The fees come from the sign-up list: until it has loaded there is no total to show. */}
           <div className="text-xl font-extrabold text-gold tabular-nums whitespace-nowrap">
-            {livePrizePool.toLocaleString()} gp
+            {loading ? <span className="text-sm font-medium text-text-muted">Adding up entries…</span> : `${livePrizePool.toLocaleString()} gp`}
           </div>
         </div>
-        <p className="text-xs text-text-muted -mt-2">
+        <p className={`text-xs text-text-muted -mt-2 ${loading ? 'invisible' : ''}`} aria-hidden={loading}>
           {addedPrizeInput.trim() ? `${(Number(addedPrizeInput) || 0).toLocaleString()} gp added` : 'No bonus'}
           {' + '}
           {approvedSignupCount} approved {approvedSignupCount === 1 ? 'entry' : 'entries'}

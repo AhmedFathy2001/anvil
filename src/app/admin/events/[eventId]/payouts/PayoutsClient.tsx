@@ -366,7 +366,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
       <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <div>
-            <span className="text-text-muted">Prize pool </span>
+            <span className="text-text-muted">Prize pool collected </span>
             <span className="font-bold text-gold">{pool.total.toLocaleString()} gp</span>
           </div>
           <div className="text-xs text-text-muted">
@@ -494,8 +494,9 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              {/* What the places add up to. Not the pool above: that is the gp collected so far. */}
               <span className="text-text-muted">
-                Total rewards: <span className="text-gold font-semibold">{rewardsTotal.toLocaleString()} gp</span>
+                Prizes set: <span className="text-gold font-semibold">{rewardsTotal.toLocaleString()} gp</span>
               </span>
               {mode === 'share' && (
                 <span className={sharesTotal > 100 ? 'text-red-400' : 'text-text-muted'}>
@@ -503,8 +504,15 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                   {sharesTotal > 100 ? ' — more than there is' : sharesTotal < 100 ? ' (the rest stays with the clan)' : ''}
                 </span>
               )}
-              {rewardsTotal !== pool.total && (
-                <span className="text-text-muted">(pool is {pool.total.toLocaleString()} gp)</span>
+              {rewardsTotal > pool.total && (
+                <span className="text-yellow-300">
+                  {(rewardsTotal - pool.total).toLocaleString()} gp more than the pool has collected ({pool.total.toLocaleString()} gp)
+                </span>
+              )}
+              {rewardsTotal < pool.total && (
+                <span className="text-text-muted">
+                  {(pool.total - rewardsTotal).toLocaleString()} gp of the pool ({pool.total.toLocaleString()} gp) is not given out
+                </span>
               )}
             </div>
 

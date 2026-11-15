@@ -32,3 +32,12 @@ test('teammates going for it', () => {
 test('stat progress uses grouped numbers', () => {
   assert.equal(tileHoverView({ label: 'x', stat: { current: 1500, goal: 10000 } }).progress, '1,500 of 10,000');
 });
+
+test('whole-event view says the count is the furthest team\'s', () => {
+  assert.equal(tileHoverView({ label: 'x', progress: { current: 12, required: 50 }, overview: true }).progress, 'Furthest team: 12 of 50');
+  assert.equal(tileHoverView({ label: 'x', overview: true }).progress, null);
+});
+
+test('a one-off tile shows no count', () => {
+  assert.equal(tileHoverView({ label: 'x', progress: { current: 0, required: 1 } }).progress, null);
+});

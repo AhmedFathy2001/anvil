@@ -9,6 +9,7 @@ import { parseBoardAccess } from '@/lib/cohostBoardAccess';
 import type { Metadata } from 'next';
 
 import { db } from '@/db';
+import { listTeamClaims } from '@/lib/tileClaims';
 import { clanPrefix, currentClan, requireClan, resolveClanById } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -412,6 +413,15 @@ export default async function EventScoreboardPage({
     )];
   }
   const myTeamIds = soloBoard || manyTeamsBoard ? viewerTeamIds : [];
+  // Their own team's plans, for the board's hover card ("Going for it: ..."). Own teams only: a
+  // team's plans are nobody else's business.
+  const ownClaims: Record<number, { tileId: number; name: string; mine: boolean }[]> = {};
+  if (session?.userId != null) {
+    for (const teamId of viewerTeamIds.slice(0, 5)) {
+      const rows = await listTeamClaims(event.id, teamId, session.userId);
+      if (rows.length > 0) ownClaims[teamId] = rows.map((c) => ({ tileId: c.tileId, name: c.name, mine: c.mine }));
+    }
+  }
 
   // Playing, but the plugin hasn't been heard from since the start? Then drop, kill and lap tiles
   // are silently not counting for them, and nothing on the board said so.
@@ -987,6 +997,7 @@ export default async function EventScoreboardPage({
           teamMembers={teamMembers}
           myTeamIds={myTeamIds}
           proofTeamId={viewerTeamIds[0] ?? null}
+          ownClaims={ownClaims}
           signedIn={!!session?.userId}
         />
         {luck && <EventLuck luck={luck} />}

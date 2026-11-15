@@ -8,7 +8,7 @@
 //
 // Pure (no `@/` imports): tests/guided-flows.test.ts runs it directly.
 
-import { nextStep, type NextStep, type NextStepInput } from '../eventNextStep.ts';
+import { TEAM_UP_HOW, nextStep, type NextStep, type NextStepInput } from '../eventNextStep.ts';
 import { setupFacts } from '../eventStage.ts';
 import { buildFlow, plural, type FlowAction, type FlowStepCopy, type FlowStepDef, type FlowView } from '../guidedFlow.ts';
 
@@ -53,6 +53,7 @@ function actionOf(next: NextStep, eventId: number): FlowAction {
   if (a.kind === 'none') return { kind: 'none' };
   if (a.kind === 'copy') return { kind: 'copy', label: a.label, path: `/events/${eventId}/${a.path}` };
   if (a.kind === 'start') return { kind: 'custom', label: a.label, id: 'start' };
+  if (a.kind === 'team-up') return { kind: 'custom', label: a.label, id: 'team-up' };
   if (a.tab.startsWith('#')) return { kind: 'link', label: a.label, href: base, anchor: a.tab.slice(1) };
   const [path, anchor] = a.tab.split('#');
   // The tiles page marks its Add tiles control, so the button lands on it.
@@ -71,9 +72,18 @@ export function runEventFlow(e: RunEventInput, opts: { page?: 'teams' } = {}): F
   const sequential = nextStep(e);
   const onTeams =
     opts.page === 'teams' && e.stage === 'build' && !e.individual && !setupFacts(e, e).teamsDone && sequential.key !== 'teams';
-  const next: NextStep = onTeams
-    ? { key: 'teams', title: e.teamCount === 0 ? 'Make the teams' : 'Put players on the teams', body: '', action: { kind: 'none' } }
-    : sequential;
+  // A board whose teams are made from sign-ups has nothing to build on that page: with nobody signed
+  // up the job is to share the link, and with people waiting it is to team them up. Both are buttons.
+  const fromSignups = e.placement === 'auto' || e.placement === 'solo';
+  const next: NextStep = !onTeams
+    ? sequential
+    : fromSignups && e.signupCount === 0
+    ? { key: 'share', title: 'Share the sign-up link', body: '', action: { kind: 'copy', label: 'Copy sign-up link', path: 'signup' } }
+    : fromSignups && e.pendingSignups === 0
+    ? { key: 'teams', title: 'Team everyone up', body: '', action: { kind: 'team-up', label: 'Team everyone up' } }
+    : { key: 'teams', title: e.teamCount === 0 ? 'Make the teams' : 'Put players on the teams', body: '', action: { kind: 'none' } };
+  // Only the hand-built Teams step is described by the page itself (no button: the page is the step).
+  const pageIsStep = onTeams && next.action.kind === 'none';
   const built = e.stage !== 'build';
   const facts = setupFacts(e, e);
   // A step only appears when this event has that job: an individual board makes no teams, and one
@@ -106,8 +116,8 @@ export function runEventFlow(e: RunEventInput, opts: { page?: 'teams' } = {}): F
     key: 'run-event',
     name: RUN_EVENT_NAME,
     steps,
-    preferred: onTeams ? 'teams' : stepOf(next.key, hasSignupStep, hasTeamStep),
-    describe: () => ({ title: next.title, ...(onTeams ? teamsPageCopy(e) : copyFor(e, next, base)) }),
+    preferred: stepOf(next.key, hasSignupStep, hasTeamStep),
+    describe: () => ({ title: next.title, ...(pageIsStep ? teamsPageCopy(e) : copyFor(e, next, base)) }),
   });
 }
 
@@ -115,10 +125,11 @@ export function runEventFlow(e: RunEventInput, opts: { page?: 'teams' } = {}): F
 function teamsPageCopy(e: RunEventInput): Omit<FlowStepCopy, 'title'> {
   return {
     sentence:
-      e.teamCount === 0
-        ? e.placement === 'auto' || e.placement === 'solo'
-          ? 'Teams are made from sign-ups here, so there is nothing to build until people sign up; then add everyone and they are balanced into teams.'
-          : 'Create the teams below, then draft or place players on them; the event cannot start until somebody is on a team.'
+      e.placement === 'auto' || e.placement === 'solo'
+        ? // Reached only while sign-ups still wait for an answer: nobody can be seated before that.
+          'Teams are made from sign-ups here, so there is nothing to build: approve the people waiting on the Sign-ups tab and each one joins a team.'
+        : e.teamCount === 0
+        ? 'Create the teams below, then draft or place players on them; the event cannot start until somebody is on a team.'
         : 'The teams exist but nobody is on one, and the event cannot start like that: run the draft or place players by hand below.',
     action: { kind: 'none' },
     guideHref: '/guide/admin#teams',
@@ -164,12 +175,17 @@ function copyFor(e: RunEventInput, next: NextStep, base: string): Omit<FlowStepC
         guideHref: '/guide/admin#teams',
       };
     case 'teams':
+      if (next.action.kind === 'team-up') {
+        return {
+          sentence: `${plural(e.signupCount, 'person has', 'people have')} signed up but nobody is on a team yet, and the event cannot start like that. ${TEAM_UP_HOW[e.placement === 'solo' ? 'solo' : 'auto']}`,
+          action,
+          guideHref: '/guide/admin#teams',
+        };
+      }
       return {
         sentence:
           e.teamCount === 0
-            ? e.placement === 'auto' || e.placement === 'solo'
-              ? `${plural(e.signupCount, 'person has', 'people have')} signed up but no teams were made, and the event cannot start until they are on teams: open Teams and add everyone.`
-              : `${plural(e.signupCount, 'person has', 'people have')} signed up, and the event cannot start until they are on teams: create the teams, then draft or place players.`
+            ? `${plural(e.signupCount, 'person has', 'people have')} signed up, and the event cannot start until they are on teams: create the teams, then draft or place players.`
             : 'The teams exist but nobody is on one, and the event cannot start like that: run the draft or place players by hand.',
         action,
         guideHref: '/guide/admin#teams',

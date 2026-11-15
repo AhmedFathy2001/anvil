@@ -10,6 +10,7 @@ import { clanlessStartFlow, memberStartFlow } from '@/lib/guidedFlows/memberStar
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { onboardingState } from '@/lib/onboarding';
 import { runningXpCheck } from '@/lib/xpCheckRead';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 
 /**
  * Has a proof of theirs ever landed on a board? The member-onboarding funnel's own definition
@@ -85,4 +86,26 @@ export async function clanlessStartGuide(userId: number, playerId: number | null
   } catch {
     return null;
   }
+}
+
+/**
+ * The ONE "Getting started" strip a person sees outside a clan's pages (their home page and their
+ * profile): the clanless one for somebody in no clan, otherwise the member one pointed at their first
+ * clan. Running a clan is being in it, so an owner with no roster seat gets the member strip on both
+ * pages, with the same count.
+ */
+export async function personStartGuide(
+  userId: number,
+  playerId: number | null,
+  clans: { slug: string; clanKind?: string | null }[],
+  openEvents: number | null,
+): Promise<FlowView | null> {
+  if (clans.length === 0) return clanlessStartGuide(userId, playerId, openEvents);
+  const first = clans.find((c) => c.clanKind !== 'creator');
+  if (!first) return null;
+  const kind = first.clanKind ?? 'clan';
+  return memberStartGuide(userId, playerId, {
+    eventsHref: clanPathOf({ slug: first.slug, kind }, '/events'),
+    teamHref: clanPathOf({ slug: first.slug, kind }, '/team'),
+  });
 }

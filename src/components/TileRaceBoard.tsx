@@ -47,6 +47,8 @@ export interface TileRaceBoardProps {
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   matchedTileIds?: Set<number> | null;
+  /** The viewer's own team's plans (lib/tileClaims), for the tile hover card. Never another team's. */
+  claimedBy?: Map<number, import('@/lib/tileClaimsView').ClaimMarker[]> | null;
   /**
    * Set on every surface that should draw the race as roads (a plain straight race too): 'track' on
    * the event page (the race track card only; its other sections are on the page), 'full' for the
@@ -82,6 +84,7 @@ function LinearRaceBoard({
   statProgress,
   expanded,
   matchedTileIds,
+  claimedBy,
 }: TileRaceBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const tileIds = new Set(sortedTiles.map((t) => t.id));
@@ -215,6 +218,7 @@ function LinearRaceBoard({
                           onIntent={onTileIntent ? () => onTileIntent(tile.id) : undefined}
                           progress={dropProgress?.get(tile.id)}
                           statProgress={statProgress?.get(tile.id)}
+                          claimedBy={claimedBy?.get(tile.id)}
                           dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
                         />
                       </div>
@@ -272,6 +276,7 @@ interface TrackTileProps {
   onIntent?: () => void;
   progress?: { current: number; required: number };
   statProgress?: { current: number; goal: number; statType?: string };
+  claimedBy?: { name: string; mine?: boolean }[];
   dimmed?: boolean;
 }
 
@@ -287,6 +292,7 @@ function TrackTile({
   onIntent,
   progress,
   statProgress,
+  claimedBy,
   dimmed,
 }: TrackTileProps) {
   const isDrop = tile.tileType === 'drop' || tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp';
@@ -302,6 +308,7 @@ function TrackTile({
         manualOnly: isManualTile(tile),
         progress,
         stat: statProgress,
+        claimedBy,
       })}
       onIntent={onIntent}
       onClick={onClick}

@@ -5,7 +5,8 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { placeUnassignedPlayers } from '@/lib/enroll';
+import { placePoolAuto, placeUnassignedPlayers } from '@/lib/enroll';
+import { placementOf } from '@/lib/teamPlacement';
 import { assertEventEditable } from '@/lib/eventLock';
 
 // POST — team up everyone currently sitting unassigned in the event's pool, per a non-draft
@@ -45,13 +46,19 @@ export async function POST(
   }
 
   const body = (await request.json().catch(() => null)) as { placement?: string } | null;
-  if (body?.placement !== 'one_team' && body?.placement !== 'individual') {
-    return NextResponse.json({ error: "placement must be 'one_team' or 'individual'" }, { status: 400 });
+  // 'as-set': the way this board's own Team placement seats a sign-up (auto-balance or one each),
+  // for people who are in the pool because they entered before it placed them.
+  const boardPlacement = placementOf(event);
+  const placement =
+    body?.placement === 'as-set' ? (boardPlacement === 'auto' ? 'auto' : boardPlacement === 'solo' ? 'individual' : null) : body?.placement;
+  if (placement !== 'one_team' && placement !== 'individual' && placement !== 'auto') {
+    return NextResponse.json({ error: "placement must be 'one_team', 'individual' or 'as-set' on a board that places sign-ups" }, { status: 400 });
   }
 
   // per-person (default) groups a person's alts onto one team; per-account gives each its own.
   const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
-  const result = await placeUnassignedPlayers(id, body.placement, slotMode);
+  const result =
+    placement === 'auto' ? await placePoolAuto(id, event.teamCount, slotMode) : await placeUnassignedPlayers(id, placement, slotMode);
   if (result.placed > 0) track('team.balanced', { clanId: event.clanId, props: { placed: result.placed, via: 'pool' } });
   return NextResponse.json(result);
 }

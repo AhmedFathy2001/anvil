@@ -63,6 +63,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       stat: statProgress,
       claimedBy,
       points,
+      // No one team picked: the count is the furthest team's, so the card says whose it is.
+      overview: markersOnly,
     }),
     onIntent,
   );

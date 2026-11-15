@@ -76,7 +76,7 @@ export function useRacePick(eventId: number | undefined, teamId: number | null, 
   return { pickInfo, pickError, picking, pick };
 }
 
-export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, onTileIntent, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full', raceFit = false, raceLens }: TileRaceBoardProps) {
+export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, onTileIntent, dropProgress, statProgress, expanded, matchedTileIds, claimedBy, raceLayout = 'full', raceFit = false, raceLens }: TileRaceBoardProps) {
   // 'track': the event page's Race track card — strip, map, legend, tiles. Up next and the standings
   // are page sections there (components/board/RaceEventSections). 'full': everything in one card.
   const full = raceLayout !== 'track';
@@ -147,6 +147,7 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
         onTileClick={onTileClick}
         onTileIntent={onTileIntent}
         progress={progress}
+        claimedBy={claimedBy}
         matched={matchedTileIds ?? null}
         stepLabel={(s) => stepTitle(graph, s)}
         lockedIds={shown ? new Set(shown.pickFrom) : undefined}

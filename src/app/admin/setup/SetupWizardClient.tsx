@@ -33,6 +33,8 @@ interface Props {
   checklist?: { completedCount: number; totalCount: number };
   /** Open at this part (0 clan details, 2 in game) instead of the first with anything left: the guide strip asks for one by name. */
   openAt?: number;
+  /** `openAt` came from the clan's next setup step, not from a link that asked for a part by name. */
+  openedByGuide?: boolean;
 }
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
@@ -76,7 +78,7 @@ function skippedNotice(initial: Props['initial'], provisioned: boolean, openedAt
   return `${filled} already filled in${provisioned ? ' from when you created the clan' : ''}, so we started at Discord.`;
 }
 
-export default function SetupWizardClient({ initial, channels, provisioned, checklist, openAt }: Props) {
+export default function SetupWizardClient({ initial, channels, provisioned, checklist, openAt, openedByGuide = false }: Props) {
   const router = useRouter();
   // Open at the first step with anything left to do; already-satisfied steps are skipped.
   const [initialStep] = useState(() => openAt ?? firstIncompleteStep(initial));
@@ -178,6 +180,20 @@ export default function SetupWizardClient({ initial, channels, provisioned, chec
                 Clan profile
               </ClanLink>
               .
+            </p>
+          </div>
+        )}
+
+        {/* Opened at the in-game part because that is the clan's next step, with Discord (the part
+            before it) not connected: say it was passed over on purpose and how to reach it. */}
+        {openedByGuide && initialStep === 2 && step === 2 && !discordReady && (
+          <div className="mb-5 rounded-lg border border-gold/25 bg-gold/5 px-4 py-3">
+            <p className="text-sm text-text-muted leading-relaxed">
+              We started with the plugin, because that is your clan&apos;s next step. Discord is optional:{' '}
+              <button type="button" onClick={() => { setMsg(null); setStep(1); }} className="text-gold hover:underline">
+                connect it now
+              </button>{' '}
+              or leave it for later.
             </p>
           </div>
         )}

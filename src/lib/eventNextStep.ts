@@ -45,6 +45,8 @@ export type NextStepAction =
   /** Copy a member-facing link to this event: `/events/<id>/<path>`. */
   | { kind: 'copy'; label: string; path: string }
   | { kind: 'start'; label: string }
+  /** Seat everyone waiting in the pool the way the board's Team placement seats a sign-up. */
+  | { kind: 'team-up'; label: string }
   | { kind: 'none' };
 
 /**
@@ -81,6 +83,12 @@ function plural(n: number, one: string, many: string): string {
 function day(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 }
+
+/** What "Team everyone up" does, per placement. Said the same on the strip and the Teams page. */
+export const TEAM_UP_HOW = {
+  auto: 'Team everyone up and each person joins the team with the fewest players.',
+  solo: 'Team everyone up and each player gets their own entry.',
+} as const;
 
 export function nextStep(e: NextStepInput): NextStep {
   if (e.stage === 'build') {
@@ -132,14 +140,22 @@ export function nextStep(e: NextStepInput): NextStep {
       };
     }
     if (!e.individual && (e.teamCount === 0 || e.assignedPlayers === 0)) {
+      // Sign-ups normally land on a team by themselves here. These did not (they came in before the
+      // placement was set, say), so the one job left is to seat them, and the button does it.
+      if (formsFromSignups) {
+        return {
+          key: 'teams',
+          title: 'Team everyone up',
+          body: `${plural(e.signupCount, 'person has', 'people have')} signed up but nobody is on a team yet. ${TEAM_UP_HOW[e.placement === 'solo' ? 'solo' : 'auto']}`,
+          action: { kind: 'team-up', label: 'Team everyone up' },
+        };
+      }
       return {
         key: 'teams',
         title: 'Make the teams',
         body:
           e.teamCount === 0
-            ? formsFromSignups
-              ? `${plural(e.signupCount, 'person has', 'people have')} signed up but no teams were made. Open Teams and add everyone, and they are balanced into teams.`
-              : `${plural(e.signupCount, 'person has', 'people have')} signed up. Create the teams, then draft or place players.`
+            ? `${plural(e.signupCount, 'person has', 'people have')} signed up. Create the teams, then draft or place players.`
             : 'The teams exist but nobody is on one yet. Run the draft or place players by hand.',
         action: { kind: 'link', label: 'Make teams', tab: 'teams' },
       };

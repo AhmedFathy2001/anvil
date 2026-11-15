@@ -76,8 +76,17 @@ test('auto-balance boards are told to share the link, not to make teams', () => 
   assert.match(nextStep({ ...base, placement: 'draft', signupCount: 0, teamCount: 0, assignedPlayers: 0 }).body, /then make teams/);
 });
 
-test('auto-balance with sign-ups but no teams points at adding everyone', () => {
+test('auto-balance with sign-ups but nobody on a team: the action teams them up', () => {
   const s = nextStep({ ...base, placement: 'auto', signupCount: 5, teamCount: 0, assignedPlayers: 0 });
   assert.equal(s.key, 'teams');
-  assert.match(s.body, /add everyone/);
+  assert.deepEqual(s.action, { kind: 'team-up', label: 'Team everyone up' });
+  assert.match(s.body, /5 people have signed up but nobody is on a team yet/);
+  assert.match(s.body, /fewest players/);
+  assert.doesNotMatch(s.body, /[Oo]pen Teams/, 'never sends the host to a page to hunt for a button');
+  // Teams made on demand but empty: the same job.
+  assert.equal(nextStep({ ...base, placement: 'auto', signupCount: 5, teamCount: 3, assignedPlayers: 0 }).action.kind, 'team-up');
+  // Solo placement: each player gets their own entry.
+  assert.match(nextStep({ ...base, placement: 'solo', signupCount: 1, teamCount: 0, assignedPlayers: 0 }).body, /1 person has signed up .* own entry/);
+  // A hand-built board still links to the Teams page.
+  assert.deepEqual(nextStep({ ...base, placement: 'draft', signupCount: 5, teamCount: 0, assignedPlayers: 0 }).action, { kind: 'link', label: 'Make teams', tab: 'teams' });
 });

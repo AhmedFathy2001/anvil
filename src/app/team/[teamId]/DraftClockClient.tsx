@@ -303,7 +303,8 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
             <span className="w-1 h-5 bg-gold rounded-full" />
             <h2 className="text-lg font-semibold">Pool</h2>
             <span className="ml-auto text-xs text-text-muted">
-              {available.length} left · shortlist first
+              {/* The rated pool arrives after the draft state: until it does, the draft's own count. */}
+              {pool ? available.length : draft.poolRemaining} left · shortlist first
             </span>
           </div>
 
@@ -407,9 +408,13 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1 h-5 bg-gold rounded-full" />
             <h2 className="text-lg font-semibold">Your roster</h2>
-            <span className="ml-auto text-xs text-text-muted">{myRoster.length}</span>
+            <span className="ml-auto text-xs text-text-muted">
+              {pool ? myRoster.length : draft.players.filter((p) => p.teamId === teamId).length}
+            </span>
           </div>
-          {myRoster.length === 0 ? (
+          {!pool ? (
+            <p className="text-sm text-text-muted">Loading your roster…</p>
+          ) : myRoster.length === 0 ? (
             <p className="text-sm text-text-muted">Nobody yet — your first pick is coming.</p>
           ) : (
             <div className="grid gap-1.5">

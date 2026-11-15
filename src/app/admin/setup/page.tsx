@@ -30,10 +30,14 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const stepParam = (await searchParams).step;
   const guide = status.guide;
   // No strip on this page: the wizard IS the guide here, and the two side by side showed two
-  // counters naming two different tasks. The wizard opens at its own first unfinished part (for a
-  // new clan that is Discord, part 2, which can be skipped); an explicit ?step= from the dashboard
-  // strip's button still opens the part that button names.
-  const openAt = stepParam === 'clan' ? 0 : stepParam === 'game' ? 2 : undefined;
+  // counters naming two different tasks. The wizard opens at the part the dashboard strip names as
+  // the next step (plugin, proving the clan and members are all its in-game part), so the two never
+  // send a new owner to different places; Discord stays one Back away, and skippable. An explicit
+  // ?step= from the strip's button opens the part that button names.
+  const asked = stepParam === 'clan' ? 0 : stepParam === 'game' ? 2 : undefined;
+  const stripKey = guide?.current?.key;
+  const stripPart = stripKey === 'clan' ? 0 : stripKey === 'plugin' || stripKey === 'prove' || stripKey === 'members' ? 2 : undefined;
+  const openAt = asked ?? stripPart;
   return (
     <>
       <SetupWizardClient
@@ -44,6 +48,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         botEnabled={bot.enabled}
         provisioned={status.provisioned}
         openAt={openAt}
+        openedByGuide={asked === undefined && stripPart !== undefined}
         checklist={
           guide
             ? { completedCount: guide.doneCount, totalCount: guide.total }

@@ -56,6 +56,8 @@ interface Props {
   linkable?: Set<number>;
   /** Live progress line under a tile ("3/5"). */
   progress?: Map<number, string>;
+  /** The viewer's own team's plans per tile, for the hover card. */
+  claimedBy?: Map<number, { name: string; mine?: boolean }[]> | null;
   matched?: Set<number> | null;
   stepLabel?: (step: number, last: number) => string;
   /** Tiles locked in a way that matters to the viewer (a fork waiting for the team's pick): padlocked. */
@@ -175,6 +177,7 @@ export default function RaceRouteMap({
   problemIds,
   linkable,
   progress,
+  claimedBy,
   matched,
   stepLabel = defaultStepLabel,
   lockedIds,
@@ -416,7 +419,8 @@ export default function RaceRouteMap({
                   label: n.label,
                   doneBy: st === 'done' ? [{ name: '' }] : [],
                   locked: st === 'ahead' || st === 'closed' || (lockedIds?.has(n.id) ?? false),
-                  progressText: line ?? null,
+                  progressText: line ? line.replace('/', ' of ') : null,
+                  claimedBy: claimedBy?.get(n.id),
                 })}
                 onIntent={onTileIntent ? () => onTileIntent(n.id) : undefined}
                 onClick={onTileClick ? () => onTileClick(n.id) : undefined}

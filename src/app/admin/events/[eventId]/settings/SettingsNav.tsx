@@ -1,6 +1,7 @@
 'use client';
 
 import ScrollStrip from '@/components/ScrollStrip';
+import Select from '@/components/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -56,8 +57,17 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
   const activeTab = tabs.find((t) => (t.slug ? pathname.startsWith(tabHref(eventId, t.key)) : pathname === tabHref(eventId, t.key)));
   return (
     <>
+    {/* Phones: one compact picker, like /settings, instead of a strip whose last tabs sit off screen. */}
+    <Select
+      value={activeTab?.key ?? tabs[0]?.key ?? ''}
+      onChange={(key) => router.push(clanUrl(tabHref(eventId, key as TabInfo['key'])))}
+      options={tabs.map((t) => ({ value: t.key, label: t.label }))}
+      ariaLabel="Settings section"
+      searchable={false}
+      className="mb-3 sm:hidden [&>button]:min-h-11"
+    />
     <div className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
-      <ScrollStrip className="-mb-px flex max-w-full flex-none gap-1 overflow-x-auto overflow-y-hidden scroll-quiet" aria-label="Settings">
+      <ScrollStrip className="-mb-px flex max-w-full flex-none gap-1 overflow-x-auto overflow-y-hidden scroll-quiet max-sm:hidden" aria-label="Settings">
         {tabs.map((t) => {
           const href = tabHref(eventId, t.key);
           const active = t.slug ? pathname.startsWith(href) : pathname === href;
