@@ -98,15 +98,15 @@ export default async function SiteFooter() {
                   <span className="h-3 w-[3px] shrink-0 rounded-full bg-gold/60" aria-hidden />
                   {col.title}
                 </h2>
-                <ul className="space-y-2 text-[13px]">
+                <ul className="space-y-2 text-[13px] max-sm:space-y-0">
                   {col.links.map((l) => (
                     <li key={l.href}>
                       <ClanLink
                         href={l.href}
                         className={
                           l.highlight
-                            ? 'text-gold/85 transition-colors hover:text-gold-light'
-                            : 'transition-colors hover:text-foreground'
+                            ? 'text-gold/85 transition-colors hover:text-gold-light max-sm:flex max-sm:min-h-11 max-sm:items-center'
+                            : 'transition-colors hover:text-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center'
                         }
                       >
                         {l.label}

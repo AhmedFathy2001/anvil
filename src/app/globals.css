@@ -401,3 +401,42 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 @media (prefers-reduced-motion: reduce) {
   .race-road-flow { animation: none; }
 }
+
+/* ── Phone floors ───────────────────────────────────────────────────────────────────────────────
+   Phones only (under Tailwind's `sm`, 640px); desktop is untouched.
+   1. Text: the shared tiny sizes (9-11.5px) are raised to 12px. The unlayered rule beats the
+      utilities layer, and only matches the BASE classes, so a `sm:text-[10px]` still applies from
+      640px up. 6-8px sizes are left alone: those sit in fixed-size avatar and badge circles.
+   2. Dialog close buttons get a 44px hit box without changing the glyph size. */
+@media (max-width: 639.98px) {
+  .text-\[9px\],
+  .text-\[9\.5px\],
+  .text-\[10px\],
+  .text-\[10\.5px\],
+  .text-\[11px\],
+  .text-\[11\.5px\] {
+    font-size: 12px;
+  }
+
+  button[aria-label="Close"],
+  button[aria-label="Close dialog"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Edge fade for sideways-scrolling tab strips: the strip's own scroll shadow, so "there is more
+   this way" shows without a scrollbar. Used by TabFade (components/TabFade.tsx). */
+.tab-fade {
+  --fade: 1.75rem;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-l, 0px),
+    #000 calc(100% - var(--fade-r, 0px)),
+    transparent 100%
+  );
+}
