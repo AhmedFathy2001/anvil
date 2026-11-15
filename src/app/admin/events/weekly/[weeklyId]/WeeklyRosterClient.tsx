@@ -128,7 +128,7 @@ export default function WeeklyRosterClient({
     await removeParticipants(surplus, `${surplus.length} extra ${surplus.length === 1 ? 'entry' : 'entries'} removed.`);
   }
 
-  async function call(url: string, init: RequestInit, okMessage: string) {
+  async function call(url: string, init: RequestInit, okMessage: string): Promise<boolean> {
     setBusy(true);
     setMessage('');
     try {
@@ -137,11 +137,13 @@ export default function WeeklyRosterClient({
       if (res.ok) {
         setMessage(okMessage);
         router.refresh();
-      } else {
-        setMessage(data.error || 'That did not work.');
+        return true;
       }
+      setMessage(data.error || 'That did not work.');
+      return false;
     } catch {
       setMessage('Network error.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -167,12 +169,13 @@ export default function WeeklyRosterClient({
       .map((n) => n.trim())
       .filter(Boolean);
     if (rsns.length === 0) return;
-    await call(
+    const ok = await call(
       `/api/admin/weekly/${competitionId}/participants`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rsns }) },
       `Added ${rsns.length} name${rsns.length === 1 ? '' : 's'}.`,
     );
-    setNames('');
+    // Keep the pasted list when the add fails, so it can be fixed and sent again.
+    if (ok) setNames('');
   }
 
   async function toggleKeep(row: WeeklyStanding) {
@@ -194,7 +197,7 @@ export default function WeeklyRosterClient({
       setMessage('Baseline must be a non-negative number.');
       return;
     }
-    await call(
+    const ok = await call(
       `/api/admin/weekly/${competitionId}/participants`,
       {
         method: 'PATCH',
@@ -203,7 +206,7 @@ export default function WeeklyRosterClient({
       },
       `${editing.rsn}'s starting line corrected.`,
     );
-    setEditing(null);
+    if (ok) setEditing(null);
   }
 
   async function refresh(rebaseline: boolean) {
@@ -252,6 +255,7 @@ export default function WeeklyRosterClient({
               Add
             </button>
           </div>
+          {message && names.trim() && <p className="text-xs text-red-400 mt-2">{message}</p>}
         </section>
       ) : (
         <section className="border border-card-border rounded-xl bg-card-bg p-5">
