@@ -879,7 +879,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
 
       <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
         {!fullscreen && (
-          <div className="min-w-0">
+          <div className="min-w-0 max-lg:order-2">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
               {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
@@ -940,7 +940,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             )}
           </div>
         )}
-        <div className="min-w-0">
+        <div className={`min-w-0 max-lg:order-1 ${fullscreen ? 'max-sm:-mx-4' : ''}`}>
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
