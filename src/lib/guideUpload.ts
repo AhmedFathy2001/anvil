@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 
 import { put } from '@/lib/storage';
+import { stripImageMetadata, UNREADABLE_IMAGE } from '@/lib/stripImageMetadata';
 
 const ALLOWED = new Map([
   ['image/png', 'png'],
@@ -19,9 +20,11 @@ export async function handleGuideImageUpload(request: Request, keyPrefix: string
   const file = form?.get('file');
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   // HEIC is refused on purpose: Discord cannot display it, and the point of the upload is Discord.
-  const ext = ALLOWED.get(file.type);
-  if (!ext) return NextResponse.json({ error: 'Use PNG, JPG, GIF or WebP — Discord cannot show other formats.' }, { status: 400 });
+  if (!ALLOWED.has(file.type)) return NextResponse.json({ error: 'Use PNG, JPG, GIF or WebP — Discord cannot show other formats.' }, { status: 400 });
   if (file.size > MAX_SIZE) return NextResponse.json({ error: 'Images are capped at 8 MB.' }, { status: 400 });
-  const { url } = await put(`${keyPrefix}/${crypto.randomUUID()}.${ext}`, file, file.type);
+  // Metadata out (lib/stripImageMetadata) before anything is stored.
+  const clean = await stripImageMetadata(Buffer.from(await file.arrayBuffer()), { maxDimension: 2400, quality: 85 });
+  if (!clean) return NextResponse.json({ error: UNREADABLE_IMAGE }, { status: 400 });
+  const { url } = await put(`${keyPrefix}/${crypto.randomUUID()}.${clean.ext}`, clean.bytes, clean.contentType);
   return NextResponse.json({ url });
 }

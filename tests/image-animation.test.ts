@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isAnimatedPng } from '../src/lib/imageAnimation';
+import { isAnimatedPng, stripPngChunks } from '../src/lib/imageAnimation';
 
 const SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -38,4 +38,27 @@ test('not a PNG, or truncated, is not an APNG', () => {
   assert.equal(isAnimatedPng(Buffer.from('GIF89a')), false);
   assert.equal(isAnimatedPng(Buffer.alloc(0)), false);
   assert.equal(isAnimatedPng(Buffer.concat([SIG, Buffer.from([0, 0, 0, 13, 0x49])])), false);
+});
+
+test('stripPngChunks drops text, EXIF and time chunks but keeps image and animation chunks', () => {
+  const png = Buffer.concat([
+    SIG,
+    chunk('IHDR', Buffer.alloc(13)),
+    chunk('tEXt', Buffer.from('Author\0someone')),
+    chunk('eXIf', Buffer.from('gps')),
+    chunk('tIME', Buffer.alloc(7)),
+    chunk('acTL', Buffer.alloc(8)),
+    chunk('IDAT', Buffer.from('pixels')),
+    chunk('IEND'),
+  ]);
+  const out = stripPngChunks(png)!;
+  const text = out.toString('latin1');
+  assert.ok(text.includes('IHDR') && text.includes('acTL') && text.includes('IDAT') && text.includes('IEND'));
+  assert.ok(!text.includes('tEXt') && !text.includes('eXIf') && !text.includes('tIME') && !text.includes('someone'));
+  assert.equal(isAnimatedPng(out), true);
+});
+
+test('stripPngChunks refuses bytes that are not a whole PNG', () => {
+  assert.equal(stripPngChunks(Buffer.from('not a png at all, just some text')), null);
+  assert.equal(stripPngChunks(Buffer.concat([SIG, chunk('IHDR', Buffer.alloc(13))])), null);
 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { put, clanMediaKey } from '@/lib/storage';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
+import { stripImageMetadata, UNREADABLE_IMAGE } from '@/lib/stripImageMetadata';
 import { verifyFeeCollector } from '@/lib/auth';
 
 // Fee proofs are stored under `fees/` so the admin "confirm" action can delete them
@@ -48,10 +49,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'File too large. Max 10MB' }, { status: 400 });
   }
 
-  const finalExt = ALLOWED_EXTENSIONS.includes(ext) ? ext : 'jpg';
+  const clean = await stripImageMetadata(Buffer.from(await file.arrayBuffer()));
+  if (!clean) return NextResponse.json({ error: UNREADABLE_IMAGE }, { status: 400 });
+  const finalExt = clean.ext;
   const clan = await currentClan();
   const filename = clanMediaKey(clan, `fees/${crypto.randomUUID()}.${finalExt}`);
-  const { url } = await put(filename, file);
+  const { url } = await put(filename, clean.bytes, clean.contentType);
 
   return NextResponse.json({ url });
 }
