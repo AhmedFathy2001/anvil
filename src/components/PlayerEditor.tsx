@@ -1,5 +1,6 @@
 'use client';
 
+import DialogFrame from '@/components/DialogFrame';
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
@@ -130,12 +131,18 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-md shadow-2xl">
+    <DialogFrame
+      dirty={playerDirty}
+      onClose={onClose}
+      overlayClassName="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      panelClassName="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-md shadow-2xl"
+      ariaLabel="Edit player"
+    >
+      {(requestClose) => (
+      <>
         <div className="p-4 border-b border-card-border flex items-center justify-between">
           <h2 className="text-lg font-bold text-gold">Edit Player</h2>
-          <button onClick={onClose} className="text-text-muted hover:text-foreground text-xl">
+          <button onClick={requestClose} className="text-text-muted hover:text-foreground text-xl">
             &times;
           </button>
         </div>
@@ -251,7 +258,8 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
           </button>
           <UnsavedIndicator dirty={playerDirty} />
         </div>
-      </div>
-    </div>
+      </>
+      )}
+    </DialogFrame>
   );
 }

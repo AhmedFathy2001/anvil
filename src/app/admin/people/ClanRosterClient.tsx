@@ -8,6 +8,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import { useGuardedClose } from '@/components/UnsavedChanges';
 import GuideLink from '@/components/GuideLink';
 import { ROLE_BLURB } from '@/lib/clanRoles';
 import type { ClanReportView } from '@/lib/characterReports';
@@ -374,6 +375,10 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
 
   const [renameTarget, setRenameTarget] = useState<ClanMember | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const closeRename = useGuardedClose(
+    renameTarget !== null && renameValue.trim() !== '' && renameValue.trim() !== renameTarget.rsn.trim(),
+    () => setRenameTarget(null),
+  );
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState('');
 
@@ -1374,7 +1379,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/70"
-            onClick={() => !renameSaving && setRenameTarget(null)}
+            onClick={() => !renameSaving && closeRename()}
           />
           <form
             onSubmit={submitRename}
@@ -1408,7 +1413,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
               <button
                 type="button"
                 disabled={renameSaving}
-                onClick={() => setRenameTarget(null)}
+                onClick={closeRename}
                 className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors disabled:opacity-50"
               >
                 Cancel

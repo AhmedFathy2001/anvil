@@ -23,7 +23,6 @@ import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useDialog } from '@/components/Confirm';
 import type { SurveyQuestionView } from '@/lib/survey';
 import CopyLinkButton from '@/components/CopyLinkButton';
-import NumberInput from '@/components/NumberInput';
 import { DEFAULT_AUTO_TEAM_COUNT, placementOf, type TeamPlacement } from '@/lib/teamPlacement';
 import TeamPlacementFields from '@/components/TeamPlacementFields';
 
@@ -709,22 +708,6 @@ export default function SignupAdminPanel({
             teamCap={teamCap}
             onTeamCapChange={setTeamCap}
           />
-        )}
-            {placement === 'pick' && (
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-text-muted">Most players per team</span>
-                <NumberInput
-                  value={teamCap}
-                  onChange={setTeamCap}
-                  min={0}
-                  max={1000}
-                  fallback={0}
-                  className="w-24 bg-brown-light border border-card-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-gold"
-                />
-                <span className="text-xs text-text-muted">0 = no limit</span>
-              </label>
-            )}
-          </div>
         )}
 
         {(perClan || placement === 'draft') && (
