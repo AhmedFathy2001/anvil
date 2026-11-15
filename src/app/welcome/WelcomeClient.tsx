@@ -457,6 +457,14 @@ function IntentChooser({
       <p className="mt-5 text-center text-[13px] text-text-dim">
         Not sure? Pick the middle one — nothing here is locked in.
       </p>
+      {/* A fourth door that is a plain link, not an answer: somebody with viewers and no in-game clan
+          has no row above, and hosting is its own page rather than a step of this setup. */}
+      <p className="mt-2 text-center text-[13px] text-text-dim">
+        Hosting for your viewers instead?{' '}
+        <ClanLink href="/host" className="text-gold hover:text-gold-light">
+          I host for my viewers
+        </ClanLink>
+      </p>
     </div>
   );
 }

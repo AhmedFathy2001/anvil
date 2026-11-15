@@ -16,6 +16,7 @@
 // SILENT WHEN THERE IS NOTHING, for the same reason the error digest is: a daily "0 stalled" trains
 // everybody to skip past the channel, which costs the one alarm it exists to raise.
 
+import { maskEmail } from '@/lib/maskEmail';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import type { OpsEmbed } from '@/lib/opsWebhook';
 
@@ -148,7 +149,7 @@ export function buildLeadsDigest(
     const who = r.ownerDiscordId
       ? `[${r.ownerName ?? 'owner'}](https://discord.com/users/${r.ownerDiscordId})`
       : (r.ownerName ?? '_no owner_');
-    const mail = r.ownerEmail ? ` · \`${r.ownerEmail}\`` : '';
+    const mail = r.ownerEmail ? ` · \`${maskEmail(r.ownerEmail)}\`` : '';
     return {
       name: `${r.name} — ${days}d`,
       value: `${REASON_LABEL[reasonFor(r)!]}\n${who}${mail}`,
@@ -170,10 +171,15 @@ export function buildLeadsDigest(
   // list would BE the message.
   if (people.length > 0) {
     const named = people.slice(0, PEOPLE_SHOWN).map((p) => {
+<<<<<<< ours
       // The Discord profile link and nothing else. These are people who only looked: no clan, no
       // character. Their email used to be printed into the channel beside the name; an owner's still
       // is (above), because a clan owner is someone we do business with.
       return p.discordId ? `[${p.displayName ?? 'someone'}](https://discord.com/users/${p.discordId})` : (p.displayName ?? 'someone');
+=======
+      const who = p.discordId ? `[${p.displayName ?? 'someone'}](https://discord.com/users/${p.discordId})` : (p.displayName ?? 'someone');
+      return p.email ? `${who} · \`${maskEmail(p.email)}\`` : who;
+>>>>>>> theirs
     });
     const rest = people.length - named.length;
     fields.push({

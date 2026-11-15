@@ -84,6 +84,10 @@ export default function NewPluginToken({ cta = 'Make a token', primary = false }
       <p className="text-xs text-text-muted mt-1.5">
         Shown once — Anvil keeps only a fingerprint of it. Paste it now; if you lose it, make another.
       </p>
+      <p className="text-xs text-text-muted mt-1">
+        This token signs in as you, so treat it like a password. If it leaks, press <b>Revoke all</b> in your
+        plugin settings.
+      </p>
       {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
     </div>
   );

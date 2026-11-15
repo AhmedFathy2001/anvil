@@ -1,3 +1,6 @@
+import { landingClans, recruitingClans } from '@/lib/landingClans';
+import { onboardingState } from '@/lib/onboarding';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
@@ -5,7 +8,7 @@ import { isFriendsHost } from '@/lib/friendEventRules';
 import { currentClan, isApexHost } from '@/lib/clanContext';
 import { clanRankFor } from '@/lib/clanLeaderboard';
 import { JsonLd, clanLd, faqLd, softwareLd, websiteLd } from '@/lib/jsonLd';
-import { ANVIL_DEFINITION, GENERAL_FAQ } from '@/lib/answers';
+import { ANVIL_DEFINITION, LANDING_FAQ } from '@/lib/answers';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { ordinal } from '@/lib/utils';
 import ApexLanding from '@/components/landing/ApexLanding';
@@ -152,8 +155,8 @@ async function ApexRoot() {
         <JsonLd data={websiteLd()} />
         <JsonLd data={softwareLd({ description: ANVIL_DEFINITION })} />
         {/* Matches the FAQ ApexLanding renders, item for item. */}
-        <JsonLd data={faqLd(GENERAL_FAQ)} />
-        <ApexLanding stats={await platformStats()} />
+        <JsonLd data={faqLd(LANDING_FAQ)} />
+        <ApexLanding stats={await platformStats()} clans={await landingClans()} />
       </>
     );
   }
@@ -170,8 +173,16 @@ async function ApexRoot() {
     // Their Supporter look, once: every character name the signed-in home draws is their own.
     supporterForUser(session.userId),
   ]);
+  // The clanless home also offers somewhere to go and shows the setup progress already computed for
+  // /welcome. Only read for people in no clan; everyone else's home does not use them.
+  const clanless = view.clans.length === 0;
+  const [recruiting, setup] = clanless
+    ? await Promise.all([recruitingClans(), onboardingState(session.userId, session.playerId)])
+    : [[], null];
   return (
     <ApexHome
+      recruiting={recruiting}
+      setup={setup ? { doneCount: setup.doneCount, total: setup.total, next: setup.steps.find((st) => st.key === setup.current) ?? null } : null}
       view={view}
       signals={signals}
       displayName={userRow?.displayName ?? 'there'}
@@ -316,7 +327,7 @@ export default async function HomePage() {
     <div>
       <Hero view={view} boostLevel={boost?.level ?? 0} boostNameStyle={boost?.nameStyle} />
       {hall && <ClanHall initial={hall} src="home" />}
-      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
+      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
       <Competitions view={view} />

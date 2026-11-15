@@ -165,6 +165,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
       ]
     : [
         { href: '/clans', label: 'Clans' },
+        { href: '/events', label: 'Events' },
         { href: '/leaderboard', label: 'Leaderboard' },
       ];
 

@@ -5,6 +5,7 @@ import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
 import { SITE } from '@/lib/site';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import ApplyToClan from '@/components/ApplyToClan';
 import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
@@ -226,7 +227,7 @@ export default function PublicClanHome({
               </a>
             ) : !signedIn ? (
               <ClanLink
-                href="/login"
+                href={`/login?return=${encodeURIComponent(clanBasePath(view))}`}
                 className="shrink-0 rounded-lg bg-[var(--sa)] px-4 py-2 text-center text-[13px] font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
               >
                 Sign in to apply
@@ -268,7 +269,7 @@ export default function PublicClanHome({
             />
           ) : (
             <ClanLink
-              href="/login"
+              href={`/login?return=${encodeURIComponent(clanBasePath(view))}`}
               className="shrink-0 rounded-lg border border-card-border px-4 py-2 text-center text-[13px] font-semibold transition-colors hover:border-[var(--sa)] hover:text-[var(--sa-text)]"
             >
               Sign in to ask

@@ -43,7 +43,7 @@ export const GENERAL_FAQ: Faq[] = [
   },
   {
     q: 'Do members need screenshots to prove drops?',
-    a: 'Not for anything the plugin can see. Drops, kills, XP, laps, clears and the rest are credited the moment they happen, to the right player, with a tamper-evident screenshot attached. Tiles the plugin cannot verify — or members who do not run it — fall back to a screenshot submitted on the site and approved by a team captain.',
+    a: 'Not for anything the plugin can see. Drops, kills, XP, laps, clears and the rest are credited the moment they happen, to the right player, with a screenshot attached, stamped with the time our server received it. Tiles the plugin cannot verify — or members who do not run it — fall back to a screenshot submitted on the site and approved by a team captain.',
   },
   {
     q: 'How do I run Skill of the Week or Boss of the Week in my clan?',
@@ -61,7 +61,26 @@ export const GENERAL_FAQ: Faq[] = [
     q: 'How is this different from a spreadsheet and a screenshots channel?',
     a: 'A spreadsheet needs someone to read every screenshot, check it, and type it in — for the whole event. Anvil’s plugin reports what happened in the game directly, credits the right player and team, and keeps the board and standings current on one page, so the organiser can play instead of doing data entry.',
   },
+  {
+    q: 'What does Anvil see, and is it safe to sign in?',
+    a: 'Sign-in is Discord only, and Anvil never sees your Discord password. The sign-in asks Discord for your username, avatar and email, and nothing else: not your messages, your servers or your friends. The plugin connects only to anvilosrs.com and sends nothing identifying until you sign in. No IP address is stored in Anvil’s database; our web server keeps an access log, which can include addresses, for about a week.',
+  },
 ];
+
+/**
+ * The shorter list the front page shows (and the FAQPage markup there repeats exactly). The rest stay
+ * on /features. Chosen by question so reordering GENERAL_FAQ cannot change it by accident.
+ */
+const LANDING_QUESTIONS = [
+  'What is Anvil?',
+  'Is Anvil free?',
+  'Do members need screenshots to prove drops?',
+  'Does Anvil work with Discord?',
+  'What does Anvil see, and is it safe to sign in?',
+];
+export const LANDING_FAQ: Faq[] = LANDING_QUESTIONS.map((q) => GENERAL_FAQ.find((f) => f.q === q)).filter(
+  (f): f is Faq => Boolean(f),
+);
 
 /** A page that answers one search, end to end. Rendered at /features/<slug>. */
 export interface FeaturePage {
@@ -91,7 +110,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
       },
       {
         heading: 'The plugin fills it in',
-        body: 'Members install the Anvil plugin from the RuneLite Plugin Hub and link their account once. During the event it reports drops, kills, XP and clears as they happen, credits the right player on the right team, and attaches a tamper-evident screenshot. No one has to post proof in a channel and no one has to check it by hand.',
+        body: 'Members install the Anvil plugin from the RuneLite Plugin Hub and link their account once. During the event it reports drops, kills, XP and clears as they happen, credits the right player on the right team, and attaches a screenshot stamped with the time our server received it. No one has to post proof in a channel and no one has to check it by hand.',
       },
       {
         heading: 'Teams, drafts and Discord',
@@ -174,7 +193,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
       },
       {
         heading: 'What it tracks',
-        body: 'Item drops, boss kill counts, skill XP, NPC kills, timed clears and raids, agility laps, gathering, achievement diaries, combat achievements, PvP kills, Last Man Standing and loot value — each credited to the right event tile and player as it happens, with a tamper-evident screenshot.',
+        body: 'Item drops, boss kill counts, skill XP, NPC kills, timed clears and raids, agility laps, gathering, achievement diaries, combat achievements, PvP kills, Last Man Standing and loot value — each credited to the right event tile and player as it happens, with a screenshot stamped with the time our server received it.',
       },
       {
         heading: 'Between events',

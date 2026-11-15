@@ -220,7 +220,13 @@ export default function NewClanClient({
           }`}
         />
         {nameBad ? (
-          <p className="mt-1 text-xs text-red-400">{nameCheck?.message}</p>
+          <p className="mt-1 text-xs text-red-400">
+            {nameCheck?.message}{' '}
+            <ClanLink href="/clans" className="font-medium text-gold hover:text-gold-light">
+              Find it in the Clan Hall
+            </ClanLink>{' '}
+            to apply, or ask its leader to add you.
+          </p>
         ) : (
           <p className="mt-1 text-xs text-gray-500">
             Exactly as it appears in OSRS. Roster sync uses it to match your clan and refuses a roster

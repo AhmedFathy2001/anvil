@@ -201,7 +201,7 @@ export default function EnterEvent({
   // Nothing to sign up with. Say which door to go through rather than showing an empty picker.
   //
   // No character at all, while sign-ups are open: the sign-up page links one inline, so send them
-  // there. A character that is not verified yet is fixed on the profile — the sign-up page would only
+  // there. A character that is not verified yet is fixed on the link-account step — the sign-up page would only
   // send them back here.
   if (options.length === 0) {
     const toSignup = signupsOpen && !info.hasCharacter;
@@ -216,10 +216,10 @@ export default function EnterEvent({
           </div>
         </div>
         <ClanLink
-          href={toSignup ? `/events/${eventId}/signup` : '/profile'}
+          href={toSignup ? `/events/${eventId}/signup` : '/settings/characters#link-account'}
           className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
         >
-          {toSignup ? 'Sign up' : 'Verify on your profile'}
+          {toSignup ? 'Sign up' : 'Verify a character'}
         </ClanLink>
       </Card>
     );
@@ -386,7 +386,7 @@ function CreatorJoin({
           </div>
         </div>
         <ClanLink
-          href={info.hasCharacter ? '/profile' : `/events/${eventId}/signup`}
+          href={info.hasCharacter ? '/settings/characters#link-account' : `/events/${eventId}/signup`}
           className="shrink-0 rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light"
         >
           {info.hasCharacter ? 'Prove it’s mine' : 'Add my character'}

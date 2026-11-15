@@ -37,6 +37,7 @@ export default function PersonProfile({
   detectedCount = 0,
   suggestedRsn = '',
   unfinishedSetup = false,
+  setupHref = '/welcome',
   supporter = null,
   media = null,
   discordAvatar = null,
@@ -55,6 +56,8 @@ export default function PersonProfile({
   detectedCount?: number;
   /** Their first run is still outstanding — see lib/onboarding's `offer`. */
   unfinishedSetup?: boolean;
+  /** Where "Finish setting up" goes; carries the page they were heading for as `next`. */
+  setupHref?: string;
   /** A name arrived at from `?connect=` — see AddCharacterClient. */
   suggestedRsn?: string;
   /** Their Anvil Supporter subscription, for the name's flair. */
@@ -64,7 +67,7 @@ export default function PersonProfile({
     <div className="mx-auto max-w-6xl">
       {unfinishedSetup && (
         <ClanLink
-          href="/welcome"
+          href={setupHref}
           className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-sm transition-colors hover:border-gold/60"
         >
           <span className="font-medium text-gold">Finish setting up</span>

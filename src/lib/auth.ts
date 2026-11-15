@@ -936,6 +936,30 @@ function touchPluginLink(id: number, now = Date.now()): void {
     .catch(() => {});
 }
 
+/**
+ * Revokes the ONE token it is given, so the plugin's Sign out can end that sign-in on the server
+ * instead of only forgetting it locally. A token on a per-client link (`plugin_links`) is marked
+ * revoked; the older account token (`users.pluginTokenHash`) is cleared. Other tokens the person
+ * holds are untouched ("Revoke all" on the site is the sledgehammer). Returns whether anything was
+ * revoked; an unknown token is simply not found, which is the same outcome as already signed out.
+ */
+export async function revokePluginToken(token: string): Promise<boolean> {
+  const t = token.trim();
+  if (!t) return false;
+  const hash = hashPluginToken(t);
+  const links = await db
+    .update(pluginLinks)
+    .set({ revokedAt: new Date().toISOString() })
+    .where(and(eq(pluginLinks.tokenHash, hash), isNull(pluginLinks.revokedAt)))
+    .returning({ id: pluginLinks.id });
+  const direct = await db
+    .update(users)
+    .set({ pluginTokenHash: null })
+    .where(eq(users.pluginTokenHash, hash))
+    .returning({ id: users.id });
+  return links.length + direct.length > 0;
+}
+
 export async function verifyPluginTokenUser(
   request: Request,
 ): Promise<{ userId: number } | null> {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { put, clanMediaKey } from '@/lib/storage';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
+import { stripImageMetadata, UNREADABLE_IMAGE } from '@/lib/stripImageMetadata';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { eventForRequest } from '@/lib/eventScope';
 
@@ -59,10 +60,12 @@ export async function POST(
     return NextResponse.json({ error: 'File too large. Max 10MB' }, { status: 400 });
   }
 
-  const finalExt = ALLOWED_EXTENSIONS.includes(ext) ? ext : 'jpg';
+  const clean = await stripImageMetadata(Buffer.from(await file.arrayBuffer()));
+  if (!clean) return NextResponse.json({ error: UNREADABLE_IMAGE }, { status: 400 });
+  const finalExt = clean.ext;
   const clan = await currentClan();
   const filename = clanMediaKey(clan, `payouts/${crypto.randomUUID()}.${finalExt}`);
-  const { url } = await put(filename, file);
+  const { url } = await put(filename, clean.bytes, clean.contentType);
 
   return NextResponse.json({ url });
 }
