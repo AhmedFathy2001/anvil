@@ -15,7 +15,7 @@ import { is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 
 import * as schema from '../src/db/schema.ts';
-import { PERSON_DATA, PERSON_VALUE_COLUMNS, neverExported, type PersonKey } from '../src/lib/personData.ts';
+import { CHARACTER_KEYS, FREE_TEXT_COLUMN, PERSON_DATA, PERSON_VALUE_COLUMNS, neverExported, type PersonKey } from '../src/lib/personData.ts';
 
 interface Col {
   notNull: boolean;
@@ -146,4 +146,48 @@ test('the export is never driven by a pointer that only says they did something 
     if (!p.export) continue;
     assert.ok(!/_by(_user)?(_id)?$/.test(p.column), `${p.table}.${p.column} is an actor pointer and must not drive an export`);
   }
+});
+
+// A character changes hands and its rows stay, so a row found THROUGH a character may be a previous
+// holder's. Every such export has to say how its rows are tied to the person asking.
+
+test('every export found through a character says how its rows are tied to the requester', () => {
+  for (const p of PERSON_DATA) {
+    if (!p.export || !CHARACTER_KEYS.includes(p.key)) continue;
+    const tie = p.export.tie;
+    assert.ok(tie, `${p.table}.${p.column} is found by ${p.key} and exports with no tie: it could show a previous holder's rows`);
+    const cols = TABLES.get(p.table)!;
+    if ('writer' in tie) {
+      const col = cols.get(tie.writer);
+      assert.ok(col, `no column ${p.table}.${tie.writer}`);
+      if (col.ref) assert.equal(col.ref.table, KEY_TABLE[tie.key], `${p.table}.${tie.writer} does not point at ${KEY_TABLE[tie.key]}`);
+    } else if ('since' in tie) {
+      assert.ok(cols.has(tie.since), `no column ${p.table}.${tie.since}`);
+    }
+  }
+});
+
+test('an export tied to nobody carries no personal or free-text column', () => {
+  let checked = 0;
+  for (const p of PERSON_DATA) {
+    const tie = p.export?.tie;
+    if (!tie || !('unowned' in tie)) continue;
+    checked++;
+    for (const c of p.export!.columns) assert.equal(FREE_TEXT_COLUMN.test(c), false, `${p.table}.${c} is free text on rows nothing ties to the requester`);
+  }
+  assert.ok(checked >= 3);
+  const entry = PERSON_DATA.find((p) => p.table === 'event_participants' && p.column === 'account_id')!.export!;
+  for (const c of ['discord', 'timezone', 'player_token']) assert.ok(!entry.columns.includes(c), `event_participants.${c}`);
+  for (const c of ['discord', 'timezone', 'profile_data', 'answers', 'message', 'note', 'fee_notes', 'contact', 'supporter_style']) {
+    assert.equal(FREE_TEXT_COLUMN.test(c), true, c);
+  }
+});
+
+test('answers and messages only leave through the row’s own writer', () => {
+  const signups = PERSON_DATA.filter((p) => p.table === 'event_signups' && p.export);
+  assert.deepEqual(signups.map((p) => p.column), ['user_id'], 'sign-up answers are exported by the login that wrote them, never by seat');
+  const requests = PERSON_DATA.find((p) => p.table === 'clan_join_requests' && p.column === 'account_id')!;
+  assert.deepEqual(requests.export!.tie, { writer: 'player_id', key: 'player' });
+  const proofs = PERSON_DATA.find((p) => p.table === 'submissions' && p.column === 'player_id')!;
+  assert.deepEqual(proofs.export!.tie, { since: 'created_at' });
 });

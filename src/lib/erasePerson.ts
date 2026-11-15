@@ -8,6 +8,7 @@
 //   1. Locks the login row. No row = already deleted = success (running it twice is safe).
 //   2. Refuses while they own a clan or space, or a paid plan still renews (lib/personData eraseBlockers).
 //   3. Keeps a ban working: a ban still in force moves to an empty stand-in that holds only the Discord id.
+//      The audit log is never deleted from: their Discord id and name inside a row are replaced.
 //   4. Runs every `sql` row of the list, then the named steps the list marks `custom`.
 //   5. Characters: one on a clan's roster or in a clan's event stays as an unclaimed name, exactly
 //      as lib/accountRelease leaves a released character, with everything personal cleared. One on
@@ -47,6 +48,9 @@ import { log } from '@/lib/logger';
 import {
   PERSON_DATA,
   eraseBlockers,
+  isDiscordId,
+  redactAuditText,
+  redactMergeSide,
   retainedBan,
   type EraseBlocker,
   type EraseFacts,
@@ -88,22 +92,20 @@ export async function eraseFactsFor(userId: number, reader: Reader = db): Promis
     .where(eq(users.id, userId))
     .limit(1);
   if (!user) return null;
-  const [owned, supporterRows, others] = await Promise.all([
-    // clan-scope: global -- the subject is one PERSON's owner seats, in every clan and space. The
-    // hidden friends host is not a clan anybody else belongs to and goes ownerless instead.
-    reader
-      .select({ id: clans.id, slug: clans.slug, name: clans.name, kind: clans.kind })
-      .from(clanStaff)
-      .innerJoin(clans, eq(clans.id, clanStaff.clanId))
-      .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner'), ne(clans.kind, 'friends'))),
-    reader
-      .select({ status: supporterSubscriptions.status, gumroadSubscriptionId: supporterSubscriptions.gumroadSubscriptionId })
-      .from(supporterSubscriptions)
-      .where(eq(supporterSubscriptions.userId, userId)),
-    user.playerId == null
-      ? Promise.resolve([])
-      : reader.select({ id: users.id }).from(users).where(and(eq(users.playerId, user.playerId), ne(users.id, userId))),
-  ]);
+  // One after another: inside a transaction these share one connection.
+  // clan-scope: global -- the subject is one PERSON's owner seats, in every clan and space. The
+  // hidden friends host is not a clan anybody else belongs to and goes ownerless instead.
+  const owned = await reader
+    .select({ id: clans.id, slug: clans.slug, name: clans.name, kind: clans.kind })
+    .from(clanStaff)
+    .innerJoin(clans, eq(clans.id, clanStaff.clanId))
+    .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner'), ne(clans.kind, 'friends')));
+  const supporterRows = await reader
+    .select({ status: supporterSubscriptions.status, gumroadSubscriptionId: supporterSubscriptions.gumroadSubscriptionId })
+    .from(supporterSubscriptions)
+    .where(eq(supporterSubscriptions.userId, userId));
+  const others =
+    user.playerId == null ? [] : await reader.select({ id: users.id }).from(users).where(and(eq(users.playerId, user.playerId), ne(users.id, userId)));
   return { ownedClans: owned, supporterRows, platformRole: user.platformRole, otherLogins: others.length };
 }
 
@@ -254,22 +256,41 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
     .where(or(eq(eventDiscordMembers.userId, userId), discordId ? eq(eventDiscordMembers.discordId, discordId) : undefined));
   if (discordId) {
     await tx.update(accounts).set({ discordId: null }).where(eq(accounts.discordId, discordId));
-    // A log row that spells out their Discord id (a claim, a sign-up) cannot be made anonymous by
-    // clearing who did it, so it goes. Discord ids are 17+ digit numbers: a text match is exact enough.
-    // clan-scope: global -- the platform log and every clan's, for this one person's id.
-    const needle = `%${discordId}%`;
-    await tx
-      .delete(clanAuditLog)
-      .where(or(sql`${clanAuditLog.oldValue} like ${needle}`, sql`${clanAuditLog.newValue} like ${needle}`, sql`${clanAuditLog.notes} like ${needle}`));
   }
-
+  if (isDiscordId(discordId)) {
+    // THE AUDIT LOG IS NEVER DELETED FROM. What a clan did about someone (a ban, a role change) is
+    // the clan's history, and deleting an account must not be a way to erase it. A row that spells
+    // out their Discord id keeps its action, clan, time and every other field; the id (matched as a
+    // whole number, never as digits inside a longer one) and their Discord name are replaced.
+    // clan-scope: global -- the platform log and every clan's, for this one person's id.
+    const whole = `(^|[^0-9])${discordId}([^0-9]|$)`;
+    const rows = await tx
+      .select({ id: clanAuditLog.id, oldValue: clanAuditLog.oldValue, newValue: clanAuditLog.newValue, notes: clanAuditLog.notes })
+      .from(clanAuditLog)
+      .where(or(sql`${clanAuditLog.oldValue} ~ ${whole}`, sql`${clanAuditLog.newValue} ~ ${whole}`, sql`${clanAuditLog.notes} ~ ${whole}`));
+    const who = { discordId, names: [user.discordUsername, user.discordGlobalName, user.displayName] };
+    for (const row of rows) {
+      await tx
+        .update(clanAuditLog)
+        .set({ oldValue: redactAuditText(row.oldValue, who, true), newValue: redactAuditText(row.newValue, who, true), notes: redactAuditText(row.notes, who, true) })
+        .where(eq(clanAuditLog.id, row.id));
+    }
+  }
   if (playerId != null) {
-    // A merge entry records the display name of each side (lib/mergePeople), keyed by person id.
+    // A merge entry records the person id and display name of each side (lib/mergePeople). The entry
+    // stays; this person's id and name on it do not.
     // clan-scope: global -- the platform log's own rows about this person.
     const mergedAs = `{"playerId":${playerId},%`;
-    await tx
-      .delete(clanAuditLog)
+    const merges = await tx
+      .select({ id: clanAuditLog.id, oldValue: clanAuditLog.oldValue, newValue: clanAuditLog.newValue })
+      .from(clanAuditLog)
       .where(and(eq(clanAuditLog.eventType, 'platform_people_merged'), or(sql`${clanAuditLog.oldValue} like ${mergedAs}`, sql`${clanAuditLog.newValue} like ${mergedAs}`)));
+    for (const row of merges) {
+      await tx
+        .update(clanAuditLog)
+        .set({ oldValue: redactMergeSide(row.oldValue, playerId), newValue: redactMergeSide(row.newValue, playerId) })
+        .where(eq(clanAuditLog.id, row.id));
+    }
   }
 
   // Clips from their own channel name their streaming account. A clip on the host's channel is the
