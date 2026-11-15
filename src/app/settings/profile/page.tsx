@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Profile & look: your plan and boosts at the top, then everything that dresses you (pictures,
- * display case, name colours, chat colours) with a live preview. Was four pages: Profile look,
+ * display case, name colours) with a live preview. Was four pages: Profile look,
  * Supporter & name colours, Clan boosts and the colour half of In-game chat.
  */
 export default function ProfileSettingsPage() {
@@ -23,7 +23,6 @@ export default function ProfileSettingsPage() {
           { id: 'boosts', label: 'Clan boosts' },
           { id: 'look', label: 'Your look' },
           { id: 'name-colours', label: 'Name colours' },
-          { id: 'chat-colours', label: 'Chat colours' },
         ]}
       />
 

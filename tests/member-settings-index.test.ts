@@ -171,3 +171,13 @@ test('nothing typed, nothing found', () => {
   assert.deepEqual(searchMemberSettings(''), []);
   assert.deepEqual(searchMemberSettings('zzzzqqq'), []);
 });
+
+test('"visible" finds who sees each character', () => {
+  assert.equal(top('visible'), 'character-visibility');
+  assert.ok(searchMemberSettings('show to other clans').some((e) => e.id === 'character-visibility'));
+});
+
+test('chat colours live on one page, In game', () => {
+  const e = searchMemberSettings('chat colours').find((x) => x.id === 'chat-colours');
+  assert.equal(e?.href, '/settings/in-game#chat-colours');
+});
