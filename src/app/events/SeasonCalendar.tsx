@@ -66,7 +66,23 @@ export default function SeasonCalendar({
   // Rendered on the client only: the window is anchored to "now", and the server's now is not the
   // viewer's. Until it mounts there is nothing to draw.
   const [now, setNow] = useState<number | null>(null);
-  useEffect(() => setNow(Date.now()), []);
+  useEffect(() => {
+    setNow(Date.now());
+    // A phone shows about half of the track at once. Sixteen weeks there is bars too narrow for a
+    // name with today off-screen to the right, so it opens on the shortest range.
+    if (window.matchMedia('(max-width: 639px)').matches) setZoom(6);
+  }, []);
+
+  // The track is wider than a small screen and scrolls sideways. Open it (and reopen it after a
+  // zoom) with today in the middle of what is visible, not at the far left of the past.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = scrollRef.current;
+    const track = trackRef.current;
+    if (!box || !track || now == null || box.scrollWidth <= box.clientWidth) return;
+    const nowPx = track.offsetLeft + (1 - weeksAhead / zoom) * track.clientWidth;
+    box.scrollLeft = Math.max(0, nowPx - box.clientWidth / 2);
+  }, [now, zoom, weeksAhead]);
 
   const view = useMemo(() => {
     if (now == null) return null;
@@ -158,7 +174,7 @@ export default function SeasonCalendar({
         </span>
       </div>
 
-      <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg p-4">
+      <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg p-4">
         <div ref={trackRef} className="relative min-w-[620px]">
           {/* axis */}
           <div className="relative h-4 border-b border-card-border">
@@ -180,8 +196,10 @@ export default function SeasonCalendar({
           </div>
 
           {view.lanes.map((lane) => (
-            <div key={lane.name} className="relative mt-6">
-              <span className="absolute -top-4 left-0 text-[9.5px] uppercase tracking-[0.14em] text-text-muted">
+            <div key={lane.name} className="relative mt-2">
+              {/* Sticky: on a small screen the track opens scrolled to today, and the lane's name
+                  stays at the visible left edge instead of back at the start of the track. */}
+              <span className="sticky left-0 mb-0.5 inline-block text-[9.5px] uppercase leading-4 tracking-[0.14em] text-text-muted">
                 {lane.name}
               </span>
               <div style={{ height: lane.rows.length * (ROW_H + ROW_GAP) - ROW_GAP }} className="relative">

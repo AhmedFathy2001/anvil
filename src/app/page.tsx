@@ -27,6 +27,7 @@ import { publicClanActivity, publicClanHomeView } from '@/lib/clanHome';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
+import { viewerEventEntries, type ViewerEventEntry } from '@/lib/viewerEvents';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { clanHallView, hallConfig } from '@/lib/clanHall';
 import ClanHall from '@/components/ClanHall';
@@ -322,6 +323,16 @@ export default async function HomePage() {
     boostPromise,
     session?.userId ? boostViewerFor(clan.id, session.userId, session.playerId ?? null).catch(() => null) : Promise.resolve(null),
   ]);
+  // The board events on the page the viewer has a team in (or is signed up to), so the list below
+  // puts theirs first and names their team, as the Events page does (lib/viewerEvents: three queries).
+  const openEvents = view.events.filter((e) => e.status !== 'past');
+  const myBoards = session
+    ? await viewerEventEntries(
+        { userId: session.userId, playerId: session.playerId ?? null },
+        openEvents.map((e) => e.id),
+        openEvents.filter((e) => e.status === 'upcoming').map((e) => e.id),
+      )
+    : new Map<number, ViewerEventEntry>();
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
   // The "Getting started" guide strip, until a first proof of theirs has landed.
@@ -335,7 +346,7 @@ export default async function HomePage() {
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
-      <Competitions view={view} now={new Date().getTime()} />
+      <Competitions view={view} now={new Date().getTime()} myBoards={myBoards} />
       <ClanWeek view={view} />
       {boost && (
         <ClanBoostPanel

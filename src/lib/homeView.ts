@@ -57,6 +57,8 @@ export interface HomeWeekly {
   top: { rsn: string; value: number; tied: boolean } | null;
   /** Clan-wide gain per day across the competition, for the card's shape. Empty when out of window. */
   days: number[];
+  /** The viewer has a seat entered in it and has not opted out (from the rows already read). */
+  mine: boolean;
 }
 
 /** The home page draws the same card as the events index (lib/eventCards). */
@@ -179,6 +181,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
           competitionId: weeklyParticipants.competitionId,
           clanMemberId: weeklyParticipants.clanMemberId,
           rsn: weeklyParticipants.rsn,
+          optedOut: weeklyParticipants.optedOut,
           baselineValue: weeklyParticipants.baselineValue,
           currentValue: weeklyParticipants.currentValue,
         })
@@ -295,6 +298,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       type,
       metricLabel: metricLabel(c.type, c.metric),
       iconUrl: competitionIconUrl(c.type, c.metric),
+      mine: parts.some((p) => p.clanMemberId != null && !p.optedOut && viewerMemberIds.includes(p.clanMemberId)),
       status: weeklyStatus(c, nowMs),
       startDate: c.startDate,
       endDate: c.endDate,

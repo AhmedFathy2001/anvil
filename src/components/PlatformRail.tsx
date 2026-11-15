@@ -261,10 +261,12 @@ export default function PlatformRail({
 
       {/* The way out. The first cut of this rail had no sign-out at all, because it lived in the
           clan nav that the apex no longer renders. */}
-      <div className="order-2 ml-auto flex min-w-0 shrink items-center gap-2.5 pl-2 lg:order-none lg:ml-0 lg:mt-auto lg:shrink-0 lg:border-t lg:border-card-border-soft lg:pt-3">
+      <div className="order-2 ml-auto flex min-w-0 shrink items-center gap-2.5 pl-2 lg:order-none lg:ml-0 lg:mt-auto lg:shrink-0 lg:flex-wrap lg:border-t lg:border-card-border-soft lg:pt-3">
         {signedIn ? (
           <>
-            <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5 max-lg:min-h-11">
+            {/* The name gets the rail's whole width; Sign out sits on its own line under it. Beside it,
+                the button left the name about 80px ("Max ..."). */}
+            <ClanLink href="/profile" title={displayName ?? undefined} className="group flex min-w-0 items-center gap-2.5 max-lg:min-h-11 lg:w-full">
               {avatarUrl && !avatarFailed ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -304,7 +306,7 @@ export default function PlatformRail({
               href="/api/auth/logout?return=/"
               title="Sign out"
               aria-label="Sign out"
-              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-card-border px-2 py-1 text-[12px] max-lg:hidden font-medium text-foreground/80 transition-colors hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-card-border px-2 py-1 text-[12px] max-lg:hidden font-medium text-foreground/80 transition-colors hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
             >
               <SignOutIcon />
               <span className="hidden sm:inline">Sign out</span>

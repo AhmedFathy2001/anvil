@@ -3,7 +3,7 @@ import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
 import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
-import { boardRow, rowWhen, weeklyRow } from '@/lib/competitionRows';
+import { boardRow, countRows, rowWhen, sectionRows, weeklyRow, type BoardViewer } from '@/lib/competitionRows';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
@@ -580,7 +580,16 @@ function JustFinishedCard({ w }: { w: HomeWeekly }) {
  * So: anything live or scheduled keeps a full row, and everything finished collapses into one
  * dense list underneath — the same information in a fifth of the height, and read at a glance.
  */
-export function Competitions({ view, now }: { view: HomeView; now: number }) {
+export function Competitions({
+  view,
+  now,
+  myBoards,
+}: {
+  view: HomeView;
+  now: number;
+  /** The viewer's part in the listed board events (lib/viewerEvents), by event id. */
+  myBoards?: ReadonlyMap<number, BoardViewer>;
+}) {
   // Whatever "Happening now" is already showing full-size, so the page doesn't print the live BOTW
   // twice in a row — which it did, and which was half of why the middle read as a wall.
   const featured = new Set<string>();
@@ -596,26 +605,35 @@ export function Competitions({ view, now }: { view: HomeView; now: number }) {
   const liveWeeklies = view.weeklies.filter((w) => w.status !== 'completed' && !featured.has(`w${w.id}`));
   const liveEvents = view.events.filter((e) => e.status !== 'past' && !featured.has(`e${e.id}`));
 
-  // The same row as the events page (lib/competitionRows), live before scheduled, so the list
-  // reads in the order things happen.
-  const cards = [
-    ...liveEvents.map((e) => boardRow(e)),
-    ...liveWeeklies.map((w) =>
-      weeklyRow({
-        id: w.id,
-        kind: WEEK_KIND[w.type] ?? 'sotw',
-        name: w.title,
-        metricLabel: w.metricLabel,
-        iconUrl: w.iconUrl,
-        state: w.status === 'active' ? 'live' : 'upcoming',
-        startDate: w.startDate,
-        endDate: w.endDate,
-        entrants: w.entrants,
-        unit: unitFor(w),
-        top: w.top,
-      }),
-    ),
-  ].sort((a, b) => (a.state === b.state ? 0 : a.state === 'live' ? -1 : 1));
+  // The same rows, in the same order, as the events page (lib/competitionRows): what the viewer
+  // is in first, then the rest that is running, then what is scheduled.
+  const mineKeys = new Set([
+    ...liveEvents.filter((e) => myBoards?.has(e.id)).map((e) => `e${e.id}`),
+    ...liveWeeklies.filter((w) => w.mine).map((w) => `w${w.id}`),
+  ]);
+  const sections = sectionRows(
+    [
+      ...liveEvents.map((e) => boardRow(e, myBoards?.get(e.id))),
+      ...liveWeeklies.map((w) =>
+        weeklyRow({
+          id: w.id,
+          kind: WEEK_KIND[w.type] ?? 'sotw',
+          name: w.title,
+          metricLabel: w.metricLabel,
+          iconUrl: w.iconUrl,
+          state: w.status === 'active' ? 'live' : 'upcoming',
+          startDate: w.startDate,
+          endDate: w.endDate,
+          entrants: w.entrants,
+          unit: unitFor(w),
+          top: w.top,
+        }),
+      ),
+    ],
+    mineKeys,
+  );
+  const cards = [...sections.running, ...sections.upNext];
+  const anyOpen = sections.mine.length + cards.length > 0;
 
   const finished: FinishedRow[] = [
     ...view.weeklies
@@ -645,16 +663,32 @@ export function Competitions({ view, now }: { view: HomeView; now: number }) {
     .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''))
     .slice(0, FINISHED_ROWS);
 
-  if (cards.length === 0 && finished.length === 0) return null;
+  if (!anyOpen && finished.length === 0) return null;
+  const all = { href: '/events', label: 'All competitions →' };
 
   return (
     <>
+      {sections.mine.length > 0 && (
+        <>
+          <SectionHead title="You’re in" note={runningParts(countRows(sections.mine))} more={all} />
+          <div className="mb-9">
+            <CompetitionRowList count={sections.mine.length}>
+              {sections.mine.map((r) => (
+                <li key={r.key}>
+                  <CompetitionRow row={r} when={rowWhen(r, now)} mine />
+                </li>
+              ))}
+            </CompetitionRowList>
+          </div>
+        </>
+      )}
+
       {cards.length > 0 && (
         <>
           <SectionHead
             title="On now and coming up"
             note="everything you can still enter"
-            more={{ href: '/events', label: 'All competitions →' }}
+            more={sections.mine.length > 0 ? undefined : all}
           />
           <div className="mb-9">
             <CompetitionRowList count={cards.length}>
@@ -673,7 +707,7 @@ export function Competitions({ view, now }: { view: HomeView; now: number }) {
           <SectionHead
             title="Recently finished"
             note="who won, and when"
-            more={cards.length > 0 ? undefined : { href: '/events', label: 'All competitions →' }}
+            more={anyOpen ? undefined : all}
           />
           <div className="mb-9 overflow-hidden rounded-xl border border-card-border bg-card-bg">
             {finished.map((r) => (

@@ -26,7 +26,7 @@ import CompetitionRow, { CompetitionRowList } from '@/components/events/Competit
 import { boardRow, countRows, rowWhen, sectionRows, weeklyRow } from '@/lib/competitionRows';
 import { runningParts } from '@/lib/runningCount';
 import { parseStamp } from '@/lib/dbTime';
-import { viewerEventEntries } from '@/lib/viewerEvents';
+import { viewerEventEntries, type ViewerEventEntry } from '@/lib/viewerEvents';
 import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
@@ -144,10 +144,12 @@ export default async function EventsIndexPage({
   const myBoards = session
     ? await viewerEventEntries(
         { userId: session.userId, playerId: session.playerId ?? null },
-        listedBoards.map((b) => b.id),
+        // The finished boards on the page too, so a board they played in names their team. Same
+        // three queries whatever the count.
+        [...listedBoards.map((b) => b.id), ...view.record.items.filter((i) => i.group === 'boards').map((i) => i.id)],
         view.upcoming.boards.map((b) => b.id),
       )
-    : new Map();
+    : new Map<number, ViewerEventEntry>();
   const now = new Date().getTime();
   const sections = sectionRows(
     [
@@ -340,6 +342,11 @@ export default async function EventsIndexPage({
       />
       <HubRecord
         items={view.record.items}
+        myTeams={Object.fromEntries(
+          view.record.items
+            .filter((i) => i.group === 'boards' && (myBoards.get(i.id)?.teamNames.length ?? 0) > 0)
+            .map((i) => [i.key, myBoards.get(i.id)!.teamNames]),
+        )}
         pastTotal={view.record.pastTotal}
         boardsTotal={view.record.boardsTotal}
         weeksTotal={view.record.weeksTotal}

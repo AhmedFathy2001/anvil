@@ -195,7 +195,7 @@ export interface RecordRowInput {
 }
 
 /** A line of the record (lib/eventsHub HubItem) as the same row. */
-export function recordRow(i: RecordRowInput): CompetitionRowSummary {
+export function recordRow(i: RecordRowInput, viewer?: BoardViewer | null): CompetitionRowSummary {
   const label = i.entrants === 1 && i.entrantLabel.endsWith('s') ? i.entrantLabel.slice(0, -1) : i.entrantLabel;
   return {
     key: i.key,
@@ -209,7 +209,9 @@ export function recordRow(i: RecordRowInput): CompetitionRowSummary {
       ? { label: i.state === 'past' ? 'Won by' : 'Leading', name: i.top.name, figure: i.top.text, color: i.top.color ?? null }
       : null,
     noLeader: i.top ? null : noLeaderWords(i.state),
-    yours: null,
+    // A finished board the viewer played in names their team; a sign-up that never became a team is
+    // not worth a line once it is over.
+    yours: viewer && i.group === 'boards' ? yoursWords({ teamNames: viewer.teamNames, signedUp: false }, i.entrantLabel === 'players') : null,
     startDate: i.startDate,
     endDate: i.endDate,
     startHeld: false,

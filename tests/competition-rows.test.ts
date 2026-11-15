@@ -236,3 +236,18 @@ test('a viewer on some boards and in some weeklies: theirs first, both kinds, co
   assert.equal(none.mine.length, 0);
   assert.equal(none.running.length + none.upNext.length, rows.length);
 });
+
+test('a finished board the viewer played in names their team; a week or a bare sign-up does not', () => {
+  const item = {
+    key: 'e9', kind: 'classic', group: 'boards' as const, name: 'Summer Bingo', href: '/events/9',
+    startDate: '2026-10-01', endDate: '2026-10-15', state: 'past' as const, entrants: 3, entrantLabel: 'teams',
+    top: { name: 'Team Kebab', text: '14 tiles' },
+  };
+  assert.equal(recordRow(item, { teamNames: ['Team Kebab'], signedUp: false }).yours, 'Your team: Team Kebab');
+  assert.equal(recordRow({ ...item, entrantLabel: 'players' }, { teamNames: ['Lcl Member'], signedUp: false }).yours, 'Playing as Lcl Member');
+  assert.equal(recordRow(item, { teamNames: [], signedUp: true }).yours, null);
+  assert.equal(recordRow({ ...item, group: 'weeks' as const }, { teamNames: ['X'], signedUp: false }).yours, null);
+  assert.equal(recordRow(item).yours, null);
+  // The winner line does not change with who is looking.
+  assert.deepEqual(recordRow(item, { teamNames: ['Other'], signedUp: false }).leader, recordRow(item).leader);
+});
