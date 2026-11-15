@@ -5,9 +5,10 @@ import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/li
 import { isRaceHidden } from '@/lib/raceHideAhead';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
 import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { eventStage } from '@/lib/eventStage';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import SoloStandings from '@/components/SoloStandings';
@@ -204,7 +205,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, curtain = null, lockedMissions = [], raceStandings = null, raceStepProgress = {}, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -214,9 +215,34 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     [allTeams, curtain],
   );
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [selectedTileId, setSelectedTileId] = useState<number | null>(() =>
-    initialTileId != null && tiles.some((tile) => tile.id === initialTileId) ? initialTileId : null,
-  );
+  // The open tile lives in the URL (?tile=ID): it deep-links, and Back closes the dialog instead of
+  // leaving the event. The URL is the single source of truth, so Back/Forward just work.
+  const searchParams = useSearchParams();
+  const urlTile = Number(searchParams.get('tile'));
+  const tileParam = Number.isInteger(urlTile) && urlTile > 0 ? urlTile : null; // initialTileId is the same ?tile=, already in the URL
+  const selectedTileId: number | null = tileParam != null && tiles.some((tile) => tile.id === tileParam) ? tileParam : null;
+  // Did WE push the history entry for the open tile? Then closing steps back over it.
+  const pushedTile = useRef(false);
+  const setSelectedTileId = useCallback((id: number | null) => {
+    const url = new URL(window.location.href);
+    if (id == null) {
+      if (pushedTile.current) {
+        pushedTile.current = false;
+        window.history.back();
+        return;
+      }
+      url.searchParams.delete('tile');
+      window.history.replaceState(window.history.state, '', url);
+      return;
+    }
+    const alreadyOpen = url.searchParams.has('tile');
+    url.searchParams.set('tile', String(id));
+    if (alreadyOpen) window.history.replaceState(window.history.state, '', url);
+    else {
+      pushedTile.current = true;
+      window.history.pushState(window.history.state, '', url);
+    }
+  }, []);
   const [fullscreen, setFullscreen] = useState(false);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   // Which team's board the viewer is looking at. Null = everyone's, the shared view.
@@ -224,10 +250,24 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const [lensTeamId, setLensTeamId] = useState<number | null>(() =>
     curtain && curtain.ownTeamIds.length === 1 ? curtain.ownTeamIds[0] : null,
   );
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [tierFilter, setTierFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  // Board filters survive a reload: they start from the URL (?cat ?tier ?type ?q) and write back to it.
+  const [categoryFilter, setCategoryFilter] = useState<string>(() => searchParams.get('cat') || 'all');
+  const [tierFilter, setTierFilter] = useState<string>(() => searchParams.get('tier') || 'all');
+  const [typeFilter, setTypeFilter] = useState<string>(() => searchParams.get('type') || 'all');
+  const [searchQuery, setSearchQuery] = useState<string>(() => searchParams.get('q') || '');
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const want: Record<string, string> = { cat: categoryFilter, tier: tierFilter, type: typeFilter, q: searchQuery };
+    let changed = false;
+    for (const [key, value] of Object.entries(want)) {
+      const next = value && value !== 'all' ? value : null;
+      if ((url.searchParams.get(key) ?? null) === next) continue;
+      changed = true;
+      if (next === null) url.searchParams.delete(key);
+      else url.searchParams.set(key, next);
+    }
+    if (changed) window.history.replaceState(window.history.state, '', url);
+  }, [categoryFilter, tierFilter, typeFilter, searchQuery]);
 
   // Proof for the tile the viewer opened. The board itself only needs the light projection above,
   // and a busy event has thousands of submissions, so the full rows (screenshot, note, who credited
@@ -369,10 +409,14 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     refetchSubmissions();
     refetchGains();
   }, [router, refetchSubmissions, refetchGains]);
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
+  // A finished event can't change: no polling at all. The stats pulse is a second token for stat tiles
+  // only, so a board without any doesn't ask for it.
+  const finished = eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap';
+  const hasStatTiles = tiles.some((t) => t.trackedStat && t.statGoal);
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange, enabled: !finished });
   // KC/XP moves without the board changing (a plugin push, a hiscores fetch): a second, equally cheap
   // pulse that only refetches the progress numbers — not the page — when a stat reading lands.
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: refetchGains });
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: refetchGains, enabled: !finished && hasStatTiles });
 
   // The board and the missions are two different things (see lib/eventRules.boardTiles): a mission
   // drops mid-event from its own pool, scores under its own rules and can expire unclaimed, so
@@ -586,7 +630,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       )
     : null;
   // Tier bands only make sense when tiles carry distinct point values.
-  const showTierFilter = pointsMode && tierBands.length > 0;
+  // A tier filter only means something when the tiles actually span more than one tier.
+  const showTierFilter = pointsMode && tierBands.length > 0 && new Set(board.map((t) => tileTierKey(t.points, tierBands))).size > 1;
   const showFilters = categories.length > 0 || showTierFilter || showTypeFilter;
 
   // ---- Tile race: its own page layout (components/board/RaceEventSections) ----------------------

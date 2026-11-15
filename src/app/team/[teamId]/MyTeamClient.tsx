@@ -586,9 +586,9 @@ export default function MyTeamClient({
             </div>
           )}
 
-          {/* Team roster — shut by default; the breakdown above already names everyone. */}
+          {/* Team roster — open: this is the viewer's own team hub, and who is on it is the first question. */}
           {teamPlayers.length > 0 && (
-            <details className="border border-card-border rounded-xl bg-card-bg group">
+            <details open className="border border-card-border rounded-xl bg-card-bg group">
               <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
                 <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
                 <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />

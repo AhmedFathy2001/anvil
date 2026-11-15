@@ -8,7 +8,8 @@
 //
 // Pure and dependency-free so tests/weekly-stage.test.ts can run it with Node type-stripping.
 
-import type { EventStage, LifecycleStep } from '@/lib/eventStage';
+import { parseStamp } from './dbTime.ts';
+import type { EventStage, LifecycleStep } from './eventStage.ts';
 
 export interface StageWeekly {
   startDate: string;
@@ -30,17 +31,27 @@ export interface WeeklyCounts {
 }
 
 /**
- * The recorded status wins over the clock.
+ * The one answer to "where is this weekly?" — every badge, card, list and tab title reads it.
  *
- * The cron flips a competition to 'completed' when its window closes and that's what the public
- * pages read, so a stage derived purely from dates could disagree with the badge next to it.
+ * The clock decides, with one exception: a week marked 'completed' stays finished. The recorded
+ * 'active' / 'upcoming' values lag the clock (the lifecycle cron flips them on its own schedule), so
+ * trusting them is how a week that closed on Oct 21 kept reading "Live" three weeks later.
  */
+export function weeklyStatus(
+  comp: StageWeekly,
+  now: number = Date.now(),
+): 'upcoming' | 'active' | 'completed' {
+  if (comp.status === 'completed') return 'completed';
+  const end = parseStamp(comp.endDate);
+  const start = parseStamp(comp.startDate);
+  if (end !== null && end <= now) return 'completed';
+  if (start !== null && start > now) return 'upcoming';
+  return 'active';
+}
+
 export function weeklyStage(comp: StageWeekly, now: number = Date.now()): EventStage {
-  if (comp.status === 'completed') return 'wrap';
-  if (comp.status === 'upcoming') return 'build';
-  if (Date.parse(comp.endDate) <= now) return 'wrap';
-  if (Date.parse(comp.startDate) > now) return 'build';
-  return 'run';
+  const status = weeklyStatus(comp, now);
+  return status === 'completed' ? 'wrap' : status === 'upcoming' ? 'build' : 'run';
 }
 
 /**
@@ -103,7 +114,7 @@ export function weeklyLifecycleSteps(
 }
 
 function startsIn(comp: StageWeekly, now: number): string {
-  const ms = Date.parse(comp.startDate) - now;
+  const ms = (parseStamp(comp.startDate) ?? now) - now;
   if (ms <= 0) return 'due to start';
   const days = Math.floor(ms / 86_400_000);
   return days >= 1 ? `starts in ${days}d` : `starts in ${Math.max(1, Math.floor(ms / 3_600_000))}h`;

@@ -29,6 +29,7 @@ export default async function SetupPage() {
       channels={bot.channels}
       botEnabled={bot.enabled}
       provisioned={status.provisioned}
+      checklist={{ completedCount: status.completedCount, totalCount: status.totalCount }}
     />
   );
 }

@@ -157,8 +157,8 @@ export default function PersonProfile({
                     <span className="mt-1 flex gap-2 text-xs text-text-muted">
                       {c.seat === 'member' && <span className="text-gold">Member</span>}
                       {c.seat === 'guest' && <span>{c.clanKind === 'creator' ? 'Player' : 'Guest'}</span>}
-                      {!c.seat && <span>Not on the member list</span>}
-                      {c.staff && <span className="capitalize text-gold/70">· {c.role || 'staff'}</span>}
+                      {!c.seat && !c.staff && <span>Not on the member list</span>}
+                      {c.staff && <span className="capitalize text-gold/70">{c.seat ? '· ' : ''}{c.role || 'staff'}</span>}
                     </span>
                     {c.seat && <span className="mt-2 block text-[12.5px] text-text-muted">Your board, team and this week →</span>}
                   </ClanLink>

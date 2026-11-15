@@ -1,3 +1,4 @@
+import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
@@ -78,6 +79,15 @@ export async function POST(request: Request) {
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
+  const startMs = parseStamp(startDate);
+  const endMs = parseStamp(endDate);
+  if (startMs === null || endMs === null) {
+    return NextResponse.json({ error: 'The start and end have to be real dates.' }, { status: 400 });
+  }
+  if (endMs <= startMs) {
+    return NextResponse.json({ error: 'The end has to come after the start.' }, { status: 400 });
   }
 
   if (type !== 'skill' && type !== 'boss' && type !== 'efficiency') {

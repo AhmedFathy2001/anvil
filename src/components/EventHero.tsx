@@ -125,7 +125,9 @@ export default function EventHero({
       router.refresh();
     }
   }, [pastGo, previewStart, realStart, router]);
-  const phase = state?.phase ?? 'none';
+  // Started with no end date is RUNNING (lib/eventStage: only force-end finishes it), not a draft.
+  const openEnded = state?.phase === 'none' && realStart !== null && now !== null && realStart <= now;
+  const phase: EventPhase = openEnded ? 'active' : (state?.phase ?? 'none');
   const status = STATUS[phase];
   const hasPrize = prizePool > 0;
   const prizes = placementPrizes.filter((p) => p > 0);
@@ -224,7 +226,7 @@ export default function EventHero({
                 </p>
               </div>
             ) : (
-              <CountdownBlock now={now} phase={phase} target={state?.target ?? null} />
+              <CountdownBlock now={now} phase={phase} target={openEnded ? null : (state?.target ?? null)} openEnded={openEnded} startedAt={realStart} />
             )}
           </div>
         </div>
@@ -253,7 +255,16 @@ export default function EventHero({
   );
 }
 
-function CountdownBlock({ now, phase, target }: { now: number | null; phase: EventPhase; target: number | null }) {
+function CountdownBlock({ now, phase, target, openEnded = false, startedAt = null }: { now: number | null; phase: EventPhase; target: number | null; openEnded?: boolean; startedAt?: number | null }) {
+  if (openEnded) {
+    return (
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">Running</div>
+        <div className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">No end date</div>
+        {startedAt !== null && <div className="mt-2 text-xs text-text-muted">Started {formatExactTime(startedAt)}</div>}
+      </div>
+    );
+  }
   // Ended states have no live countdown — just say so (with the finish time when we have it).
   if (phase === 'ended' || phase === 'force-ended') {
     return (

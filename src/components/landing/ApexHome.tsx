@@ -257,7 +257,7 @@ export default function ApexHome({
           {view.discover === null && <DiscoverToggle show variant="offer" />}
 
           {needsYou.length > 0 && (
-            <Section title="Waiting on you" note={`${needsYou.length}`}>
+            <Section title="Clans you run, with nothing on" note={`${needsYou.length}`}>
               <div className="flex flex-col gap-2.5">
                 {needsYou.map((c) => (
                   <ClanLink
@@ -269,10 +269,10 @@ export default function ApexHome({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{c.name}</span>
                       <span className="mt-0.5 block text-[12.5px] text-text-muted">
-                        Nothing running — start something
+                        No event or competition is running
                       </span>
                     </span>
-                    <span className="shrink-0 text-[13px] text-gold">Open →</span>
+                    <span className="shrink-0 text-[13px] text-gold">Plan one →</span>
                   </ClanLink>
                 ))}
               </div>

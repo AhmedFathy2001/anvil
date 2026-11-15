@@ -61,19 +61,19 @@ export default function EventTabs({
             </span>
           )
         ) : (
-          <ClanLink href={base} className={idle}>
+          <ClanLink prefetch={false} href={base} className={idle}>
             <Icon d={BOARD} />
             Board
           </ClanLink>
         )}
         {tabs.stats && (
-          <ClanLink href={`${base}/stats`} className={active === 'stats' ? on : idle} aria-current={active === 'stats' ? 'page' : undefined}>
+          <ClanLink prefetch={false} href={`${base}/stats`} className={active === 'stats' ? on : idle} aria-current={active === 'stats' ? 'page' : undefined}>
             <Icon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
             Stats
           </ClanLink>
         )}
         {tabs.live && (
-          <ClanLink href={`${base}/live`} className={active === 'live' ? on : idle} aria-current={active === 'live' ? 'page' : undefined}>
+          <ClanLink prefetch={false} href={`${base}/live`} className={active === 'live' ? on : idle} aria-current={active === 'live' ? 'page' : undefined}>
             <Icon d="M4 5h16v11H9l-5 4z" />
             Feed &amp; chat
             {tabs.unread && (
@@ -94,7 +94,7 @@ export default function EventTabs({
           </button>
         ) : (
           hasRules && (
-            <ClanLink href={`${base}?rules=1#rules`} className={idle}>
+            <ClanLink prefetch={false} href={`${base}?rules=1#rules`} className={idle}>
               <Icon d={RULES} />
               Rules
             </ClanLink>
@@ -102,6 +102,7 @@ export default function EventTabs({
         )}
         {tabs.moderate && (
           <ClanLink
+ prefetch={false}
             href={`${base}/chat`}
             title="Staff only: delete messages, time out or ban players, pause the chat"
             aria-current={active === 'chat' ? 'page' : undefined}

@@ -116,7 +116,7 @@ export function eventModeLabel(
     case 'luckydraw': return 'Lucky draw';
     case 'bounty': return 'Bounty hunt';
     case 'ladder': return 'Ladder';
-    case 'leagues': return 'Leagues';
+    case 'leagues': return 'Point Hunt';
     default: return 'Bingo';
   }
 }

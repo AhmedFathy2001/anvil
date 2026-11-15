@@ -1,3 +1,5 @@
+import { eventStage } from '@/lib/eventStage';
+import { weeklyStage } from '@/lib/weeklyStage';
 import { db } from '@/db';
 import { clanEvents, events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, isNull } from 'drizzle-orm';
@@ -146,21 +148,18 @@ export default async function AdminEventsPage() {
   // now" the moment it ends, instead of lingering as "LIVE" for the up-to-15-min gap until the cron
   // closes it (and indefinitely wherever that cron isn't firing). The Finished bucket fills its row
   // from weekly_participants (getPastWeeklyResults), which never needed the 'completed' status.
-  const isPast = (item: ListItem) =>
+  // The shared derivations (lib/eventStage, lib/weeklyStage) — the same ones every badge reads.
+  const stageOfItem = (item: ListItem): 'build' | 'run' | 'wrap' =>
     item.kind === 'event'
-      ? !!item.forceEndedAt || (!!item.endDate && item.endDate < now)
+      ? eventStage(item, nowMs)
       : item.kind === 'clan'
-        ? item.endDate < now
-        : item.status === 'completed' || item.endDate < now;
+        ? item.endDate < now ? 'wrap' : item.startDate <= now ? 'run' : 'build'
+        : weeklyStage(item, nowMs);
+  const isPast = (item: ListItem) => stageOfItem(item) === 'wrap';
 
   // "Running" is narrower than "not past": a board with no start date, or one scheduled for next
   // week, is being SET UP — a different job, and a different card.
-  const isRunning = (item: ListItem) =>
-    item.kind === 'event'
-      ? !isPast(item) && !!item.startDate && item.startDate <= now
-      : item.kind === 'clan'
-        ? !isPast(item) && item.startDate <= now
-        : !isPast(item) && item.status === 'active';
+  const isRunning = (item: ListItem) => stageOfItem(item) === 'run';
 
   const sortKey = (item: ListItem) =>
     item.kind === 'event' ? item.startDate ?? item.createdAt : item.startDate;

@@ -1,3 +1,4 @@
+import { parseStamp } from '@/lib/dbTime';
 import { notifyBoardPeople } from '@/lib/pushNotify';
 import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
 import { NextResponse } from 'next/server';
@@ -663,9 +664,9 @@ export async function PATCH(
   const finalTilesRevealAt = 'tilesRevealAt' in body
     ? (body.tilesRevealAt as string | null)
     : existing.tilesRevealAt;
-  if (finalStart && finalEnd && finalEnd <= finalStart) {
+  if (finalStart && finalEnd && (parseStamp(finalEnd) ?? 0) <= (parseStamp(finalStart) ?? 0)) {
     return NextResponse.json(
-      { error: 'endDate must be after startDate' },
+      { error: 'The end has to come after the start.' },
       { status: 400 },
     );
   }

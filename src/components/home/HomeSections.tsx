@@ -1,3 +1,4 @@
+import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
 import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
@@ -69,7 +70,7 @@ export function Hero({ view, boostLevel = 0, boostNameStyle }: { view: HomeView;
     {
       k: 'This week',
       v: live.weekly ? live.weekly.metricLabel : 'Between weeks',
-      sub: live.weekly ? `${live.weekly.entrants} scoring` : live.next ? `next one starts ${dateShort(live.next.startDate)}` : 'nothing scheduled',
+      sub: live.weekly ? enteredWord(live.weekly.entrants) : live.next ? `next one starts ${dateShort(live.next.startDate)}` : 'nothing scheduled',
       small: true,
     },
     {
@@ -399,7 +400,7 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
           </span>
           <h3 className="mt-1.5 truncate text-xl font-extrabold">{w.title}</h3>
           <p className="mt-0.5 text-[12.5px] text-text-muted">
-            {w.scoring} scoring of {w.entrants} · ends {dateShort(w.endDate)}
+            {scoredOfEntered(w.scoring, w.entrants)} · ends {dateShort(w.endDate)}
           </p>
         </div>
       </div>

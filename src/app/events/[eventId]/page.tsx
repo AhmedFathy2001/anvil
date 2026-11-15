@@ -567,7 +567,7 @@ export default async function EventScoreboardPage({
   // Fun end-of-event recap ("superlatives") CTA — shown to everyone once the event has ended, but only
   // when there's actually something to show. `mvp` is non-null exactly when someone scored/completed a
   // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
-  const showRecapCta = isEventEnded(event) && !!mvp;
+  const showRecapCta = isEventEnded(event);
   // The viewer's chat seat, for the tab bar's Feed & chat / Moderate tabs and unread dot (lib/eventTabs).
   const viewerChat = session ? await chatAccess(event.id, session.userId) : null;
 
@@ -845,7 +845,7 @@ export default async function EventScoreboardPage({
           </div>
         </div>
       )}
-      {creatorEvent && !session && window.open ? (
+      {isEventEnded(event) ? null : creatorEvent && !session && window.open ? (
         // A creator space's event, signed out: one button. Discord sign-in, then straight back here,
         // where the same button joins them (EnterEvent, creator mode).
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--sa)]/40 bg-[var(--sa-soft)] p-5">
