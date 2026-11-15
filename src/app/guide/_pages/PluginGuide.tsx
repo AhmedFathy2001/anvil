@@ -13,6 +13,7 @@ import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
 import { chat, items, legend, paragraphs, rows, rt } from '../_i18n/rich';
 import PluginSetupValues from '../_components/PluginSetupValues';
+import OpenFoldOnHash from '../_components/OpenFoldOnHash';
 
 /**
  * Canonical origin for the `{origin}` placeholder in the guide copy (the plugin itself no longer has
@@ -103,13 +104,14 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       facts={p.facts}
       footnote={rt(`${p.footnote} ${t.common.legalPrivacy}`, v)}
     >
+      <OpenFoldOnHash />
       {/* ---------------------------------------------------------------- 1 */}
-      <Section id="install" n={1} title={p.install.title} labels={t.common}>
+      <Section id="install" n={1} title={p.install.title} labels={t.common} collapsible defaultOpen>
         {paragraphs(p.install.body, v)}
       </Section>
 
       {/* ---------------------------------------------------------------- 2 */}
-      <Section id="connect" n={2} title={p.connect.title} labels={t.common}>
+      <Section id="connect" n={2} title={p.connect.title} labels={t.common} collapsible>
         <p className="text-text-muted">{rt(p.connect.intro, v)}</p>
 
         {oauthMode !== 'none' && (
@@ -187,7 +189,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       </Section>
 
       {/* ---------------------------------------------------------------- 3 */}
-      <Section id="accounts" n={3} title={p.accounts.title} labels={t.common}>
+      <Section id="accounts" n={3} title={p.accounts.title} labels={t.common} collapsible>
         {paragraphs(p.accounts.body, v)}
 
         <Figure
@@ -208,7 +210,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       </Section>
 
       {/* ---------------------------------------------------------------- 4 */}
-      <Section id="working" n={4} title={p.working.title} labels={t.common}>
+      <Section id="working" n={4} title={p.working.title} labels={t.common} collapsible>
         <p className="text-text-muted">{rt(p.working.intro, v)}</p>
         <Chat lines={chat(p.working.chat)} />
         <p className="text-text-muted">{rt(p.working.outro, v)}</p>
@@ -249,7 +251,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       </Section>
 
       {/* ---------------------------------------------------------------- 5 */}
-      <Section id="bingo" n={5} title={p.bingo.title} labels={t.common}>
+      <Section id="bingo" n={5} title={p.bingo.title} labels={t.common} collapsible>
         <p className="text-text-muted">{rt(p.bingo.intro, v)}</p>
         <Figure
           src="/guide/plugin-bingo.png"
@@ -276,7 +278,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       </Section>
 
       {/* ---------------------------------------------------------------- 6 */}
-      <Section id="notifications" n={6} title={p.notifications.title} labels={t.common}>
+      <Section id="notifications" n={6} title={p.notifications.title} labels={t.common} collapsible>
         <p className="text-text-muted">{rt(p.notifications.intro, v)}</p>
 
         <Figure
@@ -309,16 +311,16 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
       {/* ---------------------------------------------------------------- 7, 8 */}
       {/* What the plugin draws and sends beyond the settings screenshots above (live plugin, origin/main). */}
-      <Section id="screen" n={7} title={p.screen.title} labels={t.common}>
+      <Section id="screen" n={7} title={p.screen.title} labels={t.common} collapsible>
         <SectionBlocks s={p.screen} v={v} />
       </Section>
 
-      <Section id="sync" n={8} title={p.sync.title} labels={t.common}>
+      <Section id="sync" n={8} title={p.sync.title} labels={t.common} collapsible>
         <SectionBlocks s={p.sync} v={v} />
       </Section>
 
       {/* ---------------------------------------------------------------- 9 */}
-      <Section id="trouble" n={9} title={p.trouble.title} labels={t.common}>
+      <Section id="trouble" n={9} title={p.trouble.title} labels={t.common} collapsible>
         <p className="text-text-muted">{rt(p.trouble.intro, v)}</p>
         <Rows rows={rows(p.trouble.rows, v)} />
 
@@ -332,7 +334,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       {/* ---------------------------------------------------------------- 10 */}
       {/* Things the GAME doesn't report, so nothing can track them. A list meant to grow: add a row
           to `plugin.limits.rows` (every locale) as new ones turn up. */}
-      <Section id="limits" n={10} title={p.limits.title} labels={t.common}>
+      <Section id="limits" n={10} title={p.limits.title} labels={t.common} collapsible>
         <p className="text-text-muted">{rt(p.limits.intro, v)}</p>
         <Rows rows={rows(p.limits.rows, v)} />
       </Section>
