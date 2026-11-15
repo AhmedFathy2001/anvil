@@ -2,7 +2,8 @@ import { runningParts, runningTotal } from '@/lib/runningCount';
 import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
-import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
+import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
+import { boardRow, rowWhen, weeklyRow } from '@/lib/competitionRows';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
@@ -576,10 +577,10 @@ function JustFinishedCard({ w }: { w: HomeWeekly }) {
  * starting next month was buried in it. A finished competition is a RESULT: a name, a winner and a
  * date. It doesn't need a card, and eight of them shouldn't outweigh the thing you can still enter.
  *
- * So: anything live or scheduled keeps a full card, and everything finished collapses into one
+ * So: anything live or scheduled keeps a full row, and everything finished collapses into one
  * dense list underneath — the same information in a fifth of the height, and read at a glance.
  */
-export function Competitions({ view }: { view: HomeView }) {
+export function Competitions({ view, now }: { view: HomeView; now: number }) {
   // Whatever "Happening now" is already showing full-size, so the page doesn't print the live BOTW
   // twice in a row — which it did, and which was half of why the middle read as a wall.
   const featured = new Set<string>();
@@ -595,18 +596,25 @@ export function Competitions({ view }: { view: HomeView }) {
   const liveWeeklies = view.weeklies.filter((w) => w.status !== 'completed' && !featured.has(`w${w.id}`));
   const liveEvents = view.events.filter((e) => e.status !== 'past' && !featured.has(`e${e.id}`));
 
-  // Cards, live before scheduled, so the row reads in the order things happen.
-  const cards: { key: string; state: 'live' | 'upcoming'; node: React.ReactNode }[] = [
-    ...liveEvents.map((e) => ({
-      key: `e${e.id}`,
-      state: (e.status === 'live' ? 'live' : 'upcoming') as 'live' | 'upcoming',
-      node: <EventCompetitionCard key={`e${e.id}`} e={e} />,
-    })),
-    ...liveWeeklies.map((w) => ({
-      key: `w${w.id}`,
-      state: (w.status === 'active' ? 'live' : 'upcoming') as 'live' | 'upcoming',
-      node: <WeeklyCompetitionCard key={`w${w.id}`} w={w} />,
-    })),
+  // The same row as the events page (lib/competitionRows), live before scheduled, so the list
+  // reads in the order things happen.
+  const cards = [
+    ...liveEvents.map((e) => boardRow(e)),
+    ...liveWeeklies.map((w) =>
+      weeklyRow({
+        id: w.id,
+        kind: WEEK_KIND[w.type] ?? 'sotw',
+        name: w.title,
+        metricLabel: w.metricLabel,
+        iconUrl: w.iconUrl,
+        state: w.status === 'active' ? 'live' : 'upcoming',
+        startDate: w.startDate,
+        endDate: w.endDate,
+        entrants: w.entrants,
+        unit: unitFor(w),
+        top: w.top,
+      }),
+    ),
   ].sort((a, b) => (a.state === b.state ? 0 : a.state === 'live' ? -1 : 1));
 
   const finished: FinishedRow[] = [
@@ -648,10 +656,14 @@ export function Competitions({ view }: { view: HomeView }) {
             note="everything you can still enter"
             more={{ href: '/events', label: 'All competitions →' }}
           />
-          {/* auto-FIT, not auto-fill: fill keeps the empty tracks, so one upcoming event rendered as
-              a 268px card marooned in a 1200px row. fit collapses them and the card takes the width. */}
-          <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(268px,1fr))]">
-            {cards.map((c) => c.node)}
+          <div className="mb-9">
+            <CompetitionRowList count={cards.length}>
+              {cards.map((r) => (
+                <li key={r.key}>
+                  <CompetitionRow row={r} when={rowWhen(r, now)} />
+                </li>
+              ))}
+            </CompetitionRowList>
           </div>
         </>
       )}
@@ -711,53 +723,6 @@ function FinishedLine({ row }: { row: FinishedRow }) {
         {row.endedAt ? dateShort(row.endedAt) : ''}
       </span>
     </ClanLink>
-  );
-}
-
-function WeeklyCompetitionCard({ w }: { w: HomeWeekly }) {
-  const kind = WEEK_KIND[w.type] ?? 'sotw';
-  return (
-    <CompetitionCard
-      kind={kind}
-      href={`/weekly/${w.id}`}
-      name={w.title}
-      shape={`${w.metricLabel} · ${unitFor(w)}`}
-      state={w.status === 'active' ? 'live' : 'upcoming'}
-      startDate={w.startDate}
-      endDate={w.endDate}
-      entrants={`${w.entrants} entered`}
-      top={w.top ? { name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn, text: weeklyValue(w, w.top.value) } : null}
-      glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(kind).accent} />}
-      iconUrl={w.iconUrl}
-    />
-  );
-}
-
-function EventCompetitionCard({ e }: { e: HomeEvent }) {
-  return (
-    <CompetitionCard
-      kind={e.mode}
-      href={`/events/${e.id}`}
-      name={e.name}
-      shape={e.shape}
-      state={e.status}
-      startDate={e.startDate}
-      endDate={e.endDate}
-      entrants={e.chips[0] ?? 'no teams yet'}
-      top={
-        e.top
-          ? {
-              name: e.top.name,
-              text: `${e.top.score.toLocaleString()} ${e.top.unit}`,
-              color: e.top.color,
-              pct: e.top.total > 0 ? (e.top.score / e.top.total) * 100 : 0,
-            }
-          : null
-      }
-      chips={e.chips.slice(1)}
-      glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
-      pictureUrl={e.iconUrl}
-    />
   );
 }
 

@@ -22,9 +22,11 @@ import { socialMetadata } from '@/lib/seo';
 import EventsDirectory from './EventsDirectory';
 import { verifyUser } from '@/lib/auth';
 import { isStaffRole } from '@/lib/clanRoles';
-import { hubKind } from '@/lib/hubKinds';
-import CompetitionCard, { boardGlyphFor } from '@/components/events/CompetitionCard';
-import WeekFrame from '@/components/events/WeekFrame';
+import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
+import { boardRow, countRows, rowWhen, sectionRows, weeklyRow } from '@/lib/competitionRows';
+import { runningParts } from '@/lib/runningCount';
+import { parseStamp } from '@/lib/dbTime';
+import { viewerEventEntries } from '@/lib/viewerEvents';
 import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
@@ -73,9 +75,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * events by every definition this site uses — a start, an end, entrants, a leaderboard, a winner —
  * so this is the page for both, and `/weekly` redirects here.
  *
- * Three questions, in order: what's on now, what's next, and what has the clan ever run. Boards and
- * weeks are peers throughout: several of each can be live at once, and the weeks that share a
- * window share a frame and a countdown rather than being demoted to a list.
+ * In order: what the viewer is in, what else is running, what's next, and what has finished. Boards
+ * and weeks are peers throughout and drawn as the same row (components/events/CompetitionRow), so
+ * several of each can be live at once without the page reading as two lists.
  */
 
 const PAGE = 24;
@@ -134,29 +136,27 @@ export default async function EventsIndexPage({
         )
       ).filter((x) => x.e.entered)
     : [];
-  const nextUp = [
-    ...view.upcoming.boards.map((b) => ({
-      key: `e${b.id}`,
-      kind: b.mode,
-      name: b.name,
-      // A co-hosted event lives at the host's address; link across when this clan is the co-host.
-      href: `/events/${b.id}`,
-      startDate: b.startDate,
-      endDate: b.endDate,
-      // No start date in the foot: the row's timer already gives it, in the reader's own clock. The
-      // card's foot is formatted on the server (UTC), so the two disagreed by a day near midnight.
-      foot: b.hostSlug ? `co-hosted · ${b.hostSlug} hosts` : null,
-    })),
-    ...view.upcoming.weeks.map((w) => ({
-      key: `w${w.id}`,
-      kind: w.kind,
-      name: w.name,
-      href: `/weekly/${w.id}`,
-      startDate: w.startDate,
-      endDate: w.endDate,
-      foot: w.hostName ? `${w.metricLabel} · clan vs clan · ${w.hostName} hosts` : `${w.metricLabel} · everyone on the roster`,
-    })),
-  ].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
+  // One row shape for all of it, in the page's order: the viewer's own first, then the rest that is
+  // running, then what is next (lib/competitionRows). Nothing here is paged.
+  const optedOutByKey = new Map(myEntries.map(({ w, e }) => [`w${w.id}`, e.optedOut]));
+  // The board events the viewer is on a team for (or signed up to, before it starts).
+  const listedBoards = [...view.live.boards, ...view.upcoming.boards];
+  const myBoards = session
+    ? await viewerEventEntries(
+        { userId: session.userId, playerId: session.playerId ?? null },
+        listedBoards.map((b) => b.id),
+        view.upcoming.boards.map((b) => b.id),
+      )
+    : new Map();
+  const now = new Date().getTime();
+  const sections = sectionRows(
+    [
+      ...listedBoards.map((b) => boardRow(b, myBoards.get(b.id))),
+      ...[...view.live.weeks, ...view.upcoming.weeks].map(weeklyRow),
+    ],
+    new Set([...optedOutByKey.keys(), ...[...myBoards.keys()].map((id) => `e${id}`)]),
+  );
+  const nextUp = sections.upNext;
 
   const more = view.record.pastTotal - view.record.items.length;
 
@@ -164,10 +164,17 @@ export default async function EventsIndexPage({
   // and so is a timeline that leaves them off.
   const liveClanEvent = clanEvents.find((ce) => ce.phase === 'live') ?? null;
   const nextClanEvent = clanEvents.find((ce) => ce.phase !== 'live' && ce.phase !== 'ended') ?? null;
+  // The soonest scheduled thing, the viewer's own included.
+  const firstNext = [...sections.mine.filter((r) => r.state === 'upcoming'), ...nextUp].sort(
+    (x, y) => (parseStamp(x.startDate) ?? Infinity) - (parseStamp(y.startDate) ?? Infinity),
+  )[0];
+  const firstNextAt = parseStamp(firstNext?.startDate);
   const nextAny =
-    nextClanEvent && (!nextUp[0]?.startDate || nextClanEvent.occurrence.start < nextUp[0].startDate)
+    nextClanEvent && (firstNextAt === null || (parseStamp(nextClanEvent.occurrence.start) ?? Infinity) < firstNextAt)
       ? { name: nextClanEvent.title, startDate: nextClanEvent.occurrence.start as string | null }
-      : nextUp[0] ?? null;
+      : firstNext
+        ? { name: firstNext.title, startDate: firstNext.startDate }
+        : null;
   const calendarItems = [
     ...calendar.items,
     ...clanEvents.map((ce) => ({
@@ -196,37 +203,39 @@ export default async function EventsIndexPage({
 
       {compInvites.length > 0 && <CompetitionInvites initial={compInvites} />}
 
-      {myEntries.length > 0 && (
-        <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-4">
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-            <span className="h-4 w-1 rounded-full bg-gold" />
-            Your competitions
-          </h2>
-          <ul className="space-y-1.5">
-            {myEntries.map(({ w, e }) => (
-              <li key={w.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <ClanLink href={`/weekly/${w.id}`} className="min-w-0 flex-1 truncate text-foreground hover:text-gold">
-                  {w.name}
-                  {w.hostName && <span className="text-text-muted"> · {w.hostName} hosts</span>}
-                </ClanLink>
-                <OptOutToggle competitionId={w.id} initialOptedOut={e.optedOut} compact />
+      {/* ---- yours first -------------------------------------------------------------
+          What the viewer is in, running or scheduled: the board events they have a team in (or
+          are signed up to) and the weekly competitions they are entered in, each of those with
+          its "You're in · Opt out". */}
+      {sections.mine.length > 0 && (
+        <>
+          <SectionHead title="You’re in" note={runningParts(countRows(sections.mine))} />
+          <CompetitionRowList count={sections.mine.length}>
+            {sections.mine.map((r) => (
+              <li key={r.key}>
+                <CompetitionRow
+                  row={r}
+                  when={rowWhen(r, now)}
+                  mine
+                  aside={
+                    optedOutByKey.has(r.key) ? (
+                      <OptOutToggle competitionId={Number(r.key.slice(1))} initialOptedOut={optedOutByKey.get(r.key) ?? false} compact />
+                    ) : undefined
+                  }
+                />
               </li>
             ))}
-          </ul>
-        </section>
+          </CompetitionRowList>
+        </>
       )}
 
-      {/* ---- on now ------------------------------------------------------------------ */}
-      <SectionHead
-        title="On now"
-        note={
-          liveCount === 0
-            ? 'nothing running'
-            : `${view.live.boards.length} board${view.live.boards.length === 1 ? '' : 's'} · ${view.live.weeks.length} week${
-                view.live.weeks.length === 1 ? '' : 's'
-              }`
-        }
-      />
+      {/* ---- running now -------------------------------------------------------------- */}
+      {(liveCount === 0 || sections.running.length > 0) && (
+        <SectionHead
+          title="Running now"
+          note={liveCount === 0 ? 'nothing running' : runningParts(countRows(sections.running))}
+        />
+      )}
 
       {liveCount === 0 ? (
         <div className="rounded-xl border border-dashed border-card-border p-6 text-sm text-text-muted">
@@ -258,39 +267,29 @@ export default async function EventsIndexPage({
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          {view.live.boards.length > 0 && (
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(272px,1fr))]">
-              {view.live.boards.map((b) => (
-                <CompetitionCard
-                  key={b.id}
-                  kind={b.mode}
-                  href={`/events/${b.id}`}
-                  name={b.name}
-                  shape={b.shape}
-                  state="live"
-                  startDate={b.startDate}
-                  endDate={b.endDate}
-                  entrants={b.chips[0] ?? 'no teams yet'}
-                  top={
-                    b.top
-                      ? {
-                          name: b.top.name,
-                          text: `${b.top.score.toLocaleString()} ${b.top.unit}`,
-                          color: b.top.color,
-                          pct: b.top.total > 0 ? (b.top.score / b.top.total) * 100 : 0,
-                        }
-                      : null
-                  }
-                  chips={b.chips.slice(1)}
-                  glyph={boardGlyphFor(b, hubKind(b.mode).accent)}
-                  pictureUrl={b.iconUrl}
-                />
-              ))}
-            </div>
-          )}
-          <WeekFrame weeks={view.live.weeks} />
-        </div>
+        sections.running.length > 0 && (
+          <CompetitionRowList count={sections.running.length}>
+            {sections.running.map((r) => (
+              <li key={r.key}>
+                <CompetitionRow row={r} when={rowWhen(r, now)} />
+              </li>
+            ))}
+          </CompetitionRowList>
+        )
+      )}
+
+      {/* ---- up next ----------------------------------------------------------------- */}
+      {nextUp.length > 0 && (
+        <>
+          <SectionHead title="Up next" note={`${nextUp.length} scheduled`} />
+          <CompetitionRowList count={nextUp.length}>
+            {nextUp.map((r) => (
+              <li key={r.key}>
+                <CompetitionRow row={r} when={rowWhen(r, now)} />
+              </li>
+            ))}
+          </CompetitionRowList>
+        </>
       )}
 
       {/* ---- clan events: masses, hangouts — scheduled, not tracked (lib/clanEvents) ---- */}
@@ -309,48 +308,16 @@ export default async function EventsIndexPage({
                   )}
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{ce.title}</span>
-                    <span className="block truncate text-[11.5px] text-text-muted">
+                    <span className="block truncate text-xs text-text-muted">
                       {[ce.repeat === 'weekly' ? 'Weekly' : 'Clan event', ce.location, ce.world ? `W${ce.world}` : null, takesNames(ce.modules) ? `${ce.going} going` : null].filter(Boolean).join(' · ')}
                     </span>
                   </span>
-                  <span className="ml-auto shrink-0 text-[11.5px]">
-                    <EventTimer startDate={ce.occurrence.start} endDate={ce.occurrence.end} className="text-[11.5px] text-text-muted" />
+                  <span className="ml-auto shrink-0 text-xs">
+                    <EventTimer startDate={ce.occurrence.start} endDate={ce.occurrence.end} className="text-xs text-text-muted" />
                   </span>
                 </ClanLink>
               </li>
             ))}
-          </ul>
-        </>
-      )}
-
-      {/* ---- up next ----------------------------------------------------------------- */}
-      {nextUp.length > 0 && (
-        <>
-          <SectionHead title="Up next" note={`${nextUp.length} scheduled`} />
-          <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
-            {nextUp.slice(0, 8).map((n) => {
-              const meta = hubKind(n.kind);
-              return (
-                <li key={n.key}>
-                  {/* ClanLink, not a bare anchor: n.href is built as data (`/events/<id>`) and a
-                      raw <a> takes it literally, so this one link on the whole page pointed at the
-                      APEX and 404'd — the lint rule cannot see an href that arrives in a variable. */}
-                  <ClanLink href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brown-light/40">
-                    <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.accent }} />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold">{n.name}</span>
-                      <span className="block truncate text-[11.5px] text-text-muted">
-                        {meta.short}
-                        {n.foot ? ` · ${n.foot}` : ''}
-                      </span>
-                    </span>
-                    <span className="ml-auto shrink-0 text-[11.5px]">
-                      <EventTimer startDate={n.startDate} endDate={n.endDate} className="text-[11.5px] text-text-muted" />
-                    </span>
-                  </ClanLink>
-                </li>
-              );
-            })}
           </ul>
         </>
       )}
@@ -368,8 +335,8 @@ export default async function EventsIndexPage({
 
       {/* ---- the record -------------------------------------------------------------- */}
       <SectionHead
-        title="The record"
-        note={`${view.record.boardsTotal} boards · ${view.record.weeksTotal} weeks`}
+        title="Finished"
+        note={runningParts({ events: view.record.boardsTotal, competitions: view.record.weeksTotal }) || 'nothing yet'}
       />
       <HubRecord
         items={view.record.items}

@@ -1,18 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { HUB_KINDS, hubKind } from '@/lib/hubKinds';
+import { HUB_KINDS } from '@/lib/hubKinds';
 import type { HubItem } from '@/lib/eventsHub';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
+import { recordRow } from '@/lib/competitionRows';
 
 /**
  * Everything the clan has run, boards and weeks in one list.
  *
- * A ledger rather than a wall of cards: one weekly a week is fifty-two lines a year and three a
- * week is over a hundred and fifty, which cards stop being able to hold somewhere around forty.
- * Grouped by month so the eye can find a period, and a repeated date blanks out so a week's three
- * competitions read as one block.
+ * The same row as everything above it on the page (components/events/CompetitionRow), so a finished
+ * competition reads like a running one with a winner in the leader's place. Grouped by month so the
+ * eye can find a period; it is paged, because a clan two years in has hundreds of these.
  *
  * The filter is Everything / Boards / Weeks with the ten specific kinds behind it — ten chips in a
  * row is the thing this page is trying not to be.
@@ -62,22 +63,17 @@ export default function HubRecord({
     { key: 'weeks', label: 'Weeks', n: weeksTotal },
   ];
 
-  // Month heads and repeated dates: each row reads the one before it rather than accumulating
-  // into a variable, so nothing is reassigned while rendering.
-  const rows = useMemo(
-    () =>
-      shown.map((item, idx) => {
-        const prev = idx > 0 ? shown[idx - 1] : null;
-        const month = monthOf(item.startDate);
-        const startsMonth = !prev || monthOf(prev.startDate) !== month;
-        const when = `${dateShort(item.startDate)} – ${dateShort(item.endDate)}`;
-        // Three weeklies that share a week share a date; printing it three times is noise.
-        const prevWhen = prev ? `${dateShort(prev.startDate)} – ${dateShort(prev.endDate)}` : '';
-        const repeated = !startsMonth && when === prevWhen;
-        return { item, month: startsMonth ? month : null, when: repeated ? '' : when };
-      }),
-    [shown],
-  );
+  // One block per month, in the order the items arrive (newest first).
+  const months = useMemo(() => {
+    const out: { month: string; items: HubItem[] }[] = [];
+    for (const item of shown) {
+      const month = monthOf(item.startDate);
+      const last = out[out.length - 1];
+      if (last && last.month === month) last.items.push(item);
+      else out.push({ month, items: [item] });
+    }
+    return out;
+  }, [shown]);
 
   return (
     <div>
@@ -119,7 +115,7 @@ export default function HubRecord({
                 }
                 aria-pressed={on}
                 style={on ? { borderColor: k.accent, background: `color-mix(in srgb, ${k.accent} 14%, transparent)` } : undefined}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
                   on ? 'text-foreground' : 'border-card-border text-text-muted hover:text-foreground'
                 }`}
               >
@@ -145,26 +141,19 @@ export default function HubRecord({
           {items.length === 0 ? 'Nothing has finished yet.' : 'Nothing matches that.'}
         </div>
       ) : (
-        <div className="overflow-x-auto overflow-y-hidden">
-          <table className="w-full min-w-[620px] border-separate border-spacing-0 text-[13px]">
-            <thead>
-              <tr className="text-[9.5px] uppercase tracking-[0.14em] text-text-muted">
-                <th className="px-2.5 pb-2 text-left font-bold">When</th>
-                <th className="px-2.5 pb-2 text-left font-bold">What</th>
-                <th className="px-2.5 pb-2 text-right font-bold">In</th>
-                <th className="px-2.5 pb-2 text-left font-bold">Winner</th>
-                <th className="px-2.5 pb-2 text-right font-bold">Result</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ item, month, when }) => {
-                const meta = hubKind(item.kind);
-                return (
-                  <Row key={item.key} item={item} accent={meta.accent} short={meta.short} when={when} month={month} />
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-5">
+          {months.map((m) => (
+            <section key={m.month}>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-gold">{m.month}</h3>
+              <CompetitionRowList count={m.items.length}>
+                {m.items.map((item) => (
+                  <li key={item.key}>
+                    <CompetitionRow row={recordRow(item)} dates={`${dateShort(item.startDate)} – ${dateShort(item.endDate)}`} />
+                  </li>
+                ))}
+              </CompetitionRowList>
+            </section>
+          ))}
         </div>
       )}
 
@@ -183,56 +172,5 @@ export default function HubRecord({
         </div>
       )}
     </div>
-  );
-}
-
-function Row({
-  item,
-  accent,
-  short,
-  when,
-  month,
-}: {
-  item: HubItem;
-  accent: string;
-  short: string;
-  when: string;
-  month: string | null;
-}) {
-  return (
-    <>
-      {month && (
-        <tr>
-          <td colSpan={5} className="px-2.5 pb-1.5 pt-5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-gold">
-            {month}
-          </td>
-        </tr>
-      )}
-      <tr className="transition-colors hover:bg-brown-light/40">
-        <td className="whitespace-nowrap border-t border-card-border/70 px-2.5 py-2 font-mono text-[11.5px] text-text-muted">
-          {when}
-        </td>
-        <td className="border-t border-card-border/70 px-2.5 py-2">
-          <ClanLink href={item.href} className="flex items-center gap-2.5 hover:text-gold">
-            <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: accent }} />
-            <span className="min-w-0">
-              <span className="block text-[9.5px] font-bold uppercase tracking-[0.12em]" style={{ color: accent }}>
-                {short}
-              </span>
-              <b className="block truncate font-bold">{item.name}</b>
-            </span>
-          </ClanLink>
-        </td>
-        <td className="whitespace-nowrap border-t border-card-border/70 px-2.5 py-2 text-right font-mono text-text-muted">
-          {item.entrants || '—'}
-        </td>
-        <td className="max-w-[180px] truncate border-t border-card-border/70 px-2.5 py-2">
-          {item.top ? `🏆 ${item.top.name}` : <span className="text-text-muted">—</span>}
-        </td>
-        <td className="whitespace-nowrap border-t border-card-border/70 px-2.5 py-2 text-right font-mono font-bold text-gold-light">
-          {item.top?.text ?? '—'}
-        </td>
-      </tr>
-    </>
   );
 }

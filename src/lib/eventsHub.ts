@@ -4,6 +4,7 @@ import { and, count, eq } from 'drizzle-orm';
 import { countPastEvents, loadEventCards, type EventCard } from '@/lib/eventCards';
 import { loadWeeklyCards, type WeeklyCard, type WeeklyKind } from '@/lib/weeklyCards';
 import type { EventMode } from '@/lib/eventModes';
+import { weeklyValueText } from '@/lib/competitionRows';
 
 /**
  * The Events hub, assembled once.
@@ -65,15 +66,8 @@ export interface LoadHubOptions {
   viewer?: { playerId: number | null; userId: number | null } | null;
 }
 
-const short = (n: number) =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}K` : String(Math.round(n));
-
-/** The number a week is won by, written the way that metric is read. */
-export function weeklyValueText(unit: string, value: number): string {
-  if (unit === 'h') return `${(value / 1000).toFixed(1)}h`;
-  if (unit === 'KC') return `${Math.round(value).toLocaleString()} KC`;
-  return `${short(value)} XP`;
-}
+// One wording for a week's figure, shared with the list rows (lib/competitionRows).
+export { weeklyValueText };
 
 function boardItem(e: EventCard): HubItem {
   return {
