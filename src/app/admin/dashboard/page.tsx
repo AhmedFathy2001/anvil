@@ -1,3 +1,4 @@
+import { countRunning, runningLabel, runningParts } from '@/lib/runningCount';
 import { requireClan } from '@/lib/clanContext';
 import { parseBillingInterval } from '@/lib/billingInterval';
 import { pendingUpdateCount } from '@/lib/guides';
@@ -487,7 +488,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
         </h1>
         <p className="text-text-muted text-[15px] mt-2">
           {creator ? '' : `${activeMembers} on the roster · `}
-          {running.length} running · {openCount(queue)} waiting on you
+          {runningLabel(countRunning(running))} · {openCount(queue)} waiting on you
         </p>
       </header>
 
@@ -611,6 +612,9 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
    Now — what is live this second, and what rolls next.
    --------------------------------------------------------------------------- */
 
+/** How many running things the Now bar draws in full; the rest are counted in one line under them. */
+const NOW_BAR_SHOWN = 2;
+
 function NowBar({
   running,
   nextUp,
@@ -639,7 +643,7 @@ function NowBar({
             </div>
           </>
         ) : (
-          running.slice(0, 2).map((it, i) => {
+          running.slice(0, NOW_BAR_SHOWN).map((it, i) => {
             const start = Date.parse(it.startDate!);
             // Open-ended: no finish line to measure against, so no countdown and a full bar.
             const end = it.endDate ? Date.parse(it.endDate) : null;
@@ -671,6 +675,12 @@ function NowBar({
               </div>
             );
           })
+        )}
+        {/* The header counts everything running; say where the ones not drawn here are. */}
+        {running.length > NOW_BAR_SHOWN && (
+          <ClanLink href="/admin/schedule" className="mt-3 block text-xs text-gold hover:underline">
+            and {runningParts(countRunning(running.slice(NOW_BAR_SHOWN)))} more running: see the schedule →
+          </ClanLink>
         )}
       </div>
 

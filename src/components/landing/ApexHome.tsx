@@ -1,3 +1,4 @@
+import { countRunning, runningLabel, runningParts, type RunningCount } from '@/lib/runningCount';
 import GuidedFlow from '@/components/GuidedFlow';
 import type { FlowView } from '@/lib/guidedFlow';
 import AnvilMark from '@/components/AnvilMark';
@@ -75,6 +76,9 @@ export default function ApexHome({
   // The arena was only taken out of the list to avoid showing it twice. It is still running, so the
   // summary line and the quiet note must count it, or the page says "nothing running" right above it.
   const runningTotal = running + (signals.arena ? 1 : 0);
+  // By kind, for the summary line (lib/runningCount). The arena is a weekly competition.
+  const listed = countRunning(live.flatMap((c) => c.live));
+  const runningCount = { events: listed.events, competitions: listed.competitions + (signals.arena ? 1 : 0) };
   const quiet =
     runningTotal === 0 && needsYou.length === 0 && view.openSignups.length === 0 && view.clans.length > 0;
 
@@ -96,7 +100,7 @@ export default function ApexHome({
               {summary(
                 view.clans.filter((c) => c.clanKind !== 'creator').length,
                 view.clans.filter((c) => c.clanKind === 'creator').length,
-                runningTotal,
+                runningCount,
                 view.openSignups.length,
               )}
             </p>
@@ -192,7 +196,7 @@ export default function ApexHome({
           {signals.standing && <Standing standing={signals.standing} flair={flair} />}
 
           {live.length > 0 && (
-            <Section title="Happening now" note={`${running} running`}>
+            <Section title={signals.arena ? 'Also happening now' : 'Happening now'} note={`${runningParts(listed)}${signals.arena ? ' more' : ''} running`}>
               <div className="flex flex-col gap-2.5">
                 {live.flatMap((c) =>
                   c.live.map((l) => (
@@ -523,7 +527,7 @@ function closes(deadline: string | null, startDate: string | null): string {
 }
 
 /** "2 clans and 1 space" — creator spaces are counted as spaces, never as clans (lib/creatorSpaces). */
-function summary(clans: number, spaces: number, running: number, signups: number): string {
+function summary(clans: number, spaces: number, running: RunningCount, signups: number): string {
   if (clans + spaces === 0) return 'Nothing here yet.';
   const c = [
     clans > 0 ? `${clans} clan${clans === 1 ? '' : 's'}` : null,
@@ -532,7 +536,7 @@ function summary(clans: number, spaces: number, running: number, signups: number
     .filter(Boolean)
     .join(' and ');
   const bits: string[] = [];
-  if (running > 0) bits.push(`${running} thing${running === 1 ? '' : 's'} running`);
+  if (runningParts(running)) bits.push(runningLabel(running));
   if (signups > 0) bits.push(`${signups} taking entries`);
   if (bits.length === 0) return `${c}, and nothing running in any of them.`;
   return `${c}. ${bits.join(', ')}.`;

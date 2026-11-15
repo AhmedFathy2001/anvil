@@ -561,3 +561,11 @@ test('a webhook staff blocked is a critical, unsnoozable card naming where it is
   assert.match(item.title, /disabled by Anvil staff/);
   assert.match(item.detail, /discord_webhook_bingo/);
 });
+
+test('a running board that is short of tiles is not said to be "opening"', () => {
+  const q = attentionQueue(facts({ events: [board({ tileCount: 20, status: 'running', startDate: inDays(-3) })] }));
+  const tiles = q.find((i) => i.key === 'tiles-1');
+  assert.match(tiles!.title, /is running with 5 empty tiles/);
+  assert.doesNotMatch(tiles!.detail, /opens/);
+  assert.match(tiles!.detail, /20 of 25 drawn/);
+});
