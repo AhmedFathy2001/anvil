@@ -218,7 +218,9 @@ export default function WorldMapPicker({ value, onChange, height = 380 }: Props)
           </>
         )}
 
-        <div className="absolute top-2 left-2 flex gap-1">
+        {/* The controls sit INSIDE the frame, so a press on them bubbled to the frame's pick handlers
+            and dropped the pin under the button. A press that starts on a control is not a pick. */}
+        <div className="absolute top-2 left-2 flex gap-1" onPointerDown={(e) => e.stopPropagation()}>
           {[['−', -1], ['+', 1]].map(([label, delta]) => (
             <button
               key={label as string}
@@ -232,7 +234,10 @@ export default function WorldMapPicker({ value, onChange, height = 380 }: Props)
           ))}
         </div>
 
-        <div className="absolute bottom-2 right-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-brown-dark/90 border border-card-border text-text-muted">
+        <div
+          className="absolute bottom-2 right-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-brown-dark/90 border border-card-border text-text-muted"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {value ? `pin ${value.x}, ${value.y}` : `${cursor.x}, ${cursor.y}`}
         </div>
       </div>
