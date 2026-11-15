@@ -114,7 +114,11 @@ export function parseWebhook(raw: string): GumroadEvent {
 
   const resourceName = get('resource_name'); // present on resource subscriptions, absent on Ping
   const isRecurringCharge = bool(get('is_recurring_charge'));
-  const refunded = bool(get('refunded')) || bool(get('partially_refunded'));
+  // A PARTIAL refund is not a refund of the subscription: the seller gave some money back (a
+  // goodwill credit, a prorated change) and the customer is still paying. Folding it into `refunded`
+  // suspended a paying clan and reset its plan. It is logged and otherwise left alone.
+  const refunded = bool(get('refunded'));
+  const partialOnly = !refunded && bool(get('partially_refunded'));
   const disputed = bool(get('disputed'));
   const cancelled = bool(get('cancelled'));
   const ended = bool(get('subscription_ended')) || !!get('subscription_ended_at') || !!get('ended_at');
@@ -123,7 +127,7 @@ export function parseWebhook(raw: string): GumroadEvent {
   if (resourceName) {
     switch (resourceName) {
       case 'sale':                  kind = isRecurringCharge ? 'recurring_charge' : 'sale'; break;
-      case 'refund':                kind = 'refund'; break;
+      case 'refund':                kind = partialOnly ? 'other' : 'refund'; break;
       case 'dispute':               kind = 'dispute'; break;
       case 'cancellation':          kind = 'cancellation'; break;
       case 'subscription_ended':    kind = 'subscription_ended'; break;
@@ -137,6 +141,7 @@ export function parseWebhook(raw: string): GumroadEvent {
     else if (disputed) kind = 'dispute';
     else if (ended) kind = 'subscription_ended';
     else if (cancelled) kind = 'cancellation';
+    else if (partialOnly) kind = 'other';
     else if (isRecurringCharge) kind = 'recurring_charge';
     else kind = 'sale';
   }
