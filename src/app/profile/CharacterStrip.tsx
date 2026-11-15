@@ -74,7 +74,7 @@ export default function CharacterStrip({
         >
           ⚙ {selected.rsn} settings
         </ClanLink>
-        <ClanLink href={fullProfileHref(selected, space)} className="text-gold hover:underline">
+        <ClanLink href={fullProfileHref(selected, space)} className="text-gold hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
           View full profile →
         </ClanLink>
       </div>

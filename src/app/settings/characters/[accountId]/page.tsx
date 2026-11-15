@@ -104,7 +104,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             {/* The full character page as its home clan sees it (falls back to any seat). */}
             <ClanLink
               href={clanPathOf({ slug: fullProfileSeat.clanSlug, kind: fullProfileSeat.clanKind }, `/members/${encodeURIComponent(c.rsn)}`)}
-              className="text-gold hover:text-gold-light"
+              className="text-gold hover:text-gold-light max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
             >
               View full profile →
             </ClanLink>

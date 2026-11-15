@@ -301,7 +301,7 @@ export function Roster({ characters, flair }: { characters: RosterCharacter[]; f
                 {home && (
                   <ClanLink
                     href={clanPathOf({ slug: home.clanSlug, kind: home.clanKind }, `/members/${encodeURIComponent(c.rsn)}`)}
-                    className="mt-0.5 block text-[0.74rem] text-gold-dark hover:text-gold"
+                    className="mt-0.5 block text-[0.74rem] text-gold-dark hover:text-gold max-sm:flex max-sm:min-h-11 max-sm:items-center"
                   >
                     View full profile →
                   </ClanLink>

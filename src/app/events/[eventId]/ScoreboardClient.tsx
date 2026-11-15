@@ -249,6 +249,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     }
   }, []);
   const [fullscreen, setFullscreen] = useState(false);
+  // Phones only: search + filters start folded (see the toggle above the board).
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   // Which team's board the viewer is looking at. Null = everyone's, the shared view.
   // Behind the curtain a one-team viewer looks through their own team's lens from the start.
@@ -843,10 +845,11 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   }
 
   return (
-    <div>
+    // Phones: the board comes straight after its controls; the MVP cards follow it.
+    <div className="max-sm:flex max-sm:flex-col">
       {/* Identity, prize and countdown now live in the EventHero above the board; this row keeps just
           the board-level controls. */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3 max-sm:order-1">
         {draftActive && (
           <ClanLink
             href={`/events/${event.id}/draft`}
@@ -869,7 +872,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       </div>
 
       {(mvpToday || mvp) && (
-        <div className={`mb-6 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
+        <div className={`mb-6 grid gap-3 max-sm:order-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
           {mvpToday && (
             <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />
           )}
@@ -879,7 +882,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
         </div>
       )}
 
-      <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
+      <div className={`grid gap-8 items-start max-sm:order-2 ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
         {!fullscreen && (
           <div className="min-w-0 max-lg:order-2">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
@@ -970,6 +973,17 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             />
           ) : (
           <>
+          {/* Phones: search and filters fold into one bar so the board is the first thing under the title. */}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            className="mb-3 flex min-h-11 w-full items-center justify-between rounded-lg border border-card-border bg-card-bg px-3 text-sm text-text-muted sm:hidden"
+          >
+            <span>Search &amp; filter{filterActive ? <span className="ml-1.5 text-gold">· on</span> : null}</span>
+            <span aria-hidden>{filtersOpen ? '−' : '+'}</span>
+          </button>
+          <div className={filtersOpen ? undefined : 'max-sm:hidden'}>
           <div className="relative mb-3">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none"
@@ -1045,6 +1059,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               )}
             </div>
           )}
+          </div>
 
           {/* Staff-only preview notice. The hidden COUNT is deliberately not shown to members on a
               mission board (it would leak how many surprises are left), but the host still needs to

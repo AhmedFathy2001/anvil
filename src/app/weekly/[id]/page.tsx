@@ -156,7 +156,7 @@ export default async function WeeklyLeaderboardPage({
     <div>
       <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
 
-      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
+      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
         ← All competitions
       </ClanLink>
 

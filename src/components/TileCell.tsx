@@ -195,12 +195,12 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
               ? 'text-sm sm:text-base'
               : size <= 5
                 ? 'text-xs sm:text-sm'
-                : 'text-[10px] sm:text-xs'
+                : 'text-[11px] sm:text-xs'
             : size <= 3
               ? 'text-[11px] sm:text-sm'
               : size <= 5
                 ? 'text-xs sm:text-xs'
-                : 'text-[10px] sm:text-[9px]',
+                : 'text-[11px] sm:text-[10px]',
           isCompleted ? 'text-foreground' : 'text-text-muted',
         )}
       >
