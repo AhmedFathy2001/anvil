@@ -1,3 +1,5 @@
+import GuidedFlow from '@/components/GuidedFlow';
+import type { FlowView } from '@/lib/guidedFlow';
 import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
@@ -46,12 +48,12 @@ export default function ApexHome({
   found = [],
   flair = null,
   recruiting = [],
-  setup = null,
+  guide = null,
 }: {
   /** Clans taking members, offered to somebody in none. */
   recruiting?: ShowcaseClan[];
-  /** Setup progress from lib/onboarding, for somebody in no clan. */
-  setup?: { doneCount: number; total: number; next: { title: string } | null } | null;
+  /** The "Getting started" guide strip (lib/guidedFlowFacts), or null once there is nothing left in it. */
+  guide?: FlowView | null;
   view: ApexHomeView;
   signals: ApexSignals;
   displayName: string;
@@ -103,6 +105,9 @@ export default function ApexHome({
         </div>
       </header>
 
+      {/* Getting started, one step at a time. It replaced the "Setup 2 of 4" bar the clanless card had. */}
+      {guide && <GuidedFlow view={guide} className="mb-10" />}
+
       {/* Identity comes before activity. A clan-sync record can be waiting even when this person
           already owns another character/clan, so this must not live only in the empty-home branch. */}
       {found.length > 0 && (
@@ -128,11 +133,16 @@ export default function ApexHome({
         // looking at. So the personal half of this page renders either way, and the clan doors sit
         // under it as an invitation rather than as the entire page.
         <div className="flex flex-col gap-10">
-          <Empty hasCharacters={view.characters.length > 0} recruiting={recruiting} setup={setup} />
+          <Empty hasCharacters={view.characters.length > 0} recruiting={recruiting} />
 
           {/* The open boards computed for this person were never drawn here, so somebody in no clan
               saw nothing running anywhere. */}
-          {view.discover && view.discover.length > 0 && <Discover discover={view.discover} title="Running now in public clans" />}
+          {/* #open-events: where the guide strip's "Show open events" button lands. */}
+          {view.discover && view.discover.length > 0 && (
+            <div id="open-events" className="scroll-mt-24 rounded-2xl">
+              <Discover discover={view.discover} title="Running now in public clans" />
+            </div>
+          )}
           {view.discover === null && <DiscoverToggle show variant="offer" />}
 
           {view.characters.length > 0 && (
@@ -397,11 +407,9 @@ function Discover({ discover, title }: { discover: DiscoverEvent[]; title: strin
 function Empty({
   hasCharacters,
   recruiting,
-  setup,
 }: {
   hasCharacters: boolean;
   recruiting: ShowcaseClan[];
-  setup: { doneCount: number; total: number; next: { title: string } | null } | null;
 }) {
   return (
     <div className="rounded-2xl border border-card-border bg-card-bg p-7 sm:p-8">
@@ -413,25 +421,6 @@ function Empty({
           ? 'Your characters are tracked either way — the week above is yours, clan or no clan. Join one that’s recruiting, or start your own; a clan takes an evening to set up.'
           : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
       </p>
-      {setup && setup.next && (
-        <ClanLink
-          href="/welcome"
-          className="mt-4 block rounded-xl border border-gold/30 bg-gold/[0.05] px-4 py-3 transition-colors hover:border-gold/60"
-        >
-          <span className="flex items-center justify-between gap-3 text-[13px]">
-            <span className="font-medium text-gold">
-              Setup {setup.doneCount} of {setup.total}
-            </span>
-            <span className="text-text-muted">Next: {setup.next.title} →</span>
-          </span>
-          <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-brown-dark">
-            <span
-              className="block h-full rounded-full bg-gold"
-              style={{ width: `${Math.round((setup.doneCount / Math.max(1, setup.total)) * 100)}%` }}
-            />
-          </span>
-        </ClanLink>
-      )}
       <div className="mt-5 flex flex-wrap gap-3">
         {!hasCharacters && (
           <ClanLink

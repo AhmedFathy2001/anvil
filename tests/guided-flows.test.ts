@@ -308,3 +308,98 @@ test('clan setup: complete once the first event exists, and the event flow takes
   assertWellFormed(v);
   assert.equal(v.complete, true);
 });
+
+// ── Flow c: a member getting started ──────────────────────────────────────────────────────────
+
+import { clanlessStartFlow, memberStartFlow, type ClanlessStartFacts, type MemberStartFacts } from '../src/lib/guidedFlows/memberStart.ts';
+
+const newMember: MemberStartFacts = { inClan: false, pluginConnected: false, hasCharacter: false, inEvent: false, hasProof: false };
+
+test('member start: with nothing done, joining a clan is open and blocked on a linked character', () => {
+  const v = memberStartFlow(newMember);
+  assertWellFormed(v);
+  assert.deepEqual(keys(v), ['clan', 'plugin', 'character', 'join', 'proof']);
+  assert.equal(v.current?.key, 'clan');
+  assert.equal(v.doneCount, 0);
+  assert.match(v.current!.blocked!.reason, /linked character/);
+  assert.deepEqual(v.current!.blocked!.fix, { label: 'Link a character', href: '/settings/characters', anchor: 'link-account' });
+  // With a character the same step is not blocked.
+  assert.equal(memberStartFlow({ ...newMember, hasCharacter: true }).current?.blocked, undefined);
+});
+
+test('member start: each step done in turn moves the open step along', () => {
+  const walk: [Partial<MemberStartFacts>, string][] = [
+    [{ inClan: true }, 'plugin'],
+    [{ inClan: true, pluginConnected: true }, 'character'],
+    [{ inClan: true, pluginConnected: true, hasCharacter: true }, 'join'],
+    [{ inClan: true, pluginConnected: true, hasCharacter: true, inEvent: true }, 'proof'],
+  ];
+  walk.forEach(([patch, step], i) => {
+    const v = memberStartFlow({ ...newMember, ...patch });
+    assertWellFormed(v);
+    assert.equal(v.current?.key, step);
+    assert.equal(v.doneCount, i + 1);
+  });
+  // A character linked by hand before the plugin: the plugin is still the open step.
+  assert.equal(memberStartFlow({ ...newMember, inClan: true, hasCharacter: true }).current?.key, 'plugin');
+});
+
+test('member start: the proof step says where the proof form is, and links follow the clan', () => {
+  const v = memberStartFlow({ ...newMember, inClan: true, pluginConnected: true, hasCharacter: true, inEvent: true });
+  assert.match(v.current!.sentence, /team page/);
+  assert.deepEqual(v.current!.action, { kind: 'link', label: 'Open my team', href: '/team' });
+  const away = memberStartFlow({ ...newMember, inClan: true, pluginConnected: true, hasCharacter: true, teamHref: '/c/oaks/team', eventsHref: '/c/oaks/events' });
+  assert.deepEqual(away.current!.action, { kind: 'link', label: 'See events', href: '/c/oaks/events' });
+});
+
+test('member start: a first proof finishes it, however they got there', () => {
+  const v = memberStartFlow({ ...newMember, inClan: true, hasProof: true });
+  assertWellFormed(v);
+  assert.equal(v.complete, true);
+});
+
+// ── Flow d: a player with no clan ─────────────────────────────────────────────────────────────
+
+const newPlayer: ClanlessStartFacts = { hasCharacter: false, inClan: false, clanSkipped: false, intent: null, inEvent: false, openEvents: 3 };
+
+test('clanless start: with nothing done, linking a character comes first', () => {
+  const v = clanlessStartFlow(newPlayer);
+  assertWellFormed(v);
+  assert.deepEqual(keys(v), ['character', 'clan', 'open']);
+  assert.equal(v.current?.key, 'character');
+  assert.deepEqual(v.current!.action, { kind: 'link', label: 'Link a character', href: '/settings/characters', anchor: 'link-account' });
+});
+
+test('clanless start: each step done in turn, and the clan step opens the door they came for', () => {
+  const linked = { ...newPlayer, hasCharacter: true };
+  const find = clanlessStartFlow(linked);
+  assertWellFormed(find);
+  assert.equal(find.current?.key, 'clan');
+  assert.equal((find.current!.action as { href: string }).href, '/clans');
+  const own = clanlessStartFlow({ ...linked, intent: 'owner' });
+  assert.equal((own.current!.action as { href: string }).href, '/clans/new');
+  assert.equal(own.steps[1].label, 'Start a clan');
+
+  // "Just me" settles the clan step without a clan, and what is open to everyone is next.
+  const solo = clanlessStartFlow({ ...linked, intent: 'solo', clanSkipped: true });
+  assertWellFormed(solo);
+  assert.equal(solo.current?.key, 'open');
+  assert.deepEqual(solo.current!.action, { kind: 'link', label: 'Show open events', href: '/', anchor: 'open-events' });
+  assert.match(solo.current!.sentence, /3 public events/);
+});
+
+test('clanless start: with no public event running the last step says so and points at clans instead', () => {
+  const v = clanlessStartFlow({ ...newPlayer, hasCharacter: true, clanSkipped: true, openEvents: 0 });
+  assertWellFormed(v);
+  assert.equal(v.current?.key, 'open');
+  assert.equal((v.current!.action as { href: string }).href, '/clans');
+  // A page that did not load the feed does not claim a count either way.
+  const unknown = clanlessStartFlow({ ...newPlayer, hasCharacter: true, clanSkipped: true, openEvents: null });
+  assert.doesNotMatch(unknown.current!.sentence, /\d/);
+});
+
+test('clanless start: complete once they have a character, a settled clan step and something entered', () => {
+  const v = clanlessStartFlow({ ...newPlayer, hasCharacter: true, clanSkipped: true, inEvent: true });
+  assertWellFormed(v);
+  assert.equal(v.complete, true);
+});

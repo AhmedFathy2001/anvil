@@ -1,5 +1,7 @@
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { landingClans, recruitingClans } from '@/lib/landingClans';
-import { onboardingState } from '@/lib/onboarding';
+import { clanlessStartGuide, memberStartGuide } from '@/lib/guidedFlowFacts';
+import GuidedFlow from '@/components/GuidedFlow';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
@@ -173,16 +175,24 @@ async function ApexRoot() {
     // Their Supporter look, once: every character name the signed-in home draws is their own.
     supporterForUser(session.userId),
   ]);
-  // The clanless home also offers somewhere to go and shows the setup progress already computed for
-  // /welcome. Only read for people in no clan; everyone else's home does not use them.
+  // The clanless home also offers somewhere to go. Only read for people in no clan.
   const clanless = view.clans.length === 0;
-  const [recruiting, setup] = clanless
-    ? await Promise.all([recruitingClans(), onboardingState(session.userId, session.playerId)])
-    : [[], null];
+  const recruiting = clanless ? await recruitingClans() : [];
+  // The "Getting started" guide strip (lib/guidedFlows/memberStart): for somebody in no clan, the
+  // clanless one; otherwise the member one, pointed at their first clan's events and team page.
+  const firstClan = view.clans.find((c) => c.clanKind !== 'creator') ?? null;
+  const guide = clanless
+    ? await clanlessStartGuide(session.userId, session.playerId, view.discover?.length ?? 0)
+    : firstClan
+      ? await memberStartGuide(session.userId, session.playerId, {
+          eventsHref: clanPathOf({ slug: firstClan.slug, kind: firstClan.clanKind }, '/events'),
+          teamHref: clanPathOf({ slug: firstClan.slug, kind: firstClan.clanKind }, '/team'),
+        })
+      : null;
   return (
     <ApexHome
       recruiting={recruiting}
-      setup={setup ? { doneCount: setup.doneCount, total: setup.total, next: setup.steps.find((st) => st.key === setup.current) ?? null } : null}
+      guide={guide}
       view={view}
       signals={signals}
       displayName={userRow?.displayName ?? 'there'}
@@ -322,11 +332,14 @@ export default async function HomePage() {
   ]);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
+  // The "Getting started" guide strip, until a first proof of theirs has landed.
+  const guide = session?.userId ? await memberStartGuide(session.userId, session.playerId ?? null, { insider: true }) : null;
 
   return (
     <div>
       <Hero view={view} boostLevel={boost?.level ?? 0} boostNameStyle={boost?.nameStyle} />
       {hall && <ClanHall initial={hall} src="home" />}
+      {guide && <GuidedFlow view={guide} className="mt-6" />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />

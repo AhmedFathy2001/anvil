@@ -9,6 +9,8 @@ import LegacyAnchors from './LegacyAnchors';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import OtherAccountsClient from './OtherAccountsClient';
 import { onboardingState } from '@/lib/onboarding';
+import { clanlessStartGuide, memberStartGuide } from '@/lib/guidedFlowFacts';
+import GuidedFlow from '@/components/GuidedFlow';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
 import { redirect } from 'next/navigation';
@@ -140,9 +142,17 @@ export default async function ProfilePage({
     const media = await profileMediaForUser(session.userId, { tier: supporter?.tier.id ?? null });
     // Their clan boosts and badges: this page is private, so it's the one place they're listed whole.
     const boosts = await myBoosts(session.userId, session.playerId ?? null).catch(() => null);
+    // The "Getting started" guide strip for somebody in no clan (the same one their home page shows).
+    const noClan = !myClans.some((c) => c.seat === 'member' && c.clanKind !== 'creator');
+    const startGuide = noClan ? await clanlessStartGuide(session.userId, session.playerId ?? null, null) : null;
     return (
       <>
         <LegacyAnchors />
+        {startGuide && (
+          <div className="max-w-6xl mx-auto">
+            <GuidedFlow view={startGuide} />
+          </div>
+        )}
         <PersonProfile
           // The Discord display name, and this is the one page it belongs on: /profile is private,
           // signed-in and yours. It is deliberately absent from /u/ and /p/, which are public.
@@ -252,6 +262,10 @@ export default async function ProfilePage({
   // because the answer came from a different clan entirely. verifyUser resolves the grant for the
   // clan actually being looked at.
   const isStaff = atLeast(session.role, 'admin') || session.role === 'moderator';
+  // The "Getting started" guide strip, until a first proof of theirs has landed. Not on a creator
+  // space or a friends host, where there is no clan to get started in.
+  const startGuide = space ? null : await memberStartGuide(session.userId, session.playerId ?? null, { insider: true });
+
   // Server component — Date.now() runs once per request, not on client renders.
   // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();
@@ -276,6 +290,7 @@ export default async function ProfilePage({
         </span>
       </div>
       <ProfileTabs clans={myClans} current={clanBasePath(clan)} />
+      {startGuide && <GuidedFlow view={startGuide} className="mt-4" />}
 
       {viewed && recordsAccount ? (
         // THE CHARACTER VIEW: no owner band — this page is about the character now.
@@ -351,7 +366,9 @@ export default async function ProfilePage({
             </div>
           )}
 
+          {/* #connect-plugin: where the guide strip's "Open plugin setup" button lands. */}
           {locker.setupNeeded && (
+            <div id="connect-plugin" className="scroll-mt-24 rounded-xl">
             <ConnectCard
               welcomeTo={welcome ? clanName : null}
               discordUsername={user.discordUsername}
@@ -361,6 +378,7 @@ export default async function ProfilePage({
               connected={locker.connection.connected}
               continueTo={continueTo}
             />
+            </div>
           )}
 
           {/* The owner band: what only they see. Live and captaincy on one side, the record on the other. */}
