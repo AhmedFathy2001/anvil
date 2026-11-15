@@ -182,7 +182,7 @@ export default function EventsClient({
           <SectionHead color="bg-blue-400" title="Co-hosted with other clans">
             <span className="text-xs text-text-muted/60 font-normal">your sign-ups, team and Discord for each</span>
           </SectionHead>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {cohosted.map((b) => (
               <div key={b.eventId} className="border border-card-border rounded-xl bg-card-bg px-4 py-3 hover:border-gold/40 transition-colors">
                 <ClanLink
@@ -240,7 +240,7 @@ export default function EventsClient({
             <RunningWeeklyHero comp={hero} />
           )}
           {alsoRunning.length > 0 && (
-            <div className="mt-2.5 grid gap-2">
+            <div className="mt-2.5 grid grid-cols-1 gap-2">
               {alsoRunning.map((item) =>
                 item.kind === 'event' ? (
                   <AlsoRunningRow
@@ -284,7 +284,7 @@ export default function EventsClient({
               {attention.length} item{attention.length === 1 ? '' : 's'}
             </span>
           </SectionHead>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {attention.map((item, i) => (
               <AttentionCard key={`${item.kind}-${i}`} item={item} />
             ))}
@@ -306,7 +306,7 @@ export default function EventsClient({
             )}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {upcoming.map((item) =>
               item.kind === 'event' ? (
                 <SetupCard
@@ -789,7 +789,13 @@ function SetupCard({
       </div>
 
       {canManage && (
-        <DeleteButton label={event.name} deleting={deleting} onDelete={onDelete} />
+        // Under "More", like every other row: a bare bin on the card was one stray tap from a confirm.
+        <div className="absolute top-2 right-2">
+          <ActionMenu
+            label="More"
+            items={[{ label: deleting ? 'Deleting…' : 'Delete event', variant: 'danger', disabled: deleting, onClick: onDelete }]}
+          />
+        </div>
       )}
     </div>
   );
@@ -854,35 +860,6 @@ function ClanEventCard({ ev }: { ev: ClanRow }) {
         <LocalTime date={ev.startDate} format="datetime" />
       </p>
     </ClanLink>
-  );
-}
-
-function DeleteButton({ label, deleting, onDelete }: { label: string; deleting: boolean; onDelete: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onDelete();
-      }}
-      disabled={deleting}
-      aria-label={`Delete event ${label}`}
-      title="Delete event"
-      className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-    >
-      {deleting ? (
-        <span className="text-[10px]">…</span>
-      ) : (
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-          <path d="M10 11v6" />
-          <path d="M14 11v6" />
-          <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-        </svg>
-      )}
-    </button>
   );
 }
 
@@ -1199,7 +1176,9 @@ function timeProgress(startDate: string | null, endDate: string | null) {
   }
 
   const remaining = Math.max(0, end - now);
-  const pct = start && end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : 0;
+  // Rounded here, once: the raw float printed differently on the server and in the browser
+  // ("43.58302628968254%" vs "43.583%"), a hydration mismatch on the bar's width.
+  const pct = start && end > start ? Math.round(Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) * 10) / 10 : 0;
   const totalDays = start ? Math.max(1, Math.round((end - start) / 86_400_000)) : null;
 
   return {
