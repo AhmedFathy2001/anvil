@@ -14,6 +14,7 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import { retitleForAmount } from '@/lib/tileAmountText';
 import {
   chooseKillSource,
   hiscoresKeyForMonster,
@@ -1926,20 +1927,44 @@ function TileTrackingEditor({
   // Light heads-up: a count in the title that doesn't line up with the tile's target amount. Scoped
   // to the field each kind actually uses (statGoal for skill/boss, gp for value, requiredAmount for
   // the count kinds), and only when the target isn't mentioned in the title OR description.
-  const amountWarning = useMemo(() => {
+  const amountTarget = useMemo(() => {
     let target: number | null = null;
     if (kind === 'skill') target = parseAmountToken(statGoal);
     else if (kind === 'kills') target = parseAmountToken(killAmount);
     else if (kind === 'value') target = parseAmountToken(valueGpText);
     else if (['drop', 'lap', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
-    if (target == null || target <= 0) return null;
+    return target != null && target > 0 ? target : null;
+  }, [kind, requiredAmount, statGoal, killAmount, valueGpText]);
+
+  // Editing the amount re-writes the number in the title and description when they carried the old
+  // one (they were generated from it). Text that never mentioned it was written by hand: it is left
+  // alone and the hint below says so. The last real amount is kept across an empty box mid-typing.
+  const lastAmount = useRef<number | null>(amountTarget);
+  const [leftAsWritten, setLeftAsWritten] = useState(false);
+  useEffect(() => {
+    const prev = lastAmount.current;
+    if (amountTarget == null) return;
+    lastAmount.current = amountTarget;
+    if (prev == null || prev === amountTarget || locked) return;
+    const nextLabel = retitleForAmount(label, prev, amountTarget);
+    const nextDesc = retitleForAmount(description, prev, amountTarget);
+    if (nextLabel != null) setLabel(nextLabel);
+    if (nextDesc != null) setDescription(nextDesc);
+    setLeftAsWritten(nextLabel == null && nextDesc == null);
+    // Only the amount triggers this; label/description are read as they stand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amountTarget]);
+
+  const amountWarning = useMemo(() => {
+    const target = amountTarget;
+    if (target == null) return null;
     const labelNums = extractCountLikeNumbers(label);
     if (labelNums.length === 0) return null;
     const allNums = [...labelNums, ...extractCountLikeNumbers(description)];
     if (allNums.includes(target)) return null;
     const titleNum = labelNums.find((n) => n !== target) ?? labelNums[0];
     return { titleNum, target };
-  }, [kind, label, description, requiredAmount, statGoal, killAmount, valueGpText]);
+  }, [amountTarget, label, description]);
 
   return (
     <div
@@ -2037,6 +2062,7 @@ function TileTrackingEditor({
           <span>
             The title mentions <strong>{amountWarning.titleNum.toLocaleString()}</strong>, but this tile&apos;s amount is set
             to <strong>{amountWarning.target.toLocaleString()}</strong>. Double-check they should match.
+            {leftAsWritten && ' Your own wording was left as you wrote it.'}
           </span>
         </div>
       )}
