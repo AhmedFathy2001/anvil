@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
+import Input from '@/components/Input';
+import { AUDIT_PAGE_SIZE, filterAudit, pageOf, type AuditScope } from '@/lib/auditFilter';
 import { clanFetch } from '@/lib/clanFetch';
 
 interface RenameSuggestion {
@@ -101,6 +103,10 @@ export default function AuditLogClient({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<string>('all');
+  // People's actions first: the roster sync writes joins and leaves all day and buried them.
+  const [scope, setScope] = useState<AuditScope>('people');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [showMerge, setShowMerge] = useState(false);
   const [sourceId, setSourceId] = useState<number | null>(null);
   const [targetId, setTargetId] = useState<number | null>(null);
@@ -225,10 +231,8 @@ export default function AuditLogClient({
 
   const visibleSuggestions = suggestions.filter((s) => !dismissed.has(s.joinedMemberId));
 
-  const filtered = useMemo(() => {
-    if (filter === 'all') return entries;
-    return entries.filter((e) => e.eventType === filter);
-  }, [entries, filter]);
+  const filtered = useMemo(() => filterAudit(entries, { scope, type: filter, query }), [entries, scope, filter, query]);
+  const paged = useMemo(() => pageOf(filtered, page, AUDIT_PAGE_SIZE), [filtered, page]);
 
   async function doMerge() {
     if (!sourceId || !targetId) return;
@@ -329,11 +333,44 @@ export default function AuditLogClient({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-text-muted">Filter</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded-lg border border-card-border text-xs" role="group" aria-label="Which entries">
+            {([
+              ['people', 'People’s actions'],
+              ['sync', 'Roster sync'],
+              ['all', 'Everything'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={scope === key}
+                onClick={() => {
+                  setScope(key);
+                  setPage(1);
+                }}
+                className={`px-3 py-1.5 transition-colors ${scope === key ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search name or note"
+            aria-label="Search the log"
+            className="w-48"
+          />
           <Select
             value={filter}
-            onChange={setFilter}
+            onChange={(v) => {
+              setFilter(v);
+              setPage(1);
+            }}
             ariaLabel="Filter by event type"
             className="w-56 max-w-full"
             options={[
@@ -402,7 +439,7 @@ export default function AuditLogClient({
           <div className="text-text-muted text-sm p-8 text-center">No matching audit entries.</div>
         ) : (
           <ul className="divide-y divide-card-border">
-            {filtered.map((e) => {
+            {paged.rows.map((e) => {
               // Unknown types (not in EVENT_LABELS) can be long ALL_CAPS_SNAKE tokens — de-snake them
               // so they wrap at spaces instead of overflowing the fixed-width label column into the RSN.
               const meta = EVENT_LABELS[e.eventType] ?? {
@@ -450,6 +487,31 @@ export default function AuditLogClient({
           </ul>
         )}
       </div>
+      {paged.pages > 1 && (
+        <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
+          <span>
+            {filtered.length} entries · page {paged.page} of {paged.pages}
+          </span>
+          <span className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(paged.page - 1)}
+              disabled={paged.page <= 1}
+              className="rounded border border-card-border px-3 py-1.5 hover:text-foreground disabled:opacity-40"
+            >
+              Newer
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(paged.page + 1)}
+              disabled={paged.page >= paged.pages}
+              className="rounded border border-card-border px-3 py-1.5 hover:text-foreground disabled:opacity-40"
+            >
+              Older
+            </button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

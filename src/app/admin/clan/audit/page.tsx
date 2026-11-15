@@ -7,7 +7,7 @@ import AuditLogClient, { type AuditEntry, type LeftMember, type JoinedMember } f
 
 export const dynamic = 'force-dynamic';
 
-const AUDIT_LIMIT = 200;
+const AUDIT_LIMIT = 500;
 
 export default async function ClanAuditPage() {
   const clan = await requireClan();
@@ -74,7 +74,7 @@ export default async function ClanAuditPage() {
   return (
     <div>
       <p className="text-sm text-text-muted mb-4">
-        Joins, leaves, renames, claims, and merges across the clan roster. Use the merge tool
+        What people changed in the clan, newest first. Automatic roster-sync joins and leaves are one click away under Roster sync. Use the merge tool
         to reconcile a left/joined pair when it&apos;s actually the same player who renamed.
       </p>
 
