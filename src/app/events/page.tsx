@@ -26,6 +26,7 @@ import CompetitionRow, { CompetitionRowList } from '@/components/events/Competit
 import { boardRow, countRows, rowWhen, sectionRows, weeklyRow } from '@/lib/competitionRows';
 import { runningParts } from '@/lib/runningCount';
 import { parseStamp } from '@/lib/dbTime';
+import { viewerEventEntries } from '@/lib/viewerEvents';
 import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
@@ -138,16 +139,24 @@ export default async function EventsIndexPage({
   // One row shape for all of it, in the page's order: the viewer's own first, then the rest that is
   // running, then what is next (lib/competitionRows). Nothing here is paged.
   const optedOutByKey = new Map(myEntries.map(({ w, e }) => [`w${w.id}`, e.optedOut]));
+  // The board events the viewer is on a team for (or signed up to, before it starts).
+  const listedBoards = [...view.live.boards, ...view.upcoming.boards];
+  const myBoards = session
+    ? await viewerEventEntries(
+        { userId: session.userId, playerId: session.playerId ?? null },
+        listedBoards.map((b) => b.id),
+        view.upcoming.boards.map((b) => b.id),
+      )
+    : new Map();
   const now = new Date().getTime();
   const sections = sectionRows(
     [
-      ...[...view.live.boards, ...view.upcoming.boards].map(boardRow),
+      ...listedBoards.map((b) => boardRow(b, myBoards.get(b.id))),
       ...[...view.live.weeks, ...view.upcoming.weeks].map(weeklyRow),
     ],
-    new Set(optedOutByKey.keys()),
+    new Set([...optedOutByKey.keys(), ...[...myBoards.keys()].map((id) => `e${id}`)]),
   );
   const nextUp = sections.upNext;
-  const mineRunning = sections.mine.filter((r) => r.state === 'live').length;
 
   const more = view.record.pastTotal - view.record.items.length;
 
@@ -195,14 +204,12 @@ export default async function EventsIndexPage({
       {compInvites.length > 0 && <CompetitionInvites initial={compInvites} />}
 
       {/* ---- yours first -------------------------------------------------------------
-          The weekly competitions the viewer is entered in, running or scheduled, each with its
-          "You're in · Opt out". */}
+          What the viewer is in, running or scheduled: the board events they have a team in (or
+          are signed up to) and the weekly competitions they are entered in, each of those with
+          its "You're in · Opt out". */}
       {sections.mine.length > 0 && (
         <>
-          <SectionHead
-            title="Your competitions"
-            note={`${sections.mine.length} entered${mineRunning > 0 ? ` · ${mineRunning} running` : ''}`}
-          />
+          <SectionHead title="You’re in" note={runningParts(countRows(sections.mine))} />
           <CompetitionRowList count={sections.mine.length}>
             {sections.mine.map((r) => (
               <li key={r.key}>
@@ -211,7 +218,9 @@ export default async function EventsIndexPage({
                   when={rowWhen(r, now)}
                   mine
                   aside={
-                    <OptOutToggle competitionId={Number(r.key.slice(1))} initialOptedOut={optedOutByKey.get(r.key) ?? false} compact />
+                    optedOutByKey.has(r.key) ? (
+                      <OptOutToggle competitionId={Number(r.key.slice(1))} initialOptedOut={optedOutByKey.get(r.key) ?? false} compact />
+                    ) : undefined
                   }
                 />
               </li>

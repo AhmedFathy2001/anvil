@@ -598,7 +598,7 @@ export function Competitions({ view, now }: { view: HomeView; now: number }) {
   // The same row as the events page (lib/competitionRows), live before scheduled, so the list
   // reads in the order things happen.
   const cards = [
-    ...liveEvents.map(boardRow),
+    ...liveEvents.map((e) => boardRow(e)),
     ...liveWeeklies.map((w) =>
       weeklyRow({
         id: w.id,

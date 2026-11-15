@@ -194,3 +194,45 @@ test('a line of the record is the same row', () => {
   assert.equal(lone.noLeader, 'No winner');
   assert.deepEqual(recordRow({ ...r, name: r.title, entrants: 0, entrantLabel: 'entered', top: null }).meta, []);
 });
+
+test('the viewer\'s own board: their team by name, never a place', () => {
+  const mine = boardRow(board(), { teamNames: ['Red Dragons'], signedUp: false });
+  assert.equal(mine.yours, 'Your team: Red Dragons');
+  // The leader line is exactly what it is for everyone else.
+  assert.deepEqual(mine.leader, boardRow(board()).leader);
+  assert.equal(boardRow(board(), { teamNames: ['A', 'B'], signedUp: false }).yours, 'Your teams: A, B');
+  assert.equal(boardRow(board({ chips: ['16 players'] }), { teamNames: ['Lcl Member'], signedUp: false }).yours, 'Playing as Lcl Member');
+  assert.equal(boardRow(board({ status: 'upcoming', top: null }), { teamNames: [], signedUp: true }).yours, 'You are signed up');
+  assert.equal(boardRow(board(), { teamNames: [], signedUp: false }).yours, null);
+  assert.equal(boardRow(board()).yours, null);
+  assert.equal(weeklyRow(week()).yours, null);
+});
+
+test('hidden standings stay hidden on the viewer\'s own board', () => {
+  const r = boardRow(board({ top: null, chips: ['4 teams'] }), { teamNames: ['Red Dragons'], signedUp: false });
+  assert.equal(r.leader, null);
+  assert.equal(r.yours, 'Your team: Red Dragons');
+  assert.ok(!r.meta.some((m) => /claimed/.test(m)));
+});
+
+test('a viewer on some boards and in some weeklies: theirs first, both kinds, counted apart', () => {
+  const rows = [
+    boardRow(board({ id: 1, endDate: '2026-11-25T00:00:00.000Z' }), { teamNames: ['Red Dragons'], signedUp: false }),
+    boardRow(board({ id: 2, endDate: '2026-11-20T00:00:00.000Z' })),
+    boardRow(board({ id: 3, status: 'upcoming', startDate: '2026-11-29T00:00:00.000Z', top: null }), { teamNames: [], signedUp: true }),
+    boardRow(board({ id: 4, status: 'upcoming', startDate: '2026-11-20 00:00:00', top: null })),
+    weeklyRow(week({ id: 5, endDate: '2026-11-19 11:31:00' })),
+    weeklyRow(week({ id: 6, endDate: '2026-11-21 11:31:00' })),
+    weeklyRow(week({ id: 7, state: 'upcoming', startDate: '2026-11-22 11:31:00' })),
+  ];
+  const s = sectionRows(rows, new Set(['e1', 'e3', 'w5', 'w7']));
+  assert.deepEqual(s.mine.map((r) => r.key), ['w5', 'e1', 'w7', 'e3'], 'running (soonest end first) before scheduled (soonest start first)');
+  assert.deepEqual(s.running.map((r) => r.key), ['e2', 'w6']);
+  assert.deepEqual(s.upNext.map((r) => r.key), ['e4']);
+  assert.equal(runningParts(countRows(s.mine)), '2 events and 2 competitions');
+  assert.equal(runningParts(countRows(s.running)), '1 event and 1 competition');
+  // Signed out, or in nothing: no section of their own, and nothing goes missing.
+  const none = sectionRows(rows, new Set());
+  assert.equal(none.mine.length, 0);
+  assert.equal(none.running.length + none.upNext.length, rows.length);
+});

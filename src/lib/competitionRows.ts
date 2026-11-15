@@ -32,6 +32,10 @@ export interface CompetitionRowSummary {
   leader: { label: 'Leading' | 'Won by'; name: string; figure: string; color: string | null } | null;
   /** Said in the leader's place when there is none. Null = say nothing (it has not started). */
   noLeader: string | null;
+  /** The viewer's own part in it: 'Your team: Red Dragons'. Null when they are not in it, or for a
+      week (its "You're in" is the row's own control). Never a place: the list has one standing per
+      board, the leader, and a board that hides its standings hands over none. */
+  yours: string | null;
   startDate: string | null;
   endDate: string | null;
   /** The start time came but the event is waiting on teams (lib/eventStage startIsHeld). */
@@ -104,6 +108,7 @@ export function weeklyRow(w: WeeklyRowInput): CompetitionRowSummary {
         }
       : null,
     noLeader: w.top ? null : noLeaderWords(w.state),
+    yours: null,
     startDate: w.startDate,
     endDate: w.endDate,
     startHeld: false,
@@ -127,7 +132,22 @@ export interface BoardRowInput {
   iconUrl: string | null;
 }
 
-export function boardRow(b: BoardRowInput): CompetitionRowSummary {
+/** The viewer's part in a board event (lib/viewerEvents). */
+export interface BoardViewer {
+  teamNames: string[];
+  signedUp: boolean;
+}
+
+function yoursWords(v: BoardViewer, individuals: boolean): string | null {
+  if (v.teamNames.length > 0) {
+    // A players board gives everyone a team of one, named after them.
+    if (individuals) return `Playing as ${v.teamNames.join(', ')}`;
+    return `${v.teamNames.length === 1 ? 'Your team' : 'Your teams'}: ${v.teamNames.join(', ')}`;
+  }
+  return v.signedUp ? 'You are signed up' : null;
+}
+
+export function boardRow(b: BoardRowInput, viewer?: BoardViewer | null): CompetitionRowSummary {
   const hasEntrants = /^\d+ (team|player)/.test(b.chips[0] ?? '');
   const meta = [b.shape, ...(hasEntrants ? [] : ['No teams yet']), ...b.chips];
   return {
@@ -151,6 +171,7 @@ export function boardRow(b: BoardRowInput): CompetitionRowSummary {
         }
       : null,
     noLeader: b.top ? null : noLeaderWords(b.status),
+    yours: viewer ? yoursWords(viewer, /^\d+ player/.test(b.chips[0] ?? '')) : null,
     startDate: b.startDate,
     endDate: b.endDate,
     startHeld: b.status === 'upcoming' && b.foot === START_WAITING_WORDS,
@@ -188,6 +209,7 @@ export function recordRow(i: RecordRowInput): CompetitionRowSummary {
       ? { label: i.state === 'past' ? 'Won by' : 'Leading', name: i.top.name, figure: i.top.text, color: i.top.color ?? null }
       : null,
     noLeader: i.top ? null : noLeaderWords(i.state),
+    yours: null,
     startDate: i.startDate,
     endDate: i.endDate,
     startHeld: false,

@@ -82,11 +82,6 @@ export default function CompetitionRow({
               {chip.label}
             </span>
           )}
-          {mine && !aside && (
-            <span className="rounded-full border border-accent-green/40 px-2 py-px text-xs font-semibold text-accent-green-light">
-              You’re in
-            </span>
-          )}
         </div>
         <h3 className="mt-0.5 text-[15px] font-bold leading-snug">
           <ClanLink href={row.href} className="line-clamp-2 break-words outline-none after:absolute after:inset-0 after:content-['']">
@@ -119,7 +114,13 @@ export default function CompetitionRow({
         ) : (
           dates && <p className="mt-0.5 text-text-muted">{dates}</p>
         )}
-        {aside && <div className="relative z-10 mt-0.5 sm:flex sm:justify-end">{aside}</div>}
+        {/* The viewer's own part, in the same place on every row: a week's "You're in · Opt out",
+            or a board's team by name where the row knows it. */}
+        {aside ? (
+          <div className="relative z-10 mt-0.5 sm:flex sm:justify-end">{aside}</div>
+        ) : (
+          (row.yours || mine) && <p className="mt-0.5 font-semibold text-accent-green-light">{row.yours ?? 'You’re in'}</p>
+        )}
       </div>
     </div>
   );
