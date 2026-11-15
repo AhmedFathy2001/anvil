@@ -472,6 +472,40 @@ test('run an event: on the Teams page the strip opens Teams while teams are not 
   assert.deepEqual(runEventFlow(running, { page: 'teams' }), runEventFlow(running));
 });
 
+test('run an event: an auto-balance board with no sign-ups says share the link, on the Teams page too', () => {
+  const e: RunEventInput = { ...blank, tileCount: 25, placement: 'auto' };
+  for (const v of [runEventFlow(e), runEventFlow(e, { page: 'teams' })]) {
+    assertWellFormed(v);
+    assert.equal(v.current?.key, 'signups');
+    assert.equal(v.current?.title, 'Share the sign-up link');
+    assert.deepEqual(v.current?.action, { kind: 'copy', label: 'Copy sign-up link', path: '/events/21/signup' });
+    assert.match(v.current!.sentence, /copy the link and post it in your Discord/);
+  }
+  // Tiles unfinished: the Teams page still has nothing to build, so its strip shares the link.
+  const early = runEventFlow({ ...blank, tileCount: 5, placement: 'auto' }, { page: 'teams' });
+  assert.equal(early.current?.action.kind, 'copy');
+  assert.doesNotMatch(early.current!.sentence, /add everyone/);
+});
+
+test('run an event: auto-balance with people signed up and no teams: the button teams them up', () => {
+  const e: RunEventInput = { ...blank, tileCount: 25, placement: 'auto', signupCount: 9 };
+  for (const v of [runEventFlow(e), runEventFlow(e, { page: 'teams' })]) {
+    assertWellFormed(v);
+    assert.equal(v.current?.key, 'teams');
+    assert.deepEqual(v.current?.action, { kind: 'custom', label: 'Team everyone up', id: 'team-up' });
+    assert.match(v.current!.sentence, /9 people have signed up but nobody is on a team yet/);
+    assert.doesNotMatch(v.current!.sentence, /open Teams/, 'it is shown on the Teams page');
+  }
+  // Tiles unfinished, on the Teams page: still the button, not a sentence about building teams.
+  const early = runEventFlow({ ...e, tileCount: 5 }, { page: 'teams' });
+  assert.equal(early.current?.key, 'teams');
+  assert.deepEqual(early.current?.action, { kind: 'custom', label: 'Team everyone up', id: 'team-up' });
+  // People still waiting for an answer cannot be seated: no button, and the sentence says why.
+  const waiting = runEventFlow({ ...e, tileCount: 5, pendingSignups: 2 }, { page: 'teams' });
+  assert.equal(waiting.current?.action.kind, 'none');
+  assert.match(waiting.current!.sentence, /approve the people waiting/);
+});
+
 test('member start: a running XP check is named on the character step', () => {
   const v = memberStartFlow({ ...newMember, inClan: true, pluginConnected: true, xpCheck: { rsn: 'Zezima', minutesLeft: 12 } });
   assert.equal(v.current?.key, 'character');

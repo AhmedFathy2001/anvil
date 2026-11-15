@@ -1,10 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+
+import { clanFetch } from '@/lib/clanFetch';
 
 import GuidedFlow from '@/components/GuidedFlow';
 import type { FlowView } from '@/lib/guidedFlow';
 import { useStartNow } from './EventNextStep';
+
+/** Fired on `window` when the strip changed who is on which team, so the Teams page reloads its rosters. */
+export const TEAMS_CHANGED = 'anvil:teams-changed';
 
 /**
  * The "Run an event" guide strip, on every page of an event's admin (lib/guidedFlows/runEvent).
@@ -21,14 +27,41 @@ export default function EventGuide({ view, teamsView, eventId }: { view: FlowVie
   // On the Teams tab the strip opens the Teams step while teams are not done (runEventFlow `page`).
   const onTeams = /\/admin\/events\/\d+\/teams\/?$/.test(usePathname() ?? '');
   const starter = useStartNow(eventId, () => router.refresh());
+  // "Team everyone up": seat the pool the way the board's Team placement seats a sign-up. The same
+  // request the Teams page's own button sends; that page reloads its rosters on TEAMS_CHANGED.
+  const [teaming, setTeaming] = useState(false);
+  const [teamError, setTeamError] = useState('');
+  async function teamUp() {
+    setTeaming(true);
+    setTeamError('');
+    try {
+      const res = await clanFetch(`/api/admin/events/${eventId}/place-pool`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ placement: 'as-set' }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) setTeamError(d.error || 'Could not team everyone up.');
+      else if (!d.placed) setTeamError('Nobody is waiting for a team. People who signed up are added once their sign-up is approved.');
+      else {
+        window.dispatchEvent(new Event(TEAMS_CHANGED));
+        router.refresh();
+      }
+    } catch {
+      setTeamError('Could not reach Anvil. Check your connection and try again.');
+    } finally {
+      setTeaming(false);
+    }
+  }
   return (
     <GuidedFlow
       view={onTeams ? teamsView : view}
       onCustom={(id) => {
         if (id === 'start') void starter.start();
+        if (id === 'team-up') void teamUp();
       }}
-      customBusy={starter.starting}
-      error={starter.error}
+      customBusy={starter.starting || teaming}
+      error={starter.error || teamError}
     />
   );
 }
