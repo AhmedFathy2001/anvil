@@ -49,6 +49,9 @@ export interface WeeklyCard {
   hostSlug?: string | null;
   /** 'solo' | 'teams' | 'clans' — how it is raced, for the list's "In teams" / "Clan vs clan". */
   mode?: string;
+  /** This viewer may read the board. False only for a clan-vs-clan week with a clan racing in it
+      that keeps its members private (the card already hides its leader and headcount). */
+  readable?: boolean;
 }
 
 export interface LoadWeeklyCardsOptions {
@@ -271,6 +274,7 @@ export async function loadWeeklyCards(
       hostName: hosts.get(c.clanId)?.name ?? null,
       hostSlug: hosts.get(c.clanId)?.slug ?? null,
       mode: c.mode,
+      readable: !unreadable.has(c.id),
     };
   });
 }

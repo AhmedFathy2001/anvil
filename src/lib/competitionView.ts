@@ -1,3 +1,4 @@
+import { viewerPlace } from '@/lib/weeklyPlace';
 import { db } from '@/db';
 import { memberDailyStats, memberMilestones, weeklyCompetitions, clanRoster } from '@/db/schema';
 import { and, eq, gte, inArray, isNull, lte, ne, lt, desc } from 'drizzle-orm';
@@ -321,18 +322,11 @@ export async function buildCompetitionView(
   const previous = await loadPrevious(competition, projected ?? clanTotal);
 
   // The viewer's own row, and the exact distance to the person above them.
-  const myIndex = entries.findIndex((e) => e.isMe);
-  const me =
-    myIndex >= 0
-      ? {
-          rank: myIndex + 1,
-          entry: entries[myIndex],
-          behind:
-            myIndex > 0
-              ? { rsn: entries[myIndex - 1].rsn, amount: entries[myIndex - 1].gained - entries[myIndex].gained }
-              : null,
-        }
-      : null;
+  // The place itself is worked out in lib/weeklyPlace, which the events list reads too.
+  const place = viewerPlace(entries, myRsns);
+  const me = place
+    ? { rank: place.rank, entry: entries[place.rank - 1], behind: place.behind }
+    : null;
 
   const milestones = await loadMilestones(accountIds, rsnByAccount, competition, days, type, metric);
   const highlights = await loadHighlights(competition.id);

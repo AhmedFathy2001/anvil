@@ -28,17 +28,15 @@ import { blockClan, inviteGate, reinvitedAt } from '@/lib/clanBlocks';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { readMetricFromSnapshot } from '@/lib/weeklyMetric';
-import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import {
   autoBalance,
   competitionMode,
-  rankGroups,
+  groupStandingsFromRows,
   smallestTeam,
   teamColour,
   type CompetitionMode,
   type GroupDef,
-  type GroupEntry,
-  type GroupStanding,
+  type GroupStandingsView,
 } from '@/lib/competitionTeams';
 
 type Competition = typeof weeklyCompetitions.$inferSelect;
@@ -711,18 +709,12 @@ export async function enrollPartnerClans(competitionId: number): Promise<number>
 
 // ── standings ───────────────────────────────────────────────────────────────────────────────────
 
-export interface GroupStandingsView {
-  mode: CompetitionMode;
-  groups: (GroupStanding & { isYours: boolean; slug?: string })[];
-  /** Teams mode: counting players on no team (score individually, for no team). */
-  unassigned: GroupEntry[];
-  /** Key of the viewer's team/clan, when known. */
-  yourGroupKey: number | null;
-}
+export type { GroupStandingsView };
 
 /**
  * Team or clan standings for a competition. `viewer` identifies "your" group — by roster seat ids
- * (site) or by RSN (plugin). Null for solo competitions.
+ * (site) or by RSN (plugin). Null for solo competitions. The ranking itself is
+ * groupStandingsFromRows (lib/competitionTeams), shared with the events list.
  */
 export async function buildGroupStandings(
   comp: Pick<Competition, 'id' | 'clanId' | 'mode'>,
@@ -745,52 +737,13 @@ export async function buildGroupStandings(
     .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(weeklyParticipants.competitionId, comp.id), countsTowardLeaderboard()));
 
-  // Same dedupe as every other board: one row per player, the one with the most progress.
-  const byRsn = new Map<string, (typeof rows)[number]>();
-  for (const r of rows) {
-    const key = weeklyRsnKey(r.rsn);
-    const prev = byRsn.get(key);
-    if (!prev || (r.currentValue ?? 0) > (prev.currentValue ?? 0)) byRsn.set(key, r);
-  }
-  const people = [...byRsn.values()];
-
   let defs: (GroupDef & { slug?: string })[];
-  const groupOf = (r: (typeof people)[number]): number | null =>
-    mode === 'teams' ? r.teamId : (r.clanId ?? comp.clanId);
   if (mode === 'teams') {
     defs = (await listTeams(comp.id)).map((t) => ({ key: t.id, name: t.name, colour: t.colour }));
   } else {
     defs = (await racingClans(comp)).map((c, i) => ({ key: c.id, name: c.name, slug: c.slug, colour: teamColour(null, i) }));
   }
-  const keys = new Set(defs.map((d) => d.key));
-  const members = people.map((r) => ({
-    rsn: r.rsn,
-    gained: (r.currentValue ?? 0) - (r.baselineValue ?? 0),
-    gainAt: r.gainAt,
-    groupKey: groupOf(r),
-  }));
-  const ranked = rankGroups(defs, members);
-
-  const wantedRsn = viewer?.rsn ? weeklyRsnKey(viewer.rsn) : '';
-  const memberIds = new Set(viewer?.memberIds ?? []);
-  const me = people.find(
-    (r) => (r.clanMemberId != null && memberIds.has(r.clanMemberId)) || (wantedRsn && weeklyRsnKey(r.rsn) === wantedRsn),
-  );
-  const yourGroupKey = me ? groupOf(me) : null;
-
-  const unassigned = members
-    .filter((m) => m.groupKey == null || !keys.has(m.groupKey))
-    .map((m) => ({ rsn: m.rsn, gained: Math.max(0, m.gained) }))
-    .sort((a, b) => b.gained - a.gained || a.rsn.localeCompare(b.rsn))
-    .map((e, i) => ({ rank: i + 1, ...e }));
-
-  const slugByKey = new Map(defs.map((d) => [d.key, d.slug]));
-  return {
-    mode,
-    groups: ranked.map((g) => ({ ...g, isYours: g.key === yourGroupKey, slug: slugByKey.get(g.key) })),
-    unassigned: mode === 'teams' ? unassigned : [],
-    yourGroupKey: yourGroupKey != null && keys.has(yourGroupKey) ? yourGroupKey : null,
-  };
+  return groupStandingsFromRows(comp, rows, defs, viewer);
 }
 
 // ── repeating competitions ──────────────────────────────────────────────────────────────────────

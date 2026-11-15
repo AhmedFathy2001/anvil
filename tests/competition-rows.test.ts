@@ -1,8 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  boardPlaceWords,
   boardRow,
   countRows,
+  personStandingWords,
+  placeWords,
+  sideWords,
   recordRow,
   rowWhen,
   sectionRows,
@@ -250,4 +254,75 @@ test('a finished board the viewer played in names their team; a week or a bare s
   assert.equal(recordRow(item).yours, null);
   // The winner line does not change with who is looking.
   assert.deepEqual(recordRow(item, { teamNames: ['Other'], signedUp: false }).leader, recordRow(item).leader);
+});
+
+// ---- where the viewer stands --------------------------------------------------------------------
+
+const person = (over: Partial<import('../src/lib/competitionRows').PersonStanding> = {}) => ({
+  rank: 6,
+  total: 24,
+  scored: true,
+  behind: 5,
+  lead: null,
+  ...over,
+});
+
+test('a week says the place, the field and the gap in the row\u2019s own unit', () => {
+  assert.equal(personStandingWords('KC', person()), 'You: #6 of 24 \u00b7 5 KC behind #5');
+  assert.equal(personStandingWords('XP', person({ behind: 12_400 })), 'You: #6 of 24 \u00b7 12K XP behind #5');
+  assert.equal(personStandingWords('h', person({ behind: 1500 })), 'You: #6 of 24 \u00b7 1.5h behind #5');
+});
+
+test('first place says how far ahead; a tie at the top or with the place above has no gap to say', () => {
+  assert.equal(personStandingWords('KC', person({ rank: 1, behind: null, lead: 12 })), 'You\u2019re leading by 12 KC');
+  assert.equal(personStandingWords('KC', person({ rank: 1, behind: null, lead: null })), 'You\u2019re leading');
+  assert.equal(personStandingWords('KC', person({ rank: 1, behind: null, lead: 0 })), 'You: #1 of 24');
+  assert.equal(personStandingWords('KC', person({ behind: 0 })), 'You: #6 of 24');
+  assert.equal(personStandingWords('KC', person({ behind: null })), 'You: #6 of 24');
+});
+
+test('no score yet, no place: the row keeps its plain \u201cYou\u2019re in\u201d', () => {
+  assert.equal(personStandingWords('KC', person({ scored: false })), null);
+  const row = weeklyRow(week(), { person: person({ scored: false }), side: null });
+  assert.equal(row.standing, null);
+  assert.equal(row.yours, null);
+});
+
+test('a team or clan week names the side, with its place once it has scored', () => {
+  const side = { kind: 'team' as const, name: 'Grim Kebab', rank: 2, of: 3, scored: true, clearLead: false };
+  assert.equal(sideWords(side), 'Your team: Grim Kebab \u00b7 2nd of 3');
+  assert.equal(sideWords({ ...side, kind: 'clan', name: 'Iron Forge', rank: 1, clearLead: true }), 'Your clan: Iron Forge \u00b7 leading');
+  // Tied for first shares the place rather than claiming the lead.
+  assert.equal(sideWords({ ...side, rank: 1, clearLead: false }), 'Your team: Grim Kebab \u00b7 1st of 3');
+  assert.equal(sideWords({ ...side, scored: false }), 'Your team: Grim Kebab');
+  assert.equal(weeklyRow(week(), { person: null, side }).yours, 'Your team: Grim Kebab \u00b7 2nd of 3');
+});
+
+test('places read as ordinals, and a clear first is \u201cleading\u201d', () => {
+  assert.equal(placeWords(1, 4, true), 'leading');
+  assert.equal(placeWords(1, 4, false), '1st of 4');
+  assert.equal(placeWords(11, 12, false), '11th of 12');
+  assert.equal(placeWords(22, 30, false), '22nd of 30');
+});
+
+test('a board names the team\u2019s place when it has one', () => {
+  const ranking = { teams: 4, scores: [{ teamId: 9, value: 12 }, { teamId: 3, value: 8 }, { teamId: 5, value: 8 }] };
+  const mine = (teamId: number, name = 'Red Dragons') => ({ teamNames: [name], teamIds: [teamId], signedUp: false });
+  assert.equal(boardPlaceWords(mine(9), ranking), 'leading');
+  // Tied for second shares the place.
+  assert.equal(boardPlaceWords(mine(3), ranking), '2nd of 4');
+  assert.equal(boardPlaceWords(mine(5), ranking), '2nd of 4');
+  const row = boardRow({ ...board(), ranking }, mine(3));
+  assert.equal(row.yours, 'Your team: Red Dragons \u00b7 2nd of 4');
+});
+
+test('a board gives no place without a score, with several teams, or when standings are held back', () => {
+  const ranking = { teams: 4, scores: [{ teamId: 9, value: 12 }] };
+  assert.equal(boardPlaceWords({ teamNames: ['A'], teamIds: [2], signedUp: false }, ranking), null, 'no score of their own');
+  assert.equal(boardPlaceWords({ teamNames: ['A', 'B'], teamIds: [9, 2], signedUp: false }, ranking), null, 'two teams');
+  assert.equal(boardPlaceWords({ teamNames: ['A'], teamIds: [9], signedUp: false }, { teams: 4, scores: [] }), null, 'hidden: no scores handed over');
+  assert.equal(boardRow(board(), { teamNames: ['Red Dragons'], teamIds: [9], signedUp: false }).yours, 'Your team: Red Dragons');
+  // A players board keeps its wording and adds the place.
+  const players = boardRow({ ...board(), chips: ['40 players'], ranking: { teams: 40, scores: [{ teamId: 1, value: 5 }, { teamId: 2, value: 3 }] } }, { teamNames: ['Max'], teamIds: [2], signedUp: false });
+  assert.equal(players.yours, 'Playing as Max \u00b7 2nd of 40');
 });

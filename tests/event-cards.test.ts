@@ -216,3 +216,21 @@ test('event cards are the asking clan\'s, and no one else\'s', async () => {
   const theirs = await loadEventCards(otherClanId, { includeUpcoming: true }, NOW);
   assert.deepEqual(theirs.map((c) => c.name), ['Next Door Board'], 'and they see only their own');
 });
+
+test('ranking: the viewer\'s "2nd of 4" comes from the same figures and the same order as the board page', async () => {
+  const { getTeamStandings } = await import('../src/lib/statStandings.ts');
+  const c = await card(1);
+  assert.equal(c.ranking.teams, 2);
+  assert.deepEqual(c.ranking.scores, [{ teamId: 11, value: 20 }, { teamId: 12, value: 10 }]);
+  const page = await getTeamStandings(1, 'points');
+  assert.deepEqual(
+    c.ranking.scores.map((r) => r.teamId),
+    page.filter((p) => p.score > 0).map((p) => p.teamId),
+    'the order the page ranks them in',
+  );
+  assert.deepEqual(c.ranking.scores.map((r) => r.value), page.filter((p) => p.score > 0).map((p) => p.score));
+});
+
+test('ranking: nothing to place on a board that has not started', async () => {
+  assert.deepEqual((await card(5)).ranking.scores, []);
+});

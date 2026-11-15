@@ -12,6 +12,8 @@
  * The database half lives in lib/competitionTeamsDb.
  */
 
+import { weeklyRsnKey } from './weeklyRsn.ts';
+
 export const COMPETITION_MODES = ['solo', 'teams', 'clans'] as const;
 export type CompetitionMode = (typeof COMPETITION_MODES)[number];
 
@@ -182,4 +184,80 @@ export function pastHalfway(startIso: string, endIso: string, nowMs: number): bo
 /** The create form may invite clans only for an owner/admin (a moderator may still create the competition). */
 export function inviteOnCreateRefused(mode: CompetitionMode, inviteCount: number, isAdmin: boolean): boolean {
   return mode === 'clans' && inviteCount > 0 && !isAdmin;
+}
+
+// ── group standings from rows already read ──────────────────────────────────────────────────────
+// The one place a week's team or clan standings are worked out. The competition page reads the rows
+// for ONE competition (lib/competitionTeamsDb buildGroupStandings); the events list reads them for
+// every competition the viewer is in (lib/viewerWeeklyStandings). Both end here, so a row's
+// "2nd of 3" cannot drift from the page's.
+
+export interface GroupStandingsView {
+  mode: CompetitionMode;
+  groups: (GroupStanding & { isYours: boolean; slug?: string })[];
+  /** Teams mode: counting players on no team (score individually, for no team). */
+  unassigned: GroupEntry[];
+  /** Key of the viewer's team/clan, when known. */
+  yourGroupKey: number | null;
+}
+
+/** A counted participant of a competition: the columns standings need. */
+export interface StandingRow {
+  rsn: string;
+  baselineValue: number | null;
+  currentValue: number | null;
+  gainAt: string | null;
+  teamId: number | null;
+  clanId: number | null;
+  clanMemberId: number | null;
+}
+
+export function groupStandingsFromRows(
+  comp: { clanId: number; mode: string },
+  rows: StandingRow[],
+  defs: (GroupDef & { slug?: string })[],
+  viewer?: { memberIds?: number[]; rsn?: string | null },
+): GroupStandingsView | null {
+  const mode = competitionMode(comp.mode);
+  if (mode === 'solo') return null;
+
+  // Same dedupe as every other board: one row per player, the one with the most progress.
+  const byRsn = new Map<string, StandingRow>();
+  for (const r of rows) {
+    const key = weeklyRsnKey(r.rsn);
+    const prev = byRsn.get(key);
+    if (!prev || (r.currentValue ?? 0) > (prev.currentValue ?? 0)) byRsn.set(key, r);
+  }
+  const people = [...byRsn.values()];
+
+  const groupOf = (r: StandingRow): number | null => (mode === 'teams' ? r.teamId : (r.clanId ?? comp.clanId));
+  const keys = new Set(defs.map((d) => d.key));
+  const members = people.map((r) => ({
+    rsn: r.rsn,
+    gained: (r.currentValue ?? 0) - (r.baselineValue ?? 0),
+    gainAt: r.gainAt,
+    groupKey: groupOf(r),
+  }));
+  const ranked = rankGroups(defs, members);
+
+  const wantedRsn = viewer?.rsn ? weeklyRsnKey(viewer.rsn) : '';
+  const memberIds = new Set(viewer?.memberIds ?? []);
+  const me = people.find(
+    (r) => (r.clanMemberId != null && memberIds.has(r.clanMemberId)) || (wantedRsn && weeklyRsnKey(r.rsn) === wantedRsn),
+  );
+  const yourGroupKey = me ? groupOf(me) : null;
+
+  const unassigned = members
+    .filter((m) => m.groupKey == null || !keys.has(m.groupKey))
+    .map((m) => ({ rsn: m.rsn, gained: Math.max(0, m.gained) }))
+    .sort((a, b) => b.gained - a.gained || a.rsn.localeCompare(b.rsn))
+    .map((e, i) => ({ rank: i + 1, ...e }));
+
+  const slugByKey = new Map(defs.map((d) => [d.key, d.slug]));
+  return {
+    mode,
+    groups: ranked.map((g) => ({ ...g, isYours: g.key === yourGroupKey, slug: slugByKey.get(g.key) })),
+    unassigned: mode === 'teams' ? unassigned : [],
+    yourGroupKey: yourGroupKey != null && keys.has(yourGroupKey) ? yourGroupKey : null,
+  };
 }

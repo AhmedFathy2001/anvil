@@ -1,3 +1,4 @@
+import { streakNudge } from '@/lib/streakNudge';
 import { countRunning, runningLabel, runningParts, type RunningCount } from '@/lib/runningCount';
 import GuidedFlow from '@/components/GuidedFlow';
 import type { FlowView } from '@/lib/guidedFlow';
@@ -104,6 +105,7 @@ export default function ApexHome({
                 view.openSignups.length,
               )}
             </p>
+            {streakNudge(signals.streak) && <p className="mt-1 text-[13px] text-text-muted">{streakNudge(signals.streak)}</p>}
           </div>
           <StreakBadge streak={signals.streak} />
         </div>
