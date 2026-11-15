@@ -2,6 +2,10 @@ import { settingsCharacters } from '@/lib/settingsData';
 import { MEMBER_SETTINGS_CARDS, resolveMemberHref } from '@/lib/memberSettingsIndex';
 import { settingsSession } from '@/app/settings/settingsSession';
 import ClanLink from '@/components/ClanLink';
+import CollapsibleSection from '@/components/CollapsibleSection';
+import QuickSettings from '@/components/QuickSettings';
+import { clansOfPerson } from '@/lib/myClans';
+import { quickSettingsFor } from '@/lib/quickSettingsRead';
 import { SettingsTitle } from './_ui';
 import { MemberSettingsSearch, SettingsCard } from './SettingsHub';
 
@@ -17,6 +21,15 @@ export default async function SettingsHome() {
   const session = await settingsSession();
   const characters = session.playerId ? await settingsCharacters(session.playerId) : [];
   const main = characters[0]?.accountId ?? null;
+  // The first clan they hold a seat in that has something to ask (lib/quickSettings).
+  let quick: Awaited<ReturnType<typeof quickSettingsFor>>["view"] = null;
+  if (session.playerId) {
+    const mine = (await clansOfPerson(session.playerId, session.userId)).filter((c) => c.seat && c.clanKind !== 'creator');
+    for (const c of mine) {
+      quick = (await quickSettingsFor(session.userId, session.playerId, c, { ignoreDone: true })).view;
+      if (quick) break;
+    }
+  }
 
   return (
     <>
@@ -26,6 +39,14 @@ export default async function SettingsHome() {
       </SettingsTitle>
 
       <MemberSettingsSearch mainAccountId={main} />
+
+      {quick && (
+        <div className="mt-6">
+          <CollapsibleSection id="few-that-matter" title="The few that matter most" summary={`The choices most new members want to make, for ${quick.clanName}.`}>
+            <QuickSettings view={quick} mode="overview" />
+          </CollapsibleSection>
+        </div>
+      )}
 
       <section aria-labelledby="settings-areas" className="mt-8">
         <h2 id="settings-areas" className="mb-3 flex items-center gap-2 text-sm font-semibold">

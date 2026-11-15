@@ -353,7 +353,7 @@ export default async function HomePage() {
       <section className="mt-9 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
         <QuickLink href="/events" emoji="🏆" label="Competitions" />
         {myTeams > 0 && <QuickLink href="/team" emoji="🎯" label={myTeams > 1 ? 'My Teams' : 'My Team'} />}
-        <QuickLink href="/profile" emoji="👤" label="Your profile" />
+        <QuickLink href="/profile" emoji="👤" label="Your profile" hint="Your characters, teams and settings" />
         {view.discordInvite && <QuickLink href={view.discordInvite} emoji="💬" label="Discord" external />}
       </section>
     </div>
@@ -365,7 +365,9 @@ function QuickLink({
   emoji,
   label,
   external,
+  hint,
 }: {
+  hint?: string;
   href: string;
   emoji: string;
   label: string;
@@ -382,11 +384,11 @@ function QuickLink({
     </>
   );
   return external ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+    <a href={href} target="_blank" rel="noopener noreferrer" title={hint} className={className}>
       {body}
     </a>
   ) : (
-    <ClanLink href={href} className={className}>
+    <ClanLink href={href} title={hint} className={className}>
       {body}
     </ClanLink>
   );

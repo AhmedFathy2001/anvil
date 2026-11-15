@@ -361,7 +361,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               align="right"
               pathname={pathname}
             >
-              <ClanLink prefetch={false} href="/profile" role="menuitem" className={MENU_ITEM}>
+              <ClanLink prefetch={false} href="/profile" role="menuitem" title="Your characters, teams and settings" className={MENU_ITEM}>
                 Your profile
               </ClanLink>
               {/* Head-to-head lives on the apex and belongs to the person, like the profile. */}

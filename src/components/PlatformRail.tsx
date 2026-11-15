@@ -87,7 +87,7 @@ export default function PlatformRail({
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
-  const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
+  const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null, hint?: string) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
     // /clans/new is the create form, not the hall, and lighting the hall there says you are browsing.
     const active = exact ? pathname === href : pathname.startsWith(href);
@@ -96,6 +96,7 @@ export default function PlatformRail({
         key={href}
         href={href}
         aria-current={active ? 'page' : undefined}
+        title={hint}
         className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13.5px] transition-colors max-lg:min-h-11 ${
           active
             ? 'bg-gold/[0.09] text-gold shadow-[inset_2px_0_0_var(--gold)]'
@@ -144,7 +145,10 @@ export default function PlatformRail({
         </div>
         {item('/', 'Home', <HomeIcon />)}
         {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
-        {myProfileHref && item(myProfileHref, 'Public page', <ProfileIcon />)}
+        {myProfileHref &&
+          (myProfileHref.startsWith('/p/')
+            ? item(myProfileHref, 'My public profile', <ProfileIcon />, false, null, 'What other people see')
+            : item(myProfileHref, 'Your profile', <ProfileIcon />, false, null, 'Your characters, teams and settings'))}
         {/* Head-to-head (lib/h2h): yours across every clan, and free (one open at a time). Only a
             profile card and a DM linked it, so most people never learned it existed. */}
         {signedIn && item('/challenges', 'Challenges', <SwordsIcon />)}

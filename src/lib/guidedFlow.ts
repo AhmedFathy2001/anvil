@@ -7,10 +7,12 @@
 // Nothing about a flow is stored except, in the browser, that somebody folded or dismissed it.
 
 /** Every flow and its step keys. Also the allow-list for the analytics beacon: nothing else is recorded. */
+import type { QuickSettingsView } from './quickSettings.ts';
+
 export const FLOW_STEP_KEYS = {
   'run-event': ['format', 'tiles', 'signups', 'teams', 'dates', 'start', 'proofs', 'prizes'],
   'clan-setup': ['clan', 'plugin', 'prove', 'members', 'event'],
-  'member-start': ['clan', 'plugin', 'character', 'join', 'proof'],
+  'member-start': ['clan', 'settings', 'plugin', 'character', 'join', 'proof'],
   'clanless-start': ['character', 'clan', 'open'],
   moderator: ['queue', 'decide', 'next'],
 } as const;
@@ -59,6 +61,8 @@ export interface FlowStepCopy {
   /** "How this works": the matching section of a written guide. */
   guideHref?: string;
   blocked?: FlowBlocked;
+  /** A step that is a few switches, drawn open in place of a button (lib/quickSettings). */
+  quick?: QuickSettingsView;
 }
 
 export interface FlowStepDef {
