@@ -42,8 +42,8 @@ export const MEMBER_SETTINGS_CARDS: readonly MemberSettingsCard[] = [
   {
     id: 'profile',
     title: 'Profile & look',
-    blurb: 'Your Supporter plan and clan boosts, avatar and banner, display case, name colours and chat colours, with a live preview. Try any look before you subscribe.',
-    href: '/settings/profile#plan',
+    blurb: 'Your clan boosts, avatar and banner, display case, name colours and chat colours, with a live preview. Try any look before you subscribe.',
+    href: '/settings/profile#boosts',
     icon: '▣',
   },
   {
@@ -279,8 +279,8 @@ export const MEMBER_SETTINGS: readonly MemberSettingEntry[] = [
     label: 'Supporter membership',
     description: 'Your tier, what each perk needs, billing and your invite link.',
     keywords: ['supporter', 'champion', 'patron', 'membership', 'subscription', 'perks', 'billing', 'invite', 'referral', 'gumroad'],
-    href: '/settings/profile#perks',
-    section: 'Profile & look',
+    href: '/settings/account#perks',
+    section: 'Account',
   },
   {
     id: 'boosts',

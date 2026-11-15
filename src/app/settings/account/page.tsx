@@ -1,6 +1,7 @@
 import ClanLink from '@/components/ClanLink';
 
 import { LoginGroups } from '../_parts/account';
+import { PlanGroups } from '../_parts/supporter';
 import { StreamingGroups } from '../_parts/connections';
 import { PrivacyGroups } from '../_parts/privacy';
 import { PartJumps, SettingsPart, SettingsTitle } from '../_ui';
@@ -8,20 +9,25 @@ import { PartJumps, SettingsPart, SettingsTitle } from '../_ui';
 export const dynamic = 'force-dynamic';
 
 /**
- * Account: signing in (devices, sessions, clan billing), the streaming accounts you linked, and who
+ * Account: your plan, signing in (devices, sessions, clan billing), the streaming accounts you linked, and who
  * sees your characters. Was Login & devices, Streaming accounts and Who sees my characters.
  */
 export default function AccountSettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   return (
     <>
-      <SettingsTitle title="Account">Signing in, the accounts you linked, and who can see your characters.</SettingsTitle>
+      <SettingsTitle title="Account">Your plan, signing in, the accounts you linked, and who can see your characters.</SettingsTitle>
       <PartJumps
         parts={[
+          { id: 'plan', label: 'Your plan & billing' },
           { id: 'login', label: 'Login & devices' },
           { id: 'streaming', label: 'Streaming accounts' },
           { id: 'privacy', label: 'Who sees my characters' },
         ]}
       />
+
+      <SettingsPart id="plan" title="Your plan & billing" intro="Supporters pay for Anvil’s servers, and their name says so.">
+        <PlanGroups />
+      </SettingsPart>
 
       <SettingsPart id="login" title="Login & devices">
         <LoginGroups />
