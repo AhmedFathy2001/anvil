@@ -150,7 +150,8 @@ test('every row names the person and how to reach them', () => {
   assert.ok(embed);
   const row = embed.fields[0].value;
   assert.match(row, /discord\.com\/users\/123456789012345678/);
-  assert.match(row, /founder@example\.com/);
+  assert.match(row, /f\*\*\*@example\.com/);
+  assert.doesNotMatch(row, /founder@example\.com/);
   assert.match(row, /cannot sync a roster/);
 });
 
