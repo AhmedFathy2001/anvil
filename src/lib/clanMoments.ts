@@ -6,6 +6,7 @@
 // sync never floods the wall with their back catalogue. Members only (a current seat in THIS clan): a
 // guest's drops are their own clan's news. The labels and the order are lib/clanMomentsRules.
 
+import { sceneForMetric } from '@/lib/scenes';
 import { and, desc, eq, gte, isNotNull, isNull, lte } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -63,6 +64,7 @@ export async function clanMoments(clanId: number, now = new Date(), limit = 9): 
       rsn: m.rsn ?? 'Someone',
       text: milestoneSentence(m.kind, m.metric, m.threshold),
       iconUrl: m.metric ? competitionIconUrl(m.kind === 'kc' ? 'boss' : 'skill', m.metric) : null,
+      scene: sceneForMetric(m.kind === 'kc' ? 'boss' : 'skill', m.metric),
       at: m.at,
       ...momentLabel({ kind: 'milestone', milestone: m.kind, threshold: m.threshold }),
     })),

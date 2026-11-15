@@ -42,6 +42,29 @@ function ago(iso: string, now: number): string {
  * What the clan's members did lately (lib/clanMoments): the weightiest one big, the rest as tiles.
  * Game art only (our cached wiki icons), so nothing on the wall is a picture a member uploaded.
  */
+/**
+ * Backdrop art behind a card's text (lib/scenes): a faded landscape filling it, or a boss's figure set
+ * to the right. Under a gradient of the card's own colour, so the words stay readable on any picture.
+ */
+function SceneBackdrop({ scene }: { scene: { url: string; fit: 'cover' | 'contain' } }) {
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+      {/* eslint-disable-next-line @next/next/no-img-element -- cached game art (lib/assetUrls), decorative */}
+      <img
+        src={scene.url}
+        alt=""
+        loading="lazy"
+        className={
+          scene.fit === 'cover'
+            ? 'h-full w-full scale-105 object-cover opacity-35 blur-[1px]'
+            : 'absolute -right-4 bottom-0 h-[115%] w-auto max-w-[70%] object-contain object-bottom opacity-25'
+        }
+      />
+      <span className="absolute inset-0 bg-gradient-to-t from-[#14100f] via-[#14100f]/75 to-[#14100f]/25" />
+    </span>
+  );
+}
+
 function MomentsWall({ moments }: { moments: Moment[] }) {
   const now = Date.now();
   return (
@@ -55,6 +78,7 @@ function MomentsWall({ moments }: { moments: Moment[] }) {
               key={`${m.rsn}-${m.at}-${i}`}
               className={`relative flex flex-col justify-end overflow-hidden rounded-2xl border border-card-border p-4 ${big ? 'col-span-2 row-span-2 bg-[var(--sa-deep)]' : 'bg-card-bg'}`}
             >
+              {m.scene && <SceneBackdrop scene={m.scene} />}
               {m.iconUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- cached game art (lib/assetUrls)
                 <img
@@ -63,12 +87,12 @@ function MomentsWall({ moments }: { moments: Moment[] }) {
                   className={`absolute right-4 top-4 object-contain [image-rendering:pixelated] ${big ? 'h-24 w-24' : 'h-11 w-11'}`}
                 />
               )}
-              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--sa-text)]">{m.tag}</span>
-              <span className={`display mt-1 font-semibold leading-tight ${big ? 'text-3xl' : 'line-clamp-2 text-lg'}`}>
+              <span className="relative text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--sa-text)]">{m.tag}</span>
+              <span className={`display relative mt-1 font-semibold leading-tight ${big ? 'text-3xl' : 'line-clamp-2 text-lg'}`}>
                 {/* Milestone sentences are written to follow a name ("hit 99 Slayer"); on a tile they lead. */}
                 {m.text.charAt(0).toUpperCase() + m.text.slice(1)}
               </span>
-              <span className="mt-1 truncate text-[13px] text-text-muted">
+              <span className="relative mt-1 truncate text-[13px] text-text-muted">
                 {m.rsn} · {ago(m.at, now)}
               </span>
             </li>
@@ -289,9 +313,10 @@ export default function PublicClanHome({
               <ClanLink
                 key={item.key}
                 href={item.href}
-                className="group flex flex-col gap-2 rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)]"
+                className="group relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)] [&>span:not(:first-child)]:relative"
                 style={{ backgroundImage: 'linear-gradient(var(--sa-soft), transparent 75%)' }}
               >
+                {item.scene ? <SceneBackdrop scene={item.scene} /> : <span aria-hidden className="hidden" />}
                 <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sa-text)]">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
                   Live · {item.kind}
