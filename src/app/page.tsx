@@ -335,7 +335,7 @@ export default async function HomePage() {
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
-      <Competitions view={view} />
+      <Competitions view={view} now={new Date().getTime()} />
       <ClanWeek view={view} />
       {boost && (
         <ClanBoostPanel

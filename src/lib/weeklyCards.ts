@@ -47,6 +47,8 @@ export interface WeeklyCard {
       address, for a "hosted by" hint. Null on this clan's own competitions. */
   hostName?: string | null;
   hostSlug?: string | null;
+  /** 'solo' | 'teams' | 'clans' — how it is raced, for the list's "In teams" / "Clan vs clan". */
+  mode?: string;
 }
 
 export interface LoadWeeklyCardsOptions {
@@ -268,6 +270,7 @@ export async function loadWeeklyCards(
       days: unreadable.has(c.id) ? [] : shapeFor.get(c.id) ?? [],
       hostName: hosts.get(c.clanId)?.name ?? null,
       hostSlug: hosts.get(c.clanId)?.slug ?? null,
+      mode: c.mode,
     };
   });
 }
