@@ -168,8 +168,11 @@ test('slug suggestion from a display name', () => {
 
 test('creator checklist: event, share, optional Discord', () => {
   const fresh = creatorSetupSteps({ eventsCount: 0, outsideSignups: 0, discordConnected: false });
-  assert.deepEqual(fresh.map((s) => s.key), ['event', 'share', 'discord']);
+  assert.deepEqual(fresh.map((s) => s.key), ['event', 'share', 'stream', 'discord']);
   assert.equal(fresh.find((s) => s.key === 'discord')?.optional, true);
+  assert.equal(fresh.find((s) => s.key === 'stream')?.optional, true);
+  assert.equal(fresh.find((s) => s.key === 'share')?.href, '/admin/dashboard');
+  assert.equal(creatorSetupSteps({ eventsCount: 0, outsideSignups: 0, discordConnected: false, streamConnected: true }).find((s) => s.key === 'stream')?.done, true);
   assert.ok(fresh.every((s) => !s.done));
   const going = creatorSetupSteps({ eventsCount: 1, outsideSignups: 3, discordConnected: false });
   assert.ok(going.filter((s) => !s.optional).every((s) => s.done), 'Discord is not needed for done');
