@@ -2,7 +2,6 @@
 
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import { useEffect, useState } from 'react';
-import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
@@ -43,7 +42,6 @@ export default function NewClanClient({
   const [done, setDone] = useState<string | null>(created);
   const [foundVia, setFoundVia] = useState('');
   const [foundViaNote, setFoundViaNote] = useState('');
-  const [joinAnvil, setJoinAnvil] = useState(true);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   // Suggest the slug from the display name — or the in-game name when no display name is given, since
@@ -103,16 +101,7 @@ export default function NewClanClient({
         return;
       }
       const made = j.clan?.slug ?? slug;
-      // "Join the Anvil Discord": one Discord consent screen, then back to the finished screen here.
-      // Not when a trial checkout is waiting — that link would be lost on the round trip, so the
-      // finished screen offers the join as a button instead.
-      if (joinAnvil && !j.checkoutUrl) {
-        const back = `/clans/new?created=${encodeURIComponent(made)}`;
-        // A full navigation on purpose: it's an API route that redirects to Discord, not a page.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = `/api/auth/discord/start?anvil=1&return=${encodeURIComponent(back)}`;
-        return;
-      }
+      // Joining the Anvil Discord is opt-in: a button on the finished screen, never a redirect before it.
       setCheckoutUrl(j.checkoutUrl ?? null);
       setDone(made);
     } finally {
@@ -298,13 +287,6 @@ export default function NewClanClient({
         )}
         <p className="mt-1 text-xs text-gray-500">Helps me know what&rsquo;s working. Only Anvil staff see it.</p>
       </div>
-
-      <Checkbox
-        checked={joinAnvil}
-        onChange={setJoinAnvil}
-        label="Join the Anvil Discord"
-        description="Where help, updates and other clan admins are. Discord asks you once to allow it."
-      />
 
       {error && <p className="text-sm text-red-300">{error}</p>}
 
