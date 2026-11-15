@@ -29,6 +29,8 @@ interface Props {
   // Managed clan: identity fields were collected at sign-up (provisioner env → seeded settings),
   // not typed here — flavors the "already filled in" notice on skipped-into steps.
   provisioned: boolean;
+  /** The dashboard checklist's own count (lib/setupStatus) — one source for "N of M done". */
+  checklist?: { completedCount: number; totalCount: number };
 }
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
@@ -72,7 +74,7 @@ function skippedNotice(initial: Props['initial'], provisioned: boolean, openedAt
   return `${filled} already filled in${provisioned ? ' from when you created the clan' : ''}, so we started at Discord.`;
 }
 
-export default function SetupWizardClient({ initial, channels, provisioned }: Props) {
+export default function SetupWizardClient({ initial, channels, provisioned, checklist }: Props) {
   const router = useRouter();
   // Open at the first step with anything left to do; already-satisfied steps are skipped.
   const [initialStep] = useState(() => firstIncompleteStep(initial));
@@ -158,7 +160,7 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
         </p>
       </header>
 
-      {!isDone && <StepDots current={step} total={TOTAL_STEPS} />}
+      {!isDone && <StepDots current={step} total={TOTAL_STEPS} checklist={checklist} />}
 
       <div className="border border-card-border rounded-xl bg-card-bg p-6 mt-5">
         {/* Skipped-ahead notice: shown on the step we opened at when earlier steps were auto-
@@ -349,7 +351,7 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
   );
 }
 
-function StepDots({ current, total }: { current: number; total: number }) {
+function StepDots({ current, total, checklist }: { current: number; total: number; checklist?: { completedCount: number; totalCount: number } }) {
   return (
     <div className="flex items-center gap-2">
       {Array.from({ length: total }).map((_, i) => (
@@ -361,7 +363,9 @@ function StepDots({ current, total }: { current: number; total: number }) {
         />
       ))}
       <span className="ml-2 text-xs text-text-muted">
-        Step {current + 1} of {total}
+        {checklist
+          ? `${checklist.completedCount} of ${checklist.totalCount} setup steps done · this guide, part ${current + 1} of ${total}`
+          : `Part ${current + 1} of ${total}`}
       </span>
     </div>
   );
