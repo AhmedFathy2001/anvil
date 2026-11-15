@@ -236,8 +236,10 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   // A person's baseline = their most recent enrollment snapshot from an event that STARTED before
   // the pool's reference time (the event's start, or now for clan-wide pools).
   const referenceIso = eventStartIso ?? new Date().toISOString();
-  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
-  const allEvents = await db.select({ id: events.id, startDate: events.startDate }).from(events);
+  // THIS CLAN'S EVENTS ONLY. This read every event on Anvil, so a member's rating here was built
+  // from what they did in other clans' boards — play this clan's staff were never shown and have no
+  // business scoring. `priorRows` and the facts below hang off this list, so scoping it scopes them.
+  const allEvents = await db.select({ id: events.id, startDate: events.startDate }).from(events).where(eq(events.clanId, clanId));
   const priorEventIds = allEvents
     .filter((e) => e.startDate && e.startDate < referenceIso && e.id !== opts.eventId)
     .map((e) => e.id);
@@ -271,7 +273,10 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
     });
   }
 
-  const facts = await db.select().from(playerEventFacts);
+  const clanEventIds = allEvents.map((e) => e.id);
+  const facts = clanEventIds.length
+    ? await db.select().from(playerEventFacts).where(inArray(playerEventFacts.eventId, clanEventIds))
+    : [];
   const factsByPerson = new Map<string, typeof facts>();
   for (const f of facts) {
     if (opts.eventId != null && f.eventId === opts.eventId) continue; // strictly prior evidence

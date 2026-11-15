@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { clientEvent } from '@/lib/clientRows';
 import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
 import { raceViewData } from '@/lib/raceSummary';
 import { raceRouteOpts } from '@/lib/raceRoutes';
@@ -638,7 +639,7 @@ export default async function EventScoreboardPage({
     const ladderLooks = await supporterLooksByName([...new Set(ladderView.scopes.flatMap((sc) => sc.rows.map((r) => r.name)))]);
     return (
       <LadderClient
-        event={event}
+        event={clientEvent(event)}
         tiles={ladderTiles
           .map((t) => ({
             id: t.id,
@@ -959,7 +960,7 @@ export default async function EventScoreboardPage({
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
           curtain={curtain}
-          event={event}
+          event={clientEvent(event)}
           tiles={withSearchText(boardTiles)}
           lockedMissions={lockedMissionPreviews(eventTiles)}
           raceStandings={raceStandings}

@@ -1,4 +1,6 @@
 import { foundViaLabel } from '@/lib/noticeRules';
+import { scrubErrorText } from '@/lib/errorFingerprint';
+import { operatorEmail } from '@/lib/staffSight';
 import { notFound } from 'next/navigation';
 
 import { clanDetail, platformActions } from '@/lib/platformView';
@@ -105,7 +107,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
             value={billing.label}
             tone={billing.attention ? (billing.state === 'lapsed' ? 'bad' : 'warn') : 'plain'}
           />
-          <Fact label="Contact" value={clan.contactEmail ?? '—'} />
+          <Fact label="Contact" value={operatorEmail(actor.role, clan.contactEmail) ?? '—'} />
           <Fact label="Trial ends" value={stamp(clan.trialEndsAt)} />
           <Fact
             label={clan.cancelAtPeriodEnd ? 'Access ends' : 'Renews'}
@@ -210,7 +212,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
                 </div>
                 <div className="mt-0.5 truncate text-xs text-text-muted">
                   {e.path ? `${e.path} — ` : ''}
-                  {e.message}
+                  {scrubErrorText(e.message)}
                 </div>
               </li>
             ))}

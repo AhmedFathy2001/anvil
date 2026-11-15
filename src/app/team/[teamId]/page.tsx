@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
+import { boardPlayer, clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { placementOf } from '@/lib/teamPlacement';
 import { requireClan } from '@/lib/clanContext';
@@ -213,11 +214,11 @@ export default async function MyTeamPage({
         </ClanLink>
       </div>
       <MyTeamClient
-        event={event}
+        event={clientEvent(event)}
         team={safeTeam}
         tiles={withSearchText(nestParts(eventTiles))}
         completions={teamCompletions}
-        players={eventPlayers}
+        players={eventPlayers.map(boardPlayer)}
         startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         isCaptain={membership.isCaptain}
         boardHidden={boardHidden}

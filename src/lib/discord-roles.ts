@@ -1228,7 +1228,7 @@ export async function syncRolesForClanMember(
   let nickSet: string | undefined;
   const currentNick = currentMember.nick?.trim() || '';
   if (!skipNickname && cfg.setNicknameOnLink && (cfg.overwriteNickname || !currentNick)) {
-    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+    // clan-scope: this clan -- the member's own clan (the seat this sync is for).
     const accounts = await db
       .select({ rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary, kind: clanRoster.kind, clanId: clanRoster.clanId })
       .from(clanRoster)
@@ -1237,6 +1237,10 @@ export async function syncRolesForClanMember(
       .where(
         and(
           eq(users.discordId, discordUserId),
+          // THIS CLAN'S SEATS ONLY. A nickname in a clan's Discord server is read by that whole
+          // server, and it used to list the person's verified characters in every clan they play
+          // for — an alt kept in another clan was printed next to their name here.
+          eq(clanRoster.clanId, member.clanId),
           isNull(clanRoster.leftAt),
           isNotNull(clanRoster.verifiedAt),
           // Clan seats only: an event player's seat names nobody in a clan's nickname.

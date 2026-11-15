@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { listClanFees } from '@/lib/adminFees';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { verifyAdminOrModerator } from '@/lib/auth';
+import { verifyFeeCollector } from '@/lib/auth';
 
-// Cross-event fee queue. Visible to admins and treasurers (mods read-only). Filters:
+// Cross-event fee queue. Admins and treasurers only — the gate /admin/fees itself uses. A moderator
+// cannot act on a fee, so who owes and who paid is not theirs to read (lib/staffSight). Filters:
 //   ?status=pending|reported|collected|disputed|confirmed|open  (open = anything not confirmed)
 //   ?eventId=<n>
 export async function GET(request: Request) {
-  const session = await verifyAdminOrModerator();
+  const session = await verifyFeeCollector();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

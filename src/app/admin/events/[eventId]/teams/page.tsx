@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { clientEvent, staffPlayer } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
@@ -63,10 +64,10 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
   return (
     <>
       <TeamsDraftClient
-        event={event}
+        event={clientEvent(event)}
         tiles={nestParts(eventTiles)}
         teams={safeTeams}
-        players={eventPlayers}
+        players={eventPlayers.map(staffPlayer)}
         completions={eventCompletions}
         startingStats={await startingStatsFor(event, rawPlayers)}
         editLocked={eventEditLocked(event)}

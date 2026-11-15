@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { clientEvent } from '@/lib/clientRows';
 import ClanLink from '@/components/ClanLink';
 import EventApiHost from '@/components/EventApiHost';
 import EventPageHeader from '@/components/events/EventPageHeader';
@@ -37,7 +38,7 @@ export default async function EventLivePage({
   return (
     <div className="mx-auto max-w-3xl">
       <EventApiHost eventId={id} prefix={apiPrefix} />
-      <EventPageHeader event={event} apiPrefix={apiPrefix} active="live" title="Feed & chat" access={live?.access ?? null} />
+      <EventPageHeader event={clientEvent(event)} apiPrefix={apiPrefix} active="live" title="Feed & chat" access={live?.access ?? null} />
       {member && live ? (
         <LiveClient
           eventId={id}

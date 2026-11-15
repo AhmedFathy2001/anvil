@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
+import { boardPlayer, clientEvent } from '@/lib/clientRows';
 import { streakWeeksForRsns } from '@/lib/activityStreaks';
 import { normalizeRsn } from '@/lib/auth';
 import { db } from '@/db';
@@ -161,11 +162,11 @@ export default async function TeamBoardPage({
     <>
       <EventApiHost eventId={event.id} prefix={apiPrefix} />
       <TeamBoardClient
-        event={event}
+        event={clientEvent(event)}
         team={safeTeam}
         tiles={withSearchText(boardTiles)}
         completions={teamCompletions}
-        players={eventPlayers}
+        players={eventPlayers.map(boardPlayer)}
         startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         tierBands={tierBands}
         streaks={await teamStreaks(rawEventPlayers.filter((p) => p.teamId === tId).map((p) => p.name))}

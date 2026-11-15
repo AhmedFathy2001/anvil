@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -94,7 +95,7 @@ export default async function EventOverviewPage({
         </div>
       )}
       <OverviewClient
-        event={event}
+        event={clientEvent(event)}
         tiles={withSearchText(nestParts(eventTiles))}
         teams={eventTeams}
         completions={eventCompletions}
@@ -105,7 +106,7 @@ export default async function EventOverviewPage({
         tierBands={tierBands}
         surveyOn={(await getClanFeatures(event.clanId)).on('survey')}
         // Once it's over: the zip, and when its proof images leave storage (lib/eventMediaRetention).
-        archive={stage === 'wrap' ? <EventArchiveCard event={event} now={renderedAt} /> : null}
+        archive={stage === 'wrap' ? <EventArchiveCard event={clientEvent(event)} now={renderedAt} /> : null}
       />
     </>
   );

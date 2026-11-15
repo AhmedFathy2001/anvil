@@ -1,4 +1,5 @@
 import ClanLink from '@/components/ClanLink';
+import { clientEvent } from '@/lib/clientRows';
 import { tabHref } from '@/lib/eventSettingsTabs';
 import SettingsClient from './SettingsClient';
 import EventLookPanel from './EventLookPanel';
@@ -52,7 +53,7 @@ export default async function EventSettingsPage({
           initialBannerPosition={event.bannerPosition ?? null}
         />
       </div>
-      <SettingsClient event={event} tiles={tiles} section="event" />
+      <SettingsClient event={clientEvent(event)} tiles={tiles} section="event" />
     </>
   );
 }

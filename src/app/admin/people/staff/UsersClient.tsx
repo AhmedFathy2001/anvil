@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { avatarUrl } from '@/lib/discord-oauth';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
@@ -34,9 +33,9 @@ interface User {
   boards: { eventId: number; name: string; role: 'editor' | 'treasurer' }[];
   banned: boolean;
   createdAt: string;
-  discordId: string | null;
+  hasDiscord: boolean;
   discordUsername: string | null;
-  discordAvatar: string | null;
+  avatarUrl: string | null;
   lastLoginAt: string | null;
   characters: Character[];
 }
@@ -319,7 +318,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   // Shared cell renderers — used by BOTH the desktop table and the mobile card list so the two
   // surfaces render identical content (avatar/characters, role control, row actions).
   const renderPerson = (user: User) => {
-    const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
+    const avatar = user.avatarUrl;
     return (
       <div className="flex items-center gap-3">
         {avatar ? (

@@ -47,9 +47,12 @@ after(async () => {
   await dropDatabase(DB);
 });
 
+// The card as someone INSIDE the clan reads it; a visitor from outside is the last test.
+const CLANMATE = { insider: true };
+
 test('every shared character, with where it stands here', async () => {
   const { getPersona } = await import('../src/lib/memberProfile.ts');
-  const p = await getPersona(seatHere);
+  const p = await getPersona(seatHere, CLANMATE);
   assert.ok(p);
   const byRsn = new Map(p.accounts.map((a) => [a.rsn, a]));
   assert.equal(byRsn.get('Main')?.status, 'member');
@@ -65,6 +68,20 @@ test('without the person’s consent to link their characters, only the ones sea
   const { eq } = await import('drizzle-orm');
   const { getPersona } = await import('../src/lib/memberProfile.ts');
   await dbRef.update(schemaRef.players).set({ linkAccountsPublicly: false }).where(eq(schemaRef.players.id, personId));
-  const p = await getPersona(seatHere);
+  const p = await getPersona(seatHere, CLANMATE);
   assert.deepEqual(p?.accounts.map((a) => a.rsn).sort(), ['Alt', 'Main']);
+});
+
+test('a visitor from outside the clan gets no Discord identity and nothing the person did not publish and link', async () => {
+  const { eq } = await import('drizzle-orm');
+  const { getPersona } = await import('../src/lib/memberProfile.ts');
+  // Linking is off (the test above): to an outsider there is no card at all.
+  assert.equal(await getPersona(seatHere), null);
+  await dbRef.update(schemaRef.players).set({ linkAccountsPublicly: true }).where(eq(schemaRef.players.id, personId));
+  const p = await getPersona(seatHere);
+  assert.ok(p);
+  assert.equal(p.discordUsername, null);
+  assert.equal(p.avatarUrl, null);
+  assert.equal(p.accounts.some((a) => a.rsn === 'Hidden'), false);
+  assert.equal('discordId' in p, false);
 });

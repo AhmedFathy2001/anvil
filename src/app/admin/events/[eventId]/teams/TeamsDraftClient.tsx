@@ -1450,7 +1450,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             stay live. */}
                         <fieldset disabled={editLocked} className="contents">
                         <button
-                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
+                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord ?? null, timezone: player.timezone ?? null })}
                           className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded disabled:opacity-50"
                           title="Edit player details"
                         >
@@ -2081,7 +2081,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                       {/* RSN / baseline edits — disabled on a locked event. */}
                       <fieldset disabled={editLocked} className="flex items-center gap-2 border-0 p-0 m-0 min-w-0">
                         <button
-                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
+                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord ?? null, timezone: player.timezone ?? null })}
                           className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
                           Edit name

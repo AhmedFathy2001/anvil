@@ -15,6 +15,7 @@ import {
   normalizePath,
   ownFrame,
   trimStack,
+  scrubErrorText,
 } from '../src/lib/errorFingerprint.ts';
 import { buildDigest, deltaOf, digestMessage, isNew, type DigestRow } from '../src/lib/errorDigest.ts';
 
@@ -183,4 +184,44 @@ test('a long database query does not push its cause out of the digest', () => {
 
   const digest = buildDigest([row({ message })])!;
   assert.match(digest.fields[0].value, /caused by PostgresError:/);
+});
+
+test('a failed query is stored without the values it was run with', () => {
+  // Exactly what drizzle throws: the SQL, then every bound value on a `params:` line.
+  const message = [
+    'Failed query: update "users" set "email" = $1, "discord_username" = $2 where "users"."id" = $3',
+    'params: jane.doe@gmail.com,jane_on_discord,4182',
+  ].join('\n');
+  const stored = scrubErrorText(`${message} — caused by PostgresError: duplicate key value violates unique constraint "users_email_unique"`);
+  assert.doesNotMatch(stored, /jane\.doe@gmail\.com|jane_on_discord|4182|params:/);
+  assert.match(stored, /^Failed query: update "users" set "email" = \$1/);
+  assert.match(stored, /caused by PostgresError: duplicate key value violates unique constraint "users_email_unique"/);
+
+  // With no cause the params run to the end of the message.
+  assert.equal(scrubErrorText(message), 'Failed query: update "users" set "email" = $1, "discord_username" = $2 where "users"."id" = $3');
+
+  // The stack's own first lines repeat the message; its frames are what operators need.
+  const stack = `DrizzleQueryError: ${message}\n    at NodePgPreparedQuery.queryWithCache (/app/node_modules/drizzle-orm/pg-core/session.js:41:15)\n    at async saveProfile (/app/src/lib/profile.ts:88:3)`;
+  const cleanStack = scrubErrorText(stack);
+  assert.doesNotMatch(cleanStack, /jane\.doe@gmail\.com|jane_on_discord|params:/);
+  assert.match(cleanStack, /at async saveProfile \(\/app\/src\/lib\/profile\.ts:88:3\)/);
+  assert.match(cleanStack, /^DrizzleQueryError: Failed query:/);
+});
+
+test('a constraint detail keeps its columns and loses its values', () => {
+  const detail = 'Key (email, clan_id)=(jane.doe@gmail.com, 12) already exists.';
+  assert.equal(scrubErrorText(detail), 'Key (email, clan_id)=(<redacted>) already exists.');
+  assert.equal(scrubErrorText('Key (lower(rsn))=(some name (alt)) is not present'), 'Key (lower(rsn))=(<redacted>) is not present');
+  // An ordinary message is untouched.
+  assert.equal(scrubErrorText("TypeError: Cannot read properties of undefined (reading 'id')"), "TypeError: Cannot read properties of undefined (reading 'id')");
+  assert.equal(scrubErrorText(null), '');
+});
+
+test('the digest never posts parameter values from a row stored before the scrub', () => {
+  const old = 'Failed query: select * from "users" where "email" = $1\nparams: jane.doe@gmail.com — caused by PostgresError: canceling statement due to statement timeout';
+  const excerpt = digestMessage(old);
+  assert.doesNotMatch(excerpt, /jane\.doe@gmail\.com/);
+  assert.match(excerpt, /caused by PostgresError: canceling statement/);
+  const digest = buildDigest([row({ message: old })])!;
+  assert.doesNotMatch(JSON.stringify(digest), /jane\.doe@gmail\.com/);
 });

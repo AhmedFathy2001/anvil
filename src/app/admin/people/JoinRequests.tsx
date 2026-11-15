@@ -140,10 +140,10 @@ export default function JoinRequests({ initial, title = 'Asking to join' }: { in
                 >
                   {r.rsn}
                 </a>
-                {r.memberOf ? (
-                  <span className="text-text-muted"> · member of {r.memberOf}</span>
+                {r.memberOfAnotherClan ? (
+                  <span className="text-text-muted"> · member of another clan</span>
                 ) : (
-                  <span className="text-text-muted"> · in no clan</span>
+                  <span className="text-text-muted"> · in no other clan</span>
                 )}
               </div>
               <div className="text-[12.5px] text-text-muted">

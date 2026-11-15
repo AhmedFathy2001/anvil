@@ -37,7 +37,8 @@ import { parseProofClaims, captureFlag, PROOF_IMAGE_MISMATCH_FLAG, PROVENANCE_RE
 import { encodePendingProof, parseProofKey, proofDueAt, publicSubmission } from '@/lib/proofAfter';
 import { stampAndPost } from '@/lib/proofFinish';
 import { parseStamp } from '@/lib/dbTime';
-import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { isStandingsStaff, standingsScopeForRequest } from '@/lib/standingsAccess';
+import { playerSubmission } from '@/lib/clientRows';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { claimUploads } from '@/lib/uploadClaims';
@@ -114,9 +115,15 @@ export async function GET(
   const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   const playerMap = new Map(allPlayers.map((p) => [p.id, p.name]));
 
+  // This event's own staff keep every proof field — it is their integrity evidence. Everyone else
+  // (the public on an open board, players, another team) gets the row without the raw evidence
+  // columns (lib/clientRows playerSubmission).
+  const viewer = await verifyUser();
+  const eventStaff = viewer ? await isStandingsStaff(scopedEvent, viewer.userId) : false;
+
   const extras = await attachmentsFor(filtered.map((s) => s.id));
   const result = filtered.map((s) => ({
-    ...publicSubmission(s),
+    ...(eventStaff ? publicSubmission(s) : playerSubmission(publicSubmission(s))),
     attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,

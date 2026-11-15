@@ -159,12 +159,9 @@ export async function completeDiscordLogin(
         clanId: loginClan?.id ?? null,
         eventType: 'user_signed_up',
         actorUserId: user.id,
-        newValue: JSON.stringify({
-          userId: user.id,
-          discordId: user.discordId,
-          discordUsername: user.discordUsername,
-          role: user.role,
-        }),
+        // The login's id and nothing else: the clan audit page is read by every staff member, and a
+        // Discord id and username there told all of them who each newcomer is on Discord.
+        newValue: JSON.stringify({ userId: user.id, role: user.role }),
         notes: 'Discord OAuth first login',
       })
       .catch(() => {});

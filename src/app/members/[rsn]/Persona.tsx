@@ -30,10 +30,7 @@ export default function Persona({
   const [open, setOpen] = useState(false);
   const others = persona.accounts.filter((a) => a.id !== currentMemberId);
   const name = persona.discordUsername ?? 'this player';
-  const avatar =
-    persona.discordAvatar && persona.discordId
-      ? `https://cdn.discordapp.com/avatars/${persona.discordId}/${persona.discordAvatar}.png?size=64`
-      : null;
+  const avatar = persona.avatarUrl;
 
   return (
     <div className="border border-card-border rounded-xl bg-card-bg mb-6 overflow-hidden">

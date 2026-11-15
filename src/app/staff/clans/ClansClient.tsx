@@ -1,5 +1,6 @@
 'use client';
 
+import { isWholeEmail } from '@/lib/staffSight';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -326,11 +327,14 @@ export default function ClansClient({
                       {c.ownerDiscordUsername && (
                         <span className="text-xs text-gray-500">@{c.ownerDiscordUsername}</span>
                       )}
-                      {c.ownerEmail && (
-                        <a href={`mailto:${c.ownerEmail}`} className="text-xs text-gray-500 hover:text-gold">
-                          {c.ownerEmail}
-                        </a>
-                      )}
+                      {c.ownerEmail &&
+                        (isWholeEmail(c.ownerEmail) ? (
+                          <a href={`mailto:${c.ownerEmail}`} className="text-xs text-gray-500 hover:text-gold">
+                            {c.ownerEmail}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-500">{c.ownerEmail}</span>
+                        ))}
                     </div>
                   ) : ownerFor === c.id ? (
                     <div className="flex flex-col gap-1">

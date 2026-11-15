@@ -370,7 +370,8 @@ test('guesting with it does', async () => {
   const seat = await db.query.clanMemberships.findFirst({
     where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),
   });
-  const persona = await getPersona(seat!.id);
+  // As a clanmate reads it (lib/rosterVisibility): the clan sees the characters it holds a seat for.
+  const persona = await getPersona(seat!.id, { insider: true });
   assert.ok(persona, 'two seats here now, so there is something to say');
   assert.deepEqual(persona!.accounts.map((a) => a.rsn).sort(), ['The Hermit', 'The Main']);
   // Every row on the card is a seat in THIS clan, which is what its numbers are keyed by.

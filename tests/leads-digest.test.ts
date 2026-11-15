@@ -115,6 +115,7 @@ test('people who signed up and stopped are a count with a few examples', () => {
   const people = Array.from({ length: PEOPLE_SHOWN + 6 }, (_, i) => ({
     displayName: `Person ${i}`,
     discordId: `10000000000000000${i}`,
+    // As a caller might still pass it: an email on a prospect is never printed (asserted below).
     email: `p${i}@example.com`,
   }));
   const embed = buildLeadsDigest({ clans: [], counts: { signUps: 0, clansCreated: 0, charactersLinked: 0 }, people }, NOW);
@@ -123,6 +124,8 @@ test('people who signed up and stopped are a count with a few examples', () => {
   assert.match(field.name, new RegExp(`${PEOPLE_SHOWN + 6} signed up and stopped`));
   assert.match(field.value, /6 more/);
   assert.equal((field.value.match(/discord\.com\/users/g) ?? []).length, PEOPLE_SHOWN);
+  // Someone who only looked is reached through their Discord profile, never by a posted address.
+  assert.doesNotMatch(JSON.stringify(embed), /@example\.com/);
 });
 
 test('oldest first — those are the ones running out of time', () => {
