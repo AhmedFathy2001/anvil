@@ -158,6 +158,7 @@ export default function SignupAdminPanel({
   const [promotingPool, setPromotingPool] = useState(false);
   const [poolMessage, setPoolMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [approvingAll, setApprovingAll] = useState(false);
   const [captainPromptId, setCaptainPromptId] = useState<number | null>(null);
   const [captainTeamName, setCaptainTeamName] = useState('');
   const [captainTeamColor, setCaptainTeamColor] = useState(DEFAULT_TEAM_COLORS[0]);
@@ -218,7 +219,7 @@ export default function SignupAdminPanel({
       excludeFromPrizePool?: boolean;
       teamId?: number | null;
     },
-  ) {
+  ): Promise<boolean> {
     setActingId(sigId);
     setActionError(null);
     try {
@@ -233,11 +234,63 @@ export default function SignupAdminPanel({
       }
       await load();
       router.refresh();
+      return true;
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Action failed');
+      return false;
     } finally {
       setActingId(null);
     }
+  }
+
+  async function approveOne(sig: SignupRow) {
+    const name = sig.user?.displayName ?? sig.account.rsn;
+    const ok = await confirm({
+      title: `Approve ${name}?`,
+      body: 'They are told they are in and asked to pay any fee.',
+      confirmLabel: 'Approve',
+      tone: 'gold',
+    });
+    if (ok) await performAction(sig.id, { action: 'approve' });
+  }
+
+  async function approveAllPending() {
+    const targets = signups.filter((x) => x.status === 'pending');
+    const n = targets.length;
+    if (n === 0) return;
+    const ok = await confirm({
+      title: `Approve ${n} pending player${n === 1 ? '' : 's'}?`,
+      body: 'Each one is told they are in and asked to pay any fee. You can reject someone afterwards, but they will already have been told.',
+      confirmLabel: `Approve ${n}`,
+      tone: 'gold',
+    });
+    if (!ok) return;
+    setApprovingAll(true);
+    setActionError(null);
+    let done = 0;
+    let firstError: string | null = null;
+    for (const t of targets) {
+      try {
+        const res = await clanFetch(`/api/admin/events/${event.id}/signups/${t.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'approve' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Could not approve');
+        }
+        done++;
+      } catch (err) {
+        firstError = err instanceof Error ? err.message : 'Could not approve';
+        break;
+      }
+    }
+    setFeeNotice(`Approved ${done} of ${n}.`);
+    if (firstError) setActionError(`Stopped after ${done} of ${n}: ${firstError}`);
+    await load();
+    router.refresh();
+    setApprovingAll(false);
   }
 
   /**
@@ -381,12 +434,13 @@ export default function SignupAdminPanel({
       setActionError('Team name is required');
       return;
     }
-    await performAction(captainPromptId, {
+    const ok = await performAction(captainPromptId, {
       action: 'promote-captain',
       teamName: captainTeamName.trim(),
       teamColor: captainTeamColor,
     });
-    setCaptainPromptId(null);
+    // On failure the prompt stays open with the typed name, and the error shows above the list.
+    if (ok) setCaptainPromptId(null);
   }
 
   async function saveConfig() {
@@ -475,6 +529,8 @@ export default function SignupAdminPanel({
   const unfinishedFees = signups.filter(
     (s) => s.fee && s.fee.status !== 'confirmed' && s.fee.status !== 'closed',
   ).length;
+
+  const pendingCount = signups.filter((x) => x.status === 'pending').length;
 
   const settleableFees = activeSignups.filter(
     (s) =>
@@ -779,6 +835,15 @@ export default function SignupAdminPanel({
                 {creator ? 'Add player' : 'Add member'}
               </button>
             )}
+            {!loading && isAdmin && pendingCount > 0 && (
+              <button
+                onClick={approveAllPending}
+                disabled={approvingAll}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+              >
+                {approvingAll ? 'Approving…' : `Approve all ${pendingCount} pending`}
+              </button>
+            )}
             {!loading && isAdmin && settleableFees > 0 && (
               <button
                 onClick={settleFees}
@@ -1027,6 +1092,32 @@ export default function SignupAdminPanel({
                     </div>
                   </button>
 
+                  {isAdmin && s.status === 'pending' && (
+                    <div className="flex gap-2 px-3 pb-2.5">
+                      <button
+                        onClick={() => approveOne(s)}
+                        disabled={actingId === s.id || approvingAll}
+                        className="text-xs font-medium px-3 py-1 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: `Reject ${s.user?.displayName ?? s.account.rsn}\u2019s sign-up?`,
+                            body: 'They are told they did not get a place. You can approve them again later.',
+                            confirmLabel: 'Reject',
+                          });
+                          if (ok) performAction(s.id, { action: 'reject' });
+                        }}
+                        disabled={actingId === s.id || approvingAll}
+                        className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+
                   {isExpanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-card-border space-y-3">
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
@@ -1189,7 +1280,7 @@ export default function SignupAdminPanel({
                             )}
                             {s.status !== 'approved' && s.status !== 'withdrawn' && (
                               <button
-                                onClick={() => performAction(s.id, { action: 'approve' })}
+                                onClick={() => approveOne(s)}
                                 disabled={actingId === s.id}
                                 className="text-xs font-medium px-3 py-1 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
                               >
