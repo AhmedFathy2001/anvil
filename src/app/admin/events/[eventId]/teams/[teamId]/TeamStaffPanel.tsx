@@ -10,7 +10,7 @@ import { useDialog } from '@/components/Confirm';
 interface UserRow {
   id: number;
   displayName: string;
-  discordId: string | null;
+  hasDiscord: boolean;
   discordUsername: string | null;
   role: string;
 }
@@ -54,7 +54,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
     // Only Discord-linked accounts can sign in to use a seat.
-    const linked = users.filter((u) => Boolean(u.discordId) && !held.has(u.id));
+    const linked = users.filter((u) => u.hasDiscord && !held.has(u.id));
     if (!q) return linked.slice(0, 8);
     return linked
       .filter((u) => `${u.displayName} ${u.discordUsername ?? ''}`.toLowerCase().includes(q))

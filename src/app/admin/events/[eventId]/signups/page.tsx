@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { clientEvent } from '@/lib/clientRows';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { events } from '@/db/schema';
@@ -98,7 +99,7 @@ export default async function EventSignupsPage({
       )}
 
       <SignupsClient
-        event={event}
+        event={clientEvent(event)}
         viewerRole={session.role}
         viewerId={session.userId}
         confirmationsRequired={confirmationsRequired}

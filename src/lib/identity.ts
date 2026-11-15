@@ -2,6 +2,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster, clanStaff, eventEditors, eventSignups, events, users } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { clanSeat, rosterClanSeat } from '@/lib/seatScope';
+import { avatarUrl } from '@/lib/discord-oauth';
+import { peopleListIdentity } from '@/lib/staffSight';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
 export interface Character {
@@ -34,9 +36,12 @@ export interface PersonWithCharacters {
   boards: { eventId: number; name: string; role: 'editor' | 'treasurer' }[];
   banned: boolean;
   createdAt: string;
-  discordId: string | null;
+  /** Signed in with Discord. The id itself never leaves the server (lib/staffSight). */
+  hasDiscord: boolean;
   discordUsername: string | null;
-  discordAvatar: string | null;
+  /** Staff rows only; null for a plain member. */
+  avatarUrl: string | null;
+  /** Staff rows only; null for a plain member. */
   lastLoginAt: string | null;
   characters: Character[];
 }
@@ -91,7 +96,15 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     .leftJoin(
       clanMemberships,
       // An event player's seat is not a presence in the clan's people list.
-      and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId), clanSeat()),
+      // …and neither is a seat that has left: a departed member stayed on this list, with their
+      // identity and characters, for as long as the row existed. The roster's history and old
+      // completions read the departed seat directly and are untouched.
+      and(
+        eq(clanMemberships.accountId, accounts.id),
+        eq(clanMemberships.clanId, clanId),
+        clanSeat(),
+        isNull(clanMemberships.leftAt),
+      ),
     )
     // A presence here is either a staff grant or a seat on the roster. Someone with neither is a
     // stranger to this clan and does not belong on its people list.
@@ -153,8 +166,10 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     boardsBy.set(g.userId, list);
   }
 
-  return allUsers.map(({ editorScope, treasurerScope, ...u }) => ({
+  // `playerId` (the person id), the Discord id and the avatar hash stop here — see lib/staffSight.
+  return allUsers.map(({ editorScope, treasurerScope, playerId, discordId, discordAvatar, lastLoginAt, ...u }) => ({
     ...u,
+    ...peopleListIdentity({ role: u.role, discordId, discordAvatar, lastLoginAt }, avatarUrl),
     boardScoped:
       u.role === 'editor' && editorScope === 'assigned'
         ? ('editor' as const)
@@ -169,7 +184,7 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     canEditGuides: u.canEditGuides === true,
     isOwner: u.role === 'owner',
     banned: !!u.banned,
-    characters: u.playerId != null ? byPerson.get(u.playerId) ?? [] : [],
+    characters: playerId != null ? byPerson.get(playerId) ?? [] : [],
   }));
 }
 

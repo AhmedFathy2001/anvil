@@ -50,7 +50,6 @@ interface SignupRow {
     id: number;
     displayName: string;
     discordUsername: string | null;
-    role: string;
   } | null;
   account: { id: number; rsn: string };
   /** Pays the guest fee: no member seat in a clan running the board. Null when guests pay the same. */

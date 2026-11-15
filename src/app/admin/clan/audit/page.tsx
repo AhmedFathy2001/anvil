@@ -3,6 +3,7 @@ import { requireClan } from '@/lib/clanContext';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { clanAuditLog, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, isNull, ne } from 'drizzle-orm';
+import { auditValuesForClient } from '@/lib/auditView';
 import AuditLogClient, { type AuditEntry, type LeftMember, type JoinedMember } from './AuditLogClient';
 
 export const dynamic = 'force-dynamic';
@@ -52,8 +53,8 @@ export default async function ClanAuditPage() {
     id: r.id,
     clanMemberId: r.clanMemberId,
     eventType: r.eventType,
-    oldValue: r.oldValue,
-    newValue: r.newValue,
+    // Only what the list draws out of the stored values (lib/auditView) — never the raw JSON.
+    ...auditValuesForClient(r),
     actorDisplayName: r.actorDisplayName,
     notes: r.notes,
     occurredAt: r.occurredAt,

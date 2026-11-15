@@ -1,4 +1,5 @@
 import { requireEventForParticipantPage } from '@/lib/eventScope';
+import { clientEvent } from '@/lib/clientRows';
 import EventApiHost from '@/components/EventApiHost';
 import ClanLink from '@/components/ClanLink';
 import EventPageHeader from '@/components/events/EventPageHeader';
@@ -67,7 +68,7 @@ export default async function EventStatsPage({
   const header = () => (
     <>
       <EventApiHost eventId={id} prefix={apiPrefix} />
-      <EventPageHeader event={event} apiPrefix={apiPrefix} active="stats" title="Event stats" curtained={!!curtain} />
+      <EventPageHeader event={clientEvent(event)} apiPrefix={apiPrefix} active="stats" title="Event stats" curtained={!!curtain} />
     </>
   );
   if (startMs == null || !started) {

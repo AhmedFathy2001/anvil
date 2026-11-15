@@ -17,15 +17,16 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { boardPlayer } from '@/lib/clientRows';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  // Staff-only: this returns the full roster, which carries each player's login token (a bearer
-  // credential for /api/player/login). It was previously world-readable — an unauthenticated
-  // caller could harvest every token and take over any player. Consumed only by admin screens.
-  const staff = await verifyAdminOrModerator();
+  // Admins only, and only what a roster screen reads (lib/clientRows). Nothing on the site calls
+  // this GET any more; it used to hand moderators every column of every participant — Discord
+  // handle, timezone, loot, deaths, plugin stats.
+  const staff = await verifyAdmin();
   if (!staff) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { eventId } = await params;
@@ -40,13 +41,7 @@ export async function GET(
     .from(eventParticipants)
     .where(eq(eventParticipants.eventId, id));
 
-  // Defense in depth: never serialize the login token, even to staff.
-  const safe = eventPlayers.map((row) => {
-    const rest: Record<string, unknown> = { ...row };
-    delete rest.playerToken;
-    return rest;
-  });
-  return NextResponse.json(safe);
+  return NextResponse.json(eventPlayers.map(boardPlayer));
 }
 
 export async function POST(

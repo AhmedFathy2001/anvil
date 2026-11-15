@@ -92,9 +92,9 @@ export async function pendingClaimRequests(clanId: number): Promise<ClaimRequest
     rsn: r.rsn,
     seatId: r.seatId,
     accountId: r.accountId,
+    // No login or person id: the screen draws a name and a face, and approving re-reads the
+    // request by its own id (pendingByIdInClan).
     requester: {
-      userId: r.userId,
-      playerId: r.playerId,
       displayName: r.displayName,
       discordUsername: r.discordUsername,
       avatarUrl: avatarUrl(r.discordId ?? '', r.discordAvatar),

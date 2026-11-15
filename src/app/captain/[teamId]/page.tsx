@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
+import { boardPlayer, clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { nestParts } from '@/lib/combo';
@@ -43,7 +44,7 @@ export default async function CaptainBoardPage({
     const { captainPassword: _, ...safeTeam } = team;
     return (
       <DraftBoardClient
-        event={event}
+        event={clientEvent(event)}
         team={safeTeam}
       />
     );
@@ -68,12 +69,12 @@ export default async function CaptainBoardPage({
 
   return (
     <CaptainBoardClient
-      event={event}
+      event={clientEvent(event)}
       team={safeTeam}
       // Board cells, each combo carrying its parts (lib/combo); `teamCompletions` keeps the parts'.
       tiles={nestParts(eventTiles)}
       completions={teamCompletions}
-      players={eventPlayers}
+      players={eventPlayers.map(boardPlayer)}
     />
   );
 }

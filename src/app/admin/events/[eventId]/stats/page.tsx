@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { boardPlayer, clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -42,10 +43,10 @@ export default async function EventStatsPage({
 
   return (
     <StatsClient
-      event={event}
+      event={clientEvent(event)}
       teams={safeTeams}
       tiles={eventTiles}
-      players={eventPlayers}
+      players={eventPlayers.map(boardPlayer)}
       statStandings={statStandings}
       teamStandings={teamStandings}
       statsPulledAt={pullRow}

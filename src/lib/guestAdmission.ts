@@ -402,14 +402,15 @@ export async function doorStates(clanId: number, accountIds: number[]): Promise<
 
 export interface PendingRequest {
   id: number;
-  accountId: number;
   rsn: string;
-  playerId: number | null;
   message: string | null;
   source: string;
   requestedAt: string;
-  /** The clan they are a member of right now, if any — the most useful thing staff can be told. */
-  memberOf: string | null;
+  /**
+   * Are they another clan's member right now? Yes or no — which clan is that clan's business and
+   * the applicant's, and a members-only clan's name is not ours to hand to a third clan's staff.
+   */
+  memberOfAnotherClan: boolean;
   /** The one event they asked to play (a creator space's approval event); null = the whole clan. */
   eventId: number | null;
 }
@@ -466,16 +467,16 @@ export async function pendingRequests(clanId: number, opts: { eventId?: number }
   // "#Player1281" rows came from the client's pre-login placeholder name: no real character to admit.
   return Promise.all(
     rows.filter((r) => isPlausibleRsn(r.rsn)).map(async (r) => {
-      // Where else this account sits. Visible without any sharing rule, because an account's CLAN is
-      // not a private fact — it is on the in-game roster — and a clan deciding whether to admit a
-      // guest is entitled to know they are somebody else's member.
+      // Does this account sit somewhere else as a member? A clan deciding whether to admit a guest is
+      // entitled to know that much. It is not told WHICH clan: this used to name it, which handed a
+      // members-only clan's name, and the applicant's membership of it, to any clan they applied to.
       const member = await db
-        .select({ name: clans.name })
+        .select({ id: clanMemberships.id })
         .from(clanMemberships)
-        .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
         .where(
           and(
             eq(clanMemberships.accountId, r.accountId),
+            ne(clanMemberships.clanId, clanId),
             eq(clanMemberships.kind, 'member'),
             isNull(clanMemberships.leftAt),
           ),
@@ -483,7 +484,16 @@ export async function pendingRequests(clanId: number, opts: { eventId?: number }
         .limit(1)
         .then((x) => x[0] ?? null);
 
-      return { ...r, memberOf: member?.name ?? null };
+      // Picked, not spread: the account and person ids are keys no screen reads.
+      return {
+        id: r.id,
+        rsn: r.rsn,
+        message: r.message,
+        source: r.source,
+        requestedAt: r.requestedAt,
+        eventId: r.eventId,
+        memberOfAnotherClan: member != null,
+      };
     }),
   );
 }

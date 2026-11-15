@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { clientEvent } from '@/lib/clientRows';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { events } from '@/db/schema';
@@ -26,7 +27,7 @@ export default async function DraftSpectatorPage({
   return (
     <>
       <EventApiHost eventId={event.id} prefix={apiPrefix} />
-      <DraftSpectatorClient event={event} />
+      <DraftSpectatorClient event={clientEvent(event)} />
     </>
   );
 }

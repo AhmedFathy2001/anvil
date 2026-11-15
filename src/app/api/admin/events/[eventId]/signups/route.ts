@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { handleFor } from '@/lib/staffSight';
 import { eventForRequest } from '@/lib/eventScope';
 import { resolvePlayers } from '@/lib/signupPlayer';
 import { db } from '@/db';
@@ -46,7 +47,6 @@ export async function GET(
         id: users.id,
         displayName: users.displayName,
         discordUsername: users.discordUsername,
-        role: users.role,
       },
       account: {
         id: clanRoster.id,
@@ -133,7 +133,13 @@ export async function GET(
     updatedAt: r.signup.updatedAt,
     profile: parseProfile(r.signup.profileData),
     // Guest sign-ups have no user row (left join → null fields); surface user as null.
-    user: r.user && r.user.id != null ? r.user : null,
+    // The Discord handle is for admins (lib/staffSight): a moderator, a board's treasurer, a board
+    // builder or a co-host's staff work this list by display name and RSN. The site role was never
+    // read by the panel, so it no longer travels.
+    user:
+      r.user && r.user.id != null
+        ? { id: r.user.id, displayName: r.user.displayName, discordUsername: handleFor(session?.role, r.user.discordUsername) }
+        : null,
     account: r.account,
     /** No member seat in a clan running the board (lib/entryFee). Null when guests pay the same. */
     guest: members ? !members.has(r.accountId) : null,
