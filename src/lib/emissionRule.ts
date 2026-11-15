@@ -5,8 +5,11 @@
 export const GUEST_POSTS_BLOCKED_BY_DEFAULT = true;
 
 export interface EmissionRuleInput {
-  /** The character's seat in this clan; null/undefined = no seat (an alt pointed here by its owner). */
-  seat: 'member' | 'guest' | null | undefined;
+  /**
+   * The character's seat kind in this clan. Only 'member' and 'guest' announce; anything else, or
+   * null/undefined, is no seat (an alt pointed here by its owner).
+   */
+  seat: string | null | undefined;
   /** The per-(character, clan) choice: true = always announce here, false = never, undefined = none made. */
   override: boolean | null | undefined;
   /** The clan's own "Only announce your own members" setting. */
