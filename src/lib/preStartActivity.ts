@@ -1,6 +1,7 @@
 import { db } from '@/db';
-import { completions, eventParticipants, moments, submissions, tiles } from '@/db/schema';
+import { completions, eventParticipants, events, moments, submissions, tiles } from '@/db/schema';
 import { and, eq, inArray, ne, or } from 'drizzle-orm';
+import { eventHasStarted } from '@/lib/completionGate';
 
 export interface ClearedPreStartActivity {
   completions: number;
@@ -17,9 +18,20 @@ export interface ClearedPreStartActivity {
  * erase history. A never-started board, however, has no valid submissions, completions, moments or
  * recap counters. Clearing those rows also frees the team/tile unique key so the real completion can
  * be inserted after the whistle.
+ *
+ * NEVER AFTER THE WHISTLE. `startNotified` flips on the lifecycle tick AFTER the start time, and
+ * proofs are accepted from the start time itself (lib/completionGate eventHasStarted). In between,
+ * the flag still says "never started" while real activity is arriving, so the callers' flag check is
+ * not enough: this asks the clock, here, and touches nothing once the start has passed.
  */
-export async function clearPreStartEventActivity(eventId: number): Promise<ClearedPreStartActivity> {
+export async function clearPreStartEventActivity(eventId: number, now: number = Date.now()): Promise<ClearedPreStartActivity> {
   return db.transaction(async (tx) => {
+    // clan-scope: global -- the event named by the caller, by id.
+    const [event] = await tx.select({ startDate: events.startDate }).from(events).where(eq(events.id, eventId)).limit(1);
+    if (!event || eventHasStarted(event, now)) {
+      return { completions: 0, submissions: 0, moments: 0, participantCounters: 0 };
+    }
+
     const eventTiles = await tx.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eventId));
     const tileIds = eventTiles.map((tile) => tile.id);
 
