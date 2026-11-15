@@ -20,12 +20,18 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
-import { useDirtyForm } from '@/components/UnsavedChanges';
+import { useDirtyForm, useUnsavedChanges } from '@/components/UnsavedChanges';
 import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
 interface EventFormProps {
   /** Told whenever the form differs from how it opened, so a dialog around it can ask before closing. */
   onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Ask before leaving the page with typed work (the full-page create form; the dialog version has its
+   * own close prompt). Safe with the create itself: that leaves through router.push, which the
+   * guard does not intercept.
+   */
+  guardLeave?: boolean;
   presets?: EventPreset[];
   suggestedName?: string;
   /**
@@ -148,7 +154,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, onDirtyChange }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, onDirtyChange, guardLeave = false }: EventFormProps) {
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
@@ -248,6 +254,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   useEffect(() => {
     onDirtyChange?.(formDirty);
   }, [formDirty, onDirtyChange]);
+  useUnsavedChanges(guardLeave && formDirty);
 
   const meta = MODES.find((m) => m.key === mode)!;
   // The reveal policy actually in effect: a ladder uses its rotation sub-choice; every other mode
