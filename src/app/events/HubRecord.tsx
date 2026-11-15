@@ -33,8 +33,11 @@ export default function HubRecord({
   boardsTotal,
   weeksTotal,
   showMoreHref,
+  myTeams = {},
 }: {
   items: HubItem[];
+  /** The viewer's team(s) by name in the finished boards they played in, by item key. */
+  myTeams?: Record<string, string[]>;
   pastTotal: number;
   boardsTotal: number;
   weeksTotal: number;
@@ -148,7 +151,7 @@ export default function HubRecord({
               <CompetitionRowList count={m.items.length}>
                 {m.items.map((item) => (
                   <li key={item.key}>
-                    <CompetitionRow row={recordRow(item)} dates={`${dateShort(item.startDate)} – ${dateShort(item.endDate)}`} />
+                    <CompetitionRow row={recordRow(item, myTeams[item.key] ? { teamNames: myTeams[item.key], signedUp: false } : null)} dates={`${dateShort(item.startDate)} – ${dateShort(item.endDate)}`} />
                   </li>
                 ))}
               </CompetitionRowList>

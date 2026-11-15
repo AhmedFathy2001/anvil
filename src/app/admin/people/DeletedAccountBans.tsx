@@ -65,8 +65,8 @@ export default function DeletedAccountBans({ initial }: { initial: DeletedAccoun
         </h2>
       </div>
       <p className="mb-2.5 text-xs text-text-muted">
-        Banned people with no character on your roster to show the ban beside, usually because they deleted their Anvil
-        account. The ban still applies when they sign in again.
+        Banned accounts that are not on the roster, including deleted accounts. A deleted account&apos;s old seat can
+        still be counted under Departed above. The ban still applies when they sign in again.
       </p>
       {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
       <ul className="space-y-1.5">

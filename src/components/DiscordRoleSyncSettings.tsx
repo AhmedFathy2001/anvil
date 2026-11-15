@@ -7,6 +7,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import { nicknameMatchingOn, ROLE_MATCH_BY_NICKNAME_KEY } from '@/lib/discordRoleSafety';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { useDialog } from '@/components/Confirm';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
@@ -44,6 +45,9 @@ export default function DiscordRoleSyncSettings({
   // be removed. Character names and dates only.
   const [handLinks, setHandLinks] = useState<{ memberId: number; rsn: string; linkedAt: string | null }[]>([]);
   const [removingLink, setRemovingLink] = useState<number | null>(null);
+  // "Saved" is a result, not a resting state: it shows after a save, never on first load.
+  const [justSaved, setJustSaved] = useState(false);
+  const { confirm } = useDialog();
 
   async function loadHandLinks() {
     try {
@@ -54,7 +58,14 @@ export default function DiscordRoleSyncSettings({
     }
   }
 
-  async function removeHandLink(memberId: number) {
+  async function removeHandLink(memberId: number, rsn: string) {
+    const ok = await confirm({
+      title: `Remove the Discord link for ${rsn}?`,
+      body: 'Anvil stops giving this member roles through the link. Roles they already have stay until you remove them in Discord.',
+      confirmLabel: 'Remove link',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setRemovingLink(memberId);
     setMessage(null);
     try {
@@ -145,6 +156,7 @@ export default function DiscordRoleSyncSettings({
       if (res.ok) {
         invalidateSettings();
         setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch, nicknameMatch });
+        setJustSaved(true);
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
         const data = await res.json();
@@ -270,7 +282,7 @@ export default function DiscordRoleSyncSettings({
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
-        {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
+        {justSaved && !hasChanges && !saving && <span className="text-xs text-green-400">Saved</span>}
         <UnsavedIndicator dirty={hasChanges} />
       </div>
 
@@ -385,15 +397,18 @@ export default function DiscordRoleSyncSettings({
             Members an admin pointed at a Discord account. They get roles like anyone who signed in. If the member
             signs in with a different Discord account, their own sign-in is used instead.
           </p>
-          <ul className="mt-1.5 space-y-0.5 max-h-52 overflow-y-auto">
+          <ul className="mt-2 max-h-64 divide-y divide-card-border overflow-y-auto">
             {handLinks.map((l) => (
-              <li key={l.memberId} className="text-xs text-text-muted">
-                <span className="text-foreground/80">{l.rsn}</span>
-                {l.linkedAt && <> · linked {l.linkedAt.slice(0, 10)}</>}
+              <li key={l.memberId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5 text-xs text-text-muted">
+                <span className="min-w-0">
+                  <span className="text-sm text-foreground/90">{l.rsn}</span>
+                  {l.linkedAt && <> · linked {l.linkedAt.slice(0, 10)}</>}
+                </span>
                 <button
-                  onClick={() => removeHandLink(l.memberId)}
+                  type="button"
+                  onClick={() => removeHandLink(l.memberId, l.rsn)}
                   disabled={removingLink === l.memberId}
-                  className="ml-2 text-[10px] text-red-300 hover:underline disabled:opacity-50"
+                  className="shrink-0 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:border-red-400/70 hover:bg-red-500/10 disabled:opacity-50 max-sm:min-h-11"
                 >
                   {removingLink === l.memberId ? 'Removing…' : 'Remove link'}
                 </button>
