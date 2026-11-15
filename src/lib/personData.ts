@@ -17,6 +17,8 @@
 //
 // Pure: no database, no `@/` imports, so the tests need neither.
 
+import { parseStamp } from './dbTime';
+
 export type Handling = 'delete' | 'detach' | 'keep';
 
 /**
@@ -48,9 +50,34 @@ export interface PersonDataEntry {
   why: string;
   /** Other columns blanked in the same statement as a `sql` detach (free text the person typed). */
   scrub?: string[];
-  /** What the export shows from this table: the section it goes under and the columns allowed out. */
-  export?: { section: string; columns: string[] };
+  /**
+   * What the export shows from this table: the section it goes under and the columns allowed out.
+   * `tie` is how a row found through a CHARACTER (by account, seat or event entry) is shown to
+   * belong to the person asking; see ExportTie. Required on every such entry.
+   */
+  export?: { section: string; columns: string[]; tie?: ExportTie };
 }
+
+/**
+ * A CHARACTER CHANGES HANDS (release, a claim transfer), and the rows that hang off it stay. So a
+ * row found by account, seat or event entry may be a PREVIOUS holder's, and exporting it would hand
+ * one person another's data. Each such entry says how its rows are tied to the requester:
+ *
+ *   writer   the row names who wrote it; only rows naming this login / person leave
+ *   since    the row carries a time; only rows from when this person claimed the character leave
+ *            (accounts.claimed_at, which a release clears and the next claim sets). No claim time on
+ *            record = nothing leaves.
+ *   unowned  nothing ties the row to anybody, so it must list no personal or free-text column:
+ *            ids, dates and results only (the test holds the list to that)
+ */
+export type ExportTie = { writer: string; key: 'user' | 'player' } | { since: string } | { unowned: true };
+
+/** Keys that find a row through a character rather than through the person. */
+export const CHARACTER_KEYS: readonly PersonKey[] = ['account', 'seat', 'participant'];
+
+/** Column names that hold what somebody typed or said about themselves. Never in an `unowned` export. */
+export const FREE_TEXT_COLUMN =
+  /(^|_)(discord|timezone|profile_data|answers|message|note|notes|body|contact|email|reason|description|details|text|label|title|payload|props|url|style)($|_)/i;
 
 type Opt = Pick<PersonDataEntry, 'scrub' | 'export'>;
 const e = (table: string, column: string, key: PersonKey, handling: Handling, via: Via, why: string, opt: Opt = {}): PersonDataEntry => ({
@@ -63,6 +90,7 @@ const e = (table: string, column: string, key: PersonKey, handling: Handling, vi
   ...opt,
 });
 const ex = (section: string, ...columns: string[]) => ({ export: { section, columns } });
+const tied = (tie: ExportTie, x: { export: { section: string; columns: string[] } }) => ({ export: { ...x.export, tie } });
 
 /** A staff or author pointer on somebody else's record: the record stays, the pointer is cleared. */
 const actor = (table: string, column: string): PersonDataEntry =>
@@ -90,14 +118,14 @@ export const PERSON_DATA: PersonDataEntry[] = [
   // ── Characters ──────────────────────────────────────────────────────────────────────────────────
   e('accounts', 'player_id', 'player', 'detach', 'custom',
     'a character on any clan’s roster or event stays as an unclaimed name (as releaseCharacter leaves it) with its proof, Discord id, account hash, look and live stats cleared; a character on no clan record is deleted',
-    ex('characters', 'id', 'rsn', 'previous_rsns', 'status', 'is_primary', 'shared', 'account_type', 'verified_at', 'verification_method', 'claimed_at', 'supporter_style', 'created_at')),
+    ex('characters', 'id', 'rsn', 'previous_rsns', 'status', 'is_primary', 'shared', 'account_type', 'verified_at', 'verification_method', 'claimed_at', 'created_at')),
   e('accounts', 'verified_by_user_id', 'user', 'detach', 'fk', 'who approved somebody else’s character'),
 
   // Per character. These say what happens for a character that STAYS on a clan record; a character
   // on no clan record is deleted outright and every one of these goes with it.
-  e('account_clan_emission', 'account_id', 'account', 'delete', 'sql', 'their per-clan announcement choices', ex('preferences', 'account_id', 'clan_id', 'enabled', 'updated_at')),
-  e('account_game_clans', 'account_id', 'account', 'delete', 'sql', 'the in-game clan their own plugin reported', ex('characters_game_clans', 'account_id', 'rank', 'title', 'joined_on', 'observed_at', 'hidden')),
-  e('account_media', 'account_id', 'account', 'delete', 'sql', 'character picture and banner; the stored images are deleted after', ex('profile_media', 'account_id', 'avatar_url', 'banner_url', 'updated_at')),
+  e('account_clan_emission', 'account_id', 'account', 'delete', 'sql', 'their per-clan announcement choices', tied({ since: 'updated_at' }, ex('preferences', 'account_id', 'clan_id', 'enabled', 'updated_at'))),
+  e('account_game_clans', 'account_id', 'account', 'delete', 'sql', 'the in-game clan their own plugin reported', tied({ since: 'observed_at' }, ex('characters_game_clans', 'account_id', 'rank', 'title', 'joined_on', 'observed_at', 'hidden'))),
+  e('account_media', 'account_id', 'account', 'delete', 'sql', 'character picture and banner; the stored images are deleted after', tied({ writer: 'owner_player_id', key: 'player' }, ex('profile_media', 'account_id', 'avatar_url', 'banner_url', 'updated_at'))),
   e('account_media', 'owner_player_id', 'player', 'delete', 'sql', 'the same pictures, found by who uploaded them (no foreign key)'),
   e('account_ownership_claims', 'account_id', 'account', 'delete', 'sql', 'disputes over who owns the character'),
   e('account_period_baselines', 'account_id', 'account', 'keep', 'none', 'hiscores numbers for the character, public game data the roster record is built from'),
@@ -109,14 +137,14 @@ export const PERSON_DATA: PersonDataEntry[] = [
   e('analytics_events', 'account_id', 'account', 'delete', 'sql', 'usage events tied to the character'),
   e('character_reports', 'account_id', 'account', 'delete', 'sql', 'reports and claim requests about the character'),
   e('clan_bans', 'account_id', 'account', 'detach', 'custom', 'which character prompted a ban; cleared on a ban that is kept'),
-  e('clan_join_requests', 'account_id', 'account', 'delete', 'sql', 'their requests to join a clan', ex('clan_join_requests', 'clan_id', 'account_id', 'status', 'message', 'source', 'requested_at', 'decided_at')),
+  e('clan_join_requests', 'account_id', 'account', 'delete', 'sql', 'their requests to join a clan', tied({ writer: 'player_id', key: 'player' }, ex('clan_join_requests', 'clan_id', 'account_id', 'status', 'message', 'source', 'requested_at', 'decided_at'))),
   e('clan_memberships', 'account_id', 'account', 'keep', 'none', 'THE SEAT: the clan’s record that this in-game name is or was in the clan',
-    ex('clan_memberships', 'id', 'clan_id', 'account_id', 'kind', 'rank', 'source', 'joined_at', 'left_at', 'ingame_joined_on')),
+    tied({ unowned: true }, ex('clan_memberships', 'id', 'clan_id', 'account_id', 'kind', 'rank', 'source', 'joined_at', 'left_at', 'ingame_joined_on'))),
   e('clans', 'ingame_name_claimed_by_account_id', 'account', 'keep', 'none', 'which character proved the clan’s in-game name; the clan’s record'),
   e('display_case_items', 'account_id', 'account', 'delete', 'sql', 'their profile display case'),
   e('event_participants', 'account_id', 'account', 'keep', 'custom',
     'the clan’s event entry stays under the in-game name; the Discord name, timezone and player token on it are cleared',
-    ex('event_entries', 'id', 'event_id', 'account_id', 'name', 'discord', 'timezone', 'team_id', 'pick_number', 'deaths', 'loot_gp_gained', 'pvp_kills', 'minutes_played')),
+    tied({ unowned: true }, ex('event_entries', 'id', 'event_id', 'account_id', 'name', 'team_id', 'pick_number', 'deaths', 'loot_gp_gained', 'pvp_kills', 'minutes_played'))),
   e('feed_items', 'account_id', 'account', 'keep', 'none', 'which clan feed posts were already made for the character, so none is posted twice'),
   e('forge_player_events', 'account_id', 'account', 'delete', 'sql', 'queued plugin events for the character'),
   e('guest_presence', 'account_id', 'account', 'delete', 'sql', 'where the character was last seen as a guest'),
@@ -132,7 +160,7 @@ export const PERSON_DATA: PersonDataEntry[] = [
   e('member_personal_bests', 'account_id', 'account', 'delete', 'sql', 'personal bests their plugin synced'),
   e('member_progress', 'account_id', 'account', 'delete', 'sql', 'quest / diary progress their plugin synced'),
   e('member_progress_items', 'account_id', 'account', 'delete', 'sql', 'quest / diary progress their plugin synced'),
-  e('player_goals', 'account_id', 'account', 'delete', 'sql', 'their saved goals', ex('goals', 'account_id', 'kind', 'metric', 'target', 'due_on', 'created_at')),
+  e('player_goals', 'account_id', 'account', 'delete', 'sql', 'their saved goals', tied({ since: 'created_at' }, ex('goals', 'account_id', 'kind', 'metric', 'target', 'due_on', 'created_at'))),
   e('player_snapshots', 'account_id', 'account', 'keep', 'none', 'start / end numbers of a clan’s weekly competition'),
 
   // ── Named by the person (players) ───────────────────────────────────────────────────────────────
@@ -207,8 +235,7 @@ export const PERSON_DATA: PersonDataEntry[] = [
   e('survey_responses', 'user_id', 'user', 'detach', 'fk', 'the clan’s survey answers stay, with no name on them', ex('survey_answers', 'event_id', 'answers', 'submitted_at')),
   e('event_discord_members', 'user_id', 'user', 'delete', 'custom', 'holds their Discord id; deleted by login and by Discord id'),
   e('event_signups', 'user_id', 'user', 'detach', 'custom',
-    'the clan’s sign-up record (team, status, fees) stays on the seat; the schema would delete it, so it is detached first and the answers they typed are emptied'),
-  e('event_signups', 'clan_member_id', 'seat', 'keep', 'none', 'the same sign-up, found by the seat it was made for (a sign-up staff made for them has no login on it)',
+    'the clan’s sign-up record (team, status, fees) stays on the seat; the schema would delete it, so it is detached first and the answers they typed are emptied',
     ex('event_signups', 'event_id', 'clan_member_id', 'profile_data', 'status', 'signed_up_at')),
   e('feedback', 'user_id', 'user', 'detach', 'sql', 'the feedback text stays; who sent it and the contact they left are cleared', { scrub: ['contact'], ...ex('feedback', 'kind', 'subject', 'body', 'contact', 'page_url', 'created_at') }),
   e('player_event_facts', 'user_id', 'user', 'detach', 'fk', 'event results stay with the clan under the in-game name', ex('event_results', 'event_id', 'rsn', 'points', 'tiles_contributed', 'tiles_finished', 'submissions', 'xp_gained', 'kc_gained', 'team_rank', 'teams_total')),
@@ -223,21 +250,21 @@ export const PERSON_DATA: PersonDataEntry[] = [
 
   // ── Clan records found through the seat or the event entry: all stay ────────────────────────────
   e('clan_audit_log', 'clan_member_id', 'seat', 'keep', 'custom',
-    'the clan’s log about its seat stays; any row that carries their Discord id is deleted', ex('audit_about_my_seats', 'clan_id', 'event_type', 'occurred_at')),
+    'the clan’s log about its seat stays whole; their Discord id and username inside a row are replaced with [deleted]', tied({ unowned: true }, ex('audit_about_my_seats', 'clan_id', 'event_type', 'occurred_at'))),
   e('moments', 'clan_member_id', 'seat', 'keep', 'none', 'drops and achievements on the clan’s feed, under the in-game name',
-    ex('moments', 'id', 'rsn', 'kind', 'event_id', 'item_name', 'quantity', 'value_gp', 'source', 'occurred_at')),
-  e('weekly_participants', 'clan_member_id', 'seat', 'keep', 'none', 'weekly competition standings', ex('weekly_entries', 'competition_id', 'rsn', 'baseline_value', 'current_value', 'opted_out')),
-  e('payouts', 'clan_member_id', 'seat', 'keep', 'none', 'the clan’s prize payments', ex('payouts', 'event_id', 'rsn', 'place', 'amount', 'status', 'paid_at')),
-  e('coffer_entries', 'clan_member_id', 'seat', 'keep', 'none', 'the clan’s coffer ledger', ex('coffer_entries', 'clan_id', 'kind', 'amount', 'status', 'rsn', 'created_at')),
+    tied({ since: 'occurred_at' }, ex('moments', 'id', 'rsn', 'kind', 'event_id', 'item_name', 'quantity', 'value_gp', 'source', 'occurred_at'))),
+  e('weekly_participants', 'clan_member_id', 'seat', 'keep', 'none', 'weekly competition standings', tied({ unowned: true }, ex('weekly_entries', 'competition_id', 'rsn', 'baseline_value', 'current_value', 'opted_out'))),
+  e('payouts', 'clan_member_id', 'seat', 'keep', 'none', 'the clan’s prize payments', tied({ since: 'created_at' }, ex('payouts', 'event_id', 'rsn', 'place', 'amount', 'status', 'paid_at'))),
+  e('coffer_entries', 'clan_member_id', 'seat', 'keep', 'none', 'the clan’s coffer ledger', tied({ since: 'created_at' }, ex('coffer_entries', 'clan_id', 'kind', 'amount', 'status', 'rsn', 'created_at'))),
   e('submissions', 'player_id', 'participant', 'keep', 'none', 'event submissions and their proof images: the clan’s event history',
-    ex('proofs_submitted', 'id', 'tile_id', 'team_id', 'amount', 'image_url', 'note', 'source', 'created_at')),
-  e('completions', 'credit_player_id', 'participant', 'keep', 'none', 'completed tiles: the clan’s event history', ex('event_completions', 'id', 'tile_id', 'team_id', 'completed_at', 'awarded_points')),
-  e('event_start_proofs', 'player_id', 'participant', 'keep', 'none', 'start-of-event proof screenshots: evidence in the clan’s event', ex('proofs_start', 'event_id', 'rsn', 'image_url', 'status', 'created_at')),
+    tied({ since: 'created_at' }, ex('proofs_submitted', 'id', 'tile_id', 'team_id', 'amount', 'image_url', 'note', 'source', 'created_at'))),
+  e('completions', 'credit_player_id', 'participant', 'keep', 'none', 'completed tiles: the clan’s event history', tied({ since: 'completed_at' }, ex('event_completions', 'id', 'tile_id', 'team_id', 'completed_at', 'awarded_points'))),
+  e('event_start_proofs', 'player_id', 'participant', 'keep', 'none', 'start-of-event proof screenshots: evidence in the clan’s event', tied({ since: 'created_at' }, ex('proofs_start', 'event_id', 'rsn', 'image_url', 'status', 'created_at'))),
   e('integrity_network', 'participant_id', 'participant', 'delete', 'sql', 'network fingerprint and country seen during an event'),
   e('integrity_signals', 'participant_id', 'participant', 'keep', 'none', 'cheating flags a clan’s staff raised or reviewed: evidence in the clan’s event'),
 
   // ── Somebody else’s record that only says they did something ────────────────────────────────────
-  e('clan_audit_log', 'actor_user_id', 'user', 'detach', 'fk', 'what they did stays in each clan’s log without a name; rows carrying their Discord id are deleted (custom step)',
+  e('clan_audit_log', 'actor_user_id', 'user', 'detach', 'fk', 'what they did, and what was done about them, stays in each clan’s log; the actor pointer is cleared and their Discord id and username inside a row are replaced with [deleted]',
     ex('audit_my_actions', 'clan_id', 'event_type', 'occurred_at')),
   e('clans', 'friends_owner_user_id', 'user', 'detach', 'custom', 'their private friends host stays for the friends who played in it, with no owner and a plain name'),
   ...[
@@ -277,7 +304,7 @@ export const PERSON_VALUE_COLUMNS: { table: string; column: string; handling: Ha
   { table: 'billing_ledger', column: 'buyer_email', handling: 'detach', why: 'the payment line stays for the books; the email on it is cleared' },
   { table: 'unmatched_purchases', column: 'buyer_email', handling: 'detach', why: 'the payment record stays; the email on it is cleared' },
   { table: 'h2h_prefs', column: 'blocked', handling: 'detach', why: 'other people’s block lists drop this person’s id' },
-  { table: 'clan_audit_log', column: 'new_value', handling: 'delete', why: 'any log row whose text carries their Discord id is deleted' },
+  { table: 'clan_audit_log', column: 'new_value', handling: 'detach', why: 'log rows are never deleted; their Discord id and username inside old_value / new_value / notes are replaced with [deleted], and a merge entry loses their person id and name' },
 ];
 
 // ── Export redaction ──────────────────────────────────────────────────────────────────────────────
@@ -422,4 +449,71 @@ export function retainedBan(f: BanFacts): RetainedBan | null {
     player: { displayName: null, banned: f.playerBanned, bannedAt: f.playerBanned ? f.playerBannedAt : null },
     clanBanIds: [...f.liveClanBanIds],
   };
+}
+
+// ── Tying an exported row to the person asking ────────────────────────────────────────────────────
+
+/** Was this row written at or after the moment the person claimed the character? Unknown = no. */
+export function tiedSince(rowStamp: unknown, claimedAt: string | null | undefined): boolean {
+  const claimed = parseStamp(claimedAt);
+  if (claimed == null) return false;
+  const at = rowStamp instanceof Date ? rowStamp.getTime() : typeof rowStamp === 'string' ? parseStamp(rowStamp) : null;
+  return at != null && !Number.isNaN(at) && at >= claimed;
+}
+
+// ── What a deletion leaves in the audit log ───────────────────────────────────────────────────────
+
+export const REDACTED = '[deleted]';
+
+/** A Discord id is a long run of digits and nothing else; anything shorter is not searched for. */
+export function isDiscordId(value: string | null | undefined): value is string {
+  return typeof value === 'string' && /^\d{15,25}$/.test(value);
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * One audit column (old_value, new_value or notes) with the person taken out of it. THE ROW IS NEVER
+ * DELETED: what a clan did, to whom and when is the clan's history, and a person must not be able
+ * to erase a ban or a role change by deleting their account.
+ *
+ * The Discord id is replaced only as a WHOLE number (never as digits inside a longer one). Their
+ * Discord username or display name is replaced only where it stands as a whole JSON string value,
+ * and only in a row that carried the id, so a common word used as a name cannot touch other rows.
+ * Returns the text unchanged when neither it nor (rowCarriesId) its row has the id.
+ */
+export function redactAuditText(
+  raw: string | null,
+  who: { discordId: string; names?: (string | null | undefined)[] },
+  /** Another column of the same row carried the id, so names go from this one too. */
+  rowCarriesId = false,
+): string | null {
+  if (raw == null || !isDiscordId(who.discordId)) return raw;
+  const idRe = new RegExp(`(?<![0-9])${who.discordId}(?![0-9])`, 'g');
+  if (!rowCarriesId && !idRe.test(raw)) return raw;
+  idRe.lastIndex = 0;
+  let out = raw.replace(idRe, REDACTED);
+  for (const name of who.names ?? []) {
+    const n = (name ?? '').trim();
+    if (n.length < 2) continue;
+    out = out.replace(new RegExp(escapeRe(JSON.stringify(n)), 'g'), JSON.stringify(REDACTED));
+  }
+  return out;
+}
+
+/**
+ * A merge entry's side (`{"playerId":12,"displayName":"…",…}`, lib/mergePeople) with this person
+ * taken out: the id and the name go, everything else (what moved, why) stays. Unchanged when the
+ * side is somebody else or is not that shape.
+ */
+export function redactMergeSide(raw: string | null, playerId: number): string | null {
+  if (raw == null) return raw;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+  if (typeof v !== 'object' || v === null || Array.isArray(v) || (v as { playerId?: unknown }).playerId !== playerId) return raw;
+  return JSON.stringify({ ...(v as Record<string, unknown>), playerId: null, displayName: REDACTED });
 }

@@ -12,9 +12,12 @@ import {
   confirmPhraseMatches,
   eraseBlockers,
   neverExported,
+  redactAuditText,
+  redactMergeSide,
   redactRow,
   retainedBan,
   sessionIsRecent,
+  tiedSince,
   type EraseFacts,
 } from '../src/lib/personData.ts';
 
@@ -163,4 +166,64 @@ test('only a session signed in a short while ago may delete', () => {
   assert.equal(sessionIsRecent(now + 60 * 60 * 1000, now), false);
   assert.equal(sessionIsRecent(null, now), false);
   assert.equal(sessionIsRecent(Number.NaN, now), false);
+});
+
+// ── A character that changed hands ────────────────────────────────────────────────────────────────
+
+test('a row counts as theirs only from the moment they claimed the character, in either stamp format', () => {
+  const claimed = '2026-06-01 12:00:00';
+  assert.equal(tiedSince('2026-06-01 12:00:00', claimed), true);
+  assert.equal(tiedSince('2026-06-01T12:00:01.000Z', claimed), true);
+  assert.equal(tiedSince('2026-06-01T11:59:59.000Z', claimed), false, 'a previous holder’s row');
+  assert.equal(tiedSince(new Date('2026-07-01T00:00:00Z'), '2026-06-01T12:00:00.000Z'), true);
+  assert.equal(tiedSince(new Date('2026-05-01T00:00:00Z'), claimed), false);
+  // Nothing to measure against, or nothing to measure: not theirs.
+  assert.equal(tiedSince('2026-07-01 00:00:00', null), false);
+  assert.equal(tiedSince(null, claimed), false);
+  assert.equal(tiedSince('not a date', claimed), false);
+  assert.equal(tiedSince(12345, claimed), false);
+});
+
+// ── The audit log after a deletion ────────────────────────────────────────────────────────────────
+
+const ID = '223344556677889900';
+
+test('the Discord id is replaced as a whole value, and the rest of the row is left alone', () => {
+  const row = JSON.stringify({ userId: 7, discordId: ID, method: 'discord_name_match', matchedAlias: 'Zezima' });
+  assert.equal(
+    redactAuditText(row, { discordId: ID }),
+    JSON.stringify({ userId: 7, discordId: '[deleted]', method: 'discord_name_match', matchedAlias: 'Zezima' }),
+  );
+  assert.equal(redactAuditText(`Banned <@${ID}> for spam`, { discordId: ID }), 'Banned <@[deleted]> for spam');
+});
+
+test('digits inside a longer number are never touched, and a row without the id is unchanged', () => {
+  const longer = `{"webhookId":"9${ID}1"}`;
+  assert.equal(redactAuditText(longer, { discordId: ID, names: ['Zezima'] }), longer);
+  const other = '{"discordId":"998877665544332211","name":"Zezima"}';
+  assert.equal(redactAuditText(other, { discordId: ID, names: ['Zezima'] }), other, 'a name alone never redacts a row');
+  assert.equal(redactAuditText(null, { discordId: ID }), null);
+  // Not a Discord id: nothing is searched for, so a short number can never match rows wholesale.
+  for (const bad of ['12', '', 'abc', '1234567890']) assert.equal(redactAuditText('{"n":12}', { discordId: bad }), '{"n":12}');
+});
+
+test('their Discord name goes too, where it is a whole value in a row that carried the id', () => {
+  const row = JSON.stringify({ discordId: ID, discordUsername: 'zez', note: 'zezima joined', by: 'zez' });
+  assert.equal(
+    redactAuditText(row, { discordId: ID, names: ['zez', null, ' '] }),
+    JSON.stringify({ discordId: '[deleted]', discordUsername: '[deleted]', note: 'zezima joined', by: '[deleted]' }),
+  );
+  // Another column of the same row: the id is elsewhere, the name is here.
+  assert.equal(redactAuditText('{"name":"zez"}', { discordId: ID, names: ['zez'] }, true), '{"name":"[deleted]"}');
+  assert.equal(redactAuditText('{"name":"zez"}', { discordId: ID, names: ['zez'] }), '{"name":"zez"}');
+  // A one-letter name is too common to replace.
+  assert.equal(redactAuditText(`{"discordId":"${ID}","k":"a"}`, { discordId: ID, names: ['a'] }), '{"discordId":"[deleted]","k":"a"}');
+});
+
+test('a merge entry keeps what moved and loses who', () => {
+  const side = JSON.stringify({ playerId: 12, displayName: 'Zezima', moved: { accounts: 1 }, reason: 'emptied by a claim' });
+  assert.equal(redactMergeSide(side, 12), JSON.stringify({ playerId: null, displayName: '[deleted]', moved: { accounts: 1 }, reason: 'emptied by a claim' }));
+  assert.equal(redactMergeSide(side, 120), side, 'somebody else’s side');
+  assert.equal(redactMergeSide('not json', 12), 'not json');
+  assert.equal(redactMergeSide(null, 12), null);
 });

@@ -108,6 +108,35 @@ test('the person goes; the clan’s roster seat and event history stay under the
   // A ban still in force in another clan, and one that was lifted long ago.
   const [liveBan] = await db.insert(s.clanBans).values({ clanId: otherClanId, playerId: p.playerId, accountId: p.seated, reason: 'was rude' }).returning();
   await db.insert(s.clanBans).values({ clanId, playerId: p.playerId, reason: 'old', liftedAt: '2026-02-01 00:00:00' });
+  // The other clan's own record of banning them, written by its moderator and naming their Discord id.
+  const modPlayer = await person('Mod');
+  const mod = await login(modPlayer, 'Mod');
+  const [banLog] = await db
+    .insert(s.clanAuditLog)
+    .values({
+      clanId: otherClanId,
+      eventType: 'clan_banned',
+      actorUserId: mod,
+      oldValue: JSON.stringify({ discordUsername: 'Zezima#1' }),
+      newValue: JSON.stringify({ discordId: DISCORD_ID, reason: 'was rude' }),
+      notes: `banned ${DISCORD_ID}`,
+    })
+    .returning();
+  // A row that only CONTAINS those digits inside a longer number is about something else.
+  const [lookalike] = await db
+    .insert(s.clanAuditLog)
+    .values({ clanId, eventType: 'webhook_added', newValue: JSON.stringify({ webhookId: `9${DISCORD_ID}1` }) })
+    .returning();
+  const [merge] = await db
+    .insert(s.clanAuditLog)
+    .values({
+      clanId: null,
+      eventType: 'platform_people_merged',
+      oldValue: JSON.stringify({ playerId: 987654, displayName: 'ghost' }),
+      newValue: JSON.stringify({ playerId: p.playerId, displayName: 'Zezima', moved: { accounts: 1 }, reason: null }),
+    })
+    .returning();
+  const logRowsBefore = (await db.select().from(s.clanAuditLog)).length;
   // Somebody else, who must not be touched.
   const bystander = await plantPerson('Durial', '998877665544332211');
 
@@ -177,13 +206,37 @@ test('the person goes; the clan’s roster seat and event history stay under the
   assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.playerId, ban.playerId))).length, 0, 'with no characters');
   assert.equal((await db.select().from(s.clanBans).where(eq(s.clanBans.clanId, clanId))).length, 0, 'a lifted ban is not kept');
 
+  // THE LOG IS NEVER DELETED FROM. The clan's ban entry is still there, same action, clan, actor
+  // and reason; only the id and the Discord name inside it are gone.
+  const [banAfter] = await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.id, banLog.id));
+  assert.ok(banAfter, 'a clan’s moderation history survives the person it is about');
+  assert.equal(banAfter.eventType, 'clan_banned');
+  assert.equal(banAfter.clanId, otherClanId);
+  assert.equal(banAfter.actorUserId, mod);
+  assert.equal(banAfter.occurredAt, banLog.occurredAt);
+  assert.deepEqual(JSON.parse(banAfter.newValue!), { discordId: '[deleted]', reason: 'was rude' });
+  assert.deepEqual(JSON.parse(banAfter.oldValue!), { discordUsername: '[deleted]' });
+  assert.equal(banAfter.notes, 'banned [deleted]');
+  const [lookalikeAfter] = await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.id, lookalike.id));
+  assert.equal(lookalikeAfter.newValue, lookalike.newValue, 'digits inside a longer number are not their id');
+  const [mergeAfter] = await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.id, merge.id));
+  assert.deepEqual(JSON.parse(mergeAfter.newValue!), { playerId: null, displayName: '[deleted]', moved: { accounts: 1 }, reason: null });
+  assert.equal(mergeAfter.oldValue, merge.oldValue, 'the other side of the merge is somebody else');
+  const claimedRows = (await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.clanMemberId, p.seatId))).filter((l) => l.eventType === 'claimed');
+  assert.equal(claimedRows.length, 1, 'their own claim entry stays');
+  assert.equal(claimedRows[0].actorUserId, null);
+  assert.equal(JSON.parse(claimedRows[0].newValue!).discordId, '[deleted]');
+
   // One audit entry, and nothing in the log that says who.
   const log = await db.select().from(s.clanAuditLog);
+  // Every row from before is still there; the bystander's one and the deletion entry were added.
+  assert.equal(log.length, logRowsBefore + 2);
   const deleted = log.filter((l) => l.eventType === 'platform_account_deleted');
   assert.equal(deleted.length, 1);
   assert.equal(deleted[0].actorUserId, null);
   assert.equal(deleted[0].clanId, null);
   for (const l of log) {
+    if (l.id === lookalike.id) continue; // holds those digits inside a longer number, on purpose
     const text = `${l.oldValue ?? ''}${l.newValue ?? ''}${l.notes ?? ''}`;
     assert.ok(!text.includes(DISCORD_ID), 'no log row carries the Discord id');
     assert.ok(!text.includes('Zezima@example.test'));
@@ -273,4 +326,59 @@ test('the export holds their own rows, as links and dates, and never a token or 
   // Never somebody else.
   for (const theirs of ['Stranger', '444444444444444444']) assert.ok(!text.includes(theirs), `${theirs} must not be in the export`);
   assert.equal(await exportPerson(other.userId + 100_000), null);
+});
+
+test('a character taken over from someone else does not bring their answers into the export', async () => {
+  // The first holder: signs up with answers, asks to join a clan with a message, sets a goal, sends a proof.
+  const first = await person('First');
+  const firstLogin = await login(first, 'First', { discordId: '555555555555555555' });
+  const acct = await account(first, 'SharedName', { claimedAt: '2026-01-01 00:00:00' });
+  const [seat] = await db.insert(s.clanMemberships).values({ clanId, accountId: acct }).returning();
+  const [entry] = await db
+    .insert(s.eventParticipants)
+    .values({ eventId, name: 'SharedName', accountId: acct, clanMemberId: seat.id, teamId, discord: 'first-holder#9', timezone: 'Pacific/Auckland' })
+    .returning();
+  await db.insert(s.eventSignups).values({ eventId, userId: firstLogin, clanMemberId: seat.id, profileData: '{"about":"first holder secret answer"}' });
+  await db.insert(s.clanJoinRequests).values({ clanId: otherClanId, accountId: acct, playerId: first, message: 'first holder private message' });
+  await db.insert(s.playerGoals).values({ accountId: acct, kind: 'level', metric: 'first-holder-goal', target: 50, createdAt: '2026-02-01 00:00:00' });
+  await db
+    .insert(s.submissions)
+    .values({ tileId, teamId, playerId: entry.id, imageUrl: 'https://media.example.test/c/afk/submissions/first-holder.webp', note: 'first holder note', createdAt: '2026-02-01 00:00:00' });
+
+  // The character changes hands: released, then claimed by somebody new, later.
+  const second = await person('Second');
+  const secondLogin = await login(second, 'Second', { discordId: '666666666666666666' });
+  await db.update(s.accounts).set({ playerId: second, claimedAt: '2026-06-01 00:00:00' }).where(eq(s.accounts.id, acct));
+  // What the new holder did themselves, after.
+  await db.insert(s.playerGoals).values({ accountId: acct, kind: 'level', metric: 'second-holder-goal', target: 99, createdAt: '2026-06-02 00:00:00' });
+  await db
+    .insert(s.submissions)
+    .values({ tileId, teamId, playerId: entry.id, imageUrl: 'https://media.example.test/c/afk/submissions/second-holder.webp', note: 'second holder note', createdAt: '2026-06-02T10:00:00.000Z' });
+  await db.insert(s.clanJoinRequests).values({ clanId: otherClanId, accountId: acct, playerId: second, message: 'second holder message', status: 'withdrawn' });
+
+  const out = await exportPerson(secondLogin);
+  assert.ok(out);
+  const text = JSON.stringify(out);
+
+  // Theirs.
+  assert.deepEqual(out.data.characters?.map((c) => c.rsn), ['SharedName']);
+  assert.equal(out.data.clan_memberships?.length, 1, 'the seat itself: ids and dates');
+  assert.deepEqual(out.data.goals?.map((g) => g.metric), ['second-holder-goal']);
+  assert.deepEqual(out.data.proofs_submitted?.map((r) => r.note), ['second holder note']);
+  assert.deepEqual(out.data.clan_join_requests?.map((r) => r.message), ['second holder message']);
+  assert.equal(out.data.event_entries?.[0]?.name, 'SharedName');
+
+  // Never the previous holder's.
+  for (const leaked of ['first holder', 'first-holder', 'Pacific/Auckland', '555555555555555555']) {
+    assert.ok(!text.includes(leaked), `"${leaked}" is the previous holder’s and must not be in the export`);
+  }
+  assert.equal(out.data.event_signups, undefined, 'a sign-up somebody else wrote is not theirs');
+  for (const row of out.data.event_entries ?? []) {
+    assert.ok(!('discord' in row) && !('timezone' in row), 'an event entry carries no personal column');
+  }
+
+  // And the first holder still gets their own answers.
+  const theirs = JSON.stringify(await exportPerson(firstLogin));
+  assert.ok(theirs.includes('first holder secret answer'));
+  assert.ok(!theirs.includes('second holder'));
 });

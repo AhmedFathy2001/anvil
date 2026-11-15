@@ -9,15 +9,20 @@
 // their characters, their seats, their event entries. Nothing is read by clan or by event, so other
 // people's rows are never in reach. Proof images are links, never bytes.
 //
+// A CHARACTER CHANGES HANDS, and the rows on it stay. So a row found through a character (by
+// account, seat or event entry) only leaves when its entry's `tie` shows it is this person's: the
+// row names them as its writer, or it dates from after they claimed the character, or it lists no
+// personal column at all. An entry with no tie exports nothing.
+//
 // SIZE-BOUNDED: at most EXPORT_ROW_CAP rows per table (newest ids are not special-cased; a table
 // that hit the cap is listed under `truncated` so the reader knows it is not the whole of it).
 
 import { eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, users } from '@/db/schema';
+import { accounts, clanMemberships, clans, eventParticipants, users } from '@/db/schema';
 import { personIdsFor } from '@/lib/erasePerson';
-import { PERSON_DATA, redactRow } from '@/lib/personData';
+import { PERSON_DATA, redactRow, tiedSince } from '@/lib/personData';
 
 export const EXPORT_ROW_CAP = 5000;
 
@@ -36,6 +41,34 @@ export async function exportPerson(userId: number): Promise<PersonExport | null>
   if (!user) return null;
   const ids = await personIdsFor(userId, user.playerId);
 
+  // Which character each seat and event entry belongs to, and when this person claimed each
+  // character: what a `since` tie is measured against (lib/personData ExportTie).
+  const claimedAt = new Map<number, string | null>();
+  const accountOf: Record<'account' | 'seat' | 'participant', Map<number, number>> = { account: new Map(), seat: new Map(), participant: new Map() };
+  if (ids.account.length > 0) {
+    for (const a of await db.select({ id: accounts.id, claimedAt: accounts.claimedAt }).from(accounts).where(inArray(accounts.id, ids.account))) {
+      claimedAt.set(a.id, a.claimedAt);
+      accountOf.account.set(a.id, a.id);
+    }
+  }
+  if (ids.seat.length > 0) {
+    // clan-scope: global -- this person's own seats, in whichever clan.
+    for (const m of await db.select({ id: clanMemberships.id, accountId: clanMemberships.accountId }).from(clanMemberships).where(inArray(clanMemberships.id, ids.seat))) {
+      accountOf.seat.set(m.id, m.accountId);
+    }
+  }
+  if (ids.participant.length > 0) {
+    // clan-scope: global -- this person's own event entries, in whichever clan.
+    const entries = await db
+      .select({ id: eventParticipants.id, accountId: eventParticipants.accountId, clanMemberId: eventParticipants.clanMemberId })
+      .from(eventParticipants)
+      .where(inArray(eventParticipants.id, ids.participant));
+    for (const p of entries) {
+      const account = p.accountId ?? (p.clanMemberId != null ? accountOf.seat.get(p.clanMemberId) : undefined);
+      if (account != null) accountOf.participant.set(p.id, account);
+    }
+  }
+
   const data: PersonExport['data'] = {};
   const truncated: string[] = [];
   for (const entry of PERSON_DATA) {
@@ -43,17 +76,39 @@ export async function exportPerson(userId: number): Promise<PersonExport | null>
     const keyIds = ids[entry.key];
     if (keyIds.length === 0) continue;
     const columns = entry.export.columns;
-    const rows = (
+    const tie = entry.export.tie;
+    const throughCharacter = entry.key === 'account' || entry.key === 'seat' || entry.key === 'participant';
+    // A row found through a character with no rule saying whose it is does not leave at all.
+    if (throughCharacter && !tie) continue;
+
+    // The tie's own columns are read to decide, under names that cannot collide, and never exported.
+    const extra: ReturnType<typeof sql>[] = [];
+    let writerWhere = sql``;
+    if (tie && 'writer' in tie) {
+      const writerIds = ids[tie.key];
+      if (writerIds.length === 0) continue;
+      writerWhere = sql` and ${ident(tie.writer)} in (${sql.join(writerIds.map((id) => sql`${id}`), sql`, `)})`;
+    }
+    if (tie && 'since' in tie) extra.push(sql`${ident(tie.since)} as "__since"`, sql`${ident(entry.column)} as "__key"`);
+
+    let rows = (
       await db.execute(sql`
-        select ${sql.join(columns.map((c) => ident(c)), sql`, `)}
+        select ${sql.join([...columns.map((c) => ident(c)), ...extra], sql`, `)}
         from ${ident(entry.table)}
-        where ${ident(entry.column)} in (${sql.join(keyIds.map((id) => sql`${id}`), sql`, `)})
+        where ${ident(entry.column)} in (${sql.join(keyIds.map((id) => sql`${id}`), sql`, `)})${writerWhere}
         limit ${EXPORT_ROW_CAP + 1}
       `)
     ).rows as Record<string, unknown>[];
     if (rows.length > EXPORT_ROW_CAP) {
       rows.length = EXPORT_ROW_CAP;
       truncated.push(entry.table);
+    }
+    if (tie && 'since' in tie && throughCharacter) {
+      const owner = accountOf[entry.key as 'account' | 'seat' | 'participant'];
+      rows = rows.filter((row) => {
+        const account = owner.get(Number(row.__key));
+        return account != null && tiedSince(row.__since, claimedAt.get(account));
+      });
     }
     if (rows.length === 0) continue;
     const section = (data[entry.export.section] ??= []);
