@@ -1,4 +1,6 @@
 import { headers } from 'next/headers';
+import { verifyUser } from '@/lib/auth';
+import { accountIdsOf } from '@/lib/apexHomeSignals';
 import SupporterName from '@/components/SupporterName';
 import { clanHeats, streakWeeksFor } from '@/lib/activityStreaks';
 import { supporterLooksByName } from '@/lib/supporter';
@@ -12,6 +14,7 @@ import { isApexHost, resolveClanBySlug } from '@/lib/clanContext';
 import {
   clanStandings,
   isPlayerMode,
+  standingFor,
   topPlayers,
   trackingSince,
   type LeaderboardWindow,
@@ -149,6 +152,13 @@ export default async function LeaderboardPage({
   const players = hasNext ? playerRows.slice(0, PER_PAGE) : playerRows;
   // Decoration on the rows: Supporter flair (with tenure), weekly streaks, clan heat. A failed read
   // is a plain table, never a broken one.
+  // Who is reading: their characters are tinted in the table and "You are #N" says where they sit.
+  // A signed-out visitor or a failed read just gets the plain table.
+  const viewer = await verifyUser().catch(() => null);
+  const myAccountIds = viewer ? await accountIdsOf(viewer.playerId).catch(() => [] as number[]) : [];
+  const mine = new Set(myAccountIds);
+  const myStanding = myAccountIds.length > 0 && mode === 'all' ? await standingFor(myAccountIds, window).catch(() => null) : null;
+
   const [looks, streaks, heats] = await Promise.all([
     supporterLooksByName(players.map((p) => p.rsn)).catch(() => ({}) as Awaited<ReturnType<typeof supporterLooksByName>>),
     streakWeeksFor(players.map((p) => p.accountId)).catch(() => new Map<number, number>()),
@@ -161,8 +171,12 @@ export default async function LeaderboardPage({
   // The bar is drawn against the leader OF THIS PAGE, not of the table: on page 4 every row would
   // otherwise be a sliver against a first place nobody can see.
   const playerLeader = players.length > 0 ? players[0].xpGained : 0;
-  const modeQs = mode === 'all' ? '' : `&mode=${mode}`;
+  // `from` rides along on every in-page link so the way back to the clan survives changing window,
+  // mode or page.
+  const fromQs = fromClan ? `&from=${encodeURIComponent(fromClan.slug)}` : '';
+  const modeQs = (mode === 'all' ? '' : `&mode=${mode}`) + fromQs;
   const href = (p: number) => `/leaderboard?w=${window}${modeQs}${p > 1 ? `&p=${p}` : ''}`;
+  const windowWord = window === '7d' ? 'this week' : window === '30d' ? 'in the last 30 days' : 'of all time';
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -233,7 +247,7 @@ export default async function LeaderboardPage({
             options={MODES.map((m) => ({
               key: m.key,
               label: m.label,
-              href: `/leaderboard?w=${window}${m.key === 'all' ? '' : `&mode=${m.key}`}`,
+              href: `/leaderboard?w=${window}${m.key === 'all' ? '' : `&mode=${m.key}`}${fromQs}`,
             }))}
             active={mode}
           />
@@ -244,6 +258,14 @@ export default async function LeaderboardPage({
             two other surfaces answer better: Clan Hall browses every clan, and a clan's own page
             lists its members individually to anyone allowed to read it. What is left here is the one
             thing neither of those does: everybody, in one order. */}
+
+        {myStanding && (
+          <p className="mb-3 ml-4 text-[13px] text-text-muted">
+            You are <span className="font-semibold text-gold">#{myStanding.rank}</span> of {myStanding.field} {windowWord}
+            {' '}as {myStanding.rsn}
+            {myStanding.gapAhead != null && myStanding.gapAhead > 0 ? ` — ${compact(myStanding.gapAhead)} XP to pass the next place.` : '.'}
+          </p>
+        )}
 
         {players.length === 0 ? (
           <p className="rounded-xl border border-dashed border-card-border px-5 py-8 text-center text-sm text-text-muted">
@@ -256,7 +278,11 @@ export default async function LeaderboardPage({
         ) : (
           <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
             {players.map((p, i) => (
-              <li key={p.rsn} className="relative flex items-center gap-3 px-4 py-2.5 sm:px-5">
+              <li
+                key={p.rsn}
+                className={`relative flex items-center gap-3 px-4 py-2.5 sm:px-5 ${mine.has(p.accountId) ? 'bg-gold/[0.09] ring-1 ring-inset ring-gold/30' : ''}`}
+                aria-current={mine.has(p.accountId) ? 'true' : undefined}
+              >
                 {/* The bar sits UNDER the row rather than in its own column: at this density a
                     separate track would be four pixels tall and unreadable. */}
                 <span
