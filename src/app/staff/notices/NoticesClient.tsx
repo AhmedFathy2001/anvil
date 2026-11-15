@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { useDialog } from '@/components/Confirm';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
@@ -52,6 +53,7 @@ function audienceText(a: string): string {
 
 export default function NoticesClient({ canWrite, initial }: { canWrite: boolean; initial: Row[] }) {
   const router = useRouter();
+  const { confirm } = useDialog();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -69,6 +71,17 @@ export default function NoticesClient({ canWrite, initial }: { canWrite: boolean
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    const to =
+      audience === 'clan' ? `Clan ${clanSlug.trim() || '(no address yet)'} staff` : audience === 'user' ? person.trim() || 'one person' : audienceText(audience);
+    const where = ['the site inbox', inPlugin && 'the plugin panel', inBrief && 'the login brief', byDm && 'a Discord DM'].filter(Boolean).join(', ');
+    const ok = await confirm({
+      title: `Send “${title.trim() || 'this notice'}”?`,
+      body: `To: ${to}. Shown in ${where}. You can take it down afterwards, but DMs already sent stay sent.`,
+      confirmLabel: 'Send',
+      tone: audience === 'everyone' || byDm ? 'danger' : 'gold',
+    });
+    if (!ok) return;
     setBusy(true);
     setMsg(null);
     try {
