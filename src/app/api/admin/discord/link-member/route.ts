@@ -8,6 +8,7 @@ import { seatInClan, updateAccountOfSeat } from '@/lib/roster';
 import { verifyUser } from '@/lib/auth';
 import { discordProvenForOtherSeat, isGuildMember, syncRolesForClanMember } from '@/lib/discord-roles';
 import { handLinkRefusal, mayHandLink, storedDiscordLink } from '@/lib/discordRoleSafety';
+import { removeHandLink, roleRemovalMessage, takeBackRoles } from '@/lib/discordUnlinkRoles';
 import { rosterClanSeat } from '@/lib/seatScope';
 
 // Linking a roster member to a Discord account BY HAND, for the stragglers a sign-in has not reached.
@@ -48,15 +49,17 @@ export async function GET() {
   return NextResponse.json({ links });
 }
 
-// POST { clanMemberId, discordUserId } — point an UNCLAIMED roster entry at a Discord user.
+// POST { clanMemberId, discordUserId, removeOldRoles? } — point an UNCLAIMED roster entry at a Discord user.
 // Validates the user is in the guild, stores the link with its source, then syncs their roles.
+// `removeOldRoles: true`, when this REPLACES a link this clan made to a different Discord account,
+// also takes this clan's Anvil roles off that old account (lib/discordUnlinkRoles).
 export async function POST(request: Request) {
   const clan = await requireClan();
   const actor = await handLinker();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as
-    | { clanMemberId?: unknown; discordUserId?: unknown }
+    | { clanMemberId?: unknown; discordUserId?: unknown; removeOldRoles?: unknown }
     | null;
   const clanMemberId = Number(body?.clanMemberId);
   const discordUserId = typeof body?.discordUserId === 'string' ? body.discordUserId : '';
@@ -89,6 +92,15 @@ export async function POST(request: Request) {
     );
   }
 
+  // The hand link this one replaces, if this clan made one to a DIFFERENT account: that account
+  // keeps its roles unless the admin asks for them back.
+  const [replaced] = await db
+    .select({ discordId: accounts.discordId })
+    .from(accounts)
+    .where(and(eq(accounts.id, member.accountId), eq(accounts.discordIdSource, 'admin'), eq(accounts.discordIdLinkedClanId, clan.id)))
+    .limit(1);
+  const oldDiscordId = replaced?.discordId && replaced.discordId !== discordUserId ? replaced.discordId : null;
+
   await updateAccountOfSeat(
     clanMemberId,
     storedDiscordLink(discordUserId, 'admin', { userId: actor.userId, clanId: clan.id, at: new Date().toISOString() }),
@@ -109,43 +121,31 @@ export async function POST(request: Request) {
   // Assign roles only — do NOT rename them. The site RSN can be stale (renames) or an alt, so
   // clobbering their current Discord nick on a manual link is wrong (skipNickname = true).
   const report = await syncRolesForClanMember(clanMemberId, undefined, true);
-  return NextResponse.json({ success: true, report });
+  if (!oldDiscordId) return NextResponse.json({ success: true, report });
+  // After the new link is stored, so the old account is judged on what it still holds here.
+  if (body?.removeOldRoles !== true) {
+    return NextResponse.json({ success: true, report, replaced: true, oldAccountMessage: 'The Discord account linked before keeps its roles until you remove them in Discord.' });
+  }
+  const oldRoles = await takeBackRoles({ clanId: clan.id, seatId: member.id, rsn: member.rsn, actorUserId: actor.userId, discordUserId: oldDiscordId });
+  return NextResponse.json({ success: true, report, replaced: true, oldRoles, oldAccountMessage: `The account linked before: ${roleRemovalMessage(oldRoles)}` });
 }
 
-// DELETE { clanMemberId } — remove a link this clan's admin made by hand. The stored id is cleared,
-// so role sync stops giving that Discord account this member's roles. Roles it already holds in the
-// server are not taken away here: remove them in Discord.
+// DELETE { clanMemberId, removeRoles? } — remove a link this clan's admin made by hand. The stored
+// id is cleared, so role sync stops giving that Discord account this member's roles.
+// `removeRoles: true` also takes back the roles Anvil gave that account in this clan's server
+// (lib/discordUnlinkRoles): only roles in this clan's own mapping, and not while the account still
+// earns them another way. The link is removed whatever Discord says; `message` tells the admin what
+// happened to the roles, per role.
 export async function DELETE(request: Request) {
   const clan = await requireClan();
   const actor = await handLinker();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = (await request.json().catch(() => null)) as { clanMemberId?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { clanMemberId?: unknown; removeRoles?: unknown } | null;
   const clanMemberId = Number(body?.clanMemberId);
   if (!Number.isInteger(clanMemberId)) return NextResponse.json({ error: 'clanMemberId is required' }, { status: 400 });
 
-  const member = await seatInClan(clan.id, clanMemberId);
-  if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
-
-  // Only a link THIS clan made. Anything else stored on the character (a sign-in's id, another
-  // clan's link) is not this clan's to clear.
-  const [removed] = await db
-    .update(accounts)
-    .set(storedDiscordLink(null, null))
-    .where(and(eq(accounts.id, member.accountId), eq(accounts.discordIdSource, 'admin'), eq(accounts.discordIdLinkedClanId, clan.id)))
-    .returning({ id: accounts.id });
-  if (!removed) return NextResponse.json({ error: 'This member has no link made by hand here.' }, { status: 409 });
-
-  await db
-    .insert(clanAuditLog)
-    .values({
-      clanId: clan.id,
-      clanMemberId: member.id,
-      eventType: 'discord_link_removed',
-      actorUserId: actor.userId,
-      oldValue: JSON.stringify({ rsn: member.rsn, source: 'admin' }),
-      notes: `Hand-made Discord link removed from ${member.rsn}`,
-    })
-    .catch(() => {});
-  return NextResponse.json({ success: true });
+  const result = await removeHandLink({ clanId: clan.id, clanMemberId, actorUserId: actor.userId, removeRoles: body?.removeRoles === true });
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  return NextResponse.json({ success: true, roles: result.roles, message: result.message });
 }

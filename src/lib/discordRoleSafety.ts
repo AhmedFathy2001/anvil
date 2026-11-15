@@ -150,6 +150,21 @@ export function isProvenDiscordId(discordId: string | null | undefined, src: Sea
   return !!discordId && provenDiscordIds(src).includes(discordId);
 }
 
+/**
+ * May this Discord account ACT AS this seat? One rule for role sync and for slash commands
+ * (lib/discordContext resolveInvoker): the id is one role sync would try for the seat. With nickname
+ * matching off that is an id a sign-in proves (sign-in, sign-up, plugin report) or a hand link this
+ * clan's admin made; a stored id of any other source ('name', unknown, another clan's hand link) is
+ * not that person. With matching on the stored id counts whatever its source, as before.
+ */
+export function seatTrustsDiscordId(
+  discordId: string | null | undefined,
+  src: SeatDiscordSources,
+  matchByNickname: boolean,
+): boolean {
+  return !!discordId && trustedDiscordIds(src, matchByNickname).includes(discordId);
+}
+
 /** Which proven source gives this id for the seat (the strongest), or null when none does. */
 export function provenSourceOf(discordId: string | null | undefined, src: SeatDiscordSources): 'login' | 'signup' | 'plugin' | null {
   if (!discordId) return null;
@@ -235,6 +250,76 @@ export function storedDiscordLink(
 /** Only an admin or the owner links by hand. A moderator does not. */
 export function mayHandLink(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'admin';
+}
+
+/**
+ * A Discord id sent with a roster add or edit, by who sent it. Only an admin or the owner may set,
+ * change or clear a character's stored Discord id: a moderator's value is dropped (`ignored`), so
+ * they can neither overwrite nor clear a link an admin made, and the rest of their request stands.
+ *   write    false = leave the stored id and its source exactly as they are
+ *   ignored  the request carried the field and it was not applied
+ */
+export function rosterDiscordIdWrite(
+  role: string | null | undefined,
+  sent: unknown,
+): { write: boolean; ignored: boolean } {
+  if (sent === undefined) return { write: false, ignored: false };
+  return mayHandLink(role) ? { write: true, ignored: false } : { write: false, ignored: true };
+}
+
+/** What a moderator is told when the Discord id they sent was not applied. */
+export const DISCORD_ID_ADMIN_ONLY = 'Only an admin or the owner can set or change a member’s Discord ID. It was left as it was.';
+
+// ── Taking roles back when a hand link is removed ─────────────────────────────────────────────────
+
+export interface UnlinkGuildRole {
+  id: string;
+  name: string;
+  position: number;
+  managed?: boolean;
+  permissions?: string;
+}
+
+export interface UnlinkRoleDecision {
+  /** Roles to take off the account. */
+  remove: { id: string; name: string }[];
+  /** Roles Anvil manages that the account holds but that are left alone, and why. Not errors. */
+  skipped: { id: string; name: string; reason: 'server-owner' | 'above-bot' }[];
+}
+
+/**
+ * Which roles to take off ONE Discord account when the hand link that earned them is removed.
+ *
+ * Only a role that is all of: held by the account, in the clan's managed set (the roles sync itself
+ * hands out, lib/discord-roles anvilManagedRoleIds), still in the server, and one Anvil may hand out
+ * at all (isSafeAutomatedRole: never @everyone, an integration's role, or one with moderation
+ * powers, none of which Anvil ever gave). Anything outside the managed set is never returned.
+ *
+ * The server owner, and a role at or above the bot's highest, cannot be changed by the bot: those
+ * are reported as skipped instead of being tried and failing.
+ */
+export function rolesToRemoveOnUnlink(input: {
+  guildId: string;
+  managedRoleIds: Iterable<string>;
+  heldRoleIds: readonly string[];
+  guildRoles: readonly UnlinkGuildRole[];
+  /** The bot's highest role position; it can only change roles strictly below this. */
+  botTopPosition: number;
+  /** The account is the server's owner. */
+  isGuildOwner: boolean;
+}): UnlinkRoleDecision {
+  const managed = new Set(input.managedRoleIds);
+  const byId = new Map(input.guildRoles.map((r) => [r.id, r]));
+  const out: UnlinkRoleDecision = { remove: [], skipped: [] };
+  for (const id of new Set(input.heldRoleIds)) {
+    if (!managed.has(id)) continue;
+    const role = byId.get(id);
+    if (!role || !isSafeAutomatedRole(role, input.guildId)) continue;
+    if (input.isGuildOwner) out.skipped.push({ id, name: role.name, reason: 'server-owner' });
+    else if (role.position >= input.botTopPosition) out.skipped.push({ id, name: role.name, reason: 'above-bot' });
+    else out.remove.push({ id, name: role.name });
+  }
+  return out;
 }
 
 /**

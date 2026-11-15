@@ -597,7 +597,8 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         rsn: addRsn,
-        discordId: addDiscord || undefined,
+        // Admins and the owner only: the server ignores it from anyone else.
+        discordId: isAdmin ? addDiscord || undefined : undefined,
         rank: addRank || undefined,
         isGuest: addIsGuest,
       }),
@@ -1095,11 +1096,15 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                 <label className="block text-xs text-text-muted mb-1">Discord ID (optional)</label>
                 <Input
                   type="text"
-                  value={addDiscord}
+                  value={isAdmin ? addDiscord : ''}
                   onChange={(e) => setAddDiscord(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                  placeholder="e.g. 1234567890"
+                  disabled={!isAdmin}
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm disabled:opacity-50"
+                  placeholder={isAdmin ? 'e.g. 1234567890' : 'Admins only'}
                 />
+                {!isAdmin && (
+                  <p className="mt-1 text-xs text-text-muted">Only an admin or the owner can set a member&apos;s Discord ID.</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
