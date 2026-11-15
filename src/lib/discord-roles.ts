@@ -29,7 +29,7 @@ import { rosterClanSeat } from '@/lib/seatScope';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
-import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
+import { isSafeAutomatedRole, nameMatchAllowed, uniqueAliasIndex } from '@/lib/discordRoleSafety';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -537,7 +537,7 @@ export async function buildSweepContext(clanId: number): Promise<SweepContext | 
   if (!members) return null;
 
   const byId = new Map<string, DiscordGuildMember>();
-  const byAlias = new Map<string, string>();
+  const named: [string, string][] = [];
   for (const m of members) {
     const id = m.user?.id;
     if (!id) continue;
@@ -549,10 +549,11 @@ export async function buildSweepContext(clanId: number): Promise<SweepContext | 
     ];
     for (const a of aliases) {
       const key = normalizeRsn(a);
-      if (key && !byAlias.has(key)) byAlias.set(key, id);
+      if (key) named.push([key, id]);
     }
   }
-  return { byId, byAlias, guildRoles: await fetchGuildRoles(clanId) };
+  // A name two different accounts carry matches neither (lib/discordRoleSafety).
+  return { byId, byAlias: uniqueAliasIndex(named), guildRoles: await fetchGuildRoles(clanId) };
 }
 
 // Search the guild's members by name (nick / username), for the admin "link this member to a
@@ -700,6 +701,7 @@ export async function findDiscordIdByRsn(clanId: number, rsn: string): Promise<s
     return null;
   }
   const candidates = (await res.json()) as DiscordGuildMember[];
+  const named: [string, string][] = [];
   for (const m of candidates) {
     if (!m.user) continue;
     const aliases = [
@@ -707,9 +709,38 @@ export async function findDiscordIdByRsn(clanId: number, rsn: string): Promise<s
       ...splitDisplayAliases(m.user.global_name),
       ...splitDisplayAliases(m.user.username),
     ];
-    if (aliases.some((alias) => normalizeRsn(alias) === target)) return m.user.id;
+    if (aliases.some((alias) => normalizeRsn(alias) === target)) named.push([target, m.user.id]);
   }
-  return null;
+  // Two different accounts under the one name: the name settles nothing, so it matches nobody.
+  return uniqueAliasIndex(named).get(target) ?? null;
+}
+
+/**
+ * Is a NAME match good enough to act on for this seat? (lib/discordRoleSafety nameMatchAllowed.)
+ *
+ * Anyone in the server can set their nickname to a member's name. So the match is dropped whenever
+ * something proven disagrees with it: the seat's owner signed in with a different Discord account,
+ * or the matched account belongs to a person who is not the seat's owner.
+ */
+async function nameMatchTrusted(
+  clanId: number,
+  member: { id: number; playerId: number | null },
+  matchedDiscordId: string,
+): Promise<boolean> {
+  const seatOwnerDiscordId = member.playerId != null ? await discordIdForPerson(member.playerId) : null;
+  // clan-scope: global -- a login is not a clan's; this asks who signed in with one Discord account.
+  const matched = await db.query.users.findFirst({ where: eq(users.discordId, matchedDiscordId), columns: { playerId: true } });
+  const matchedPlayerId = matched?.playerId ?? null;
+  let matchedHoldsOtherSeat = false;
+  if (matchedPlayerId != null && member.playerId == null) {
+    const [seat] = await db
+      .select({ id: clanRoster.id })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, matchedPlayerId), isNull(clanRoster.leftAt), rosterClanSeat()))
+      .limit(1);
+    matchedHoldsOtherSeat = !!seat;
+  }
+  return nameMatchAllowed({ matchedDiscordId, seatPlayerId: member.playerId, seatOwnerDiscordId, matchedPlayerId, matchedHoldsOtherSeat });
 }
 
 // =============================================================================
@@ -724,7 +755,13 @@ interface MinimalClanMember {
   discordId: string | null;
 }
 
-/** Cache a resolved Discord id onto the clan member so future syncs skip the lookup entirely. */
+/**
+ * Cache a resolved Discord id onto the clan member so future syncs skip the lookup entirely.
+ *
+ * ONLY FOR AN ID THE DATABASE ALREADY TIES TO THIS SEAT (a sign-in, a sign-up, a plugin report).
+ * A nickname match is never cached: once written here it is indistinguishable from a real link, so
+ * one minute under a borrowed name used to keep that member's roles for good.
+ */
 async function cacheDiscordId(memberId: number, discordId: string): Promise<void> {
   await updateAccountOfSeat(memberId, { discordId }).catch(() => {});
   // Deliberately do NOT turn this cache into account ownership. The id may have come from a guild
@@ -759,8 +796,9 @@ async function discordIdForPerson(playerId: number): Promise<string | null> {
  *      this RSN to a user
  *   5) guild member search by RSN prefix + alias split (best-effort name match)
  *
- * Sources 3–5 write the result back onto accounts.discordId so it's resolved once, not
- * every sweep — this also slashes the rate-limited guild searches. Returns null only when a
+ * Sources 3–4 write the result back onto accounts.discordId so it's resolved once, not
+ * every sweep. Source 5 is a guess anyone in the server can make true by renaming themselves, so it
+ * is checked against what is proven (nameMatchTrusted) and never written back. Returns null only when a
  * member genuinely has no Discord link anywhere (the correct "skip until they link" case).
  */
 export async function resolveDiscordIdForMember(
@@ -779,13 +817,11 @@ export async function resolveDiscordIdForMember(
       return c;
     }
   }
+  // A name match: used for this call, never written back (see cacheDiscordId).
   const searched = await findDiscordIdByRsn(clanId, member.rsn);
-  if (searched) {
+  if (searched && (await nameMatchTrusted(clanId, member, searched))) {
     const gm = await getGuildMember(cfg, searched);
-    if (gm.member) {
-      await cacheDiscordId(member.id, searched);
-      return searched;
-    }
+    if (gm.member) return searched;
   }
   return null;
 }
@@ -889,6 +925,8 @@ export async function syncRolesForClanMember(
   let discordUserId: string | null = null;
   let currentMember: DiscordGuildMember | null = null;
   let sawTransient = false;
+  // The id came from a nickname reading like the roster name, not from anything the database knows.
+  let viaName = false;
   if (ctx) {
     // Bulk path — everything's in memory, zero API calls: check each candidate id, then match the
     // RSN against the pre-built nick/username/global_name alias index.
@@ -904,9 +942,10 @@ export async function syncRolesForClanMember(
       const norm = normalizeRsn(member.rsn);
       const id = norm ? ctx.byAlias.get(norm) : undefined;
       const m = id ? ctx.byId.get(id) : undefined;
-      if (id && m) {
+      if (id && m && (await nameMatchTrusted(member.clanId, member, id))) {
         discordUserId = id;
         currentMember = m;
+        viaName = true;
       }
     }
   } else {
@@ -922,11 +961,12 @@ export async function syncRolesForClanMember(
     }
     if (!currentMember) {
       const searched = await findDiscordIdByRsn(member.clanId, member.rsn);
-      if (searched && !candidates.includes(searched)) {
+      if (searched && !candidates.includes(searched) && (await nameMatchTrusted(member.clanId, member, searched))) {
         const gm = await getGuildMember(cfg, searched);
         if (gm.member) {
           discordUserId = searched;
           currentMember = gm.member;
+          viaName = true;
         } else if (!gm.notFound) {
           sawTransient = true;
         }
@@ -947,7 +987,8 @@ export async function syncRolesForClanMember(
       ...(anyId ? { discordUserId: anyId } : {}),
     };
   }
-  if (discordUserId !== member.discordId) await cacheDiscordId(member.id, discordUserId);
+  // A name match earns the roles for this run and is asked again next time; it is never stored.
+  if (!viaName && discordUserId !== member.discordId) await cacheDiscordId(member.id, discordUserId);
 
   // Collect every active clan_member that belongs to this Discord user. The OAuth
   // link (users.discord_id) is the strongest signal — we always pull those. The
