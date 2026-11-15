@@ -306,7 +306,7 @@ export function LiveNow({ view }: { view: HomeView }) {
       {/* Two columns only when there are two things. A fixed pair of tracks left a single live
           event sitting in half a row with the other half blank, which reads as something failing to
           load rather than as a clan with one thing on. */}
-      <div className={`mb-9 grid gap-3.5 ${weekly && event ? 'lg:grid-cols-2' : ''}`}>
+      <div className={`mb-9 grid grid-cols-1 gap-3.5 ${weekly && event ? 'lg:grid-cols-2' : ''}`}>
         {weekly && <WeeklyLiveCard w={weekly} />}
         {event && <EventLiveCard e={event} />}
         {!anythingLive && next && <NextUpCard w={next} members={view.memberCount} />}
