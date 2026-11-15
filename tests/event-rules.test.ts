@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  boardCountsWorld,
   DEFAULT_EVENT_RULES,
   DEFAULT_SIGNUP_FIELDS,
   completionAward,
@@ -466,4 +467,16 @@ test('a board that changed the form does not have its rules dropped', () => {
   // And the genuinely default case still stores nothing.
   const plain = validateEventRules({ signupFields: { ...DEFAULT_SIGNUP_FIELDS } });
   assert.equal('rules' in plain && plain.rules, null);
+});
+
+test('a mode-only board: the main game stops counting only once a mode is named', () => {
+  const shared = parseEventRules(JSON.stringify({ worldModes: ['hardcore'] }));
+  assert.deepEqual([boardCountsWorld(shared, null), boardCountsWorld(shared, 'hardcore'), boardCountsWorld(shared, 'leagues')], [true, true, false]);
+  const only = parseEventRules(JSON.stringify({ worldModes: ['hardcore'], mainGameOff: true }));
+  assert.deepEqual([boardCountsWorld(only, null), boardCountsWorld(only, 'hardcore')], [false, true]);
+  // With no mode named the switch means nothing: a board that counts no world is not a board.
+  assert.equal(parseEventRules(JSON.stringify({ mainGameOff: true })).mainGameOff, false);
+  assert.ok('error' in validateEventRules({ mainGameOff: 'yes' }));
+  const stored = validateEventRules({ worldModes: ['hardcore'], mainGameOff: true });
+  assert.equal('rules' in stored && parseEventRules(stored.rules).mainGameOff, true);
 });

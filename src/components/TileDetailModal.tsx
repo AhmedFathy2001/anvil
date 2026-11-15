@@ -1,5 +1,6 @@
 'use client';
 
+import { modeTag } from '@/lib/worldModes';
 import DropOdds from '@/components/DropOdds';
 import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
 import { TileStateBanner } from '@/components/board/TileState';
@@ -386,6 +387,8 @@ export default function TileDetailModal({
       autoLogs: number;
       /** Credits that landed without a starting shot on file (lib/startProof) — staff should look. */
       flagged: number;
+      /** Game modes these credits were earned on (lib/worldModes keys); empty = all main game. */
+      modes: string[];
       shots: ProofShot[];
     };
     const m = new Map<string, Row>();
@@ -398,9 +401,11 @@ export default function TileDetailModal({
         amount: 0,
         autoLogs: 0,
         flagged: 0,
+        modes: [],
         shots: [],
       };
       row.amount += sub.amount;
+      if (sub.worldMode && !row.modes.includes(sub.worldMode)) row.modes.push(sub.worldMode);
       if (sub.flaggedReason) row.flagged += 1;
       if (submissionHasProof(sub)) {
         if (sub.imageUrl) {
@@ -1183,6 +1188,11 @@ export default function TileDetailModal({
                         <span className="text-text-muted">
                           <LocalTime date={s.createdAt} format="date" />
                         </span>
+                        {s.worldMode && (
+                          <span title={`Earned on a ${modeTag(s.worldMode)} world`} className="px-1.5 py-0.5 rounded bg-gold/15 text-gold font-medium">
+                            {modeTag(s.worldMode)}
+                          </span>
+                        )}
                         {(s.flaggedReason === 'inferred_duplicate_pet' || s.flaggedReason === 'inferred_duplicate_scroll') && (
                           <span
                             title="A duplicate — the game names no item, so the plugin worked it out from what was just killed or trained. Check the screenshot."
@@ -1324,6 +1334,11 @@ export default function TileDetailModal({
                               ? `${g.amount.toLocaleString()} gp`
                               : `${g.amount} ${countNoun}${g.amount !== 1 ? 's' : ''}`}
                           </span>
+                          {g.modes.map((m) => (
+                            <span key={m} title={`Earned on a ${modeTag(m)} world`} className="px-1.5 py-0.5 rounded bg-gold/15 text-gold font-medium">
+                              {modeTag(m)}
+                            </span>
+                          ))}
                           {g.autoLogs > 0 && (
                             <span className="text-text-muted">
                               · {g.autoLogs} auto log{g.autoLogs !== 1 ? 's' : ''}

@@ -90,6 +90,11 @@ export function worldModeDef(key: string): WorldModeDef | undefined {
   return BY_KEY.get(key);
 }
 
+/** The words for a stored mode key ("hardcore" → "Hardcore"), or null for the main game. A mode newer than the catalogue reads as its key. */
+export function modeTag(key: string | null | undefined): string | null {
+  return key ? (BY_KEY.get(key)?.label ?? key.replace(/-/g, ' ')) : null;
+}
+
 /**
  * Flags a main-game world can carry. Minigame worlds (PvP Arena, LMS, quest speedrunning, no-save)
  * are here too: they hand out preset accounts, have nothing worth routing, and the plugin already

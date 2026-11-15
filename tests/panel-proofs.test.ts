@@ -128,4 +128,7 @@ test('staff see the card named for every team, with a switch to their own teamâ€
   // On the race's tile page every load keeps that page open, so its Back still leads to the race.
   const nav = JSON.stringify(proofsUi([], { ...o, args: { ...o.args, nav: 'race' }, scope: 'all' as const }, 'none'));
   assert.ok(nav.includes('"open":{"into":"race","pane":"t:2"}'));
+  // "Show less" only once more than the first few are showing.
+  assert.ok(!texts(proofsUi([row(1)], { ...o, n: PROOFS_STEP }, 'none')).includes('Show less'));
+  assert.ok(texts(proofsUi([row(1)], { ...o, n: PROOFS_STEP * 2 }, 'none')).includes('Show less'));
 });
