@@ -60,9 +60,20 @@ function actionOf(next: NextStep, eventId: number): FlowAction {
   return { kind: 'link', label: a.label, href: `${base}/${path}`, anchor: anchor ?? tilesAnchor };
 }
 
-export function runEventFlow(e: RunEventInput): FlowView {
+/**
+ * `page: 'teams'` is the strip as drawn ON the Teams page. While the event is still being built and
+ * its teams are not done, that page's strip opens the Teams step, whatever comes first in order:
+ * somebody who went there to make teams is not told to go and write tiles by the page they are on.
+ * The step list is unchanged, so an unfinished earlier step still shows as to do.
+ */
+export function runEventFlow(e: RunEventInput, opts: { page?: 'teams' } = {}): FlowView {
   const base = `/admin/events/${e.eventId}`;
-  const next = nextStep(e);
+  const sequential = nextStep(e);
+  const onTeams =
+    opts.page === 'teams' && e.stage === 'build' && !e.individual && !setupFacts(e, e).teamsDone && sequential.key !== 'teams';
+  const next: NextStep = onTeams
+    ? { key: 'teams', title: e.teamCount === 0 ? 'Make the teams' : 'Put players on the teams', body: '', action: { kind: 'none' } }
+    : sequential;
   const built = e.stage !== 'build';
   const facts = setupFacts(e, e);
   // A step only appears when this event has that job: an individual board makes no teams, and one
@@ -95,9 +106,23 @@ export function runEventFlow(e: RunEventInput): FlowView {
     key: 'run-event',
     name: RUN_EVENT_NAME,
     steps,
-    preferred: stepOf(next.key, hasSignupStep, hasTeamStep),
-    describe: () => ({ title: next.title, ...copyFor(e, next, base) }),
+    preferred: onTeams ? 'teams' : stepOf(next.key, hasSignupStep, hasTeamStep),
+    describe: () => ({ title: next.title, ...(onTeams ? teamsPageCopy(e) : copyFor(e, next, base)) }),
   });
+}
+
+/** The Teams step as the Teams page shows it: no button, because the page under the strip is the step. */
+function teamsPageCopy(e: RunEventInput): Omit<FlowStepCopy, 'title'> {
+  return {
+    sentence:
+      e.teamCount === 0
+        ? e.placement === 'auto' || e.placement === 'solo'
+          ? 'Teams are made from sign-ups here, so there is nothing to build until people sign up; then add everyone and they are balanced into teams.'
+          : 'Create the teams below, then draft or place players on them; the event cannot start until somebody is on a team.'
+        : 'The teams exist but nobody is on one, and the event cannot start like that: run the draft or place players by hand below.',
+    action: { kind: 'none' },
+    guideHref: '/guide/admin#teams',
+  };
 }
 
 function copyFor(e: RunEventInput, next: NextStep, base: string): Omit<FlowStepCopy, 'title'> {
@@ -211,7 +236,7 @@ function copyFor(e: RunEventInput, next: NextStep, base: string): Omit<FlowStepC
  * Before the event exists: the strip on the create pages, with the first step open. There is no
  * button, because the page under the strip IS the step.
  */
-export function newEventFlow(opts: { quick?: boolean } = {}): FlowView {
+export function newEventFlow(opts: { quick?: boolean; picked?: string } = {}): FlowView {
   const steps: FlowStepDef[] = [
     { key: 'format', label: 'Format', done: false },
     { key: 'tiles', label: 'Tiles', done: false },
@@ -227,8 +252,11 @@ export function newEventFlow(opts: { quick?: boolean } = {}): FlowView {
     name: RUN_EVENT_NAME,
     steps,
     describe: () => ({
-      title: 'Choose a format',
-      sentence: opts.quick
+      // `picked`: the second create screen, with the format already chosen.
+      title: opts.picked ? 'Name it and create it' : 'Choose a format',
+      sentence: opts.picked
+        ? `You picked ${opts.picked}; give it a name and create it, and tiles, teams and dates each get their own step afterwards.`
+        : opts.quick
         ? 'Pick one of the three below and give it a name; tiles, teams and dates each get their own step afterwards.'
         : 'Pick the kind of event below; only the format is fixed here, and tiles, teams and dates each get their own step afterwards.',
       action: { kind: 'none' },

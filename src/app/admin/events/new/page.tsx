@@ -92,6 +92,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
         &larr; Change format
       </ClanLink>
 
+      {/* Same strip as the picker before it and the event's pages after it: still step 1. */}
+      <GuidedFlow view={newEventFlow({ picked: chosen.name.toLowerCase() })} className="mb-6 max-w-4xl" />
+
       <header className="mb-6 flex items-center gap-4">
         <ItemSlot name={chosen.sprite} size={56} />
         <div>

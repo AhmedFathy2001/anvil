@@ -435,6 +435,43 @@ test('moderator: once the queue is clear, the people waiting come next, then it 
   assert.equal(done.complete, true);
 });
 
+test('moderator: with nobody waiting there is no People step, so no ticked step sits after the open one', () => {
+  const v = moderatorFlow({ flaggedProofs: 1, peopleWaiting: 0, onQueue: true });
+  assertWellFormed(v);
+  assert.deepEqual(keys(v), ['queue', 'decide']);
+  assert.equal(v.current?.key, 'decide');
+  assert.equal(v.total, 2);
+  const at = v.steps.findIndex((st) => st.state === 'current');
+  assert.equal(v.steps.slice(at + 1).some((st) => st.state === 'done'), false);
+});
+
+test('run an event: the second create screen keeps the strip on step 1, naming the format', () => {
+  const v = newEventFlow({ picked: 'classic bingo' });
+  assertWellFormed(v);
+  assert.equal(v.current?.key, 'format');
+  assert.equal(v.current?.title, 'Name it and create it');
+  assert.match(v.current!.sentence, /classic bingo/);
+});
+
+test('run an event: on the Teams page the strip opens Teams while teams are not done', () => {
+  // Tiles unfinished, no teams: everywhere else the strip says tiles; on Teams it says teams.
+  const e: RunEventInput = { ...blank, tileCount: 5 };
+  assert.equal(runEventFlow(e).current?.key, 'tiles');
+  const onTeams = runEventFlow(e, { page: 'teams' });
+  assert.equal(onTeams.current?.key, 'teams');
+  assert.equal(onTeams.current?.title, 'Make the teams');
+  assert.equal(onTeams.current?.action.kind, 'none', 'the page under the strip is the step');
+  assert.equal(onTeams.steps.find((st) => st.key === 'tiles')?.state, 'todo', 'the unfinished tiles still show');
+  // A team with nobody on it is not done: the strip says so on that page.
+  const empty = runEventFlow({ ...blank, tileCount: 5, teamCount: 1 }, { page: 'teams' });
+  assert.equal(empty.current?.key, 'teams');
+  assert.equal(empty.current?.title, 'Put players on the teams');
+  // Teams done, or the event already running: the Teams page shows the same strip as every page.
+  assert.deepEqual(runEventFlow(ready, { page: 'teams' }), runEventFlow(ready));
+  const running: RunEventInput = { ...ready, stage: 'run' };
+  assert.deepEqual(runEventFlow(running, { page: 'teams' }), runEventFlow(running));
+});
+
 test('member start: a running XP check is named on the character step', () => {
   const v = memberStartFlow({ ...newMember, inClan: true, pluginConnected: true, xpCheck: { rsn: 'Zezima', minutesLeft: 12 } });
   assert.equal(v.current?.key, 'character');

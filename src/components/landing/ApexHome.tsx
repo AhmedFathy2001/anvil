@@ -133,7 +133,7 @@ export default function ApexHome({
         // looking at. So the personal half of this page renders either way, and the clan doors sit
         // under it as an invitation rather than as the entire page.
         <div className="flex flex-col gap-10">
-          <Empty hasCharacters={view.characters.length > 0} recruiting={recruiting} />
+          <Empty hasCharacters={view.characters.length > 0} recruiting={recruiting} guided={!!guide} />
 
           {/* The open boards computed for this person were never drawn here, so somebody in no clan
               saw nothing running anywhere. */}
@@ -407,22 +407,27 @@ function Discover({ discover, title }: { discover: DiscoverEvent[]; title: strin
 function Empty({
   hasCharacters,
   recruiting,
+  guided = false,
 }: {
   hasCharacters: boolean;
   recruiting: ShowcaseClan[];
+  /** The "Getting started" strip is on the page and already says the next step: this card then only lists the other doors. */
+  guided?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-card-border bg-card-bg p-7 sm:p-8">
       <h2 className="display text-xl font-semibold">
-        {hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
+        {guided ? 'Other ways in' : hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
       </h2>
-      <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-text-muted">
-        {hasCharacters
-          ? 'Your characters are tracked either way — the week above is yours, clan or no clan. Join one that’s recruiting, or start your own; a clan takes an evening to set up.'
-          : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
-      </p>
+      {!guided && (
+        <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-text-muted">
+          {hasCharacters
+            ? 'Your characters are tracked either way — the week above is yours, clan or no clan. Join one that’s recruiting, or start your own; a clan takes an evening to set up.'
+            : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
+        </p>
+      )}
       <div className="mt-5 flex flex-wrap gap-3">
-        {!hasCharacters && (
+        {!hasCharacters && !guided && (
           <ClanLink
             href="/settings/characters#link-account"
             className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
@@ -433,7 +438,7 @@ function Empty({
         <ClanLink
           href="/clans"
           className={`rounded-lg px-4 py-2.5 text-sm transition-colors ${
-            hasCharacters
+            hasCharacters && !guided
               ? 'bg-gold font-semibold text-brown-dark hover:bg-gold-light'
               : 'border border-card-border hover:border-gold-dark'
           }`}

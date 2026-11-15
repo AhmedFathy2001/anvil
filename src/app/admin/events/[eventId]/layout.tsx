@@ -79,8 +79,8 @@ export default async function EventLayout({
   // counts and the same next-step function as the rest of this workspace (lib/guidedFlows/runEvent).
   // A friends event is a smaller job (one invite link, no sign-ups or prizes) and keeps its own card.
   const showGuide = !isEditor && !isBoardTreasurer && !friendsToken;
-  const guide = showGuide
-    ? runEventFlow({
+  const guideFacts = showGuide
+    ? {
         eventId: id,
         stage: eventStage(event),
         noun: { one: noun, many: nounPlural },
@@ -100,8 +100,11 @@ export default async function EventLayout({
         placement: placementOf(event),
         race: isTileRaceFormat(event.format),
         usesSignups: event.signupsEnabled !== false,
-      })
+      }
     : null;
+  const guide = guideFacts ? runEventFlow(guideFacts) : null;
+  // The strip as the Teams page draws it (a layout cannot know which tab is open; the client picks).
+  const teamsGuide = guideFacts ? runEventFlow(guideFacts, { page: 'teams' }) : null;
   const tileCount = { c: stageCounts.tileCount };
   const teamCount = { c: stageCounts.teamCount };
 
@@ -217,7 +220,7 @@ export default async function EventLayout({
       {/* The event's own rail carries navigation; this strip answers the other question: where the
           event is in its life, and the one thing that moves it forward. On every tab, so the next
           step is the same wherever the admin is working. */}
-      {guide && <EventGuide view={guide} eventId={id} />}
+      {guide && <EventGuide view={guide} teamsView={teamsGuide ?? guide} eventId={id} />}
       {isEditor && <EventTabNav eventId={id} tilesOnly taskNounPlural={NounPlural} />}
       {isBoardTreasurer && <EventTabNav eventId={id} moneyOnly taskNounPlural={NounPlural} />}
 

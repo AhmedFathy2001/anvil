@@ -106,9 +106,11 @@ export default function GuidedFlow({
     >
       <div className="flex items-center gap-2.5 px-4 py-2.5">
         <span className="h-5 w-1 shrink-0 rounded-full bg-gold" aria-hidden />
-        <p className="min-w-0 flex-1 truncate text-sm">
+        {/* Wraps on a phone (the Fold and Dismiss buttons left room for "Step 3 o…" and no more);
+            "Step 3 of 5" itself never splits. One line from sm up. */}
+        <p className="min-w-0 flex-1 text-sm sm:truncate">
           <span className="font-semibold">{view.name}</span>
-          <span className="text-text-muted"> · {position}</span>
+          <span className="whitespace-nowrap text-text-muted"> · {position}</span>
           {folded && <span className="text-text-muted"> · {cur.title}</span>}
         </p>
         <button

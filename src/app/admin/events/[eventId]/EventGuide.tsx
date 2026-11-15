@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import GuidedFlow from '@/components/GuidedFlow';
 import type { FlowView } from '@/lib/guidedFlow';
@@ -16,12 +16,14 @@ import { useStartNow } from './EventNextStep';
  * No storage scope: dismissing it on one event dismisses it on all of them, so an admin who knows the
  * job is asked once, not once per event. "Show guide" brings it back.
  */
-export default function EventGuide({ view, eventId }: { view: FlowView; eventId: number }) {
+export default function EventGuide({ view, teamsView, eventId }: { view: FlowView; teamsView: FlowView; eventId: number }) {
   const router = useRouter();
+  // On the Teams tab the strip opens the Teams step while teams are not done (runEventFlow `page`).
+  const onTeams = /\/admin\/events\/\d+\/teams\/?$/.test(usePathname() ?? '');
   const starter = useStartNow(eventId, () => router.refresh());
   return (
     <GuidedFlow
-      view={view}
+      view={onTeams ? teamsView : view}
       onCustom={(id) => {
         if (id === 'start') void starter.start();
       }}
