@@ -122,7 +122,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
           {/* Mobile close */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden mb-4 text-sm text-text-muted hover:text-foreground"
+            className="lg:hidden mb-2 inline-flex min-h-11 items-center text-sm text-text-muted hover:text-foreground"
           >
             ← Close
           </button>
