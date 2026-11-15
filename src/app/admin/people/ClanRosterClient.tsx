@@ -332,6 +332,9 @@ function PendingRoleBadge({ m }: { m: ClanMember }) {
   );
 }
 
+/** Roster rows drawn at a time. */
+const ROSTER_CHUNK = 50;
+
 export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { isAdmin: boolean; canGrantAdmin?: boolean }) {
   // One reading of the clock for the page's lifetime, so "6d ago" and the Idle view can never
   // disagree with each other across a re-render.
@@ -420,6 +423,21 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
     });
   }, [members, search, filter, rankFilter, roleFilter, nowMs]);
 
+  // Rows are drawn in chunks (173 rows was ten thousand elements, the table and the phone cards both).
+  // Search and filters above still run over every member; "Show more" draws the next chunk.
+  const [limit, setLimit] = useState(ROSTER_CHUNK);
+  const rowsShown = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
+  const showMore =
+    filtered.length > limit ? (
+      <button
+        type="button"
+        onClick={() => setLimit((l) => l + ROSTER_CHUNK)}
+        className="w-full rounded-lg border border-card-border px-3 py-2 text-sm text-text-muted transition-colors hover:border-gold/50 hover:text-foreground"
+      >
+        Show {Math.min(ROSTER_CHUNK, filtered.length - limit)} more ({filtered.length - limit} left)
+      </button>
+    ) : null;
+
   // Rank options come from the roster itself — in-game ranks are free text pushed by the plugin,
   // so there's no fixed list to hardcode. Counted over the status-filtered set the chips describe.
   const rankOptions = useMemo(() => {
@@ -468,7 +486,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
   // Selection is by id and survives filter changes, so you can stage a few names from one filter,
   // switch to another, add more, then apply once.
   const selectedCount = selected.size;
-  const visibleIds = useMemo(() => filtered.map((m) => m.id), [filtered]);
+  const visibleIds = useMemo(() => rowsShown.map((m) => m.id), [rowsShown]);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
 
   function toggleOne(id: number) {
@@ -1144,7 +1162,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
               </tr>
             </thead>
             <tbody>
-              {filtered.map((m) => (
+              {rowsShown.map((m) => (
                 <tr
                   key={m.id}
                   className={`border-b border-card-border/50 hover:bg-card-bg-hover transition-colors ${m.leftAt ? 'opacity-60' : ''}`}
@@ -1207,10 +1225,11 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
             </tbody>
           </table>
         </div>
+        {showMore && <div className="hidden sm:block mt-3">{showMore}</div>}
 
         {/* Mobile: one card per member (no sideways scroll). */}
         <div className="sm:hidden space-y-3">
-          {filtered.map((m) => (
+          {rowsShown.map((m) => (
             <div
               key={m.id}
               className={`border border-card-border rounded-xl bg-card-bg p-4 ${m.leftAt ? 'opacity-60' : ''}`}
@@ -1281,6 +1300,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
             </div>
           )}
         </div>
+        {showMore && <div className="sm:hidden mt-3">{showMore}</div>}
         </>
       )}
 
