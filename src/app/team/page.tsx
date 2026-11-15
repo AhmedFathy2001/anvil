@@ -1,3 +1,5 @@
+import { raceGraph, teamRoute } from '@/lib/raceRoutes';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { db } from '@/db';
 import { clans, events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff, tiles, completions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
@@ -211,7 +213,7 @@ export default async function MyTeamsHubPage() {
 
   // "N of M tiles done" on each live card. Top-level tiles only (a combo's parts are not tiles of
   // their own) and not on a tile race, whose board hides what is ahead of the team.
-  const progress = new Map<number, { done: number; total: number }>();
+  const progress = new Map<number, { done: number; total: number; unit?: 'steps' }>();
   const progressTeams = activeTeams.filter((i) => !isTileRaceFormat(i.format));
   if (progressTeams.length > 0) {
     const eventIds = [...new Set(progressTeams.map((i) => i.eventId))];
@@ -235,6 +237,24 @@ export default async function MyTeamsHubPage() {
     for (const i of progressTeams) {
       const total = totalByEvent.get(i.eventId) ?? 0;
       if (total > 0) progress.set(i.teamId, { done: Math.min(doneByTeam.get(i.teamId) ?? 0, total), total });
+    }
+  }
+  // A tile race counts STEPS along the team's road, not tiles: the board has several tiles at a
+  // fork and the team only ever takes one of them. Steps done says how far they are without
+  // showing what is ahead. (This card used to be the only live one with no progress at all.)
+  for (const i of activeTeams.filter((t) => isTileRaceFormat(t.format))) {
+    // clan-scope: global -- ids come from this person's own involvements above.
+    const [board, done, [ev]] = await Promise.all([
+      db.select().from(tiles).where(and(eq(tiles.eventId, i.eventId), isNull(tiles.parentTileId))),
+      db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, i.teamId)),
+      db.select({ format: events.format, rules: events.rules }).from(events).where(eq(events.id, i.eventId)).limit(1),
+    ]);
+    if (!ev) continue;
+    const graph = raceGraph(board);
+    const steps = graph.lastStep + 1;
+    if (steps > 0) {
+      const route = teamRoute(graph, done.map((d) => d.tileId), await loadRacePicks(ev, i.teamId), eventRaceOpts(ev));
+      progress.set(i.teamId, { done: Math.min(route.stepsDone, steps), total: steps, unit: 'steps' });
     }
   }
 
@@ -451,7 +471,7 @@ function TeamLink({
   i: Involvement;
   past?: boolean;
   showClan?: boolean;
-  progress?: { done: number; total: number };
+  progress?: { done: number; total: number; unit?: 'steps' };
 }) {
   return (
     <ClanLink
@@ -478,9 +498,9 @@ function TeamLink({
         </div>
       </div>
       {progress && (
-        <div className="mb-2" title={`${progress.done} of ${progress.total} tiles done`}>
+        <div className="mb-2" title={`${progress.done} of ${progress.total} ${progress.unit ?? 'tiles'} done`}>
           <div className="text-[11px] text-text-muted mb-1">
-            {progress.done} of {progress.total} tiles done
+            {progress.done} of {progress.total} {progress.unit ?? 'tiles'} done
           </div>
           <div className="h-1.5 rounded-full bg-brown-dark/60 overflow-hidden">
             <div className="h-full bg-accent-green rounded-full" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
