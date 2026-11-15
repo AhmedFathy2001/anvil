@@ -36,6 +36,7 @@ function useTouchFirst(): boolean {
 export default function AddCharacterClient({
   first = false,
   suggestedRsn = '',
+  checkRunning = false,
   linkedCount = 0,
   detectedCount = 0,
 }: {
@@ -48,12 +49,16 @@ export default function AddCharacterClient({
    * be somewhere else before anything happens.
    */
   suggestedRsn?: string;
+  /** An XP check of theirs is running (lib/xpCheckRead). */
+  checkRunning?: boolean;
   /** Server-rendered baselines keep a ping between paint and the first poll from disappearing. */
   linkedCount?: number;
   detectedCount?: number;
 }) {
   const router = useRouter();
-  const [showManual, setShowManual] = useState(Boolean(suggestedRsn));
+  // Open straight on "link by name" when there is a name to start from, or a check already running
+  // (`checkRunning`): the page's banner links here to see it, and it used to land on a closed panel.
+  const [showManual, setShowManual] = useState(Boolean(suggestedRsn) || checkRunning);
   const touchFirst = useTouchFirst();
   const [showPlugin, setShowPlugin] = useState(false);
   const [heard, setHeard] = useState(false);
