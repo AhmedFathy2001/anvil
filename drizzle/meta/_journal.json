@@ -1401,6 +1401,13 @@
       "when": 1794626591870,
       "tag": "0262_submission_world_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 263,
+      "version": "7",
+      "when": 1794712991870,
+      "tag": "0263_notify_tier_inherit",
+      "breakpoints": true
     }
   ]
 }

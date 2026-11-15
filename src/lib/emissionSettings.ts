@@ -3,7 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, clans, userWebhooks, users } from '@/db/schema';
 import { clanSeat } from '@/lib/seatScope';
-import { dropGates, isDropMode, NO_CLAN_DROPS, parseNotifyPrefs, type NotifyPrefs } from '@/lib/notifyPrefs';
+import { dropGates, isDropMode, NO_CLAN_DROPS, parseNotifyPrefs, tierGates, type NotifyPrefs } from '@/lib/notifyPrefs';
 import { getClanDropDefaults, getClanKindDefaults } from '@/lib/pluginConfig';
 import { NO_CLAN_KINDS, type ClanKinds } from '@/lib/notifyKinds';
 import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type MilestoneRules } from '@/lib/levelRules';
@@ -58,6 +58,10 @@ export interface DropDefaultRow {
   value: number;
   rarity: number;
   mode: 'or' | 'and';
+  /** The tiers this character follows until the person picks their own (lib/notifyPrefs tierGates). */
+  ca: string;
+  quests: string;
+  diaryTier: string;
 }
 
 export interface EmissionSettingsView {
@@ -200,11 +204,9 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
         .slice()
         .sort((a, b) => a.rsn.localeCompare(b.rsn))
         .map(async (a) => {
-          const g = dropGates(
-            { dropMin: null, rarity: null },
-            a.memberClan ? { ...(await getClanDropDefaults(a.memberClan.clanId)), hardFloor: null } : NO_CLAN_DROPS,
-          );
-          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode };
+          const clan = a.memberClan ? { ...(await getClanDropDefaults(a.memberClan.clanId)), hardFloor: null } : NO_CLAN_DROPS;
+          const g = dropGates({ dropMin: null, rarity: null }, clan);
+          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode, ...tierGates({ ca: null, quests: null, diaryTier: null }, clan) };
         }),
     ),
   };

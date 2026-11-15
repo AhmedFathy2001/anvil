@@ -6,11 +6,14 @@ import assert from 'node:assert/strict';
 import {
   NOTIFY_DEFAULTS,
   NO_CLAN_DROPS,
+  diaryTierPasses,
   dropGates,
   normalizeNotifyPrefs,
   parseNotifyPrefs,
   pluginMe,
   prefsFromRuneLite,
+  storedCaTier,
+  tierGates,
 } from '../src/lib/notifyPrefs';
 import { deservesSpoonLine, dropRarity, isGuaranteed, isTrollDrop, judgeDrop, judgeDropFor, rareTable, type JudgeContext } from '../src/lib/notifyDrops';
 
@@ -28,7 +31,7 @@ test('defaults are the plugin config defaults; junk normalises back to them', ()
   assert.deepEqual(parseNotifyPrefs('{not json'), NOTIFY_DEFAULTS);
   const p = normalizeNotifyPrefs({ dropMin: -5, ca: 'NOPE', quests: 'OFF', deathMsg: '  ', drops: 'false' });
   assert.equal(p.dropMin, 0);
-  assert.equal(p.ca, 'MASTER');
+  assert.equal(p.ca, null); // junk reads as never chosen: the clan's default applies
   assert.equal(p.quests, 'OFF');
   assert.equal(p.deathMsg, '{name} just died!');
   assert.equal(p.drops, false);
@@ -48,6 +51,24 @@ test('RuneLite upload maps the old keys, including the 1/5000 → 1/10000 bump',
   assert.equal(p.deathMsg, 'rip {name}');
   assert.equal(p.clog, true); // missing keys keep the default
   assert.equal(prefsFromRuneLite({ rareDropMinRarity: '5000', configDefaultsVersion: '1' }).rarity, 5000);
+});
+
+test('tiers: the person’s own choice, else the clan’s default, else Anvil’s', () => {
+  const clan = { ...NO_CLAN_DROPS, ca: 'HARD' as const, quests: 'ALL' as const, diaryTier: 'HARD' as const };
+  assert.deepEqual(tierGates(NOTIFY_DEFAULTS), { ca: 'MASTER', quests: 'MASTER', diaryTier: 'EASY' });
+  assert.deepEqual(tierGates(NOTIFY_DEFAULTS, clan), { ca: 'HARD', quests: 'ALL', diaryTier: 'HARD' });
+  assert.equal(tierGates({ ...NOTIFY_DEFAULTS, ca: 'OFF' }, clan).ca, 'OFF', 'a member can still switch theirs off');
+  // What the plugin is told follows the clan when the person chose nothing.
+  const me = pluginMe(NOTIFY_DEFAULTS, ALL_ON, clan, null);
+  assert.deepEqual(me.ca, ['HARD', 'ELITE', 'MASTER', 'GRANDMASTER']);
+  assert.deepEqual(me.quests, ['*']);
+  assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, ALL_ON, NO_CLAN_DROPS, null).ca, ['MASTER', 'GRANDMASTER']);
+  // Diaries: at or above the tier in force; a tier the site doesn't know still posts.
+  assert.deepEqual(['Easy', 'Hard', 'Elite', 'Odd'].map((t) => diaryTierPasses(t, 'HARD')), [false, true, true, true]);
+  // The old plugin's Master was never a choice; anything else was.
+  assert.equal(prefsFromRuneLite({ caMinTaskTier: 'MASTER', questAnnounce: 'MASTER' }).ca, null);
+  assert.equal(storedCaTier('elite'), 'ELITE');
+  assert.equal(storedCaTier('nope'), null);
 });
 
 test('me: person AND clan channel, floors enforced, tiers expanded', () => {
