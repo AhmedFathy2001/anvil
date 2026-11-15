@@ -114,6 +114,7 @@
     "test:onbehalf": "npx tsx --test tests/signup-on-behalf.test.ts",
     "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",
     "test:seatscope": "npx tsx --test tests/seat-scope.test.ts",
+    "test:memberprivacy": "npx tsx --test tests/member-privacy.test.ts",
     "test:participants": "npx tsx --test tests/participant-identity.test.ts",
     "test:markdown": "npx tsx --test tests/markdown.test.ts",
     "test:origin": "npx tsx --test tests/request-origin.test.ts",

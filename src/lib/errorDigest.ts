@@ -9,6 +9,8 @@
 // means a digest that fails to send does not lose the occurrences it would have covered — the next
 // one reports them instead.
 
+import { scrubErrorText } from '@/lib/errorFingerprint';
+
 /** How many distinct failures a single digest names. Beyond this it stops being a message. */
 export const DIGEST_LIMIT = 10;
 
@@ -56,7 +58,9 @@ const AMBER = 0xe0aa1e;
  * an operator needs the cause for. Keep some query context at the front and reserve the rest for
  * the cause; ordinary messages retain the old straight truncation.
  */
-export function digestMessage(message: string, limit = 300): string {
+export function digestMessage(stored: string, limit = 300): string {
+  // Rows written before the scrub existed still hold parameter values; never post those either.
+  const message = scrubErrorText(stored);
   if (message.length <= limit) return message;
 
   const marker = ' — caused by ';

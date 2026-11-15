@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 
+import { operatorEmail } from '@/lib/staffSight';
 import { allClans } from '@/lib/platformView';
 import { myLiveGrants } from '@/lib/actAs';
 import { requirePlatformPage } from '@/lib/platformAccess';
@@ -50,7 +51,14 @@ export default async function StaffClansPage() {
         </p>
       )}
       <div className="mt-6">
-        <ClansClient clans={clans} canWrite={hasPlatformRole(actor.role, 'staff')} grants={grants} />
+        <ClansClient
+          // Owner and billing emails are whole for the top platform role only (lib/staffSight).
+          clans={clans.map((c) => ({
+            ...c,
+            ownerEmail: operatorEmail(actor.role, c.ownerEmail),
+            contactEmail: operatorEmail(actor.role, c.contactEmail),
+          }))}
+          canWrite={hasPlatformRole(actor.role, 'staff')} grants={grants} />
       </div>
     </div>
   );

@@ -7,7 +7,7 @@
 //
 // PURE — no database — so tests/staff-sight.test.ts holds each rule.
 
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, hasPlatformRole } from '@/lib/clanRoles';
 
 /**
  * A member's Discord handle is contact detail, not something approving a sign-up or grading a proof
@@ -51,4 +51,53 @@ export function peopleListIdentity(
     avatarUrl: staff && row.discordId ? avatarUrl(row.discordId, row.discordAvatar) : null,
     lastLoginAt: staff ? row.lastLoginAt : null,
   };
+}
+
+/**
+ * Who a TEAM's private chat line is pushed to live, besides that team's own players.
+ *
+ * It used to be every moderator of the host clan, on every board the clan ran: a team's planning
+ * talk arrived in the client of people with no job on that event. Now it is the people running
+ * THIS board — the clan's admins and owner, who run every event, and any moderator-tier staff
+ * holding a grant on this board (event_editors). Nothing else about chat moderation changes: a
+ * moderator can still open any channel and the moderation page, and delete or time out, when there
+ * is something to look at. Looking is then something they did, not something sent to them.
+ */
+export function teamChatStaffListeners(
+  staff: { userId: number; role: string | null | undefined }[],
+  boardGrantUserIds: Iterable<number>,
+): number[] {
+  const granted = new Set(boardGrantUserIds);
+  return staff
+    .filter((s) => atLeast(s.role, 'admin') || (atLeast(s.role, 'moderator') && granted.has(s.userId)))
+    .map((s) => s.userId);
+}
+
+// ── Platform side ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * An email address with its name hidden: "j•••@gmail.com". Enough to recognise an address you
+ * already know, not enough to write to it or look the person up.
+ */
+export function maskEmail(email: string | null | undefined): string | null {
+  const value = email?.trim();
+  if (!value) return null;
+  const at = value.lastIndexOf('@');
+  if (at <= 0) return '•••';
+  return `${value[0]}•••${value.slice(at)}`;
+}
+
+/**
+ * A clan owner's personal email (it arrives with their Discord login) and the clan's billing
+ * contact, on the operator pages. Whole for the top platform role, which is also the only one that
+ * handles billing; masked for every other operator login. The owner's Discord profile link stays
+ * the way to reach them.
+ */
+export function operatorEmail(platformRole: string | null | undefined, email: string | null | undefined): string | null {
+  return hasPlatformRole(platformRole, 'root') ? email?.trim() || null : maskEmail(email);
+}
+
+/** Is this the whole address (so a mailto link makes sense), not a masked one? */
+export function isWholeEmail(email: string | null | undefined): boolean {
+  return !!email && !email.includes('•');
 }

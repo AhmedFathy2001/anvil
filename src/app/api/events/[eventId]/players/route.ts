@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { clanRoster, eventParticipants, events, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
+import { verifyAdmin } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { effectiveSnapshotJson } from '@/lib/statTracking';

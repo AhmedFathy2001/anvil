@@ -1,5 +1,6 @@
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
+import { scrubErrorText } from '@/lib/errorFingerprint';
 import { db } from '@/db';
 import { clans, errorEvents, users } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
@@ -119,7 +120,7 @@ export default async function StaffErrorsPage({
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 break-words font-mono text-[13px] text-text">{r.message}</p>
+                  <p className="mt-1 break-words font-mono text-[13px] text-text">{scrubErrorText(r.message)}</p>
                 </div>
                 {!r.resolvedAt && <ResolveButton id={r.id} />}
               </div>
@@ -144,7 +145,7 @@ export default async function StaffErrorsPage({
                     Stack
                   </summary>
                   <pre className="mt-2 overflow-x-auto overflow-y-hidden rounded-lg bg-brown-dark p-3 text-[11px] leading-relaxed text-text-muted">
-                    {r.stack}
+                    {scrubErrorText(r.stack)}
                   </pre>
                 </details>
               )}
