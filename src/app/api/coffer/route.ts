@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 
@@ -99,5 +100,6 @@ export async function POST(request: Request) {
     proofBlobUrl: proofUrl,
     note: typeof body?.note === 'string' ? body.note.slice(0, 500) : null,
   });
+  track('coffer.donated', { clanId: clan.id, userId: session.userId });
   return NextResponse.json({ entry: { id: entry.id, amount: entry.amount, status: entry.status } });
 }

@@ -10,6 +10,7 @@ import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { newInviteToken, withHostEventSlot } from '@/lib/friendEvents';
 import { friendsInvitePath, isFriendsHost } from '@/lib/friendEventRules';
 import { validateEventRules } from '@/lib/eventRules';
+import { modeKeyFor } from '@/lib/eventModes';
 import { isTeamFormation } from '@/lib/teamFormation';
 import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { isVisibility } from '@/lib/eventVisibility';
@@ -250,7 +251,7 @@ export async function POST(request: Request) {
     throw e;
   }
 
-  track('event.created', { clanId: clan.id, props: { format: resolvedFormat, formation: resolvedFormation, placement: resolvedPlacement, tiles: resolvedLabels.length } });
+  track('event.created', { clanId: clan.id, props: { format: resolvedFormat, fmt: resolvedPlacement === 'solo' ? 'solo' : modeKeyFor(resolvedFormat, resolvedScoringMode, resolvedRules), formation: resolvedFormation, placement: resolvedPlacement, tiles: resolvedLabels.length } });
   return NextResponse.json(
     friends && event.inviteToken ? { ...event, invitePath: friendsInvitePath(event.inviteToken) } : event,
     { status: 201 },

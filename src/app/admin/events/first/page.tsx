@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { events } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
+import { track } from '@/lib/analytics';
 import { suggestEventName } from '@/lib/eventPresets';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { FRIENDS_CAPS, isFriendsHost } from '@/lib/friendEventRules';
@@ -20,6 +21,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function FirstEventPage() {
   const clan = await requireClan();
+  track('flow.first.opened', { clanId: clan.id });
   // clan-scope: this clan's own events, for the suggested name's number.
   const [ec] = await db.select({ c: count() }).from(events).where(eq(events.clanId, clan.id));
   // A friends host: the owner's tier sets the size (lib/friendEventRules). Lapsed → no tier: send

@@ -151,3 +151,19 @@ export function boundProps(props: Record<string, unknown> | null | undefined): A
   }
   return n > 0 ? out : null;
 }
+
+/**
+ * Which side-panel view a plugin request asked for: `/api/plugin/ui?v=feed` becomes `feed`. Only a
+ * short lower-case word survives, so nothing a person typed can reach the table through it; anything
+ * else (and any other path) is null.
+ */
+export function panelViewOf(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.pathname !== '/api/plugin/ui') return null;
+    const v = u.searchParams.get('v');
+    return v && /^[a-z][a-z-]{0,23}$/.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+}

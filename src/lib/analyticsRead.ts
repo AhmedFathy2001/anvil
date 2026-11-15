@@ -15,12 +15,15 @@ import { db } from '@/db';
 import { parseStamp } from '@/lib/dbTime';
 import {
   CLAN_ONBOARDING,
+  FIRST_EVENT_FLOW,
   MEMBER_ONBOARDING,
+  NEW_EVENT_FLOW,
   computeFunnel,
   densifyDays,
   windowStart,
   type FunnelRow,
 } from '@/lib/analyticsFunnels';
+import { type FeatureUsage, type UsageRow, rankFeatures, registryNames } from '@/lib/featureRegistry';
 
 async function rows<T>(query: SQL): Promise<T[]> {
   const res = await db.execute(query);
@@ -102,6 +105,9 @@ export interface AnalyticsOverview {
   memberFunnel: FunnelRow[];
   clanActivity: ClanActivityRow[];
   discordJoins: DiscordJoinRow[];
+  features: FeatureUsage[];
+  newEventFlow: FunnelRow[];
+  firstEventFlow: FunnelRow[];
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -306,9 +312,75 @@ async function clanActivity(): Promise<ClanActivityRow[]> {
   });
 }
 
+/**
+ * Everything the "Feature use" table needs, from one grouped read of the last 90 days: the rows for
+ * the registry's own pages, plugin paths and every action, grouped by who and which day so the
+ * distinct clans and people can be counted in `rankFeatures` (pure, tested) rather than in SQL that
+ * could not tell one feature's actions from another's.
+ */
+async function featureUsage(): Promise<FeatureUsage[]> {
+  const names = registryNames();
+  const pageMatch = [
+    ...names.exact.map((p) => sql`name = ${p}`),
+    ...names.prefixes.map((p) => sql`(name = ${p} or name like ${`${p}/%`})`),
+  ];
+  const r = await rows<{
+    kind: 'page' | 'action' | 'plugin';
+    name: string;
+    fmt: string | null;
+    type: string | null;
+    tile_kind: string | null;
+    clan_id: number | null;
+    user_id: number | null;
+    account_id: number | null;
+    day: string;
+    n: number;
+  }>(sql`
+    select kind, name, props->>'fmt' as fmt, props->>'type' as type, props->>'kind' as tile_kind,
+           clan_id, user_id, account_id, left(ts, 10) as day, count(*) as n
+      from analytics_events
+     where ts >= ${windowStart(90)}
+       and (kind = 'action'
+            or (kind = 'plugin' and name in (${sql.join(names.plugin.map((p) => sql`${p}`), sql`, `)}))
+            or (kind = 'page' and (${sql.join(pageMatch, sql` or `)})))
+     group by 1, 2, 3, 4, 5, 6, 7, 8, 9
+  `);
+  const usage: UsageRow[] = r.map((x) => ({
+    kind: x.kind,
+    name: x.name,
+    fmt: x.fmt,
+    type: x.type,
+    tileKind: x.tile_kind,
+    clanId: x.clan_id == null ? null : num(x.clan_id),
+    userId: x.user_id == null ? null : num(x.user_id),
+    accountId: x.account_id == null ? null : num(x.account_id),
+    day: x.day,
+    n: num(x.n),
+  }));
+  return rankFeatures(usage);
+}
+
+/**
+ * The creation flows: which steps each clan reached in the window, from the action rows written where
+ * each step is served. The first step anchors the funnel (a clan enters it by reaching it), as in
+ * every other funnel here.
+ */
+async function creationFlows(days: number): Promise<{ newEvent: FunnelRow[]; firstEvent: FunnelRow[] }> {
+  const keys = [...new Set([...NEW_EVENT_FLOW.steps, ...FIRST_EVENT_FLOW.steps].map((s) => s.key))];
+  const r = await rows<{ clan_id: number; names: string[] }>(sql`
+    select clan_id, array_agg(distinct name) as names
+      from analytics_events
+     where kind = 'action' and clan_id is not null and ts >= ${windowStart(days)}
+       and name in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+     group by clan_id
+  `);
+  const actors = r.map((x) => x.names);
+  return { newEvent: computeFunnel(NEW_EVENT_FLOW, actors), firstEvent: computeFunnel(FIRST_EVENT_FLOW, actors) };
+}
+
 export async function analyticsOverview(days: number): Promise<AnalyticsOverview> {
   const from = windowStart(days);
-  const [head, series, routes, actions, plugin, conv, cf, mf, clans, joins] = await Promise.all([
+  const [head, series, routes, actions, plugin, conv, cf, mf, clans, joins, features, flows] = await Promise.all([
     headline(),
     daily(from, days),
     topRoutes(from),
@@ -319,6 +391,8 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     memberFunnel(days),
     clanActivity(),
     discordJoins(from),
+    featureUsage(),
+    creationFlows(days),
   ]);
   return {
     days,
@@ -332,5 +406,8 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     memberFunnel: mf,
     clanActivity: clans,
     discordJoins: joins,
+    features,
+    newEventFlow: flows.newEvent,
+    firstEventFlow: flows.firstEvent,
   };
 }
