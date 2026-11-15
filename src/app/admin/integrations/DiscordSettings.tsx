@@ -103,6 +103,28 @@ export default function DiscordSettings({
         />
       )}
 
+      {/* Nothing below the connect step does anything until a server is connected, and showing 43
+          switches that post nowhere read as a page that was already set up. One line says what is
+          coming; "Post without a bot" stays, as the way in for a server that cannot take the bot. */}
+      {!botEnabled && (
+        <>
+          <p className="rounded-xl border border-card-border bg-card-bg px-5 py-4 text-sm text-text-muted">
+            After you connect a server you choose which posts go to which channel, who gets pinged, how Discord roles and
+            nicknames follow the {creator ? 'space' : 'clan'}, and which commands are on.
+          </p>
+          <FoldSection
+            id="discord-by-hand"
+            sprite="clue"
+            title="Post without a bot"
+            summary="Can’t add the bot? Paste a channel’s link from Discord instead."
+          >
+            <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} creator={creator} />
+          </FoldSection>
+        </>
+      )}
+
+      {botEnabled && (
+      <>
       <h2 className="display text-lg font-semibold pt-6">More settings</h2>
 
       <FoldSection
@@ -303,6 +325,8 @@ export default function DiscordSettings({
       >
         <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} creator={creator} />
       </FoldSection>
+      </>
+      )}
     </div>
   );
 }
