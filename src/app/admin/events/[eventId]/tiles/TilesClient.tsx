@@ -1078,6 +1078,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     noun={model.Noun}
     key={editingTile.id}
     tile={editingTile}
+    // Its place in the order, with Move earlier / later, inside the editor itself. The same bar
+    // sits above the cards in List view, but a covering editor (every phone, and Board view) hides
+    // or never draws that one, so on a phone there was no way to reorder at all.
+    order={
+      !editingTile.mission && !eventStarted && !listFiltered && localTiles.some((t) => t.id === editingTile.id)
+        ? {
+            index: localTiles.findIndex((t) => t.id === editingTile.id),
+            total: localTiles.length,
+            busy: reordering,
+            onMove: (delta: -1 | 1) => moveTile(editingTile.id, delta),
+          }
+        : null
+    }
     eventId={event.id}
     eventStarted={eventStarted}
     isAdmin={isAdmin}
@@ -1730,29 +1743,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         ) : (
         <>
-        {editingTile && !editingTile.mission && !eventStarted && !listFiltered && localTiles.some((t) => t.id === editingTile.id) && (
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <span>
-              {editingTile.label || 'This tile'} is #{localTiles.findIndex((t) => t.id === editingTile.id) + 1} of {localTiles.length}
-            </span>
-            <button
-              type="button"
-              onClick={() => moveTile(editingTile.id, -1)}
-              disabled={reordering || localTiles[0]?.id === editingTile.id}
-              className="px-2.5 py-1 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
-            >
-              Move earlier
-            </button>
-            <button
-              type="button"
-              onClick={() => moveTile(editingTile.id, 1)}
-              disabled={reordering || localTiles[localTiles.length - 1]?.id === editingTile.id}
-              className="px-2.5 py-1 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
-            >
-              Move later
-            </button>
-          </div>
-        )}
         <div
           // Fewer, wider cards when the editor is open beside them — a tile clipped to "Til e…" is
           // no use for finding the one you want.
@@ -2245,6 +2235,8 @@ function RevealAtEditor({
 
 interface DrawerProps {
   tile: Tile;
+  /** Where the tile sits in the order and how to move it; null when it cannot be moved (started, a mission, a filtered list). */
+  order?: { index: number; total: number; busy: boolean; onMove: (delta: -1 | 1) => void } | null;
   /** Wide screens dock the editor beside the board instead of covering it. */
   docked?: boolean;
   eventId: number;
@@ -2281,7 +2273,7 @@ interface DrawerProps {
   onDuplicate?: () => void;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, deleteNote, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
+function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, deleteNote, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
   // A blank placeholder before the start is a NEW tile: it opens on the tile creator ("what should
   // players do?") instead of the full editor, which stays one tap away under "More options".
   const creating = !eventStarted && isPlaceholderTile(tile) && !tile.mission && !!onCreated;
@@ -2337,6 +2329,31 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             &times;
           </button>
         </div>
+
+        {order && (
+          <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-card-border px-5 sm:px-6 py-2 text-xs text-text-muted">
+            <span>
+              #{order.index + 1} of {order.total}
+            </span>
+            <span className="flex-1" />
+            <button
+              type="button"
+              onClick={() => order.onMove(-1)}
+              disabled={order.busy || order.index === 0}
+              className="px-2.5 py-1 max-sm:min-h-11 max-sm:px-3 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
+            >
+              Move earlier
+            </button>
+            <button
+              type="button"
+              onClick={() => order.onMove(1)}
+              disabled={order.busy || order.index === order.total - 1}
+              className="px-2.5 py-1 max-sm:min-h-11 max-sm:px-3 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
+            >
+              Move later
+            </button>
+          </div>
+        )}
 
         {/* Form */}
         <div ref={bodyRef} className="flex-1 min-h-0 px-5 sm:px-6 pt-5 pb-6 overflow-y-auto">
