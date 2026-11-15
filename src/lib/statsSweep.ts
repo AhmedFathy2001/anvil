@@ -33,6 +33,7 @@ import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
 import { overlaySnapshot, scoresMoved } from '@/lib/liveHistory';
 import { mergeSeatsByAccount } from '@/lib/sweepWork';
 import { normalizeRsn } from '@/lib/auth';
+import { parseEventRules } from '@/lib/eventRules';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The unified hiscores sweep. Runs every 15 min (control-plane dispatcher). It builds ONE work list
@@ -737,6 +738,9 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
   for (const f of fetchedBingo) {
     const ctx = f.ctx;
     if (!ctx.hasStatTiles || !f.player.teamId) continue;
+    // This pass reads the main game's hiscores only: a mode-only board (rules.mainGameOff) takes
+    // nothing from it. Its modes credit through their own pushes and reads (lib/statTileCredit).
+    if (parseEventRules(ctx.event.rules).mainGameOff) continue;
     for (const tile of ctx.statTiles) {
       const key = `${f.player.teamId}-${tile.id}`;
       if (ctx.completionSet.has(key)) continue;

@@ -221,6 +221,11 @@ export interface EventRules {
    * alongside the main game.
    */
   worldModes: string[];
+  /**
+   * A MODE-ONLY board: the main game doesn't count, only the modes in `worldModes`. Only ever true
+   * with at least one mode named — a board that counts nothing is not a board. Ask `boardCountsWorld`.
+   */
+  mainGameOff: boolean;
   /** Standings curtain. Default live; see StandingsVisibility. */
   standings: StandingsRule;
   /** 'interval' policy: minutes between draws. */
@@ -369,8 +374,14 @@ export function parseSignupFields(raw: unknown): SignupFields {
   };
 }
 
+/** Does this board count a world? `modeKey` null = the main game. */
+export function boardCountsWorld(rules: Pick<EventRules, 'worldModes' | 'mainGameOff'>, modeKey: string | null | undefined): boolean {
+  return modeKey ? rules.worldModes.includes(modeKey) : !rules.mainGameOff;
+}
+
 export const DEFAULT_EVENT_RULES: EventRules = {
   worldModes: [],
+  mainGameOff: false,
   signupFields: DEFAULT_SIGNUP_FIELDS,
   monthlyAward: null,
   revealPolicy: 'all',
@@ -614,6 +625,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   }
   return {
     worldModes: parseWorldModesRule(obj.worldModes),
+    mainGameOff: obj.mainGameOff === true && parseWorldModesRule(obj.worldModes).length > 0,
     monthlyAward,
     signupFields,
     revealPolicy: policy,
@@ -677,6 +689,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     if (!Array.isArray(o.worldModes) || !o.worldModes.every(isModeKey)) {
       return { error: 'rules.worldModes must be a list of game modes' };
     }
+  }
+  if (o.mainGameOff !== undefined && o.mainGameOff !== null && typeof o.mainGameOff !== 'boolean') {
+    return { error: 'rules.mainGameOff must be true or false' };
   }
   if (o.revealOrder !== undefined && o.revealOrder !== 'random' && o.revealOrder !== 'sequential') {
     return { error: "rules.revealOrder must be 'random' or 'sequential'" };

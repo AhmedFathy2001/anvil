@@ -205,6 +205,11 @@ export async function POST(
   // one drop credit both, so a newer plugin posts board B's tiles here directly. No seat here keeps
   // the live pick, and the team check below refuses it as before.
   const pluginToken = await verifyPluginTokenOnEvent(request, eId);
+  // A mode-only board (rules.mainGameOff): what the plugin sends from the main game is another save's
+  // here, exactly as a mode's is elsewhere. A web upload names no world and is left to staff.
+  if (pluginToken && !worldModeOf(request) && parseEventRules(scopedEvent.rules).mainGameOff) {
+    return NextResponse.json({ ok: true, ignored: 'world-mode', mode: 'Main game' }, { status: 202 });
+  }
   // The web session is looked up whenever no other credential already covers this team — a stale
   // cookie for some other team must not hide a real membership of this one (lib/submissionAccess).
   const webMembership =
@@ -718,6 +723,7 @@ export async function POST(
       coopPartySize: coopPartySizeValue,
       flaggedReason,
       source: pluginAuth ? 'plugin' : 'web',
+      worldMode: pluginAuth ? (worldModeOf(request)?.key ?? null) : null,
       imageSha256: upload?.sha256 ?? null,
       goal: goalValue,
       ...(pendingKey

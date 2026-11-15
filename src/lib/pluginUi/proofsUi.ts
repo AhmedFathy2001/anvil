@@ -16,6 +16,8 @@ export interface ProofRow {
   team: string | null;
   at: string;
   amount: number;
+  /** The game mode it was earned on ("Hardcore"); null/absent = the main game. */
+  mode?: string | null;
   /** Site paths (lib/proofImage); null without a picture. */
   thumb: string | null;
   full: string | null;
@@ -55,6 +57,7 @@ function proofRow(p: ProofRow, o: ProofsOpts): Node {
   ];
   // A solo board's team is the player: don't say the name twice.
   if (o.teams && p.team && p.team.trim().toLowerCase() !== who.trim().toLowerCase()) lines.push(muted(p.team));
+  if (p.mode) lines.push(text(p.mode, 'brand', { font: 'small', tip: `Earned on a ${p.mode} world` }));
   let picture: Node | undefined;
   if (p.thumb && o.images) picture = { t: 'img', src: p.thumb, w: THUMB.w, h: THUMB.h, tip: 'Open the full screenshot', ...(view ? { on: view } : {}) };
   else if (view) lines.push(text('View screenshot', 'brand', { on: view, tip: 'Open the screenshot in your browser', icon: { t: 'icon', glyph: 'external', w: 10, h: 10, color: 'brand' }, iconAfter: true }));

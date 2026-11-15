@@ -13,6 +13,7 @@ import { after } from 'next/server';
 import { db } from '@/db';
 import { clans, eventParticipants, events, proofUploads, submissions, teams, tiles } from '@/db/schema';
 import { notifySubmission } from '@/lib/discord';
+import { submissionsMode } from '@/lib/notifications';
 import { flushPendingNotifications, queueSubmissionNotification } from '@/lib/notifications';
 import { PROOF_REVERSAL_REASON } from '@/lib/proofAfter';
 import { anvilLines, gameLines, stampModel, type ProofClaims } from '@/lib/proofStamp';
@@ -117,6 +118,7 @@ export async function stampAndPost(i: StampAndPost): Promise<void> {
         completed: i.completed,
         eventId: i.event.id,
         tile: i.tile,
+        worldMode: await submissionsMode(undefined, [i.submissionId]),
         submissionIds: [i.submissionId],
       }).catch(() => {}); // Silently ignore errors
     } else if (i.superseded && !i.completed) {

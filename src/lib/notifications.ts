@@ -1,6 +1,8 @@
 import { db } from '@/db';
-import { pendingNotifications, tiles, teams, events } from '@/db/schema';
-import { eq, and, or, lte, sql } from 'drizzle-orm';
+import { pendingNotifications, submissions, tiles, teams, events } from '@/db/schema';
+import { eq, and, inArray, or, lte, sql } from 'drizzle-orm';
+import { parseEventRules } from '@/lib/eventRules';
+import { modeTag } from '@/lib/worldModes';
 import { notifyMergedSubmission } from '@/lib/discord';
 import { killMilestoneToPost, usesKillMilestones } from '@/lib/killSource';
 
@@ -155,9 +157,22 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
     milestonePct,
     eventId: event.id,
     tile,
+    worldMode: await submissionsMode(event.rules, row.submissionIds ?? []),
     submissionIds: row.submissionIds ?? [],
   }).catch(() => {});
   return true;
+}
+
+/**
+ * The game mode a post's credits were earned on ("Hardcore"), when every one of them shares it. Null
+ * for the main game, a mix, or a board that counts no mode (no read at all then; `rules` undefined =
+ * not known here, so read).
+ */
+export async function submissionsMode(rules: string | null | undefined, ids: number[]): Promise<string | null> {
+  if (ids.length === 0 || (rules !== undefined && parseEventRules(rules).worldModes.length === 0)) return null;
+  const rows = await db.select({ mode: submissions.worldMode }).from(submissions).where(inArray(submissions.id, ids));
+  const modes = new Set(rows.map((r) => r.mode ?? ''));
+  return modes.size === 1 ? modeTag([...modes][0]) : null;
 }
 
 /**
