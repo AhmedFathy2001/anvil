@@ -439,7 +439,7 @@ export function suggestSlug(name: string): string {
 // ── Setup checklist ─────────────────────────────────────────────────────────────────────────────
 
 export interface CreatorSetupStep {
-  key: 'event' | 'share' | 'discord';
+  key: 'event' | 'share' | 'discord' | 'stream';
   label: string;
   hint: string;
   done: boolean;
@@ -454,7 +454,7 @@ export interface CreatorSetupStep {
  * "Share the link" is done when somebody other than the staff has signed up, which is the only
  * evidence a link was shared that the database holds.
  */
-export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: number; discordConnected: boolean }): CreatorSetupStep[] {
+export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: number; discordConnected: boolean; streamConnected?: boolean }): CreatorSetupStep[] {
   return [
     {
       key: 'event',
@@ -468,7 +468,16 @@ export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: n
       label: 'Share the link',
       hint: 'Drop the event link in your stream chat or socials. Viewers sign in with Discord and join straight away.',
       done: opts.outsideSignups > 0,
-      href: '/admin/events',
+      // The dashboard rows carry the "Copy invite link" button; the events list has none.
+      href: '/admin/dashboard',
+    },
+    {
+      key: 'stream',
+      label: 'Connect your stream (optional)',
+      hint: 'Connect Twitch, YouTube or Kick so viewers can join from your chat.',
+      done: !!opts.streamConnected,
+      href: '/admin/clan',
+      optional: true,
     },
     {
       key: 'discord',

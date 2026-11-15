@@ -95,6 +95,14 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
         }
       >
         {c.verified ? METHOD_LABEL[c.verificationMethod ?? ''] ?? 'Verified' : 'Not verified yet'} ·{' '}
+        {!c.verified && !c.provisional && (
+          <>
+            <ClanLink href="/guide/plugin#connect" className="text-gold hover:text-gold-light">
+              Verify by signing in to the plugin on this character
+            </ClanLink>
+            {' · '}
+          </>
+        )}
         <ClanLink href={`/p/${encodeURIComponent(c.rsn)}`} className="text-gold hover:text-gold-light">
           View public page →
         </ClanLink>

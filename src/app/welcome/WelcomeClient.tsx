@@ -120,8 +120,9 @@ export default function WelcomeClient({
     };
   }, [watchingClan, state.doneCount, router]);
 
-  async function finish() {
-    await post({ action: 'complete' });
+  // `markDone` false is "Finish later": leave without closing the flow, so /welcome still opens next time.
+  async function finish(markDone = true) {
+    if (markDone) await post({ action: 'complete' });
     // WHERE FINISHING LANDS IS PART OF THE ANSWER. A clan owner's next hour is the setup wizard, not
     // their own locker; a member wants the clan they just got into; somebody here for themselves
     // wants the page that is themselves. Falling back to the locker whenever there is no clan to
@@ -194,6 +195,11 @@ export default function WelcomeClient({
             {HERE_FOR[state.intent]} — change
           </button>
         )}
+        <p className="relative mt-2 text-[12.5px] text-text-dim">
+          {state.allSettled
+            ? 'All set — every step is done or skipped.'
+            : `${state.doneCount} of ${state.total} done`}
+        </p>
         {next && <ContinueLink next={next} />}
       </header>
 
@@ -311,7 +317,7 @@ export default function WelcomeClient({
           {state.allSettled ? (
             <button
               type="button"
-              onClick={finish}
+              onClick={() => finish()}
               disabled={busy}
               className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
             >
@@ -331,7 +337,7 @@ export default function WelcomeClient({
               )}
               <button
                 type="button"
-                onClick={finish}
+                onClick={() => finish(false)}
                 disabled={busy}
                 className="text-[13px] text-text-dim underline-offset-4 hover:text-text-muted hover:underline disabled:opacity-50"
               >

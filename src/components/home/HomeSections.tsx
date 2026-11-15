@@ -180,8 +180,8 @@ export function YouStrip({
       ? {
           title: "You're signed in, but not on this clan's roster",
           sub: 'Link a RuneScape account, or ask a mod to add you as a guest',
-          href: '/profile',
-          cta: 'Your profile',
+          href: '/settings/characters#link-account',
+          cta: 'Link an account',
         }
       : {
           title: 'Sign in to see your week',

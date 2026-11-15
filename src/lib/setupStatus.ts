@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
-import { accounts, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users } from '@/db/schema';
-import { and, count, eq, isNotNull, isNull, notInArray } from 'drizzle-orm';
+import { accounts, clanKickChannels, clanTwitchChannels, clanYoutubeChannels, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users } from '@/db/schema';
+import { and, asc, count, eq, isNotNull, isNull, notInArray } from 'drizzle-orm';
 import { creatorSetupSteps, isCreatorSpace } from '@/lib/creatorSpaces';
 import { writtenTile } from '@/lib/writtenTiles';
 import type { FlowView } from '@/lib/guidedFlow';
@@ -14,7 +14,7 @@ import { clanSetupFlow } from '@/lib/guidedFlows/clanSetup';
 // whether a step is "done".
 
 export interface SetupStep {
-  key: 'clan' | 'discord' | 'members' | 'event' | 'tiles' | 'share';
+  key: 'clan' | 'discord' | 'members' | 'event' | 'tiles' | 'share' | 'stream';
   label: string;
   hint: string;
   done: boolean;
@@ -106,7 +106,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // counted everybody's, so a brand-new clan with nothing in it opened the checklist with two of
   // four steps already ticked and the wizard's Done screen congratulating it. Tiles reach their clan
   // through their event; there is no tiles.clan_id to filter on.
-  const [[ec], [tc], [mc], pluginRows] = await Promise.all([
+  const [[ec], [tc], [mc], pluginRows, [firstEvent]] = await Promise.all([
     db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
     db
       .select({ c: count() })
@@ -127,6 +127,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       .innerJoin(accounts, eq(accounts.playerId, users.playerId))
       .where(and(eq(clanStaff.clanId, clanId), isNotNull(accounts.liveStatsAt)))
       .limit(1),
+    db.select({ id: events.id }).from(events).where(eq(events.clanId, clanId)).orderBy(asc(events.id)).limit(1),
   ]);
   const pluginSeen = pluginRows.length > 0;
   const eventsCount = ec?.c ?? 0;
@@ -170,7 +171,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       label: 'Add tiles to a board',
       hint: 'Fill your board with the tasks players will chase.',
       done: tilesCount > 0,
-      href: '/admin/events',
+      href: firstEvent ? `/admin/events/${firstEvent.id}/tiles` : '/admin/events',
     },
   ];
 
@@ -238,7 +239,7 @@ async function creatorSetupStatus(clanId: number, map: Map<string, string | null
     .innerJoin(accounts, eq(accounts.playerId, users.playerId))
     .where(eq(clanStaff.clanId, clanId));
   const staffIds = staffAccounts.map((r) => r.id);
-  const [[ec], [sc]] = await Promise.all([
+  const [[ec], [sc], [tw], [ki], [yt]] = await Promise.all([
     db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
     db
       .select({ c: count() })
@@ -250,12 +251,16 @@ async function creatorSetupStatus(clanId: number, map: Map<string, string | null
           ? and(eq(events.clanId, clanId), notInArray(clanMemberships.accountId, staffIds))
           : eq(events.clanId, clanId),
       ),
+    db.select({ id: clanTwitchChannels.clanId }).from(clanTwitchChannels).where(eq(clanTwitchChannels.clanId, clanId)).limit(1),
+    db.select({ id: clanKickChannels.clanId }).from(clanKickChannels).where(eq(clanKickChannels.clanId, clanId)).limit(1),
+    db.select({ id: clanYoutubeChannels.clanId }).from(clanYoutubeChannels).where(eq(clanYoutubeChannels.clanId, clanId)).limit(1),
   ]);
   const webhookUrl = get('discord_webhook_url');
   const steps = creatorSetupSteps({
     eventsCount: ec?.c ?? 0,
     outsideSignups: sc?.c ?? 0,
     discordConnected: !!webhookUrl || !!get('discord_invite_url'),
+    streamConnected: !!(tw || ki || yt),
   });
   const counted = steps.filter((st) => !st.optional);
   const completedCount = counted.filter((st) => st.done).length;
