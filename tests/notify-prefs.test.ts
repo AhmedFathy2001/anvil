@@ -58,6 +58,13 @@ test('tiers: the person’s own choice, else the clan’s default, else Anvil’
   assert.deepEqual(tierGates(NOTIFY_DEFAULTS), { ca: 'MASTER', quests: 'MASTER', diaryTier: 'EASY' });
   assert.deepEqual(tierGates(NOTIFY_DEFAULTS, clan), { ca: 'HARD', quests: 'ALL', diaryTier: 'HARD' });
   assert.equal(tierGates({ ...NOTIFY_DEFAULTS, ca: 'OFF' }, clan).ca, 'OFF', 'a member can still switch theirs off');
+  // A tier the clan set is a floor: stricter is the member's call, looser is not.
+  assert.equal(tierGates({ ...NOTIFY_DEFAULTS, ca: 'ELITE' }, clan).ca, 'ELITE');
+  assert.equal(tierGates({ ...NOTIFY_DEFAULTS, ca: 'EASY' }, clan).ca, 'HARD');
+  assert.equal(tierGates({ ...NOTIFY_DEFAULTS, quests: 'OFF' }, clan).quests, 'OFF');
+  assert.equal(tierGates({ ...NOTIFY_DEFAULTS, diaryTier: 'EASY' }, clan).diaryTier, 'HARD');
+  // A clan that set nothing leaves its members free, as before.
+  assert.equal(tierGates({ ...NOTIFY_DEFAULTS, ca: 'EASY' }).ca, 'EASY');
   // What the plugin is told follows the clan when the person chose nothing.
   const me = pluginMe(NOTIFY_DEFAULTS, ALL_ON, clan, null);
   assert.deepEqual(me.ca, ['HARD', 'ELITE', 'MASTER', 'GRANDMASTER']);

@@ -225,12 +225,23 @@ export interface ClanDropSettings {
   diaryTier?: DiaryTier | null;
 }
 
-/** The tiers in force for one character: the person's own choice, else its clan's default, else Anvil's. */
+/** Loosest first, OFF last: a higher rank posts less. */
+const CA_RANK: readonly CaTier[] = [...CA_TIERS, 'OFF'];
+const QUEST_RANK: readonly QuestTier[] = [...QUEST_TIERS, 'OFF'];
+/** The stricter of a person's own tier and their clan's: a clan's tier is a floor its members can only tighten. */
+export const stricterTier = <T extends string>(rank: readonly T[], own: T, floor: T | null | undefined): T =>
+  floor != null && rank.indexOf(floor) > rank.indexOf(own) ? floor : own;
+
+/**
+ * The tiers in force for one character: the person's own choice, else its clan's default, else
+ * Anvil's. A tier the clan set is also a floor: a member's own choice may be stricter (or Off), never
+ * looser. A clan that set none leaves its members free, as before.
+ */
 export function tierGates(p: Pick<NotifyPrefs, 'ca' | 'quests' | 'diaryTier'>, clan: ClanDropSettings = NO_CLAN_DROPS): { ca: CaTier; quests: QuestTier; diaryTier: DiaryTier } {
   return {
-    ca: p.ca ?? clan.ca ?? PLATFORM_TIER_DEFAULTS.ca,
-    quests: p.quests ?? clan.quests ?? PLATFORM_TIER_DEFAULTS.quests,
-    diaryTier: p.diaryTier ?? clan.diaryTier ?? PLATFORM_TIER_DEFAULTS.diaryTier,
+    ca: stricterTier(CA_RANK, p.ca ?? clan.ca ?? PLATFORM_TIER_DEFAULTS.ca, clan.ca),
+    quests: stricterTier(QUEST_RANK, p.quests ?? clan.quests ?? PLATFORM_TIER_DEFAULTS.quests, clan.quests),
+    diaryTier: stricterTier(DIARY_TIERS, p.diaryTier ?? clan.diaryTier ?? PLATFORM_TIER_DEFAULTS.diaryTier, clan.diaryTier),
   };
 }
 

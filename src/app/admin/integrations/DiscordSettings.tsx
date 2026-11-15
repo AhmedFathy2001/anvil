@@ -155,7 +155,7 @@ export default function DiscordSettings({
               <TierSetting
                 settingKey="ca_default_tier"
                 label="Default: post combat tasks from this tier"
-                helpText="The default for your members: combat tasks at or above this tier post, plus tier clears. Each member can pick their own in /settings; until they do, they follow this one."
+                helpText="The default for your members: combat tasks at or above this tier post, plus tier clears. Members follow it, and can only pick a stricter tier (or Off) for themselves. Left on Anvil's default, members choose freely."
                 options={[{ value: '', label: 'Anvil default (Master)' }, ...CA_TIERS.map((t) => ({ value: t as string, label: `${t.charAt(0)}${t.slice(1).toLowerCase()} and up` })), { value: 'OFF', label: 'Off' }]}
               />
             ),
@@ -163,7 +163,7 @@ export default function DiscordSettings({
               <TierSetting
                 settingKey="quest_default_tier"
                 label="Default: post quests from this difficulty"
-                helpText="The default for your members: quests at or above this difficulty post. Each member can pick their own in /settings; until they do, they follow this one."
+                helpText="The default for your members: quests at or above this difficulty post. Members follow it, and can only pick a stricter one (or Off) for themselves. Left on Anvil's default, members choose freely."
                 options={[{ value: '', label: 'Anvil default (Master)' }, { value: 'ALL', label: 'Every quest' }, ...QUEST_TIERS.filter((t) => t !== 'ALL').map((t) => ({ value: t as string, label: `${t.charAt(0)}${t.slice(1).toLowerCase()} and up` })), { value: 'OFF', label: 'Off' }]}
               />
             ),
@@ -171,7 +171,7 @@ export default function DiscordSettings({
               <TierSetting
                 settingKey="diary_default_tier"
                 label="Default: post diary completions from this tier"
-                helpText="The default for your members: diary completions at or above this tier post. Each member can pick their own in /settings; until they do, they follow this one."
+                helpText="The default for your members: diary completions at or above this tier post. Members follow it, and can only pick a stricter tier for themselves. Left on Anvil's default, members choose freely."
                 options={[{ value: '', label: 'Anvil default (every tier)' }, ...DIARY_TIERS.filter((t) => t !== 'EASY').map((t) => ({ value: t as string, label: `${t.charAt(0)}${t.slice(1).toLowerCase()} and up` }))]}
               />
             ),

@@ -62,6 +62,8 @@ export interface DropDefaultRow {
   ca: string;
   quests: string;
   diaryTier: string;
+  /** True where the clan set that tier itself: the person can only pick it or stricter. */
+  floors: { ca: boolean; quests: boolean; diaryTier: boolean };
 }
 
 export interface EmissionSettingsView {
@@ -206,7 +208,7 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
         .map(async (a) => {
           const clan = a.memberClan ? { ...(await getClanDropDefaults(a.memberClan.clanId)), hardFloor: null } : NO_CLAN_DROPS;
           const g = dropGates({ dropMin: null, rarity: null }, clan);
-          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode, ...tierGates({ ca: null, quests: null, diaryTier: null }, clan) };
+          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode, ...tierGates({ ca: null, quests: null, diaryTier: null }, clan), floors: { ca: clan.ca != null, quests: clan.quests != null, diaryTier: clan.diaryTier != null } };
         }),
     ),
   };
