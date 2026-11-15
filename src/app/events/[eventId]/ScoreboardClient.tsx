@@ -34,6 +34,8 @@ import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
 import MvpHighlight from '@/components/MvpHighlight';
 import { clanFetch } from '@/lib/clanFetch';
+import { prefetchTileDialog, tileProofUrl, useTileData } from '@/lib/tileData';
+import type { TileNeedsLike } from '@/lib/tileRequirements';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { tileMatchesSearch } from '@/lib/tileSearch';
@@ -277,30 +279,17 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   // Stamped with the tile it belongs to rather than cleared on close: that way the modal can only
   // ever show proof for the tile actually open, with no flash of the previous one's while the next
   // is in flight — and the effect never has to setState just to reset.
-  const [tileProof, setTileProof] = useState<{ tileId: number; teamId: number | null; rows: FullSubmission[] } | null>(null);
-  useEffect(() => {
-    if (!selectedTileId) return;
-    let cancelled = false;
-    const tileId = selectedTileId;
-    // Capped: a kill tile on a busy board can hold thousands of auto-logs, and the panel only ever
-    // shows totals per contributor plus their proof. The API's own ceiling is 500.
-    // The lens scopes the PROOF too: looking at Frost's board and opening a tile has to show
-    // Frost's proof, not every team's. Without this the modal quietly contradicted the board.
-    const teamParam = lensTeamId != null ? `&teamId=${lensTeamId}` : '';
-    clanFetch(`/api/events/${event.id}/submissions?tileId=${tileId}${teamParam}&limit=500`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: FullSubmission[]) => {
-        if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: Array.isArray(rows) ? rows : [] });
-      })
-      .catch(() => {
-        if (!cancelled) setTileProof({ tileId, teamId: lensTeamId, rows: [] });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTileId, event.id, lensTeamId]);
-  const proofForOpenTile =
-    tileProof && tileProof.tileId === selectedTileId && tileProof.teamId === lensTeamId ? tileProof.rows : null;
+  // Read through the tile-data cache: a hover/focus on the tile warmed it already, a reopened tile
+  // paints its last proof at once, and the fresh read replaces it when it lands.
+  const proofRows = useTileData<FullSubmission[]>(selectedTileId ? tileProofUrl(event.id, selectedTileId, lensTeamId) : null, []);
+  const proofForOpenTile = selectedTileId ? (Array.isArray(proofRows) ? proofRows : null) : null;
+  const intentTile = useCallback(
+    (tileId: number) => {
+      const t = tiles.find((x) => x.id === tileId);
+      if (t) prefetchTileDialog({ eventId: event.id, tile: t as unknown as TileNeedsLike & { id: number }, teamId: lensTeamId, race: event.format === 'tilerace' });
+    },
+    [tiles, event.id, event.format, lensTeamId],
+  );
 
   const staffOnlySet = useMemo(
     () => (staffOnlyTileIds.length > 0 ? new Set(staffOnlyTileIds) : null),
@@ -775,6 +764,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             teams={teams}
             activeTeamId={raceViewer ?? undefined}
             onTileClick={setSelectedTileId}
+            onTileIntent={intentTile}
             statProgress={statProgressMap}
             expanded
             pointsMode={pointsMode}
@@ -1144,6 +1134,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             teams={teams}
             activeTeamId={lensTeamId ?? undefined}
             onTileClick={setSelectedTileId}
+            onTileIntent={intentTile}
             statProgress={statProgressMap}
             expanded={fullscreen}
             pointsMode={pointsMode}

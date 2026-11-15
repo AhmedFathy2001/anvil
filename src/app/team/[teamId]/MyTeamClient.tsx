@@ -27,6 +27,7 @@ import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingSt
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import { claimFilterIds, TeamPlanPanel, TileClaimSection, useTeamClaims, type ClaimFilter } from './TeamClaims';
 import { completionMarkers } from '@/lib/tileClaimsView';
+import { prefetchTileDialog } from '@/lib/tileData';
 
 interface Props {
   event: Event;
@@ -664,6 +665,10 @@ export default function MyTeamClient({
               activeTeamId={team.id}
               interactive={isCaptain}
               onTileClick={handleTileClick}
+              onTileIntent={(id) => {
+                const t = tiles.find((x) => x.id === id);
+                if (t) prefetchTileDialog({ eventId: event.id, tile: t as never, teamId: team.id, skipProof: true });
+              }}
               dropProgress={dropProgress}
               statProgress={statProgress}
               pointsMode={pointsMode}

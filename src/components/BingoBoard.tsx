@@ -50,6 +50,8 @@ interface BingoBoardProps {
   linePositions?: Set<number> | null;
   /** Board POSITIONS that would finish a line for the viewed team. */
   neededPositions?: Set<number> | null;
+  /** Steady hover/focus on a tile: warm what its dialog needs. */
+  onTileIntent?: (tileId: number) => void;
 }
 
 export default function BingoBoard({
@@ -69,6 +71,7 @@ export default function BingoBoard({
   claimedBy,
   linePositions,
   neededPositions,
+  onTileIntent,
 }: BingoBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -112,6 +115,7 @@ export default function BingoBoard({
             icon={tile.icon}
             completedBy={tileCompletions}
             interactive={interactive}
+            onIntent={onTileIntent ? () => onTileIntent(tile.id) : undefined}
             onClick={onTileClick ? () => onTileClick(tile.id) : undefined}
             size={boardSize}
             tileType={tile.tileType}
