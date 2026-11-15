@@ -409,7 +409,10 @@ test('channels: pushes reach only who may read; unread counts move', async () =>
   const secret = notices.find((n) => n.m.t === 'rows' && n.m.rows?.[0]?.text === 'ruby secret')!;
   assert.deepEqual(secret.m.feeds, [`chat:${eventId}:team:${ruby}`]);
   assert.equal(secret.e, undefined, 'never the board’s room');
-  for (const who of ['Rikkert', 'Pkpingu', 'Kev', 'Ada']) assert.ok(secret.u!.includes(u[who]), `${who} hears Ruby’s channel`);
+  for (const who of ['Rikkert', 'Pkpingu', 'Ada']) assert.ok(secret.u!.includes(u[who]), `${who} hears Ruby’s channel`);
+  // A moderator with no job on THIS board can open the channel but is not sent its lines live
+  // (lib/staffSight teamChatStaffListeners): a team's chat goes to the team and the board's staff.
+  assert.ok(!secret.u!.includes(u.Kev), 'a moderator with no grant on this board is not pushed a team’s lines');
   assert.ok(!secret.u!.includes(u.Saltbeard), 'Jade doesn’t hear Ruby’s channel');
   const announce = notices.find((n) => n.m.t === 'rows' && n.m.rows?.[0]?.text === 'gl')!;
   assert.equal(announce.e, eventId, 'announcements go to the whole board');
