@@ -27,7 +27,7 @@ import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import { discordAssetUrl } from '@/lib/seo';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
 import { db } from '@/db';
@@ -48,7 +48,7 @@ import { loadClanPostDefaults, loadEventDiscordPrefs, loadPartnerDiscordPrefs } 
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { emitTileCompletion } from '@/lib/chatFeed';
 import { queueBoardHighlight, queueStartHighlight } from '@/lib/highlights/store';
-import { clans, events, teams } from '@/db/schema';
+import { clans, completions, events, teams, tiles } from '@/db/schema';
 import {
   EMBED_COLOR,
   clamp,
@@ -615,6 +615,18 @@ async function eventStandingsHidden(eventId: number): Promise<boolean> {
 const stepProgressSeen = new Map<string, number>();
 
 /** The shared channels' version of a post naming a hidden race tile: the team and the step, nothing else. */
+/** Is this tile a combo's part whose combo this team has already completed? */
+async function partOfFinishedCombo(tileId: number, teamId: number): Promise<boolean> {
+  const [part] = await db.select({ parent: tiles.parentTileId }).from(tiles).where(eq(tiles.id, tileId)).limit(1);
+  if (part?.parent == null) return false;
+  const [done] = await db
+    .select({ id: completions.id })
+    .from(completions)
+    .where(and(eq(completions.tileId, part.parent), eq(completions.teamId, teamId)))
+    .limit(1);
+  return !!done;
+}
+
 async function stepLinePayload(
   event: { id: number; name: string },
   teamId: number,
@@ -623,7 +635,7 @@ async function stepLinePayload(
 ): Promise<DiscordWebhookPayload> {
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { name: true, color: true } });
   const who = team?.name ?? 'A team';
-  const words = stepPostText(kind, who, veil.step ?? 0, veil.lastStep + 1);
+  const words = stepPostText(kind, who, veil.step ?? 0, veil.lastStep + 1, veil.road);
   const url = eventLeaderboardUrl(event.id);
   return {
     embeds: [{
@@ -724,6 +736,8 @@ export async function sendEventBingoWebhook(
   if (route.shared === 'none') return teamSent;
   if (route.shared === 'step') {
     // Completions always post; "made progress" at most once per team per step per window.
+    // A part whose finish also finished its combo: the combo's own "completed" line is the one post.
+    if (stepKind === 'progress' && refTile != null && (await partOfFinishedCombo(refTile, route.teamOnly!))) return teamSent;
     if (stepKind === 'progress' && !takeStepProgress(stepProgressSeen, stepProgressKey(eventId, route.teamOnly!, veil!.step!), Date.now())) return teamSent;
     payload = await stepLinePayload(eventRow!, route.teamOnly!, stepKind!, veil!);
   }
