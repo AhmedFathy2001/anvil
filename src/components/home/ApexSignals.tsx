@@ -1,3 +1,4 @@
+import { scoredOfEntered } from '@/lib/weeklyCountWords';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import type { Arena, Career, NextMilestone, RecentMilestone, Seat, Streak } from '@/lib/apexHomeSignals';
@@ -114,7 +115,7 @@ export function ArenaHero({ arena, flair }: { arena: Arena; flair?: OwnFlair | n
             </ClanLink>
           </h2>
           <p className="mt-1 text-sm text-text-dim">
-            {arena.scoring} of {arena.fieldSize} on the board · {hoursLeft(arena.endDate)}
+            {scoredOfEntered(arena.scoring, arena.fieldSize)} · {hoursLeft(arena.endDate)}
           </p>
         </div>
 
@@ -135,7 +136,7 @@ export function ArenaHero({ arena, flair }: { arena: Arena; flair?: OwnFlair | n
             )}
           </div>
           <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-text-dim">
-            {unranked ? 'not on the board yet' : `of ${arena.scoring}`}
+            {unranked ? 'not on the board yet' : `of ${arena.fieldSize} entered`}
           </p>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { enteredWord } from '@/lib/weeklyCountWords';
 import { requireClan } from '@/lib/clanContext';
 import { notFound } from 'next/navigation';
 import EventLifecycleBar from '../../[eventId]/EventLifecycleBar';
@@ -76,9 +77,9 @@ export default async function WeeklyLayout({
         <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
           {weeklyMetricLabel(comp.type, comp.metric)}
         </span>
-        <span>{counts.participants} entered</span>
+        <span>{enteredWord(counts.participants)}</span>
         <span>·</span>
-        <span>{counts.moving} scoring</span>
+        <span>{counts.moving} scored</span>
       </div>
 
       <EventLifecycleBar
