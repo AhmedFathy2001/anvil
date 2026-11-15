@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { GuideSearchBox, GuideSearchProvider, type SearchLabels } from './GuideSearch';
 import { setUrlParams } from '@/lib/urlState';
 import { GUIDE_TAB_PARAM, guideTabParam, type GuideTab } from '../_i18n/guideTabs';
 
@@ -17,22 +18,28 @@ export default function GuideTabs({
   labels,
   anvil,
   ingame,
+  search,
 }: {
   initial: GuideTab;
   labels: Record<GuideTab, string>;
   anvil: React.ReactNode;
   ingame: React.ReactNode;
+  /** The one search box's words for each list. */
+  search: Record<GuideTab, Pick<SearchLabels, 'placeholder' | 'clear'>>;
 }) {
   const [tab, setTab] = useState<GuideTab>(initial);
+  const [query, setQuery] = useState('');
   const tabs: GuideTab[] = ['anvil', 'ingame'];
 
   const pick = (next: GuideTab) => {
     setTab(next);
+    setQuery('');
     setUrlParams({ [GUIDE_TAB_PARAM]: guideTabParam(next) });
   };
 
   return (
-    <>
+    <GuideSearchProvider query={query} setQuery={setQuery}>
+      <GuideSearchBox query={query} setQuery={setQuery} labels={search[tab]} />
       <div className="mb-6 flex flex-wrap gap-1 border-b border-card-border" role="tablist">
         {tabs.map((key) => (
           <button
@@ -60,6 +67,6 @@ export default function GuideTabs({
       <div role="tabpanel" id="guide-panel-ingame" aria-labelledby="guide-tab-ingame" hidden={tab !== 'ingame'}>
         {ingame}
       </div>
-    </>
+    </GuideSearchProvider>
   );
 }

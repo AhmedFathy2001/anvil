@@ -11,7 +11,7 @@
 // clan_staff) — never a Discord role — mirroring verifyFeeCollector exactly, because it is the same
 // job: this is the clan's money and rank alone has never conferred it.
 
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { normalizeRsn } from '@/lib/auth';
@@ -41,7 +41,7 @@ import { resolveClogPage, searchClogPages } from '@/lib/clogPageSearch';
 import { statSnapshotOf } from '@/lib/roster';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
-import { weeklyUnit } from '@/lib/weeklyStage';
+import { weeklyStatus, weeklyUnit } from '@/lib/weeklyStage';
 import { listMembers, getAccountProfile } from '@/lib/memberProfile';
 import { formatPersonalBest } from '@/lib/clogRead';
 import {
@@ -250,13 +250,15 @@ async function rankWeekly(competitionId: number) {
 
 async function weeklyResult(ctx: ClanCommandCtx, kind: 'skill' | 'boss'): Promise<ClanResult> {
   const { t, clan, identity } = ctx;
-  const comps = await db.query.weeklyCompetitions.findMany({
+  const candidates = await db.query.weeklyCompetitions.findMany({
     where: and(
       eq(weeklyCompetitions.clanId, clan.clanId),
-      eq(weeklyCompetitions.status, 'active'),
+      ne(weeklyCompetitions.status, 'completed'),
       eq(weeklyCompetitions.type, kind),
     ),
   });
+  const nowMs = Date.now();
+  const comps = candidates.filter((c) => weeklyStatus(c, nowMs) === 'active');
   if (comps.length === 0) {
     return { text: fmt(kind === 'skill' ? t.weekly.sotwEmpty : t.weekly.botwEmpty, { clan: clan.name }) };
   }

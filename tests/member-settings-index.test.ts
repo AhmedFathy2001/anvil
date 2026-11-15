@@ -104,11 +104,11 @@ test('the hub has one card per page, and every old address redirects to a sectio
   }
   // The old pages' section ids still render on the new pages, so old #deep-links keep landing.
   const kept: [string, string[]][] = [
-    ['/settings/profile', ['avatar-banner', 'look-per-character', 'display-case', 'perks', 'name-colours', 'your-boosts', 'boostable-clans']],
+    ['/settings/profile', ['avatar-banner', 'look-per-character', 'display-case', 'plan', 'name-colours', 'your-boosts', 'boostable-clans']],
     ['/settings/in-game', ['plugin-token', 'chat-feed']],
     ['/settings/characters', ['detected', 'link-account', 'claims-on-yours', 'your-claims']],
     ['/settings/posts', ['plugin-posts', 'where-posts-go', 'per-character', 'posts-drops', 'screenshot-privacy', 'your-webhooks']],
-    ['/settings/account', ['plugin-sign-ins', 'sessions', 'clan-billing', 'twitch', 'youtube', 'kick', 'medal', 'character-visibility', 'across-anvil']],
+    ['/settings/account', ['plugin-sign-ins', 'sessions', 'plan', 'perks', 'clan-billing', 'twitch', 'youtube', 'kick', 'medal', 'character-visibility', 'across-anvil']],
   ];
   for (const [page, ids] of kept) for (const id of ids) assert.ok(pageSource(page).includes(`id="${id}"`), `${page}: no id="${id}"`);
 });
@@ -170,4 +170,14 @@ test('every keyword finds its own entry', () => {
 test('nothing typed, nothing found', () => {
   assert.deepEqual(searchMemberSettings(''), []);
   assert.deepEqual(searchMemberSettings('zzzzqqq'), []);
+});
+
+test('"visible" finds who sees each character', () => {
+  assert.equal(top('visible'), 'character-visibility');
+  assert.ok(searchMemberSettings('show to other clans').some((e) => e.id === 'character-visibility'));
+});
+
+test('chat colours live on one page, In game', () => {
+  const e = searchMemberSettings('chat colours').find((x) => x.id === 'chat-colours');
+  assert.equal(e?.href, '/settings/in-game#chat-colours');
 });

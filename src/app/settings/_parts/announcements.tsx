@@ -14,6 +14,7 @@ const JUMPS = [
   { id: 'posts-deaths', label: 'Deaths & PvP' },
   { id: 'posts-achievements', label: 'Achievements' },
   { id: 'screenshot-privacy', label: 'Screenshot privacy' },
+  { id: 'posts-templates', label: 'Message templates' },
   { id: 'where-posts-go', label: 'Which clans' },
   { id: 'per-character', label: 'Per character' },
 ];

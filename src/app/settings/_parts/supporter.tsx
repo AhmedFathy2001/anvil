@@ -15,7 +15,7 @@ import { Pill, SettingsGroup, SettingsRow } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
 
 /**
- * Your plan (the top of Profile & look): the subscription, every perk once with the tier it needs,
+ * Your plan (the top of Account): the subscription, every perk once with the tier it needs,
  * and the settings that only exist because of it (game-chat flair, the wall, the Discord
  * announcement, the invite link). Each perk's own control is further down the page, or under In
  * game, and anyone may try it there before subscribing.
@@ -24,7 +24,7 @@ const PERKS: { label: string; where: string | null; tier: SupporterTierId }[] = 
   { label: 'Name colours on boards, rosters and Discord posts', where: '/settings/profile#name-colours', tier: 'supporter' },
   { label: 'Your name colour in other players’ game chat', where: '/settings/profile#name-colours', tier: 'supporter' },
   { label: 'A display case of your best drops (4 / 8 / 12 slots)', where: '/settings/profile#display-case', tier: 'supporter' },
-  { label: 'Your own chat line colours', where: '/settings/profile#chat-colours', tier: 'supporter' },
+  { label: 'Your own chat line colours', where: '/settings/in-game#chat-colours', tier: 'supporter' },
   { label: 'Your own avatar and banner, animated', where: '/settings/profile#avatar-banner', tier: 'champion' },
   { label: 'Choose what your login brief covers', where: '/settings/in-game#chat-feed', tier: 'champion' },
   { label: 'Boosts for clans you’re in (1 / 2 slots)', where: '/settings/profile#boosts', tier: 'champion' },

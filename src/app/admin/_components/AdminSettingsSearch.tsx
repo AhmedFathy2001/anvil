@@ -79,12 +79,15 @@ export default function AdminSettingsSearch({
   access,
   features,
   creator = false,
+  streaming = false,
 }: {
   access: AdminAccess;
   /** Feature keys this clan has switched on. */
   features: readonly FeatureKey[];
   /** A creator space: leave out the in-game-clan pages it is turned away from. */
   creator?: boolean;
+  /** The clan has Streaming on (Past viewers exists only then). */
+  streaming?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -98,7 +101,7 @@ export default function AdminSettingsSearch({
   // Inside an event, its settings open on THAT event rather than the events list.
   const here = useClanRelativePath();
 
-  const viewer = useMemo(() => settingsViewer(access, features, creator), [access, features, creator]);
+  const viewer = useMemo(() => settingsViewer(access, features, creator, streaming), [access, features, creator, streaming]);
   const entries = useMemo(() => visibleSettings(viewer), [viewer]);
   const guides = useMemo(() => visibleSettings(viewer, GUIDE_ENTRIES), [viewer]);
 

@@ -203,7 +203,7 @@ export default function PersonProfile({
             </ul>
           )}
           {!supporter && characters.length > 0 && (
-            <ClanLink href="/settings/profile#plan" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
+            <ClanLink href="/settings/account#plan" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
               Wear your name in colour on every board — Anvil Supporter →
             </ClanLink>
           )}

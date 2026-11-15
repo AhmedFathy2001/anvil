@@ -23,7 +23,7 @@ export async function legacyRedirect(page: string, at: string, searchParams?: Pr
 /** Where each old page went, for the redirects and the tests. */
 export const LEGACY_SETTINGS: Record<string, { page: string; at: string }> = {
   look: { page: '/settings/profile', at: 'look' },
-  supporter: { page: '/settings/profile', at: 'plan' },
+  supporter: { page: '/settings/account', at: 'plan' },
   boosts: { page: '/settings/profile', at: 'boosts' },
   chat: { page: '/settings/in-game', at: 'chat-feed' },
   plugin: { page: '/settings/in-game', at: 'plugin' },

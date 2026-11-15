@@ -7,6 +7,7 @@
 // Everything here comes from rows that already exist. Nothing new is tracked, and nothing is written.
 
 import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { notLabClan } from '@/lib/lab';
 
 import { db } from '@/db';
@@ -77,7 +78,7 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
   if (accountIds.length === 0) return null;
 
   // Every live participation this person holds, across every clan.
-  const mine = await db
+  let mine = await db
     .select({
       competitionId: weeklyParticipants.competitionId,
       rsn: weeklyParticipants.rsn,
@@ -86,6 +87,8 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
       type: weeklyCompetitions.type,
       metric: weeklyCompetitions.metric,
       endDate: weeklyCompetitions.endDate,
+      startDate: weeklyCompetitions.startDate,
+      status: weeklyCompetitions.status,
       clanName: clans.name,
       clanSlug: clans.slug,
       clanKind: clans.kind,
@@ -96,8 +99,10 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
     // clan-scope: global -- a person's standings span every clan they hold a seat in; this is a
     // person-scoped read of their own participations, not a clan's leaderboard.
     .innerJoin(clanMemberships, eq(clanMemberships.id, weeklyParticipants.clanMemberId))
-    .where(and(inArray(clanMemberships.accountId, accountIds), eq(weeklyCompetitions.status, 'active')));
+    .where(and(inArray(clanMemberships.accountId, accountIds), ne(weeklyCompetitions.status, 'completed')));
 
+  const nowMs = Date.now();
+  mine = mine.filter((m) => weeklyStatus(m, nowMs) === 'active');
   if (mine.length === 0) return null;
 
   // Rank each candidate, then keep the best. Cheap: a person is in one or two live weeklies, and the

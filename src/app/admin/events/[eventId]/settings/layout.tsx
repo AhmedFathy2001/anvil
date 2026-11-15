@@ -2,6 +2,7 @@ import { requireClan } from '@/lib/clanContext';
 import { isCreatorSpace, streamsEvents } from '@/lib/creatorSpaces';
 import { requireEventForPage } from '@/lib/eventScope';
 import { tabsFor } from '@/lib/eventSettingsTabs';
+import ClanLink from '@/components/ClanLink';
 import SettingsNav from './SettingsNav';
 import { SaveBarProvider } from './SaveBar';
 import { idParam } from '@/lib/routeIds';
@@ -25,6 +26,36 @@ export default async function EventSettingsLayout({ children, params }: { childr
       <SaveBarProvider>
         <div className="space-y-6">{children}</div>
       </SaveBarProvider>
+      {/* Event settings live in more places than these tabs; say where, so nobody has to guess. */}
+      <p className="mt-8 border-t border-card-border pt-4 text-[13px] text-text-muted">
+        Also for this event:{' '}
+        {[
+          ['discord', 'Discord posts'],
+          ['payouts', 'Prizes'],
+          ['signups', 'Sign-ups and fees'],
+          ['survey', 'Survey'],
+        ].map(([slug, label], i) => (
+          <span key={slug}>
+            {i > 0 && ' · '}
+            <ClanLink href={`/admin/events/${id}/${slug}`} className="text-gold hover:text-gold-light">
+              {label}
+            </ClanLink>
+          </span>
+        ))}
+        . For every event in the {kind.creator ? 'space' : 'clan'}:{' '}
+        <ClanLink href="/admin/rules" className="text-gold hover:text-gold-light">
+          Rules &amp; scoring
+        </ClanLink>
+        {!kind.creator && (
+          <>
+            {' · '}
+            <ClanLink href="/admin/integrations#discord-event-posts" className="text-gold hover:text-gold-light">
+              Default event posts
+            </ClanLink>
+          </>
+        )}
+        .
+      </p>
     </div>
   );
 }

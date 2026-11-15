@@ -1,5 +1,6 @@
 'use client';
 
+import ActionMenu from '@/components/ActionMenu';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
@@ -1042,15 +1043,10 @@ function PastEventRow({
             >
               Prizes
             </ClanLink>
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting}
-              aria-label={`Delete event ${event.name}`}
-              className="px-2 py-1 text-xs rounded-md border border-card-border text-text-muted hover:text-red-400 hover:border-red-500/40 transition-colors disabled:opacity-50"
-            >
-              {deleting ? '…' : 'Delete'}
-            </button>
+            <ActionMenu
+              label="More"
+              items={[{ label: deleting ? 'Deleting…' : 'Delete event', variant: 'danger', disabled: deleting, onClick: onDelete }]}
+            />
           </span>
         )}
       </td>

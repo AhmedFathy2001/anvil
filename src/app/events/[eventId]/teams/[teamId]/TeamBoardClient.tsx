@@ -7,6 +7,7 @@ import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { tileWithPartIds } from '@/lib/combo';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { eventStage } from '@/lib/eventStage';
 import { useRouter } from 'next/navigation';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { isPointsMode } from '@/lib/utils';
@@ -105,8 +106,10 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
     fetchSubmissions();
     fetchGains();
   }, [router, fetchSubmissions, fetchGains]);
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: fetchGains });
+  // A finished event can't change: no polling at all (same rule as the scoreboard).
+  const finished = eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap';
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange, enabled: !finished });
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: fetchGains, enabled: !finished });
 
   const pointsMode = isPointsMode(event.scoringMode);
   // Scored by lib/boardScoring, shared with the scoreboard — this screen also used to ignore a

@@ -2,6 +2,7 @@ import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -264,14 +265,14 @@ export async function buildSchedule(
       : [],
   );
   const weeklies: ScheduleWeekly[] = allWeeklies
-    .filter((w) => w.endDate > nowIso && w.status !== 'completed')
+    .filter((w) => weeklyStatus(w) !== 'completed')
     .map((w) => ({
       id: w.id,
       title: w.title,
       type: w.type,
       metric: w.metric,
       metricLabel: weeklyMetricLabel(w.type, w.metric),
-      status: w.status,
+      status: weeklyStatus(w),
       startDate: w.startDate,
       endDate: w.endDate,
       mode: w.mode,
@@ -448,9 +449,13 @@ export interface ActiveWeekly {
 // competition the planner happened to reach first ACROSS THE PLATFORM — so a member of a clan with
 // no weekly running would be handed another clan's, and pointed at enrolling in it.
 export async function getActiveWeekly(clanId: number): Promise<ActiveWeekly | null> {
-  const active = await db.query.weeklyCompetitions.findFirst({
+  // Feeds plugin enrolment and tracking, so the SAFE intersection: recorded 'active' (the cron has
+  // activated it and taken baselines) AND still inside its dates. Never promotes an un-activated week.
+  const rows = await db.query.weeklyCompetitions.findMany({
     where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
+  const nowMs = Date.now();
+  const active = rows.find((w) => weeklyStatus(w, nowMs) === 'active');
   if (!active) return null;
   return {
     id: active.id,
@@ -482,9 +487,11 @@ export interface ActiveWeeklyMetric {
 // metrics for whatever every other clan was competing on — which is both a leak of what those clans
 // are running and a pile of work nobody asked for.
 export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeeklyMetric[]> {
-  const rows = await db.query.weeklyCompetitions.findMany({
+  const all = await db.query.weeklyCompetitions.findMany({
     where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
+  const nowMs = Date.now();
+  const rows = all.filter((w) => weeklyStatus(w, nowMs) === 'active');
   return rows.map((c) => ({
     id: c.id,
     type: c.type as 'skill' | 'boss' | 'efficiency',
