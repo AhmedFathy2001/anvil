@@ -992,6 +992,9 @@ function submissionTitle(tileType: string | null | undefined, tileLabel: string,
   return clamp(`${lead} — ${tileLabel}`, LIMIT.title);
 }
 
+// A combo PART finishing is progress on its combo, not a finished tile: its post is filed as a plain
+// submission, so a hidden race's shared channel says "made progress on step N" for it and keeps
+// "completed step N" for the combo itself (it used to say "completed" twice, or early on an all-parts combo).
 export async function notifySubmission(params: SubmissionNotifyParams): Promise<boolean> {
   const {
     eventName,
@@ -1046,7 +1049,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return withPostRef({ kind: params.completed ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
+  return withPostRef({ kind: params.completed && !isPartTile(params.tile) ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
 }
 
 // Merged/debounced variant of notifySubmission. Several submissions for the same tile+team that
@@ -1123,7 +1126,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return withPostRef({ kind: params.completed ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
+  return withPostRef({ kind: params.completed && !isPartTile(params.tile) ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
 }
 
 interface SubmissionDeletedParams {
