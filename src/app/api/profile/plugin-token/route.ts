@@ -24,7 +24,10 @@ export async function GET() {
     .select({ n: count() })
     .from(pluginLinks)
     .where(and(eq(pluginLinks.userId, session.userId), isNull(pluginLinks.revokedAt)));
-  return NextResponse.json({ tokens: (user?.pluginTokenHash ? 1 : 0) + Number(links?.n ?? 0) });
+  const main = user?.pluginTokenHash ? 1 : 0;
+  const signIns = Number(links?.n ?? 0);
+  // `tokens` is main + sign-ins: the same rows /settings/account lists (sign-ins) plus the main one.
+  return NextResponse.json({ tokens: main + signIns, main, signIns });
 }
 
 /**
