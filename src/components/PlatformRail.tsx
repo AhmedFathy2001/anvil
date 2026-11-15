@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
 import ClanLink from '@/components/ClanLink';
@@ -85,9 +85,6 @@ export default function PlatformRail({
   // Phones: the links fold behind a menu button instead of a sideways-scrolling strip.
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
-  // Escape, focus and scroll lock while the phone menu is open (modal only then; on the desktop rail
-  // the same element is just the sidebar content).
-  const menuRef = useModalA11y<HTMLDivElement>({ onClose: closeMenu, modal: menuOpen });
 
   const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
@@ -117,6 +114,8 @@ export default function PlatformRail({
     // its own content — 539px of clans against a 422px screen — and dragged the whole page sideways
     // with it. Cross-axis alignment means opposite things in the two directions this flips between.
     <nav className="sticky top-0 z-40 flex w-full shrink-0 flex-wrap items-center gap-2 border-b border-card-border bg-brown-dark p-2 lg:h-screen lg:w-[240px] lg:flex-nowrap lg:flex-col lg:items-stretch lg:gap-6 lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+      {/* Mounted only while the phone menu is open, so it is in the Escape stack only then. */}
+      {menuOpen && <PhoneMenuA11y onClose={closeMenu} />}
       {/* THE LOGO IS THE ARTWORK, not the drawn path. `AnvilMark` exists so the mark can be a 600px
           watermark without going to mush — that is a background job. Where the logo is acting as the
           logo, the real icon wins: it is what sits in the browser tab and in everybody's bookmarks,
@@ -130,7 +129,6 @@ export default function PlatformRail({
       {/* Every link: a drawer under the bar on a phone (menu button), the rail itself on a desktop. */}
       <div
         id="platform-menu"
-        ref={menuRef}
         className={`order-4 basis-full flex-col gap-4 pb-2 max-lg:absolute max-lg:inset-x-0 max-lg:top-full max-lg:max-h-[calc(100dvh-3.5rem)] max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:border-b max-lg:border-card-border max-lg:bg-brown-dark max-lg:p-2 max-lg:shadow-xl lg:order-none lg:flex lg:basis-auto lg:gap-6 lg:pb-0 ${menuOpen ? 'flex' : 'hidden'}`}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('a')) setMenuOpen(false);
@@ -347,3 +345,12 @@ const ShieldIcon = () => <svg {...s}><path d="M8 1.9l5 1.9v4.3c0 3.2-2.1 5.4-5 6
 const SignOutIcon = () => (
   <svg {...s}><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>
 );
+
+/** Escape, focus and scroll lock for the open phone menu (#platform-menu); renders nothing. */
+function PhoneMenuA11y({ onClose }: { onClose: () => void }) {
+  const ref = useModalA11y<HTMLElement>({ onClose });
+  useLayoutEffect(() => {
+    ref.current = document.getElementById('platform-menu');
+  }, [ref]);
+  return null;
+}

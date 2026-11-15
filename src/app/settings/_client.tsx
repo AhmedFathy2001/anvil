@@ -234,7 +234,12 @@ export function SettingsNav({
   const picker = (
     <div className="sm:hidden">
       <Select
-        value={path ?? '/settings'}
+        value={
+          pickerOptions.find((o) => o.value === path)?.value ??
+          // A sub-page (e.g. /settings/characters/<id>) selects its parent section.
+          [...pickerOptions].filter((o) => o.value !== '/settings' && path?.startsWith(`${o.value}/`)).sort((x, y) => y.value.length - x.value.length)[0]?.value ??
+          '/settings'
+        }
         onChange={(href) => nav.push(href)}
         options={pickerOptions}
         ariaLabel="Settings section"
