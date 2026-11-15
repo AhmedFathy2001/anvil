@@ -17,7 +17,7 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
-import { boardPlayer } from '@/lib/clientRows';
+import { boardPlayer, staffPlayer } from '@/lib/clientRows';
 
 export async function GET(
   request: Request,
@@ -132,7 +132,7 @@ export async function POST(
     const full = await signupsOrFull(id, members.map((m) => m.clanMemberId));
     if (full) return full;
     const result = await upsertPlayers(id, members, assignTeamId);
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(result.map(staffPlayer), { status: 201 });
   }
 
   // Single player (legacy text add).
@@ -151,7 +151,7 @@ export async function POST(
   const full = await signupsOrFull(id, [clanMemberId]);
   if (full) return full;
   const result = await upsertPlayers(id, members, assignTeamId);
-  return NextResponse.json(result[0], { status: 201 });
+  return NextResponse.json(result[0] ? staffPlayer(result[0]) : result[0], { status: 201 });
 }
 
 export async function DELETE(
@@ -343,7 +343,8 @@ export async function PATCH(
   captureStartingStatsSoon(eId, [pId]);
   // Benched, unbenched or moved: their event-server team role follows (no-op without an event server).
   if (frozen !== undefined || teamId !== undefined) syncEventServerMembersFireAndForget(eId);
-  return NextResponse.json(updated);
+  // The row as the draft screens read it (lib/clientRows): the write used to answer with every column.
+  return NextResponse.json(updated ? staffPlayer(updated) : updated);
 }
 
 /**
