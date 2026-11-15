@@ -1,3 +1,4 @@
+import { withoutPetDoubles } from '@/lib/momentDupes';
 import { normalizeHex } from '@/lib/artPalette';
 import { eq, inArray } from 'drizzle-orm';
 
@@ -145,7 +146,7 @@ export async function loadClanCard(clan: {
   // Pets and clog-only items arrive by NAME (a chat line), so their moment carries no item id and the
   // plugin drew a blank where the icon goes. Resolve them by name against the item list (which holds
   // untradeables too, and prefers the collection-log id). An outage just leaves the gap, as before.
-  const highlightMoments = moments.filter((m) => FEED_KINDS.has(m.kind)).slice(0, 5);
+  const highlightMoments = withoutPetDoubles(moments.filter((m) => FEED_KINDS.has(m.kind))).slice(0, 5);
   const idByName = new Map<string, number>();
   if (highlightMoments.some((m) => m.itemId == null && m.itemName)) {
     try {
