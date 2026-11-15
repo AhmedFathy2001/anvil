@@ -327,7 +327,7 @@ export default function Select({
                   onPointerEnter={() => !opt.disabled && setHighlight(i)}
                   onClick={() => commit(i)}
                   className={cn(
-                    'px-3 py-1.5 text-sm cursor-pointer transition-colors flex items-center gap-2',
+                    'px-3 py-1.5 max-sm:min-h-11 text-sm cursor-pointer transition-colors flex items-center gap-2',
                     opt.disabled
                       ? 'text-text-muted/40 cursor-not-allowed'
                       : isSelected
