@@ -97,5 +97,13 @@ export function proofsUi(rows: ProofRow[], o: ProofsOpts, empty: string): Node {
       on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(Math.min(PROOFS_MAX, o.n + PROOFS_STEP)) }, into: 'proofs', ...keep },
     });
   }
+  // Back to the first few, once more were asked for.
+  if (o.n > PROOFS_STEP) {
+    parts.push(gap(4), text('Show less', 'brand', {
+      font: 'small',
+      tip: 'Back to the newest few',
+      on: { a: 'load', v: 'proofs', args: { ...o.args, n: String(PROOFS_STEP) }, into: 'proofs', ...keep },
+    }));
+  }
   return col(parts);
 }
