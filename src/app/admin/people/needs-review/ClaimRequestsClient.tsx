@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import type { ClaimRequest } from '@/lib/claimRequests';
 import type { ClanReportView } from '@/lib/characterReports';
 
@@ -29,11 +30,25 @@ export default function ClaimRequestsClient({
   items: (ClaimRequest & { forwarded: boolean; report: ClanReportView | null })[];
 }) {
   const router = useRouter();
+  const { confirm } = useDialog();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   async function act(id: number, action: 'forward' | 'reject') {
+    if (busyId != null) return;
+    if (action === 'forward') {
+      const item = items.find((i) => i.id === id);
+      const who = item?.requester.displayName ?? 'this person';
+      const handle = item?.requester.discordUsername ? ` (@${item.requester.discordUsername})` : '';
+      const ok = await confirm({
+        title: `Link ${item?.rsn ?? 'this character'} to ${who}?`,
+        body: `You are saying ${who}${handle} on Discord is the player of ${item?.rsn ?? 'this character'}. Only confirm if you know them.`,
+        confirmLabel: 'Yes, link it',
+        tone: 'gold',
+      });
+      if (!ok) return;
+    }
     setBusyId(id);
     setError(null);
     setNotice(null);
