@@ -22,7 +22,7 @@ import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { competitionMode } from '@/lib/competitionTeams';
-import { buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
+import { ANONYMOUS_VIEWER, buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
 import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
 
@@ -62,6 +62,9 @@ export async function generateMetadata({
   }
   const [competition] = await db
     .select({
+      id: weeklyCompetitions.id,
+      clanId: weeklyCompetitions.clanId,
+      mode: weeklyCompetitions.mode,
       title: weeklyCompetitions.title,
       type: weeklyCompetitions.type,
       status: weeklyCompetitions.status,
@@ -71,6 +74,11 @@ export async function generateMetadata({
     .from(weeklyCompetitions)
     .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
   if (!competition) return {};
+  // A clan vs clan board lists every racing clan's players. A preview goes to whoever the link is
+  // pasted to, so it names them only when a stranger could read every one of those clans.
+  if (!(await competitionReadableBy(competition, ANONYMOUS_VIEWER))) {
+    return clanSectionMetadata({ title: `${competition.title} — ${clanName}`, description: `A competition in ${clanName}.` });
+  }
 
   const participants = await getEffectiveParticipants(compId);
   const board = computeLeaderboard(participants).filter((e) => e.gained > 0);

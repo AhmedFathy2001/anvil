@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { resolveClanById } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { ANONYMOUS_VIEWER, competitionReadableBy } from '@/lib/competitionTeamsDb';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { momentsForCompetition } from '@/lib/momentsStore';
 import { siteCard, weeklyCard } from '@/lib/ogCard';
@@ -38,6 +39,9 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
   if (!comp) return siteCard();
   const clan = await resolveClanById(comp.clanId);
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
+  // Clan vs clan: the card names players from every racing clan, so every one of them has to be
+  // readable by a stranger — a private partner's members stay off it.
+  if (!(await competitionReadableBy(comp, ANONYMOUS_VIEWER))) return siteCard();
 
   const kind = weeklyKind(comp.type);
   const label = weeklyMetricLabel(kind, comp.metric) || comp.title;
