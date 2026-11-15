@@ -94,6 +94,18 @@ export default function SettingsClient({ event, tiles, section }: Props) {
   });
 
   async function saveDates(): Promise<boolean> {
+    // A start at or before now makes the event live the moment this saves, so say so first.
+    const wasStarted = currentEvent.startDate ? new Date(currentEvent.startDate) <= new Date() : false;
+    const startsNow = startDate ? new Date(startDate) <= new Date() : false;
+    if (startsNow && !wasStarted && !currentEvent.forceEndedAt) {
+      const go = await confirm({
+        title: 'Start the event now?',
+        body: 'This start time is already here, so saving makes the event live right away: members can see the board, and the start is announced in Discord if it is connected.',
+        confirmLabel: 'Save and start now',
+        tone: 'gold',
+      });
+      if (!go) return false;
+    }
     setSavingDates(true);
     setDateError('');
     try {
