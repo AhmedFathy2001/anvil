@@ -138,7 +138,7 @@ export default function HeroShowcase() {
                 {/* boardSize is N, the grid's EDGE — not the tile count. Passing 25 laid the board
                     out as one 25-wide strip with its own scrollbar. */}
                 <BingoBoard tiles={TILES} boardSize={5} completions={COMPLETIONS} teams={TEAMS} activeTeamId={1} />
-                <Foot>Every one of those was submitted by the plugin, with the screenshot attached.</Foot>
+                <Foot>Every one of those was sent in by the plugin, which takes the screenshot itself.</Foot>
               </>
             )}
 
