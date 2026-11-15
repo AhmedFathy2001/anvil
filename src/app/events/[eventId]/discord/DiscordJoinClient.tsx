@@ -13,7 +13,21 @@ export default function DiscordJoinClient({ eventId, returnTo }: { eventId: numb
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const autoTried = useRef(false);
+
+  async function copyInvite() {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopyFailed(false);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopyFailed(true);
+    }
+  }
 
   const load = useCallback(async () => {
     const res = await clanFetch(`/api/events/${eventId}/discord-join`);
@@ -153,7 +167,20 @@ export default function DiscordJoinClient({ eventId, returnTo }: { eventId: numb
                 {busy === 'check' ? 'Checking…' : 'I’ve joined'}
               </button>
             </div>
-            {inviteUrl && <p className="mt-2 break-all font-mono text-[12px] text-text-muted">{inviteUrl}</p>}
+            {inviteUrl && (
+              <div className="mt-3 space-y-2">
+                <p className="break-all font-mono text-[12px] text-text-muted">{inviteUrl}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a href={inviteUrl} target="_blank" rel="noopener noreferrer" className="rounded-md border border-gold/40 px-3 py-1.5 text-[13px] text-gold hover:bg-gold/10">
+                    Open invite
+                  </a>
+                  <button type="button" onClick={copyInvite} className="rounded-md border border-card-border px-3 py-1.5 text-[13px]">
+                    {copied ? 'Copied ✓' : 'Copy invite'}
+                  </button>
+                  {copyFailed && <span className="text-[12px] text-text-muted">Couldn’t copy. Select the link above and copy it by hand.</span>}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

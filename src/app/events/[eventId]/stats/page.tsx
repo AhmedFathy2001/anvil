@@ -125,7 +125,7 @@ export default async function EventStatsPage({
           chip(`/events/${id}/stats?day=${d}`, data.event.currentDay === d ? `Day ${d} · live` : `Day ${d}`, data.window.day === d),
         )}
       </nav>
-      <StatsDashboard data={data} />
+      <StatsDashboard data={data} viewerIds={mine} />
     </div>
   );
 }

@@ -359,7 +359,7 @@ function cell(m: MemberStats, key: SortKey): string {
   return m[key].toLocaleString();
 }
 
-function MembersTable({ data }: { data: EventStatsData }) {
+function MembersTable({ data, viewerIds }: { data: EventStatsData; viewerIds: number[] }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'xp', dir: -1 });
   const [team, setTeam] = useState<number | 'all'>('all');
   const sideById = useMemo(() => new Map(data.sides.map((s) => [s.teamId, s])), [data.sides]);
@@ -371,6 +371,7 @@ function MembersTable({ data }: { data: EventStatsData }) {
       return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir || a.name.localeCompare(b.name);
     });
   }, [data.members, team, sort]);
+  const mine = useMemo(() => new Set(viewerIds), [viewerIds]);
   const click = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: key === 'name' ? 1 : -1 }));
   const arrow = (key: SortKey) => (sort.key === key ? (sort.dir === -1 ? ' ▾' : ' ▴') : '');
 
@@ -408,21 +409,26 @@ function MembersTable({ data }: { data: EventStatsData }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((m, i) => {
-              const side = m.teamId != null ? sideById.get(m.teamId) : null;
-              return (
-                <tr key={m.id} className="border-b border-card-border/50 last:border-0 hover:bg-gold/5">
-                  <td className="px-3 py-1.5 text-text-muted tabular-nums">{i + 1}</td>
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    <span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: side?.color ?? 'transparent' }} aria-hidden />
-                    {m.name}
-                  </td>
-                  {COLUMNS.map((c) => (
-                    <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${sort.key === c.key ? 'text-gold font-semibold' : ''}`}>{cell(m, c.key)}</td>
-                  ))}
-                </tr>
-              );
-            })}
+            {/* The viewer's own row is pinned on top (with its real rank) as well as sitting in the list. */}
+            {[...rows.map((m, i) => ({ m, i, pinned: false })), ...rows.flatMap((m, i) => (mine.has(m.id) ? [{ m, i, pinned: true }] : []))]
+              .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.i - b.i)
+              .map(({ m, i, pinned }) => {
+                const side = m.teamId != null ? sideById.get(m.teamId) : null;
+                const you = mine.has(m.id);
+                return (
+                  <tr key={`${pinned ? 'pin' : 'row'}-${m.id}`} className={`border-b border-card-border/50 last:border-0 hover:bg-gold/5 ${you ? 'bg-gold/10' : ''}`}>
+                    <td className="px-3 py-1.5 text-text-muted tabular-nums">{i + 1}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      <span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: side?.color ?? 'transparent' }} aria-hidden />
+                      {m.name}
+                      {you && <span className="ml-2 text-xs font-semibold text-gold">(you)</span>}
+                    </td>
+                    {COLUMNS.map((c) => (
+                      <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${sort.key === c.key ? 'text-gold font-semibold' : ''}`}>{cell(m, c.key)}</td>
+                    ))}
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
@@ -550,7 +556,7 @@ function Feeds({ data }: { data: EventStatsData }) {
 
 // ── Page body ────────────────────────────────────────────────────────────────────────────────────
 
-export default function StatsDashboard({ data }: { data: EventStatsData }) {
+export default function StatsDashboard({ data, viewerIds = [] }: { data: EventStatsData; viewerIds?: number[] }) {
   const totals = data.sides.reduce(
     (t, s) => ({
       xp: t.xp + (s.counters?.xp ?? 0),
@@ -627,7 +633,7 @@ export default function StatsDashboard({ data }: { data: EventStatsData }) {
 
       <section>
         <SectionTitle aside={<span className="text-xs text-text-muted">Deaths, loot & play time need the plugin</span>}>Players</SectionTitle>
-        <MembersTable data={data} />
+        <MembersTable data={data} viewerIds={viewerIds} />
       </section>
 
       <Feeds data={data} />
