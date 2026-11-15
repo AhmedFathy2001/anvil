@@ -10,6 +10,7 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import type { CoHostedBoardLink } from '@/lib/coHost';
 import PostRulesButton from '@/components/PostRulesButton';
 import ClanLink from '@/components/ClanLink';
+import { eventPace } from '@/lib/eventPace';
 import { useDialog } from '@/components/Confirm';
 import type {
   AttentionItem,
@@ -251,6 +252,11 @@ export default function EventsClient({
                       item.teamCount
                     } team${item.teamCount === 1 ? '' : 's'}`}
                     endDate={item.endDate}
+                    pace={paceOf(
+                      item,
+                      summaries[item.id]?.tilesCleared ?? 0,
+                      summaries[item.id]?.tilesTotal || eventTileCount(item.format, item.scoringMode, item.boardSize),
+                    )}
                   />
                 ) : item.kind === 'clan' ? (
                   <AlsoRunningRow
@@ -383,6 +389,8 @@ function RunningEventHero({
   const cleared = summary?.tilesCleared ?? 0;
   const pct = tilesTotal > 0 ? Math.min(100, Math.round((cleared / tilesTotal) * 100)) : 0;
   const elapsed = timeProgress(event.startDate, event.endDate);
+  // The two journeys below, compared: null (no label) without an end date or without tiles.
+  const pace = paceOf(event, cleared, tilesTotal);
 
   return (
     <div className="border border-gold/30 rounded-xl bg-card-bg overflow-hidden grid lg:grid-cols-[1.35fr_1fr]">
@@ -418,6 +426,14 @@ function RunningEventHero({
               </>
             )}
           </span>
+          {pace && (
+            <span
+              title={pace.title}
+              className={`ml-auto text-xs font-semibold ${pace.label === 'behind pace' ? 'text-amber-300' : pace.label === 'ahead' ? 'text-accent-green-light' : 'text-text-muted'}`}
+            >
+              {pace.label}
+            </span>
+          )}
         </div>
         {/* Two different journeys, stacked: how much of the WINDOW has gone (gold) against how much
             of the BOARD is done (green). A board 20% cleared on day 12 is the thing you want to see. */}
@@ -600,11 +616,14 @@ function AlsoRunningRow({
   title,
   detail,
   endDate,
+  pace,
 }: {
   href: string;
   title: string;
   detail: string;
   endDate: string | null;
+  /** A running board's pace against its clock (lib/eventPace); absent for a week or a clan event. */
+  pace?: ReturnType<typeof eventPace>;
 }) {
   return (
     <ClanLink
@@ -614,8 +633,16 @@ function AlsoRunningRow({
       <span className="w-1.5 h-1.5 rounded-full bg-accent-green flex-shrink-0" />
       <span className="text-sm font-medium truncate">{title}</span>
       <span className="text-xs text-text-muted truncate hidden sm:block">{detail}</span>
+      {pace && (
+        <span
+          title={pace.title}
+          className={`ml-auto text-xs font-semibold flex-shrink-0 ${pace.label === 'behind pace' ? 'text-amber-300' : pace.label === 'ahead' ? 'text-accent-green-light' : 'text-text-muted'}`}
+        >
+          {pace.label}
+        </span>
+      )}
       {endDate && (
-        <span className="text-xs text-text-muted ml-auto flex-shrink-0">{timeProgress(null, endDate).remainingLabel} left</span>
+        <span className={`text-xs text-text-muted flex-shrink-0 ${pace ? '' : 'ml-auto'}`}>{timeProgress(null, endDate).remainingLabel} left</span>
       )}
     </ClanLink>
   );
@@ -1158,6 +1185,17 @@ function BackfillFacts() {
 /* -------------------------------------------------------------------------------------------- */
 /* Time                                                                                          */
 /* -------------------------------------------------------------------------------------------- */
+
+/** The running board's pace (lib/eventPace) against the clock now. */
+function paceOf(event: { startDate: string | null; endDate: string | null }, cleared: number, total: number) {
+  return eventPace({
+    start: event.startDate ? Date.parse(event.startDate) : null,
+    end: event.endDate ? Date.parse(event.endDate) : null,
+    now: Date.now(),
+    cleared,
+    total,
+  });
+}
 
 /**
  * How far through its window an event is.

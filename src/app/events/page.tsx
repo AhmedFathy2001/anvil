@@ -27,6 +27,7 @@ import { boardRow, countRows, rowWhen, sectionRows, weeklyRow } from '@/lib/comp
 import { runningParts } from '@/lib/runningCount';
 import { parseStamp } from '@/lib/dbTime';
 import { viewerEventEntries, type ViewerEventEntry } from '@/lib/viewerEvents';
+import { viewerWeeklyStandings } from '@/lib/viewerWeeklyStandings';
 import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
@@ -150,11 +151,18 @@ export default async function EventsIndexPage({
         view.upcoming.boards.map((b) => b.id),
       )
     : new Map<number, ViewerEventEntry>();
+  // Where they stand in each week they are in: two queries for all of them, none when they are in
+  // none (lib/viewerWeeklyStandings). A clan-vs-clan week this page already found unreadable stays dark.
+  const weekStandings = await viewerWeeklyStandings(
+    { playerId: session?.playerId ?? null },
+    myEntries.map(({ w }) => w.id),
+    { readable: new Set([...view.live.weeks, ...view.upcoming.weeks].filter((w) => w.readable !== false).map((w) => w.id)) },
+  );
   const now = new Date().getTime();
   const sections = sectionRows(
     [
       ...listedBoards.map((b) => boardRow(b, myBoards.get(b.id))),
-      ...[...view.live.weeks, ...view.upcoming.weeks].map(weeklyRow),
+      ...[...view.live.weeks, ...view.upcoming.weeks].map((w) => weeklyRow(w, weekStandings.get(w.id))),
     ],
     new Set([...optedOutByKey.keys(), ...[...myBoards.keys()].map((id) => `e${id}`)]),
   );

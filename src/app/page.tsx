@@ -28,6 +28,7 @@ import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerEventEntries, type ViewerEventEntry } from '@/lib/viewerEvents';
+import { viewerWeeklyStandings } from '@/lib/viewerWeeklyStandings';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { clanHallView, hallConfig } from '@/lib/clanHall';
 import ClanHall from '@/components/ClanHall';
@@ -333,6 +334,11 @@ export default async function HomePage() {
         openEvents.filter((e) => e.status === 'upcoming').map((e) => e.id),
       )
     : new Map<number, ViewerEventEntry>();
+  // Where they stand in the weeks they are in (two queries, none when they are in none).
+  const myWeeks = await viewerWeeklyStandings(
+    { playerId: session?.playerId ?? null },
+    session ? view.weeklies.filter((w) => w.mine && w.status !== 'completed').map((w) => w.id) : [],
+  );
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
   // The "Getting started" guide strip, until a first proof of theirs has landed.
@@ -346,7 +352,7 @@ export default async function HomePage() {
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
-      <Competitions view={view} now={new Date().getTime()} myBoards={myBoards} />
+      <Competitions view={view} now={new Date().getTime()} myBoards={myBoards} myWeeks={myWeeks} />
       <ClanWeek view={view} />
       {boost && (
         <ClanBoostPanel

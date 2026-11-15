@@ -3,7 +3,7 @@ import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
 import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
-import { boardRow, countRows, rowWhen, sectionRows, weeklyRow, type BoardViewer } from '@/lib/competitionRows';
+import { boardRow, countRows, rowWhen, sectionRows, weeklyRow, type BoardViewer, type WeeklyViewer } from '@/lib/competitionRows';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
@@ -584,9 +584,12 @@ export function Competitions({
   view,
   now,
   myBoards,
+  myWeeks,
 }: {
   view: HomeView;
   now: number;
+  /** Where the viewer stands in the weeks they are in (lib/viewerWeeklyStandings), by week id. */
+  myWeeks?: ReadonlyMap<number, WeeklyViewer>;
   /** The viewer's part in the listed board events (lib/viewerEvents), by event id. */
   myBoards?: ReadonlyMap<number, BoardViewer>;
 }) {
@@ -627,7 +630,7 @@ export function Competitions({
           entrants: w.entrants,
           unit: unitFor(w),
           top: w.top,
-        }),
+        }, myWeeks?.get(w.id)),
       ),
     ],
     mineKeys,

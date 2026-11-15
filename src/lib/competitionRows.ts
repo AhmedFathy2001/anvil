@@ -12,6 +12,7 @@
 //
 // Pure (no `@/` imports), so tests/competition-rows.test.ts runs without a database.
 
+import { ordinal } from './competitionTeams.ts';
 import { parseStamp } from './dbTime.ts';
 import { START_WAITING_WORDS } from './eventStage.ts';
 
@@ -32,10 +33,14 @@ export interface CompetitionRowSummary {
   leader: { label: 'Leading' | 'Won by'; name: string; figure: string; color: string | null } | null;
   /** Said in the leader's place when there is none. Null = say nothing (it has not started). */
   noLeader: string | null;
-  /** The viewer's own part in it: 'Your team: Red Dragons'. Null when they are not in it, or for a
-      week (its "You're in" is the row's own control). Never a place: the list has one standing per
-      board, the leader, and a board that hides its standings hands over none. */
+  /** The viewer's own part in it: 'Your team: Red Dragons · 2nd of 4', or a team or clan week's
+      'Your clan: Iron Forge · leading'. Null when they are not in it or there is no side to name.
+      A place only when the loader gave one (board: eventCards ranking; week: viewerWeeklyStandings),
+      so a board or week that hides its standings from this viewer hands over none. */
   yours: string | null;
+  /** A week's place for the viewer, in the unit the row uses: 'You: #6 of 24 · 5 KC behind #5'. Null
+      for a board, and for a week they have not scored in. */
+  standing: string | null;
   startDate: string | null;
   endDate: string | null;
   /** The start time came but the event is waiting on teams (lib/eventStage startIsHeld). */
@@ -56,6 +61,63 @@ export function weeklyValueText(unit: string, value: number): string {
   if (unit === 'h') return `${(value / 1000).toFixed(1)}h`;
   if (unit === 'KC') return `${whole(value)} KC`;
   return `${short(value)} XP`;
+}
+
+/** 'leading' for a clear first, else the place and the field: '2nd of 3' (a tie shares its place). */
+export function placeWords(rank: number, of: number, clearLead: boolean): string {
+  if (rank === 1 && clearLead) return 'leading';
+  return `${ordinal(rank)} of ${of}`;
+}
+
+/** A team or clan standing for a row, as the loaders hand it over. */
+export interface SideStanding {
+  kind: 'team' | 'clan';
+  name: string;
+  rank: number;
+  of: number;
+  /** The side has scored, so a place means something. */
+  scored: boolean;
+  /** First, and ahead of the side in second (or alone). */
+  clearLead: boolean;
+}
+
+/** 'Your team: Grim Kebab · 2nd of 3' / 'Your clan: Iron Forge · leading'; the name alone before it scores. */
+export function sideWords(s: SideStanding): string {
+  const head = `Your ${s.kind}: ${s.name}`;
+  return s.scored ? `${head} · ${placeWords(s.rank, s.of, s.clearLead)}` : head;
+}
+
+/** The viewer's own place on a week (lib/weeklyPlace viewerPlace), without the names. */
+export interface PersonStanding {
+  rank: number;
+  total: number;
+  /** The viewer has a score above zero. */
+  scored: boolean;
+  /** How far behind the place above; null at the top. */
+  behind: number | null;
+  /** How far ahead of second place; null when not first or alone. */
+  lead: number | null;
+}
+
+/**
+ * 'You: #6 of 24 · 5 KC behind #5', 'You’re leading by 12 KC', 'You: #6 of 24' when there is no gap
+ * to say (tied with the place above), and nothing before they have scored: the row's "You’re in"
+ * says the rest.
+ */
+export function personStandingWords(unit: string, p: PersonStanding): string | null {
+  if (!p.scored) return null;
+  if (p.rank === 1) {
+    if (p.lead == null) return 'You’re leading';
+    return p.lead > 0 ? `You’re leading by ${weeklyValueText(unit, p.lead)}` : `You: #1 of ${p.total}`;
+  }
+  const head = `You: #${p.rank} of ${p.total}`;
+  return p.behind != null && p.behind > 0 ? `${head} · ${weeklyValueText(unit, p.behind)} behind #${p.rank - 1}` : head;
+}
+
+/** What the viewer stands on in one week (lib/viewerWeeklyStandings). */
+export interface WeeklyViewer {
+  person: PersonStanding | null;
+  side: SideStanding | null;
 }
 
 export interface WeeklyRowInput {
@@ -85,7 +147,7 @@ function noLeaderWords(state: RowState): string | null {
   return state === 'live' ? 'Nobody has scored yet' : state === 'past' ? 'No winner' : null;
 }
 
-export function weeklyRow(w: WeeklyRowInput): CompetitionRowSummary {
+export function weeklyRow(w: WeeklyRowInput, viewer?: WeeklyViewer | null): CompetitionRowSummary {
   const meta = [measured(w.metricLabel, w.unit), `${w.entrants} entered`];
   // Who it is against, once: the host's name is all the list knows about the other side.
   if (w.hostName) meta.push(`Clan vs clan, ${w.hostName} hosts`);
@@ -108,7 +170,8 @@ export function weeklyRow(w: WeeklyRowInput): CompetitionRowSummary {
         }
       : null,
     noLeader: w.top ? null : noLeaderWords(w.state),
-    yours: null,
+    yours: viewer?.side ? sideWords(viewer.side) : null,
+    standing: viewer?.person ? personStandingWords(w.unit, viewer.person) : null,
     startDate: w.startDate,
     endDate: w.endDate,
     startHeld: false,
@@ -130,19 +193,44 @@ export interface BoardRowInput {
   endDate: string | null;
   mode: string;
   iconUrl: string | null;
+  /** Team scores for the place line; absent = no place (hidden standings, a race, a ladder). */
+  ranking?: BoardRanking | null;
 }
 
 /** The viewer's part in a board event (lib/viewerEvents). */
 export interface BoardViewer {
   teamNames: string[];
   signedUp: boolean;
+  /** The same teams by id, to find them in the board's ranking (lib/viewerEvents). */
+  teamIds?: number[];
 }
 
-function yoursWords(v: BoardViewer, individuals: boolean): string | null {
+/** A board's team scores, best first, as lib/eventCards ranks them. Empty when there is no place to give. */
+export interface BoardRanking {
+  teams: number;
+  scores: { teamId: number; value: number }[];
+}
+
+/**
+ * The viewer's team's place on a board: 'leading', '2nd of 4'. Only for ONE team of theirs that has
+ * scored (several teams or none say no single place); ties share a place, as the standings do.
+ */
+export function boardPlaceWords(v: BoardViewer, ranking: BoardRanking | null | undefined): string | null {
+  if (!ranking || ranking.scores.length === 0 || v.teamIds?.length !== 1) return null;
+  const mine = ranking.scores.find((s) => s.teamId === v.teamIds![0]);
+  if (!mine || mine.value <= 0) return null;
+  const ahead = ranking.scores.filter((s) => s.value > mine.value).length;
+  const tied = ranking.scores.filter((s) => s.value === mine.value).length;
+  return placeWords(ahead + 1, Math.max(ranking.teams, ranking.scores.length), ahead === 0 && tied === 1 && ranking.teams > 1);
+}
+
+function yoursWords(v: BoardViewer, individuals: boolean, ranking?: BoardRanking | null): string | null {
   if (v.teamNames.length > 0) {
+    const place = boardPlaceWords(v, ranking);
+    const tail = place ? ` · ${place}` : '';
     // A players board gives everyone a team of one, named after them.
-    if (individuals) return `Playing as ${v.teamNames.join(', ')}`;
-    return `${v.teamNames.length === 1 ? 'Your team' : 'Your teams'}: ${v.teamNames.join(', ')}`;
+    if (individuals) return `Playing as ${v.teamNames.join(', ')}${tail}`;
+    return `${v.teamNames.length === 1 ? 'Your team' : 'Your teams'}: ${v.teamNames.join(', ')}${tail}`;
   }
   return v.signedUp ? 'You are signed up' : null;
 }
@@ -171,7 +259,8 @@ export function boardRow(b: BoardRowInput, viewer?: BoardViewer | null): Competi
         }
       : null,
     noLeader: b.top ? null : noLeaderWords(b.status),
-    yours: viewer ? yoursWords(viewer, /^\d+ player/.test(b.chips[0] ?? '')) : null,
+    yours: viewer ? yoursWords(viewer, /^\d+ player/.test(b.chips[0] ?? ''), b.ranking) : null,
+    standing: null,
     startDate: b.startDate,
     endDate: b.endDate,
     startHeld: b.status === 'upcoming' && b.foot === START_WAITING_WORDS,
@@ -212,6 +301,7 @@ export function recordRow(i: RecordRowInput, viewer?: BoardViewer | null): Compe
     // A finished board the viewer played in names their team; a sign-up that never became a team is
     // not worth a line once it is over.
     yours: viewer && i.group === 'boards' ? yoursWords({ teamNames: viewer.teamNames, signedUp: false }, i.entrantLabel === 'players') : null,
+    standing: null,
     startDate: i.startDate,
     endDate: i.endDate,
     startHeld: false,

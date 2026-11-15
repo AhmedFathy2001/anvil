@@ -114,12 +114,14 @@ export default function CompetitionRow({
         ) : (
           dates && <p className="mt-0.5 text-text-muted">{dates}</p>
         )}
-        {/* The viewer's own part, in the same place on every row: a week's "You're in · Opt out",
-            or a board's team by name where the row knows it. */}
+        {/* The viewer's own part, in the same place on every row: their team, clan or place where the
+            row knows it, then a week's "You're in · Opt out" (or just "You're in"). */}
+        {row.yours && <p className="mt-0.5 font-semibold text-accent-green-light">{row.yours}</p>}
+        {row.standing && <p className="mt-0.5 font-semibold text-accent-green-light">{row.standing}</p>}
         {aside ? (
           <div className="relative z-10 mt-0.5 sm:flex sm:justify-end">{aside}</div>
         ) : (
-          (row.yours || mine) && <p className="mt-0.5 font-semibold text-accent-green-light">{row.yours ?? 'You’re in'}</p>
+          !row.yours && !row.standing && mine && <p className="mt-0.5 font-semibold text-accent-green-light">You’re in</p>
         )}
       </div>
     </div>

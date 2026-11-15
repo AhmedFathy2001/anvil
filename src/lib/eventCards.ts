@@ -47,6 +47,11 @@ export interface EventCard {
       event. Only a hint: the card still links to this clan's own `/events/<id>`, which serves a
       co-host's members the board (lib/eventScope `requireEventForParticipantPage`). */
   hostSlug: string | null;
+  /** Every scoring team's figure, best first, for the viewer's "2nd of 4" (lib/competitionRows). The
+      card's own scoring, from the same read as `top`, so it costs no query. Empty when no place can
+      be given: standings hidden, not started, a tile race (ordered by route, not score) or a ladder
+      (ranked by stats). `teams` is the whole field, scoring or not. */
+  ranking: { teams: number; scores: { teamId: number; value: number }[] };
   /** The card's picture: the event's own icon, else its HOST clan's logo; null = the crest. */
   iconUrl: string | null;
 }
@@ -288,6 +293,20 @@ export async function loadEventCards(
     // reads as theirs-to-play but not theirs-to-run.
     if (cardHostSlug) chips.push(`co-hosted · ${cardHostSlug}`);
 
+    // The place the viewer's team holds, from the very figures `top` is picked from. Only a plain
+    // scored board: a race is ordered by route and a ladder by stats, neither by these figures.
+    const rankable = scoreable && event.format !== 'tilerace' && event.format !== 'ladder';
+    const ranking: EventCard['ranking'] = {
+      teams: teamCount,
+      scores: rankable
+        ? [...(teamScores.get(event.id) ?? [])]
+            .filter(([teamId]) => teamById.get(teamId)?.eventId === event.id)
+            .map(([teamId, score]) => ({ teamId, value: points ? score.points : score.tiles }))
+            .filter((r) => r.value > 0)
+            .sort((a, b) => b.value - a.value || a.teamId - b.teamId)
+        : [],
+    };
+
     return {
       id: event.id,
       name: event.name,
@@ -303,6 +322,7 @@ export async function loadEventCards(
       // Only set when this clan is a co-host (the event's own clan is someone else). Drives a
       // "co-hosted" hint on the card.
       hostSlug: cardHostSlug,
+      ranking,
       iconUrl: eventIconUrl(event, { logoUrl: hostLogoByEvent.has(event.id) ? hostLogoByEvent.get(event.id) : ownClan?.logoUrl }),
       foot:
         status === 'upcoming'
