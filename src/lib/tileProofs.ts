@@ -9,6 +9,7 @@ import { parseStamp } from '@/lib/dbTime';
 import { eventEditLocked, type LockableEvent } from '@/lib/eventLock';
 import { canDeleteProof, isProofModerator, proofDeleterRole, type HostGrant, type ProofDeleteCheck } from '@/lib/proofAccess';
 import { isManagedMediaUrl } from '@/lib/storage';
+import { modeTag } from '@/lib/worldModes';
 import { removeSubmission } from '@/lib/submissionRemoval';
 import { teamManagerIds } from '@/lib/teamStaff';
 
@@ -36,6 +37,8 @@ export interface TileProof {
   /** ISO. */
   at: string;
   amount: number;
+  /** The game mode it was earned on ("Hardcore"); null = the main game. */
+  mode: string | null;
   imageUrl: string | null;
   canDelete: boolean;
 }
@@ -118,6 +121,7 @@ export async function listTileProofs(
       credit: r.creditPlayerId != null && r.creditPlayerId !== r.playerId ? name.get(r.creditPlayerId) ?? null : null,
       at: new Date(parseStamp(r.createdAt) ?? Date.now()).toISOString(),
       amount: r.amount,
+      mode: modeTag(r.worldMode),
       imageUrl: r.imageUrl && isManagedMediaUrl(r.imageUrl) ? r.imageUrl : null,
       canDelete:
         !locked &&

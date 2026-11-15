@@ -30,7 +30,7 @@ import {
 import { eventHasStarted } from '@/lib/completionGate';
 import { isEventOver } from '@/lib/eventLock';
 import { isDraftInProgress } from '@/lib/eventReadiness';
-import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
+import { boardCountsWorld, isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { startProofGate, NO_START_PROOF_FLAG } from '@/lib/startProof';
 import { parseStamp } from '@/lib/dbTime';
 import { countProgress, isPrimaryCredit } from '@/lib/countProgress';
@@ -82,8 +82,10 @@ export async function clogOwnedBefore(accountId: number | null, event: Pick<Even
 export async function clogPagesProgress(tile: TileRow, teamId: number): Promise<ClogPagesProgress> {
   const spec = clogTileSpec(tile);
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope.
-  const event = await db.query.events.findFirst({ where: eq(events.id, tile.eventId), columns: { startDate: true } });
+  const event = await db.query.events.findFirst({ where: eq(events.id, tile.eventId), columns: { startDate: true, rules: true } });
   const startMs = parseStamp(event?.startDate ?? null) ?? Date.now();
+  // The stored log is the main game's. On a mode-only board (rules.mainGameOff) it is nobody's page.
+  const mainOff = parseEventRules(event?.rules).mainGameOff;
   const roster = await db
     .select({ id: eventParticipants.id, accountId: eventParticipants.accountId })
     .from(eventParticipants)
@@ -92,7 +94,7 @@ export async function clogPagesProgress(tile: TileRow, teamId: number): Promise<
   const members: ClogMemberLog[] = [];
   for (const p of roster) {
     const mine = credited.get(p.id) ?? new Set<number>();
-    const log = p.accountId != null ? await memberClogLog(p.accountId) : { synced: false, rows: [] };
+    const log = p.accountId != null && !mainOff ? await memberClogLog(p.accountId) : { synced: false, rows: [] };
     members.push({
       playerId: p.id,
       synced: log.synced,
@@ -118,7 +120,7 @@ async function liveClogTiles(accountId: number, mode?: string): Promise<{ event:
   // clan-scope: global -- an account's own seats, across every clan it plays in: an unlock is the account's.
   const live = (await db.select().from(events).where(inArray(events.id, eventIds)))
     .filter((e) => eventHasStarted(e) && !isEventOver(e) && !!e.tilesRevealed && !isDraftInProgress(e.draftStatus))
-    .filter((e) => !mode || parseEventRules(e.rules).worldModes.includes(mode));
+    .filter((e) => boardCountsWorld(parseEventRules(e.rules), mode));
   if (live.length === 0) return [];
   const clogTiles = await db
     .select()

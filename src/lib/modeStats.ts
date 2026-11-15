@@ -350,13 +350,15 @@ export function statGainWithModes(
   keys: string[],
   statType: string,
   modeStatsJson: string | null | undefined,
-  counted: readonly string[],
+  counted: CountedModes,
 ): number {
   const modes = counted.length > 0 ? parseModeStats(modeStatsJson) : {};
-  if (!counted.some((m) => modes[m])) return computeGainFromJson(baselineJson, currentJson, liveMap, keys, statType);
+  // A mode-only board (rules.mainGameOff): the main game's numbers are not this board's at all.
+  const mainOff = counted.mainOff === true;
+  if (!counted.some((m) => modes[m])) return mainOff ? 0 : computeGainFromJson(baselineJson, currentJson, liveMap, keys, statType);
   let total = 0;
   for (const key of keys) {
-    const main = computeGainFromJson(baselineJson, currentJson, liveMap, [key], statType);
+    const main = mainOff ? 0 : computeGainFromJson(baselineJson, currentJson, liveMap, [key], statType);
     total += Math.max(main, bestModeGain(modes, counted, key, statType));
   }
   return total;
@@ -371,11 +373,13 @@ export function statGainWithModes(
 export function milestoneWithModes(
   main: MilestoneState,
   modeStatsJson: string | null | undefined,
-  counted: readonly string[],
+  counted: CountedModes,
   keys: string[],
   statType: string,
   goal: number,
 ): MilestoneState {
+  // A mode-only board: the main game's lifetime total neither reaches the goal nor rules it out.
+  if (counted.mainOff) main = { lifetime: 0, eligible: true, reached: false };
   if (main.reached || counted.length === 0) return main;
   const modes = parseModeStats(modeStatsJson);
   for (const mode of counted) {
@@ -565,7 +569,14 @@ export function modeReadingIssues(
   return out;
 }
 
+/**
+ * The modes a board counts. `mainOff` rides on the list (rules.mainGameOff): a mode-only board, where
+ * the main game's own numbers count for nothing. Pass the list on whole — a copy drops the flag.
+ */
+export type CountedModes = readonly string[] & { readonly mainOff?: boolean };
+
 /** The modes a board counts, from its parsed rules (empty = main game only). */
-export function countedModes(rules: { worldModes?: readonly string[] } | null | undefined): string[] {
-  return Array.isArray(rules?.worldModes) ? [...rules.worldModes] : [];
+export function countedModes(rules: { worldModes?: readonly string[]; mainGameOff?: boolean } | null | undefined): CountedModes {
+  const modes: string[] = Array.isArray(rules?.worldModes) ? [...rules.worldModes] : [];
+  return modes.length > 0 && rules?.mainGameOff === true ? Object.assign(modes, { mainOff: true }) : modes;
 }

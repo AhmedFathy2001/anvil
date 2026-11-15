@@ -1290,6 +1290,9 @@ export const submissions = pgTable('submissions', {
   // NULL on rows from before this existed. A token proves WHO sent it, never what software — the
   // plugin is public, so this is a label, not a guarantee.
   source: text('source'),
+  // The game mode it was earned on (lib/worldModes key: 'hardcore', 'leagues', …), on a board that
+  // counts that mode. NULL = the main game, a web upload, or a row from before this existed.
+  worldMode: text('world_mode'),
   // A plugin proof that arrived CLEAN: the site baked the banner itself and `imageUrl` is that
   // stamped copy; this is the untouched frame, for "Hide stamp". NULL when the plugin baked its own.
   cleanImageUrl: text('clean_image_url'),

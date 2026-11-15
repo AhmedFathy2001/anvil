@@ -965,6 +965,8 @@ interface SubmissionNotifyParams {
   eventId?: number | null;
   // The tile row, for its icon (the thumbnail). Optional — no icon, no thumbnail.
   tile?: LinkedTile | null;
+  /** The game mode it was earned on ("Hardcore"), on a board that counts modes; absent = the main game. */
+  worldMode?: string | null;
   /** The submission this post is about, so it can be found again (lib/discordPosts). */
   submissionIds?: number[];
 }
@@ -1021,6 +1023,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     fields.push(statField('Progress', `+${amount} · ${currentTotal}/${requiredAmount}`));
   }
 
+  if (params.worldMode) fields.push(statField('World', params.worldMode));
   if (note) {
     fields.push(field('Note', pluginNote(note, eventId != null ? tileBoardUrl(eventId, tile) : null), false));
   }
@@ -1072,6 +1075,8 @@ interface MergedSubmissionParams {
   milestonePct?: number | null;
   eventId?: number | null;
   tile?: LinkedTile | null;
+  /** The game mode every credit in this post was earned on ("Hardcore"); absent = the main game or a mix. */
+  worldMode?: string | null;
   /** The submissions merged into this post, so it can be found again (lib/discordPosts). */
   submissionIds?: number[];
 }
@@ -1094,6 +1099,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
     ),
   );
 
+  if (params.worldMode) fields.push(statField('World', params.worldMode));
   if (note) {
     fields.push(field('Note', pluginNote(note, eventId != null ? tileBoardUrl(eventId, tile) : null), false));
   }

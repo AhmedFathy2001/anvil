@@ -206,6 +206,8 @@ export interface Submission {
   flaggedReason?: string | null;
   /** 'plugin' | 'web'; null on rows from before provenance was recorded (lib/proofStamp). */
   source?: string | null;
+  /** The game mode it was earned on (lib/worldModes key); null = the main game. */
+  worldMode?: string | null;
   /** The frame under a site-drawn stamp, for "Hide stamp". */
   cleanImageUrl?: string | null;
   /** Hiscores footprint verdict (lib/footprint): 'ok' | 'short' | 'dismissed', null = not checked. */
