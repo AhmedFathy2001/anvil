@@ -826,25 +826,25 @@ export const en = {
         'If the browser doesn’t open on its own, the panel prints the address and the code so you can open it manually. Codes expire after ten minutes — just press the button again.',
       manualHeading: 'Fallback: paste your token by hand',
       manualIntro:
-        'If signing in from the plugin won’t work for you, copy your token below (or from [Profile → plugin token](/profile#plugin-token), where you can also rotate it), then click **Paste a token instead** under the sign-in button in the Anvil panel and paste it there.',
+        'If signing in from the plugin won’t work for you, make a token under [Settings → Plugin](/settings/plugin) (it is shown once, and you can revoke every token there), then click **Paste a token instead** under the sign-in button in the Anvil panel and paste it there.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
-        alt: 'The RuneLite plugin card on the profile page, with the token field and the Reveal, Copy and Rotate buttons boxed',
+        alt: 'The RuneLite plugin card on the profile page, with the token field and the Copy and Revoke buttons boxed',
         legend: [
           {
             label: 'Your token',
-            body: 'hidden until you press Reveal. It’s blanked out in this screenshot on purpose; never post yours in Discord.',
+            body: 'shown once, when you make it. It’s blanked out in this screenshot on purpose. It signs in as you, so treat it like a password and never post it in Discord.',
           },
           {
-            label: 'Copy / Rotate',
-            body: 'copy it, then use **Paste a token instead** in the Anvil panel. Rotate issues a new one and kills the old — use it if you ever think your token leaked.',
+            label: 'Copy / Revoke all',
+            body: 'copy it, then use **Paste a token instead** in the Anvil panel. Making another token does not cancel the old ones; **Revoke all** does, so press it if you ever think a token leaked.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Use the sidebar day to day',
         body: [
-          'The **Anvil sidebar is your main workspace**: sign in and out there, see your clans and live events, browse and claim tiles, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences — there’s no token in it. To sign this computer out, open the **⋯** menu next to your name at the top of the panel. One sign-in covers every event you’re signed up for — you never redo it per bingo.',
+          'The **Anvil sidebar is your main workspace**: sign in and out there, see your clans and live events, browse and claim tiles, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences — there’s no token in it. To sign this computer out, open the **⋯** menu next to your name at the top of the panel. If a token may have leaked, that is not enough: use **Revoke all** under Settings → Plugin. One sign-in covers every event you’re signed up for — you never redo it per bingo.',
         ],
       },
     },

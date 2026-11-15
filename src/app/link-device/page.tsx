@@ -38,6 +38,10 @@ export default async function LinkDevicePage({
           If someone sent you this link or a code, deny it — approving would give <em>their</em>{' '}
           client access to your account.
         </p>
+        <p className="text-xs text-text-muted">
+          Approving gives that client its own sign-in to Anvil. It does not get your Discord password.
+          You can end it any time in Settings, under Account, Plugin sign-ins.
+        </p>
         <LinkDeviceClient initialCode={code ?? ''} />
       </div>
     </main>
