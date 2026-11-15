@@ -473,7 +473,7 @@ export default function MyTeamClient({
       <p className="text-text-muted text-sm mb-2">
         {event.name}
         {/* A finished event takes nothing more: no marking, no proof (the server refuses both). */}
-        {!boardHidden && (finished ? ' · Tap a tile to see how it went' : isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
+        {!boardHidden && (finished ? ' · The event has ended. Tap a tile to see how it went' : isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
         {/* "Where did my screenshot go?" — the member panel already lists a player's own proof; this
             opens it on them without having to know you can click your own name in the roster. */}
         {!boardHidden && myPlayerId != null && (
@@ -736,6 +736,8 @@ export default function MyTeamClient({
           statProgress={gains[selectedTile.id]}
           pointsMode={pointsMode}
           extra={
+            // Planning is for a board still in play: on a finished one only who did the tile is shown.
+            finished && selectedTileCompletedBy.length === 0 ? undefined :
             <TileClaimSection
               claims={claims}
               tileId={selectedTile.id}
