@@ -58,7 +58,8 @@ export default function ClanLink({ href, children, ...rest }: ComponentProps<typ
   // page load exactly when the whole page is changing anyway. Everything WITHIN a clan stays a soft
   // navigation, which is nearly all of the clicking anyone does.
   if (typeof resolved === 'string' && clanOf(resolved) !== clanOf(prefix)) {
-    const { href: _drop, ...anchor } = rest as Record<string, unknown>;
+    // `prefetch` and friends are next/link's own: on a plain <a> React warns about them.
+    const { href: _drop, prefetch: _prefetch, replace: _replace, scroll: _scroll, ...anchor } = rest as Record<string, unknown>;
     // A hard navigation gets the browser's own loading indicator, so it needs none of ours.
     return (
       <a href={resolved} {...(anchor as ComponentProps<'a'>)}>
