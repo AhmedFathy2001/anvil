@@ -19,6 +19,7 @@
 
 import { atLeast } from '@/lib/clanRoles';
 import { parseStamp } from '@/lib/dbTime';
+import { START_WAITING_WORDS, startIsHeld } from '@/lib/eventStage';
 import { gatesApply, gatesSummary, parseGates } from '@/lib/entryGates';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { featuredListing } from '@/lib/creatorPlans';
@@ -193,7 +194,7 @@ export function toDirectoryEvent(row: DirectoryRow, now: number = Date.now()): D
     startMs,
     endMs,
     live,
-    startHeld: !live && row.startHoldNotified === 1 && !row.startNotified,
+    startHeld: startIsHeld(row, live),
     open,
     players: row.players,
     join,
@@ -329,7 +330,7 @@ export function spanWords(ms: number): string {
 }
 
 /** One wording for a start that is waiting on teams — the hero, the lists and the cards all say this. */
-export const START_WAITING_WORDS = 'Start is waiting on teams';
+export { START_WAITING_WORDS };
 
 /** What an undated streamed event says instead of a start time. */
 export const OPEN_NOW_WORDS = 'Open now · starts when the host starts it';
