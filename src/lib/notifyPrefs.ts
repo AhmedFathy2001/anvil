@@ -27,6 +27,17 @@ export const CA_TIERS = ['EASY', 'MEDIUM', 'HARD', 'ELITE', 'MASTER', 'GRANDMAST
 export const QUEST_TIERS = ['ALL', 'INTERMEDIATE', 'EXPERIENCED', 'MASTER', 'GRANDMASTER'] as const;
 export type CaTier = (typeof CA_TIERS)[number] | 'OFF';
 export type QuestTier = (typeof QUEST_TIERS)[number] | 'OFF';
+/** Achievement-diary tiers, easiest first. A diary post at or above the tier in force goes out. */
+export const DIARY_TIERS = ['EASY', 'MEDIUM', 'HARD', 'ELITE'] as const;
+export type DiaryTier = (typeof DIARY_TIERS)[number];
+/** Anvil's own tiers, for a person who chose none in a clan that set none. */
+export const PLATFORM_TIER_DEFAULTS: { ca: CaTier; quests: QuestTier; diaryTier: DiaryTier } = { ca: 'MASTER', quests: 'MASTER', diaryTier: 'EASY' };
+const tierOf = <T extends string>(v: unknown, all: readonly T[]): T | null =>
+  typeof v === 'string' && (all as readonly string[]).includes(v.trim().toUpperCase()) ? (v.trim().toUpperCase() as T) : null;
+/** A clan's stored default tier (settings text) → the tier, or null for "none set". */
+export const storedCaTier = (v: unknown): CaTier | null => tierOf(v, [...CA_TIERS, 'OFF'] as const);
+export const storedQuestTier = (v: unknown): QuestTier | null => tierOf(v, [...QUEST_TIERS, 'OFF'] as const);
+export const storedDiaryTier = (v: unknown): DiaryTier | null => tierOf(v, DIARY_TIERS);
 
 export interface NotifyPrefs {
   /** Rare drops to the clan drops channel. */
@@ -51,10 +62,12 @@ export interface NotifyPrefs {
   clog: boolean;
   levels: boolean;
   diaries: boolean;
-  /** Combat tasks at or above this tier (and tier clears); OFF posts none. */
-  ca: CaTier;
-  /** Quests at or above this difficulty; OFF posts none. */
-  quests: QuestTier;
+  /** Diary completions at or above this tier; null = the clan's default, else every tier. */
+  diaryTier: DiaryTier | null;
+  /** Combat tasks at or above this tier (and tier clears); OFF posts none. Null = the clan's default, else Anvil's. */
+  ca: CaTier | null;
+  /** Quests at or above this difficulty; OFF posts none. Null = the clan's default, else Anvil's. */
+  quests: QuestTier | null;
   /** Screenshot privacy: chat kinds blanked out of every screenshot the plugin takes (proofs and posts). */
   hide: ShotHide;
   /** The newer kinds, per-kind screenshots, chat patterns (lib/notifyKinds). Absent fields inherit. */
@@ -106,8 +119,9 @@ export const NOTIFY_DEFAULTS: NotifyPrefs = {
   clog: true,
   levels: true,
   diaries: true,
-  ca: 'MASTER',
-  quests: 'MASTER',
+  diaryTier: null,
+  ca: null,
+  quests: null,
   hide: SHOT_HIDE_DEFAULTS,
   announce: NO_PERSONAL_KINDS,
 };
@@ -122,8 +136,6 @@ const gp = (v: unknown, fallback: number) => {
 /** Absent / null / blank = inherit (null); anything else a clamped number. */
 const gpOrInherit = (v: unknown): number | null => (v == null || v === '' ? null : gp(v, 0));
 const bool = (v: unknown, fallback: boolean) => (v === true || v === 'true' ? true : v === false || v === 'false' ? false : fallback);
-const oneOf = <T extends string>(v: unknown, all: readonly T[], fallback: T): T =>
-  typeof v === 'string' && (all as readonly string[]).includes(v) ? (v as T) : fallback;
 
 /** Anything (a stored row, a PATCH body, nothing) → a complete, clamped NotifyPrefs. */
 export function normalizeNotifyPrefs(raw: unknown): NotifyPrefs {
@@ -143,8 +155,10 @@ export function normalizeNotifyPrefs(raw: unknown): NotifyPrefs {
     clog: bool(o.clog, d.clog),
     levels: bool(o.levels, d.levels),
     diaries: bool(o.diaries, d.diaries),
-    ca: oneOf(o.ca, [...CA_TIERS, 'OFF'] as const, d.ca),
-    quests: oneOf(o.quests, [...QUEST_TIERS, 'OFF'] as const, d.quests),
+    diaryTier: storedDiaryTier(o.diaryTier),
+    // Absent / null / junk = inherit the clan's default (lib/notifyPrefs tierGates).
+    ca: storedCaTier(o.ca),
+    quests: storedQuestTier(o.quests),
     hide: normalizeShotHide(o.hide),
     announce: normalizePersonalKinds(o.announce),
   };
@@ -188,8 +202,9 @@ export function prefsFromRuneLite(raw: Record<string, unknown>): NotifyPrefs {
     clog: raw.notifyClogSlots,
     levels: raw.notifyLevelUps,
     diaries: raw.notifyDiaries,
-    ca: raw.caMinTaskTier,
-    quests: raw.questAnnounce,
+    // The old default (Master) was never chosen: it inherits.
+    ca: raw.caMinTaskTier === PLATFORM_TIER_DEFAULTS.ca ? null : raw.caMinTaskTier,
+    quests: raw.questAnnounce === PLATFORM_TIER_DEFAULTS.quests ? null : raw.questAnnounce,
   });
 }
 
@@ -204,6 +219,36 @@ export interface ClanDropSettings {
   /** How its members' two thresholds combine by default; null = either ('or'). */
   mode: DropMode | null;
   hardFloor: number | null;
+  /** The clan's default tiers for its members' combat-task, quest and diary posts; absent/null = Anvil's. */
+  ca?: CaTier | null;
+  quests?: QuestTier | null;
+  diaryTier?: DiaryTier | null;
+}
+
+/** Loosest first, OFF last: a higher rank posts less. */
+const CA_RANK: readonly CaTier[] = [...CA_TIERS, 'OFF'];
+const QUEST_RANK: readonly QuestTier[] = [...QUEST_TIERS, 'OFF'];
+/** The stricter of a person's own tier and their clan's: a clan's tier is a floor its members can only tighten. */
+export const stricterTier = <T extends string>(rank: readonly T[], own: T, floor: T | null | undefined): T =>
+  floor != null && rank.indexOf(floor) > rank.indexOf(own) ? floor : own;
+
+/**
+ * The tiers in force for one character: the person's own choice, else its clan's default, else
+ * Anvil's. A tier the clan set is also a floor: a member's own choice may be stricter (or Off), never
+ * looser. A clan that set none leaves its members free, as before.
+ */
+export function tierGates(p: Pick<NotifyPrefs, 'ca' | 'quests' | 'diaryTier'>, clan: ClanDropSettings = NO_CLAN_DROPS): { ca: CaTier; quests: QuestTier; diaryTier: DiaryTier } {
+  return {
+    ca: stricterTier(CA_RANK, p.ca ?? clan.ca ?? PLATFORM_TIER_DEFAULTS.ca, clan.ca),
+    quests: stricterTier(QUEST_RANK, p.quests ?? clan.quests ?? PLATFORM_TIER_DEFAULTS.quests, clan.quests),
+    diaryTier: stricterTier(DIARY_TIERS, p.diaryTier ?? clan.diaryTier ?? PLATFORM_TIER_DEFAULTS.diaryTier, clan.diaryTier),
+  };
+}
+
+/** Does a diary completion of this tier ("Hard") post under the tier in force? An unknown tier posts. */
+export function diaryTierPasses(tier: unknown, min: DiaryTier): boolean {
+  const at = DIARY_TIERS.indexOf(String(tier ?? '').trim().toUpperCase() as DiaryTier);
+  return at < 0 || at >= DIARY_TIERS.indexOf(min);
 }
 export const NO_CLAN_DROPS: ClanDropSettings = { value: null, rarity: null, mode: null, hardFloor: null };
 
@@ -332,8 +377,9 @@ export function pluginMe(
   // site then judges each destination (lib/notifyDrops judgeDropFor).
   const each = [gates, ...hooks.map((h) => hookGates(gates, h))];
   const f = flags ?? {};
-  const caFrom = CA_TIERS.indexOf(prefs.ca as (typeof CA_TIERS)[number]);
-  const questFrom = QUEST_TIERS.indexOf(prefs.quests as (typeof QUEST_TIERS)[number]);
+  const tiers = tierGates(prefs, clan);
+  const caFrom = CA_TIERS.indexOf(tiers.ca as (typeof CA_TIERS)[number]);
+  const questFrom = QUEST_TIERS.indexOf(tiers.quests as (typeof QUEST_TIERS)[number]);
   return {
     // A personal drop webhook needs no clan channel (like pets): the plugin still sends, and the site
     // judges each destination, so a clan with no drop channel gets nothing and the hook gets its own.

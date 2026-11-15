@@ -8,7 +8,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import LevelRulesEditor from '@/components/LevelRulesEditor';
 import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings';
-import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, DROP_MINIMUMS, PLATFORM_DROP_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
+import { CA_TIERS, DIARY_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, DROP_MINIMUMS, PLATFORM_DROP_DEFAULTS, PLATFORM_TIER_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
 import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
 import { HOOK_KIND_LABELS } from '@/lib/webhookKinds';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
@@ -431,6 +431,16 @@ function maskUrl(url: string): string {
   return m ? `Discord webhook …${m[1].slice(-4)}` : 'Discord webhook';
 }
 
+/** "Elite" for 'ELITE'; "All" / "Off" as they are. */
+const tierWord = (t: string) => t.charAt(0) + t.slice(1).toLowerCase();
+const DIARY_OPTIONS = DIARY_TIERS.map((t) => ({ value: t as string, label: t === 'EASY' ? 'Every tier' : `${tierWord(t)} and up` }));
+/** The first option of a tier picker: follow the clan's default (or Anvil's), named. '' saves as null. */
+const follow = (word: string | undefined, fallback: string) => ({ value: '', label: `Clan default (${tierWord(word ?? fallback)})` });
+/** A picker's choices when the clan set that tier: the clan's own and stricter only (the list runs loosest first). */
+const fromFloor = <O extends { value: string }>(options: O[], floor: string | undefined, on: boolean | undefined): O[] => {
+  const at = on && floor ? options.findIndex((o) => o.value === floor) : -1;
+  return at > 0 ? options.slice(at) : options;
+};
 const CA_OPTIONS = [
   ...CA_TIERS.map((t) => ({ value: t, label: t.charAt(0) + t.slice(1).toLowerCase() })),
   { value: 'OFF', label: 'Off' },
@@ -706,21 +716,31 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
         {toggle('clog', 'Collection log slots', 'Post every new collection-log slot to the clan achievements channel.')}
         {toggle('levels', 'Level milestones', 'Post level milestones (your clan’s rules) to the clan and your own webhooks.')}
         {toggle('diaries', 'Diary completions')}
-        <PrefRow title="Combat task tier" hint="Post combat tasks at or above this tier, plus tier clears; Off posts none.">
+        <PrefRow title="Diary tier" hint="Post diary completions at or above this tier.">
           <Select
-            value={p.ca}
-            onChange={(v) => save({ ca: v as NotifyPrefs['ca'] })}
-            options={CA_OPTIONS}
+            value={p.diaryTier ?? ''}
+            onChange={(v) => save({ diaryTier: (v || null) as NotifyPrefs['diaryTier'] })}
+            options={[follow(view.dropDefaults[0]?.diaryTier === 'EASY' ? 'every tier' : view.dropDefaults[0]?.diaryTier, 'every tier'), ...fromFloor(DIARY_OPTIONS, view.dropDefaults[0]?.diaryTier, view.dropDefaults[0]?.floors.diaryTier)]}
+            disabled={busy || !p.diaries}
+            ariaLabel="Diary tier"
+            className="w-48 shrink-0"
+          />
+        </PrefRow>
+        <PrefRow title="Combat task tier" hint="Post combat tasks at or above this tier, plus tier clears; Off posts none. Never looser than your clan’s own tier.">
+          <Select
+            value={p.ca ?? ''}
+            onChange={(v) => save({ ca: (v || null) as NotifyPrefs['ca'] })}
+            options={[follow(view.dropDefaults[0]?.ca, PLATFORM_TIER_DEFAULTS.ca), ...fromFloor(CA_OPTIONS, view.dropDefaults[0]?.ca, view.dropDefaults[0]?.floors.ca)]}
             disabled={busy}
             ariaLabel="Combat task tier"
             className="w-48 shrink-0"
           />
         </PrefRow>
-        <PrefRow title="Quest tier" hint="Post quests at or above this difficulty; Off posts none.">
+        <PrefRow title="Quest tier" hint="Post quests at or above this difficulty; Off posts none. Never looser than your clan’s own tier.">
           <Select
-            value={p.quests}
-            onChange={(v) => save({ quests: v as NotifyPrefs['quests'] })}
-            options={QUEST_OPTIONS}
+            value={p.quests ?? ''}
+            onChange={(v) => save({ quests: (v || null) as NotifyPrefs['quests'] })}
+            options={[follow(view.dropDefaults[0]?.quests, PLATFORM_TIER_DEFAULTS.quests), ...fromFloor(QUEST_OPTIONS, view.dropDefaults[0]?.quests, view.dropDefaults[0]?.floors.quests)]}
             disabled={busy}
             ariaLabel="Quest tier"
             className="w-48 shrink-0"

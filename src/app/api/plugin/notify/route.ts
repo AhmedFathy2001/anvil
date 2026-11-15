@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { duplicateClogSlot } from '@/lib/notifyDedupe';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
-import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
+import { characterClanDrops, characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
-import { NOTIFY_DEFAULTS } from '@/lib/notifyPrefs';
+import { NOTIFY_DEFAULTS, diaryTierPasses, tierGates } from '@/lib/notifyPrefs';
 import { factsAsPoster, isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
 import { liveBoardRows, recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
@@ -244,6 +244,14 @@ export async function POST(request: Request) {
   // One unlock, one post (lib/notifyDedupe): the plugin's two sightings of a slot can both arrive.
   if (kind === 'clogSlot' && facts && typeof facts === 'object' && duplicateClogSlot(auth.userId, (facts as Record<string, unknown>).item)) {
     return NextResponse.json({ ok: true, declined: 1 });
+  }
+  // A diary completion below the tier in force (the person's own, else their clan's default) posts
+  // nowhere. The plugin only knows diaries are on, so the tier is settled here.
+  if (kind === 'diary' && facts && typeof facts === 'object') {
+    const [prefs, clanTiers] = await Promise.all([getNotifyPrefs(auth.userId), characterClanDrops(member?.accountId ?? null, clan.id, null)]);
+    if (!diaryTierPasses((facts as Record<string, unknown>).tier, tierGates(prefs, clanTiers).diaryTier)) {
+      return NextResponse.json({ ok: true, declined: 1 });
+    }
   }
   // The newer kinds (lib/notifyKinds): re-checked against the person's settings in force, so a client
   // can't post a line nobody turned on. Private kinds and own patterns go to own webhooks only.
