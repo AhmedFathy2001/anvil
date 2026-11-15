@@ -8,6 +8,10 @@
 //             member of this clan
 //   unknown   everything else. The value is stored as before and still counts while the clan's
 //             nickname matching is on; with it off it earns no roles.
+//
+// WHO MAY WRITE AT ALL is decided before this is called: a moderator's Discord id never reaches
+// here (lib/discordRoleSafety rosterDiscordIdWrite, enforced in api/admin/clan, api/admin/clan/[id]
+// and lib/clan findOrCreateClanMember). The non-admin branch below stays as a second line.
 
 import { discordProvenForOtherSeat } from '@/lib/discord-roles';
 import { handLinkRefusal, mayHandLink, storedDiscordLink, type StoredDiscordLink } from '@/lib/discordRoleSafety';

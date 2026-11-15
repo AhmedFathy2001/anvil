@@ -23,7 +23,7 @@ import {
 } from '@/lib/rankRules';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, events, eventSignups, teams, users } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
@@ -319,8 +319,13 @@ function parseJsonArray(raw: string | null): string[] {
  * Resolve the live config. Returns null when the feature is disabled OR essential
  * credentials are missing — callers should treat that as "skip silently".
  */
-export async function loadRoleSyncConfig(clanId: number): Promise<RoleSyncConfig | null> {
-  const enabled = (await getSetting(clanId, 'discord_role_sync_enabled')) === 'true';
+export async function loadRoleSyncConfig(
+  clanId: number,
+  // `ignoreSwitch`: read the role mapping even while role sync is off, for taking back roles sync
+  // gave earlier (anvilManagedRoleIds). Nothing that GIVES a role passes it.
+  opts: { ignoreSwitch?: boolean } = {},
+): Promise<RoleSyncConfig | null> {
+  const enabled = opts.ignoreSwitch || (await getSetting(clanId, 'discord_role_sync_enabled')) === 'true';
   if (!enabled) return null;
 
   const creds = await getBotCredentials(clanId);
@@ -1006,7 +1011,7 @@ export async function seatDiscordSources(member: MinimalClanMember): Promise<Sea
  * rank a hand-linked account is owed. A seat whose owner has since signed in with a different
  * Discord account is left out: their own sign-in beats the link (lib/discordRoleSafety adminLinkStands).
  */
-async function adminLinkedSeats(clanId: number, discordUserId: string): Promise<{ rank: string | null; kind: string }[]> {
+export async function adminLinkedSeats(clanId: number, discordUserId: string): Promise<{ rank: string | null; kind: string }[]> {
   const rows = await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind, playerId: clanRoster.playerId })
     .from(clanRoster)
@@ -1063,6 +1068,122 @@ export async function discordProvenForOtherSeat(clanId: number, seatId: number |
     .innerJoin(clanRoster, eq(clanRoster.rsnNormalized, detectedAccounts.rsnNormalized))
     .where(and(eq(detectedAccounts.userId, login.id), eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), rosterClanSeat()));
   return played.some((r) => other(r.id));
+}
+
+/**
+ * The role ids rank sync hands out for a clan, resolved against the live guild roles: the default
+ * (member) roles, the guest roles, and every rank role (the explicit map plus, with auto-match on,
+ * a role named after any rank this clan uses or has used).
+ *
+ * ONE SOURCE for giving and taking: syncRolesForClanMember builds its target and its "may remove"
+ * set from this, and anvilManagedRoleIds builds the set a removed hand link gives back from it, so
+ * the two cannot disagree about which roles are Anvil's.
+ */
+async function rankSyncRoleSets(
+  clanId: number,
+  cfg: RoleSyncConfig,
+  guildRoles: DiscordRole[],
+): Promise<{ resolvedDefaults: Set<string>; resolvedGuests: Set<string>; managedRankRoleIds: Set<string> }> {
+  // Merge ID-based config with name-resolved fallbacks. Explicit IDs win; names
+  // only add roles that the ID list didn't already cover, so an admin can keep a
+  // partial override without losing the auto-match path for the rest.
+  const resolvedDefaults = new Set<string>([
+    ...cfg.defaultRoleIds,
+    ...resolveRoleNamesToIds(cfg.defaultRoleNames, guildRoles),
+  ]);
+  const resolvedGuests = new Set<string>([
+    ...cfg.guestRoleIds,
+    ...resolveRoleNamesToIds(cfg.guestRoleNames, guildRoles),
+  ]);
+
+  // All rank-role IDs we manage — explicit map + auto-matched per-rank IDs.
+  const managedRankRoleIds = new Set<string>(Object.values(cfg.rankRoleMap));
+  if (cfg.autoMatchRankByName) {
+    // Pre-walk every rank we know about so a demotion to a previously-unseen rank
+    // still removes the old rank role. Three sources unioned:
+    //   1) RANK_PRECEDENCE — standard OSRS clan ranks (handles fresh clans)
+    //   2) Currently held ranks across the active roster (handles custom ranks
+    //      that anyone presently holds — e.g. "marshal", "admiral")
+    //   3) Every rank that's ever been seen in a rank_changed audit log entry
+    //      (handles the case where a user just got demoted away from a custom
+    //      rank that nobody else currently holds — without (3), the old role
+    //      would remain stuck on them)
+    const knownRanks = new Set<string>(RANK_PRECEDENCE);
+    const currentRanks = await db
+      .selectDistinct({ rank: clanRoster.rank })
+      .from(clanRoster)
+      // The rank names this clan actually uses. Pulling every clan's would invent roles to manage
+      // that nobody here holds.
+      .where(eq(clanRoster.clanId, clanId));
+    for (const row of currentRanks) {
+      const k = normalizeRankKey(row.rank);
+      if (k) knownRanks.add(k);
+    }
+    const auditRanks = await db
+      .select({ oldValue: clanAuditLog.oldValue, newValue: clanAuditLog.newValue })
+      .from(clanAuditLog)
+      // This clan's rank history only (rows from before the log carried a clan are kept). Read
+      // across every clan, another clan's custom rank name made a same-named role here one that
+      // sync, and now a removed hand link, would take off people.
+      .where(
+        and(
+          eq(clanAuditLog.eventType, 'rank_changed'),
+          or(eq(clanAuditLog.clanId, clanId), isNull(clanAuditLog.clanId)),
+        ),
+      );
+    for (const row of auditRanks) {
+      for (const raw of [row.oldValue, row.newValue]) {
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw) as { rank?: unknown };
+          if (typeof parsed.rank === 'string') {
+            const k = normalizeRankKey(parsed.rank);
+            if (k) knownRanks.add(k);
+          }
+        } catch {
+          // ignore malformed legacy rows
+        }
+      }
+    }
+    for (const rankKey of knownRanks) {
+      const id = findRoleIdForRankByName(rankKey, guildRoles);
+      if (id) managedRankRoleIds.add(id);
+    }
+  }
+  return { resolvedDefaults, resolvedGuests, managedRankRoleIds };
+}
+
+/**
+ * Every role Anvil can hand a member of this clan in the clan's OWN server, as ids present in
+ * `guildRoles`. This is the whole set a removed hand link may give back (lib/discordUnlinkRoles),
+ * and nothing outside it is ever taken off anybody there:
+ *   - rank sync's roles (rankSyncRoleSets): default/member roles, guest roles, rank roles
+ *   - every rank-rule role (lib/rankRules), kept ones included: sync gave it through the link
+ *   - the event player role (`discord_bingo_role_id`) and the team roles Anvil created for this
+ *     clan's events (teams.discordRoleId), which team sync gives through the same link
+ * NOT the captain role: that goes to a captain's own sign-in, never through a hand link.
+ * Null when the bot is not connected (no token, or the server is not verified).
+ */
+export async function anvilManagedRoleIds(
+  clanId: number,
+  guildRoles: DiscordRole[],
+): Promise<Set<string> | null> {
+  const cfg = await loadRoleSyncConfig(clanId, { ignoreSwitch: true });
+  if (!cfg) return null;
+  const { resolvedDefaults, resolvedGuests, managedRankRoleIds } = await rankSyncRoleSets(clanId, cfg, guildRoles);
+  const ids = new Set<string>([...resolvedDefaults, ...resolvedGuests, ...managedRankRoleIds]);
+  for (const r of cfg.rankRules) if (r.roleId) ids.add(r.roleId);
+  const playerRole = (await getSetting(clanId, 'discord_bingo_role_id'))?.trim();
+  if (playerRole) ids.add(playerRole);
+  // clan-scope: this clan -- team roles of events this clan hosts (events.clanId = clanId).
+  const teamRoles = await db
+    .select({ roleId: teams.discordRoleId })
+    .from(teams)
+    .innerJoin(events, eq(events.id, teams.eventId))
+    .where(and(eq(events.clanId, clanId), isNotNull(teams.discordRoleId)));
+  for (const t of teamRoles) if (t.roleId) ids.add(t.roleId);
+  const present = new Set(guildRoles.map((r) => r.id));
+  return new Set([...ids].filter((id) => present.has(id)));
 }
 
 // =============================================================================
@@ -1272,64 +1393,9 @@ export async function syncRolesForClanMember(
     guildRoles,
   );
 
-  // Merge ID-based config with name-resolved fallbacks. Explicit IDs win; names
-  // only add roles that the ID list didn't already cover, so an admin can keep a
-  // partial override without losing the auto-match path for the rest.
-  const resolvedDefaults = new Set<string>([
-    ...cfg.defaultRoleIds,
-    ...resolveRoleNamesToIds(cfg.defaultRoleNames, guildRoles),
-  ]);
-  const resolvedGuests = new Set<string>([
-    ...cfg.guestRoleIds,
-    ...resolveRoleNamesToIds(cfg.guestRoleNames, guildRoles),
-  ]);
-
-  // All rank-role IDs we manage — explicit map + auto-matched per-rank IDs.
-  const managedRankRoleIds = new Set<string>(Object.values(cfg.rankRoleMap));
-  if (cfg.autoMatchRankByName) {
-    // Pre-walk every rank we know about so a demotion to a previously-unseen rank
-    // still removes the old rank role. Three sources unioned:
-    //   1) RANK_PRECEDENCE — standard OSRS clan ranks (handles fresh clans)
-    //   2) Currently held ranks across the active roster (handles custom ranks
-    //      that anyone presently holds — e.g. "marshal", "admiral")
-    //   3) Every rank that's ever been seen in a rank_changed audit log entry
-    //      (handles the case where a user just got demoted away from a custom
-    //      rank that nobody else currently holds — without (3), the old role
-    //      would remain stuck on them)
-    const knownRanks = new Set<string>(RANK_PRECEDENCE);
-    const currentRanks = await db
-      .selectDistinct({ rank: clanRoster.rank })
-      .from(clanRoster)
-      // The rank names this clan actually uses. Pulling every clan's would invent roles to manage
-      // that nobody here holds.
-      .where(eq(clanRoster.clanId, member.clanId));
-    for (const row of currentRanks) {
-      const k = normalizeRankKey(row.rank);
-      if (k) knownRanks.add(k);
-    }
-    const auditRanks = await db
-      .select({ oldValue: clanAuditLog.oldValue, newValue: clanAuditLog.newValue })
-      .from(clanAuditLog)
-      .where(eq(clanAuditLog.eventType, 'rank_changed'));
-    for (const row of auditRanks) {
-      for (const raw of [row.oldValue, row.newValue]) {
-        if (!raw) continue;
-        try {
-          const parsed = JSON.parse(raw) as { rank?: unknown };
-          if (typeof parsed.rank === 'string') {
-            const k = normalizeRankKey(parsed.rank);
-            if (k) knownRanks.add(k);
-          }
-        } catch {
-          // ignore malformed legacy rows
-        }
-      }
-    }
-    for (const rankKey of knownRanks) {
-      const id = findRoleIdForRankByName(rankKey, guildRoles);
-      if (id) managedRankRoleIds.add(id);
-    }
-  }
+  // The roles sync hands out for this clan, from the one place that also decides what may be taken
+  // back when a hand link is removed (rankSyncRoleSets / anvilManagedRoleIds).
+  const { resolvedDefaults, resolvedGuests, managedRankRoleIds } = await rankSyncRoleSets(member.clanId, cfg, guildRoles);
 
   // Target role set
   const target = new Set<string>();

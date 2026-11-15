@@ -7,7 +7,6 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import { nicknameMatchingOn, ROLE_MATCH_BY_NICKNAME_KEY } from '@/lib/discordRoleSafety';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
-import { useDialog } from '@/components/Confirm';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
@@ -47,7 +46,9 @@ export default function DiscordRoleSyncSettings({
   const [removingLink, setRemovingLink] = useState<number | null>(null);
   // "Saved" is a result, not a resting state: it shows after a save, never on first load.
   const [justSaved, setJustSaved] = useState(false);
-  const { confirm } = useDialog();
+  // Removing a link asks first, in place: the row opens with the roles choice, ticked by default.
+  const [confirmingLink, setConfirmingLink] = useState<number | null>(null);
+  const [alsoRemoveRoles, setAlsoRemoveRoles] = useState(true);
 
   async function loadHandLinks() {
     try {
@@ -58,27 +59,25 @@ export default function DiscordRoleSyncSettings({
     }
   }
 
-  async function removeHandLink(memberId: number, rsn: string) {
-    const ok = await confirm({
-      title: `Remove the Discord link for ${rsn}?`,
-      body: 'Anvil stops giving this member roles through the link. Roles they already have stay until you remove them in Discord.',
-      confirmLabel: 'Remove link',
-      tone: 'danger',
-    });
-    if (!ok) return;
+  async function removeHandLink(memberId: number) {
+    setConfirmingLink(null);
     setRemovingLink(memberId);
     setMessage(null);
     try {
       const res = await clanFetch('/api/admin/discord/link-member', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanMemberId: memberId }),
+        body: JSON.stringify({ clanMemberId: memberId, removeRoles: alsoRemoveRoles }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setHandLinks((links) => links.filter((l) => l.memberId !== memberId));
-        setMessage({ type: 'success', text: 'Link removed. Roles they already hold stay until you remove them in Discord.' });
+        // The link is gone either way. Roles that could not be taken back are the part to act on.
+        const roles = data.roles as { status?: string; failed?: unknown[] } | null | undefined;
+        const rolesLeft = roles?.status === 'refused' || (roles?.failed?.length ?? 0) > 0;
+        setMessage({ type: rolesLeft ? 'error' : 'success', text: data.message || 'Link removed.' });
       } else {
-        setMessage({ type: 'error', text: (await res.json().catch(() => ({}))).error || 'Could not remove the link' });
+        setMessage({ type: 'error', text: data.error || 'Could not remove the link' });
       }
     } catch {
       setMessage({ type: 'error', text: 'Could not remove the link' });
@@ -378,7 +377,7 @@ export default function DiscordRoleSyncSettings({
                     .map((r) => (
                       <li key={r.rsn} className="text-xs text-text-muted">
                         <span className="text-foreground/80">{r.rsn}</span> — {r.reason ?? 'unknown'}
-                        <DiscordLinkMember memberId={r.memberId} />
+                        <DiscordLinkMember memberId={r.memberId} replacesHandLink={handLinks.some((l) => l.memberId === r.memberId)} />
                       </li>
                     ))}
                 </ul>
@@ -404,14 +403,47 @@ export default function DiscordRoleSyncSettings({
                   <span className="text-sm text-foreground/90">{l.rsn}</span>
                   {l.linkedAt && <> · linked {l.linkedAt.slice(0, 10)}</>}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => removeHandLink(l.memberId, l.rsn)}
-                  disabled={removingLink === l.memberId}
-                  className="shrink-0 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:border-red-400/70 hover:bg-red-500/10 disabled:opacity-50 max-sm:min-h-11"
-                >
-                  {removingLink === l.memberId ? 'Removing…' : 'Remove link'}
-                </button>
+                {confirmingLink !== l.memberId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlsoRemoveRoles(true);
+                      setConfirmingLink(l.memberId);
+                    }}
+                    disabled={removingLink === l.memberId}
+                    className="shrink-0 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:border-red-400/70 hover:bg-red-500/10 disabled:opacity-50 max-sm:min-h-11"
+                  >
+                    {removingLink === l.memberId ? 'Removing…' : 'Remove link'}
+                  </button>
+                )}
+                {confirmingLink === l.memberId && (
+                  <div className="w-full space-y-2 rounded-lg border border-red-400/30 bg-red-500/5 p-3">
+                    <p className="text-sm text-foreground/90">Remove the Discord link for {l.rsn}?</p>
+                    <p>Anvil stops giving this member roles through the link.</p>
+                    <Checkbox
+                      checked={alsoRemoveRoles}
+                      onChange={setAlsoRemoveRoles}
+                      label="Also remove the roles Anvil gave them"
+                      description="Takes off only the roles Anvil manages for your clan (rank, member, guest and event roles). Other roles, their nickname and their place in the server are not touched. Unticked, the roles stay until you remove them in Discord."
+                    />
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingLink(null)}
+                        className="rounded-lg border border-card-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:text-foreground max-sm:min-h-11"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeHandLink(l.memberId)}
+                        className="rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:border-red-400/70 hover:bg-red-500/10 max-sm:min-h-11"
+                      >
+                        Remove link
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

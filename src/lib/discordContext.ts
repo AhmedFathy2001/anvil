@@ -30,6 +30,9 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { configuredOrigin } from '@/lib/request-origin';
 import { eventStage } from '@/lib/eventStage';
 import { rosterClanSeat } from '@/lib/seatScope';
+import { seatDiscordSources } from '@/lib/discord-roles';
+import { nicknameMatchingOn, ROLE_MATCH_BY_NICKNAME_KEY, seatTrustsDiscordId } from '@/lib/discordRoleSafety';
+import { getSetting } from '@/lib/settings';
 import {
   checkGuild,
   contextLine,
@@ -352,6 +355,13 @@ export interface InvokerIdentity {
   primaryAccountId: number | null;
   /** Primary RSN for prose, when they have one. */
   rsn: string | null;
+  /**
+   * True when this Discord account is only STORED on a character here, by something that does not
+   * prove it (a nickname match, an id of unknown source, another clan's hand link) while the clan's
+   * nickname matching is off. They are answered as not linked: no seats, and the personal commands
+   * point them at signing in.
+   */
+  unconfirmedLink?: boolean;
 }
 
 /**
@@ -367,19 +377,34 @@ export async function resolveInvoker(discordId: string, clanId: number): Promise
   // They were seeded 1:1, so `user.id` happened to work until someone held a second account; from
   // that point `player_id = user.id` matches nobody and the member wrongly reads as "no accounts".
   //
-  // Two fallbacks to the name-matched roster cache (clan_roster.discord_id): no login at all, or a
-  // login not yet linked to a player.
+  // Two fallbacks to the id STORED on a character (clan_roster.discord_id): no login at all, or a
+  // login not yet linked to a player. A stored id is not always a link, so each such seat is held to
+  // the rule role sync uses for this clan (lib/discordRoleSafety seatTrustsDiscordId): with the
+  // clan's nickname matching off it counts only when a sign-in, sign-up or plugin report proves it,
+  // or an admin of THIS clan linked it by hand. Anything else answers as "not linked", never as
+  // that member. With matching on the stored id counts as before.
   // Member and guest seats only: an event player's seat is not a place on this roster.
-  const rows =
-    user?.playerId != null
-      ? await db
-          .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
-          .from(clanRoster)
-          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), rosterClanSeat()))
-      : await db
-          .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
-          .from(clanRoster)
-          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt), rosterClanSeat()));
+  const cols = { id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary, playerId: clanRoster.playerId };
+  let unconfirmedLink = false;
+  let rows: { id: number; accountId: number; rsn: string; isPrimary: number }[];
+  if (user?.playerId != null) {
+    rows = await db
+      .select(cols)
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), rosterClanSeat()));
+  } else {
+    const stored = await db
+      .select(cols)
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt), rosterClanSeat()));
+    const matchByNickname = stored.length ? nicknameMatchingOn(await getSetting(clanId, ROLE_MATCH_BY_NICKNAME_KEY)) : false;
+    rows = [];
+    for (const seat of stored) {
+      const sources = await seatDiscordSources({ id: seat.id, rsn: seat.rsn, playerId: seat.playerId, discordId });
+      if (seatTrustsDiscordId(discordId, sources, matchByNickname)) rows.push(seat);
+    }
+    unconfirmedLink = stored.length > 0 && rows.length === 0;
+  }
 
   const primary = rows.find((m) => m.isPrimary === 1) ?? rows[0];
   const seen = new Set<number>();
@@ -394,6 +419,7 @@ export async function resolveInvoker(discordId: string, clanId: number): Promise
     accounts,
     primaryAccountId: primary?.accountId ?? null,
     rsn: primary?.rsn ?? null,
+    ...(unconfirmedLink ? { unconfirmedLink } : {}),
   };
 }
 

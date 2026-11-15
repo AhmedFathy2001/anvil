@@ -3,10 +3,20 @@
 import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import Input from '@/components/Input';
+import Checkbox from '@/components/Checkbox';
 
 // Inline "link this clan member to a Discord user" control, shown next to a member the role sync
 // couldn't resolve. Search the guild by name, pick, and it binds + syncs that member.
-export default function DiscordLinkMember({ memberId }: { memberId: number }) {
+export default function DiscordLinkMember({
+  memberId,
+  replacesHandLink = false,
+}: {
+  memberId: number;
+  /** The member already has a link made by hand: picking a different account replaces it. */
+  replacesHandLink?: boolean;
+}) {
+  // Replacing a hand link: the account linked before keeps its roles unless they are taken back.
+  const [removeOldRoles, setRemoveOldRoles] = useState(true);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [results, setResults] = useState<{ id: string; label: string }[]>([]);
@@ -30,12 +40,13 @@ export default function DiscordLinkMember({ memberId }: { memberId: number }) {
       const res = await clanFetch('/api/admin/discord/link-member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanMemberId: memberId, discordUserId }),
+        body: JSON.stringify({ clanMemberId: memberId, discordUserId, ...(replacesHandLink ? { removeOldRoles } : {}) }),
       });
       const data = await res.json();
       if (res.ok) {
         const r = data.report;
-        setDone(r?.ok ? `linked${r.added?.length ? ` · +${r.added.length} role(s)` : ''}` : `linked · ${r?.reason ?? 'no change'}`);
+        const linked = r?.ok ? `linked${r.added?.length ? ` · +${r.added.length} role(s)` : ''}` : `linked · ${r?.reason ?? 'no change'}`;
+        setDone(data.oldAccountMessage ? `${linked} · ${data.oldAccountMessage}` : linked);
       } else {
         setDone(data.error || 'failed');
       }
@@ -78,6 +89,15 @@ export default function DiscordLinkMember({ memberId }: { memberId: number }) {
           {r.label}
         </button>
       ))}
+      {replacesHandLink && (
+        <Checkbox
+          checked={removeOldRoles}
+          onChange={setRemoveOldRoles}
+          className="basis-full"
+          label="Also remove the roles Anvil gave the account linked before"
+          description="This member is already linked by hand. Picking a different account replaces that link."
+        />
+      )}
     </span>
   );
 }

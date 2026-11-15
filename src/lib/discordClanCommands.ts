@@ -549,6 +549,14 @@ async function statsResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   // Clan leaderboards — no person involved.
   if (sub === 'collectors') return clanCollectorsResult(ctx);
   if (sub === 'luckboard') return clanLuckResult(ctx);
+  // Asking about themselves, with a Discord id stored for them here that nothing proves
+  // (lib/discordContext InvokerIdentity.unconfirmedLink): they are not answered as that member.
+  // Say how to link instead. Naming a `player:` still works; that is a public roster read.
+  const namesSomeone = ['player', 'member'].some((k) => typeof ctx.options[k] === 'string' && (ctx.options[k] as string).trim());
+  if (!namesSomeone && ctx.identity?.unconfirmedLink) {
+    const { t, clan } = ctx;
+    return { text: clan.origin ? fmt(t.apply.noAccountUrl, { url: clan.origin }) : t.apply.noAccountNoUrl };
+  }
   if (sub === 'luck') return memberLuckResult(ctx); // resolves its own target + account
 
   const target = await resolveTarget(ctx);

@@ -10,6 +10,7 @@ import { latestClanReportByAccount } from '@/lib/characterReports';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { staffEnteredDiscordLink } from '@/lib/discordLink';
+import { DISCORD_ID_ADMIN_ONLY, rosterDiscordIdWrite } from '@/lib/discordRoleSafety';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
@@ -129,6 +130,11 @@ export async function POST(request: Request) {
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
 
   const clan = await requireClan();
+  // A character's Discord id is an admin's or the owner's to set (lib/discordRoleSafety
+  // rosterDiscordIdWrite). From a moderator the field is dropped and the rest of the add goes
+  // ahead; the response says so.
+  const discordWrite = rosterDiscordIdWrite(user.role, body.discordId ?? undefined);
+  const discordIgnored = discordWrite.ignored ? { discordIdIgnored: DISCORD_ID_ADMIN_ONLY } : {};
   const rsnNormalized = normalizeRsn(rsn);
   // Scoped to this clan: the same RSN is legitimately on other clans' rosters, and an unscoped lookup
   // would 409 "already in roster" against a member of a clan this admin has nothing to do with.
@@ -143,7 +149,7 @@ export async function POST(request: Request) {
       // A Discord id typed here is stored with its source (lib/discordLink); none typed leaves
       // whatever is stored, and its source, alone.
       const link =
-        body.discordId != null
+        discordWrite.write
           ? await staffEnteredDiscordLink({ clanId: clan.id, seatId: existing.id, claimed: false, discordId: body.discordId, actor: user })
           : {};
       await db
@@ -160,11 +166,11 @@ export async function POST(request: Request) {
         notes: body.notes ?? existing.notes,
       })
       .where(eq(clanMemberships.id, existing.id));
-    return NextResponse.json({ id: existing.id, reactivated: true });
+    return NextResponse.json({ id: existing.id, reactivated: true, ...discordIgnored });
   }
 
   const account = await findOrCreateAccount({ rsn, rsnNormalized });
-  if (body.discordId && !account.claimedAt) {
+  if (discordWrite.write && body.discordId && !account.claimedAt) {
     const link = await staffEnteredDiscordLink({ clanId: clan.id, seatId: null, claimed: false, discordId: body.discordId, actor: user });
     await db.update(accounts).set(link).where(eq(accounts.id, account.id));
   }
@@ -182,5 +188,5 @@ export async function POST(request: Request) {
     .select()
     .from(clanRoster)
     .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.id, seatId)));
-  return NextResponse.json(seat);
+  return NextResponse.json({ ...seat, ...discordIgnored });
 }

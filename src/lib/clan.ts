@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { staffEnteredDiscordLink } from '@/lib/discordLink';
+import { mayHandLink } from '@/lib/discordRoleSafety';
 
 /**
  * Seat an RSN on a clan's roster, creating the account behind it if it is new. Returns the seat id.
@@ -28,6 +29,10 @@ export async function findOrCreateClanMember(
 ): Promise<number> {
   const trimmed = sanitizeRsn(rsn);
   if (!trimmed) throw new Error('rsn is required');
+  // A character's Discord id is written only for an admin or the owner (lib/discordRoleSafety
+  // rosterDiscordIdWrite). From anyone else, or with nobody to attribute it to, it is dropped here,
+  // whatever route the call came through.
+  if (!options.linkedBy || !mayHandLink(options.linkedBy.role)) options = { ...options, discordId: null };
 
   const normalized = normalizeRsn(trimmed);
   // Scoped to the clan: the same RSN is legitimately on several clans' rosters, so a global lookup

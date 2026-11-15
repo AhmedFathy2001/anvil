@@ -16,6 +16,9 @@ import {
   nicknameMatchingOn,
   ROLE_MATCH_BY_NICKNAME_KEY,
   trustedDiscordIds,
+  seatTrustsDiscordId,
+  rosterDiscordIdWrite,
+  rolesToRemoveOnUnlink,
 } from '../src/lib/discordRoleSafety.ts';
 
 const bit = (position: number) => (BigInt(1) << BigInt(position)).toString();
@@ -271,4 +274,150 @@ test('a hand link is refused for a claimed character, and for a Discord account 
   assert.equal(handLinkRefusal({ seatClaimed: false, provenForOtherSeat: false }), null);
   assert.match(handLinkRefusal({ seatClaimed: true, provenForOtherSeat: false })!, /belongs to a player/);
   assert.match(handLinkRefusal({ seatClaimed: false, provenForOtherSeat: true })!, /already belongs to a different member/);
+});
+
+// ── Slash commands use the role rule (lib/discordContext resolveInvoker) ──────────────────────────
+
+const noProof = { ownerDiscordId: null, signupDiscordId: null, pluginDiscordId: null };
+
+test('a stored id from a nickname match, or of unknown source, is not that member with matching off', () => {
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: 'name' }, false), false);
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: null }, false), false);
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1' }, false), false);
+  // A stored label is not proof by itself: the sign-in it names has to still be there.
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: 'login' }, false), false);
+});
+
+test('a hand link counts only in the clan whose admin made it', () => {
+  const here = storedSourceForClan('admin', 7, 7);
+  const elsewhere = storedSourceForClan('admin', 8, 7);
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: here }, false), true);
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: elsewhere }, false), false);
+  // The owner signed in with a different account: their sign-in beats the hand link.
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, ownerDiscordId: 'd2', cachedDiscordId: 'd1', cachedSource: 'admin' }, false), false);
+});
+
+test('an id a sign-in, sign-up or plugin report proves is that member, matching on or off', () => {
+  for (const on of [false, true]) {
+    assert.equal(seatTrustsDiscordId('d1', { ...noProof, ownerDiscordId: 'd1', cachedDiscordId: null }, on), true);
+    assert.equal(seatTrustsDiscordId('d1', { ...noProof, signupDiscordId: 'd1', cachedDiscordId: 'd1', cachedSource: 'signup' }, on), true);
+    assert.equal(seatTrustsDiscordId('d1', { ...noProof, pluginDiscordId: 'd1', cachedDiscordId: null }, on), true);
+  }
+});
+
+test('with nickname matching on, a stored id counts whatever its source, as before', () => {
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: 'name' }, true), true);
+  assert.equal(seatTrustsDiscordId('d1', { ...noProof, cachedDiscordId: 'd1', cachedSource: null }, true), true);
+  assert.equal(seatTrustsDiscordId('d9', { ...noProof, cachedDiscordId: 'd1', cachedSource: 'name' }, true), false, 'only the id that is stored');
+  assert.equal(seatTrustsDiscordId(null, { ...noProof, cachedDiscordId: 'd1' }, true), false);
+});
+
+// ── Who may write a Discord id on the roster forms ────────────────────────────────────────────────
+
+test('only an admin or the owner sets, changes or clears a Discord id on the roster', () => {
+  for (const role of ['owner', 'admin']) {
+    assert.deepEqual(rosterDiscordIdWrite(role, '123'), { write: true, ignored: false }, role);
+    assert.deepEqual(rosterDiscordIdWrite(role, ''), { write: true, ignored: false }, `${role} clears`);
+    assert.deepEqual(rosterDiscordIdWrite(role, null), { write: true, ignored: false }, `${role} clears with null`);
+  }
+  for (const role of ['moderator', 'treasurer', 'editor', 'member', null, undefined]) {
+    assert.deepEqual(rosterDiscordIdWrite(role, '123'), { write: false, ignored: true }, String(role));
+    assert.deepEqual(rosterDiscordIdWrite(role, ''), { write: false, ignored: true }, `${role} cannot clear`);
+    assert.deepEqual(rosterDiscordIdWrite(role, null), { write: false, ignored: true }, `${role} cannot clear with null`);
+  }
+  // The field was not sent: nothing to write and nothing ignored, whoever asks.
+  for (const role of ['owner', 'admin', 'moderator']) {
+    assert.deepEqual(rosterDiscordIdWrite(role, undefined), { write: false, ignored: false }, role);
+  }
+});
+
+// ── Roles taken back when a hand link is removed ──────────────────────────────────────────────────
+
+const guildRoles = [
+  { id: 'guild', name: '@everyone', position: 0, permissions: '0' },
+  { id: 'member', name: 'Member', position: 2, permissions: '0' },
+  { id: 'general', name: 'General', position: 3, permissions: '0' },
+  { id: 'team', name: 'Team Red', position: 1, permissions: '0' },
+  { id: 'booster', name: 'Server Booster', position: 4, permissions: '0', managed: true },
+  { id: 'friends', name: 'Friends', position: 2, permissions: '0' },
+  { id: 'mods', name: 'Mods', position: 5, permissions: bit(1) },
+  { id: 'high', name: 'Veteran', position: 9, permissions: '0' },
+];
+const unlink = (over: Partial<Parameters<typeof rolesToRemoveOnUnlink>[0]> = {}) =>
+  rolesToRemoveOnUnlink({
+    guildId: 'guild',
+    managedRoleIds: ['member', 'general', 'team', 'high', 'mods', 'booster', 'guild', 'gone'],
+    heldRoleIds: ['member', 'general', 'team', 'friends', 'booster', 'mods', 'high', 'guild'],
+    guildRoles,
+    botTopPosition: 8,
+    isGuildOwner: false,
+    ...over,
+  });
+
+test('unlink removes only held roles from the managed set', () => {
+  const d = unlink();
+  assert.deepEqual(d.remove.map((r) => r.id).sort(), ['general', 'member', 'team']);
+  assert.deepEqual(d.remove.find((r) => r.id === 'general'), { id: 'general', name: 'General' });
+});
+
+test('a role outside the managed set is never removed, whatever else is true', () => {
+  const d = unlink();
+  assert.ok(!d.remove.some((r) => r.id === 'friends'));
+  assert.ok(!d.skipped.some((r) => r.id === 'friends'));
+  // Nothing managed: nothing removed, even though the account holds plenty.
+  assert.deepEqual(unlink({ managedRoleIds: [] }), { remove: [], skipped: [] });
+  // Managed but not held: not removed either.
+  assert.deepEqual(unlink({ heldRoleIds: ['friends'] }), { remove: [], skipped: [] });
+});
+
+test('unlink never touches @everyone, an integration role, or a role with moderation powers, even if mapped', () => {
+  const d = unlink();
+  for (const id of ['guild', 'booster', 'mods']) {
+    assert.ok(!d.remove.some((r) => r.id === id), id);
+    assert.ok(!d.skipped.some((r) => r.id === id), id);
+  }
+});
+
+test('a managed role at or above the bot is skipped with a reason, not attempted', () => {
+  const d = unlink();
+  assert.deepEqual(d.skipped, [{ id: 'high', name: 'Veteran', reason: 'above-bot' }]);
+  // Exactly at the bot's own position counts as above: Discord needs strictly below.
+  const level = unlink({ botTopPosition: 3 });
+  assert.deepEqual(level.skipped.map((r) => r.id).sort(), ['general', 'high']);
+  assert.deepEqual(level.remove.map((r) => r.id).sort(), ['member', 'team']);
+});
+
+test('the server owner has every managed role skipped, none removed', () => {
+  const d = unlink({ isGuildOwner: true });
+  assert.deepEqual(d.remove, []);
+  assert.deepEqual(d.skipped.map((r) => [r.id, r.reason]).sort(), [
+    ['general', 'server-owner'],
+    ['high', 'server-owner'],
+    ['member', 'server-owner'],
+    ['team', 'server-owner'],
+  ]);
+});
+
+test('a managed role that is no longer in the server, or held twice in the list, is handled once or not at all', () => {
+  const d = unlink({ heldRoleIds: ['member', 'member', 'gone'] });
+  assert.deepEqual(d, { remove: [{ id: 'member', name: 'Member' }], skipped: [] });
+});
+
+// ── The roster routes apply the rule (read from source: they need a signed-in request to run) ─────
+
+test('every roster write of a Discord id sits behind the admin-or-owner rule', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const file of ['src/app/api/admin/clan/route.ts', 'src/app/api/admin/clan/[id]/route.ts']) {
+    const src = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(src, /rosterDiscordIdWrite\(user\.role,/, `${file} asks the rule with the caller's role`);
+    const writes = [...src.matchAll(/await staffEnteredDiscordLink\(/g)];
+    assert.ok(writes.length > 0, file);
+    for (const w of writes) {
+      assert.match(src.slice(Math.max(0, w.index! - 700), w.index!), /discordWrite\.write/, `${file}: a write outside the rule`);
+    }
+    assert.match(src, /DISCORD_ID_ADMIN_ONLY/, `${file} tells the moderator`);
+  }
+  // The shared helper behind event-player import and weekly enrolment drops it too.
+  const lib = readFileSync(new URL('../src/lib/clan.ts', import.meta.url), 'utf8');
+  assert.match(lib, /!mayHandLink\(options\.linkedBy\.role\)\) options = \{ \.\.\.options, discordId: null \}/);
 });
