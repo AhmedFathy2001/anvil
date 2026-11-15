@@ -925,8 +925,10 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
             Members can&apos;t sign up for events until they&apos;re on it. Install the Anvil plugin in RuneLite, open
             your clan window in game and press the <b className="text-foreground">Anvil</b> button in its title bar —
             everyone arrives with their rank.{' '}
-            <ClanLink href="/guide/clan#members" className="text-gold hover:underline">
-              Show me how
+            {/* For an admin, the wizard's in-game part rather than the written guide: it lists the three
+                things to do and watches for the list arriving. A moderator cannot open the wizard. */}
+            <ClanLink href={isAdmin ? '/admin/setup?step=game' : '/guide/admin#roster'} className="text-gold hover:underline">
+              {isAdmin ? 'Show me the steps' : 'Show me how'}
             </ClanLink>
           </p>
         </div>

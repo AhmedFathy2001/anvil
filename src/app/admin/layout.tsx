@@ -1,3 +1,4 @@
+import ModeratorGuide from '@/app/admin/_components/ModeratorGuide';
 import { headers } from 'next/headers';
 import { supporterForUser } from '@/lib/supporter';
 import { adminGateTarget, redirectFor } from '@/lib/adminAccess';
@@ -422,6 +423,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         )}
         {pendingTransfer && <OwnershipTransferBanner viewerUserId={session.userId} transfer={pendingTransfer} />}
+        {/* A moderator's round, as a guide strip: only for moderators, and only while something waits. */}
+        {session.role === 'moderator' && canCheckProofs && (flaggedCount > 0 || provisionalCount > 0) && (
+          <ModeratorGuide flaggedProofs={flaggedCount} peopleWaiting={provisionalCount} />
+        )}
         {children}
       </div>
     </div>

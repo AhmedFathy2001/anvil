@@ -5,10 +5,8 @@
 import { useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
-import CopyLinkButton from '@/components/CopyLinkButton';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
-import type { NextStep } from '@/lib/eventNextStep';
 import type { Event, Submission, Tile } from '@/lib/types';
 import { CheckboxBox } from '@/components/Checkbox';
 
@@ -60,62 +58,6 @@ export function useStartNow(eventId: number, onEventChange: (e: Event) => void) 
   }
 
   return { start, starting, error };
-}
-
-/**
- * The one forge panel on the event home: what this event wants from you now, in plain words, with
- * a single action. See lib/eventNextStep for how it is decided.
- */
-export function NextStepPanel({
-  step,
-  eventId,
-  onStart,
-  starting,
-  error,
-}: {
-  step: NextStep;
-  eventId: number;
-  onStart: () => void;
-  starting: boolean;
-  error: string;
-}) {
-  const a = step.action;
-  return (
-    <section className="forge-panel px-6 sm:px-7 py-6">
-      <div className="text-[13px] text-gold">Next step</div>
-      <h2 className="display text-[28px] sm:text-[30px] font-semibold leading-tight mt-1.5">{step.title}</h2>
-      <p className="text-[#cbbfa9] mt-2 max-w-[56ch] leading-relaxed">{step.body}</p>
-      {a.kind !== 'none' && (
-        <div className="mt-5">
-          {a.kind === 'start' ? (
-            <button type="button" onClick={onStart} disabled={starting} className="molten-btn">
-              {starting ? 'Starting…' : a.label}
-            </button>
-          ) : a.kind === 'copy' ? (
-            <CopyLinkButton path={`/events/${eventId}/${a.path}`} label={a.label} className="molten-btn" />
-          ) : a.tab.startsWith('#') ? (
-            <button
-              type="button"
-              className="molten-btn"
-              onClick={() => document.getElementById(a.tab.slice(1))?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              {a.label}
-            </button>
-          ) : (
-            <ClanLink href={`/admin/events/${eventId}/${a.tab}`} className="molten-btn">
-              {a.label}
-            </ClanLink>
-          )}
-          {step.alt && (
-            <ClanLink href={`/admin/events/${eventId}/${step.alt.tab}`} className="ml-4 text-sm text-gold hover:text-gold-light">
-              {step.alt.label} ›
-            </ClanLink>
-          )}
-        </div>
-      )}
-      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
-    </section>
-  );
 }
 
 export const FLAG_TEXT: Record<string, string> = {

@@ -813,7 +813,7 @@ export default async function EventScoreboardPage({
             </div>
           </div>
           <ClanLink
-            href="/guide/plugin"
+            href="/guide/plugin#trouble"
             className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
           >
             Set up the plugin

@@ -226,8 +226,11 @@ export default function GuidedFlow({
 
 /** Is the address bar already on `href` (which carries no clan prefix, while the address may)? */
 function samePage(pathname: string | null, href: string): boolean {
-  const path = href.split('?')[0];
-  return !!pathname && pathname.replace(/\/$/, '').endsWith(path);
+  if (!pathname) return false;
+  const here = pathname.replace(/\/$/, '');
+  const there = href.split('?')[0].replace(/\/$/, '');
+  // The home page is '' once the slash is gone, and every path ends with that.
+  return there === '' ? here === '' : here.endsWith(there);
 }
 
 /**

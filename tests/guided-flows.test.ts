@@ -403,3 +403,34 @@ test('clanless start: complete once they have a character, a settled clan step a
   assertWellFormed(v);
   assert.equal(v.complete, true);
 });
+
+// ── Flow e: a moderator's round ───────────────────────────────────────────────────────────────
+
+import { moderatorFlow } from '../src/lib/guidedFlows/moderator.ts';
+
+test('moderator: with proofs flagged, opening the queue is first; on the queue it is keep or remove', () => {
+  const away = moderatorFlow({ flaggedProofs: 4, peopleWaiting: 2, onQueue: false });
+  assertWellFormed(away);
+  assert.deepEqual(keys(away), ['queue', 'decide', 'next']);
+  assert.equal(away.current?.key, 'queue');
+  assert.equal(away.current?.title, '4 proofs need a look');
+  assert.deepEqual(away.current?.action, { kind: 'link', label: 'Open the proof queue', href: '/admin/proofs' });
+
+  const there = moderatorFlow({ flaggedProofs: 4, peopleWaiting: 2, onQueue: true });
+  assertWellFormed(there);
+  assert.equal(there.current?.key, 'decide');
+  assert.match(there.current!.sentence, /Looks fine/);
+  assert.match(there.current!.sentence, /Remove/);
+});
+
+test('moderator: once the queue is clear, the people waiting come next, then it is complete', () => {
+  const people = moderatorFlow({ flaggedProofs: 0, peopleWaiting: 1, onQueue: false });
+  assertWellFormed(people);
+  assert.equal(people.current?.key, 'next');
+  assert.equal(people.current?.title, '1 person is waiting for a yes or no');
+  assert.equal((people.current!.action as { href: string }).href, '/admin/people/needs-review');
+
+  const done = moderatorFlow({ flaggedProofs: 0, peopleWaiting: 0, onQueue: true });
+  assertWellFormed(done);
+  assert.equal(done.complete, true);
+});

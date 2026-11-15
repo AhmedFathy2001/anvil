@@ -78,7 +78,6 @@ export default function OverviewClient({
   recorded = [],
   awards = [],
   tierBands = DEFAULT_TIER_BANDS,
-  surveyOn = false,
   archive,
 }: Props) {
   const router = useRouter();
