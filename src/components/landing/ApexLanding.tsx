@@ -176,7 +176,7 @@ export default function ApexLanding({ stats, clans }: { stats: PlatformStats; cl
       <div className="mx-auto max-w-[1180px] px-5 pb-20 sm:px-8">
         <Section
           title="If it happens in game, it counts."
-          lede={`${TILE_KIND_COUNT} kinds of tile, all filled in by the plugin while you play. No screenshots to chase, no honour system, no spreadsheet.`}
+          lede={`${TILE_KIND_COUNT} kinds of tile, all filled in by the plugin while you play. It takes the screenshot too, so nobody chases proof: no honour system, no spreadsheet.`}
         >
           <TileKinds />
         </Section>

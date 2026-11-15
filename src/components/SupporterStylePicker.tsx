@@ -125,9 +125,20 @@ export default function SupporterStylePicker({
     if (d) draft[surface] = lookOf(d, true);
   }
   const same = JSON.stringify(normal(draft)) === JSON.stringify(normal(saved));
-  useUnsavedChanges(!same, { pageOnly });
-  const blocked = !!defaultBlocked && !same && isDefaultSupporterStyle(draft);
   const draftKey = JSON.stringify(draft);
+  // "Unsaved" means the person changed something here. Differing from what is stored is not
+  // enough: while trying a tier the editor OPENS on that tier's default, which nothing has stored
+  // yet, and that alone raised the browser's "leave site?" on a page nobody had touched. Save
+  // stays available for it (`same`); the leave guard and the marker wait for a real edit.
+  const [openedKey, setOpenedKey] = useState(draftKey);
+  const [rebase, setRebase] = useState(false);
+  if (rebase) {
+    setRebase(false);
+    setOpenedKey(draftKey);
+  }
+  const unsaved = !same && draftKey !== openedKey;
+  useUnsavedChanges(unsaved, { pageOnly });
+  const blocked = !!defaultBlocked && !same && isDefaultSupporterStyle(draft);
   useEffect(() => {
     onDraft?.(JSON.parse(draftKey) as SupporterStyle);
   }, [draftKey, onDraft]);
@@ -165,6 +176,7 @@ export default function SupporterStylePicker({
         return;
       }
       setSaved(wears !== undefined ? wears : (json.style ?? null));
+      setRebase(true);
       setNote({
         ok: true,
         text: trying
@@ -243,7 +255,7 @@ export default function SupporterStylePicker({
         >
           {busy ? 'Saving…' : (saveLabel ?? (applyAll ? 'Save for all characters' : 'Save'))}
         </button>
-        <UnsavedIndicator dirty={!same} />
+        <UnsavedIndicator dirty={unsaved} />
         {reset !== null && (
           <button
             type="button"

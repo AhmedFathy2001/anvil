@@ -2332,7 +2332,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
           <button
             onClick={onClose}
             aria-label="Close configuration"
-            className="shrink-0 w-8 h-8 grid place-items-center rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors text-lg leading-none"
+            className="shrink-0 w-8 h-8 max-sm:w-11 max-sm:h-11 grid place-items-center rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors text-lg leading-none"
           >
             &times;
           </button>

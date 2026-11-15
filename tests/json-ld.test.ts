@@ -195,3 +195,14 @@ test('the app markup says free, and names its publisher', () => {
   assert.equal(ld.offers.price, '0');
   assert.match(ld.publisher['@id'], /#organization$/);
 });
+
+test('a finished event is not called scheduled; a running or open-ended one still is', () => {
+  const base = { name: 'Board', url: '/c/x/events/1', startDate: '2026-09-01 00:00:00', clanName: 'X', clanSlug: 'x' };
+  const now = Date.parse('2026-10-01T00:00:00Z');
+  const over = eventLd({ ...base, endDate: '2026-09-30 12:30:00', now }) as Record<string, unknown>;
+  assert.ok(!('eventStatus' in over));
+  const live = eventLd({ ...base, endDate: '2026-10-20 12:30:00', now }) as Record<string, unknown>;
+  assert.equal(live.eventStatus, 'https://schema.org/EventScheduled');
+  const open = eventLd({ ...base, endDate: null, now }) as Record<string, unknown>;
+  assert.equal(open.eventStatus, 'https://schema.org/EventScheduled');
+});

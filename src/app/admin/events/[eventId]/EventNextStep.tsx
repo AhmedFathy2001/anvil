@@ -94,7 +94,7 @@ export function ProofsToCheck({
   /** The board's "All proofs" feed. Unflagged proofs count on their own; this is where they're browsed. */
   allHref?: string;
 }) {
-  const { ask } = useDialog();
+  const { ask, notify } = useDialog();
   // Ids with a request in flight, and ids already handled. The ref is the guard (state lags a click
   // fired in the same frame); `handled` hides a row the moment its request succeeds, so it can't be
   // clicked again in the gap before onChange's refetch lands — that gap is how ten clicks sent ten.
@@ -131,7 +131,7 @@ export function ProofsToCheck({
     });
 
   /** Run one request per proof, one at a time (a removal recomputes the board), skipping any in flight. */
-  async function run(ids: number[], send: (id: number) => Promise<Response>) {
+  async function run(ids: number[], send: (id: number) => Promise<Response>, done: (n: number) => string) {
     const todo = ids.filter((id) => !inFlight.current.has(id));
     if (todo.length === 0) return;
     todo.forEach((id) => inFlight.current.add(id));
@@ -158,6 +158,8 @@ export function ProofsToCheck({
       setBusy(new Set(inFlight.current));
     }
     if (failed > 0) setError(`${failed} ${failed === 1 ? 'proof' : 'proofs'} couldn't be updated. Try again.`);
+    // The row leaves the list either way; say what happened to it.
+    if (todo.length > failed) notify(done(todo.length - failed));
     onChange();
   }
 
@@ -168,6 +170,7 @@ export function ProofsToCheck({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'clear-flag' }),
       }),
+      (n) => (n === 1 ? 'Marked as fine. It stays counted.' : `${n} proofs marked as fine. They stay counted.`),
     );
   }
 
@@ -191,6 +194,7 @@ export function ProofsToCheck({
       clanFetch(`/api/events/${eventId}/submissions?submissionId=${id}&reason=${encodeURIComponent(reason)}`, {
         method: 'DELETE',
       }),
+      (n) => (n === 1 ? 'Proof removed. The team was told why.' : `${n} proofs removed. The teams were told why.`),
     );
   }
 

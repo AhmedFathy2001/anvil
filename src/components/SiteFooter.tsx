@@ -125,7 +125,7 @@ export default async function SiteFooter() {
             href="https://github.com/AhmedFathy2001"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-gold/85 transition-colors hover:text-gold-light"
+            className="font-medium text-gold/85 transition-colors hover:text-gold-light max-sm:inline-block max-sm:py-[13px]"
           >
             Ahmed Fathy
           </a>
@@ -134,7 +134,7 @@ export default async function SiteFooter() {
             href="https://github.com/AhmedFathy2001/anvil"
             target="_blank"
             rel="noopener noreferrer"
-            className="transition-colors hover:text-foreground"
+            className="transition-colors hover:text-foreground max-sm:inline-block max-sm:py-[13px]"
           >
             Source-available
           </a>

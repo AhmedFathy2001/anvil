@@ -23,6 +23,7 @@ import { startProofState } from '@/lib/startProof';
 import StartProofCard from '@/components/StartProofCard';
 import ClanLink from '@/components/ClanLink';
 import { clanPathOf } from '@/lib/clanScopedPaths';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ const FEE_BADGE: Record<string, { label: string; cls: string }> = {
 
 export default async function MyTeamsHubPage() {
   const user = await verifyUser();
-  if (!user) redirect('/login?return=/team');
+  if (!user) redirect(`/login?return=${encodeURIComponent(await clanHref('/team'))}`);
 
   // WHICH EVENTS THIS PAGE MAY SHOW.
   //

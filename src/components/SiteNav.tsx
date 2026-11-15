@@ -9,12 +9,12 @@ import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModalA11y } from '@/hooks/useModalA11y';
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import NoticeBell from '@/components/NoticeBell';
 import PendingBadge from '@/components/PendingBadge';
 import CreatorChip from '@/components/CreatorChip';
 import { adminMenuLabel, groupClansAndSpaces, outsiderWord, placeWord } from '@/lib/creatorSpaces';
-import { clanBasePath } from '@/lib/clanScopedPaths';
+import { clanBasePath, loginHref as loginHrefFor } from '@/lib/clanScopedPaths';
 
 interface NavUser {
   displayName: string;
@@ -97,6 +97,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
   const [avatarFailed, setAvatarFailed] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  const clanPrefix = useClanPrefixValue();
 
   // Same slug AND same namespace: a clan and a creator space may share a slug (/c/x vs /s/x).
   const isCurrent = (c: NavClan) =>
@@ -133,9 +134,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
   // middleware sets it for /admin and /team — but the nav button, which is how most people sign in,
   // sent everyone to the home page. Reading someone's event board, clicking Sign in and losing the
   // page was the common way to hit that.
-  const loginHref = pathname && pathname !== '/' && pathname !== '/login'
-    ? `/login?return=${encodeURIComponent(pathname)}`
-    : '/login';
+  const loginHref = loginHrefFor(clanPrefix, pathname);
 
   // Close the mobile menu on navigation so it never lingers over the next page.
   useEffect(() => {

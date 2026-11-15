@@ -5,7 +5,7 @@ import { users } from '@/db/schema';
 import { sessionIssuedAt } from '@/lib/auth';
 import { clanPathOf } from '@/lib/clanScopedPaths';
 import { eraseFactsFor } from '@/lib/erasePerson';
-import { eraseBlockers, sessionIsRecent } from '@/lib/personData';
+import { eraseBlockers, recentSessionUntil } from '@/lib/personData';
 import { SITE } from '@/lib/site';
 import { settingsSession } from '@/app/settings/settingsSession';
 import DeleteAccountClient, { type DeleteBlockerView } from '../DeleteAccountClient';
@@ -25,7 +25,7 @@ export async function DataGroups() {
     db.select({ displayName: users.displayName }).from(users).where(eq(users.id, session.userId)).limit(1),
   ]);
   const viewingAsSomeoneElse = !!session.labViewAs || !!session.actingAs;
-  const recent = !!issued && issued.userId === session.userId && sessionIsRecent(issued.issuedAtMs);
+  const recentUntil = issued && issued.userId === session.userId ? recentSessionUntil(issued.issuedAtMs) : null;
 
   const blockers: DeleteBlockerView[] = (facts ? eraseBlockers(facts) : []).map((b) => {
     if (b.kind === 'owns-clan') {
@@ -95,7 +95,7 @@ export async function DataGroups() {
             <DeleteAccountClient
               displayName={user[0]?.displayName ?? ''}
               blockers={blockers}
-              recent={recent}
+              recentUntil={recentUntil}
               disabledReason={viewingAsSomeoneElse ? 'Not available while you are viewing or acting as someone else.' : null}
             />
           </div>

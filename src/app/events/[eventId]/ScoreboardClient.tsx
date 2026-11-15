@@ -5,9 +5,10 @@ import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/li
 import { isRaceHidden } from '@/lib/raceHideAhead';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
 import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useUrlTile } from '@/hooks/useUrlTile';
 import { eventStage } from '@/lib/eventStage';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
@@ -223,31 +224,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   // The open tile lives in the URL (?tile=ID): it deep-links, and Back closes the dialog instead of
   // leaving the event. The URL is the single source of truth, so Back/Forward just work.
   const searchParams = useSearchParams();
-  const urlTile = Number(searchParams.get('tile'));
-  const tileParam = Number.isInteger(urlTile) && urlTile > 0 ? urlTile : null; // initialTileId is the same ?tile=, already in the URL
-  const selectedTileId: number | null = tileParam != null && tiles.some((tile) => tile.id === tileParam) ? tileParam : null;
-  // Did WE push the history entry for the open tile? Then closing steps back over it.
-  const pushedTile = useRef(false);
-  const setSelectedTileId = useCallback((id: number | null) => {
-    const url = new URL(window.location.href);
-    if (id == null) {
-      if (pushedTile.current) {
-        pushedTile.current = false;
-        window.history.back();
-        return;
-      }
-      url.searchParams.delete('tile');
-      window.history.replaceState(window.history.state, '', url);
-      return;
-    }
-    const alreadyOpen = url.searchParams.has('tile');
-    url.searchParams.set('tile', String(id));
-    if (alreadyOpen) window.history.replaceState(window.history.state, '', url);
-    else {
-      pushedTile.current = true;
-      window.history.pushState(window.history.state, '', url);
-    }
-  }, []);
+  const [selectedTileId, setSelectedTileId] = useUrlTile((id) => tiles.some((tile) => tile.id === id));
   const [fullscreen, setFullscreen] = useState(false);
   // Phones only: search + filters start folded (see the toggle above the board).
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -849,7 +826,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     <div className="max-sm:flex max-sm:flex-col">
       {/* Identity, prize and countdown now live in the EventHero above the board; this row keeps just
           the board-level controls. */}
-      <div className="mb-6 flex flex-wrap items-center gap-3 max-sm:order-1">
+      {/* Phones: this row only shows for a live draft link. Its standings toggle moves into the board's
+          own heading there, so the board is not pushed down by a row holding one button. */}
+      <div className={`mb-6 flex flex-wrap items-center gap-3 max-sm:order-1 ${draftActive ? '' : 'max-sm:hidden'}`}>
         {draftActive && (
           <ClanLink
             href={`/events/${event.id}/draft`}
@@ -861,13 +840,13 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
         )}
         <button
           onClick={() => setFullscreen(!fullscreen)}
-          className={`text-xs px-3 py-1.5 max-sm:min-h-11 rounded-lg border transition-colors ${
+          className={`text-xs px-3 py-1.5 max-sm:hidden rounded-lg border transition-colors ${
             fullscreen
               ? 'bg-gold/20 border-gold text-gold'
               : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
           }`}
         >
-          {fullscreen ? 'Show Standings' : (<><span className="sm:hidden">Hide standings</span><span className="max-sm:hidden">Fullscreen Board</span></>)}
+          {fullscreen ? 'Show Standings' : 'Fullscreen Board'}
         </button>
       </div>
 
@@ -950,8 +929,18 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
               {scheduled ? 'Tonight\u2019s schedule' : liveDropBoard ? 'Live board' : 'Board Overview'}
-              <span className="text-xs font-normal text-text-muted ml-2">(click tiles for details)</span>
+              <span className="text-xs font-normal text-text-muted ml-2 max-sm:hidden">(click tiles for details)</span>
             </h2>
+            {/* Phones: the standings toggle lives here (see the controls row above). */}
+            <button
+              type="button"
+              onClick={() => setFullscreen(!fullscreen)}
+              className={`ml-auto min-h-11 rounded-lg border px-3 text-xs transition-colors sm:hidden ${
+                fullscreen ? 'border-gold bg-gold/20 text-gold' : 'border-card-border text-text-muted'
+              }`}
+            >
+              {fullscreen ? 'Show standings' : 'Hide standings'}
+            </button>
             {/* Multi-claim boards read very differently as "everyone" vs "us" — so let the viewer choose. */}
             {!liveDropBoard && (
               <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" compact={windowed} mine={myTeamIds} noun={solo ? 'player' : 'team'} />

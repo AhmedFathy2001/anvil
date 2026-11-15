@@ -1,3 +1,4 @@
+import { runningParts, runningTotal } from '@/lib/runningCount';
 import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
@@ -59,13 +60,15 @@ function weeklyValue(w: HomeWeekly, value: number): string {
 export function Hero({ view, boostLevel = 0, boostNameStyle }: { view: HomeView; boostLevel?: number; boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null }) {
   const boost = boostPerks(boostLevel);
   const { clanWeek, live } = view;
+  const liveCount = { events: view.liveEventCount, competitions: view.weeklies.filter((w) => w.status === 'active').length };
   const stats = [
     { k: 'Members', v: view.memberCount.toLocaleString(), sub: 'in the clan right now' },
     {
-      k: 'Live events',
-      v: String(view.liveEventCount),
-      sub: view.liveEventCount > 0 ? 'running now' : 'nothing running',
-      cls: view.liveEventCount > 0 ? 'text-gold-light' : '',
+      // Events AND weekly competitions, the same way every count on the site says it (lib/runningCount).
+      k: 'Live now',
+      v: String(runningTotal(liveCount)),
+      sub: runningTotal(liveCount) > 0 ? runningParts(liveCount) : 'nothing running',
+      cls: runningTotal(liveCount) > 0 ? 'text-gold-light' : '',
     },
     {
       k: 'This week',

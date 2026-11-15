@@ -147,7 +147,7 @@ function NeedList({
             </span>
             <span className="min-w-0">
               <span className={problem ? 'text-amber-100/90' : 'text-text-muted'}>{n.text}</span>{' '}
-              <ClanLink href={tileNeedHref(n.anchor)} className="text-gold/80 hover:text-gold hover:underline whitespace-nowrap max-sm:relative max-sm:before:absolute max-sm:before:-inset-x-2 max-sm:before:-inset-y-3.5 max-sm:before:content-['']">
+              <ClanLink href={tileNeedHref(n.anchor)} className="text-gold/80 hover:text-gold hover:underline whitespace-nowrap max-sm:relative max-sm:before:absolute max-sm:before:-inset-x-2 max-sm:before:-inset-y-[15px] max-sm:before:content-['']">
                 Why?
               </ClanLink>
               {mine

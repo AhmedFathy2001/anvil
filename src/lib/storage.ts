@@ -207,6 +207,8 @@ export async function put(key: string, body: StorageBody, contentType?: string):
  * Is this URL one we serve media from? Used to reject arbitrary/phishy image hosts on submission.
  * Accepts the configured S3/R2 public base, and LEGACY_BLOB_HOST (one exact host, unset by default)
  * should old rows ever need a former store kept valid. Never a whole provider's domain.
+ * Only S3_PUBLIC_BASE_URL counts: a local store must set it too (the endpoint/bucket default that
+ * uploads fall back to is NOT accepted here).
  */
 export function isManagedMediaUrl(raw: string): boolean {
   let u: URL;
@@ -215,13 +217,15 @@ export function isManagedMediaUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  if (u.protocol !== 'https:') return false;
   const legacy = process.env.LEGACY_BLOB_HOST?.trim().toLowerCase();
-  if (legacy && u.hostname === legacy) return true;
+  if (u.protocol === 'https:' && legacy && u.hostname === legacy) return true;
   const base = process.env.S3_PUBLIC_BASE_URL;
   if (base) {
     try {
-      if (u.host === new URL(base).host) return true;
+      const b = new URL(base);
+      // https always; plain http only when the configured media base is itself http (a local
+      // MinIO at http://127.0.0.1:9000/<bucket>). An https base never accepts an http link.
+      if (u.host === b.host && (u.protocol === 'https:' || u.protocol === b.protocol)) return true;
     } catch {
       /* ignore a malformed base */
     }

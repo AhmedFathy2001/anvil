@@ -239,8 +239,18 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
         key: `tiles-${e.id}`,
         snoozable: false,
         severity: e.tileCount === 0 ? 'critical' : 'warn',
-        title: `${e.name} is short ${plural(e.expectedTiles - e.tileCount, 'tile')}`,
-        detail: `${e.tileCount} of ${e.expectedTiles} drawn · opens ${inDays(startsIn)}`,
+        // A running board has already opened: "opens in 1 hour" (the floor of a start time in the
+        // past) was wrong about the one thing the card is for. Say it is live with gaps instead.
+        title:
+          e.status === 'running'
+            ? `${e.name} is running with ${plural(e.expectedTiles - e.tileCount, 'empty tile')}`
+            : `${e.name} is short ${plural(e.expectedTiles - e.tileCount, 'tile')}`,
+        detail:
+          e.status === 'running'
+            ? `${e.tileCount} of ${e.expectedTiles} drawn · players see the rest as blank squares`
+            : startsIn > 0
+              ? `${e.tileCount} of ${e.expectedTiles} drawn · opens ${inDays(startsIn)}`
+              : `${e.tileCount} of ${e.expectedTiles} drawn · its start time has passed`,
         href: `${e.href}/tiles`,
         action: 'Draw tiles',
         at: startsIn,

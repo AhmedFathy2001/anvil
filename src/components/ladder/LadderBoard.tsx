@@ -205,8 +205,10 @@ export function Chase({
       ) : (
         <div className="overflow-hidden rounded-xl border border-card-border">
           <div
-            className="overflow-y-auto"
-            style={{ maxHeight: chase.length > VISIBLE_ROWS ? VISIBLE_ROWS * ROW_PX : undefined }}
+            // The capped, scrolling list is for wide screens. On a phone a scroll box inside the page
+            // traps the thumb, so the whole list is laid out and the page does the scrolling.
+            className="sm:overflow-y-auto sm:max-h-[var(--list-max)]"
+            style={{ '--list-max': chase.length > VISIBLE_ROWS ? `${VISIBLE_ROWS * ROW_PX}px` : 'none' } as React.CSSProperties}
           >
           {chase.map((r, i) => {
             const isMe = r.playerId === mePlayerId;

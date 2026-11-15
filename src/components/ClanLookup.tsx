@@ -522,7 +522,8 @@ function Card({ clan }: { clan: LookupClan }) {
               <span className="text-text-dim">member{clan.members === 1 ? '' : 's'}</span>
             </span>
           </div>
-          {clan.members > 0 && (
+          {/* Nothing at 0%: a bare "0%" sat right above the Recruiting tag and read as "0% recruiting". */}
+          {clan.members > 0 && played > 0 && (
             <div className="mt-2 flex items-center gap-2">
               <span className="block h-1 flex-1 overflow-hidden rounded-sm bg-brown-light">
                 <span
@@ -531,7 +532,7 @@ function Card({ clan }: { clan: LookupClan }) {
                 />
               </span>
               <span className="font-mono text-[10.5px] tabular-nums text-text-dim">
-                {played}%{clan.xpThisWeek > 0 && <> · {compact(clan.xpThisWeek)} xp</>}
+                {played}% played{clan.xpThisWeek > 0 && <> · {compact(clan.xpThisWeek)} xp</>}
               </span>
             </div>
           )}

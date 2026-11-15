@@ -404,7 +404,7 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 
 /* ── Phone floors ───────────────────────────────────────────────────────────────────────────────
    Phones only (under Tailwind's `sm`, 640px); desktop is untouched.
-   1. Text: the shared tiny sizes (9-11.5px) are raised to 12px. The unlayered rule beats the
+   1. Text: the shared tiny sizes (9-11.5px, and their rem spellings) are raised to 12px. The unlayered rule beats the
       utilities layer, and only matches the BASE classes, so a `sm:text-[10px]` still applies from
       640px up. 6-8px sizes are left alone: those sit in fixed-size avatar and badge circles.
    2. Dialog close buttons get a 44px hit box without changing the glyph size. */
@@ -415,6 +415,21 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
   .text-\[10\.5px\],
   .text-\[11px\],
   .text-\[11\.5px\] {
+    font-size: 12px;
+  }
+  /* The same tiny sizes written in rem (the signed-in home's labels: 8.5-11.8px). */
+  .text-\[0\.53rem\],
+  .text-\[0\.55rem\],
+  .text-\[0\.56rem\],
+  .text-\[0\.57rem\],
+  .text-\[0\.58rem\],
+  .text-\[0\.6rem\],
+  .text-\[0\.62rem\],
+  .text-\[0\.64rem\],
+  .text-\[0\.66rem\],
+  .text-\[0\.7rem\],
+  .text-\[0\.72rem\],
+  .text-\[0\.74rem\] {
     font-size: 12px;
   }
 

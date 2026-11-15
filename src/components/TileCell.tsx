@@ -190,6 +190,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
           // Phones: at most two lines, anywhere-wrapping; the full name is in the tile dialog on tap.
           'leading-tight font-medium px-0.5 max-sm:line-clamp-2 max-sm:[overflow-wrap:anywhere]',
           icon ? 'mt-0.5' : '',
+          // Phones: the count under the name is 12px now; lift the name clear of it.
+          !isCompleted && ((isDrop && progress) || (statProgress && statProgress.goal > 0)) ? 'max-sm:mb-3.5' : '',
           expanded
             ? size <= 3
               ? 'text-sm sm:text-base'
@@ -211,7 +213,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {isDrop && progress && !isCompleted && (
         <div className="absolute bottom-0 left-0 right-0">
           <div className="flex items-center justify-center mb-0.5">
-            <span className="text-[8px] sm:text-[10px] text-yellow-400 font-medium" title={progress.note}>
+            <span className="text-[12px] leading-none sm:text-[10px] sm:leading-normal text-yellow-400 font-medium" title={progress.note}>
               {progress.text ?? `${progress.current}/${progress.required}`}
             </span>
           </div>
@@ -231,7 +233,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {statProgress && statProgress.goal > 0 && !isCompleted && (
         <div className="absolute bottom-0 left-0 right-0">
           <div className="flex items-center justify-center mb-0.5">
-            <span className="text-[8px] sm:text-[10px] text-blue-400 font-medium" title={exactTitle(statProgress.current, statProgress.goal)}>
+            <span className="text-[12px] leading-none sm:text-[10px] sm:leading-normal text-blue-400 font-medium" title={exactTitle(statProgress.current, statProgress.goal)}>
               {formatNumber(statProgress.current)}/{formatNumber(statProgress.goal)}
             </span>
           </div>

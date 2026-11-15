@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import PendingBadge from '@/components/PendingBadge';
 import CreatorChip from '@/components/CreatorChip';
@@ -12,7 +12,7 @@ import { groupClansAndSpaces } from '@/lib/creatorSpaces';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
-import { clanBasePath } from '@/lib/clanScopedPaths';
+import { clanBasePath, loginHref } from '@/lib/clanScopedPaths';
 
 export interface RailClan {
   slug: string;
@@ -80,6 +80,7 @@ export default function PlatformRail({
   friends?: { live: { id: number; name: string; href: string }[]; total: number } | null;
 }) {
   const pathname = usePathname() ?? '/';
+  const clanPrefix = useClanPrefixValue();
   // A Discord avatar hash goes stale when they change it there; a broken image falls back to the initial.
   const [avatarFailed, setAvatarFailed] = useState(false);
   // Phones: the links fold behind a menu button instead of a sideways-scrolling strip.
@@ -303,7 +304,7 @@ export default function PlatformRail({
             </a>
           </>
         ) : (
-          item(pathname !== '/' && pathname !== '/login' ? `/login?return=${encodeURIComponent(pathname)}` : '/login', 'Sign in', <PersonIcon />)
+          item(loginHref(clanPrefix, pathname), 'Sign in', <PersonIcon />)
         )}
       </div>
 

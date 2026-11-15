@@ -405,7 +405,9 @@ export default function DiscordBotSettings() {
             {clearing ? 'Clearing…' : status.sharedAvailable ? 'Use shared bot' : 'Clear token'}
           </button>
         )}
-        {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
+        {/* "Saved" only when something IS stored. With no bot connected and nothing typed there are
+            no changes either, and a green Saved there claimed a save that never happened. */}
+        {!hasChanges && (!!status.guildId || status.source === 'byo') && <span className="text-xs text-green-400">Saved</span>}
         <UnsavedIndicator dirty={dirty} />
       </div>
       )}

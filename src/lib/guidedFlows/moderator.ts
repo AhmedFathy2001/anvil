@@ -24,7 +24,9 @@ export function moderatorFlow(f: ModeratorFacts): FlowView {
   const steps: FlowStepDef[] = [
     { key: 'queue', label: 'Open the queue', done: clear || f.onQueue },
     { key: 'decide', label: 'Keep or remove', done: clear },
-    { key: 'next', label: 'People waiting', done: f.peopleWaiting === 0 },
+    // Only a step when somebody IS waiting. With nobody, it used to sit at the end already ticked,
+    // a done step after the open one, as if the round had been walked out of order.
+    ...(f.peopleWaiting > 0 ? [{ key: 'next', label: 'People waiting', done: false }] : []),
   ];
 
   const describe = (key: string): FlowStepCopy => {

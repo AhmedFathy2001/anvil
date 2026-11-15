@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requireSecret } from '@/lib/env';
-import { clanBasePath, isPlatformPath, kindOfSegment } from '@/lib/clanScopedPaths';
+import { clanBasePath, isPlatformPath, kindOfSegment, loginHref } from '@/lib/clanScopedPaths';
 import {
   CLAN_PREFIX_HEADER,
   CLAN_PROOF_HEADER,
@@ -240,8 +240,9 @@ export async function middleware(request: NextRequest) {
 
   // Protect admin routes — all auth flows through Discord OAuth at /login now.
   if (pathname.startsWith('/admin')) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('return', pathname);
+    // Under /c/<slug> this is the second pass, over the path with the prefix taken off: put it back,
+    // or signing in lands on the apex instead of the clan page that was asked for.
+    const loginUrl = new URL(loginHref(downstream.get(CLAN_PREFIX_HEADER) ?? '', pathname), request.url);
     const token = request.cookies.get('admin_session')?.value;
     if (!token) {
       return NextResponse.redirect(loginUrl);
@@ -312,8 +313,9 @@ export async function middleware(request: NextRequest) {
   // Unified "My Team" surface — open to any logged-in Discord user; the page itself
   // resolves captain/player membership per team.
   if (pathname.startsWith('/team')) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('return', pathname);
+    // Under /c/<slug> this is the second pass, over the path with the prefix taken off: put it back,
+    // or signing in lands on the apex instead of the clan page that was asked for.
+    const loginUrl = new URL(loginHref(downstream.get(CLAN_PREFIX_HEADER) ?? '', pathname), request.url);
     const token = request.cookies.get('admin_session')?.value;
     if (!token) {
       return NextResponse.redirect(loginUrl);

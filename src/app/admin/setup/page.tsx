@@ -5,7 +5,6 @@ import { verifyUser } from '@/lib/auth';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { listBotChannels } from '@/lib/discord-broadcast';
 import SetupWizardClient from './SetupWizardClient';
-import GuidedFlow from '@/components/GuidedFlow';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -29,16 +28,15 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   // The guide strip's buttons name the part of the wizard they mean (?step=clan, ?step=game), since
   // the wizard on its own opens at the first part with anything left, which is often Discord.
   const stepParam = (await searchParams).step;
-  const openAt = stepParam === 'clan' ? 0 : stepParam === 'game' ? 2 : undefined;
   const guide = status.guide;
+  // No strip on this page: the wizard IS the guide here, and the two side by side showed two
+  // counters ("Step 3 of 5" over "part 2 of 3") naming two different tasks. Instead the wizard
+  // opens at the part the strip's open step lives in, so the dashboard's "Step 3, Prove it is
+  // yours" and this page agree on what is next. An explicit ?step= still wins.
+  const guidePart = guide?.current ? (guide.current.key === 'clan' ? 0 : guide.current.key === 'event' ? undefined : 2) : undefined;
+  const openAt = stepParam === 'clan' ? 0 : stepParam === 'game' ? 2 : guidePart;
   return (
     <>
-      {/* The same strip, steps and count as the dashboard (lib/guidedFlows/clanSetup). */}
-      {guide && (
-        <div className="max-w-xl mx-auto">
-          <GuidedFlow view={guide} scope={clan.id} startDismissed={status.dismissed} />
-        </div>
-      )}
       <SetupWizardClient
         // A different part asked for by the address is a different wizard, opened there.
         key={openAt ?? 'auto'}

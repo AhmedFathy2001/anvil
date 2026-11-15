@@ -349,6 +349,16 @@ export function sessionIsRecent(issuedAtMs: number | null | undefined, now: numb
   return age >= -5 * 60 * 1000 && age <= ERASE_RECENT_SESSION_MS;
 }
 
+/**
+ * The moment this session stops being recent enough to delete, or null when it already is not.
+ * The settings page hands this to the button, which checks it at the click: a page left open past
+ * the window must send them to sign in again BEFORE the confirm dialog, not after they typed.
+ */
+export function recentSessionUntil(issuedAtMs: number | null | undefined, now: number = Date.now()): number | null {
+  if (!sessionIsRecent(issuedAtMs, now)) return null;
+  return (issuedAtMs as number) + ERASE_RECENT_SESSION_MS;
+}
+
 /** They must type the word DELETE, or their own display name, exactly enough to mean it. */
 export function confirmPhraseMatches(typed: unknown, displayName: string | null | undefined): boolean {
   if (typeof typed !== 'string') return false;
