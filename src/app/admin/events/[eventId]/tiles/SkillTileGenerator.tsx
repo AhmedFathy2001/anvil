@@ -5,6 +5,7 @@ import { SKILLS, SKILL_LABELS } from '@/lib/constants';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import DialogFrame from '@/components/DialogFrame';
 
 interface Props {
   /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
@@ -139,17 +140,21 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={close}>
-          <div
-            className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl border border-card-border bg-card-bg p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <DialogFrame
+          dirty={selected.size > 0 || (!lastBatch && (xpText.trim() !== '' || points.trim() !== ''))}
+          onClose={close}
+          ariaLabel="Generate skill tiles"
+          overlayClassName="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+          panelClassName="w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl border border-card-border bg-card-bg p-5 shadow-2xl"
+        >
+          {(requestClose) => (
+          <>
             <div className="flex items-center justify-between gap-3 mb-1">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-1 h-5 bg-gold rounded-full" />
                 Generate skill tiles
               </h3>
-              <button onClick={close} className="text-text-muted hover:text-foreground text-lg leading-none">×</button>
+              <button onClick={requestClose} aria-label="Close" className="text-text-muted hover:text-foreground text-lg leading-none">×</button>
             </div>
             <p className="text-xs text-text-muted mb-3">
               One XP-goal tile per picked skill, tagged <span className="text-gold">Skilling</span> +
@@ -211,7 +216,7 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
             {lastBatch && <p className="text-xs text-accent-green-light mb-2">{lastBatch} Pick the next batch, or close.</p>}
 
             <div className="flex justify-end gap-2">
-              <button onClick={close} className="text-xs px-3 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors">
+              <button onClick={requestClose} className="text-xs px-3 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors">
                 Done
               </button>
               <button
@@ -222,8 +227,9 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
                 {creating ? 'Creating…' : `Create ${selected.size || ''} tile${selected.size === 1 ? '' : 's'}`}
               </button>
             </div>
-          </div>
-        </div>
+          </>
+          )}
+        </DialogFrame>
       )}
     </>
   );

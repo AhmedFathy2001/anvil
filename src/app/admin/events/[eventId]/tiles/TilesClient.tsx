@@ -451,6 +451,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // so a fixed grid can use them too while it has blanks left.
   const blankCount = useMemo(() => localTiles.filter(isPlaceholderTile).length, [localTiles]);
   const canAddTiles = !eventStarted && (dynamicBoard || blankCount > 0);
+  // Titles already on the board (blank "Tile N" placeholders do not count), for Quick add's repeat check.
+  const existingLabels = useMemo(() => localTiles.filter((t) => !isPlaceholderTile(t)).map((t) => t.label), [localTiles]);
 
   async function handleAddTile() {
     setAdding(true);
@@ -1792,6 +1794,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           pointsMode={pointsMode}
           tierBands={tierBands}
           teamPlay={teamPlay}
+          existingLabels={existingLabels}
           onClose={() => setBulkOpen(false)}
           onUploadFile={() => { setBulkOpen(false); fileInputRef.current?.click(); }}
           onCreated={async (summary) => {

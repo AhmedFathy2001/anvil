@@ -18,6 +18,11 @@ interface Options {
   modal?: boolean;
 }
 
+// Every open modal or panel, oldest first. Escape belongs to the newest one only: with a dialog
+// open above a docked editor, Escape used to reach BOTH, so closing a dialog also raised the
+// editor's "Leave without saving?" prompt behind it.
+const openStack: HTMLElement[] = [];
+
 /**
  * Wires up keyboard and focus accessibility for a modal:
  *   - Escape key closes it
@@ -37,6 +42,17 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
 }: Options) {
   const trapped = modal && !skipFocusManagement;
   const ref = useRef<T | null>(null);
+
+  // Register once, in mount order, so a re-render with a new onClose never moves this to the top.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    openStack.push(el);
+    return () => {
+      const at = openStack.lastIndexOf(el);
+      if (at >= 0) openStack.splice(at, 1);
+    };
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -59,6 +75,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (openStack.length > 0 && openStack[openStack.length - 1] !== el) return;
         e.stopPropagation();
         onClose();
         return;

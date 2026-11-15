@@ -5,6 +5,8 @@ import { clanFetch } from '@/lib/clanFetch';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { draftToCsvRow, howItCountsLine, type TileDraft } from '@/lib/tileCreatorConfig';
 import { comboRuleLead } from '@/lib/combo';
+import { findDuplicates, reconcileTypedAmount } from '@/lib/quickAdd';
+import { useGuardedClose } from '@/components/UnsavedChanges';
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { BulkLineResult } from '@/lib/taskSuggest';
 import type { TierBand } from '@/lib/tileFilter';
@@ -18,6 +20,16 @@ interface Row extends BulkLineResult {
   chosen: TaskCandidate | null;
   /** The admin picked or edited this line themselves — a re-check of the list keeps their answer. */
   manual?: boolean;
+  /** Set when the matched entry asked for a different amount than the line typed (lib/quickAdd). */
+  note?: string | null;
+  /** The admin chose to leave this repeated line out. */
+  skipped?: boolean;
+}
+
+/** The candidate a line becomes, keeping the amount that was typed. */
+function settle(text: string, c: TaskCandidate): { chosen: TaskCandidate; note: string | null } {
+  const r = reconcileTypedAmount(text, c);
+  return { chosen: r.candidate, note: r.note };
 }
 
 function draftOf(c: TaskCandidate, points: number | null): TileDraft {
@@ -35,6 +47,7 @@ export default function BulkQuickAdd({
   pointsMode,
   tierBands,
   teamPlay,
+  existingLabels = [],
   onClose,
   onCreated,
   onUploadFile,
@@ -43,13 +56,17 @@ export default function BulkQuickAdd({
   pointsMode: boolean;
   tierBands: TierBand[];
   teamPlay: boolean;
+  /** Titles of the tiles already on the board, to flag repeats. */
+  existingLabels?: string[];
   onClose: () => void;
   onCreated: (summary: { created: number; applied: number; ignored: number }) => void;
   onUploadFile: () => void;
 }) {
-  const ref = useModalA11y<HTMLDivElement>({ onClose });
-  const bands = useMemo(() => [...tierBands].sort((a, b) => a.min - b.min), [tierBands]);
   const [text, setText] = useState('');
+  // Escape, the x and a click outside all ask first while a list is typed.
+  const requestClose = useGuardedClose(text.trim() !== '', onClose);
+  const ref = useModalA11y<HTMLDivElement>({ onClose: requestClose });
+  const bands = useMemo(() => [...tierBands].sort((a, b) => a.min - b.min), [tierBands]);
   const [rows, setRows] = useState<Row[]>([]);
   const [checking, setChecking] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -87,9 +104,11 @@ export default function BulkQuickAdd({
         setRows((prev) =>
           (data as BulkLineResult[]).map((r) => {
             const kept = prev.find((p) => p.line === r.line && p.manual);
-            if (kept) return { ...r, draft: kept.draft, chosen: kept.chosen, manual: true };
-            const chosen = r.status === 'ready' ? r.choices[0] : r.status === 'screenshot' ? r.fallback : null;
-            return { ...r, chosen, draft: chosen ? draftOf(chosen, r.points) : null };
+            if (kept) return { ...r, draft: kept.draft, chosen: kept.chosen, note: kept.note, skipped: kept.skipped, manual: true };
+            const picked = r.status === 'ready' ? r.choices[0] : r.status === 'screenshot' ? r.fallback : null;
+            if (!picked) return { ...r, chosen: null, draft: null };
+            const { chosen, note } = settle(r.text, picked);
+            return { ...r, chosen, note, draft: draftOf(chosen, r.points) };
           }),
         );
       } catch {
@@ -106,7 +125,18 @@ export default function BulkQuickAdd({
     pick: rows.filter((r) => r.status === 'pick' && !r.draft).length,
     screenshot: rows.filter((r) => r.status === 'screenshot').length,
   };
-  const settled = rows.filter((r) => r.draft);
+  const settled = rows.filter((r) => r.draft && !r.skipped);
+  const keptRows = rows.filter((r) => !r.skipped);
+  // Repeats: inside this paste and against what is already on the board.
+  const dups = useMemo(() => findDuplicates(rows.map((r) => r.draft?.label ?? null), existingLabels), [rows, existingLabels]);
+  const dupCount = rows.filter((r, i) => dups[i] && !r.skipped).length;
+
+  function setSkipped(i: number, skipped: boolean) {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, skipped, manual: true } : r)));
+  }
+  function skipAllDups() {
+    setRows((prev) => prev.map((r, j) => (dups[j] ? { ...r, skipped: true, manual: true } : r)));
+  }
 
   /** The admin typed this line's points in the table. */
   function setRowPoints(i: number, v: number | null) {
@@ -114,11 +144,20 @@ export default function BulkQuickAdd({
   }
 
   function choose(i: number, c: TaskCandidate) {
-    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, chosen: c, draft: draftOf(c, r.points), manual: true } : r)));
+    setRows((prev) =>
+      prev.map((r, j) => {
+        if (j !== i) return r;
+        const { chosen, note } = settle(r.text, c);
+        return { ...r, chosen, note, draft: draftOf(chosen, r.points), manual: true };
+      }),
+    );
   }
 
   async function addRows(which: 'settled' | 'all') {
-    const list = rows.map((r) => r.draft ?? (which === 'all' ? draftOf(r.choices[0] ?? r.fallback, r.points) : null)).filter((d): d is TileDraft => !!d);
+    const list = rows
+      .filter((r) => !r.skipped)
+      .map((r) => r.draft ?? (which === 'all' ? draftOf(r.choices[0] ?? r.fallback, r.points) : null))
+      .filter((d): d is TileDraft => !!d);
     if (list.length === 0) return;
     setAdding(true);
     setError(null);
@@ -147,7 +186,7 @@ export default function BulkQuickAdd({
   const editingRow = editing != null ? rows[editing] : null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-stretch sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-stretch sm:items-start justify-center bg-black/60 backdrop-blur-sm sm:p-4" onClick={requestClose}>
       <div
         ref={ref}
         role="dialog"
@@ -171,7 +210,7 @@ export default function BulkQuickAdd({
             <SecondaryButton onClick={onUploadFile}>Upload CSV / Excel</SecondaryButton>
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               aria-label="Close"
               className="w-11 h-11 grid place-items-center rounded-lg border border-card-border text-text-muted hover:text-foreground text-lg"
             >
@@ -220,6 +259,14 @@ export default function BulkQuickAdd({
                 <span className="rounded-full border border-accent-green/30 bg-accent-green/10 text-accent-green-light px-2.5 py-1">{counts.ready} ready</span>
                 <span className="rounded-full border border-gold/30 bg-gold/10 text-gold px-2.5 py-1">{counts.pick} pick one</span>
                 <span className="rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-200 px-2.5 py-1">{counts.screenshot} screenshot</span>
+                {dupCount > 0 && (
+                  <span className="rounded-full border border-red-400/30 bg-red-400/10 text-red-200 px-2.5 py-1">
+                    {dupCount} repeat{dupCount === 1 ? '' : 's'}{' '}
+                    <button type="button" onClick={skipAllDups} className="underline underline-offset-2 ml-1 hover:text-white">
+                      Skip {dupCount === 1 ? 'it' : 'them'}
+                    </button>
+                  </span>
+                )}
                 {pointsMode && (
                   <label className="ml-auto flex items-center gap-2 text-text-muted">
                     Default worth
@@ -254,7 +301,7 @@ export default function BulkQuickAdd({
                       <div
                         role="row"
                         key={`${i}-${r.line}`}
-                        className={`grid grid-cols-[minmax(0,1fr)_auto] ${pointsMode ? 'md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem]' : 'md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)]'} gap-x-2 gap-y-1 items-center px-2 py-2 border-b border-card-border/60`}
+                        className={`grid grid-cols-[minmax(0,1fr)_auto] ${rows[i].skipped ? 'opacity-50' : ''} ${pointsMode ? 'md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem]' : 'md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)]'} gap-x-2 gap-y-1 items-center px-2 py-2 border-b border-card-border/60`}
                       >
                         <span role="cell" className="min-w-0">
                           <button
@@ -275,6 +322,16 @@ export default function BulkQuickAdd({
                             )}
                             {r.status === 'pick' && !r.draft && <span className="block text-xs text-gold">Which one did you mean?</span>}
                           </button>
+                          {r.note && <span className="block text-xs text-amber-200">{r.note}</span>}
+                          {dups[i] && (
+                            <span className="flex flex-wrap items-center gap-2 text-xs text-red-200">
+                              {dups[i]!.where === 'board' ? 'Already on the board.' : `Same as line ${dups[i]!.line}.`}
+                              {r.skipped ? ' Skipped.' : ' Will be added again.'}
+                              <button type="button" onClick={() => setSkipped(i, !r.skipped)} className="min-h-11 underline underline-offset-2 hover:text-white">
+                                {r.skipped ? 'Add it anyway' : 'Skip this one'}
+                              </button>
+                            </span>
+                          )}
                           {r.status === 'pick' && (
                             <span className="mt-1 flex flex-wrap gap-1.5">
                               {r.choices.map((ch) => (
@@ -344,8 +401,8 @@ export default function BulkQuickAdd({
                   Add the {settled.length} settled
                 </SecondaryButton>
               )}
-              <PrimaryButton onClick={() => addRows('all')} disabled={adding || rows.length === 0 || checking}>
-                {adding ? 'Adding…' : `Add all ${rows.length} tile${rows.length === 1 ? '' : 's'}`}
+              <PrimaryButton onClick={() => addRows('all')} disabled={adding || keptRows.length === 0 || checking}>
+                {adding ? 'Adding…' : `Add all ${keptRows.length} tile${keptRows.length === 1 ? '' : 's'}`}
               </PrimaryButton>
             </div>
           </div>

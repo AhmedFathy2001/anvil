@@ -4,6 +4,7 @@ import { useState } from 'react';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch } from '@/lib/clanFetch';
+import DialogFrame from '@/components/DialogFrame';
 
 interface Props {
   /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
@@ -81,21 +82,25 @@ export default function LibraryTileGenerator({ open: controlledOpen, onOpenChang
       )}
 
       {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Draw tasks from the library"
-          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8"
+        <DialogFrame
+          dirty={!!drawn && drawn.length > 0}
+          onClose={() => {
+            setDrawn(null);
+            setOpen(false);
+          }}
+          ariaLabel="Draw tasks from the library"
+          overlayClassName="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 sm:p-8"
+          panelClassName="relative w-full max-w-lg border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50"
         >
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-lg border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
+          {(requestClose) => (
+          <>
             <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
               <div className="flex items-center gap-2">
                 <span className="w-1 h-5 bg-gold rounded-full" />
                 <h2 className="font-semibold">Draw from the task library</h2>
               </div>
               <button
-                onClick={() => setOpen(false)}
+                onClick={requestClose}
                 aria-label="Close"
                 className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light transition-colors"
               >
@@ -107,7 +112,7 @@ export default function LibraryTileGenerator({ open: controlledOpen, onOpenChang
               <div className="flex items-center justify-end gap-2 border-t border-card-border pt-3">
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={requestClose}
                   className="px-3 py-1.5 text-sm text-text-muted hover:text-foreground transition-colors"
                 >
                   Close
@@ -122,8 +127,9 @@ export default function LibraryTileGenerator({ open: controlledOpen, onOpenChang
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+          )}
+        </DialogFrame>
       )}
     </>
   );
