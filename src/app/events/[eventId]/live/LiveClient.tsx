@@ -63,6 +63,8 @@ export default function LiveClient({
   const [chat, setChat] = useState<LiveChatState | null>(null);
   const [where, setWhere] = useState<{ f: string; tm: number | null }>({ f: 'team', tm: null });
   const [chatError, setChatError] = useState<string | null>(null);
+  // Unsent chat text, kept per channel so switching channel or tab does not lose it.
+  const drafts = useRef<Record<string, string>>({});
   // When the lists were last read: times read "14:05" today and "Nov 8 · 14:05" before.
   const [now, setNow] = useState(0);
 
@@ -412,6 +414,7 @@ export default function LiveClient({
             setFilter(f);
             setCount(FEED_PAGE);
           }}
+          onRetry={() => void loadFeed(filter, count)}
           onMore={async () => {
             setLoadingMore(true);
             const n = count + FEED_PAGE;
@@ -434,6 +437,8 @@ export default function LiveClient({
           onOwnTeam={toggleOwnTeam}
           onPause={togglePause}
           onDelete={remove}
+          drafts={drafts}
+          onRetry={() => void loadChat(where)}
           onMute={mute}
           onSend={async (msg) => {
             if (!chat) return 'Still loading.';
@@ -580,6 +585,7 @@ function FeedPane({
   loadingMore,
   onFilter,
   onMore,
+  onRetry,
 }: {
   now: number;
   feed: LiveFeedState | null;
@@ -588,6 +594,7 @@ function FeedPane({
   loadingMore: boolean;
   onFilter: (f: string) => void;
   onMore: () => void;
+  onRetry: () => void;
 }) {
   return (
     <Card>
@@ -599,7 +606,12 @@ function FeedPane({
           ))}
         </div>
       )}
-      {error && <p className="px-4 pb-3 text-sm text-red-400">{error}</p>}
+      {error && (
+        <div className="px-4 pb-3">
+          <p className="text-sm text-red-400">{error}</p>
+          <RetryButton onRetry={onRetry} />
+        </div>
+      )}
       {!feed && !error && <p className="px-4 py-8 text-center text-sm text-text-muted">Loading…</p>}
       {feed && feed.rows.length === 0 && <p className="border-t border-card-border px-4 py-8 text-center text-sm text-text-muted">{feed.empty}</p>}
       {feed && feed.rows.length > 0 && (
@@ -622,6 +634,14 @@ function FeedPane({
         </div>
       )}
     </Card>
+  );
+}
+
+function RetryButton({ onRetry }: { onRetry: () => void }) {
+  return (
+    <button type="button" onClick={onRetry} className="mx-auto mt-2 block min-h-10 rounded-lg border border-card-border px-4 text-sm font-medium text-text-muted transition-colors hover:border-gold/30 hover:text-gold">
+      Try again
+    </button>
   );
 }
 
@@ -665,6 +685,8 @@ function ChatPane({
   onDelete,
   onMute,
   onSend,
+  drafts,
+  onRetry,
 }: {
   now: number;
   chat: LiveChatState | null;
@@ -676,6 +698,8 @@ function ChatPane({
   onDelete: (line: LiveChatLine) => void;
   onMute: (line: LiveChatLine) => void;
   onSend: (msg: string) => Promise<string | null>;
+  drafts: { current: Record<string, string> };
+  onRetry: () => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -700,6 +724,7 @@ function ChatPane({
     return (
       <Card>
         <p className={`px-4 py-8 text-center text-sm ${error ? 'text-red-400' : 'text-text-muted'}`}>{error ?? 'Loading…'}</p>
+        {error && <RetryButton onRetry={onRetry} />}
       </Card>
     );
   }
@@ -752,7 +777,7 @@ function ChatPane({
           <div ref={endRef} />
         </div>
         <div className="sticky bottom-0 z-10 rounded-b-xl border-t border-card-border bg-card-bg px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static">
-          {chat.lock ? <LockLine lock={chat.lock} /> : <Composer key={chat.channel} chat={chat} onSend={onSend} />}
+          {chat.lock ? <LockLine lock={chat.lock} /> : <Composer key={`${chat.channel}:${chat.team ?? ""}`} chat={chat} onSend={onSend} drafts={drafts} />}
         </div>
       </Card>
     </div>
@@ -791,8 +816,13 @@ function LockLine({ lock }: { lock: NonNullable<LiveChatState['lock']> }) {
   );
 }
 
-function Composer({ chat, onSend }: { chat: LiveChatState; onSend: (msg: string) => Promise<string | null> }) {
-  const [text, setText] = useState('');
+function Composer({ chat, onSend, drafts }: { chat: LiveChatState; onSend: (msg: string) => Promise<string | null>; drafts: { current: Record<string, string> } }) {
+  const draftKey = `${chat.channel}:${chat.team ?? ''}`;
+  const [text, setTextState] = useState(() => drafts.current[draftKey] ?? '');
+  const setText = (v: string) => {
+    drafts.current[draftKey] = v;
+    setTextState(v);
+  };
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
