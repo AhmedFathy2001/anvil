@@ -899,7 +899,7 @@ export default async function EventScoreboardPage({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 sm:shrink-0 min-w-0 max-w-full flex-wrap">
             {showRecapCta && (
               <ClanLink
                 href={`/events/${id}/recap`}

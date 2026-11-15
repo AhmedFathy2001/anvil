@@ -359,8 +359,8 @@ export default async function ProfilePage({
           )}
 
           {/* The owner band: what only they see. Live and captaincy on one side, the record on the other. */}
-          <div className="grid gap-5 mt-5 lg:grid-cols-2 lg:items-start">
-            <div className="grid gap-5 content-start">
+          <div className="grid grid-cols-1 gap-5 mt-5 lg:grid-cols-2 lg:items-start">
+            <div className="grid grid-cols-1 gap-5 content-start">
               <LiveForYou
                 events={locker.liveEvents}
                 weeklies={locker.liveWeeklies}
@@ -400,7 +400,7 @@ export default async function ProfilePage({
               )}
             </div>
 
-            <div className="grid gap-5 content-start">
+            <div className="grid grid-cols-1 gap-5 content-start">
               {/* A creator space has no member pages (lib/creatorSpaces), so no "All events →" into one. */}
               <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={space ? null : locker.focusRsn} />
               <TrophyCase trophies={locker.trophies} />
