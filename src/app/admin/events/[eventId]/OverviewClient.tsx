@@ -1,5 +1,6 @@
 'use client';
 
+import { tileWithPartIds } from '@/lib/combo';
 import type { Event, Tile, Team, Completion, Submission } from '@/lib/types';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -170,7 +171,9 @@ export default function OverviewClient({
   // All-teams submission management from the board: click a tile to see/manage every team's proofs.
   const teamNameById = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t.name])), [teams]);
   const selectedTile = localTiles.find((t) => t.id === selectedTileId) ?? null;
-  const selectedTileSubmissions = selectedTileId ? submissions.filter((s) => s.tileId === selectedTileId) : [];
+  // A combo's proof is its parts' (lib/combo): without them a combo opened here showed none at all.
+  const selectedTileIds = tileWithPartIds(localTiles, selectedTileId);
+  const selectedTileSubmissions = selectedTileId ? submissions.filter((s) => selectedTileIds.has(s.tileId)) : [];
   const selectedTileCompletedBy = selectedTileId
     ? liveCompletions
         .filter((c) => c.tileId === selectedTileId)

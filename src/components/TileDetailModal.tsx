@@ -872,6 +872,12 @@ export default function TileDetailModal({
                               Add screenshot
                             </button>
                           )}
+                          {/* This part's own proof and credits, whoever is looking (a part that is done has no "Add screenshot"). */}
+                          {submissions.some((sub) => sub.tileId === p.id) && (
+                            <button type="button" onClick={() => setOpenPart(p)} className="text-[11px] text-gold hover:underline">
+                              Proof ({submissions.filter((sub) => sub.tileId === p.id).length})
+                            </button>
+                          )}
                           {teamsDone.map((t) => (
                             <span key={t.teamName} title={`${t.teamName} did this part`} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
                           ))}

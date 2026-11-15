@@ -62,6 +62,8 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
   // Which player's baseline editor is open (per-row "Fix baseline" on the standings table).
   const [baselinePlayer, setBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [snapshotting, setSnapshotting] = useState(false);
+  // Narrows the team standings by name; the place numbers stay each team's real place.
+  const [teamQuery, setTeamQuery] = useState('');
   const [forceResetting, setForceResetting] = useState(false);
   const { confirm } = useDialog();
   const [refreshingStats, setRefreshingStats] = useState(false);
@@ -213,8 +215,21 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
             Each team&apos;s score so far. &ldquo;Manage board&rdquo; opens that team&apos;s board to see their
             progress and mark tiles done/undone or add/remove submissions.
           </p>
+          {teamStandings.length > 8 && (
+            <Input
+              type="search"
+              value={teamQuery}
+              onChange={(e) => setTeamQuery(e.target.value)}
+              placeholder={`Search ${teamStandings.length} teams…`}
+              aria-label="Search teams"
+              className="mb-3 w-full max-w-sm px-3 py-2 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground"
+            />
+          )}
           <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
-            {teamStandings.map((t, i) => (
+            {teamQuery.trim() && !teamStandings.some((t) => t.name.toLowerCase().includes(teamQuery.trim().toLowerCase())) && (
+              <p className="px-4 py-3 text-sm text-text-muted">No team matches “{teamQuery.trim()}”.</p>
+            )}
+            {teamStandings.map((t, i) => !t.name.toLowerCase().includes(teamQuery.trim().toLowerCase()) ? null : (
               <div key={t.teamId} className="flex items-center gap-3 px-4 py-3">
                 <span className="w-6 text-center text-sm font-bold text-text-muted shrink-0">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
