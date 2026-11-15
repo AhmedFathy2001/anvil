@@ -47,7 +47,7 @@ export function YouStrip({
   const share = !scored ? 0 : behind ? entry.gained / Math.max(1, entry.gained + behind.amount) : 1;
 
   return (
-    <div className="sticky top-[var(--nav-height)] z-10 mb-6 grid grid-cols-2 items-center gap-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg/95 to-card-bg/95 p-3.5 backdrop-blur sm:grid-cols-[auto_auto_minmax(180px,1fr)_auto] sm:gap-6">
+    <div className="z-10 mb-6 sm:sticky sm:top-[var(--nav-height)] grid grid-cols-2 items-center gap-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg/95 to-card-bg/95 p-3.5 backdrop-blur sm:grid-cols-[auto_auto_minmax(180px,1fr)_auto] sm:gap-6">
       <div className="font-mono text-3xl font-bold leading-none tabular-nums">
         <span className="text-base text-text-muted">#</span>
         {rank}
