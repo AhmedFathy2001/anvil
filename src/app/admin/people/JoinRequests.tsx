@@ -1,5 +1,6 @@
 'use client';
 
+import { useDialog } from '@/components/Confirm';
 import { useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
@@ -22,6 +23,7 @@ export default function JoinRequests({ initial, title = 'Asking to join' }: { in
   const [requests, setRequests] = useState(initial);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
+  const { confirm } = useDialog();
   const [error, setError] = useState<string | null>(null);
 
   if (requests.length === 0) return null;
@@ -43,6 +45,21 @@ export default function JoinRequests({ initial, title = 'Asking to join' }: { in
    */
   async function decide(ids: number[], decision: 'approve' | 'reject') {
     if (ids.length === 0) return;
+    // Declining tells the person no and cannot be taken back from here: ask first, by name.
+    if (decision === 'reject') {
+      const names = requests.filter((r) => ids.includes(r.id)).map((r) => r.rsn);
+      const ok = await confirm({
+        title: ids.length === 1 ? `Decline ${names[0] ?? 'this request'}?` : `Decline ${ids.length} requests?`,
+        body:
+          ids.length === 1
+            ? 'They are told their request was declined. They can ask again later.'
+            : `${names.slice(0, 5).join(', ')}${names.length > 5 ? ` and ${names.length - 5} more` : ''} are told their request was declined. They can ask again later.`,
+        confirmLabel: 'Decline',
+        cancelLabel: 'Keep waiting',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     setError(null);
     try {
