@@ -24,7 +24,7 @@ import { isPlaceholderTile } from '@/lib/placeholderTile';
 import { parseEventRules } from '@/lib/eventRules';
 import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { scoreTeams } from '@/lib/boardScoring';
 import { useDialog } from '@/components/Confirm';
@@ -822,6 +822,27 @@ function WrapHome({
     : standings.slice(0, 3).map((s) => ({ id: s.team.id, name: s.team.name, score: s.score }));
   const fromRecord = recorded.length > 0;
 
+  const router = useRouter();
+  const [cloning, setCloning] = useState(false);
+  async function runAgain() {
+    const ok = await confirm({
+      title: `Run "${event.name}" again?`,
+      body: 'A new event is created with the same settings, tiles and survey questions, and no teams, players or dates. You are taken straight to the copy.',
+      confirmLabel: 'Create the copy',
+      tone: 'gold',
+    });
+    if (!ok) return;
+    setCloning(true);
+    try {
+      const res = await clanFetch(`/api/events/${event.id}/clone`, { method: 'POST' });
+      if (!res.ok) return;
+      const { id } = await res.json();
+      router.push(clanUrl(`/admin/events/${id}`));
+    } finally {
+      setCloning(false);
+    }
+  }
+
   async function resume() {
     const ok = await confirm({
       title: 'Resume this event?',
@@ -881,42 +902,6 @@ function WrapHome({
         </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <NextStep
-          href={`${base}/payouts`}
-          title={counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} prizes owed` : counts.payoutCount > 0 ? 'All paid' : 'Set the prizes'}
-          detail={
-            counts.unpaidPayouts > 0
-              ? 'Mark each winner paid, with a screenshot.'
-              : counts.payoutCount > 0
-                ? 'Nothing outstanding.'
-                : 'Prizes are generated from the split when an event ends.'
-          }
-          tone={counts.unpaidPayouts > 0 ? 'attn' : counts.payoutCount > 0 ? 'done' : undefined}
-        />
-        <NextStep
-          href={`${base}/survey`}
-          title={counts.surveyResponses > 0 ? `${counts.surveyResponses} survey replies` : counts.hasSurvey ? 'Survey is out' : 'No survey'}
-          detail={
-            counts.surveyResponses > 0
-              ? 'Read what people said before planning the next one.'
-              : counts.hasSurvey
-                ? 'Nudge people in the recap post — replies roughly double.'
-                : 'Ask a few questions while the event is fresh.'
-          }
-          tone={counts.surveyResponses > 0 ? 'done' : undefined}
-        />
-        <NextStep
-          href={`${base}/stats`}
-          title="The story"
-          detail={
-            awards.length > 0
-              ? `${awards.length} award${awards.length === 1 ? '' : 's'} worked out — plus the per-member breakdown.`
-              : 'The per-member breakdown behind the result.'
-          }
-        />
-      </div>
-
       {awards.length > 0 && (
         <section className="border border-card-border rounded-xl bg-card-bg p-5">
           <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
@@ -942,24 +927,85 @@ function WrapHome({
         </section>
       )}
 
-      <section className="border border-card-border rounded-xl bg-card-bg p-5">
-        <h2 className="text-lg font-bold flex items-center gap-2 mb-3">
-          <span className="w-1 h-5 bg-text-muted rounded-full" />
-          Run it again
+      {/* Everything left to do with a finished event, in one place. */}
+      <section className="border border-gold/30 rounded-xl bg-card-bg p-5">
+        <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          Wrapping up
         </h2>
-        <div className="flex flex-wrap gap-2 items-center">
-          <QuietLink href={`${base}/settings/more#clone`}>Clone or save as a template</QuietLink>
-          {event.forceEndedAt && (
-            <button
-              type="button"
-              onClick={resume}
-              disabled={resuming}
-              className="px-2.5 py-1 text-xs rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
-            >
-              {resuming ? 'Resuming…' : 'Resume the event'}
-            </button>
-          )}
-        </div>
+        <p className="text-sm text-text-muted mb-3">Everything left to do with this event, top to bottom.</p>
+        <ul className="divide-y divide-card-border/60">
+          <WrapRow
+            title="Pay the prizes"
+            detail={
+              counts.unpaidPayouts > 0
+                ? `${counts.unpaidPayouts} ${counts.unpaidPayouts === 1 ? 'prize is' : 'prizes are'} still owed. Mark each winner paid, with a screenshot.`
+                : counts.payoutCount > 0
+                  ? 'All paid. Nothing outstanding.'
+                  : 'No prizes set yet. Set who gets what, then mark each one paid.'
+            }
+            tone={counts.unpaidPayouts > 0 ? 'attn' : counts.payoutCount > 0 ? 'done' : undefined}
+            action={<QuietLink href={`${base}/payouts`}>{counts.unpaidPayouts > 0 ? 'Pay prizes' : counts.payoutCount > 0 ? 'See prizes' : 'Set prizes'}</QuietLink>}
+          />
+          <WrapRow
+            title="Send the recap"
+            detail="The page that tells the story of the event. Share its link in your Discord."
+            action={<QuietLink href={`/events/${event.id}/recap`}>Open the recap</QuietLink>}
+          />
+          <WrapRow
+            title="Ask for feedback"
+            detail={
+              counts.surveyResponses > 0
+                ? `${counts.surveyResponses} ${counts.surveyResponses === 1 ? 'reply' : 'replies'} so far. Read them before planning the next one.`
+                : counts.hasSurvey
+                  ? 'The survey is out. Mention it in the recap post: replies roughly double.'
+                  : 'No survey yet. Ask a few questions while the event is fresh.'
+            }
+            tone={counts.surveyResponses > 0 ? 'done' : undefined}
+            action={<QuietLink href={`${base}/survey`}>{counts.hasSurvey ? 'Open the survey' : 'Write a survey'}</QuietLink>}
+          />
+          <WrapRow
+            title="The story"
+            detail={
+              awards.length > 0
+                ? `${awards.length} award${awards.length === 1 ? '' : 's'} worked out, plus the per-member breakdown.`
+                : 'The per-member breakdown behind the result.'
+            }
+            action={<QuietLink href={`${base}/stats`}>See the stats</QuietLink>}
+          />
+          <WrapRow
+            title="Run it again"
+            detail="Makes a copy with the same settings and tiles, and no teams, players or dates."
+            action={
+              <span className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={runAgain}
+                  disabled={cloning}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-gold/40 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+                >
+                  {cloning ? 'Copying…' : 'Run it again'}
+                </button>
+                <QuietLink href={`${base}/settings/more#clone`}>Save as a template</QuietLink>
+                {event.forceEndedAt && (
+                  <button
+                    type="button"
+                    onClick={resume}
+                    disabled={resuming}
+                    className="px-2.5 py-1 text-xs rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+                  >
+                    {resuming ? 'Resuming…' : 'Resume the event'}
+                  </button>
+                )}
+              </span>
+            }
+          />
+          <WrapRow
+            title="Archive it"
+            detail="Proof screenshots are deleted 90 days after the end. Download the archive to keep them."
+            action={<a href="#archive" className="px-2.5 py-1 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors">Go to the archive</a>}
+          />
+        </ul>
       </section>
     </div>
   );
@@ -1030,31 +1076,25 @@ function Meter({ label, value, total }: { label: string; value: number; total: n
   );
 }
 
-function NextStep({
-  href,
+function WrapRow({
   title,
   detail,
+  action,
   tone,
 }: {
-  href: string;
   title: string;
   detail: string;
+  action: React.ReactNode;
   tone?: 'attn' | 'done';
 }) {
   return (
-    <ClanLink
-      href={href}
-      className={`block p-4 rounded-xl border transition-colors ${
-        tone === 'attn'
-          ? 'border-amber-400/40 bg-amber-400/10 hover:border-amber-400/60'
-          : 'border-card-border bg-card-bg hover:border-gold/40'
-      }`}
-    >
-      <div className={`text-sm font-semibold ${tone === 'attn' ? 'text-amber-300' : tone === 'done' ? 'text-accent-green-light' : ''}`}>
-        {title}
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+      <div className="min-w-0 flex-1 basis-60">
+        <div className={`text-sm font-semibold ${tone === 'attn' ? 'text-amber-300' : tone === 'done' ? 'text-accent-green-light' : ''}`}>{title}</div>
+        <p className="text-xs text-text-muted mt-0.5">{detail}</p>
       </div>
-      <p className="text-xs text-text-muted mt-1">{detail}</p>
-    </ClanLink>
+      <div className="shrink-0">{action}</div>
+    </li>
   );
 }
 
