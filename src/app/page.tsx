@@ -1,3 +1,4 @@
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
@@ -316,7 +317,7 @@ export default async function HomePage() {
     <div>
       <Hero view={view} boostLevel={boost?.level ?? 0} boostNameStyle={boost?.nameStyle} />
       {hall && <ClanHall initial={hall} src="home" />}
-      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
+      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
       <Competitions view={view} />

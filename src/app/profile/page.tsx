@@ -125,6 +125,10 @@ export default async function ProfilePage({
       }),
       supporterForUser(session.userId),
     ]);
+    // A deep link the person signed in from (lib/firstLogin): keep it through setup, and go there
+    // once nothing is left to set up.
+    const apexNext = onboardingNext(params.next);
+    if (apexNext && params.welcome === '1' && !onboarding.offer) redirect(apexNext); // clan-prefix: platform -- literal path they signed in from
     const ownedRsns = new Set(characters.map((a) => a.rsnNormalized));
     const ownedHashes = new Set(characters.map((a) => a.accountHash).filter(Boolean) as string[]);
     const detectedCount = detectedRows.filter(
@@ -156,6 +160,7 @@ export default async function ProfilePage({
           detectedCount={detectedCount}
           suggestedRsn={suggestedRsn}
           unfinishedSetup={onboarding.offer}
+          setupHref={apexNext ? `/welcome?next=${encodeURIComponent(apexNext)}` : '/welcome'}
           supporter={supporterView(supporter)}
           media={media}
           discordAvatar={user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null}

@@ -164,10 +164,13 @@ export function YouStrip({
   you,
   signedIn,
   discordInvite,
+  returnTo,
 }: {
   you: HomeYou | null;
   signedIn: boolean;
   discordInvite: string | null;
+  /** The clan's own address (`/c/<slug>`), so signing in brings the person back here. */
+  returnTo?: string;
 }) {
   if (!you) {
     // Signed in, but nothing of theirs on this roster. Membership is granted — by the in-game roster
@@ -183,7 +186,7 @@ export function YouStrip({
       : {
           title: 'Sign in to see your week',
           sub: 'Your rank in everything running, and your own gains',
-          href: '/login',
+          href: returnTo ? `/login?return=${encodeURIComponent(returnTo)}` : '/login',
           cta: 'Sign in with Discord',
         };
     return (

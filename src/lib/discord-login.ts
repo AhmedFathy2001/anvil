@@ -14,7 +14,7 @@ import { claimAccountForPerson } from '@/lib/accountClaim';
 import { track } from '@/lib/analytics';
 import { recordFirstTouch } from '@/lib/analyticsAttribution';
 import { rosterClanSeat } from '@/lib/seatScope';
-import { firstLoginDestination, spaceSlugOf } from '@/lib/firstLogin';
+import { firstLoginDestination, returnedToClanHost, spaceSlugOf } from '@/lib/firstLogin';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 const SESSION_COOKIE = 'admin_session';
@@ -337,7 +337,7 @@ export async function completeDiscordLogin(
   //
   // Arriving from a clan still lands on that clan's locker: they have a clan already, so the one
   // thing left really is the plugin, and the card there says so in the clan's own name.
-  const returningToClan = Boolean(returnHost);
+  const returningToClan = returnedToClanHost(returnHost);
   //
   // And it used to do so only when they came from the home page: a deep link skipped onboarding
   // entirely. Now every first sign-in goes through it, carrying the original target as `next`

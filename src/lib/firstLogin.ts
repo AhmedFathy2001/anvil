@@ -21,6 +21,9 @@ const STRAIGHT_THROUGH: RegExp[] = [
   /^\/clans\/new(?:[/?#]|$)/,
   // An event invite, with or without a clan prefix.
   /^(?:\/[cs]\/[^/]+)?\/events\/[^/]+\/join\/[^/?#]+/,
+  // A shared event sign-up link: the person signed in to sign up for that event, so the sign-up
+  // page is the next thing they see, with no setup detour in between.
+  /^(?:\/[cs]\/[^/]+)?\/events\/[^/]+\/signup(?:[/?#]|$)/,
 ];
 
 /** The tenant of a `/c/<slug>/…` or `/s/<slug>/…` return path, or null. */
@@ -48,4 +51,24 @@ export function onboardingNext(raw: string | string[] | undefined | null): strin
   const safe = safeReturnPath(value, '');
   if (!safe || safe === '/') return null;
   return safe;
+}
+
+/**
+ * Did the person start from a real clan's host? The login callback falls back to the apex domain
+ * when no clan resolved, so a bare "there is a host" is always true and sent apex-first newcomers
+ * to a clan locker instead of /welcome. Apex hosts do not count.
+ */
+export function returnedToClanHost(
+  returnHost: string | null | undefined,
+  apexHosts: string[] = defaultApexHosts(),
+): boolean {
+  if (!returnHost) return false;
+  const host = returnHost.trim().toLowerCase().replace(/:\d+$/, '');
+  return host !== '' && !apexHosts.includes(host);
+}
+
+function defaultApexHosts(): string[] {
+  const apex = (process.env.ANVIL_APEX_DOMAIN || 'anvilosrs.com').toLowerCase();
+  const extra = (process.env.ANVIL_APEX_ALIASES || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
+  return [apex, `www.${apex}`, ...extra];
 }
