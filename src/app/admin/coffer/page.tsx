@@ -4,7 +4,7 @@ import { requireFeature } from '@/lib/clanFeatures';
 import { clanHref } from '@/lib/clanPath';
 import { requireClan } from '@/lib/clanContext';
 import { verifyFeeCollector } from '@/lib/auth';
-import { getCofferBalance, listCofferEntries } from '@/lib/coffer';
+import { getCofferBalance, getCofferMoneyOut, listCofferEntries } from '@/lib/coffer';
 import { getPhysicalCofferState } from '@/lib/cofferSync';
 import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
@@ -30,9 +30,16 @@ export default async function AdminCofferPage() {
   const clan = await requireClan();
   await requireFeature(clan.id, 'coffer', '/admin/dashboard');
 
-  const [balance, entries, roster, physicalState] = await Promise.all([
+  const [balance, entries, waiting, moneyOut, roster, physicalState] = await Promise.all([
     getCofferBalance(clan.id),
+    // The ledger at the bottom of the page: the newest 200 movements.
     listCofferEntries({ clanId: clan.id, limit: 200 }),
+    // The two queues, read on their own and in full. Filtering them out of the 200 above dropped a
+    // donation or a prize from its queue once 200 newer rows existed, with nothing left to say it
+    // was still waiting.
+    listCofferEntries({ clanId: clan.id, statuses: ['pending', 'reserved', 'planned'], all: true }),
+    // And the totals over the whole ledger, for the same reason.
+    getCofferMoneyOut(clan.id),
     // Who a donation can be credited to. Guests included: somebody who is not on the roster proper
     // can still have paid into the pot, and refusing to name them is not a policy anyone asked for.
     db
@@ -48,6 +55,8 @@ export default async function AdminCofferPage() {
     <CofferClient
       balance={balance}
       entries={entries}
+      waiting={waiting}
+      moneyOut={moneyOut}
       roster={roster}
       physicalState={physicalState ? {
         balance: Number(physicalState.balance),

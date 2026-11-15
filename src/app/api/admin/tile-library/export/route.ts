@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { tiles } from '@/db/schema';
 import { nestParts } from '@/lib/combo';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { listLibrary } from '@/lib/tileLibrary';
 import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';
 
@@ -34,7 +34,7 @@ function seedKeyFor(label: string, tileType: string): string {
 
 export async function GET(request: Request) {
   const clan = await requireClan();
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(request.url);

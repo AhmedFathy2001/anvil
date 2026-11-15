@@ -50,3 +50,30 @@ export function nextWindow(prev: { startDate: string; endDate: string }, now: nu
   while (s + length <= now) s += length;
   return { startDate: new Date(s).toISOString(), endDate: new Date(s + length).toISOString() };
 }
+
+// ── The successor marker ─────────────────────────────────────────────────────────────────────
+//
+// `weekly_repeat_next:<id>` holds the successor's id once it exists. While the roll is making it,
+// the row holds a CLAIM instead, written before the competition is inserted — so two overlapping
+// cron ticks cannot both make one. A claim that never turned into an id (the process died in the
+// few statements between) is taken over after CLAIM_STALE_MS rather than ending the series.
+
+const CLAIM_PREFIX = 'claim:';
+export const CLAIM_STALE_MS = 10 * 60 * 1000;
+
+/** The marker value a roll writes to take the successor slot. */
+export function successorClaim(now: number): string {
+  return `${CLAIM_PREFIX}${now}`;
+}
+
+/**
+ * What the marker says: 'free' (make the successor), 'taken' (it exists, or another roll is making
+ * it right now), or 'stale' (a roll claimed it and never finished: take it over).
+ */
+export function successorMarkerState(value: string | null | undefined, now: number): 'free' | 'taken' | 'stale' {
+  if (!value) return 'free';
+  if (!value.startsWith(CLAIM_PREFIX)) return 'taken';
+  const at = Number(value.slice(CLAIM_PREFIX.length));
+  if (!Number.isFinite(at)) return 'stale';
+  return now - at > CLAIM_STALE_MS ? 'stale' : 'taken';
+}

@@ -14,10 +14,11 @@ import {
   generateInviteToken,
   invitePath,
   inviteExpiry,
+  isInviteAdmin,
   isWellFormedToken,
   mayMintInvite,
 } from '@/lib/teamInvites';
-import { atLeast } from '@/lib/clanRoles';
+import { currentClan } from '@/lib/clanContext';
 
 // The links that put someone straight onto one team (lib/teamInvites). Minting is the whole
 // permission question here: a host may always, a captain or a staff seat only when the event's
@@ -28,19 +29,21 @@ async function gate(teamId: number) {
   const session = await verifyUser();
   if (!session) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
 
-  const membership = await resolveTeamManagement(teamId);
-  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
-  // this is a moderation surface, so it stays out — explicitly, as it always was.
-  const isAdmin = atLeast(session.role, 'moderator') && session.role !== 'treasurer';
-  if (!membership && !isAdmin) {
-    return { error: NextResponse.json({ error: 'Not your team' }, { status: 403 }) };
-  }
-
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team) return { error: NextResponse.json({ error: 'Team not found' }, { status: 404 }) };
   // clan-scope: global -- a team is reached through membership or an invite token, not through a clan — that is what lets a visiting clan's people use it.
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) return { error: NextResponse.json({ error: 'Event not found' }, { status: 404 }) };
+
+  const membership = await resolveTeamManagement(teamId);
+  // The session's role is the caller's role in the clan this REQUEST names, and team ids are
+  // global: it only makes them a host here when that clan owns this team's event. Everyone else
+  // has to be on the team (lib/teamInvites isInviteAdmin).
+  const clan = await currentClan();
+  const isAdmin = isInviteAdmin({ role: session.role, requestClanId: clan?.id, eventClanId: event.clanId });
+  if (!membership && !isAdmin) {
+    return { error: NextResponse.json({ error: 'Not your team' }, { status: 403 }) };
+  }
 
   const captainInvites = parseEventRules(event.rules).captainInvites;
   return {

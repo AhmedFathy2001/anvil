@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { FeeChangedError, markFeeCollected, selfMarkedFeeIds } from '@/lib/feeConfirmations';
-import { canTeamUndoCollection } from '@/lib/feeRules';
+import { canTeamMarkCollected, canTeamUndoCollection } from '@/lib/feeRules';
 import { requireTeamManager, teamManagerIds } from '@/lib/teamStaff';
 import { del } from '@/lib/storage';
 
@@ -186,8 +186,12 @@ export async function POST(
   if (!signupIds.includes(fee.signupId)) {
     return NextResponse.json({ error: 'That fee is not on your team' }, { status: 403 });
   }
-  if (fee.status === 'confirmed') {
-    return NextResponse.json({ error: 'That fee is already settled' }, { status: 409 });
+  const may = canTeamMarkCollected(fee.status);
+  if (!may.ok) {
+    return NextResponse.json(
+      { error: may.reason === 'closed' ? 'The host closed that fee when the event ended. Ask them to reopen it.' : 'That fee is already settled' },
+      { status: 409 },
+    );
   }
   // Not your own: markFeeCollected refuses it (by login or by the player behind the roster seat).
 

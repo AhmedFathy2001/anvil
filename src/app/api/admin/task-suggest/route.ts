@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { starterTasks, suggestTasks } from '@/lib/taskSuggest';
 
@@ -7,7 +7,7 @@ import { starterTasks, suggestTasks } from '@/lib/taskSuggest';
 // editor's "What's the task?" box. ?starters=1 → a few tasks off the clan's past boards (its library)
 // for the creator's start screen. Tile-authoring support, so editors reach it as well as admins.
 export async function GET(request: Request) {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
   const params = new URL(request.url).searchParams;

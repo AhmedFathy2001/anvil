@@ -15,12 +15,13 @@ import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, eventCohosts, eventParticipants, eventSignups, events, signupFees, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanMemberships, clans, eventCohosts, eventParticipants, eventSignups, events, signupFees, users, weeklyCompetitions } from '@/db/schema';
 import { currentClan, requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
-import { resolvePluginClan, verifyUser } from '@/lib/auth';
+import { resolvePluginClan, verifyPlayer, verifyPluginTokenUser, verifyUser } from '@/lib/auth';
 import { labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { isStandingsStaff, viewerTeamIds } from '@/lib/standingsAccess';
 import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import { provenPath } from '@/lib/requestHeaderProof';
 
@@ -55,6 +56,75 @@ export async function eventForRequest(request: Request, eventId: number): Promis
   const clan = await resolvePluginClan(request);
   if (!clan) return null;
   return eventInClan(clan.id, eventId);
+}
+
+/**
+ * May whoever sent this request LOOK at this event? The page's rule (canSeeEvent), for an API route.
+ *
+ * The viewer is the cookie session, or the person behind a plugin bearer token — one person,
+ * whichever client asked. Asked signed-out first, because that is the whole answer for a public
+ * event and for a public clan's own events, and it costs no identity lookup.
+ *
+ * TWO MORE KINDS OF PEOPLE the page rule does not name, because they reach the event through other
+ * pages that poll these same routes:
+ *
+ *   - Anyone on one of its teams. A visiting clan's captain or team-staff seat holds no seat in the
+ *     host clan, yet /team/<id> and /captain/<id> show them their team's board.
+ *   - Its staff. A board-scoped editor, a co-host's staff the host let onto the board, and Anvil
+ *     staff all work in /admin on an event they hold no seat for (lib/standingsAccess
+ *     isStandingsStaff — the people who can already open every team's board there).
+ *
+ * Both were put on the event by its host; neither is an outsider guessing an id.
+ */
+export async function requestMaySeeEvent(request: Request, event: { id: number; clanId: number }): Promise<boolean> {
+  const eventId = event.id;
+  if (await canSeeEvent({ eventId, playerId: null })) return true;
+
+  const session = await verifyUser();
+  if (session && (await personMaySeeEvent(event, session))) return true;
+
+  // The legacy player cookie names one roster row; it opens the event that row plays in.
+  const legacy = await verifyPlayer();
+  if (legacy) {
+    const [row] = await db
+      .select({ id: eventParticipants.id })
+      .from(eventParticipants)
+      .where(and(eq(eventParticipants.id, legacy.playerId), eq(eventParticipants.eventId, eventId)))
+      .limit(1);
+    if (row) return true;
+  }
+
+  const tokenUser = await verifyPluginTokenUser(request);
+  if (!tokenUser || tokenUser.userId === session?.userId) return false;
+  // clan-scope: global -- the token's own person.
+  const row = await db.query.users.findFirst({ where: eq(users.id, tokenUser.userId), columns: { playerId: true } });
+  return personMaySeeEvent(event, { userId: tokenUser.userId, playerId: row?.playerId ?? null });
+}
+
+async function personMaySeeEvent(
+  event: { id: number; clanId: number },
+  person: { userId: number; playerId: number | null },
+): Promise<boolean> {
+  if (person.playerId != null && (await canSeeEvent({ eventId: event.id, playerId: person.playerId }))) return true;
+  if ((await viewerTeamIds(event.id, person)).length > 0) return true;
+  return isStandingsStaff(event, person.userId);
+}
+
+/**
+ * `eventForRequest` for a READ of what the event shows — standings, gains, the recap, proofs.
+ *
+ * Belonging to this clan is not enough to be read: an invite-only or members-only event 404s its
+ * page for an outsider (requireEventForPage), and every JSON route beside that page has to give the
+ * same answer or the id in the URL is all it takes to read the board. Null for "not this clan's"
+ * and for "not yours to see" alike, so the 404 says nothing about which.
+ *
+ * Staff WRITES keep using eventForRequest: they are gated on a role in the clan, which already
+ * implies the event is theirs to see.
+ */
+export async function readableEventForRequest(request: Request, eventId: number): Promise<ScopedEvent | null> {
+  const event = await eventForRequest(request, eventId);
+  if (!event) return null;
+  return (await requestMaySeeEvent(request, event)) ? event : null;
 }
 
 /**

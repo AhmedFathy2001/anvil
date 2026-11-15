@@ -6,6 +6,7 @@ import {
 import { boardTiles } from '@/lib/eventRules';
 import { isPointsMode, tileWeight } from '@/lib/utils';
 import type { StatContributionSnapshot } from '@/lib/statTracking';
+import { inWindow } from '@/lib/monthWindow';
 import {
   bestClaim,
   bestStreak,
@@ -267,9 +268,7 @@ export function buildLadderView(input: LadderViewInput): LadderView {
   const standingsFor = (start?: string, end?: string) =>
     computeIndividualStandings({
       ...base,
-      completions: completions.filter(
-        (c) => (start === undefined || c.completedAt >= start) && (end === undefined || c.completedAt < end),
-      ),
+      completions: completions.filter((c) => inWindow(c.completedAt, { start, end })),
     });
 
   const allTime = standingsFor();

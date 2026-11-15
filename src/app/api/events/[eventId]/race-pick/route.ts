@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { teams } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -26,7 +26,8 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const event = await eventForRequest(request, eId);
+  // A read of a team's picks: only for someone who may see the event at all.
+  const event = await readableEventForRequest(request, eId);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const mode = parseEventRules(event.rules).raceRoad;
   const teamId = Number(new URL(request.url).searchParams.get('teamId'));

@@ -107,6 +107,28 @@ export async function competitionReadableBy(
   return true;
 }
 
+/**
+ * The whole read rule for a competition's standings, for everything that is NOT the page: its JSON,
+ * its link preview, its card.
+ *
+ * The page gets the first half for free — the root layout swaps a private clan's pages for its card
+ * (lib/clanAccess) — and asks competitionReadableBy for the second. A route beside the page has no
+ * layout, so it has to ask both, or the id in the URL reads what the page refuses to show.
+ *
+ * `ANONYMOUS_VIEWER` is who a link preview is for: whoever the link gets pasted to.
+ */
+export async function competitionStandingsReadableBy(
+  comp: Pick<Competition, 'id' | 'clanId' | 'mode'>,
+  viewer: { playerId: number | null; userId: number | null },
+): Promise<boolean> {
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, comp.clanId), columns: { id: true, visibility: true } });
+  if (!host) return false;
+  if (!(await canSeeClan({ clanId: host.id, visibility: host.visibility, playerId: viewer.playerId, userId: viewer.userId }))) return false;
+  return competitionReadableBy(comp, viewer);
+}
+
+export const ANONYMOUS_VIEWER = { playerId: null, userId: null } as const;
+
 /** Active clans-mode competitions `clanId` is a partner in (not the host) — for the plugin and lists. */
 export async function partnerCompetitions(clanId: number, status?: string): Promise<Competition[]> {
   const rows = await db

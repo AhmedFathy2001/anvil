@@ -3,7 +3,7 @@ import { events, eventParticipants, clanRoster, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 
 import { getLadderBoards } from '@/lib/ladderStandings';
-import { monthKeyWindow, monthWindowUtc, previousMonthKey } from '@/lib/monthWindow';
+import { inWindow, monthKeyWindow, monthWindowUtc, previousMonthKey } from '@/lib/monthWindow';
 import { parseEventRules } from '@/lib/eventRules';
 import { getSettingText, setSetting } from '@/lib/settings';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
@@ -51,7 +51,7 @@ export async function settleLadderMonth(event: typeof events.$inferSelect): Prom
   if (settled === month) return null;
   // A board that started this month has no previous month of its own to crown.
   const { start } = monthKeyWindow(month);
-  if (event.startDate && event.startDate >= monthWindowUtc().start) {
+  if (inWindow(event.startDate, { start: monthWindowUtc().start })) {
     await setSetting(event.clanId, SETTLED_KEY(event.id), month);
     return null;
   }
