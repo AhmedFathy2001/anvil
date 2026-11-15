@@ -10,7 +10,7 @@ export interface Moment {
   text: string;
   iconUrl: string | null;
   /** Backdrop art for the tile (lib/scenes): where the skill is trained, or the boss itself. */
-  scene?: { url: string; fit: 'cover' | 'contain' } | null;
+  scene?: { url: string; kind: 'emblem' | 'figure' } | null;
   /** ISO time it was seen. */
   at: string;
   /** The short tag over the tile. */

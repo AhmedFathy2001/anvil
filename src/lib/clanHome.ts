@@ -156,7 +156,7 @@ export interface VisitorItem {
   top: { name: string; text: string } | null;
   when: string | null;
   /** Backdrop art for the card (lib/scenes), when it is about one skill or boss. */
-  scene?: { url: string; fit: 'cover' | 'contain' } | null;
+  scene?: { url: string; kind: 'emblem' | 'figure' } | null;
 }
 
 export interface PublicClanActivity {
