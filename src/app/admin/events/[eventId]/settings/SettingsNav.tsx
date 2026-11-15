@@ -66,7 +66,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
               key={t.key}
               href={href}
               aria-current={active ? 'page' : undefined}
-              className={`relative whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors ${active ? 'text-gold' : 'text-text-muted hover:text-foreground'}`}
+              className={`relative whitespace-nowrap px-3.5 py-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center text-sm font-medium transition-colors ${active ? 'text-gold' : 'text-text-muted hover:text-foreground'}`}
             >
               {t.label}
               {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gold" aria-hidden />}

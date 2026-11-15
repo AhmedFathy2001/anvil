@@ -1198,7 +1198,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     key={v}
                     onClick={() => leaveGuard(() => setViewMode(v), true)}
                     title={meta.title}
-                    className={`text-xs px-3 py-1.5 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+                    className={`text-xs px-3 py-1.5 max-sm:min-h-11 max-sm:px-4 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
                   >
                     {meta.label}
                   </button>
@@ -1210,7 +1210,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 onClick={handleAddTile}
                 disabled={adding || eventStarted}
                 title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 max-sm:min-h-11 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {adding ? 'Adding…' : `+ Add ${model.noun}`}
               </button>

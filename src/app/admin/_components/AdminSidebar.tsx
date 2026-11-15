@@ -184,7 +184,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
  prefetch={false}
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
-                          className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                          className={`flex items-center justify-between gap-2 px-3 py-2 max-lg:min-h-11 text-sm rounded-lg transition-colors ${
                             active
                               ? 'bg-gradient-to-r from-gold/15 to-gold/[0.02] text-gold-light border border-transparent shadow-[inset_3px_0_0_var(--gold)]'
                               : item.quiet
@@ -238,7 +238,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                                     href={kid.href}
                                     onClick={() => setMobileOpen(false)}
                                     aria-current={on ? 'page' : undefined}
-                                    className={`block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                                    className={`block rounded-md px-2.5 py-1.5 max-lg:flex max-lg:min-h-11 max-lg:items-center text-[13px] transition-colors ${
                                       on ? 'bg-gold/10 text-gold-light' : 'text-text-muted hover:bg-brown-light hover:text-foreground'
                                     }`}
                                   >

@@ -486,7 +486,7 @@ function Feeds({ data }: { data: EventStatsData }) {
         {drops.length === 0 ? (
           <p className="text-sm text-text-muted py-4">Nothing yet.</p>
         ) : (
-          <ul className="max-h-96 overflow-y-auto pr-1">
+          <ul className="sm:max-h-96 sm:overflow-y-auto pr-1">
             {drops.map((d) => (
               <FeedLine key={d.id} d={d} nowMs={now} teamColor={d.teamId != null ? color.get(d.teamId) : undefined}>
                 <span className="font-semibold">{d.rsn}</span>{' '}
@@ -535,7 +535,7 @@ function Feeds({ data }: { data: EventStatsData }) {
         {data.tiles.length === 0 ? (
           <p className="text-sm text-text-muted py-4">No tiles in this window.</p>
         ) : (
-          <ul className="max-h-96 overflow-y-auto pr-1">
+          <ul className="sm:max-h-96 sm:overflow-y-auto pr-1">
             {data.tiles.map((t, i) => (
               <li key={i} className="flex items-center gap-2 py-1.5 border-b border-card-border/50 last:border-0 text-sm">
                 <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: color.get(t.teamId) ?? 'transparent' }} aria-hidden />
