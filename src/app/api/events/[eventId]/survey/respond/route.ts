@@ -64,6 +64,6 @@ export async function POST(
       set: { answers: JSON.stringify(validated.clean), submittedAt: new Date().toISOString() },
     });
 
-  track('survey.answered', { userId: session.userId });
+  track('survey.answered', { clanId: event.clanId, userId: session.userId });
   return NextResponse.json({ ok: true });
 }

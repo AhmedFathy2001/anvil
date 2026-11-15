@@ -86,6 +86,6 @@ export async function POST(
     announced = await announcePayouts(eId).catch(() => false);
   }
 
-  track('payout.paid', { clanId: event?.clanId });
+  track('payout.paid', { clanId: event?.clanId ?? clan?.id, userId: session.userId });
   return NextResponse.json({ payout: updated, announced });
 }

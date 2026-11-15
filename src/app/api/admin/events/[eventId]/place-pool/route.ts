@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
+import { track } from '@/lib/analytics';
 import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -51,5 +52,6 @@ export async function POST(
   // per-person (default) groups a person's alts onto one team; per-account gives each its own.
   const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
   const result = await placeUnassignedPlayers(id, body.placement, slotMode);
+  if (result.placed > 0) track('team.balanced', { clanId: event.clanId, props: { placed: result.placed, via: 'pool' } });
   return NextResponse.json(result);
 }

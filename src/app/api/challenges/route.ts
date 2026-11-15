@@ -69,6 +69,6 @@ export async function POST(request: Request) {
     public: body.public === true,
   });
   if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status ?? 400 });
-  track('challenge.sent');
+  track('challenge.sent', { userId: session.userId });
   return NextResponse.json({ id: out.id });
 }

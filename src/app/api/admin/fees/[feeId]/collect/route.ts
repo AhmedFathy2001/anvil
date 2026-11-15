@@ -78,6 +78,6 @@ export async function POST(
   }
   const { fee: updated, settled } = collected;
 
-  track('fee.paid');
+  track('fee.paid', { clanId: event.clanId, userId: session.userId });
   return NextResponse.json({ fee: updated, settled });
 }
