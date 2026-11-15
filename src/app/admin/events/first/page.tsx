@@ -1,3 +1,5 @@
+import GuidedFlow from '@/components/GuidedFlow';
+import { newEventFlow } from '@/lib/guidedFlows/runEvent';
 import { count, eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 
@@ -30,11 +32,16 @@ export default async function FirstEventPage() {
   if (isFriendsHost(clan) && !friendsTier) redirect('/host/friends'); // clan-prefix: platform -- the friends host's home is on the apex
   const friends = friendsTier ? { playersCap: FRIENDS_CAPS[friendsTier].playersPerEvent, tierName: SUPPORTER_TIERS[friendsTier].name } : null;
   return (
-    <FirstEventClient
-      suggestedName={suggestEventName(clan.name, ec?.c ?? 0)}
-      first={(ec?.c ?? 0) === 0}
-      creator={isCreatorSpace(clan)}
-      friends={friends}
-    />
+    <>
+      {/* The same guide strip the event's own pages carry, with its first step open. A friends host
+          runs a smaller job (no sign-ups, no prizes), so it gets no strip. */}
+      {!friends && <GuidedFlow view={newEventFlow({ quick: true })} />}
+      <FirstEventClient
+        suggestedName={suggestEventName(clan.name, ec?.c ?? 0)}
+        first={(ec?.c ?? 0) === 0}
+        creator={isCreatorSpace(clan)}
+        friends={friends}
+      />
+    </>
   );
 }

@@ -14,11 +14,10 @@ import FinalHourButton from '@/components/FinalHourButton';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode, eventNoun, isLadderFormat, isTileRaceFormat } from '@/lib/utils';
 import { isBranchingRoute, raceGraph } from '@/lib/raceRoutes';
-import { eventAxes, supportsMissions, taskNoun } from '@/lib/eventAxes';
-import { nextStep } from '@/lib/eventNextStep';
-import { NextStepPanel, ProofsToCheck, useStartNow } from './EventNextStep';
+import { eventAxes, supportsMissions } from '@/lib/eventAxes';
+import { ProofsToCheck } from './EventNextStep';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { type EventStage, type StageCounts } from '@/lib/eventStage';
+import { setupFacts, type EventStage, type StageCounts } from '@/lib/eventStage';
 import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
 import { parseEventRules } from '@/lib/eventRules';
@@ -188,44 +187,10 @@ export default function OverviewClient({
     setSubmissions((list) => list.filter((s) => s.id !== submissionId));
   }
 
-  // The one thing this event wants from its admin now (lib/eventNextStep) — the forge panel.
-  const axes = eventAxes(currentEvent);
-  const one = taskNoun(axes);
-  const flaggedProofs = submissions.filter((s) => s.flaggedReason).length;
-  const step = nextStep({
-    stage,
-    noun: { one, many: `${one}s` },
-    startDate: currentEvent.startDate ?? null,
-    endDate: currentEvent.endDate ?? null,
-    tileCount: counts.tileCount,
-    expectedTiles: counts.expectedTiles,
-    teamCount: counts.teamCount,
-    assignedPlayers: counts.assignedPlayers,
-    signupCount: counts.signupCount,
-    pendingSignups: counts.pendingSignups,
-    flaggedProofs,
-    payoutCount: counts.payoutCount,
-    unpaidPayouts: counts.unpaidPayouts,
-    blockers: counts.blockers,
-    individual: axes.competitors === 'individuals',
-    race: isTileRaceFormat(currentEvent.format),
-    surveyMissing: surveyOn && !counts.hasSurvey,
-  });
-  const starter = useStartNow(event.id, (e) => {
-    setCurrentEvent(e);
-    router.refresh();
-  });
-
+  // "What do I do next" is the guide strip above every tab of this event (./EventGuide, drawn by the
+  // layout). It replaced the Next step panel that used to open this page.
   return (
     <div className="space-y-8">
-      <NextStepPanel
-        step={step}
-        eventId={event.id}
-        onStart={() => void starter.start()}
-        starting={starter.starting}
-        error={starter.error}
-      />
-
       {stage === 'build' && (
         <BuildHome
           event={currentEvent}
@@ -279,7 +244,11 @@ export default function OverviewClient({
           submissions={submissions}
           tiles={localTiles}
           teamNameById={teamNameById}
-          onChange={() => void fetchSubmissions()}
+          onChange={() => {
+            void fetchSubmissions();
+            // The guide strip counts flagged proofs on the server: let it catch up.
+            router.refresh();
+          }}
           allHref={`/admin/events/${event.id}/proofs`}
         />
       )}
@@ -403,7 +372,8 @@ function BuildHome({
     const widest = Math.max(1, ...g.steps.map((s) => s.length));
     return `${g.steps.length} steps${widest > 1 ? `, up to ${widest} side by side` : ''}`;
   }, [race, tiles]);
-  const tilesDone = counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles;
+  // The same three facts the guide strip ticks its steps from (lib/eventStage setupFacts).
+  const { tilesDone, teamsDone, datesDone } = setupFacts(counts, { startDate: event.startDate ?? null });
   const blocked = counts.blockers.length > 0;
 
   const checks: CheckRow[] = [
@@ -471,7 +441,7 @@ function BuildHome({
         ]
       : []),
     {
-      done: counts.teamCount > 0 && counts.assignedPlayers > 0,
+      done: teamsDone,
       title:
         counts.teamCount === 0
           ? 'No teams yet'
@@ -484,7 +454,7 @@ function BuildHome({
       blocking: blocked,
     },
     {
-      done: !!event.startDate && !!event.endDate,
+      done: datesDone,
       title: event.startDate
         ? `Runs from ${new Date(event.startDate).toLocaleDateString()}`
         : 'No dates set',
@@ -505,7 +475,8 @@ function BuildHome({
           : `${counts.signupCount} signed up`,
       detail: counts.pendingSignups > 0 ? 'Review and approve before the draft.' : 'Nobody is waiting on a decision.',
       href: `${base}/signups`,
-      action: 'Open sign-ups',
+      // Sign-ups are open from the moment the event exists: this goes to the list, it switches nothing on.
+      action: 'Review sign-ups',
       blocking: false,
     },
     {
@@ -539,27 +510,37 @@ function BuildHome({
   return (
     <section className="border border-gold/30 rounded-xl bg-card-bg overflow-hidden">
       <div className="p-5 bg-gradient-to-br from-gold/[0.07] to-transparent">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2.5">
-            <span className="molten-bar" />
-            Before this can start
-          </h2>
-          {blocked ? (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30">
-              {counts.blockers.length} blocking
+        {/* The guide strip above names the one next step; this is everything else, folded to a count
+            unless something is blocking the start. */}
+        <details open={blocked} className="group">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+            <h2 className="text-lg font-semibold flex items-center gap-2.5">
+              <span className="molten-bar" />
+              What is left before the start
+              <span className="text-sm font-normal text-text-muted">
+                {checks.filter((c) => c.done).length} of {checks.length} done
+              </span>
+            </h2>
+            <span className="flex items-center gap-2">
+              {blocked ? (
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30">
+                  {counts.blockers.length} blocking
+                </span>
+              ) : (
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/30">
+                  Ready to go
+                </span>
+              )}
+              <span aria-hidden className="text-text-muted text-sm transition-transform group-open:rotate-90">▸</span>
             </span>
-          ) : (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/30">
-              Ready to go
-            </span>
-          )}
-        </div>
+          </summary>
 
-        <div className="space-y-2">
-          {checks.map((c) => (
-            <CheckRowView key={c.title} row={c} />
-          ))}
-        </div>
+          <div className="mt-4 space-y-2">
+            {checks.map((c) => (
+              <CheckRowView key={c.title} row={c} />
+            ))}
+          </div>
+        </details>
 
         {/* The "starting soon" heads-up tells every clan to get ready — not something to offer on a
             board with nothing on it or nobody to play it. */}

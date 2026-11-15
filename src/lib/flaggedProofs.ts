@@ -31,3 +31,14 @@ export async function flaggedProofBoards(
     .groupBy(events.id);
   return rows.map((r) => ({ eventId: r.eventId, name: r.name, count: Number(r.c) }));
 }
+
+/** Flagged proofs waiting on staff for ONE board, whenever it ended: what its own home page lists. */
+export async function flaggedProofCount(eventId: number): Promise<number> {
+  // clan-scope: global -- takes an event id whose caller has already settled the clan (lib/eventScope).
+  const [row] = await db
+    .select({ c: count() })
+    .from(submissions)
+    .innerJoin(tiles, eq(submissions.tileId, tiles.id))
+    .where(and(eq(tiles.eventId, eventId), isNotNull(submissions.flaggedReason)));
+  return Number(row?.c ?? 0);
+}

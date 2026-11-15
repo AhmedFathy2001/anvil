@@ -1,3 +1,5 @@
+import GuidedFlow from '@/components/GuidedFlow';
+import { newEventFlow } from '@/lib/guidedFlows/runEvent';
 import { requireClan } from '@/lib/clanContext';
 import { track } from '@/lib/analytics';
 import { db } from '@/db';
@@ -124,6 +126,8 @@ function FormatPicker({ cards, hidden, creator = false }: { cards: FormatCard[];
       >
         &larr; All events
       </ClanLink>
+      {/* The same guide strip the event's own pages carry, with its first step open. */}
+      <GuidedFlow view={newEventFlow()} />
       <header className="mb-8">
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">What are you running?</h1>
         <p className="text-text-muted mt-2 text-[15px] max-w-[62ch]">

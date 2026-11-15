@@ -1093,7 +1093,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               <GuideLink href="/guide/board#kinds">What each tile kind tracks</GuideLink>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div id="add-tiles" className="flex flex-wrap items-center gap-2 scroll-mt-24 rounded-lg">
+            {/* #add-tiles: where the guide strip's "Add tiles" button lands (lib/guidedFlows/runEvent). */}
             {!eventStarted && localTiles.length > 1 && (
               <>
                 <button
