@@ -425,7 +425,7 @@ export function setupAttentionItems(
  * fewer authored tiles than that is still being written.
  */
 export async function getSetupProgress(
-  upcoming: { id: number; expectedTiles: number; draftStatus: string; hasDates: boolean }[],
+  upcoming: { id: number; expectedTiles: number; draftStatus: string; hasDates: boolean; placement?: string | null }[],
 ): Promise<Map<number, SetupProgress>> {
   const out = new Map<number, SetupProgress>();
   if (upcoming.length === 0) return out;
@@ -456,6 +456,7 @@ export async function getSetupProgress(
       teamCount,
       assignedPlayerCount: assignedPlayers,
       totalPlayerCount: totalPlayers.find((r) => r.eventId === e.id)?.n ?? 0,
+      placement: e.placement,
     });
     const tilesDone = tilesAuthored >= e.expectedTiles && e.expectedTiles > 0;
     const stepsDone = [tilesDone, teamCount > 0, assignedPlayers > 0, e.hasDates, readiness.ready].filter(Boolean).length;

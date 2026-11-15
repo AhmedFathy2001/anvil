@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_AUTO_TEAM_COUNT, placementOf } from '@/lib/teamPlacement';
 import type { Event, Tile, Team, Completion, Submission } from '@/lib/types';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -385,7 +386,7 @@ function BuildHome({
           ? 'Click a tile on the race map and type its task, or paste a list.'
           : 'Paste a list, draw from the library, or generate from the collection log.',
       href: race ? `${base}/tiles?view=map` : `${base}/tiles`,
-      action: tilesDone ? 'Review' : 'Write tiles',
+      action: tilesDone ? 'Open the board' : 'Write tiles',
       blocking: false,
     },
     // A race's roads: optional (a straight road is a fine race), but say where they're laid out.
@@ -424,7 +425,7 @@ function BuildHome({
                 detail:
                   'Neither the plugin nor the hiscores counts them; a captain marks them done. Fine for screenshot tasks. Otherwise open the tile and pick the task.',
                 href: `${base}/tiles`,
-                action: 'Review',
+                action: 'Find them',
                 blocking: false,
               };
             }
@@ -433,25 +434,40 @@ function BuildHome({
               title: 'Every tile counts by itself',
               detail: 'The plugin or the hiscores credits each one.',
               href: `${base}/tiles`,
-              action: 'Review',
+              action: 'Check tiles',
               blocking: false,
             };
           })(),
         ]
       : []),
-    {
-      done: teamsDone,
-      title:
-        counts.teamCount === 0
-          ? 'No teams yet'
-          : counts.assignedPlayers === 0
-            ? `${counts.teamCount} ${counts.teamCount === 1 ? 'team' : 'teams'}, nobody assigned`
-            : `${counts.teamCount} ${counts.teamCount === 1 ? 'team' : 'teams'} · ${counts.assignedPlayers} ${counts.assignedPlayers === 1 ? 'player' : 'players'}`,
-      detail: blocked ? capitalise(counts.blockers[0]) : 'Draft them, or assign straight from the roster.',
-      href: `${base}/teams`,
-      action: counts.teamCount === 0 ? 'Set up teams' : event.draftStatus && event.draftStatus !== 'none' ? 'Open draft' : 'Open teams',
-      blocking: blocked,
-    },
+    (() => {
+      const placement = placementOf(event);
+      const fromSignups = counts.teamCount === 0 && (placement === 'auto' || placement === 'solo');
+      const teamWord = (n: number) => (n === 1 ? 'team' : 'teams');
+      const playerWord = (n: number) => (n === 1 ? 'player' : 'players');
+      return {
+        done: teamsDone,
+        title: fromSignups
+          ? 'Teams form as people sign up'
+          : counts.teamCount === 0
+            ? 'No teams yet'
+            : counts.assignedPlayers === 0
+              ? `${counts.teamCount} ${teamWord(counts.teamCount)}, nobody on one yet`
+              : `${counts.teamCount} ${teamWord(counts.teamCount)}, ${counts.assignedPlayers} ${playerWord(counts.assignedPlayers)} placed`,
+        detail: blocked
+          ? capitalise(counts.blockers[0])
+          : fromSignups
+            ? placement === 'solo'
+              ? 'Each person who signs up gets a team of their own.'
+              : `The first sign-ups are spread across ${event.teamCount ?? DEFAULT_AUTO_TEAM_COUNT} teams.`
+            : placement === 'draft'
+              ? 'Draft them, or assign straight from the roster.'
+              : 'People are placed when they sign up. You can still move anyone by hand.',
+        href: `${base}/teams`,
+        action: counts.teamCount === 0 && !fromSignups ? 'Set up teams' : event.draftStatus && event.draftStatus !== 'none' ? 'Open the draft' : 'Open teams',
+        blocking: blocked,
+      } satisfies CheckRow;
+    })(),
     {
       done: datesDone,
       title: event.startDate
@@ -472,7 +488,7 @@ function BuildHome({
         counts.pendingSignups > 0
           ? `${counts.pendingSignups} sign-up${counts.pendingSignups === 1 ? '' : 's'} waiting`
           : `${counts.signupCount} signed up`,
-      detail: counts.pendingSignups > 0 ? 'Review and approve before the draft.' : 'Nobody is waiting on a decision.',
+      detail: counts.pendingSignups > 0 ? 'Approve them so they can be put on a team.' : 'Nobody is waiting on a decision.',
       href: `${base}/signups`,
       // Sign-ups are open from the moment the event exists: this goes to the list, it switches nothing on.
       action: 'Review sign-ups',

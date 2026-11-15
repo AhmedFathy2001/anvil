@@ -1,3 +1,4 @@
+import { placementOf } from '@/lib/teamPlacement';
 import { redirect } from 'next/navigation';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
@@ -96,6 +97,7 @@ export default async function EventLayout({
         unpaidPayouts: stageCounts.unpaidPayouts,
         blockers: stageCounts.blockers,
         individual: eventAxes(event).competitors === 'individuals',
+        placement: placementOf(event),
         race: isTileRaceFormat(event.format),
         usesSignups: event.signupsEnabled !== false,
       })

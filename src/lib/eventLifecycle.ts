@@ -1,3 +1,4 @@
+import { placementOf } from '@/lib/teamPlacement';
 import { notifyBoardPeople } from '@/lib/pushNotify';
 import { db } from '@/db';
 import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
@@ -151,7 +152,7 @@ export async function emptyTeamCount(eventId: number): Promise<number> {
   return rows.filter((r) => Number(r.players) === 0).length;
 }
 
-export async function getEventStartReadiness(eventId: number, draftStatus: string): Promise<StartReadiness> {
+export async function getEventStartReadiness(eventId: number, draftStatus: string, placement?: string | null): Promise<StartReadiness> {
   const [[teamCount], [assignedCount], [totalCount]] = await Promise.all([
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
     db.select({ n: count() }).from(eventParticipants).where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId))),
@@ -162,6 +163,7 @@ export async function getEventStartReadiness(eventId: number, draftStatus: strin
     teamCount: teamCount.n,
     assignedPlayerCount: assignedCount.n,
     totalPlayerCount: totalCount.n,
+    placement,
   });
 }
 
@@ -246,7 +248,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
     // ahead of now each tick, and warn the Discord bingo channel exactly once (startHoldNotified
     // latch). The event then starts automatically within one tick of the blockers clearing — no
     // admin re-scheduling needed.
-    const readiness = await getEventStartReadiness(event.id, event.draftStatus).catch(
+    const readiness = await getEventStartReadiness(event.id, event.draftStatus, placementOf(event)).catch(
       (): StartReadiness => ({ ready: true, blockers: [], unassignedPlayerCount: 0 }),
     );
     if (!readiness.ready) {

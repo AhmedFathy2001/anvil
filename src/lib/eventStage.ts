@@ -47,6 +47,8 @@ export interface StageCounts {
   pendingSignups: number;
   unpaidPayouts: number;
   payoutCount: number;
+  /** Team placement (lib/teamPlacement); 'auto' and 'solo' make teams from sign-ups. */
+  placement?: string | null;
   surveyResponses: number;
   /** True once the event has any survey question authored. */
   hasSurvey: boolean;
@@ -124,7 +126,9 @@ export function lifecycleSteps(
         ? `${counts.teamCount} ready`
         : counts.teamCount > 0
           ? 'nobody assigned'
-          : 'no teams',
+          : counts.placement === 'auto' || counts.placement === 'solo'
+            ? 'form from sign-ups'
+            : 'no teams',
       state: teamsDone ? 'done' : 'todo',
     },
     {

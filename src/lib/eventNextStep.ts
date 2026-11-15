@@ -26,6 +26,11 @@ export interface NextStepInput {
   blockers: string[];
   /** Individual boards (a ladder) have no teams to make. */
   individual: boolean;
+  /**
+   * The board's Team placement (lib/teamPlacement). With 'auto' or 'solo' the teams are made from
+   * sign-ups, so having none before the first sign-up is expected, not a gap to fill by hand.
+   */
+  placement?: string | null;
   /** A tile race: its tiles are written on the race map, where the roads are laid out too. */
   race?: boolean;
   /**
@@ -113,13 +118,16 @@ export function nextStep(e: NextStepInput): NextStep {
         action: { kind: 'link', label: 'Review sign-ups', tab: 'signups' },
       };
     }
-    if (!e.individual && e.signupCount === 0 && e.teamCount === 0) {
+    const formsFromSignups = e.placement === 'auto' || e.placement === 'solo';
+    if (!e.individual && e.signupCount === 0 && (e.teamCount === 0 || (formsFromSignups && e.assignedPlayers === 0))) {
       // Sign-ups are open from the moment an event exists, so "open" them was a step with nothing to
       // press. What's actually missing is people knowing where to go.
       return {
         key: 'share',
         title: 'Share the sign-up link',
-        body: 'The board is ready and sign-ups are open. Post the link in your Discord, then make teams from who signs up.',
+        body: formsFromSignups
+          ? 'The board is ready and sign-ups are open. Post the link in your Discord: teams are made from sign-ups, so you do not build them yourself. The event can start once someone has signed up.'
+          : 'The board is ready and sign-ups are open. Post the link in your Discord, then make teams from who signs up.',
         action: { kind: 'copy', label: 'Copy sign-up link', path: 'signup' },
       };
     }
@@ -129,7 +137,9 @@ export function nextStep(e: NextStepInput): NextStep {
         title: 'Make the teams',
         body:
           e.teamCount === 0
-            ? `${plural(e.signupCount, 'person has', 'people have')} signed up. Create the teams, then draft or place players.`
+            ? formsFromSignups
+              ? `${plural(e.signupCount, 'person has', 'people have')} signed up but no teams were made. Open Teams and add everyone, and they are balanced into teams.`
+              : `${plural(e.signupCount, 'person has', 'people have')} signed up. Create the teams, then draft or place players.`
             : 'The teams exist but nobody is on one yet. Run the draft or place players by hand.',
         action: { kind: 'link', label: 'Make teams', tab: 'teams' },
       };

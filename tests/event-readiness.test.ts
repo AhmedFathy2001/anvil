@@ -87,3 +87,30 @@ test('unassigned count never goes negative on inconsistent inputs', () => {
   const r = computeStartReadiness({ draftStatus: 'none', teamCount: 2, assignedPlayerCount: 9, totalPlayerCount: 4 });
   assert.equal(r.unassignedPlayerCount, 0);
 });
+
+test('auto-balance with no sign-ups waits for sign-ups instead of asking for teams', () => {
+  for (const placement of ['auto', 'solo']) {
+    const r = computeStartReadiness({ draftStatus: 'none', teamCount: 0, assignedPlayerCount: 0, totalPlayerCount: 0, placement });
+    assert.equal(r.ready, false);
+    assert.deepEqual(r.blockers, ['awaiting-signups']);
+    assert.match(startBlockerLabel('awaiting-signups'), /sign-up link/);
+    assert.doesNotMatch(startBlockerLabel('awaiting-signups'), /no teams/);
+  }
+});
+
+test('placements that need hand-built teams still say no teams', () => {
+  for (const placement of ['draft', 'pick', null, undefined]) {
+    const r = computeStartReadiness({ draftStatus: 'none', teamCount: 0, assignedPlayerCount: 0, totalPlayerCount: 0, placement });
+    assert.deepEqual(r.blockers, ['no-teams']);
+  }
+});
+
+test('auto-balance with people enrolled but no teams is a real gap, not "awaiting sign-ups"', () => {
+  const r = computeStartReadiness({ draftStatus: 'none', teamCount: 0, assignedPlayerCount: 0, totalPlayerCount: 3, placement: 'auto' });
+  assert.deepEqual(r.blockers, ['no-teams']);
+});
+
+test('auto-balance with teams and players placed is ready', () => {
+  const r = computeStartReadiness({ draftStatus: 'none', teamCount: 4, assignedPlayerCount: 8, totalPlayerCount: 8, placement: 'auto' });
+  assert.equal(r.ready, true);
+});
