@@ -7,6 +7,7 @@
 // as "our media" let anyone host an image on their own Blob store and have it pass. If old rows ever
 // turn out to point at a Blob store of ours, LEGACY_BLOB_HOST (that one exact host) keeps them valid.
 
+import http from 'node:http';
 import https from 'node:https';
 import { AwsClient } from 'aws4fetch';
 import { requireSecret } from './env';
@@ -93,7 +94,7 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
   const ct = contentType ?? contentTypeFromKey(key);
   const bytes = body instanceof File ? Buffer.from(await body.arrayBuffer()) : Buffer.from(body);
 
-  // Sign with aws4fetch, then send the PUT over node:https — NOT global fetch. Next.js's patched
+  // Sign with aws4fetch, then send the PUT over node:http(s) — NOT global fetch. Next.js's patched
   // fetch doesn't reliably emit Content-Length for a binary body, so R2 rejects it with 411
   // MissingContentLength (plain-Node undici does emit it, which is why the migrate/CDN scripts
   // worked but the app route didn't). node:https lets us set Content-Length explicitly and is
@@ -110,8 +111,10 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
 
   const u = new URL(target);
   await new Promise<void>((resolve, reject) => {
-    const req = https.request(
-      { hostname: u.hostname, port: 443, path: `${u.pathname}${u.search}`, method: 'PUT', headers },
+    // The endpoint's own scheme and port: R2 is https on 443, a local MinIO is http on its own port.
+    const plain = u.protocol === 'http:';
+    const req = (plain ? http : https).request(
+      { hostname: u.hostname, port: u.port ? Number(u.port) : plain ? 80 : 443, path: `${u.pathname}${u.search}`, method: 'PUT', headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (c) => chunks.push(c));
