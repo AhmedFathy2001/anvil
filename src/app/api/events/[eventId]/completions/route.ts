@@ -4,7 +4,7 @@ import { raceGraph, canCreditRaceTile, canUndoRaceTile } from '@/lib/raceRoutes'
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { NextResponse } from 'next/server';
 import { emitCompletionRow } from '@/lib/panelRows';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { tilesForViewer } from '@/lib/tilesForViewer';
@@ -28,8 +28,8 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  const scopedEvent = await eventForRequest(request, id);
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  const scopedEvent = await readableEventForRequest(request, id);
   if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

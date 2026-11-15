@@ -2,7 +2,7 @@ import { notifyBoardPeople } from '@/lib/pushNotify';
 import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
 import { NextResponse } from 'next/server';
 import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { postEventRules } from '@/lib/eventRulesPost';
@@ -41,8 +41,8 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  if (!(await readableEventForRequest(request, id))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const event = await db.query.events.findFirst({
