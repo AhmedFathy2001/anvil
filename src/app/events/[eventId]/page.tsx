@@ -808,16 +808,17 @@ export default async function EventScoreboardPage({
         </section>
       )}
       {pluginQuiet && (
-        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 flex flex-wrap items-center justify-between gap-4">
+        // Phones: one compact row (title + button), so the board is not pushed a screen down.
+        <div className="mb-6 max-sm:mb-3 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 max-sm:px-3 max-sm:py-2 flex items-center justify-between gap-4 max-sm:gap-2 sm:flex-wrap">
           <div className="min-w-0">
-            <div className="font-semibold">We haven’t heard from your Anvil plugin since the start</div>
-            <div className="text-sm text-text-muted">
+            <div className="font-semibold max-sm:text-[13px] max-sm:leading-snug">We haven’t heard from your Anvil plugin since the start</div>
+            <div className="text-sm text-text-muted max-sm:hidden">
               Drops, kills and laps only count by themselves while the plugin is running in RuneLite.
             </div>
           </div>
           <ClanLink
             href="/guide/plugin#trouble"
-            className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+            className="shrink-0 text-sm font-medium px-4 py-2 max-sm:px-3 max-sm:min-h-11 max-sm:inline-flex max-sm:items-center rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
           >
             Set up the plugin
           </ClanLink>
