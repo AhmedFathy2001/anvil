@@ -47,6 +47,8 @@ export interface RaceVeil {
   anyone: Set<number>;
   /** Each route tile's step (0-based), and the last step: what a shared post says instead of a name. */
   stepOf: Map<number, number>;
+  /** Each route tile's road letter ("B") on a step with more than one tile; absent where the step has one. */
+  roadOf: Map<number, string>;
   lastStep: number;
 }
 
@@ -70,7 +72,12 @@ export function buildRaceVeil(
   const everyone = new Set(sets.length ? all.filter((id) => sets.every((s) => sees(s, id))) : start);
   const anyone = new Set(sets.length ? all.filter((id) => sets.some((s) => sees(s, id))) : start);
   const stepOf = new Map<number, number>([...graph.byId].map(([id, n]) => [id, n.step]));
-  return { mode, covered, seenByTeam, everyone, anyone, stepOf, lastStep: graph.lastStep };
+  // The same lettering the boards use (lib/raceRoutes roadOf): a tile's place within its step.
+  const roadOf = new Map<number, string>();
+  for (const ids of graph.steps) {
+    if (ids.length > 1) ids.forEach((id, i) => roadOf.set(id, i < 26 ? String.fromCharCode(65 + i) : String(i + 1)));
+  }
+  return { mode, covered, seenByTeam, everyone, anyone, stepOf, roadOf, lastStep: graph.lastStep };
 }
 
 /**
