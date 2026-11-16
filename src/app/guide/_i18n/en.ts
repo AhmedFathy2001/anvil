@@ -430,7 +430,7 @@ export const en = {
         },
         {
           term: 'They ask to join',
-          body: 'Members come only from your in-game member list. If the plugin sees someone playing in your in-game clan before your roster has them, it files a join request for them, which staff answer at the top of the **Roster** tab. Anyone else can press **Apply** on your clan page with their in-game name: someone who confirms the character with the plugin or the XP check becomes a guest straight away, and someone who asks your staff to vouch is added as a guest and held under **Needs review** until you answer. Setting **Who can join** to closed stops all of it. Someone who plays a character already on your roster is confirmed under **Needs review** instead. The details are in [Your people]({peopleGuide}).',
+          body: 'Members come only from your in-game member list. If the plugin sees someone playing in your in-game clan before your roster has them, it files a join request for them, which staff answer at the top of the **Roster** tab. Anyone else can press **Apply** on your clan page with their in-game name: someone who confirms the character with the plugin or the XP check becomes a guest straight away, and someone who asks your staff to vouch follows **Who can join**: where guests need approval it is a join request and they have no place until you accept it, and where guests are let in freely they are added as a guest. Either way they are held under **Needs review** until you vouch. Setting **Who can join** to closed stops all of it. Someone who plays a character already on your roster is confirmed under **Needs review** instead. The details are in [Your people]({peopleGuide}).',
         },
         {
           term: 'By hand',
@@ -874,9 +874,9 @@ export const en = {
         'On mobile or the official client, use [Settings → Characters → Link a character](/settings/characters#link-account) instead:',
       noPluginOptions: [
         '**Verify by XP** — enter your RSN, the site picks a random skill, gain 1,000 XP in it within 30 minutes.',
-        '**Manual review** — for hidden Hiscores or fresh alts: on a clan’s page, ask its staff to vouch for your RSN. You can sign up for its events straight away, and your sign-up is held until they answer.',
+        '**Manual review** — for hidden Hiscores or fresh alts: on a clan’s page, ask its staff to vouch for your RSN. If the clan approves its guests first, you can sign up for its events once its staff accept your request. Your sign-up is held until they confirm the character.',
       ],
-      signupNote: 'You can sign up for an event as soon as you have named your character. With the plugin or a passed XP check you are in straight away. If you asked staff to vouch, your sign-up is held until they answer.',
+      signupNote: 'You can sign up for an event as soon as you have named your character. With the plugin or a passed XP check you are in straight away. If you asked staff to vouch, you can sign up once the clan has accepted you as a guest, and your sign-up is held until they confirm the character.',
     },
 
     working: {
@@ -2442,7 +2442,7 @@ export const en = {
     verify: {
       title: 'Verifying accounts',
       intro:
-        'People can sign up straight away, but someone who asked you to vouch is held until you answer here: signed up, on no team. So this queue directly keeps people from playing. It is the one worth clearing daily.',
+        'People can sign up straight away, but someone who asked you to vouch waits on you: for their join request where your guests need approval, then held here until you vouch, signed up but on no team. So this queue directly keeps people from playing. It is the one worth clearing daily.',
       rows: [
         {
           term: 'Verified by plugin',
@@ -2454,7 +2454,7 @@ export const en = {
         },
         {
           term: 'Manual review',
-          body: 'hidden Hiscores, or an alt too fresh to appear on them. Someone asks you to vouch for an RSN and you decide. They are added as a guest at once and can sign up, but their sign-ups are held, on no team, until you approve. Approving completes them and **Not our member** withdraws them. Ask for a screenshot of the login screen if you are not sure.',
+          body: 'hidden Hiscores, or an alt too fresh to appear on them. Someone asks you to vouch for an RSN and you decide. Where your guests need approval they send a join request first and have no place until you accept it; where guests are let in freely they are added as a guest at once. Once they are a guest they can sign up, but their sign-ups are held, on no team, until you approve. Approving completes them and **Not our member** withdraws them. Ask for a screenshot of the login screen if you are not sure.',
         },
       ],
       note: {
