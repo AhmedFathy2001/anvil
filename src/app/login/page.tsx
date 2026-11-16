@@ -3,6 +3,7 @@ import AnvilMark from '@/components/AnvilMark';
 import { verifyUser } from '@/lib/auth';
 import { isDiscordOAuthConfigured } from '@/lib/discord-oauth';
 import { safeReturnPath } from '@/lib/safe-redirect';
+import { loginReason } from '@/lib/loginReason';
 
 interface SearchParams {
   return?: string;
@@ -31,6 +32,7 @@ export default async function LoginPage({
     redirect(returnTo);
   }
 
+  const reason = await loginReason(returnTo);
   const oauthConfigured = isDiscordOAuthConfigured();
   const startHref = `/api/auth/discord/start?return=${encodeURIComponent(returnTo)}`;
 
@@ -82,10 +84,10 @@ export default async function LoginPage({
               <span className="h-px w-10 bg-gradient-to-r from-gold-dark to-transparent" />
             </div>
             <h1 className="display display-lg text-[clamp(2rem,5vw,2.75rem)] font-semibold leading-[1.05]">
-              Sign in to Anvil
+              {reason ?? 'Sign in to Anvil'}
             </h1>
             <p className="mt-4 max-w-[44ch] text-[15px] leading-relaxed text-text-muted">
-              Sign in with Discord to get started. No password, no separate account.
+              {reason ? 'One click with Discord, then you are straight back. ' : 'Sign in with Discord to get started. '}No password, no separate account.
             </p>
 
             {params.error && (
