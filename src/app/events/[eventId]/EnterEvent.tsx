@@ -9,6 +9,8 @@ import KickLinkCode from '@/components/KickLinkCode';
 import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
+import { readContinue } from '@/lib/clanScopedPaths';
+import { rememberContinue, WAITING_ON_STAFF } from '@/lib/continueStore';
 import YoutubeGate, { type YoutubeGateInfo } from './YoutubeGate';
 
 type Verdict =
@@ -21,6 +23,8 @@ interface EnterInfo {
   options: { id: number; rsn: string }[];
   /** When their still-open request to the host clan was sent, if there is one. */
   pendingSince?: string | null;
+  /** The host clan's name, sent with `pendingSince`. */
+  hostName?: string | null;
   /** The host clan takes no guests at all. */
   guestsClosed?: boolean;
   /** Has any character at all, verified or not. */
@@ -184,6 +188,11 @@ export default function EnterEvent({
       if (!res.ok) throw new Error(data?.error ?? 'Could not sign up');
       if (data?.pending) {
         setPending(data.message ?? 'Sent to the host.');
+        // Remember this sign-up page in this browser, so Settings offers the way back once they accept.
+        if (backKey === 'event-signup') {
+          const back = readContinue({ next: `${window.location.pathname}${window.location.search}`, for: backKey });
+          if (back) rememberContinue(WAITING_ON_STAFF, back);
+        }
         return;
       }
       // Joining by invite is ONE press: the same click that takes the guest seat also files the
@@ -216,7 +225,7 @@ export default function EnterEvent({
         <div className="min-w-0">
           <div className="font-semibold">Waiting on the host</div>
           <div className="text-sm text-text-muted">
-            {pending ?? `You asked on ${requestedDay(info.pendingSince!)}. You’ll be able to sign up once they accept.`}
+            {pending ?? `You asked on ${requestedDay(info.pendingSince!)}. You can sign up as soon as ${info.hostName ? `${info.hostName}’s staff` : 'the host'} accept your request.`}
           </div>
         </div>
       </Card>

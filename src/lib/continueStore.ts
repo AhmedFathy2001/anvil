@@ -29,6 +29,12 @@ export function decodeEntry(raw: string | null | undefined, now: number): Contin
   }
 }
 
+/**
+ * The key for a target that waits on a clan's staff instead of an XP check (asked them to vouch, and
+ * the clan accepts its guests first): there is no attempt to key it by.
+ */
+export const WAITING_ON_STAFF = 0;
+
 export function rememberContinue(attemptId: number, c: ContinueTarget): void {
   try {
     window.localStorage.setItem(`${PREFIX}${attemptId}`, encodeEntry(c, Date.now()));

@@ -523,6 +523,7 @@ export default function SignupForm({
             signedIn
             applyLabel="Continue"
             ways={host.viewerIsStaff ? ['plugin', 'xp'] : undefined}
+            inviteToken={invite?.token ?? null}
           />
         ) : (
           <AddCharacterClient first />

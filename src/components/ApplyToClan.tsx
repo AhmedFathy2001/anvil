@@ -39,9 +39,12 @@ export default function ApplyToClan({
    * the clan's in-game roster.
    */
   labels,
+  ways,
 }: {
   slug: string;
   clanName: string;
+  /** Which ways to confirm a typed name are offered (components/NameCharacterInline). Default: all. */
+  ways?: ('plugin' | 'xp' | 'staff')[];
   labels?: { open: string; approval: string };
 }) {
   const [info, setInfo] = useState<Info | null>(null);
@@ -98,6 +101,7 @@ export default function ApplyToClan({
           mode="apply"
           signedIn
           applyLabel={info.guestPolicy === 'open' ? (labels?.open ?? 'Join') : (labels?.approval ?? 'Apply')}
+          ways={ways}
         />
       </div>
     );

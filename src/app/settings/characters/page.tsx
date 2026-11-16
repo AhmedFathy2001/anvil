@@ -34,7 +34,7 @@ export default async function CharactersSettingsPage({ searchParams }: { searchP
         Your RuneScape characters on Anvil. Play one with the Anvil plugin and it links itself; open a character to choose its clans, who
         sees it, or remove it.
       </SettingsTitle>
-      <ContinueStrip fromUrl={cont} linked={characters.length} verified={characters.filter((c) => c.verified).length} />
+      <ContinueStrip fromUrl={cont} linked={characters.length} verified={characters.filter((c) => c.joinable).length} />
       {xpCheck && (
         <div className="mb-4 rounded-lg border border-gold/40 bg-gold/10 px-4 py-3 text-sm">
           <p className="font-semibold text-gold">{xpCheckLine(xpCheck)}</p>
