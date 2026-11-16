@@ -184,7 +184,8 @@ export default function LookSettings({ name }: { name: string }) {
                 <img src={look.bannerUrl} alt="" className="h-full w-full object-cover opacity-90" />
               )}
             </div>
-            <div className="-mt-8 px-4 pb-4">
+            {/* `relative`: the banner image is faded (its own layer), which otherwise paints over the crest. */}
+            <div className="relative -mt-8 px-4 pb-4">
               <div className="inline-block rounded-2xl border-4" style={{ borderColor: '#0f0c0b' }}>
                 <ClanCrest name={name} logoUrl={look.logoUrl} size={60} rounded="rounded-xl" className="text-xl" />
               </div>
