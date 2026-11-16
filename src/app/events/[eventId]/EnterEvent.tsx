@@ -1,7 +1,7 @@
 'use client';
 
 import Select from '@/components/Select';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
@@ -148,6 +148,27 @@ export default function EnterEvent({
     }, 8000);
     return () => clearInterval(t);
   }, [waiting, eventId, router]);
+
+  // ARRIVED BY INVITE WITH ONE CHARACTER: there is nothing to decide. They opened the team's link and
+  // the host said yes by making it, so the guest seat is taken for them and the form appears; the
+  // button below stays for a link that turned out to be dead. Once per mount.
+  const autoEntered = useRef(false);
+  useEffect(() => {
+    if (autoEntered.current || creator || !hasInvite || !info || chosen == null) return;
+    if (info.verdict.outcome !== 'outsider' || info.options.length !== 1 || info.pendingSince || info.guestsClosed) return;
+    autoEntered.current = true;
+    clanFetch(`/api/events/${eventId}/enter`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId: chosen, inviteToken: inviteFromLocation() }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { pending?: boolean; message?: string } | null) => {
+        if (d?.pending) setPending(d.message ?? 'Sent to the host.');
+        else if (d) router.refresh();
+      })
+      .catch(() => {});
+  }, [hasInvite, info, chosen, creator, eventId, router]);
 
   if (!info) return null;
   if (creator) return <CreatorJoin eventId={eventId} info={info} signupsOpen={signupsOpen} signupFee={signupFee} />;
