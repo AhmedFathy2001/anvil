@@ -11,7 +11,8 @@
 import { and, count, desc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, userNotices, users } from '@/db/schema';
+import { tierOf } from '@/lib/characterState';
 import { isPlausibleRsn } from '@/lib/auth';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
@@ -262,6 +263,36 @@ export async function approveRequest(
     .update(clanJoinRequests)
     .set({ status: 'approved', decidedAt: new Date().toISOString(), decidedByUserId: byUserId })
     .where(eq(clanJoinRequests.id, requestId));
+
+  // Somebody who asked staff to vouch (lib/characterState: the `manual` path) had no seat while this
+  // waited, so they could not sign up for anything. Tell them on the site that they can now: the
+  // bell opens Settings > Characters, which offers the way back to the sign-up they came from
+  // (lib/continueStore). The clan's name and theirs only, never a Discord identity.
+  if (req.eventId == null && req.playerId != null) {
+    const acct = await db.query.accounts.findFirst({ where: eq(accounts.id, req.accountId) });
+    if (acct && tierOf(acct) === 'manual') {
+      const [host, logins] = await Promise.all([
+        db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } }),
+        db.select({ id: users.id }).from(users).where(eq(users.playerId, req.playerId)),
+      ]);
+      if (host && logins.length > 0) {
+        const createdAt = new Date().toISOString();
+        await db
+          .insert(userNotices)
+          .values(
+            logins.map((l) => ({
+              userId: l.id,
+              kind: 'seat-granted',
+              refId: seatId,
+              title: `${host.name} accepted your request`,
+              body: `${acct.rsn} is a guest of ${host.name} now, so you can sign up for its events. Your sign-ups are held until its staff confirm the character is yours.`,
+              createdAt,
+            })),
+          )
+          .catch(() => {});
+      }
+    }
+  }
 
   await db
     .insert(clanAuditLog)

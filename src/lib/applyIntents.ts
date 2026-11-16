@@ -6,7 +6,8 @@
 // `awaiting-proof`, which no queue reads. The moment that same person proves that same character
 // (lib/accountClaim), it goes through the clan's ordinary door (`admit`), exactly as if they had
 // pressed Apply with a proven character: a guest seat at once, or a request for staff where staff
-// removed them before; refused where the clan is closed or has barred them.
+// removed them before (or where the clan is members-only or hidden and they have no tie to it, so
+// its own guest setting decides); refused where the clan is closed or has barred them.
 //
 // (Asking staff to vouch is the third choice and needs none of this: it files its request at once,
 // /api/auth/request-manual-review.)
@@ -15,7 +16,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanJoinRequests, clanMemberships, clans, userNotices, users } from '@/db/schema';
-import { doorPolicy } from '@/lib/characterState';
+import { doorPolicy, tierOf } from '@/lib/characterState';
+import { mayAddressClan } from '@/lib/clanAddress';
 import { admit, removedByStaff } from '@/lib/guestAdmission';
 import { findOrCreateAccount } from '@/lib/roster';
 
@@ -78,13 +80,19 @@ export async function completeApplyIntents(playerId: number, accountId: number):
     .select()
     .from(clanJoinRequests)
     .where(and(eq(clanJoinRequests.playerId, playerId), eq(clanJoinRequests.accountId, accountId), eq(clanJoinRequests.status, AWAITING_PROOF)));
+  if (waiting.length === 0) return;
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { verifiedAt: true, provisional: true, verificationMethod: true } });
+  const logins = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
   for (const intent of waiting) {
+    // The seat over the clan's own setting only at a clan this person may address (lib/clanAddress):
+    // typing a name at a members-only or hidden clan's address is not a tie to it.
+    const mayAddress = await mayAddressClan({ clanId: intent.clanId, playerId, userId: logins[0]?.id ?? null, countRequests: false });
     const admission = await admit({
       clanId: intent.clanId,
       accountId,
       source: 'web',
       message: 'Applied from the clan’s page.',
-      policy: doorPolicy({ removedByStaff: await removedByStaff(intent.clanId, accountId) }),
+      policy: doorPolicy({ tier: account ? tierOf(account) : null, mayAddress, removedByStaff: await removedByStaff(intent.clanId, accountId) }),
     });
     const now = new Date().toISOString();
     await db
@@ -95,7 +103,6 @@ export async function completeApplyIntents(playerId: number, accountId: number):
     // Tell them on the site (the bell, and Settings > Characters). The clan's name and theirs only.
     const [clan] = await db.select({ name: clans.name }).from(clans).where(eq(clans.id, intent.clanId));
     const [acct] = await db.select({ rsn: accounts.rsn }).from(accounts).where(eq(accounts.id, accountId));
-    const logins = await db.select({ id: users.id }).from(users).where(eq(users.playerId, playerId));
     if (clan && acct && logins.length > 0) {
       await db.insert(userNotices).values(
         logins.map((l) => ({

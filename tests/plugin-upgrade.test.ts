@@ -54,7 +54,9 @@ before(async () => {
   A = await import('../src/lib/auth.ts');
   manualRoute = await import('../src/app/api/auth/request-manual-review/route.ts');
   signupRoute = await import('../src/app/api/events/[eventId]/signup/route.ts');
-  const [clan] = await db.insert(s.clans).values({ slug: 'forge', name: 'Iron Forge', inGameName: 'Iron Forge' }).returning();
+  // Guests let in freely: asking staff to vouch seats the person here (held), which is the state these
+  // tests upgrade from. Where guests need approval there is no seat to upgrade (tests/admission-tiers).
+  const [clan] = await db.insert(s.clans).values({ slug: 'forge', name: 'Iron Forge', inGameName: 'Iron Forge', guestPolicy: 'open' }).returning();
   clanId = clan.id;
 });
 
