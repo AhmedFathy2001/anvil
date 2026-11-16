@@ -19,6 +19,7 @@ import {
 } from '@/lib/supporterTiers';
 import ClanLink from '@/components/ClanLink';
 import UnmatchedPurchases from './UnmatchedPurchases';
+import OpenMemberships from './OpenMemberships';
 
 export const dynamic = 'force-dynamic';
 
@@ -161,6 +162,9 @@ export default async function StaffSubscriptionsPage({
       </p>
 
       <UnmatchedPurchases open={unmatched.open} resolved={unmatched.resolved} canResolve={hasPlatformRole(actor.role, CAN_BILL)} />
+
+      {/* Two memberships at once, and memberships waiting for their first charge (lib/extraMemberships). */}
+      <OpenMemberships />
 
       <div className="mt-5 flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden scroll-quiet">
         {tab('clans', 'Clans', paidClans.length)}

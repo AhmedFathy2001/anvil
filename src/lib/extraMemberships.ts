@@ -24,10 +24,7 @@ import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type
 export type ExtraMembership = typeof clanExtraMemberships.$inferSelect;
 type Clan = typeof clans.$inferSelect;
 
-/** Gumroad's own page for one membership: card, cancel, restart. The only place a membership is cancelled. */
-export function manageUrl(subscriptionId: string): string {
-  return `https://gumroad.com/subscriptions/${encodeURIComponent(subscriptionId)}/manage`;
-}
+export { manageUrl } from '@/lib/gumroadLinks';
 
 async function note(clanId: number, subscriptionId: string, plan: string, state: 'to_cancel' | 'waiting', trialEndsAt: Date | null) {
   const values = { clanId, plan, state, trialEndsAt, notedAt: new Date(), resolvedAt: null, resolution: null, lastChargedAt: null };
