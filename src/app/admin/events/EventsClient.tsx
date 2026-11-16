@@ -761,7 +761,7 @@ function SetupCard({
   return (
     <div className="group relative border border-card-border rounded-xl bg-card-bg hover:border-gold/40 transition-colors">
       <ClanLink href={canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`} className="block p-4">
-        <div className="flex items-start justify-between gap-2 pr-7">
+        <div className={`flex items-start justify-between gap-2 ${canManage ? 'pr-[4.5rem]' : ''}`}>
           <h3 className="font-semibold group-hover:text-gold transition-colors">{event.name}</h3>
           <span
             className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${

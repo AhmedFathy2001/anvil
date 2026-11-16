@@ -330,6 +330,15 @@ export function raceProofBlock(graph: RaceGraph, route: TeamRoute, tileId: numbe
   return 'This tile is locked for your team: finish the tile before it on your road first.';
 }
 
+/**
+ * The team a race tile dialog speaks for: the lens team being looked at, else the viewer's own.
+ * The state banner and the proof form both ask about THIS team, so they cannot disagree (a viewer
+ * on the plain board has no lens, and the banner used to read the route of no team at all).
+ */
+export function raceDetailTeam(lensTeamId: number | null | undefined, ownTeamId: number | null | undefined): number | null {
+  return lensTeamId ?? ownTeamId ?? null;
+}
+
 /** May the team pick this tile now ("Choose and lock in")? Only from the fork it stands at. */
 export function canPickRaceTile(graph: RaceGraph, doneIds: Iterable<number>, picks: Map<number, number>, tileId: number): boolean {
   return teamRoute(graph, doneIds, picks).pickFrom.includes(tileId);

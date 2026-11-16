@@ -273,7 +273,7 @@ export default function MembersDirectory({
           onClick={() => setLimit((l) => l + CHUNK)}
           className="mt-3 w-full rounded-lg border border-card-border px-3 py-2 text-sm text-text-muted transition-colors hover:border-gold/50 hover:text-foreground"
         >
-          Show {Math.min(CHUNK, shown.length - limit)} more ({shown.length - limit} left)
+          Show {Math.min(CHUNK, shown.length - limit)} more{shown.length - limit > CHUNK ? ` (${shown.length - limit} left)` : ''}
         </button>
       )}
 

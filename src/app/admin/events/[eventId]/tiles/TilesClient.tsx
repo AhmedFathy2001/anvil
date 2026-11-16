@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import TileCreator from '@/components/tile-creator/TileCreator';
 import BulkQuickAdd from '@/components/tile-creator/BulkQuickAdd';
-import { tilesAddedSince, undoableAdd } from '@/lib/quickAddUndo';
+import { quickAddUndoLine, tilesAddedSince, undoableAdd } from '@/lib/quickAddUndo';
 import { draftToTileConfig } from '@/lib/tileCreatorConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
@@ -1331,7 +1331,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         {lastQuickAdd && !editLocked && (
           <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
             <span>
-              Last Quick add: {lastQuickAdd.ids.length} {lastQuickAdd.ids.length === 1 ? 'tile' : 'tiles'} added.
+              {quickAddUndoLine(lastQuickAdd.ids.length, lastQuickAdd.filled)}
             </span>
             <button
               type="button"

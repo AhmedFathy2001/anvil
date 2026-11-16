@@ -34,3 +34,11 @@ test('the undo is offered only when the new tiles match what the import created'
   assert.equal(undoableAdd(0, []), false);
   assert.equal(undoableAdd(2, []), false);
 });
+
+import { quickAddUndoLine } from '../src/lib/quickAddUndo.ts';
+
+test('the undo line says what Undo removes when some tiles filled blank squares', () => {
+  assert.equal(quickAddUndoLine(1, 4), 'Last Quick add: 5 tiles added. Undo removes the 1 new tile; the 4 filled blank squares stay.');
+  assert.equal(quickAddUndoLine(3, 0), 'Last Quick add: 3 tiles added.');
+  assert.equal(quickAddUndoLine(2, 1), 'Last Quick add: 3 tiles added. Undo removes the 2 new tiles; the 1 filled blank square stays.');
+});

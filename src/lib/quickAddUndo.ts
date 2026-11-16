@@ -18,3 +18,10 @@ export function tilesAddedSince(before: Iterable<number>, after: { id: number; p
 export function undoableAdd(createdByImport: number, added: number[]): boolean {
   return createdByImport > 0 && added.length === createdByImport;
 }
+
+/** The line over Undo: what the last Quick add did and exactly what Undo will take back. */
+export function quickAddUndoLine(created: number, filled: number): string {
+  const tiles = (n: number) => `${n} ${n === 1 ? 'tile' : 'tiles'}`;
+  if (filled <= 0) return `Last Quick add: ${tiles(created)} added.`;
+  return `Last Quick add: ${tiles(created + filled)} added. Undo removes the ${created} new ${created === 1 ? 'tile' : 'tiles'}; the ${filled} filled blank ${filled === 1 ? 'square stays' : 'squares stay'}.`;
+}

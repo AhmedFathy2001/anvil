@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { raceGraph, raceProofBlock, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
+import { raceDetailTeam, raceGraph, raceProofBlock, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
 import { raceTileState } from '@/lib/tileState';
 import { racePickUrl, useTileData } from '@/lib/tileData';
 import { cn } from '@/lib/utils';
@@ -42,15 +42,17 @@ export function useRacePicks(eventId: number | undefined, teamId: number | null 
 export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext; tileId: number }) {
   const graph = useMemo(() => raceGraph(ctx.tiles), [ctx.tiles]);
   const eventId = ctx.tiles[0]?.eventId;
-  const { picks, opts } = useRacePicks(eventId, ctx.viewerTeamId);
+  // The same team the proof rule asks about (useRaceProofBlock): the lens team, else the viewer's own.
+  const viewerTeamId = raceDetailTeam(ctx.viewerTeamId, ctx.proofTeamId);
+  const { picks, opts } = useRacePicks(eventId, viewerTeamId);
   if (!isBranchingRoute(ctx.tiles) || !graph.byId.has(tileId)) return null;
   const byId = new Map(ctx.tiles.map((t) => [t.id, t]));
   const label = (id: number) => byId.get(id)?.label ?? `Tile ${id}`;
   const doneBy = (teamId: number) => ctx.completions.filter((c) => c.teamId === teamId).map((c) => c.tileId);
-  const route = ctx.viewerTeamId != null ? teamRoute(graph, doneBy(ctx.viewerTeamId), picks, opts) : null;
+  const route = viewerTeamId != null ? teamRoute(graph, doneBy(viewerTeamId), picks, opts) : null;
   const info = raceTileInfo(graph, route, tileId, label)!;
   const view = raceTileState(info.state) ?? { kind: 'locked' as const, label: info.stepLine };
-  const doneRow = ctx.viewerTeamId != null ? ctx.completions.find((c) => c.teamId === ctx.viewerTeamId && c.tileId === tileId) : undefined;
+  const doneRow = viewerTeamId != null ? ctx.completions.find((c) => c.teamId === viewerTeamId && c.tileId === tileId) : undefined;
   const title = info.state === 'open' ? 'Next for your team' : info.state === 'done' ? 'Done' : info.state === 'closed' ? 'Locked' : info.state === 'ahead' ? 'Locked' : info.stepLine;
   const standing = new Map(rankRaceTeams(graph, ctx.teams, ctx.completions).map((s) => [s.teamId, s]));
   const onIt = ctx.teams.filter((t) => {
@@ -114,7 +116,7 @@ export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext
  */
 export function useRaceProofBlock(ctx: RaceDetailContext | null | undefined, tileId: number, eventId?: number): string | null | undefined {
   const tiles = ctx?.tiles;
-  const teamId = ctx?.proofTeamId ?? ctx?.viewerTeamId ?? null;
+  const teamId = raceDetailTeam(ctx?.proofTeamId, ctx?.viewerTeamId);
   const graph = useMemo(() => (tiles ? raceGraph(tiles) : null), [tiles]);
   const { picks, opts, bank, loaded } = useRacePicks(ctx ? (eventId ?? tiles?.[0]?.eventId) : undefined, teamId);
   if (!ctx || !graph || teamId == null) return null;

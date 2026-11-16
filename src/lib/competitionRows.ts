@@ -386,3 +386,19 @@ export function countRows(rows: readonly CompetitionRowSummary[]): { events: num
   const competitions = rows.filter((r) => r.group === 'weeks').length;
   return { events: rows.length - competitions, competitions };
 }
+
+/**
+ * The "You're in" heading note on the clan home. The home features some competitions in "Happening
+ * now" and leaves them out of the list below, so the list alone undercounts what the viewer is in
+ * (7 here, 8 on the events page). The count is everything they are in, and when some of it is the
+ * featured cards the note says so: "8 events and 5 competitions · 1 event and 1 competition shown above".
+ */
+export function youreInNote(listed: { events: number; competitions: number }, featured: { events: number; competitions: number }): string {
+  const part = (c: { events: number; competitions: number }) =>
+    [c.events > 0 ? `${c.events} ${c.events === 1 ? 'event' : 'events'}` : null, c.competitions > 0 ? `${c.competitions} ${c.competitions === 1 ? 'competition' : 'competitions'}` : null]
+      .filter(Boolean)
+      .join(' and ');
+  const all = part({ events: listed.events + featured.events, competitions: listed.competitions + featured.competitions });
+  const above = part(featured);
+  return above ? `${all} · ${above} shown above` : all;
+}

@@ -409,7 +409,7 @@ function MembersTable({ data, viewerIds }: { data: EventStatsData; viewerIds: nu
             </tr>
           </thead>
           <tbody>
-            {/* The viewer's own row is pinned on top (with its real rank) as well as sitting in the list. */}
+            {/* The viewer's own row is pinned on top (with its real rank) as well as sitting in the list, where it is only highlighted ("(you)" prints once). */}
             {[...rows.map((m, i) => ({ m, i, pinned: false })), ...rows.flatMap((m, i) => (mine.has(m.id) ? [{ m, i, pinned: true }] : []))]
               .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.i - b.i)
               .map(({ m, i, pinned }) => {
@@ -421,7 +421,7 @@ function MembersTable({ data, viewerIds }: { data: EventStatsData; viewerIds: nu
                     <td className="px-3 py-1.5 whitespace-nowrap">
                       <span className="inline-block w-2 h-2 rounded-full mr-2 align-middle" style={{ background: side?.color ?? 'transparent' }} aria-hidden />
                       {m.name}
-                      {you && <span className="ml-2 text-xs font-semibold text-gold">(you)</span>}
+                      {you && pinned && <span className="ml-2 text-xs font-semibold text-gold">(you)</span>}
                     </td>
                     {COLUMNS.map((c) => (
                       <td key={c.key} className={`px-3 py-1.5 text-right tabular-nums ${sort.key === c.key ? 'text-gold font-semibold' : ''}`}>{cell(m, c.key)}</td>
