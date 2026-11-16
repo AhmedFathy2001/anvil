@@ -8,6 +8,7 @@ import { endMembership, logBilling } from '@/lib/billingLapse';
 import { runOnPaid, runOnRefund } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, withYearlyRecurrence, type BillingTier } from '@/lib/billingCatalog';
 import { applyClanSale, chargedAt, purchasedPlan } from '@/lib/clanSale';
+import { handleExtraMembershipEvent } from '@/lib/extraMemberships';
 import { log } from '@/lib/logger';
 import { recordLedger } from '@/lib/moneyLedger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
@@ -154,6 +155,12 @@ export async function POST(req: NextRequest) {
 
   const clan = await clanForEvent(ev);
   if (!clan) {
+    // Not the membership on any row, but maybe one a row is told to cancel after an upgrade, or one
+    // waiting for its first charge (lib/extraMemberships). A new sale is never one of these.
+    if (ev.kind !== 'sale') {
+      const extra = await handleExtraMembershipEvent(ev);
+      if (extra) return typeof extra.body === 'string' ? new Response(extra.body, { status: extra.status }) : Response.json(extra.body, { status: extra.status });
+    }
     // Nothing to attach it to. Logged rather than 500'd: retrying will not conjure a clan, and a
     // permanently-failing webhook is noise that hides the real ones. A sale with no clan is a
     // human problem — someone bought before creating one — so it is kept in the unmatched inbox on

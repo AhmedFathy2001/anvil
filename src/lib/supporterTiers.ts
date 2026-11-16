@@ -59,7 +59,15 @@ export const GIFT_RECURRENCE = 'gift';
 export const PAID_GIFT_RECURRENCE = 'gift-paid';
 const isGiftRecurrence = (r: string | null | undefined) => r === GIFT_RECURRENCE || r === PAID_GIFT_RECURRENCE;
 
-export type SupporterStatus = 'active' | 'cancelling' | 'granted' | 'ended' | 'refunded';
+/**
+ * 'held': a membership Gumroad started with a free trial for someone who has already had their trial;
+ * it grants nothing until its first real charge makes it 'active' (lib/supporterBilling).
+ * 'queued': staff "add time" waiting for their paid membership to stop (lib/supporterGifts).
+ * Neither is in force (rowInForce) and neither is paid time (paidRunStart).
+ */
+export const HELD_STATUS = 'held';
+export const QUEUED_STATUS = 'queued';
+export type SupporterStatus = 'active' | 'cancelling' | 'granted' | 'ended' | 'refunded' | 'held' | 'queued';
 
 /** The fields of a supporter_subscriptions row that decide what it is worth right now. */
 export interface SupporterRowLike {
@@ -212,7 +220,7 @@ export const TENURE_GRACE_MS = 30 * 86_400_000;
 
 /** Time the person paid for: not refunded, not a staff gift, not time earned through invites. */
 function isPaidRow(r: SupporterRowLike): boolean {
-  if (r.status === 'refunded' || r.status === 'granted') return false;
+  if (r.status === 'refunded' || r.status === 'granted' || r.status === HELD_STATUS || r.status === QUEUED_STATUS) return false;
   const rec = r.recurrence ?? '';
   return rec !== GIFT_RECURRENCE && !rec.startsWith('referral');
 }

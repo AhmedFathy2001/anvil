@@ -10,9 +10,22 @@
 // churn when marketing changed; there is no provisioning code left to protect, and two vocabularies
 // for one concept is a translation layer that only ever produces bugs.
 
-import { urlEnvFor, withRef, type BillingInterval } from './billingInterval.ts';
+import { tierHasProduct, tierHasYearlyProduct, urlEnvFor, withRef, type BillingInterval, type CheckoutMode } from './billingInterval.ts';
 
-export const TRIAL_DAYS = Number(process.env.GUMROAD_TRIAL_DAYS || 30);
+/** A day count from an env var: a whole number of days, 0 for unset or anything that is not one. */
+export function trialDaysFrom(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+/**
+ * The length of GUMROAD's own free trial on the clan and creator plan products, for DISPLAY only
+ * ("30-day free trial, then $6.99 a month" on the "Start free trial" button). 0, the default, means
+ * Gumroad's trial is off: nothing on the site offers or mentions one, and there is one "Subscribe"
+ * button. Whatever this says, the webhook only ever believes a trial Gumroad itself reports
+ * (lib/clanSale). Anvil's own trials are a different thing: lib/planTrials, lib/ownerTrials.
+ */
+export const TRIAL_DAYS = trialDaysFrom(process.env.GUMROAD_TRIAL_DAYS);
 
 export const PLAN_IDS = ['free', 'bronze', 'silver', 'gold', 'custom'] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
@@ -193,27 +206,21 @@ export function planForGumroadTier(tier: string | null | undefined): Plan | null
   return Object.values(PLANS).find((p) => p.name.toLowerCase() === want) ?? null;
 }
 
-/** The tier matching a Gumroad product id (monthly or yearly), for the per-tier-product setup. */
+/** The tier matching a Gumroad product id (original or pay-now, monthly or yearly), for the per-tier-product setup. */
 export function planForGumroadProduct(productId: string | null | undefined): Plan | null {
   if (!productId) return null;
-  return (
-    Object.values(PLANS).find(
-      (p) =>
-        (p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId) ||
-        (p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId),
-    ) ?? null
-  );
+  return Object.values(PLANS).find((p) => tierHasProduct(p, productId)) ?? null;
 }
 
 /** Is this the id of a clan tier's yearly-only Gumroad product? */
 export function isYearlyClanProduct(productId: string | null | undefined): boolean {
   if (!productId) return false;
-  return Object.values(PLANS).some((p) => p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId);
+  return Object.values(PLANS).some((p) => tierHasYearlyProduct(p, productId));
 }
 
-/** Hosted checkout URL for a tier at an interval, if one is configured. */
-export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly'): string | null {
-  const env = urlEnvFor(plan, interval);
+/** Hosted checkout URL for a tier at an interval, if one is configured: the original product, or its pay-now copy. */
+export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly', mode: CheckoutMode = 'trial'): string | null {
+  const env = urlEnvFor(plan, interval, mode);
   return env ? (process.env[env] || null) : null;
 }
 
@@ -222,8 +229,8 @@ export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly'): 
  * forwards a product URL's params to the ping as `url_params`, so this is how a payment finds its clan
  * even when the buyer pays with a different email than the clan's contact.
  */
-export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined, interval: BillingInterval = 'monthly'): string | null {
-  return withRef(checkoutUrl(plan, interval), ref);
+export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined, interval: BillingInterval = 'monthly', mode: CheckoutMode = 'trial'): string | null {
+  return withRef(checkoutUrl(plan, interval, mode), ref);
 }
 
 /**

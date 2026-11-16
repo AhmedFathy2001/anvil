@@ -1429,6 +1429,13 @@
       "when": 1794723888274,
       "tag": "0266_banned_discord_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1794727488274,
+      "tag": "0267_billing_trials_gifts",
+      "breakpoints": true
     }
   ]
 }

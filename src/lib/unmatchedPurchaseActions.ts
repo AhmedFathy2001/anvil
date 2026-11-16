@@ -129,9 +129,9 @@ export async function attachToSpace(opts: {
     throw err;
   }
   if (!result.plan && result.note === 'duplicate membership') {
-    // The webhook's own rule: a second trial on a space already paying is recorded, not applied.
+    // A second trial on a space already paying, with no subscription id to follow: flagged, not applied.
     await unclaim(row.id);
-    return fail(409, 'Gumroad shows this as a free trial on a space that has had a membership and is still paying for another, so the webhook rule keeps the current one. Cancel the duplicate on Gumroad, then dismiss this.');
+    return fail(409, 'Gumroad shows this as a free trial on a space that has already had its trial and is still paying for another membership, and it names no subscription to follow. Cancel the duplicate on Gumroad, then dismiss this.');
   }
   // Gumroad already told us the buyer cancelled (the row heard it while open): the webhook would have
   // set the cancel flag on that notification, so it is set now. The plan runs to the term's end.

@@ -4607,6 +4607,9 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   // bought it and how many months. The giver ladder sums gift_months by gifted_by_user_id.
   giftedByUserId: integer('gifted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   giftMonths: integer('gift_months'),
+  // Staff "add time" for someone who PAYS for this tier (drizzle/0267, lib/supporterGifts): status
+  // 'queued', in force for nobody, and it starts for this many days when their paid membership stops.
+  queuedDays: integer('queued_days'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),
@@ -5371,17 +5374,44 @@ export const billingLedger = pgTable('billing_ledger', {
   index('billing_ledger_sub_idx').on(t.subscriptionId, t.occurredAt),
 ]);
 
+// clan_extra_memberships (drizzle/0267, lib/extraMemberships): a Gumroad membership bought through a
+// clan's or creator space's checkout that is NOT the one on its clans row. 'to_cancel' is the older
+// membership after an upgrade purchase (it keeps charging until cancelled on Gumroad); 'waiting' is a
+// new one Gumroad started with a free trial on a row that has had a membership and still pays for
+// another, which takes over at its first real charge. Open while resolved_at is null.
+export const clanExtraMemberships = pgTable('clan_extra_memberships', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  gumroadSubscriptionId: text('gumroad_subscription_id').notNull(),
+  /** The plan id (the row's own catalogue) this membership pays for. */
+  plan: text('plan').notNull(),
+  /** 'to_cancel' | 'waiting' */
+  state: text('state').notNull(),
+  /** waiting: when Gumroad's trial ends and the first charge is due. */
+  trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  /** to_cancel: the last time Gumroad charged it after it was superseded. */
+  lastChargedAt: timestamp('last_charged_at', { withTimezone: true }),
+  notedAt: timestamp('noted_at', { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  /** 'cancelled' | 'ended' | 'refunded' | 'applied' | 'restored' | 'dismissed' */
+  resolution: text('resolution'),
+}, (t) => [
+  uniqueIndex('clan_extra_memberships_sub_unique').on(t.gumroadSubscriptionId),
+  index('clan_extra_memberships_clan_idx').on(t.clanId),
+  check('clan_extra_memberships_state_check', sql`${t.state} IN ('to_cancel', 'waiting')`),
+]);
+
 // owner_trials: a free Supporter tier or clan boost level the owner granted for N days. The
 // entitlement itself is an ordinary time-limited row (a supporter gift row, or the clan's gift
 // level + expiry), so resolution needs no trial-specific code and expiry is enforced at read time.
 // This table is the pipeline: who, what, until when, and whether they later bought.
 export const ownerTrials = pgTable('owner_trials', {
   id: serial('id').primaryKey(),
-  /** 'supporter' | 'boost' */
+  /** 'supporter' | 'boost' | 'plan' (a clan or creator-space plan tier, lib/planTrials) */
   kind: text('kind').notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
   clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
-  /** supporter tier id, or boost level 1-3 as text. */
+  /** supporter tier id, boost level 1-3 as text, or a plan id of the row's own catalogue. */
   tier: text('tier').notNull(),
   days: integer('days').notNull(),
   note: text('note'),
@@ -5393,6 +5423,9 @@ export const ownerTrials = pgTable('owner_trials', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   revokedBy: integer('revoked_by').references(() => users.id, { onDelete: 'set null' }),
   convertedAt: timestamp('converted_at', { withTimezone: true }),
+  /** "Remind me when the trial ends" (drizzle/0267): when they asked, and when the notice went out. */
+  remindRequestedAt: timestamp('remind_requested_at', { withTimezone: true }),
+  remindedAt: timestamp('reminded_at', { withTimezone: true }),
 }, (t) => [
   index('owner_trials_ends_idx').on(t.endsAt),
   index('owner_trials_user_idx').on(t.userId),

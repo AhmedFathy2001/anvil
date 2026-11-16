@@ -14,6 +14,7 @@
 // to own it. The naming RULES live in lib/clanNames, which has no database import; this file is the
 // half that has to ask.
 
+import { startAutoTrial } from '@/lib/planTrials';
 import { and, count, eq, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -220,6 +221,10 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
         newValue: JSON.stringify({ slug, name, plan: 'free' }),
       });
 
+      // Every new clan starts Anvil's own trial of the top tier, no card (lib/planTrials). The clan
+      // row itself stays on free: the trial is a separate, dated entitlement.
+      await startAutoTrial(tx, clan);
+
       return { ok: true as const, clanId: clan.id, slug };
     });
 
@@ -341,6 +346,9 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
         actorUserId: input.ownerUserId,
         newValue: JSON.stringify({ slug, name, plan: CREATOR_PLANS.creator_free.id, kind: 'creator' }),
       });
+
+      // The space's own automatic trial of the top creator tier (lib/planTrials).
+      await startAutoTrial(tx, clan);
 
       return { ok: true as const, clanId: clan.id, slug };
     });

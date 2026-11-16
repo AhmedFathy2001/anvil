@@ -15,6 +15,8 @@ import { nextChargeDue, trialEndWithGumroad, TRIAL_DAYS, type GumroadEvent } fro
 import { logBilling } from '@/lib/billingLapse';
 import { runOnPaid } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, entryTierFor, gumroadPurchase, type BillingTier } from '@/lib/billingCatalog';
+import { noteToCancel, noteWaiting, resolveExtraBySubscription } from '@/lib/extraMemberships';
+import { hadMembership, hadPlanTrial } from '@/lib/planTrials';
 
 type Clan = typeof clans.$inferSelect;
 
@@ -47,27 +49,13 @@ export function chargedAt(stamp: string | null): number {
   return Number.isFinite(ms) ? Math.min(ms, Date.now()) : Date.now();
 }
 
-function trialEndsAtIso(): string {
-  return new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString();
-}
-
 /**
- * Has this clan had a paid membership before? Gumroad's free trial is once per BUYER, and a buyer is
- * an email — so a clan that let its membership lapse could subscribe again from a new address and get
- * another free month (lfl did, the day its Silver ended). The trial is once per CLAN here.
+ * The trial end shown when Gumroad could not be asked and the notification named none: the products'
+ * configured trial (TRIAL_DAYS), and with that at 0 (Gumroad's trial is off) NO trial. Display only:
+ * a guessed trial never holds a plan back (see `trialKnown` below).
  */
-async function hadMembership(clanId: number): Promise<boolean> {
-  const [row] = await db
-    .select({ id: clanAuditLog.id })
-    .from(clanAuditLog)
-    .where(
-      and(
-        eq(clanAuditLog.clanId, clanId),
-        inArray(clanAuditLog.eventType, ['billing_subscribed', 'billing_renewed', 'billing_ended', 'billing_restarted']),
-      ),
-    )
-    .limit(1);
-  return !!row;
+export function guessedTrialEnd(now = Date.now(), days = TRIAL_DAYS): string | null {
+  return days > 0 ? new Date(now + days * 86400_000).toISOString() : null;
 }
 
 /**
@@ -97,7 +85,7 @@ export async function applyClanSale(
   // Without a token to ask, the notification's word, and failing that the products' trial.
   const asked = await trialEndWithGumroad(ev.subscriptionId);
   const said = ev.freeTrialEndsAt && !Number.isNaN(Date.parse(ev.freeTrialEndsAt)) ? new Date(ev.freeTrialEndsAt).toISOString() : null;
-  const trialEnd = asked !== undefined ? asked : (said ?? trialEndsAtIso());
+  const trialEnd = asked !== undefined ? asked : (said ?? guessedTrialEnd());
   const trialRunning = !!trialEnd && Date.parse(trialEnd) > Date.now();
   // The first charge falls due when the trial runs out, else a term after this one — and if it
   // never comes, that date going by is what the daily lapse check asks Gumroad about.
@@ -109,32 +97,43 @@ export async function applyClanSale(
     gumroadProductPermalink: ev.productPermalink,
   };
 
-  // A second free trial for a clan that has had a membership: recorded, not granted. The plan
-  // starts with the first real charge (the renewal case), which is Gumroad's at trial end.
+  // ONE TRIAL. A sale that carries Gumroad's free trial, on a row that has already had a trial (the
+  // site's own, lib/planTrials) or a membership: recorded, not granted. The paid tier starts with the
+  // first real charge, which is Gumroad's at trial end. The buttons never send such a row to the
+  // trial product (lib/planTrialRules buyButtons), but its Gumroad address is public.
   // Only a trial we KNOW of holds anything: the guessed one (no token, nothing in the notification)
-  // must never keep a paying clan off its plan.
+  // must never keep a paying clan off its plan. With no trial reported the tier applies at once.
   const trialKnown = asked !== undefined ? !!asked : !!said;
-  if (trialRunning && trialKnown && (await hadMembership(clan.id))) {
-    if (!current.free) {
-      // Already on a paid plan from another membership: that one stays the clan's. This one is a
-      // duplicate purchase (two tiers in one cart) for staff to cancel on Gumroad.
-      await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, kept: clan.gumroadSubscriptionId }, notes);
-      return { received: true, note: 'duplicate membership' };
+  if (trialRunning && trialKnown) {
+    const why = (await hadMembership(clan.id)) ? 'membership' : (await hadPlanTrial(clan.id)) ? 'site trial' : null;
+    if (why && !current.free) {
+      // Still paying for another membership: that one stays the clan's for now. This one waits for
+      // its first charge and then takes over (lib/extraMemberships), when the other becomes the one
+      // to cancel. Without a subscription id nothing later could find it, so it is only flagged.
+      if (ev.subscriptionId) await noteWaiting(clan.id, ev.subscriptionId, plan.id, trialEnd);
+      await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, kept: clan.gumroadSubscriptionId, held: 'trial already used', startsAt: trialEnd }, notes);
+      return { received: true, note: ev.subscriptionId ? 'waits for first charge' : 'duplicate membership' };
     }
-    await db
-      .update(clans)
-      .set({ ...ids, trialEndsAt: trialEnd, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false })
-      .where(eq(clans.id, clan.id));
-    await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: ev.subscriptionId, held: 'trial already used' }, notes);
-    return { received: true, note: 'held until first charge' };
+    if (why) {
+      await db
+        .update(clans)
+        .set({ ...ids, trialEndsAt: trialEnd, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false })
+        .where(eq(clans.id, clan.id));
+      await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: ev.subscriptionId, held: 'trial already used', had: why }, notes);
+      return { received: true, note: 'held until first charge' };
+    }
   }
 
-  // A new membership on a clan that is still paying for another: the new one becomes the clan's,
-  // and the old one keeps charging on Gumroad until someone cancels it ("Move to Gold" is a new
-  // purchase, not an upgrade of the Silver one). Logged so staff see it.
+  // A new membership on a clan that is still paying for another: the new one becomes the clan's at
+  // once, and the old one keeps charging on Gumroad until someone cancels it ("Move to Gold" is a new
+  // purchase, not an upgrade of the Silver one). Recorded as the one to cancel: the owner is told on
+  // their plan page and staff see it as an open item until Gumroad reports it cancelled or ended.
   if (!current.free && clan.gumroadSubscriptionId && clan.gumroadSubscriptionId !== ev.subscriptionId) {
     await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, replaced: clan.gumroadSubscriptionId, replacedPlan: clan.plan }, notes);
+    // Already cancelled and running out its term: it will not charge again, so there is nothing to do.
+    if (!clan.cancelAtPeriodEnd) await noteToCancel(clan.id, clan.gumroadSubscriptionId, clan.plan);
   }
+  await resolveExtraBySubscription(ev.subscriptionId, 'applied');
   await db
     .update(clans)
     .set({
