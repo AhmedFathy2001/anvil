@@ -70,6 +70,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
+  }
   const session = await verifyUser();
   if (!session?.playerId) return NextResponse.json({ error: 'Sign in first' }, { status: 401 });
 

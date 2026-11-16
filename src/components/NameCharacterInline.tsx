@@ -60,6 +60,9 @@ export default function NameCharacterInline({
   const [onRoster, setOnRoster] = useState(false);
   const [done, setDone] = useState<{ via: Via; rsn: string; onRoster: boolean } | null>(null);
   const [seated, setSeated] = useState(false);
+  // Did THIS visit's click choose the XP check? Only then does the check start by itself; a page
+  // that merely remembers an earlier application shows the Start button and writes nothing on load.
+  const [pressed, setPressed] = useState(false);
 
   // Back from sign-in with the name they typed, or a reload with an application already waiting.
   useEffect(() => {
@@ -122,6 +125,7 @@ export default function NameCharacterInline({
       return;
     }
     setBusy(true);
+    setPressed(true);
     try {
       if (chosen === 'staff') {
         const res = await fetch('/api/auth/request-manual-review', {
@@ -204,7 +208,7 @@ export default function NameCharacterInline({
               Next: gain the XP below within 30 minutes. {mode === 'apply' ? `You are added to ${clanName}` : 'This page carries on'} as soon as the gain shows on the hiscores, usually a few minutes
               after you log out or hop worlds. The check keeps running if you leave this page.
             </p>
-            <XpCheckInline rsn={done.rsn} />
+            <XpCheckInline rsn={done.rsn} autoStart={pressed} />
           </>
         )}
         {done.via === 'staff' && (

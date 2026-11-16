@@ -477,6 +477,10 @@ export default function SignupForm({
     if (hasAnyCharacter && creator) {
       return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} creator />;
     }
+    // Invited to a team: the join card says everything (who, what, one press). No member-list talk.
+    if (hasAnyCharacter && invite) {
+      return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} />;
+    }
     if (hasAnyCharacter) {
       return (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">

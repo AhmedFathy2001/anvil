@@ -23,6 +23,9 @@ const MAX_OPEN_MANUAL_CLAIMS = 1;
 // moderator approval queue alongside stat-delta entries; the mod's note column shows the
 // reason the user gave.
 export async function POST(request: Request) {
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
+  }
   const session = await verifyUser();
   if (!session || session.userId <= 0) {
     return NextResponse.json({ error: 'Sign in with Discord first' }, { status: 401 });

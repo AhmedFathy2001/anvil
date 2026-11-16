@@ -1,7 +1,7 @@
 'use client';
 
 import Select from '@/components/Select';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
@@ -25,6 +25,8 @@ interface EnterInfo {
   guestsClosed?: boolean;
   /** Has any character at all, verified or not. */
   hasCharacter?: boolean;
+  /** The invite in the address, as the server judges it now (lib/eventEntry inviteStanding). */
+  invite?: { ok: boolean; message: string; teamName: string | null; eventName: string | null; hostName: string | null } | null;
   /** A creator-space event with no room left on its plan (lib/creatorPlans). */
   full?: boolean;
   /** A creator-space event's "who can join" (lib/entryGates), said before anyone presses Join. */
@@ -112,13 +114,11 @@ export default function EnterEvent({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
-  // Arrived by a team's invite link: the host already said yes by making it, so no "ask" wording.
-  const [hasInvite, setHasInvite] = useState(false);
-  useEffect(() => setHasInvite(!!inviteFromLocation()), []);
-
   useEffect(() => {
     let alive = true;
-    clanFetch(`/api/events/${eventId}/enter`)
+    // Read-only: with an invite in the address the server also says whether it is still good.
+    const token = inviteFromLocation();
+    clanFetch(`/api/events/${eventId}/enter${token ? `?invite=${encodeURIComponent(token)}` : ''}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: EnterInfo | null) => {
         if (!alive || !d) return;
@@ -148,27 +148,6 @@ export default function EnterEvent({
     }, 8000);
     return () => clearInterval(t);
   }, [waiting, eventId, router]);
-
-  // ARRIVED BY INVITE WITH ONE CHARACTER: there is nothing to decide. They opened the team's link and
-  // the host said yes by making it, so the guest seat is taken for them and the form appears; the
-  // button below stays for a link that turned out to be dead. Once per mount.
-  const autoEntered = useRef(false);
-  useEffect(() => {
-    if (autoEntered.current || creator || !hasInvite || !info || chosen == null) return;
-    if (info.verdict.outcome !== 'outsider' || info.options.length !== 1 || info.pendingSince || info.guestsClosed) return;
-    autoEntered.current = true;
-    clanFetch(`/api/events/${eventId}/enter`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: chosen, inviteToken: inviteFromLocation() }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { pending?: boolean; message?: string } | null) => {
-        if (d?.pending) setPending(d.message ?? 'Sent to the host.');
-        else if (d) router.refresh();
-      })
-      .catch(() => {});
-  }, [hasInvite, info, chosen, creator, eventId, router]);
 
   if (!info) return null;
   if (creator) return <CreatorJoin eventId={eventId} info={info} signupsOpen={signupsOpen} signupFee={signupFee} />;
@@ -206,6 +185,20 @@ export default function EnterEvent({
       if (data?.pending) {
         setPending(data.message ?? 'Sent to the host.');
         return;
+      }
+      // Joining by invite is ONE press: the same click that takes the guest seat also files the
+      // sign-up onto the invite's team (every question on the form is optional and can be added
+      // after). The sign-up route re-checks the invite itself.
+      if (invite?.ok && typeof data?.seatId === 'number') {
+        const signed = await clanFetch(`/api/events/${eventId}/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clanMemberIds: [data.seatId], inviteToken: inviteFromLocation() }),
+        });
+        if (!signed.ok) {
+          const why = await signed.json().catch(() => null);
+          throw new Error(why?.error ?? 'Could not join the team');
+        }
       }
       // Seated: they now hold a guest seat here, so the ordinary sign-up banner takes over. The
       // server has to re-render for that, and it is the same page — refresh rather than navigate.
@@ -281,7 +274,44 @@ export default function EnterEvent({
     );
   }
 
-  const asks = verdict.needsApproval && !hasInvite;
+  // The invite counts only when the SERVER said it is good for this event right now; a dead one is
+  // named plainly and the person asks like anyone else.
+  const invite = info.invite ?? null;
+  const asks = verdict.needsApproval && !invite?.ok;
+  if (invite?.ok) {
+    return (
+      <Card tone="info">
+        <div className="min-w-0">
+          <div className="font-semibold">You’re invited to {invite.teamName}</div>
+          <div className="text-sm text-text-muted">
+            You’ll be added to this team as a guest of {invite.hostName ?? 'the host'}. Nothing happens until you press the button.
+            {signupFee ? ` Sign-up fee: ${signupFee.toLocaleString()} gp.` : ''}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {options.length > 1 && (
+            <Select
+              value={chosen != null ? String(chosen) : ''}
+              onChange={(v) => setChosen(Number(v) || null)}
+              placeholder="Which character?"
+              ariaLabel="Which character"
+              className="min-w-[10rem]"
+              options={options.map((o) => ({ value: String(o.id), label: o.rsn }))}
+            />
+          )}
+          <button
+            type="button"
+            onClick={enter}
+            disabled={busy || chosen == null}
+            className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+          >
+            {busy ? 'Joining…' : `Join ${invite.teamName} in ${invite.eventName}`}
+          </button>
+        </div>
+        {error && <p className="w-full text-[12.5px] text-accent-red">{error}</p>}
+      </Card>
+    );
+  }
 
   return (
     <Card tone="info">
@@ -291,6 +321,7 @@ export default function EnterEvent({
           {asks
             ? 'The host reviews entries from outside the clan.'
             : 'You’ll join as a guest of the host.'}
+          {invite && !invite.ok ? ` Your invite link cannot be used: ${invite.message}` : ''}
           {signupFee ? ` Sign-up fee: ${signupFee.toLocaleString()} gp.` : ''}
         </div>
       </div>

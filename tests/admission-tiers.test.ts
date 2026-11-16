@@ -681,3 +681,66 @@ test('one typed-name application per clan: a new name replaces the old one', asy
   const { applyIntentOf } = await import('../src/lib/applyIntents.ts');
   assert.deepEqual(await applyIntentOf(host, who.playerId), { rsn: 'Typed Second', via: 'xp' });
 });
+
+// ── Joining by invite is a press, never a page load ───────────────────────────────────────────
+
+test('opening an invite changes nothing; the join happens only through the POST, with a valid token, from this site', async () => {
+  const enterRoute = await import('../src/app/api/events/[eventId]/enter/route.ts');
+  const ev = await event(host, 'Press To Join');
+  const token = await invite(ev, { maxUses: 5 });
+  const who = await newcomer('plugin');
+  const params = { eventId: String(ev.id) };
+
+  // What the page does on load: a read. It says the invite is good and names what Join would do.
+  const look = await callRoute(enterRoute.GET, { userId: who.userId, slug: 'host', method: 'GET', params, query: `invite=${token}` });
+  assert.equal(look.status, 200);
+  assert.deepEqual(look.json.invite, { ok: true, message: '', teamName: 'Press To Join team', eventName: 'Press To Join', hostName: 'host' });
+  assert.equal(await seatOf(host, who.accountId), undefined, 'reading takes no seat');
+  assert.equal((await requestsOf(host, who.accountId)).length, 0, 'and files no request');
+  assert.equal((await signupsOf(ev.id, who.userId)).length, 0);
+  assert.equal((await db.select().from(s.teamInvites).where(eq(s.teamInvites.token, token)))[0].uses, 0);
+
+  // Another site cannot press it for them.
+  const forged = await callRoute(enterRoute.POST, { userId: who.userId, slug: 'host', params, body: { accountId: who.accountId, inviteToken: token }, headers: { 'sec-fetch-site': 'cross-site' } });
+  assert.equal(forged.status, 403);
+  assert.equal(await seatOf(host, who.accountId), undefined);
+
+  // Signed out: nothing.
+  assert.equal((await callRoute(enterRoute.POST, { slug: 'host', params, body: { accountId: who.accountId, inviteToken: token } })).status, 401);
+
+  // A token that is not this event's invite does not seat them: they are asking, like anyone.
+  const bad = await callRoute(enterRoute.POST, { userId: who.userId, slug: 'host', params, body: { accountId: who.accountId, inviteToken: 'zzzzzzzzzzzzzzzz' }, headers: { 'sec-fetch-site': 'same-origin' } });
+  assert.equal(bad.status, 202);
+  assert.equal(await seatOf(host, who.accountId), undefined);
+
+  // The press, from this site, with the real token.
+  const other = await newcomer('plugin');
+  const ok = await callRoute(enterRoute.POST, { userId: other.userId, slug: 'host', params, body: { accountId: other.accountId, inviteToken: token }, headers: { 'sec-fetch-site': 'same-origin' } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal((await seatOf(host, other.accountId)).kind, 'guest');
+});
+
+test('the page is told plainly why an invite cannot be used, before any button is shown', async () => {
+  const enterRoute = await import('../src/app/api/events/[eventId]/enter/route.ts');
+  const who = await newcomer('plugin');
+  const look = async (ev: { id: number }, token: string) =>
+    (await callRoute(enterRoute.GET, { userId: who.userId, slug: 'host', method: 'GET', params: { eventId: String(ev.id) }, query: `invite=${token}` })).json.invite as { ok: boolean; message: string; teamName: string | null };
+
+  const ev = await event(host, 'Reasons');
+  for (const [extra, expected] of [[{ expiresAt: day(-1) }, /expired/], [{ revokedAt: day(-1) }, /turned off/], [{ maxUses: 1, uses: 1 }, /full/]] as const) {
+    const r = await look(ev, await invite(ev, extra));
+    assert.equal(r.ok, false);
+    assert.match(r.message, expected);
+    assert.equal(r.teamName, null, 'a dead link names nothing');
+  }
+  const elsewhere = await event(host, 'Reasons Elsewhere');
+  assert.match((await look(ev, await invite(elsewhere))).message, /different event/);
+  const off = await event(host, 'Reasons Off', { signupsEnabled: false });
+  assert.match((await look(off, await invite(off))).message, /adds players to this event by hand/);
+  const over = await event(host, 'Reasons Over', { startDate: day(-9), endDate: day(-2) });
+  assert.match((await look(over, await invite(over))).message, /finished/);
+  assert.match((await look(ev, 'not-a-token')).message, /not valid/);
+  // And the entry itself refuses the same ones: a good token on a switched-off event seats nobody.
+  const entered = await enter(off.id, who, await invite(off));
+  assert.notEqual(entered.outcome, 'seated');
+});

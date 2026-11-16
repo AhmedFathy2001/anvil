@@ -159,10 +159,14 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
   );
 }
 
-/** The XP check on its own, for a page that already took the name: `autoStart` begins it at once. */
-export function XpCheckInline({ rsn }: { rsn: string }) {
+/**
+ * The XP check on its own, for a page that already took the name. `autoStart` begins it at once and is
+ * only ever true as the direct result of the person pressing the button that chose the XP check:
+ * never on a page load.
+ */
+export function XpCheckInline({ rsn, autoStart }: { rsn: string; autoStart: boolean }) {
   const router = useRouter();
-  return <StatDeltaPath router={router} initialRsn={rsn} autoStart />;
+  return <StatDeltaPath router={router} initialRsn={rsn} autoStart={autoStart} />;
 }
 
 function StatDeltaPath({

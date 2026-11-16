@@ -21,6 +21,10 @@ export async function callRoute<P>(
     method?: string;
     body?: unknown;
     params?: P;
+    /** Extra request headers (e.g. `sec-fetch-site`, as a browser sends it). */
+    headers?: Record<string, string>;
+    /** Query string for the request URL, without the `?`. */
+    query?: string;
   },
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const { signUserToken } = await import('../../src/lib/auth.ts');
@@ -32,12 +36,12 @@ export async function callRoute<P>(
 
   // One address per caller, so the per-address throttles count each test person on their own.
   const ip = `10.${((opts.userId ?? 0) >> 16) & 255}.${((opts.userId ?? 0) >> 8) & 255}.${(opts.userId ?? 0) & 255}`;
-  const headers = new Headers({ 'Content-Type': 'application/json', 'x-forwarded-for': ip, ...(opts.slug ? clanHeaders(opts.slug) : {}) });
+  const headers = new Headers({ 'Content-Type': 'application/json', 'x-forwarded-for': ip, ...(opts.slug ? clanHeaders(opts.slug) : {}), ...(opts.headers ?? {}) });
   const cookieHeaders = new Headers();
   if (opts.userId != null) {
     cookieHeaders.set('cookie', `admin_session=${encodeURIComponent(signUserToken(opts.userId, 'test', 'member'))}`);
   }
-  const request = new Request('https://example.test/api/test', {
+  const request = new Request(`https://example.test/api/test${opts.query ? `?${opts.query}` : ''}`, {
     method: opts.method ?? 'POST',
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
