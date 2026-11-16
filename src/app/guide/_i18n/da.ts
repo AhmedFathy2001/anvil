@@ -849,21 +849,25 @@ const da: PartialGuideDict = {
       title: 'Forbind dine konti',
       body: [
         'Når din token er på plads, vises konti, du spiller på, automatisk på din profil. En helt ny konto kan forbindes med det samme; en konto, der allerede står på en klanliste, kræver først ét ejerskabstjek, fordi et offentligt RuneScape-navn ikke beviser, hvem der ejer det.',
-        'Ved den første forbindelse kan du bruge [det hurtige XP-tjek](/profile#link-account) eller bede en klanmoderator godkende kontoen under [konti vi har registreret](/profile#detected-accounts). Når den er bevist, følger det stabile kontofingeraftryk fremtidige navneskift og genkender kontoen automatisk.',
+        'Til den første forbindelse kan du bruge [det hurtige XP-tjek](/settings/characters#link-account) eller bede en klanmoderator om at godkende den, startende fra [We noticed you playing](/settings/characters#detected). Når den er bevist, gemmer pluginnet kontoens stabile fingeraftryk, følger fremtidige navneskift og genkender kontoen automatisk ved hvert login.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'RuneScape Accounts-kortet på profilsiden med konti verificeret via pluginnet',
+        caption: 'Settings → Characters',
+        alt: 'Characters-siden under Settings, med listen over forbundne karakterer og kortet We noticed you playing indrammet',
         legend: [
           {
-            label: 'Dine forbundne konti',
-            body: 'alt med “Verified via plugin” er forbundet og genkendes automatisk. Etablerede klankonti kan først bede om et enkelt XP-tjek eller en moderatorgodkendelse.',
+            label: 'Your linked characters',
+            body: 'alt, der står her, er forbundet og genkendes automatisk.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'karakterer, pluginnet har set dig spille, som endnu ikke er forbundet. Tryk på **Verify ownership** for at forbinde en (en helt ny konto forbindes med det samme; en konto, der allerede står på en klanliste, kræver først et engangs-XP- eller moderatortjek), eller **Not mine** for at afvise den.',
           },
         ],
       },
       noPluginHeading: 'Kan du ikke køre pluginnet?',
       noPluginIntro:
-        'På mobil eller i den officielle klient kan du bruge [Profile → account linking](/profile#link-account) i stedet:',
+        'På mobil eller i den officielle klient kan du i stedet bruge [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — skriv dit RSN, siden vælger en tilfældig skill, og du skal tjene 1.000 XP i den inden for 30 minutter.',
         '**Manual review** — til skjulte Hiscores eller helt nye alts: indsend dit RSN med en note, og en moderator godkender det.',
@@ -982,74 +986,76 @@ const da: PartialGuideDict = {
     notifications: {
       title: 'Discord-beskeder',
       intro:
-        'De sendes, uanset om der kører en bingo eller ej, og de lander i klanens kanaler. Hvilken kanal bestemmer administratorerne her — du vælger kun _hvad_ du poster. I den næste plugin-opdatering flytter disse valg til hjemmesiden, under **Settings → Discord posts & screenshots**, og følger dig til hver computer. På samme side vælger **Screenshot privacy**, hvilken chat (private beskeder, offentlig chat, klanchat) der skjules på alle skærmbilleder, pluginet tager. Pluginet beholder to kontakter under **Notifications**: **Share clan posts** sætter alle opslag fra hovedspillet på pause på én gang, og **Share seasonal activity** gør det samme på Leagues, Deadman og andre sæsonverdener.',
+        'Disse udløses, uanset om en bingo kører eller ikke, og de postes i klanens kanaler. Hvilken kanal der er sat op, bestemmer administratorerne — du vælger kun _hvad_ du poster. Valgene ligger på hjemmesiden under **Settings → Posts & alerts → What your plugin posts** og følger dig til hver computer; pluginnet har ikke længere egne indstillinger for dem. På samme side vælger **Screenshot privacy**, hvilken chat (private beskeder, offentlig chat, klanchat) der skjules på alle skærmbilleder, pluginnet tager. Pluginnet har to kontakter under **Notifications**: **Share clan posts** sætter alle opslag fra hovedspillet på pause på én gang, og **Share seasonal activity** gør det samme for Leagues, Deadman og andre sæsonverdener.',
       examplesFigure: {
         caption: 'Sådan ser et opslag ud',
         alt: 'To Discord-opslag fra Anvil: en Grandmaster combat task med point og fremskridt mod næste unlock, og et dødsfald med dets besked, hver med et skærmbillede af øjeblikket',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Beskedafsnittene Deaths and kills og Drops and pets med hver indstilling markeret og nummereret',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Grupperne Drops & pets og Deaths & PvP under What your plugin posts på indstillingssiden Posts & alerts, med hver indstilling indrammet og nummereret',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'poster til klanens dødskanal med et skærmbillede af øjeblikket, hvor du døde.',
+            label: 'Rare drops',
+            body: 'hovedkontakten for drop-posts. Tændt som standard.',
           },
           {
-            label: 'Death message',
-            body: 'din egen linje. `{name}` erstattes med dit RSN.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'et drop postes, når det er værd mindst dette beløb (GE eller high alch, det højeste af de to) eller er sjældnere end 1-ud-af-N. Anvils egne tal er 1.000.000 gp og 1 ud af 1.000, og ingen af dem kan du sætte løsere end det. Sæt et tal til 0 for at slå det fra. Din klan kan sætte egne standarder for sine medlemmer; linjen under hver boks siger **Using your clan’s default**, indtil du selv skriver et tal, og **Reset to clan default** (eller **Reset to Anvil default**, hvis du ingen klan har) går tilbage til at følge den. En klan kan også sætte en hård sjældenhedsgrænse, som kun gælder for posts i klanens egne kanaler.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'et skærmbillede af tikken, hvor dit mål rammer 0 HP. Fra som standard; tændt her.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'hovedkontakten for drop-posts.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'et drop postes, hvis det er værd mindst dette (GE eller high alch, det højeste af de to) eller sjældnere end 1-ud-af-N. Anvil starter ved 1m og 1/1,000. Din klan kan sætte egne standarder for sine medlemmer. Indtil du selv vælger et tal, følger du klanens. **Reset to clan default** (eller **Reset to Anvil default**, hvis du ingen klan har) går tilbage til at følge den. En klan kan også sætte en hård sjældenhedsgrænse, som kun gælder for posts i klanens egne kanaler. Dit tal kan ikke gå løsere end den der, og det ændrer aldrig værdigrænsen. Sæt et af tallene til 0 for at slå det fra.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'et drop postes som standard, når det opfylder værdien **or** sjældenheden. Slår du **Require both** til, skal det opfylde værdien **and** sjældenheden. Din klan kan vælge denne standard for sine medlemmer. Indtil du vælger, følger du den. Uden klan gælder enten det ene eller det andet. Hver af dine egne webhooks kan også sætte sin egen minimumsværdi, sjældenhed og enten/begge. Det den lader være tomt, følger dine indstillinger.',
+            label: 'Require both (and)',
+            body: 'som standard postes et drop, når det opfylder værdien **or** sjældenheden. Slår du **Require both (and)** til, skal det opfylde både værdien **and** sjældenheden. Din klan kan vælge denne standard for sine medlemmer; indtil du selv vælger, siger linjen under boksen **Using your clan’s choice**, og uden klan gælder enten det ene eller det andet. Hver af dine egne webhooks kan også sætte sin egen minimumsværdi, sjældenhed og enten/begge; det den lader være tomt, følger dine indstillinger.',
           },
           {
             label: 'Loot key value',
-            body: 'en loot key postes én gang som en enkelt notifikation, når hele indholdet overstiger dette tal.',
+            body: 'en loot key postes én gang som en enkelt notifikation, når hele dens indhold overstiger dette tal. Starter på 1.000.000 gp; 0 slår den fra.',
           },
           {
-            label: 'Notify on pets',
-            body: 'kæledyr postes i kanalen for sjældne drops.',
+            label: 'Pets',
+            body: 'kæledyr postes i klanens drops-kanal. Tændt som standard.',
+          },
+          {
+            label: 'Deaths',
+            body: 'postes i klanens dødskanal med et skærmbillede af øjeblikket, hvor du døde. Tændt som standard.',
+          },
+          {
+            label: 'Death message',
+            body: 'din egen linje. `{name}` erstattes med dit RSN. Standarden er `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'et skærmbillede af tikken, hvor dit mål rammer 0 HP, postes i klanens PvP-kanal. Fra som standard.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Beskedafsnittet Combat achievements med hver indstilling markeret og nummereret',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Gruppen Achievements under What your plugin posts på indstillingssiden Posts & alerts, med hver indstilling indrammet og nummereret',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'det laveste opgave-tier, der posteres; gennemførte tiers posteres også. Standarden er Master; Grandmaster poster kun de allersjældneste, **Off** poster ingen. Bingoens CA-felter tæller uanset hvad.',
+            label: 'Collection log slots',
+            body: 'hver ny plads i collection loggen postes i klanens achievement-kanal. Tændt som standard.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'hver ny plads i collection loggen.',
+            label: 'Level milestones',
+            body: 'level-ups, din klan har valgt at annoncere — som standard 99’ere, hver 100 total levels fra 1800 og max. Klanens admins sætter reglerne; du kan poste mindre (eller sætte dine egne regler for dine personlige webhooks) under Announcements-indstillingerne.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'level-ups, din klan har valgt at annoncere — som standard 99’ere, hver 100 total levels fra 1800, samt max. Klanens admins sætter reglerne; du kan poste mindre (eller lave dine egne regler til dine personlige webhooks) under Announcements på din profil.',
+            label: 'Diary completions',
+            body: 'achievement diary-tiers, med et skærmbillede. Tændt som standard.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'gennemførte achievement diary-tiers, med et screenshot.',
+            label: 'Diary tier',
+            body: 'det laveste diary-tier, der postes. Starter på **Clan default**, altså alle tiers, medmindre din klan har valgt andet; du kan vælge et strengere tier, aldrig et løsere end klanens.',
           },
           {
-            label: 'Quest post tier',
-            body: 'quests fra den sværhedsgrad, du vælger, og opefter, fra All (hver quest) op til Grandmaster; **Off** poster ingen. Standarden er Master. Bingoens quest-felter tæller uanset hvad.',
+            label: 'Combat task tier',
+            body: 'det laveste opgave-tier, der postes; gennemførte tiers postes også. Starter på **Clan default** (Master, medmindre din klan har valgt et andet tier); Grandmaster poster kun de sjældneste, og **Off** poster ingen. Du kan ikke gå løsere end din klan. Bingoens CA-felter tæller uanset hvad.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'quests ved eller over den sværhedsgrad, du vælger, fra All (hver quest) op til Grandmaster; **Off** poster ingen. Starter på **Clan default** (Master, medmindre din klan har valgt en anden). Bingoens quest-felter tæller uanset hvad.',
           },
         ],
       },
@@ -1070,7 +1076,7 @@ const da: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Kontoen er ikke forbundet endnu. Åbn [Profile → registrerede konti](/profile#detected-accounts) for at tilføje den eller starte ejerskabstjekket.',
+          body: 'Kontoen er ikke forbundet endnu. Åbn [Settings → Characters → We noticed you playing](/settings/characters#detected) for at tilføje den eller starte ejerskabstjekket.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1498,7 +1504,7 @@ const da: PartialGuideDict = {
       ],
       figure: {
         caption: 'Event → Teams & draft → holdet → Team staff',
-        alt: 'Team staff-panelet med én tildelt plads og søgefeltet til at tilføje flere åbent',
+        alt: 'Team staff-panelet med én tildelt plads, med knappen Add someone, pladsen og dens note samt knappen Remove indrammet',
         legend: [
           {
             label: 'Add someone',
@@ -1558,7 +1564,7 @@ const da: PartialGuideDict = {
         ],
       },
       shape:
-        'Linket ser sådan ud: `{origin}/events/{eventId}/join/{token}` — én linje, sikker at indsætte i en Discord-besked.',
+        'Linket ser sådan ud: `{origin}/c/{clan}/events/{eventId}/join/{token}` — én linje, sikker at indsætte i en Discord-besked.',
       note: {
         tag: 'Fornuftige standardvalg',
         body: 'Til en clan-mod-clan, hvor du har aftalt truppen med én moderator, så lad begge felter stå på `0`, og lad dem styre det. Grib til pladser og udløb, når linket skal et sted hen, du ikke selv kontrollerer.',

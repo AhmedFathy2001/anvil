@@ -845,21 +845,25 @@ const nl: PartialGuideDict = {
       title: 'Koppel je accounts',
       body: [
         'Zodra het token is ingesteld, verschijnen accounts waarmee je speelt automatisch op je profiel. Een nieuw account kan direct worden gekoppeld; een account dat al op een clanrooster staat vereist eerst één eigendomscontrole, omdat een openbare RuneScape-naam niet bewijst wie de eigenaar is.',
-        'Gebruik voor de eerste koppeling [de snelle XP-controle](/profile#link-account), of vraag een clanmoderator het account goed te keuren bij [gedetecteerde accounts](/profile#detected-accounts). Daarna volgt de stabiele accountvingerafdruk naamswijzigingen en wordt het account automatisch herkend.',
+        'Gebruik voor die eerste koppeling [de snelle XP-controle](/settings/characters#link-account) of vraag een clanmoderator om het goed te keuren, te beginnen vanuit [We noticed you playing](/settings/characters#detected). Nadat het bewezen is, slaat de plugin de stabiele accountvingerafdruk op, volgt hij toekomstige naamswijzigingen en herkent hij het account bij elke login automatisch.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'De kaart RuneScape Accounts op de profielpagina met de via de plugin geverifieerde accounts',
+        caption: 'Settings → Characters',
+        alt: 'De pagina Characters onder Settings, met de lijst van gekoppelde characters en het kaartje We noticed you playing omkaderd',
         legend: [
           {
-            label: 'Je gekoppelde accounts',
-            body: 'alles met “Verified via plugin” is gekoppeld en wordt automatisch herkend. Bestaande clanroosteraccounts kunnen eerst een eenmalige XP-controle of goedkeuring door een moderator vragen.',
+            label: 'Your linked characters',
+            body: 'alles wat hier staat is gekoppeld en wordt automatisch herkend.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'characters die de plugin je heeft zien spelen maar die nog niet gekoppeld zijn. Druk op **Verify ownership** om er één te koppelen (een gloednieuw account wordt meteen gekoppeld; een account dat al op een clanrooster staat, vraagt eerst om een eenmalige XP- of moderatorcontrole), of op **Not mine** om het te negeren.',
           },
         ],
       },
       noPluginHeading: 'Kun je de plugin niet draaien?',
       noPluginIntro:
-        'Gebruik op mobiel of in de officiële client [Profile → account linking](/profile#link-account):',
+        'Gebruik op mobiel of in de officiële client [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — vul je RSN in, de site kiest een willekeurige skill, en je moet daarin binnen 30 minuten 1.000 XP halen.',
         '**Manual review** — voor verborgen Hiscores of gloednieuwe altaccounts: dien je RSN in met een notitie, en een moderator keurt het goed.',
@@ -977,74 +981,76 @@ const nl: PartialGuideDict = {
     notifications: {
       title: 'Discord-meldingen',
       intro:
-        'Die gaan af of er nu een bingo loopt of niet, en ze verschijnen in de kanalen van de clan. Welk kanaal, bepalen de admins hier — jij kiest alleen _wat_ je post. Met de volgende plugin-update verhuizen deze keuzes naar de website, onder **Settings → Discord posts & screenshots**, en volgen ze je naar elke computer. Op dezelfde pagina kies je bij **Screenshot privacy** welke chat (privéberichten, openbare chat, clanchat) verborgen wordt op elke screenshot die de plugin maakt. In de plugin blijven twee schakelaars onder **Notifications**: **Share clan posts** pauzeert in één keer alle posts uit het hoofdspel, en **Share seasonal activity** doet hetzelfde op Leagues, Deadman en andere seizoenswerelden.',
+        'Deze worden verstuurd, of er nu een bingo loopt of niet, en ze worden in de kanalen van de clan gepost. Welk kanaal dat is, stellen de admins hier in — jij kiest alleen _wat_ je post. Deze keuzes staan op de website, onder **Settings → Posts & alerts → What your plugin posts**, en volgen je naar elke computer; de plugin zelf heeft hiervoor geen instellingen meer. Op dezelfde pagina bepaalt **Screenshot privacy** welke chat (privéberichten, openbare chat, clanchat) verborgen wordt op elke screenshot die de plugin maakt. De plugin heeft twee schakelaars onder **Notifications**: **Share clan posts** pauzeert in één keer alle posts van het hoofdspel, en **Share seasonal activity** doet hetzelfde voor Leagues, Deadman en andere seizoenswerelden.',
       examplesFigure: {
         caption: 'Zo ziet een post eruit',
         alt: 'Twee Discord-posts van Anvil: een Grandmaster-combat task met punten en de voortgang naar de volgende unlock, en een dood met het bijbehorende bericht, elk met een screenshot van het moment',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'De meldingsonderdelen Deaths and kills en Drops and pets met elke instelling omkaderd en genummerd',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'De groepen Drops & pets en Deaths & PvP onder What your plugin posts op de instellingenpagina Posts & alerts, met elke instelling omkaderd en genummerd',
         legend: [
           {
-            label: 'Melding bij dood',
-            body: 'stuurt naar het kanaal voor clan-sterfgevallen met een screenshot van het moment dat je stierf.',
+            label: 'Rare drops',
+            body: 'de hoofdschakelaar voor dropposts. Standaard aan.',
           },
           {
-            label: 'Doodsbericht',
-            body: 'je eigen tekst. `{name}` wordt vervangen door je RSN.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'een drop wordt geplaatst als hij minstens deze waarde heeft (GE of high alch, wat hoger is) of zeldzamer is dan 1 op N. Anvils eigen waarden zijn 1.000.000 gp en 1 op 1.000; geen van beide kun je ruimer instellen. Zet een getal op 0 om het uit te schakelen. Je clan kan eigen standaarden voor zijn leden instellen; de regel onder elk vakje zegt **Using your clan’s default** totdat je zelf een getal typt, en **Reset to clan default** (of **Reset to Anvil default** als je geen clan hebt) zet je terug op die standaard. Een clan kan ook een harde zeldzaamheidsgrens instellen, die alleen geldt voor posts in de eigen kanalen van die clan.',
           },
           {
-            label: 'Melding bij PvP-kill',
-            body: 'een screenshot van de tick waarop je doelwit 0 HP bereikt. Standaard uit; hier aan.',
+            label: 'Require both (and)',
+            body: 'standaard wordt een drop geplaatst als hij aan de waarde **of** aan de zeldzaamheid voldoet. Zet **Require both (and)** aan en hij moet aan de waarde **én** aan de zeldzaamheid voldoen. Je clan kan deze keuze als standaard voor zijn leden instellen; totdat jij kiest, staat onder het vakje **Using your clan’s choice**, en zonder clan geldt een van beide. Elk van je eigen webhooks kan ook een eigen minimumwaarde, zeldzaamheid en either/both instellen; wat leeg blijft, volgt je instellingen.',
           },
           {
-            label: 'Melding bij zeldzame drops',
-            body: 'de hoofdschakelaar voor dropberichten.',
+            label: 'Loot key value',
+            body: 'een lootkey wordt één keer geplaatst, als één melding, zodra de volledige inhoud dit bedrag haalt. Begint bij 1.000.000 gp; 0 schakelt het uit.',
           },
           {
-            label: 'Min. dropwaarde / Min. dropzeldzaamheid',
-            body:
-              'een drop wordt geplaatst als het minstens zoveel waard is (GE of high alch, wat het hoogst is) of zeldzamer is dan 1 op N. Anvil begint bij 1m en 1/1,000. Je clan kan eigen standaarden voor zijn leden instellen, en totdat jij zelf een getal kiest, volg je die van je clan; **Reset to clan default** (of **Reset to Anvil default** als je geen clan hebt) zet je terug op volgen. Een clan kan ook een harde zeldzaamheidsgrens instellen, die alleen geldt voor berichten in de eigen kanalen van die clan. Jouw getal kan daar niet losser zijn, en het verandert nooit de waardelimiet. Zet een van beide getallen op 0 om het uit te schakelen.',
+            label: 'Pets',
+            body: 'pets worden in het kanaal voor clan-drops geplaatst. Standaard aan.',
           },
           {
-            label: 'Waarde en zeldzaamheid samen',
-            body:
-              'standaard wordt een drop geplaatst als hij aan de waarde **or** aan de zeldzaamheid voldoet. Zet **Require both** aan en hij moet aan de waarde **and** aan de zeldzaamheid voldoen. Je clan kan deze standaard voor zijn leden kiezen; totdat jij kiest, volg je hem, en zonder clan geldt een van beide. Elk van je eigen webhooks kan ook zijn eigen minimumwaarde, zeldzaamheid en either/both instellen; wat het leeg laat, volgt jouw instellingen.',
+            label: 'Deaths',
+            body: 'wordt in het kanaal voor clan-sterfgevallen geplaatst, met een screenshot van het moment waarop je stierf. Standaard aan.',
           },
           {
-            label: 'Lootkey-waarde',
-            body: 'een lootkey wordt één keer geplaatst, als één melding, zodra de hele inhoud dit getal haalt.',
+            label: 'Death message',
+            body: 'je eigen tekst. `{name}` wordt vervangen door je RSN. De standaard is `{name} just died!`.',
           },
           {
-            label: 'Melding bij pets',
-            body: 'pets worden in het kanaal voor zeldzame drops geplaatst.',
+            label: 'PvP kills',
+            body: 'een screenshot van de tick waarop je doelwit 0 HP bereikt, geplaatst in het clan-PvP-kanaal. Standaard uit.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Het meldingsonderdeel Combat achievements met elke instelling omkaderd en genummerd',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'De groep Achievements onder What your plugin posts op de instellingenpagina Posts & alerts, met elke instelling omkaderd en genummerd',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'de laagste taaktier die gepost wordt; afgeronde tiers worden ook gepost. Standaard is Master; Grandmaster post alleen de zeldzaamste, **Off** post niets. Bingo-CA-vakjes tellen hoe dan ook.',
+            label: 'Collection log slots',
+            body: 'elk nieuw collection-log-slot, geplaatst in het clan-kanaal voor achievements. Standaard aan.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'elk nieuw slot in je collection log.',
+            label: 'Level milestones',
+            body: 'level-ups die je clan heeft gekozen om aan te kondigen — standaard 99’s, elke 100 totale levels vanaf 1800, en max. De admins van je clan stellen de regels in; je kunt minder posten (of eigen regels instellen voor je persoonlijke webhooks) via de Announcements-instellingen.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'level-ups die je clan heeft gekozen om aan te kondigen — standaard 99’s, elke 100 totale levels vanaf 1800, en max. De admins van je clan bepalen de regels; je kunt minder posten (of eigen regels instellen voor je persoonlijke webhooks) via Announcements op je profiel.',
+            label: 'Diary completions',
+            body: 'tiers van achievement diaries, met een screenshot. Standaard aan.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'tiers van achievement diaries, met een schermafbeelding.',
+            label: 'Diary tier',
+            body: 'de laagste diary-tier die wordt geplaatst. Begint bij **Clan default**, dat elke tier is tenzij je clan anders heeft gekozen; je kunt een strengere tier kiezen, nooit een ruimere dan die van je clan.',
           },
           {
-            label: 'Quest post tier',
-            body: 'quests vanaf de moeilijkheidsgraad die je kiest, van All (elke quest) tot Grandmaster; **Off** post er geen. Standaard is Master. Bingo-questvakjes tellen hoe dan ook.',
+            label: 'Combat task tier',
+            body: 'de laagste taaktier die wordt geplaatst; afgeronde tiers worden ook geplaatst. Begint bij **Clan default** (Master, tenzij je clan een andere tier koos); Grandmaster plaatst alleen de zeldzaamste, **Off** plaatst niets, en je kunt niet ruimer gaan dan je clan. Bingo-CA-vakjes tellen in beide gevallen mee.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'quests op of boven de moeilijkheidsgraad die je kiest, van All (elke quest) tot Grandmaster; **Off** plaatst er geen. Begint bij **Clan default** (Master, tenzij je clan een andere koos). Bingo-questvakjes tellen in beide gevallen mee.',
           },
         ],
       },
@@ -1065,7 +1071,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Dat account is nog niet gekoppeld. Open [Profile → gedetecteerde accounts](/profile#detected-accounts) om het toe te voegen of de eigendomscontrole te starten.',
+          body: 'Dat account is nog niet gekoppeld. Open [Settings → Characters → We noticed you playing](/settings/characters#detected) om het toe te voegen of de eigendomscontrole te starten.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1492,7 +1498,7 @@ const nl: PartialGuideDict = {
       ],
       figure: {
         caption: 'Event → Teams & draft → het team → Team staff',
-        alt: 'Het Team staff-paneel met één toegekende plek en het zoekveld open om er meer toe te voegen',
+        alt: 'Het paneel Team staff met één toegekende plek, met de knop Add someone, de plek met zijn notitie en de knop Remove omkaderd',
         legend: [
           {
             label: 'Add someone',
@@ -1552,7 +1558,7 @@ const nl: PartialGuideDict = {
         ],
       },
       shape:
-        'De link ziet er zo uit: `{origin}/events/{eventId}/join/{token}` — één regel, veilig in een Discord-bericht te plakken.',
+        'De link ziet er zo uit: `{origin}/c/{clan}/events/{eventId}/join/{token}` — één regel, veilig om in een Discord-bericht te plakken.',
       note: {
         tag: 'Verstandige standaardwaarden',
         body: 'Bij een clan-tegen-clan waarbij je een ploeg met één moderator hebt afgesproken: laat beide velden op `0` staan en laat hem het regelen. Grijp naar plekken en verloop wanneer de link ergens heen gaat dat jij niet in de hand hebt.',

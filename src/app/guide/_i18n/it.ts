@@ -845,21 +845,25 @@ const it: PartialGuideDict = {
       title: 'Collega i tuoi account',
       body: [
         'Una volta configurato il token, gli account con cui giochi compaiono automaticamente sul tuo profilo. Un account nuovo può essere collegato subito; uno già presente nel roster di un clan richiede prima una verifica della proprietà, perché un nome RuneScape pubblico non dimostra chi lo possiede.',
-        'Per il primo collegamento usa [la verifica rapida tramite XP](/profile#link-account), oppure chiedi a un moderatore del clan di approvare l’account tra [gli account rilevati](/profile#detected-accounts). Dopo la verifica, l’impronta stabile segue i cambi di nome e riconosce automaticamente l’account.',
+        'Per il primo collegamento usa [la verifica rapida tramite XP](/settings/characters#link-account), oppure chiedi a un moderatore del clan di approvarlo, partendo da [We noticed you playing](/settings/characters#detected). Dopo la verifica, il plugin salva l’impronta stabile dell’account, segue i futuri cambi di nome e lo riconosce automaticamente a ogni accesso.',
       ],
       figure: {
-        caption: 'Profilo → RuneScape Accounts',
-        alt: 'La scheda RuneScape Accounts sulla pagina del profilo con gli account verificati tramite plugin',
+        caption: 'Settings → Characters',
+        alt: 'La pagina Characters sotto Settings, con l’elenco dei personaggi collegati e il riquadro We noticed you playing evidenziato',
         legend: [
           {
-            label: 'I tuoi account collegati',
-            body: 'tutto ciò che è contrassegnato “Verified via plugin” è collegato e verrà riconosciuto automaticamente. Gli account già nel roster possono richiedere prima una verifica una tantum tramite XP o moderatore.',
+            label: 'Your linked characters',
+            body: 'tutto ciò che è elencato qui è collegato e verrà riconosciuto automaticamente.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'personaggi che il plugin ha visto giocare e che non sono ancora collegati. Premi **Verify ownership** per collegarne uno (un account appena creato si collega subito; uno già presente nel roster di un clan chiede prima una verifica una tantum tramite XP o moderatore), oppure **Not mine** per scartarlo.',
           },
         ],
       },
       noPluginHeading: 'Non puoi usare il plugin?',
       noPluginIntro:
-        'Da mobile o dal client ufficiale usa [Profile → account linking](/profile#link-account):',
+        'Da mobile o dal client ufficiale usa [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— inserisci il tuo RSN, il sito estrae una skill a caso, guadagni 1.000 XP in quella skill entro 30 minuti.',
         '**Manual review** —— per Hiscores nascosti o alt appena creati: invii il tuo RSN con una nota e un moderatore approva.',
@@ -975,75 +979,76 @@ const it: PartialGuideDict = {
     notifications: {
       title: 'Notifiche Discord',
       intro:
-        'Scattano che ci sia o meno un bingo in corso, e pubblicano nei canali del clan. Quale canale lo decidono gli admin —— tu scegli solo _cosa_ pubblicare. Con il prossimo aggiornamento del plugin queste scelte passano al sito, in **Settings → Discord posts & screenshots**, e ti seguono su ogni computer. Nella stessa pagina, **Screenshot privacy** sceglie quale chat (messaggi privati, chat pubblica, chat del clan) viene nascosta in ogni screenshot del plugin. Nel plugin restano due interruttori sotto **Notifications**: **Share clan posts** mette in pausa in un colpo solo tutti i post del gioco principale, e **Share seasonal activity** fa lo stesso su Leagues, Deadman e gli altri mondi stagionali.',
+        'Questi scattano che ci sia o meno un bingo in corso, e pubblicano sui canali del clan. Quale canale usare lo decidono gli admin qui: tu scegli solo _cosa_ pubblicare. Queste scelte vivono sul sito, sotto **Settings → Posts & alerts → What your plugin posts**, e ti seguono su ogni computer; il plugin stesso non ha più impostazioni per questi. Nella stessa pagina, **Screenshot privacy** sceglie quale chat (messaggi privati, chat pubblica, chat del clan) viene nascosta in ogni screenshot che il plugin fa. Il plugin conserva due interruttori sotto **Notifications**: **Share clan posts** mette in pausa in un colpo solo ogni post del gioco principale, e **Share seasonal activity** fa lo stesso su Leagues, Deadman e gli altri mondi stagionali.',
       examplesFigure: {
         caption: 'Com’è fatto un post',
         alt: 'Due post Discord di Anvil: un combat task Grandmaster con i punti e il progresso verso il prossimo sblocco, e una morte con il suo messaggio, ciascuno con uno screenshot del momento',
       },
       dropsFigure: {
-        caption: 'Morti e kill · Drop e pet',
-        alt: 'Le sezioni di notifica “Deaths and kills” e “Drops and pets” con ogni impostazione evidenziata e numerata',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'I gruppi Drops & pets e Deaths & PvP sotto What your plugin posts nella pagina impostazioni Posts & alerts, con ogni impostazione evidenziata e numerata',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'pubblica nel canale dei morti del clan con uno screenshot del momento in cui sei morto.',
+            label: 'Rare drops',
+            body: 'l’interruttore generale per i post dei drop. Attivo di default.',
           },
           {
-            label: 'Death message',
-            body: 'la tua riga personale. `{name}` viene sostituito con il tuo RSN.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'un drop viene pubblicato quando vale almeno questa cifra (GE o high alch, il maggiore dei due) oppure è più raro di 1-in-N. I valori di Anvil sono 1.000.000 gp e 1 su 1.000, e nessuno dei due può essere impostato più permissivo. Imposta un numero a 0 per disattivarlo. Il tuo clan può impostare valori predefiniti per i propri membri; la riga sotto ogni casella dice **Using your clan’s default** finché non digiti tu un numero, e **Reset to clan default** (o **Reset to Anvil default** se non hai un clan) torna a seguirli. Un clan può anche impostare una soglia minima di rarità, valida solo per i post nei propri canali.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'uno screenshot del tick in cui il bersaglio scende a 0 HP. Disattivato di default; qui attivo.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'l\'interruttore generale per i post dei drop.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'un drop viene pubblicato quando vale almeno questa cifra (GE o high alch, il maggiore dei due) oppure è più raro di 1-in-N. Anvil parte da 1m e 1/1,000. Il tuo clan può impostare valori predefiniti per i propri membri e, finché non imposti tu un numero, segui quelli del clan; **Reset to clan default** (o **Reset to Anvil default** se non hai un clan) torna a seguirli. Un clan può anche impostare una soglia di rarità rigida, che vale solo per i post nei propri canali. Il tuo numero non può essere più permissivo lì, e non cambia mai il limite di valore. Imposta un numero a 0 per disattivarlo.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'per impostazione predefinita un drop viene pubblicato quando soddisfa il valore **or** la rarità. Attiva **Require both** e deve soddisfare il valore **and** la rarità. Il tuo clan può scegliere questo come predefinito per i propri membri; finché non scegli tu, lo segui, e senza clan vale uno dei due. Ognuno dei tuoi webhook può anche impostare il proprio valore minimo, la rarità e either/both; tutto ciò che lascia vuoto segue le tue impostazioni.',
+            label: 'Require both (and)',
+            body: 'per impostazione predefinita un drop viene pubblicato se soddisfa il valore **or** la rarità. Attiva **Require both (and)** e deve soddisfare il valore **and** la rarità. Il tuo clan può scegliere questo come predefinito per i membri; finché non scegli tu, la riga sotto la casella dice **Using your clan’s choice**, e senza clan vale uno dei due. Ognuno dei tuoi webhook può impostare il proprio valore minimo, la rarità e either/both; ciò che lasci vuoto segue le tue impostazioni.',
           },
           {
             label: 'Loot key value',
-            body:
-              'una chiave del loot viene pubblicata una sola volta, come singola notifica, quando tutto il suo contenuto supera questo numero.',
+            body: 'una chiave del loot viene pubblicata una sola volta, come singola notifica, quando tutto il suo contenuto supera questa cifra. Parte da 1.000.000 gp; 0 la disattiva.',
           },
           {
-            label: 'Notify on pets',
-            body: 'i pet vengono pubblicati nel canale dei drop rari.',
+            label: 'Pets',
+            body: 'i pet vengono pubblicati nel canale drop del clan. Attivo di default.',
+          },
+          {
+            label: 'Deaths',
+            body: 'pubblica nel canale morti del clan con uno screenshot del momento in cui sei morto. Attivo di default.',
+          },
+          {
+            label: 'Death message',
+            body: 'la tua riga personale. `{name}` viene sostituito con il tuo RSN. Il default è `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'uno screenshot del tick in cui il bersaglio scende a 0 HP, pubblicato nel canale PvP del clan. Disattivo di default.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievement · collection log · livelli · diari · quest',
-        alt: 'La sezione di notifica dei Combat achievement con ogni impostazione evidenziata e numerata',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Il gruppo Achievements sotto What your plugin posts nella pagina impostazioni Posts & alerts, con ogni impostazione evidenziata e numerata',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'il tier di task più basso che viene pubblicato; vengono pubblicati anche i completamenti di tier. Il valore predefinito è Master; Grandmaster pubblica solo i più rari, **Off** non pubblica nulla. Le caselle CA del bingo contano in ogni caso.',
+            label: 'Collection log slots',
+            body: 'ogni nuovo slot del collection log, pubblicato nel canale achievement del clan. Attivo di default.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'ogni nuovo slot del collection log.',
+            label: 'Level milestones',
+            body: 'i level-up che il tuo clan ha scelto di annunciare — di default i 99, ogni 100 livelli totali da 1800 in su, e il max. Le regole le decidono gli admin del clan; puoi pubblicare di meno (o impostare regole tue per i webhook personali) dalle impostazioni Announcements.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'i level-up che il tuo clan ha scelto di annunciare —— di default i 99, ogni 100 livelli totali da 1800 in su, e il max. Le regole le decidono gli admin del clan; puoi pubblicare di meno (o impostare regole tue per i tuoi webhook personali) dalla sezione Announcements del tuo profilo.',
+            label: 'Diary completions',
+            body: 'tier degli achievement diary, con uno screenshot. Attivo di default.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'i tier degli achievement diary, con uno screenshot.',
+            label: 'Diary tier',
+            body: 'il tier di diary più basso che viene pubblicato. Parte da **Clan default**, cioè ogni tier a meno che il clan non abbia scelto diversamente; puoi scegliere un tier più restrittivo, mai più permissivo di quello del clan.',
           },
           {
-            label: 'Quest post tier',
-            body: 'le quest dalla difficoltà che scegli in su, da All (ogni quest) fino a Grandmaster; **Off** non ne pubblica nessuna. Il valore predefinito è Master. Le caselle quest del bingo contano in ogni caso.',
+            label: 'Combat task tier',
+            body: 'il tier di task più basso che viene pubblicato; anche i completamenti di tier vengono pubblicati. Parte da **Clan default** (Master, salvo che il clan abbia scelto un altro tier); Grandmaster pubblica solo i più rari, **Off** non pubblica nulla, e non puoi essere più permissivo del clan. Le caselle CA del bingo contano in ogni caso.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'quest di difficoltà pari o superiore a quella scelta, da All (ogni quest) fino a Grandmaster; **Off** non ne pubblica nessuna. Parte da **Clan default** (Master, salvo diversa scelta del clan). Le caselle quest del bingo contano in ogni caso.',
           },
         ],
       },
@@ -1064,7 +1069,7 @@ const it: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Quell’account non è ancora collegato. Apri [Profilo → account rilevati](/profile#detected-accounts) per aggiungerlo o avviare la verifica della proprietà.',
+          body: 'Questo account non è ancora collegato. Apri [Settings → Characters → We noticed you playing](/settings/characters#detected) per aggiungerlo o avviare la verifica della proprietà.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1482,7 +1487,7 @@ const it: PartialGuideDict = {
       ],
       figure: {
         caption: 'Evento → Teams & draft → la squadra → Team staff',
-        alt: 'Il pannello Team staff con un posto assegnato e la ricerca “add someone” aperta',
+        alt: 'Il pannello Team staff con un posto assegnato, con i riquadri del pulsante Add someone, del posto con la sua nota e del pulsante Remove evidenziati',
         legend: [
           {
             label: 'Add someone',
@@ -1541,7 +1546,7 @@ const it: PartialGuideDict = {
           },
         ],
       },
-      shape: 'Il link ha la forma `{origin}/events/{eventId}/join/{token}` —— una riga sola, tranquillamente incollabile in un messaggio Discord.',
+      shape: 'Il link ha la forma `{origin}/c/{clan}/events/{eventId}/join/{token}` —— una riga sola, tranquillamente incollabile in un messaggio Discord.',
       note: {
         tag: 'Valori sensati',
         body: 'Per un clan contro clan in cui hai concordato il roster con un solo moderatore, lascia entrambi i campi a `0` e lascia che se lo gestisca. Ricorri a posti e scadenza quando il link va in un posto che non controlli.',

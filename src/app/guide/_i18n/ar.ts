@@ -841,21 +841,25 @@ const ar: PartialGuideDict = {
       title: 'اربط حساباتك',
       body: [
         'بعد إعداد الرمز، تظهر الحسابات التي تلعب بها تلقائيًا في ملفك الشخصي. يمكن ربط الحساب الجديد فورًا، أما الحساب الموجود مسبقًا في قائمة عشيرة فيحتاج إلى تحقق واحد من الملكية، لأن اسم RuneScape العام لا يثبت مَن يملكه.',
-        'للربط الأول استخدم [تحقق XP السريع](/profile#link-account)، أو اطلب من مشرف العشيرة الموافقة عليه ضمن [الحسابات المكتشفة](/profile#detected-accounts). بعد إثباته، تتبع بصمة الحساب الثابتة تغييرات الاسم ويتعرف عليه الموقع تلقائيًا.',
+        'للربط الأول استخدم [تحقق XP السريع](/settings/characters#link-account) أو اطلب من مشرف العشيرة الموافقة عليه، وابدأ من [We noticed you playing](/settings/characters#detected). بعد إثباته، تحفظ الإضافة بصمة الحساب الثابتة، وتتبع تغييرات الاسم اللاحقة، وتتعرف عليه تلقائيًا في كل تسجيل دخول.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'بطاقة RuneScape Accounts في صفحة الملف الشخصي تسرد الحسابات المُوثّقة عبر الإضافة',
+        caption: 'Settings → Characters',
+        alt: 'صفحة Characters ضمن Settings، مع قائمة الشخصيات المربوطة وإحاطة بطاقة We noticed you playing',
         legend: [
           {
-            label: 'حساباتك المربوطة',
-            body: 'كل ما يحمل “Verified via plugin” مرتبط وسيُتعرّف عليه تلقائيًا. قد تحتاج حسابات قوائم العشائر الحالية إلى تحقق XP لمرة واحدة أو موافقة مشرف أولًا.',
+            label: 'Your linked characters',
+            body: 'أي شيء مدرج هنا مربوط وسيُتعرّف عليه تلقائيًا.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'شخصيات رصدتها الإضافة وأنت تلعب بها ولم تُربط بعد. اضغط **Verify ownership** لربط إحداها (الحساب الجديد يُربط فورًا؛ أما الحساب الموجود في قائمة عشيرة فيطلب تحققًا لمرة واحدة عبر XP أو مشرف أولًا)، أو **Not mine** لتجاهلها.',
           },
         ],
       },
       noPluginHeading: 'لا تستطيع تشغيل الإضافة؟',
       noPluginIntro:
-        'على الهاتف أو العميل الرسمي، استخدم [Profile → account linking](/profile#link-account) بدلًا من ذلك:',
+        'على الجوال أو العميل الرسمي، استخدم [Settings → Characters → Link a character](/settings/characters#link-account) بدلًا من ذلك:',
       noPluginOptions: [
         '**Verify by XP** — أدخل اسم لاعبك، يختار الموقع مهارة عشوائية، وعليك كسب 1,000 XP فيها خلال 30 دقيقة.',
         '**Manual review** — لمن أخفى الـ Hiscores أو لحساب فرعي جديد: أرسل اسم لاعبك مع ملاحظة ويوافق عليه مشرف.',
@@ -973,74 +977,76 @@ const ar: PartialGuideDict = {
     notifications: {
       title: 'إشعارات Discord',
       intro:
-        'تُرسَل هذه سواء كان هناك bingo جارٍ أم لا، وتنشر في قنوات العشيرة. أي قناة يحددها المسؤولون هنا — أنت تختار _ماذا_ تنشر فقط. في تحديث الإضافة القادم تنتقل هذه الاختيارات إلى الموقع، ضمن **Settings → Discord posts & screenshots**، وتتبعك على كل جهاز. وفي الصفحة نفسها، يحدد **Screenshot privacy** أي دردشة (الرسائل الخاصة، الدردشة العامة، دردشة العشيرة) تُخفى في كل لقطة شاشة تلتقطها الإضافة. وتبقى في الإضافة مفتاحان ضمن **Notifications**: **Share clan posts** يوقف كل منشورات اللعبة الأساسية دفعة واحدة، و**Share seasonal activity** يفعل الشيء نفسه في Leagues وDeadman والعوالم الموسمية الأخرى.',
+        'تظهر هذه التنبيهات سواء كان bingo جاريًا أم لا، وتُنشر في قنوات العشيرة. القناة نفسها يحددها المسؤولون هنا — أنت تختار _ماذا_ تنشر فقط. تُضبط هذه الخيارات على الموقع ضمن **Settings → Posts & alerts → What your plugin posts**، وتتبعك إلى كل حاسوب؛ ولم تعد الإضافة نفسها تملك إعدادات لها. وفي الصفحة نفسها، يحدد **Screenshot privacy** أي دردشة (الرسائل الخاصة أو الدردشة العامة أو دردشة العشيرة) تُخفى في كل لقطة شاشة تلتقطها الإضافة. وتحتفظ الإضافة بمفتاحين ضمن **Notifications**: **Share clan posts** يوقف كل منشورات اللعبة الأساسية دفعة واحدة، و**Share seasonal activity** يفعل الأمر نفسه في Leagues وDeadman وغيرها من العوالم الموسمية.',
       examplesFigure: {
         caption: 'هكذا يبدو المنشور',
         alt: 'منشوران من Anvil على Discord: مهمة قتالية من مستوى Grandmaster بنقاطها والتقدّم نحو الفتح التالي، وحالة موت برسالتها، ومع كلٍّ منهما لقطة شاشة للحظة',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'قسما إشعارات Deaths and kills و Drops and pets مع إحاطة كل خيار وترقيمه',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'مجموعتا Drops & pets و Deaths & PvP ضمن What your plugin posts في صفحة إعدادات Posts & alerts، مع إحاطة كل إعداد وترقيمه',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'ينشر في قناة وفيات الكلان لقطة شاشة للحظة موتك.',
+            label: 'Rare drops',
+            body: 'المفتاح الرئيسي لمنشورات الإسقاطات. مُفعّل افتراضيًا.',
           },
           {
-            label: 'Death message',
-            body: 'سطرك الخاص. يُستبدل `{name}` باسمك في RuneScape.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'يُنشر الإسقاط إذا كانت قيمته تعادل هذا المبلغ على الأقل (سعر GE أو High Alch، أيهما أعلى) أو كان أندر من 1 من N. أرقام Anvil الافتراضية هي 1,000,000 gp و1 من 1,000، ولا يمكنك ضبط أيٍّ منهما أكثر تساهلًا من ذلك. اضبط أي رقم على 0 لإطفائه. يستطيع كلانك ضبط قيمه الافتراضية لأعضائه؛ والسطر أسفل كل مربع يقول **Using your clan’s default** حتى تكتب رقمًا بنفسك، و**Reset to clan default** (أو **Reset to Anvil default** إن لم يكن لك كلان) يعيدك إلى المتابعة. ويستطيع الكلان أيضًا فرض حد أدنى صارم للندرة، ولا ينطبق إلا على المنشورات في قنوات الكلان نفسه.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'لقطة شاشة للتيك الذي يصل فيه هدفك إلى 0 HP. مطفأ افتراضياً؛ وهنا مفعّل.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'المفتاح الرئيسي لمنشورات الإسقاط.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'يُنشر الإسقاط إذا كانت قيمته تعادل هذا المبلغ على الأقل (سعر GE أو High Alch، أيهما أعلى) أو كان أندر من 1 من N. يبدأ Anvil عند 1m و1/1,000. يستطيع كلانك ضبط إعداداته الافتراضية لأعضائه، وحتى تختار رقماً بنفسك تتبع رقم كلانك. يعيدك **Reset to clan default** (أو **Reset to Anvil default** إن لم يكن لك كلان) إلى المتابعة. يستطيع الكلان أيضاً فرض حد أدنى صارم للندرة، ويُطبق فقط على المنشورات في قنوات الكلان نفسه. لا يمكن لرقمك أن يكون أكثر تساهلاً منه هناك، ولا يغيّر حد القيمة أبداً. اضبط أيّ رقم على 0 لإطفائه.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'افتراضياً يُنشر الإسقاط إذا حقق القيمة **or** الندرة. فعّل **Require both** ليجب أن يحقق القيمة **and** معاً. يستطيع كلانك اختيار هذا الافتراضي لأعضائه؛ وحتى تختار أنت، تتبعه، ومن دون كلان يكون أحدهما. ويستطيع كل webhook خاص بك أن يضبط حده الأدنى للقيمة والندرة و«أحدهما أو كلاهما»، وما يتركه فارغاً يتبع إعداداتك.',
+            label: 'Require both (and)',
+            body: 'افتراضيًا يُنشر الإسقاط إذا حقق القيمة **أو** الندرة. فعّل **Require both (and)** ليجب أن يحقق القيمة **و** الندرة معًا. يستطيع كلانك اختيار هذا الافتراضي لأعضائه؛ وحتى تختار أنت، يقول السطر أسفل المربع **Using your clan’s choice**، ومن دون كلان يكون أحدهما فقط. ويستطيع كل webhook خاص بك أن يضبط حده الأدنى للقيمة والندرة وخيار «أحدهما أو كلاهما»، وما يُترك فارغًا يتبع إعداداتك.',
           },
           {
             label: 'Loot key value',
-            body: 'يُنشر loot key مرة واحدة كإشعار واحد، عندما يتجاوز محتواه كله هذا الرقم.',
+            body: 'يُنشر loot key مرة واحدة كإشعار واحد عندما يتجاوز محتواه كله هذا الرقم. يبدأ من 1,000,000 gp؛ و0 يطفئه.',
           },
           {
-            label: 'Notify on pets',
-            body: 'تُنشر الحيوانات الأليفة في قناة الإسقاطات النادرة.',
+            label: 'Pets',
+            body: 'تُنشر الحيوانات الأليفة في قناة إسقاطات الكلان. مفعّل افتراضيًا.',
+          },
+          {
+            label: 'Deaths',
+            body: 'يُنشر في قناة وفيات الكلان مع لقطة شاشة للحظة موتك. مفعّل افتراضيًا.',
+          },
+          {
+            label: 'Death message',
+            body: 'سطرك الخاص. يُستبدل `{name}` باسم RSN الخاص بك. الافتراضي هو `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'لقطة شاشة للتيك الذي يصل فيه هدفك إلى 0 HP، تُنشر في قناة PvP الخاصة بالكلان. مطفأ افتراضيًا.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'قسم إشعارات Combat achievements مع إحاطة كل خيار وترقيمه',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'مجموعة Achievements ضمن What your plugin posts في صفحة إعدادات Posts & alerts، مع إحاطة كل إعداد وترقيمه',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'أدنى مستوى مهام يُنشر؛ وإنجاز المستويات الكاملة يُنشر أيضًا. الافتراضي Master؛ وGrandmaster ينشر الأندر فقط، و**Off** لا ينشر شيئًا. مربعات CA في البينغو تُحتسب في الحالتين.',
+            label: 'Collection log slots',
+            body: 'كل خانة جديدة في collection log، تُنشر في قناة إنجازات الكلان. مفعّل افتراضيًا.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'كل خانة جديدة في الـ collection log.',
+            label: 'Level milestones',
+            body: 'الترقيات التي اختار كلانك الإعلان عنها — افتراضيًا مستويات 99، وكل 100 مستوى إجمالي ابتداءً من 1800، والحد الأقصى. يضع مسؤولو كلانك القواعد؛ ويمكنك نشر أقل (أو وضع قواعدك الخاصة لويبهوكاتك الشخصية) من إعدادات Announcements.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'الترقيات التي اختارت عشيرتك الإعلان عنها — افتراضيًا مستويات 99، وكل 100 مستوى إجمالي بدءًا من 1800، والحد الأقصى. يضع مسؤولو عشيرتك القواعد؛ ويمكنك أن تنشر أقل (أو تضع قواعدك الخاصة لويبهوكاتك الشخصية) من قسم Announcements في ملفك الشخصي.',
+            label: 'Diary completions',
+            body: 'مستويات achievement diary، مع لقطة شاشة. مفعّل افتراضيًا.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'مستويات الـ achievement diary، مع لقطة شاشة.',
+            label: 'Diary tier',
+            body: 'أدنى مستوى diary يُنشر. يبدأ على **Clan default**، أي كل المستويات ما لم يختر كلانك غير ذلك؛ يمكنك اختيار مستوى أصرم، لا أوسع من مستوى كلانك أبدًا.',
           },
           {
-            label: 'Quest post tier',
-            body: 'المهام (quests) من درجة الصعوبة التي تختارها فما فوق، من All (كل مهمة) حتى Grandmaster؛ و**Off** لا ينشر شيئًا. الافتراضي Master. مربعات المهام في البينغو تُحتسب في الحالتين.',
+            label: 'Combat task tier',
+            body: 'أدنى مستوى مهام يُنشر؛ وإنجاز المستويات الكاملة يُنشر أيضًا. يبدأ على **Clan default** (Master ما لم يختر كلانك مستوى آخر)؛ وGrandmaster ينشر الأندر فقط، و**Off** لا ينشر شيئًا، ولا يمكنك التساهل أكثر من كلانك. مربعات CA في البينغو تُحتسب في الحالتين.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'المهام بدرجة الصعوبة التي تختارها أو أعلى، من All (كل مهمة) حتى Grandmaster؛ و**Off** لا ينشر شيئًا. يبدأ على **Clan default** (Master ما لم يختر كلانك غيره). مربعات المهام في البينغو تُحتسب في الحالتين.',
           },
         ],
       },
@@ -1061,7 +1067,7 @@ const ar: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'ذلك الحساب غير مربوط بعد. افتح [Profile ← الحسابات المكتشفة](/profile#detected-accounts) لإضافته أو بدء تحقق الملكية.',
+          body: 'ذلك الحساب غير مربوط بعد. افتح [Settings → Characters → We noticed you playing](/settings/characters#detected) لإضافته أو لبدء تحقق الملكية.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1488,7 +1494,7 @@ const ar: PartialGuideDict = {
       ],
       figure: {
         caption: 'الفعالية ← Teams & draft ← الفريق ← Team staff',
-        alt: 'لوحة Team staff مع مقعد ممنوح واحد وحقل البحث مفتوح لإضافة آخرين',
+        alt: 'لوحة Team staff مع منح مقعد واحد، وإحاطة زر Add someone والمقعد وملاحظته وزر Remove',
         legend: [
           {
             label: 'Add someone',
@@ -1548,7 +1554,7 @@ const ar: PartialGuideDict = {
         ],
       },
       shape:
-        'يبدو الرابط هكذا: `{origin}/events/{eventId}/join/{token}` — سطر واحد، آمن للصقه في رسالة Discord.',
+        'يبدو الرابط هكذا: `{origin}/c/{clan}/events/{eventId}/join/{token}` — سطر واحد، آمن للصقه في رسالة Discord.',
       note: {
         tag: 'خيارات افتراضية معقولة',
         body: 'في عشيرة ضد عشيرة اتفقت فيها على فريق مع مشرف واحد، اترك الحقلين على `0` ودعه يديرها. ولا تلجأ إلى المقاعد والانتهاء إلا حين يذهب الرابط إلى مكان لا تتحكم فيه.',

@@ -844,21 +844,25 @@ const de: PartialGuideDict = {
       title: 'Accounts verknüpfen',
       body: [
         'Sobald der Token eingetragen ist, erscheinen gespielte Accounts automatisch in deinem Profil. Ein brandneuer Account kann sofort verknüpft werden; ein Account, der bereits auf einer Clanliste steht, braucht zuerst einen Eigentumsnachweis, weil ein öffentlicher RuneScape-Name nicht beweist, wem er gehört.',
-        'Nutze für die erste Verknüpfung [den schnellen XP-Test](/profile#link-account), oder bitte einen Clan-Moderator, den Account unter [erkannte Accounts](/profile#detected-accounts) zu bestätigen. Danach verfolgt der stabile Account-Fingerabdruck Namensänderungen und erkennt den Account automatisch wieder.',
+        'Nutze für die erste Verknüpfung [den schnellen XP-Test](/settings/characters#link-account) oder bitte einen Clan-Moderator, ihn zu bestätigen, ausgehend von [We noticed you playing](/settings/characters#detected). Danach speichert das Plugin fest den stabilen Account-Fingerabdruck, folgt künftigen Namensänderungen und erkennt den Account bei jedem Login automatisch.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'Die Karte RuneScape Accounts auf der Profilseite mit den per Plugin verifizierten Accounts',
+        caption: 'Settings → Characters',
+        alt: 'Die Seite Characters unter Settings mit der Liste der verknüpften Charaktere und dem umrahmten Kasten We noticed you playing',
         legend: [
           {
-            label: 'Deine verknüpften Accounts',
-            body: 'alles mit „Verified via plugin“ ist verknüpft und wird automatisch wiedererkannt. Bestehende Clan-Accounts können vorher einmalig einen XP-Test oder die Bestätigung eines Moderators verlangen.',
+            label: 'Your linked characters',
+            body: 'alles, was hier aufgelistet ist, ist verknüpft und wird automatisch wiedererkannt.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'Charaktere, die das Plugin bei dir gesehen hat und die noch nicht verknüpft sind. Drücke **Verify ownership**, um einen zu verknüpfen (ein brandneuer Account wird sofort verknüpft; einer, der schon auf einer Clanliste steht, verlangt vorher einen einmaligen XP- oder Moderatoren-Test), oder **Not mine**, um ihn auszublenden.',
           },
         ],
       },
       noPluginHeading: 'Kannst du das Plugin nicht nutzen?',
       noPluginIntro:
-        'Auf Mobilgeräten oder im offiziellen Client nutzt du stattdessen [Profile → account linking](/profile#link-account):',
+        'Auf Mobilgeräten oder im offiziellen Client nutzt du stattdessen [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — gib deinen RSN ein, die Seite wählt einen zufälligen Skill, und du musst darin innerhalb von 30 Minuten 1.000 XP sammeln.',
         '**Manual review** — für verborgene Hiscores oder brandneue Zweitaccounts: reiche deinen RSN mit einer Notiz ein, und ein Moderator bestätigt ihn.',
@@ -976,75 +980,76 @@ const de: PartialGuideDict = {
     notifications: {
       title: 'Discord-Benachrichtigungen',
       intro:
-        'Die werden verschickt, egal ob gerade ein Bingo läuft, und landen in den Kanälen des Clans. Welcher Kanal, legen die Admins hier fest — du wählst nur, _was_ du postest. Mit dem nächsten Plugin-Update ziehen diese Einstellungen auf die Website, unter **Settings → Discord posts & screenshots**, und folgen dir auf jeden Rechner. Auf derselben Seite legt **Screenshot privacy** fest, welcher Chat (private Nachrichten, öffentlicher Chat, Clan-Chat) auf jedem Screenshot des Plugins ausgeblendet wird. Im Plugin bleiben zwei Schalter unter **Notifications**: **Share clan posts** pausiert alle Posts aus dem Hauptspiel auf einmal, **Share seasonal activity** tut dasselbe auf Leagues, Deadman und anderen saisonalen Welten.',
+        'Diese feuern unabhängig davon, ob gerade ein Bingo läuft, und posten in die Kanäle des Clans. Welcher Kanal eingerichtet ist, legen die Admins hier fest — du wählst nur, _was_ du postest. Diese Auswahl liegt auf der Website unter **Settings → Posts & alerts → What your plugin posts** und folgt dir auf jeden Rechner; das Plugin selbst hat dafür keine Einstellungen mehr. Auf derselben Seite legt **Screenshot privacy** fest, welcher Chat (private Nachrichten, öffentlicher Chat, Clan-Chat) auf jedem Screenshot des Plugins ausgeblendet wird. Das Plugin behält zwei Schalter unter **Notifications**: **Share clan posts** pausiert alle Posts aus dem Hauptspiel auf einmal, und **Share seasonal activity** tut dasselbe auf Leagues, Deadman und anderen saisonalen Welten.',
       examplesFigure: {
         caption: 'So sieht ein Post aus',
         alt: 'Zwei Discord-Posts von Anvil: eine Grandmaster-Kampfaufgabe mit Punkten und dem Fortschritt bis zur nächsten Freischaltung und ein Tod mit seiner Nachricht, jeweils mit einem Screenshot des Moments',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Die Benachrichtigungsabschnitte Deaths and kills und Drops and pets mit umrahmten und nummerierten Einstellungen',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Die Gruppen Drops & pets und Deaths & PvP unter What your plugin posts auf der Seite Posts & alerts, jede Einstellung umrahmt und nummeriert',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'postet in den Clan-Kanal für Tode, mit einem Screenshot des Moments, in dem du gestorben bist.',
+            label: 'Rare drops',
+            body: 'der Hauptschalter für Drop-Posts. Standardmäßig an.',
           },
           {
-            label: 'Death message',
-            body: 'deine eigene Zeile. `{name}` wird durch deinen RSN ersetzt.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'ein Drop wird gepostet, wenn er mindestens diesen Wert hat (GE oder High Alch, je nachdem, was höher ist) oder seltener als 1 zu N ist. Anvils eigene Werte sind 1.000.000 gp und 1 zu 1.000; keinen von beiden kannst du lockerer setzen. Setze eine Zahl auf 0, um sie abzuschalten. Dein Clan kann eigene Standards für seine Mitglieder festlegen; die Zeile unter jedem Feld zeigt **Using your clan’s default**, bis du selbst eine Zahl eingibst. **Reset to clan default** (oder **Reset to Anvil default**, wenn du keinen Clan hast) setzt wieder darauf zurück. Ein Clan kann außerdem eine harte Seltenheitsgrenze setzen, die nur für Posts in den eigenen Kanälen des Clans gilt.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'ein Screenshot des Ticks, in dem dein Ziel auf 0 HP fällt. Standardmäßig aus; hier an.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'der Hauptschalter für Drop-Posts.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'ein Drop wird gepostet, wenn er mindestens diesen Wert hat (GE oder High Alch, je nachdem, was höher ist) oder seltener als 1 zu N ist. Anvil beginnt bei 1m und 1/1,000. Dein Clan kann eigene Standards für seine Mitglieder setzen. Solange du selbst keine Zahl wählst, gilt die deines Clans. **Reset to clan default** (oder **Reset to Anvil default**, wenn du keinen Clan hast) setzt wieder darauf zurück. Ein Clan kann außerdem eine harte Seltenheitsgrenze setzen, die nur für Posts in den eigenen Kanälen des Clans gilt. Deine Zahl kann dort nicht lockerer sein, und sie ändert nie die Wertgrenze. Setze eine der beiden Zahlen auf 0, um sie abzuschalten.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'standardmäßig postet ein Drop, wenn er den Wert **or** die Seltenheit erfüllt. Aktiviere **Require both**, und er muss den Wert **and** die Seltenheit erfüllen. Dein Clan kann diesen Standard für seine Mitglieder wählen; solange du nichts wählst, folgst du ihm. Ohne Clan gilt eins von beiden. Jeder deiner eigenen Webhooks kann außerdem einen eigenen Mindestwert, eine eigene Seltenheit und entweder/beide setzen. Was er leer lässt, folgt deinen Einstellungen.',
+            label: 'Require both (and)',
+            body: 'standardmäßig postet ein Drop, wenn er den Wert **or** die Seltenheit erfüllt. Aktivierst du **Require both (and)**, muss er den Wert **and** die Seltenheit erfüllen. Dein Clan kann diesen Standard für seine Mitglieder wählen; solange du nichts wählst, zeigt die Zeile unter dem Feld **Using your clan’s choice**. Ohne Clan gilt eins von beiden. Jeder deiner eigenen Webhooks kann außerdem seinen eigenen Mindestwert, seine Seltenheit und entweder/beide setzen. Was er leer lässt, folgt deinen Einstellungen.',
           },
           {
             label: 'Loot key value',
-            body:
-              'ein Lootkey wird einmal als einzelne Benachrichtigung gepostet, sobald sein gesamter Inhalt diese Zahl erreicht.',
+            body: 'ein Lootkey wird einmal als einzelne Benachrichtigung gepostet, sobald sein gesamter Inhalt diese Zahl erreicht. Er startet bei 1.000.000 gp; 0 schaltet ihn ab.',
           },
           {
-            label: 'Notify on pets',
-            body: 'Pets werden im Kanal für seltene Drops gepostet.',
+            label: 'Pets',
+            body: 'Pets werden im Clan-Kanal für Drops gepostet. Standardmäßig an.',
+          },
+          {
+            label: 'Deaths',
+            body: 'wird im Clan-Kanal für Tode gepostet, mit einem Screenshot des Moments, in dem du gestorben bist. Standardmäßig an.',
+          },
+          {
+            label: 'Death message',
+            body: 'deine eigene Zeile. `{name}` wird durch deinen RSN ersetzt. Der Standard ist `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'ein Screenshot des Ticks, in dem dein Ziel auf 0 HP fällt, gepostet in den PvP-Kanal des Clans. Standardmäßig aus.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Der Benachrichtigungsabschnitt Combat achievements mit umrahmten und nummerierten Einstellungen',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Die Gruppe Achievements unter What your plugin posts auf der Seite Posts & alerts, jede Einstellung umrahmt und nummeriert',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'die niedrigste Aufgabenstufe, die gepostet wird; abgeschlossene Stufen werden ebenfalls gepostet. Standard ist Master; Grandmaster postet nur die seltensten, **Off** gar keine. CA-Felder im Bingo zählen so oder so.',
+            label: 'Collection log slots',
+            body: 'jeder neue Platz im Collection Log, gepostet in den Achievement-Kanal des Clans. Standardmäßig an.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'jeder neue Platz im Collection Log.',
+            label: 'Level milestones',
+            body: 'Level-ups, die dein Clan ankündigen will — standardmäßig 99er, alle 100 Gesamtlevel ab 1800 und Max. Die Admins deines Clans legen die Regeln fest; du kannst weniger posten (oder eigene Regeln für deine persönlichen Webhooks setzen) über die Einstellungen unter Announcements.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'Level-ups, die dein Clan ankündigen will — standardmäßig 99er, alle 100 Gesamtlevel ab 1800 und Max. Die Admins deines Clans legen die Regeln fest; du kannst weniger posten (oder eigene Regeln für deine persönlichen Webhooks setzen) unter Announcements in deinem Profil.',
+            label: 'Diary completions',
+            body: 'Stufen der Achievement Diaries, mit Screenshot. Standardmäßig an.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'Stufen der Achievement Diaries, mit Screenshot.',
+            label: 'Diary tier',
+            body: 'die niedrigste Diary-Stufe, die gepostet wird. Sie startet auf **Clan default**, also jeder Stufe, sofern dein Clan nichts anderes gewählt hat; du kannst eine strengere Stufe wählen, nie eine lockerere als die deines Clans.',
           },
           {
-            label: 'Quest post tier',
-            body: 'Quests ab der Schwierigkeit, die du wählst, von All (jede Quest) bis Grandmaster; **Off** postet gar keine. Standard ist Master. Quest-Felder im Bingo zählen so oder so.',
+            label: 'Combat task tier',
+            body: 'die niedrigste Aufgabenstufe, die gepostet wird; abgeschlossene Stufen werden ebenfalls gepostet. Sie startet auf **Clan default** (Master, sofern dein Clan keine andere Stufe gewählt hat). Grandmaster postet nur die seltensten, **Off** gar keine, und du kannst nicht lockerer gehen als dein Clan. CA-Felder im Bingo zählen so oder so.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'Quests ab der Schwierigkeit, die du wählst, von All (jede Quest) bis Grandmaster; **Off** postet gar keine. Sie startet auf **Clan default** (Master, sofern dein Clan nichts anderes gewählt hat). Quest-Felder im Bingo zählen so oder so.',
           },
         ],
       },
@@ -1065,7 +1070,7 @@ const de: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Dieser Account ist noch nicht verknüpft. Öffne [Profile → erkannte Accounts](/profile#detected-accounts), um ihn hinzuzufügen oder den Eigentumsnachweis zu starten.',
+          body: 'Dieser Account ist noch nicht verknüpft. Öffne [Settings → Characters → We noticed you playing](/settings/characters#detected), um ihn hinzuzufügen oder die Eigentumsprüfung zu starten.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1492,7 +1497,7 @@ const de: PartialGuideDict = {
       ],
       figure: {
         caption: 'Event → Teams & draft → das Team → Team staff',
-        alt: 'Das Team-staff-Panel mit einem vergebenen Platz und geöffneter Suche zum Hinzufügen',
+        alt: 'Das Team-staff-Panel mit einem vergebenen Platz, mit dem umrahmten Button Add someone, dem Platz und seiner Notiz sowie dem umrahmten Button Remove',
         legend: [
           {
             label: 'Add someone',
@@ -1552,7 +1557,7 @@ const de: PartialGuideDict = {
         ],
       },
       shape:
-        'Der Link sieht so aus: `{origin}/events/{eventId}/join/{token}` — eine Zeile, gefahrlos in eine Discord-Nachricht einzufügen.',
+        'Der Link sieht so aus: `{origin}/c/{clan}/events/{eventId}/join/{token}` — eine Zeile, gefahrlos in eine Discord-Nachricht einzufügen.',
       note: {
         tag: 'Sinnvolle Voreinstellungen',
         body: 'Bei einem Clan-gegen-Clan, bei dem du eine Mannschaft mit einem Moderator vereinbart hast: lass beide Felder auf `0` und lass ihn machen. Greif zu Plätzen und Ablauf, wenn der Link irgendwohin geht, das du nicht kontrollierst.',
