@@ -30,7 +30,7 @@ import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 import { chooseKillSource, hiscoresKeyForMonster } from '@/lib/killSource';
 import type { TileConfig } from '@/lib/types';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, capPhrase } from '@/lib/tileCaps';
-import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
+import { COMBO_TILE_TYPE, MAX_PARSED_COMBO_PARTS as MAX_COMBO_PARTS, comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
 import { clogTileTitle } from '@/lib/clogTileWords';
 import { allowedEdits, editDistance, fuzzySearch } from '@/lib/fuzzySearch';
 import {
