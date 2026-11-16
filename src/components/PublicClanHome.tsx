@@ -7,6 +7,7 @@ import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/li
 import { SITE } from '@/lib/site';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import ApplyToClan from '@/components/ApplyToClan';
+import SceneBackdrop from '@/components/SceneBackdrop';
 import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
 import type { Moment } from '@/lib/clanMomentsRules';
@@ -56,7 +57,9 @@ function MomentsWall({ moments }: { moments: Moment[] }) {
               key={`${m.rsn}-${m.at}-${i}`}
               className={`relative flex flex-col justify-end overflow-hidden rounded-2xl border border-card-border p-4 ${big ? 'col-span-2 row-span-2 bg-[var(--sa-deep)]' : 'bg-card-bg'}`}
             >
-              {m.iconUrl && (
+              {m.scene && <SceneBackdrop scene={m.scene} wide={big} />}
+              {/* The corner icon steps aside where the art already shows the thing: a boss's figure, or the lead card's own big icon. */}
+              {m.iconUrl && !(m.scene && (m.scene.kind === 'figure' || big)) && (
                 // eslint-disable-next-line @next/next/no-img-element -- cached game art (lib/assetUrls)
                 <img
                   src={m.iconUrl}
@@ -64,12 +67,12 @@ function MomentsWall({ moments }: { moments: Moment[] }) {
                   className={`absolute right-4 top-4 object-contain [image-rendering:pixelated] ${big ? 'h-24 w-24' : 'h-11 w-11'}`}
                 />
               )}
-              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--sa-text)]">{m.tag}</span>
-              <span className={`display mt-1 font-semibold leading-tight ${big ? 'text-3xl' : 'line-clamp-2 text-lg'}`}>
+              <span className="relative text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--sa-text)]">{m.tag}</span>
+              <span className={`display relative mt-1 font-semibold leading-tight ${big ? 'text-3xl' : 'line-clamp-2 text-lg'}`}>
                 {/* Milestone sentences are written to follow a name ("hit 99 Slayer"); on a tile they lead. */}
                 {m.text.charAt(0).toUpperCase() + m.text.slice(1)}
               </span>
-              <span className="mt-1 truncate text-[13px] text-text-muted">
+              <span className="relative mt-1 truncate text-[13px] text-text-muted">
                 {m.rsn} · {ago(m.at, now)}
               </span>
             </li>
@@ -208,14 +211,18 @@ export default function PublicClanHome({
           <div className="flex-1">
             <div className="text-sm font-semibold text-[var(--sa-text)]">This clan is recruiting</div>
             <div className="text-[13px] text-text-muted">
+              {/* "Recruiting" is the clan saying it takes new members. With the site's own door closed
+                  that still holds: the way in is their Discord, or asking in game — never "closed". */}
               {view.guestPolicy === 'closed'
-                ? 'Applications are currently closed.'
+                ? view.discordInvite
+                  ? 'Ask to join on their Discord, or ask a member in game.'
+                  : 'Ask a member in game to join. This clan doesn’t take applications on the site.'
                 : view.guestPolicy === 'open'
                   ? 'Open to join — hop in.'
                   : 'New members are reviewed before joining.'}
             </div>
           </div>
-          {view.guestPolicy !== 'closed' &&
+          {(view.guestPolicy !== 'closed' || !!view.discordInvite) &&
             (view.discordInvite ? (
               <a
                 href={view.discordInvite}
@@ -286,9 +293,10 @@ export default function PublicClanHome({
               <ClanLink
                 key={item.key}
                 href={item.href}
-                className="group flex flex-col gap-2 rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)]"
+                className="group relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)] [&>span:not(:first-child)]:relative"
                 style={{ backgroundImage: 'linear-gradient(var(--sa-soft), transparent 75%)' }}
               >
+                {item.scene ? <SceneBackdrop scene={item.scene} wide /> : <span aria-hidden className="hidden" />}
                 <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sa-text)]">
                   <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
                   Live · {item.kind}

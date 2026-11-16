@@ -326,4 +326,8 @@ test('unlocked steps keep the existing look (no lock rows on an open board)', ()
 // Keep the type import honest: every step kind has words.
 test('every step kind has words', () => {
   for (const k of ['progress', 'step', 'finish'] as StepPostKind[]) assert.ok(stepPostText(k, 'T', 0, 3).title.includes('T'));
+  // A step with several tiles says which one, by its road letter; a single-tile step doesn't.
+  assert.equal(stepPostText('step', 'T', 1, 8, 'B').title, '✅ T completed step 2, road B');
+  assert.equal(stepPostText('progress', 'T', 1, 8, 'C').title, '⏳ T made progress on step 2, road C');
+  assert.equal(stepPostText('step', 'T', 1, 8, null).title, '✅ T completed step 2');
 });

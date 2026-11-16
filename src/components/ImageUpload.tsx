@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 
@@ -12,6 +12,10 @@ interface Props {
   multiple?: boolean;
   onImagesSelected?: (urls: string[]) => void;
 }
+
+// Every upload box on the page, oldest first. A pasted image (Ctrl+V, e.g. copied out of Discord) goes
+// to the first one, so several boxes on one form don't each upload the same picture.
+const mounted: object[] = [];
 
 // Detect iOS/iPadOS
 function isIOS(): boolean {
@@ -28,6 +32,34 @@ export default function ImageUpload({ onImageSelected, currentUrl, multiple, onI
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Paste an image straight from the clipboard, wherever the cursor is. Text pastes (a link into the
+  // URL box, a note) are left alone: only a clipboard that holds an image is taken.
+  const pasteRef = useRef<(files: File[]) => void>(() => {});
+  useEffect(() => {
+    pasteRef.current = (files) => {
+      if (uploading) return;
+      setMode('upload');
+      if (multiple) void handleFiles(files);
+      else void handleFile(files[0]);
+    };
+  });
+  useEffect(() => {
+    const me = {};
+    mounted.push(me);
+    const onPaste = (e: ClipboardEvent) => {
+      if (mounted[0] !== me) return;
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
+      if (files.length === 0) return;
+      e.preventDefault();
+      pasteRef.current(files);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('paste', onPaste);
+      mounted.splice(mounted.indexOf(me), 1);
+    };
+  }, []);
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -181,10 +213,10 @@ export default function ImageUpload({ onImageSelected, currentUrl, multiple, onI
             <div>
               <p className="text-sm text-text-muted">
                 {multiple
-                  ? 'Select several screenshots at once'
+                  ? 'Select several screenshots at once, or paste one (Ctrl+V)'
                   : isIOS()
                     ? 'Tap to take photo or choose from library'
-                    : 'Drop image here or click to browse'}
+                    : 'Drop an image here, click to browse, or paste one (Ctrl+V)'}
               </p>
               <p className="text-xs text-text-muted mt-1 opacity-70">
                 Supports JPG, PNG, GIF, WebP

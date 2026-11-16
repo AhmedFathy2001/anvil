@@ -2,15 +2,16 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
-import { eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans } from '@/db/schema';
+import { clans, clanStaff } from '@/db/schema';
+import { clanPathOf } from '@/lib/clanScopedPaths';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { ownedCreatorSpace } from '@/lib/clanCreate';
 import { ensureClanCheckoutRef } from '@/lib/billing';
-import { PLANS, checkoutUrl, type Plan } from '@/lib/plans';
+import { PLANS, PLAN_IDS, checkoutUrl, planOf, type Plan } from '@/lib/plans';
 import {
   CREATOR_CAPABILITY_MIN_PLAN,
   CREATOR_PLANS,
@@ -53,10 +54,11 @@ export const metadata: Metadata = {
  * read, so a price is never a marketing figure someone has to remember to update. On a clan host
  * this is a 404 — pricing is a platform concern, not something a clan advertises on its own site.
  */
-export default async function PricingPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
+export default async function PricingPage({ searchParams }: { searchParams: Promise<{ billing?: string; clan?: string }> }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
   // One Monthly / Yearly switch for the page, kept in the URL (?billing=yearly) so links can open it.
-  const interval = parseBillingInterval((await searchParams).billing);
+  const query = await searchParams;
+  const interval = parseBillingInterval(query.billing);
 
   // Who is looking decides the creator table's buttons (lib/creatorPricingCta): signed out, signed in
   // with no space, or the owner of one (one each, lib/creatorSpaces MAX_CREATOR_SPACES).
@@ -73,6 +75,21 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
     signedIn: session != null,
     space: owned && ownedPlan ? { slug: owned.slug, plan: ownedPlan.id } : null,
   };
+
+  // Someone who already runs a clan is here to pay for THAT clan, not to make another: the paid cards
+  // lead to its own plan page (admin → Plan and billing), where the checkout carries the clan's ref.
+  // clan-scope: global -- the apex pricing page; the caller's own owner/admin seats.
+  const ownClans: OwnClan[] = session
+    ? await db
+        .select({ slug: clans.slug, name: clans.name, kind: clans.kind, plan: clans.plan })
+        .from(clans)
+        .innerJoin(clanStaff, and(eq(clanStaff.clanId, clans.id), eq(clanStaff.userId, session.userId), inArray(clanStaff.role, ['owner', 'admin'])))
+        .where(eq(clans.kind, 'clan'))
+        .orderBy(desc(clanStaff.role), asc(clans.id)) // a clan they own before one they only administer
+        .limit(12)
+    : [];
+  // Someone running several picks which one the cards are for (?clan=<slug>); the first by default.
+  const ownClan = ownClans.find((c) => c.slug === query.clan) ?? ownClans[0] ?? null;
 
   // The four buyable tiers, in order. `custom` is negotiated, not bought, so it gets a footnote
   // rather than a card — a card with no price reads as broken.
@@ -94,11 +111,6 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           Every tier runs every event format and watches every kind of tile. What you pay for is
           roster size, not features held hostage. Thirty-day trial on all of it.
         </p>
-        {!enforced && (
-          <p className="relative mx-auto mt-3 w-fit rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[13px] text-gold">
-            Early access: every clan is free for now, whatever its size. No card needed.
-          </p>
-        )}
         <p className="relative mt-3 text-[13.5px]">
           <a href="#creators" className="text-gold hover:text-gold-light">
             Streamer or creator? See creator plans
@@ -109,9 +121,31 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         </div>
       </header>
 
+      {ownClan && (
+        <p className="mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-[13.5px] text-text-muted">
+          <span>Choosing a plan for</span>
+          {ownClans.map((c) => (
+            <ClanLink
+              key={c.slug}
+              href={withBilling(`/pricing?clan=${c.slug}`, interval)}
+              scroll={false}
+              aria-current={c.slug === ownClan.slug ? 'true' : undefined}
+              className={`rounded-full border px-3 py-1 text-[13px] font-medium transition-colors ${
+                c.slug === ownClan.slug ? 'border-gold/60 bg-gold/10 text-gold' : 'border-card-border text-foreground/80 hover:border-gold/45'
+              }`}
+            >
+              {c.name}
+              <span className="ml-1.5 text-[11.5px] font-normal text-text-dim">{planOf(c.plan).name}</span>
+            </ClanLink>
+          ))}
+          <ClanLink href="/clans/new" className="text-gold hover:text-gold-light">
+            or start a new clan
+          </ClanLink>
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
-          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} />
+          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} own={ownClan} />
         ))}
       </div>
 
@@ -166,7 +200,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   );
 }
 
-function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean; interval: BillingInterval }) {
+function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boolean; interval: BillingInterval; own: OwnClan | null }) {
   const paid = plan.priceUsd != null && plan.priceUsd > 0;
   const yearly = interval === 'yearly' && paid;
   const price =
@@ -215,7 +249,9 @@ function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean;
       {/* Once caps bite, the tier (and ?billing=) rides along and the create form ends on its Gumroad
           checkout — that is where the trial starts. Until then every clan size is free, so no button
           asks for a card. */}
-      {yearlyMissing ? (
+      {own ? (
+        <OwnClanCta plan={plan} own={own} interval={interval} />
+      ) : yearlyMissing ? (
         <span
           aria-disabled="true"
           className="mt-5 cursor-default rounded-lg border border-card-border px-4 py-2.5 text-center text-sm font-semibold text-text-dim opacity-60"
@@ -235,6 +271,50 @@ function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean;
         </ClanLink>
       )}
     </div>
+  );
+}
+
+/** A clan the viewer owns or administers, as the pricing cards need it. */
+interface OwnClan {
+  slug: string;
+  name: string;
+  kind: string;
+  plan: string | null;
+}
+
+const CTA = 'mt-5 rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors';
+
+/**
+ * A tier card's button for someone who already runs the picked clan: its current plan says so, a
+ * free clan chooses any paid tier on its own plan page (the checkout carries the clan's ref), and a
+ * clan already paying changes tier from Billing, where its membership lives.
+ */
+function OwnClanCta({ plan, own, interval }: { plan: Plan; own: OwnClan; interval: BillingInterval }) {
+  const current = planOf(own.plan);
+  const rank = (id: string) => (PLAN_IDS as readonly string[]).indexOf(id);
+  if (plan.id === current.id) {
+    return (
+      <span aria-disabled="true" className={`${CTA} cursor-default border border-card-border text-text-dim`}>
+        Current plan
+      </span>
+    );
+  }
+  if (rank(plan.id) < rank(current.id)) {
+    return (
+      <span aria-disabled="true" className={`${CTA} cursor-default border border-card-border text-text-dim opacity-70`}>
+        Included in {current.name}
+      </span>
+    );
+  }
+  const paying = current.id !== 'free';
+  return (
+    <a
+      // eslint-disable-next-line clan-scope/clan-prefix -- the viewer's own clan (or their billing page), addressed whole from the apex
+      href={paying ? '/portal' : withBilling(clanPathOf(own, `/admin/plan?plan=${plan.id}`), interval)}
+      className={`${CTA} ${plan.popular ? 'bg-gold text-brown-dark hover:bg-gold-light' : 'border border-card-border hover:border-gold/45'}`}
+    >
+      {paying ? `Move to ${plan.name}` : `Choose ${plan.name}`}
+    </a>
   );
 }
 
@@ -292,7 +372,6 @@ function CreatorPricing({
         Host events for your viewers without an in-game clan. Creator plans count the players in your
         events running at the same time, not everyone who ever joined. Events that overlap share the
         number; events on different dates get it each. Someone in two overlapping events counts twice.
-        {!enforced && ' Early access: every creator gets all of this free for now.'}
       </p>
       <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-card-border bg-card-bg">
         <table className="w-full min-w-[640px] text-left text-[13px]">

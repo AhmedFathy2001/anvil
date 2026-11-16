@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import NumberInput from '@/components/NumberInput';
 import {
@@ -131,7 +131,7 @@ export default function ComboPartsField({
   rule: ComboRule;
   onRule: (r: ComboRule) => void;
   parts: ComboPartDraft[];
-  onParts: (p: ComboPartDraft[]) => void;
+  onParts: (p: ComboPartDraft[] | ((prev: ComboPartDraft[]) => ComboPartDraft[])) => void;
   /** A part was just committed — the combo editor saves itself. */
   onPartDone?: () => void;
   /** The combo's own config, as a base for a new part (event-wide context only). */
@@ -144,17 +144,29 @@ export default function ComboPartsField({
   solo?: boolean;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  // Moving to another part keeps the one being edited: it is committed first (and, if it isn't valid
+  // yet, stays open with its own message). Only "Discard changes" on the open part throws edits away.
+  const saveOpen = useRef<(() => void) | null>(null);
+  const openNext = useRef<string | null>(null);
+  const edit = (key: string) => {
+    if (open && open !== key && saveOpen.current) {
+      openNext.current = key;
+      saveOpen.current();
+    } else setOpen(key);
+  };
   const n = rule.n ?? 2;
 
-  const update = (key: string, patch: Partial<ComboPartDraft>) => onParts(parts.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+  // Functional updates: a commit and an add can land in the same tick, each on the list as it then is.
+  const update = (key: string, patch: Partial<ComboPartDraft>) => onParts((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
   const remove = (key: string) => {
-    onParts(parts.filter((p) => p.key !== key));
+    onParts((prev) => prev.filter((p) => p.key !== key));
     if (open === key) setOpen(null);
   };
   const add = () => {
     const p = blankPart(base, parts.length + 1);
-    onParts([...parts, p]);
-    setOpen(p.key);
+    // Adding a part while another is open keeps that one's edits too (committed by `edit`).
+    onParts((prev) => [...prev, p]);
+    edit(p.key);
   };
 
   return (
@@ -202,7 +214,7 @@ export default function ComboPartsField({
 
       <div className="space-y-2">
         <label className="block text-xs text-text-muted">
-          Parts <span className="text-text-muted/60">({MIN_COMBO_PARTS}–{MAX_COMBO_PARTS}; each is an ordinary tile of any kind, tracked its own way)</span>
+          Parts <span className="text-text-muted/60">({MIN_COMBO_PARTS} or more; each is an ordinary tile of any kind, tracked its own way)</span>
         </label>
         {parts.map((p, i) => {
           const kind = configKind(p as Partial<TileConfig>);
@@ -212,7 +224,7 @@ export default function ComboPartsField({
                 <span className="text-[10px] text-text-muted w-4 text-right">{i + 1}</span>
                 <button
                   type="button"
-                  onClick={() => setOpen(p.key)}
+                  onClick={() => edit(p.key)}
                   className="flex-1 min-w-0 text-left text-xs text-foreground hover:text-gold truncate"
                   aria-expanded={open === p.key}
                 >
@@ -241,7 +253,7 @@ export default function ComboPartsField({
                 )}
                 <button
                   type="button"
-                  onClick={() => setOpen(open === p.key ? null : p.key)}
+                  onClick={() => (open === p.key ? setOpen(null) : edit(p.key))}
                   className="text-[11px] text-gold hover:underline"
                   title={open === p.key ? 'Close this part without keeping the changes you made to it' : undefined}
                 >
@@ -272,7 +284,11 @@ export default function ComboPartsField({
                       onPartDone?.();
                       return saved as unknown as TileConfig;
                     }}
-                    onSaved={() => setOpen(null)}
+                    onSaved={() => {
+                      setOpen(openNext.current);
+                      openNext.current = null;
+                    }}
+                    saveRef={saveOpen}
                   />
                 </div>
               )}
