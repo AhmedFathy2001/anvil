@@ -6,6 +6,7 @@ import { SKILL_LABELS } from '@/lib/constants';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
+import { continueFromLocation, rememberContinue, XP_CHECK_EVENT } from '@/lib/continueStore';
 
 interface AttemptState {
   attemptId: number;
@@ -188,6 +189,9 @@ function StatDeltaPath({
         const a = d?.attempt;
         if (gone || !a) return;
         setAttempt((prev) => prev ?? { attemptId: a.attemptId, rsn: a.rsn, expiresAt: a.expiresAt, minDelta: a.minDelta, targetSkill: a.targetSkill });
+        // Picked up again with the way back in the address: keep it with this check.
+        const back = continueFromLocation();
+        if (back) rememberContinue(a.attemptId, back);
         void doCheck(a.attemptId);
       })
       .catch(() => {});
@@ -196,6 +200,15 @@ function StatDeltaPath({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Tell the page a check is on screen: a character that becomes ready after minutes of waiting
+  // must not pull the person away by itself (settings/characters/ContinueStrip).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(XP_CHECK_EVENT, { detail: attempt != null }));
+    return () => {
+      window.dispatchEvent(new CustomEvent(XP_CHECK_EVENT, { detail: false }));
+    };
+  }, [attempt]);
 
   // Auto-poll /check every 30s while pending. Don't blast the Hiscores API.
   useEffect(() => {
@@ -223,6 +236,10 @@ function StatDeltaPath({
         if (data.code === 'claimed_by_other') setConflictRsn(name);
       } else {
         setCheck(null);
+        // Where they were heading, kept with this check: it can take up to 30 minutes and they may
+        // leave and come back (lib/continueStore). Nothing is stored when there was nowhere to go back to.
+        const back = continueFromLocation();
+        if (back) rememberContinue(data.attemptId, back);
         setAttempt({
           attemptId: data.attemptId,
           rsn: data.rsn,

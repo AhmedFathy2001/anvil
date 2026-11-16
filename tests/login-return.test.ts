@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { CONTINUE_MAX_AGE_MS, decodeEntry, encodeEntry } from '../src/lib/continueStore';
 import { CONTINUE_KEYS, continueQuery, isContinueKey, linkCharacterHref, loginHref, readContinue, safeContinuePath, stepHref } from '../src/lib/clanScopedPaths';
 
 const back = (href: string) => new URL(href, 'http://x').searchParams.get('return');
@@ -116,4 +117,17 @@ test('every key has wording and a requirement', () => {
   }
   assert.equal(isContinueKey('constructor'), false);
   assert.equal(isContinueKey('__proto__'), false);
+});
+
+test('a remembered return target comes back only while fresh and valid', () => {
+  const now = 1_700_000_000_000;
+  const c = { next: '/c/ironforge/events/5', key: 'event' as const };
+  assert.deepEqual(decodeEntry(encodeEntry(c, now), now + 60_000), c);
+  assert.equal(decodeEntry(encodeEntry(c, now), now + CONTINUE_MAX_AGE_MS + 1), null);
+  assert.equal(decodeEntry(null, now), null);
+  assert.equal(decodeEntry('not json', now), null);
+  // Storage is fed like a URL: a planted hostile or unknown value is refused.
+  assert.equal(decodeEntry(JSON.stringify({ next: '//evil.com', key: 'event', at: now }), now), null);
+  assert.equal(decodeEntry(JSON.stringify({ next: '/events/5', key: 'anything goes', at: now }), now), null);
+  assert.equal(decodeEntry(JSON.stringify({ next: '/events/5', key: 'event', at: 'x' }), now), null);
 });

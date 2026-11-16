@@ -13,7 +13,7 @@ type Detected = { id: number; rsn: string; lastSeenAt: string };
 // Renders as bare rows at the top of the "Your accounts" card rather than its own section: it's the
 // same list, one state earlier, and a member shouldn't have to work out why their accounts are in
 // two places on one page. Hides itself once the list is empty.
-export default function DetectedAccountsClient({ initial }: { initial: Detected[] }) {
+export default function DetectedAccountsClient({ initial, continueQs = '' }: { initial: Detected[]; continueQs?: string }) {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Detected[]>(initial);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -77,7 +77,7 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
               Not mine
             </button>
             <ClanLink
-              href={`/settings/characters?connect=${encodeURIComponent(a.rsn)}#link-account`}
+              href={`/settings/characters?connect=${encodeURIComponent(a.rsn)}${continueQs ? `&${continueQs}` : ''}#link-account`}
               className="px-3 py-1.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors"
             >
               Verify ownership
