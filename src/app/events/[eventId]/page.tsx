@@ -1,4 +1,6 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { discordStartHref } from '@/lib/discordStart';
+import SignInReceives from '@/components/SignInReceives';
 import { clientEvent } from '@/lib/clientRows';
 import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
 import { raceViewData } from '@/lib/raceSummary';
@@ -861,12 +863,15 @@ export default async function EventScoreboardPage({
             <div className="mt-1 text-lg font-semibold">Join this event</div>
             <div className="text-sm text-text-muted">Sign in with Discord — it takes a few seconds. Then one more tap and you’re playing.</div>
           </div>
-          <ClanLink
-            href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--sa)] px-7 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90 sm:w-auto"
-          >
-            Continue with Discord
-          </ClanLink>
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:max-w-[16rem]">
+            <a
+              href={/* clan-prefix: platform -- the Discord start is the platform's */ discordStartHref(await clanHref(`/events/${event.id}`))}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--sa)] px-7 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90 sm:w-auto"
+            >
+              Continue with Discord
+            </a>
+            <SignInReceives />
+          </div>
         </div>
       ) : isOutsider ? (
         <EnterEvent
@@ -945,7 +950,15 @@ export default async function EventScoreboardPage({
         ) : (
           <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
             <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
-            <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+            {event.startDate && new Date(event.startDate).getTime() <= Date.now() ? (
+              // Start time reached: the tiles are revealed by the minute-by-minute start check, or the
+              // start is being held until the event is ready (teams, draft). Not "before it begins".
+              <p className="text-sm">This event has reached its start time. The tiles appear as soon as it goes live, usually within a minute. If it stays hidden, the host still has something to finish.</p>
+            ) : event.startDate ? (
+              <p className="text-sm">The tiles appear when the event starts, <LocalTime date={event.startDate} />.</p>
+            ) : (
+              <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+            )}
           </div>
         )
       ) : (
@@ -1015,12 +1028,15 @@ export default async function EventScoreboardPage({
             <div className="text-base font-semibold">Watching on stream?</div>
             <div className="text-text-muted">Join in about a minute. Sign in with Discord.</div>
           </div>
-          <ClanLink
-            href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
-            className="inline-flex min-h-12 items-center rounded-xl bg-[var(--sa)] px-6 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
-          >
-            Join
-          </ClanLink>
+          <div className="flex flex-col gap-1.5">
+            <a
+              href={/* clan-prefix: platform -- the Discord start is the platform's */ discordStartHref(await clanHref(`/events/${event.id}`))}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--sa)] px-6 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
+            >
+              Join
+            </a>
+            <SignInReceives className="max-w-[16rem]" />
+          </div>
         </div>
       )}
     </div>

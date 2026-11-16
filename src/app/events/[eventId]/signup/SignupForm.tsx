@@ -60,6 +60,8 @@ interface FeeRow {
 interface Props {
   /** Which optional sections this board asks for — see lib/eventRules `signupFields`. */
   fields?: SignupFields;
+  /** Ids of the person's accounts the plugin has already reported from, so the form does not tell them to run it. */
+  pluginSeenIds?: number[];
   /** The board's own questions, asked after the built-in sections. */
   questions?: SurveyQuestionView[];
   eventId: number;
@@ -246,6 +248,7 @@ export default function SignupForm({
   placement = null,
   seatedTeam = null,
   fields = DEFAULT_SIGNUP_FIELDS,
+  pluginSeenIds = [],
   questions = [],
   creator = false,
 }: Props) {
@@ -359,6 +362,25 @@ export default function SignupForm({
     setBosses(new Set([...bosses, ...filteredBosses.map((b) => b.key)]));
   const selectAllSkills = () =>
     setSkills(new Set([...skills, ...filteredSkills]));
+
+  // The optional block is folded until asked for.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const requiredQuestions = questions.filter((q) => q.required);
+  const optionalQuestions = questions.filter((q) => !q.required);
+  const hasOptional =
+    !!(fields.availability || fields.timezone || fields.bosses || fields.skills || fields.notes) || optionalQuestions.length > 0;
+  const answeredCount =
+    bosses.size + skills.size + (notes.trim() ? 1 : 0) + (timezone ? 1 : 0) + optionalQuestions.filter((q) => answers[String(q.id)] !== undefined).length;
+  function changeAnswer(id: number, value: AnswerValue | undefined) {
+    setAnswers((prev) => {
+      const next = { ...prev };
+      // An emptied answer is removed rather than stored as "" — an absent key and a blank
+      // string would otherwise be two ways to say the same nothing.
+      if (value === undefined) delete next[String(id)];
+      else next[String(id)] = value;
+      return next;
+    });
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -582,12 +604,14 @@ export default function SignupForm({
             ) : (
               <li>The hosts will set a start time and post the teams on the event page.</li>
             )}
-            <li>
-              Run the Anvil plugin in RuneLite so your drops and levels count by themselves.{' '}
-              <ClanLink href="/guide/plugin" className="text-gold hover:underline">
-                How to set it up
-              </ClanLink>
-            </li>
+            {!myAccounts.some((a) => pluginSeenIds.includes(a.id) && (selectedIds.has(a.id) || selectedIds.size === 0)) && (
+              <li>
+                Run the Anvil plugin in RuneLite so your drops and levels count by themselves.{' '}
+                <ClanLink href="/guide/plugin" className="text-gold hover:underline">
+                  How to set it up
+                </ClanLink>
+              </li>
+            )}
             <li>
               {windowOpen ? 'You can change your answers until the deadline.' : 'Sign-ups are closed — your answers are locked in.'}
             </li>
@@ -723,6 +747,33 @@ export default function SignupForm({
         )}
       </fieldset>
 
+      {/* The board's own questions that must be answered stay in view. */}
+      <SignupQuestions
+        questions={requiredQuestions}
+        answers={answers}
+        disabled={isLocked}
+        onChange={changeAnswer}
+      />
+
+      {/* EVERYTHING OPTIONAL IS FOLDED. About a hundred checkboxes sat between the person and the one
+          button they came for; none of them is needed to be in. They stay one tap away, and anything
+          already answered is counted on the button so it is never hidden without a trace. */}
+      {hasOptional && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((v) => !v)}
+            aria-expanded={detailsOpen}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-left text-sm font-semibold transition-colors hover:border-gold/40"
+          >
+            <span>
+              Add details (optional)
+              {answeredCount > 0 && <span className="ml-2 font-normal text-text-muted">{answeredCount} filled in</span>}
+            </span>
+            <span aria-hidden className="text-text-muted">{detailsOpen ? '−' : '+'}</span>
+          </button>
+          {detailsOpen && (
+            <div className="mt-6 space-y-6">
       {/* Activity. Two different answers shared one box — hours and a timezone — so each is asked
           for on its own now and the box disappears when the board wants neither. */}
       {(fields.availability || fields.timezone) && (
@@ -902,22 +953,17 @@ export default function SignupForm({
       </fieldset>
       )}
 
-      {/* The board's own questions, after the sections everyone gets. */}
+
       <SignupQuestions
-        questions={questions}
+        questions={optionalQuestions}
         answers={answers}
         disabled={isLocked}
-        onChange={(id, value) =>
-          setAnswers((prev) => {
-            const next = { ...prev };
-            // An emptied answer is removed rather than stored as "" — an absent key and a blank
-            // string would otherwise be two ways to say the same nothing.
-            if (value === undefined) delete next[String(id)];
-            else next[String(id)] = value;
-            return next;
-          })
-        }
+        onChange={changeAnswer}
       />
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg p-3">

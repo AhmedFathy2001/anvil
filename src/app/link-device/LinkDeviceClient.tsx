@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import Input from '@/components/Input';
+import ClanLink from '@/components/ClanLink';
 
 /** Code confirm + Approve/Deny for the plugin device sign-in. Success view tells the member to
  * return to RuneLite — the plugin's poll picks the approval up within seconds. */
-export default function LinkDeviceClient({ initialCode }: { initialCode: string }) {
+export default function LinkDeviceClient({ initialCode, hasNothing = false }: { initialCode: string; hasNothing?: boolean }) {
   const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<'approved' | 'denied' | null>(null);
@@ -33,11 +34,23 @@ export default function LinkDeviceClient({ initialCode }: { initialCode: string 
   if (result === 'approved') {
     return (
       <div className="rounded-lg border border-accent-green/40 bg-accent-green/10 p-4 text-sm">
-        <p className="font-semibold text-accent-green-light">Client linked ✓</p>
+        <p className="font-semibold text-accent-green-light">You&rsquo;re signed in ✓</p>
         <p className="text-text-muted mt-1">
-          You can close this tab and return to RuneLite — the plugin signs itself in within a few
-          seconds.
+          Go back to the game. The plugin signs itself in within a few seconds, and your character
+          links the first time you log in with it. You can close this tab.
         </p>
+        {hasNothing && (
+          <ul className="mt-3 space-y-1.5 border-t border-accent-green/20 pt-3 text-text-muted">
+            <li>
+              <ClanLink href="/clans" className="font-semibold text-gold hover:underline">Find your clan</ClanLink>
+              {' '}to join its events.
+            </li>
+            <li>
+              Got an invite link from a host? Open it. Or{' '}
+              <ClanLink href="/events" className="font-semibold text-gold hover:underline">see events open to everyone</ClanLink>.
+            </li>
+          </ul>
+        )}
       </div>
     );
   }

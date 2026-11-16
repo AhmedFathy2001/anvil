@@ -19,6 +19,11 @@ const STRAIGHT_THROUGH: RegExp[] = [
   /^\/profile\?(?:.*&)?welcome=1/,
   /^\/portal(?:[/?#]|$)/,
   /^\/clans\/new(?:[/?#]|$)/,
+  // A deep link to a clan page, a creator space or the clan directory: the person signed in to
+  // apply to or look at that place, so they land on it (where the Getting started strip is offered)
+  // instead of being asked "do you run a clan?" about the clan they just came from.
+  /^\/clans(?:[/?#]|$)/,
+  /^\/[cs]\/[^/?#]+(?:[/?#]|$)/,
   // Hosting for viewers is its own destination; the clan-focused setup would only get in the way.
   /^\/host(?:[/?#]|$)/,
   // An event invite, with or without a clan prefix.

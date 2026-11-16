@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import LinkDeviceClient from './LinkDeviceClient';
+import { clansOfPerson } from '@/lib/myClans';
+import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,14 @@ export default async function LinkDevicePage({
     redirect(`/login?return=${encodeURIComponent(back)}`);
   }
 
+  // Told only to somebody with nothing yet (no clan, no live event): after approving they have a
+  // game to go back to, and the site half of "where next" is two lines, not a tour.
+  const [clans, involvements] = await Promise.all([
+    clansOfPerson(session.playerId ?? null, session.userId).catch(() => [{}]),
+    countLiveTeamInvolvements(session.userId).catch(() => 1),
+  ]);
+  const hasNothing = clans.length === 0 && involvements === 0;
+
   return (
     <main className="max-w-lg mx-auto px-4 py-12">
       <div className="border border-card-border rounded-xl p-6 bg-card-bg space-y-4">
@@ -42,7 +52,7 @@ export default async function LinkDevicePage({
           Approving gives that client its own sign-in to Anvil. It does not get your Discord password.
           You can end it any time in Settings, under Account, Plugin sign-ins.
         </p>
-        <LinkDeviceClient initialCode={code ?? ''} />
+        <LinkDeviceClient initialCode={code ?? ''} hasNothing={hasNothing} />
       </div>
     </main>
   );

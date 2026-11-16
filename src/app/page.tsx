@@ -1,6 +1,7 @@
 import { landingClans, recruitingClans } from '@/lib/landingClans';
 import { memberStartGuide, personStartGuide } from '@/lib/guidedFlowFacts';
 import GuidedFlow from '@/components/GuidedFlow';
+import { clansOfPerson } from '@/lib/myClans';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
@@ -283,6 +284,15 @@ export default async function HomePage() {
       boostPromise,
     ]);
     if (publicView) {
+      // A signed-in visitor still gets the getting-started strip here: arriving straight from a first
+      // sign-in (lib/firstLogin) skips the /welcome chooser, so setup is offered on the page they came
+      // for, never forced before it.
+      const arrivalGuide =
+        session?.userId != null
+          ? await clansOfPerson(session.playerId ?? null, session.userId)
+              .then((mine) => personStartGuide(session.userId, session.playerId ?? null, mine, null))
+              .catch(() => null)
+          : null;
       return (
         <>
           {/* Structured data on the PUBLIC branch only, which is the branch a crawler ever reaches —
@@ -300,6 +310,7 @@ export default async function HomePage() {
             })}
           />
           <PublicClanHome
+            guide={arrivalGuide ? <GuidedFlow view={arrivalGuide} className="mt-4" /> : null}
             view={publicView}
             signedIn={!!session?.userId}
             canReport={showReportButton({ signedIn: !!session?.userId, staffOfTarget: staffHere })}

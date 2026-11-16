@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { slugIn } from '@/lib/clanSlugLookup';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { apexDomain, isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
@@ -25,6 +25,15 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const session = await verifyUser();
+
+  // Signed out: straight to the sign-in, which says why ("Sign in to create your clan") and lands
+  // back here. This used to render the form's place as a "Sign in with Discord first" card whose
+  // only button led to /login, which had its own button.
+  if (!session) {
+    const { plan } = await searchParams;
+    const back = plan ? `/clans/new?plan=${encodeURIComponent(plan)}` : '/clans/new';
+    redirect(`/login?return=${encodeURIComponent(back)}`); // clan-prefix: platform -- apex-only page
+  }
 
   // A paid tier picked on /pricing. Only honoured once caps are enforced and its checkout is configured —
   // before that every size is free and asking for a card would be for nothing.
