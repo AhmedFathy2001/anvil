@@ -1224,6 +1224,12 @@ export async function syncRolesForClanMember(
   const cfg = await loadRoleSyncConfig(member.clanId);
   if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
   if (member.leftAt) return { ok: false, reason: 'member has left', added: [], removed: [] };
+  // The same rule the bulk sweep applies when it picks its seats: a guest whose character nobody has
+  // confirmed yet (asked staff to vouch, not vouched) earns no roles. Without it the per-member
+  // triggers (login, plugin link, a single admin sync) handed guest roles to an unproven claim.
+  if (member.kind !== 'member' && !member.verifiedAt) {
+    return { ok: false, reason: 'guest not confirmed yet — no roles', added: [], removed: [] };
+  }
 
   // Resolve the member to a Discord account that is ACTUALLY in the guild. Try every DB-known id
   // first (linked user, sign-up, self-report, cache); only if none are in the guild do we pay for
