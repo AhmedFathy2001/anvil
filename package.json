@@ -218,6 +218,7 @@
     "test:clanhall": "npx tsx --test tests/clan-hall.test.ts",
     "test:clanapply": "npx tsx --test tests/clan-apply.test.ts",
     "test:admission": "npx tsx --test tests/admission-tiers.test.ts",
+    "test:pluginupgrade": "npx tsx --test tests/plugin-upgrade.test.ts",
     "test:clanhome": "npx tsx --test tests/clan-home.test.ts",
     "test:imageanimation": "npx tsx --test tests/image-animation.test.ts",
     "test:linktext": "npx tsx --test tests/link-text.test.ts",
