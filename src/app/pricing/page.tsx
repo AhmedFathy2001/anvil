@@ -11,13 +11,16 @@ import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { ownedCreatorSpace } from '@/lib/clanCreate';
 import { ensureClanCheckoutRef } from '@/lib/billing';
-import { PLANS, PLAN_IDS, checkoutUrl, planOf, truthfulFeatures, type Plan } from '@/lib/plans';
+import { PLANS, PLAN_IDS, TRIAL_DAYS, checkoutUrl, planOf, truthfulFeatures, type Plan } from '@/lib/plans';
+import { creatorBuy } from '@/lib/buyOffer';
+import { clanTrialUsed } from '@/lib/planTrials';
+import { autoTrialDays } from '@/lib/planTrialRules';
+import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import {
   CREATOR_CAPABILITY_MIN_PLAN,
   CREATOR_PLANS,
   CREATOR_PLAN_IDS,
   creatorCheckoutUrl,
-  creatorCheckoutUrlWithRef,
   creatorPlanHasCapability,
   creatorPlanOf,
   type CreatorCapability,
@@ -43,7 +46,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Pricing — Anvil',
-  description: `Free for clans up to ${PLANS.free.memberCap} members. Paid tiers scale with your roster, with a 30-day trial.`,
+  description: `Free for clans up to ${PLANS.free.memberCap} members. Paid tiers scale with your roster.`,
 };
 
 /**
@@ -95,6 +98,12 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   // rather than a card — a card with no price reads as broken.
   const tiers = [PLANS.free, PLANS.bronze, PLANS.silver, PLANS.gold];
   const enforced = freemiumEnforced();
+  // Anvil's own trial on every new clan and space (lib/planTrialRules): 0 = off.
+  const trialDays = autoTrialDays();
+  // The creator table's direct checkout for a Free space's owner follows the one-trial rule (lib/buyOffer):
+  // a space that has had its trial gets the pay-now product, or its plan card when that is not open yet.
+  const spaceRow = owned && ref ? await db.query.clans.findFirst({ where: eq(clans.id, owned.id), columns: { id: true, trialEndsAt: true, gumroadSubscriptionId: true } }) : null;
+  const spaceTrialUsed = spaceRow ? await clanTrialUsed(spaceRow) : true;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:py-16">
@@ -109,7 +118,8 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         </h1>
         <p className="relative mx-auto mt-3 max-w-[54ch] text-[15.5px] leading-relaxed text-text-muted">
           Every tier runs every event format and watches every kind of tile. What you pay for is
-          roster size, not features held hostage. Thirty-day trial on all of it.
+          roster size, not features held hostage.
+          {trialDays > 0 && ` Every new clan starts with ${trialDays} days of ${PLANS.gold.name}, no card needed.`}
         </p>
         <p className="relative mt-3 text-[13.5px]">
           <a href="#creators" className="text-gold hover:text-gold-light">
@@ -143,11 +153,18 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           </ClanLink>
         </p>
       )}
+      <EarlyBirdBadge center className="mb-4" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
-          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} own={ownClan} />
+          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} own={ownClan} trialDays={trialDays} />
         ))}
       </div>
+      {trialDays > 0 && !ownClan && (
+        <p className="mt-4 text-center text-[13px] leading-relaxed text-text-muted">
+          Every new clan starts with {trialDays} days of {PLANS.gold.name} from Anvil: no card, nothing charged. When the trial
+          ends the clan is on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}) unless you subscribe, and nothing is deleted.
+        </p>
+      )}
 
       <p className="mt-6 text-center text-[13px] text-text-dim">
         Bigger than {PLANS.gold.capLabel.replace(/^Up to /, '')}?{' '}
@@ -193,14 +210,17 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         enforced={enforced}
         interval={interval}
         viewer={viewer}
-        checkoutFor={(p) => creatorCheckoutUrlWithRef(p, ref, interval)}
+        checkoutFor={(p) => {
+          const b = creatorBuy(p, ref, interval, spaceTrialUsed);
+          return b.kind === 'subscribe' ? b.url : null;
+        }}
         yearlyOffered={(p) => creatorCheckoutUrl(p, 'yearly') != null}
       />
     </div>
   );
 }
 
-function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boolean; interval: BillingInterval; own: OwnClan | null }) {
+function TierCard({ plan, enforced, interval, own, trialDays }: { plan: Plan; enforced: boolean; interval: BillingInterval; own: OwnClan | null; trialDays: number }) {
   const paid = plan.priceUsd != null && plan.priceUsd > 0;
   const yearly = interval === 'yearly' && paid;
   const price =
@@ -209,9 +229,11 @@ function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boo
       : plan.priceUsd == null
         ? '—'
         : usd(yearly ? (yearlyPriceUsd(plan.priceUsd) ?? 0) : plan.priceUsd);
-  // A paid start asks for a card only once caps bite. Yearly then needs its own checkout configured;
-  // without one the card says so rather than quietly sending them to the monthly one.
-  const paidStart = enforced && paid;
+  // A NEW clan starts with Anvil's own trial and no card (trialDays > 0), so no card here leads to a
+  // checkout: it subscribes later from its plan page. Only with automatic trials switched off does a
+  // paid card go on to that tier's checkout, and then only once caps bite. Yearly then needs its own
+  // checkout configured; without one the card says so rather than quietly sending them to the monthly one.
+  const paidStart = enforced && paid && trialDays <= 0;
   const yearlyMissing = yearly && paidStart && checkoutUrl(plan, 'yearly') == null;
   return (
     <div
@@ -230,7 +252,7 @@ function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boo
         {paid && <span className="text-[12.5px] text-text-muted">{yearly ? '/yr' : '/mo'}</span>}
       </div>
       {yearly && plan.priceUsd != null && (
-        <p className="text-[12px] text-text-muted">{usd(yearlyPerMonthUsd(plan.priceUsd))}/mo · two months free</p>
+        <p className="text-[12px] text-text-muted">{usd(yearlyPerMonthUsd(plan.priceUsd))}/mo · 12 months for the price of 10</p>
       )}
       <p className="mt-1 text-[12.5px] font-medium text-gold">{plan.capLabel}</p>
       <p className="mt-2.5 text-[13px] leading-relaxed text-text-muted">{plan.blurb}</p>
@@ -246,9 +268,8 @@ function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boo
         ))}
       </ul>
 
-      {/* Once caps bite, the tier (and ?billing=) rides along and the create form ends on its Gumroad
-          checkout — that is where the trial starts. Until then every clan size is free, so no button
-          asks for a card. */}
+      {/* A new clan is made with no card and starts on Anvil's own trial. With automatic trials off, and
+          once caps bite, the tier (and ?billing=) rides along and the create form ends on its checkout. */}
       {own ? (
         <OwnClanCta plan={plan} own={own} interval={interval} />
       ) : yearlyMissing ? (
@@ -267,7 +288,7 @@ function TierCard({ plan, enforced, interval, own }: { plan: Plan; enforced: boo
               : 'border border-card-border hover:border-gold/45'
           }`}
         >
-          {paidStart ? 'Start 30-day trial' : 'Start free'}
+          {paidStart ? (TRIAL_DAYS > 0 ? `Start ${TRIAL_DAYS}-day free trial` : `Start with ${plan.name}`) : trialDays > 0 && paid ? `Try ${plan.name === PLANS.gold.name ? plan.name : PLANS.gold.name} free for ${trialDays} days` : 'Start free'}
         </ClanLink>
       )}
     </div>
@@ -360,7 +381,7 @@ function CreatorPricing({
   ];
   const ctas = cols.map((p) => ({
     id: p.id,
-    cta: creatorPricingCta(p, viewer, { enforced, interval, checkoutFor, yearlyOffered, contactUrl: SITE.supportDiscord }),
+    cta: creatorPricingCta(p, viewer, { enforced, autoTrial: autoTrialDays() > 0, interval, checkoutFor, yearlyOffered, contactUrl: SITE.supportDiscord }),
   }));
   return (
     <section id="creators" className="mt-16 scroll-mt-24">
@@ -368,6 +389,7 @@ function CreatorPricing({
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[20px] font-semibold">For streamers &amp; creators</h2>
       </div>
+      <EarlyBirdBadge className="mb-2 ml-4" />
       <p className="mb-5 ml-4 max-w-[66ch] text-[13.5px] text-text-muted">
         Host events for your viewers without an in-game clan. Creator plans count the players in your
         events running at the same time, not everyone who ever joined. Events that overlap share the

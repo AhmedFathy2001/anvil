@@ -24,6 +24,7 @@ import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
 import { streamPlanId } from '@/lib/creatorPlans';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { hostRoomVerdict } from '@/lib/creatorPlansDb';
+import { withPlanInForce } from '@/lib/planTrials';
 
 export interface InviteStanding {
   ok: boolean;
@@ -131,10 +132,11 @@ export async function enterEvent(opts: {
   // `approval` files a request for this event. Whoever gets in is an EVENT PLAYER (lib/eventPlayers):
   // a seat that opens this event and nothing else, never a guest seat, never on the roster.
   // Any other event is the clan's own guest policy, exactly as before.
-  const host = await db.query.clans.findFirst({
+  // The plan in force: a running Anvil trial counts (lib/planTrials).
+  const host = await withPlanInForce(event.clanId, await db.query.clans.findFirst({
     where: eq(clans.id, event.clanId),
     columns: { name: true, kind: true, plan: true, streaming: true, guestPolicy: true },
-  });
+  }));
   const streamed = streamedEvent(host, event);
   // A FRIENDS event (lib/friendEventRules) seats its players the same way, but is not streamed: no
   // gates and no plan meter — its cap is the host's Supporter tier, checked here and at sign-up.

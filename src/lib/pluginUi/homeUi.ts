@@ -1220,7 +1220,7 @@ export function supportLine(): Node {
   return row(
     text('Support Anvil', '#ffd35c', { icon: icon({ glyph: 'star', w: 10, h: 10, color: '#ffd35c', alt: '★' }) }),
     undefined,
-    muted('7 days free', { font: 'small' }),
+    muted('from $1 a month', { font: 'small' }),
     {
       bg: 'card',
       pad: 8,

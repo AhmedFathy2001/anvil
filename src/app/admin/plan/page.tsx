@@ -6,12 +6,24 @@ import ClanLink from '@/components/ClanLink';
 import { ensureClanCheckoutRef } from '@/lib/billing';
 import { requireClan } from '@/lib/clanContext';
 import { freemiumEnforced } from '@/lib/entitlements';
-import { PLANS, checkoutUrlWithRef, planOf, truthfulFeatures, type Plan } from '@/lib/plans';
+import { PLANS, planOf, truthfulFeatures, type Plan } from '@/lib/plans';
 import { SITE } from '@/lib/site';
 import { parseBillingInterval, usd, withBilling, yearlyPriceUsd } from '@/lib/billingInterval';
 import { redirect } from 'next/navigation';
 import { clanHref } from '@/lib/clanPath';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
+import { isPlatformStaff } from '@/lib/analytics';
+import { clans } from '@/db/schema';
+import { buyWording, chargeText, clanBuy, soonReason } from '@/lib/buyOffer';
+import { openExtrasForClans } from '@/lib/extraMemberships';
+import { manageUrl } from '@/lib/gumroadLinks';
+import { clanTrialUsed } from '@/lib/planTrials';
+import { SECOND_MEMBERSHIP_WARNING, TWO_MEMBERSHIPS_NOTICE } from '@/lib/supporterDuplicates';
+import BuyButtons from '@/components/BuyButtons';
+import EarlyBirdBadge from '@/components/EarlyBirdBadge';
+import PlanTrialPanel from '@/components/PlanTrialPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +47,11 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
     .from(clanMemberships)
     .where(and(eq(clanMemberships.clanId, clan.id), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)));
   const members = row?.n ?? 0;
-  const plan = planOf(clan.plan);
+  // What the clan PAYS for (clans.plan). A running trial from Anvil is said by its own card below;
+  // the cap bar reads the plan in force, which is the trial's tier while it runs.
+  const plan = planOf(clan.paidPlan);
+  const inForce = planOf(clan.plan);
+  const onTrial = inForce.id !== plan.id;
   const free = PLANS.free;
   const freeCap = free.memberCap ?? 0;
   const paying = plan.id !== 'free';
@@ -46,18 +62,32 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
   // ahead of time. ?plan= (from /pricing, or the picks below) says which one this page is offering.
   const choices = paidTiers.filter((p) => (p.memberCap ?? Infinity) >= (smallest.memberCap ?? Infinity));
   const fits: Plan | null = choices.find((p) => p.id === query.plan) ?? smallest;
+  const session = await verifyUser();
+  const isOwner = !!session && atLeast(session.role, 'owner');
+  const viewerIsStaff = !!session && (await isPlatformStaff(session.userId));
   const ref = paying ? null : await ensureClanCheckoutRef(clan.id);
-  const checkout = fits && ref ? checkoutUrlWithRef(fits, ref) : null;
-  // Yearly = ten months (lib/billingInterval), offered only once that tier's yearly checkout is set.
-  const checkoutYearly = fits && ref ? checkoutUrlWithRef(fits, ref, 'yearly') : null;
+  // ONE TRIAL (lib/buyOffer): a clan that has had its trial from Anvil, a Gumroad trial or a
+  // membership is only ever sent to the pay-now product, charged that day. Every clan made since
+  // automatic trials began has had one, so "Start free trial" is for older clans that never did.
+  const [billingRow, extras] = await Promise.all([
+    db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { id: true, trialEndsAt: true, gumroadSubscriptionId: true } }),
+    openExtrasForClans([clan.id]),
+  ]);
+  const trialUsed = billingRow ? await clanTrialUsed(billingRow) : true;
   const yearly = fits ? yearlyPriceUsd(fits.priceUsd) : null;
-  const buys = [
-    checkout && { href: checkout, label: `Choose ${fits?.name}`, interval: 'monthly' as const },
-    checkoutYearly && { href: checkoutYearly, label: `${fits?.name} yearly (${usd(yearly ?? 0)})`, interval: 'yearly' as const },
-  ]
-    .filter((b): b is { href: string; label: string; interval: 'monthly' | 'yearly' } => !!b)
-    .sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0));
-  const cap = plan.memberCap;
+  // Monthly and, once that tier's yearly checkout is set, yearly (a year costs ten months).
+  const offers = fits && ref
+    ? (['monthly', 'yearly'] as const)
+        .map((interval) => ({ interval, buttons: clanBuy(fits, ref, interval, trialUsed) }))
+        .filter((o) => o.buttons.kind !== 'none' && (o.interval === 'monthly' || o.buttons.kind !== 'soon' || clanBuy(fits, ref, 'yearly', false).kind !== 'none'))
+        .sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0))
+    : [];
+  const checkoutYearly = offers.some((o) => o.interval === 'yearly');
+  const toCancel = extras.filter((e) => e.state === 'to_cancel');
+  const waiting = extras.find((e) => e.state === 'waiting') ?? null;
+  const held = !paying && !!billingRow?.gumroadSubscriptionId && !!billingRow.trialEndsAt && Date.parse(billingRow.trialEndsAt) > Date.now();
+  const dayMonth = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const cap = inForce.memberCap;
   const usedPct = cap ? Math.min(100, Math.round((Math.min(members, cap) / Math.max(members, cap)) * 100)) : 100;
   const over = cap != null && members > cap;
 
@@ -74,9 +104,9 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
       <section id="plan-usage" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className="text-base font-semibold">
-            {plan.name} plan · {members.toLocaleString()} member{members === 1 ? '' : 's'}
+            {onTrial ? `${inForce.name} trial` : `${plan.name} plan`} · {members.toLocaleString()} member{members === 1 ? '' : 's'}
           </span>
-          <span className="text-[13.5px] text-text-muted">{plan.capLabel}</span>
+          <span className="text-[13.5px] text-text-muted">{inForce.capLabel}{onTrial && ` (${plan.name}: ${plan.capLabel.toLowerCase()})`}</span>
         </div>
         <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-brown-dark" aria-hidden>
           <span className="bg-accent-green-light" style={{ width: `${usedPct}%` }} />
@@ -91,6 +121,39 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
         </p>
       </section>
 
+      {toCancel.map((m) => (
+        <div key={m.id} role="status" className="mt-5 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-[13.5px] leading-relaxed text-orange-200">
+          {TWO_MEMBERSHIPS_NOTICE}:{' '}
+          <a href={manageUrl(m.gumroadSubscriptionId)} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+            manage the older {planOf(m.plan).name} membership on Gumroad
+          </a>
+          . Gumroad emails a sign-in link to the address you paid with. This notice goes away once Gumroad tells us it is cancelled.
+        </div>
+      ))}
+      {waiting && (
+        <div role="status" className="mt-5 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-[13.5px] leading-relaxed text-gold-light">
+          You&rsquo;ve already had your free trial, so {planOf(waiting.plan).name} starts when your first payment goes through
+          {waiting.trialEndsAt ? ` on ${dayMonth(waiting.trialEndsAt.getTime())}` : ''}. Until then the clan stays on {plan.name}, which
+          you are still paying for. When {planOf(waiting.plan).name} starts, cancel the {plan.name} membership on Gumroad so you are
+          not charged twice.
+        </div>
+      )}
+      {held && billingRow?.trialEndsAt && (
+        <div role="status" className="mt-5 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-[13.5px] leading-relaxed text-gold-light">
+          You&rsquo;ve already had your free trial, so your new plan starts when your first payment goes through on{' '}
+          {dayMonth(Date.parse(billingRow.trialEndsAt))}. Gumroad opened this membership with a free period, and nothing is charged
+          until then.{' '}
+          <ClanLink href="/portal" className="font-semibold underline">
+            Billing
+          </ClanLink>{' '}
+          has the link to manage it.
+        </div>
+      )}
+
+      <div className="mt-5">
+        <PlanTrialPanel clan={clan} billing={billing} canBuy={isOwner} viewerIsStaff={viewerIsStaff} />
+      </div>
+
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         {paying ? (
           <section className="rounded-xl border border-gold/45 bg-gold/[0.05] p-5">
@@ -103,6 +166,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
             <ClanLink href="/portal" className="mt-4 inline-block text-[14px] text-gold hover:text-gold-light">
               Manage subscription and invoices
             </ClanLink>
+            <p className="mt-3 text-[12.5px] leading-relaxed text-text-muted">Moving to another tier: {SECOND_MEMBERSHIP_WARNING}</p>
           </section>
         ) : (
           fits && (
@@ -114,9 +178,10 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                 {fits.name} · {fits.capLabel.toLowerCase()}
               </h2>
               <p className="text-[14px] text-text-muted">
-                From ${fits.priceUsd} a month
-                {checkoutYearly && yearly != null && <> or {usd(yearly)} a year (two months free)</>}
+                ${fits.priceUsd} a month
+                {checkoutYearly && yearly != null && <> or {usd(yearly)} a year (12 months for the price of 10)</>}
               </p>
+              <EarlyBirdBadge />
               <p className="text-[13px] leading-relaxed text-text-muted">
                 Discord posts, every event format and drop tracking are already on the free plan. A plan is about roster size.
               </p>
@@ -125,20 +190,24 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                   <li key={f}>{f}</li>
                 ))}
               </ul>
-              {buys.map((b, i) => (
-                <a
-                  key={b.interval}
-                  // eslint-disable-next-line clan-scope/clan-prefix -- external Gumroad checkout, never a clan path
-                  href={b.href}
-                  className={
-                    i === 0
-                      ? 'mt-1 rounded-lg bg-gold px-4 py-2.5 text-center text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light'
-                      : 'rounded-lg border border-gold/40 px-4 py-2.5 text-center text-sm text-gold transition-colors hover:border-gold'
-                  }
-                >
-                  {b.label}
-                </a>
-              ))}
+              {isOwner ? (
+                offers.map((o) => {
+                  const wording = buyWording(o.buttons, {
+                    tierName: fits.name,
+                    charge: chargeText(fits.priceUsd ?? 0, o.interval),
+                    verb: o.interval === 'yearly' ? `Subscribe to ${fits.name}, yearly` : `Subscribe to ${fits.name}`,
+                  });
+                  return wording ? (
+                    <BuyButtons
+                      key={o.interval}
+                      wording={wording}
+                      staffNote={viewerIsStaff && o.buttons.kind === 'soon' ? soonReason(o.interval === 'yearly' ? fits.gumroadUrlYearlyEnv : fits.gumroadUrlEnv) : null}
+                    />
+                  ) : null;
+                })
+              ) : (
+                <p className="text-[13px] text-text-muted">The clan&rsquo;s owner subscribes from this page.</p>
+              )}
               {choices.length > 1 && (
                 <p className="text-center text-[13px] text-text-muted">
                   Or pick another:{' '}

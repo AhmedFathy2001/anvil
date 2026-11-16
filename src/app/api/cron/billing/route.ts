@@ -3,6 +3,8 @@ import { NextResponse, after } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { sweepLapsedBilling } from '@/lib/billingLapse';
 import { sweepSupporterMoments } from '@/lib/supporterMoments';
+import { startDueQueuedGifts } from '@/lib/supporterGifts';
+import { sendTrialReminders } from '@/lib/trialReminders';
 import { log } from '@/lib/logger';
 
 // One Gumroad call per overdue paying clan — a handful, nothing that needs the sweeps' budget.
@@ -31,6 +33,11 @@ export async function GET(request: Request) {
   }
 
   const result = await sweepLapsedBilling();
+  // The same daily run answers "Remind me when the trial ends" (lib/trialReminders) and starts staff
+  // "add time" whose paid membership has stopped (lib/supporterGifts). Neither touches Gumroad.
+  const reminders = await sendTrialReminders().catch((e) => { log.error('trial-reminders.failed', { error: String(e) }); return { sent: 0 }; });
+  const started = await startDueQueuedGifts().catch((e) => { log.error('queued-gifts.failed', { error: String(e) }); return { started: 0 }; });
+  log.info('billing-cron.followups', { reminders: reminders.sent, queuedGiftsStarted: started.started });
   log.info('billing-cron.done', { ...result, ended: result.ended.length });
   // Daily too, but after the answer: tenure steps and streak milestones walk every clan, and the
   // cron call shouldn't wait on that (lib/supporterMoments, deduped, so a repeat run is harmless).

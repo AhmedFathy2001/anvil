@@ -17,6 +17,7 @@ import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { recordSupporterReferral, revokeReferrals } from '@/lib/referrals';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
 import { HELD_STATUS, parseStamp, runStartOnReturn, supporterTierForGumroad, type SupporterTierId } from '@/lib/supporterTiers';
+import { startQueuedGifts } from '@/lib/supporterGifts';
 import { noteUnmatchedFollowUp, recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
 /**
@@ -208,6 +209,8 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       }
       // A trial that never paid, or a membership gone before its referral settled, earns nothing.
       const lost = ev.subscriptionId ? await revokeReferrals(ev.subscriptionId, { heldOnly: true }) : [];
+      // Time staff added for when this paid membership stopped starts now (lib/supporterGifts).
+      await startQueuedGifts(row.userId);
       afterSupporterChange([row.userId, ...lost]);
       return ok();
     }
@@ -239,6 +242,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       await db.update(supporterSubscriptions).set({ status: 'refunded', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
       // Money taken back takes the referrer's reward with it, granted or not.
       const lost = row.gumroadSubscriptionId ? await revokeReferrals(row.gumroadSubscriptionId, { heldOnly: false }) : [];
+      await startQueuedGifts(row.userId);
       afterSupporterChange([row.userId, ...lost]);
       return ok();
     }

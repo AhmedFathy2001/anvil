@@ -18,7 +18,7 @@ import { cache } from 'react';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clans, ownerTrials } from '@/db/schema';
+import { clanAuditLog, ownerTrials } from '@/db/schema';
 import {
   autoTrialDays,
   autoTrialDecision,
@@ -103,6 +103,16 @@ export async function runningPlanTrials(clanIds: number[], now = Date.now()): Pr
  */
 export async function planInForce(clan: { id: number; kind: string | null; plan: string }, now = Date.now()): Promise<string> {
   return effectivePlanId(clan.kind, clan.plan, await runningPlanTrial(clan.id, now), now);
+}
+
+/**
+ * A row read straight from `clans` (its kind and stored plan), with the plan IN FORCE put in its
+ * place: for the readers that gate on a host's plan without going through lib/clanContext.
+ */
+export async function withPlanInForce<T extends { kind: string | null; plan: string }>(clanId: number, row: T | undefined | null, now = Date.now()): Promise<T | undefined> {
+  if (!row) return undefined;
+  const plan = effectivePlanId(row.kind, row.plan, await runningPlanTrial(clanId, now), now);
+  return plan === row.plan ? row : { ...row, plan };
 }
 
 /** The member cap in force with it. */

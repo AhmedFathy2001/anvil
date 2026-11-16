@@ -40,6 +40,8 @@ export interface CreatorCtaViewer {
 
 export interface CreatorCtaOpts {
   enforced: boolean;
+  /** Anvil's automatic trial on a new space is on (lib/planTrialRules autoTrialDays > 0): making a space asks for no card and no tier. */
+  autoTrial?: boolean;
   /** Monthly or yearly (the /pricing switch). Default monthly. */
   interval?: BillingInterval;
   /** The checkout URL for `plan` AT `interval`, carrying the space's ref, or null if none is configured. */
@@ -89,7 +91,7 @@ export function creatorPricingCta(plan: CreatorPlan, viewer: CreatorCtaViewer, o
     return { kind: 'link', label, href: withBilling(clanPathOf(space, '/admin/dashboard'), interval) + '#plan', primary: true };
   }
 
-  const paidStart = plan.priceUsd !== 0 && opts.enforced;
+  const paidStart = plan.priceUsd !== 0 && opts.enforced && !opts.autoTrial;
   if (noYearly && paidStart) return soon;
   const host = hostHref(plan, noYearly ? 'monthly' : interval);
   const href = viewer.signedIn ? host : `/login?return=${encodeURIComponent(host)}`;

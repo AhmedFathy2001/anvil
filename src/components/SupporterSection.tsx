@@ -77,7 +77,16 @@ export default function SupporterSection({
   characters = [],
   bare = false,
   looks = true,
+  trialDays = 0,
+  upgradeWarning = null,
 }: {
+  /**
+   * Gumroad's own free trial on the Supporter product, in days, when THIS person can still take it
+   * (lib/buyOffer SUPPORTER_TRIAL_DAYS and the one-trial rule). 0: nothing here mentions a trial.
+   */
+  trialDays?: number;
+  /** For someone already paying: the one line under "Change tier" about buying a second membership. */
+  upgradeWarning?: string | null;
   /** Draw the name-colour editor here. Off where the page has its own (Settings → Profile & look). */
   looks?: boolean;
   /** On /settings, where the page already has its title: no section heading or top margin. */
@@ -111,9 +120,11 @@ export default function SupporterSection({
                 every board, in the plugin panel and on Discord.
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5 text-[12px]">
-                <span className="rounded-full border border-accent-green/40 bg-accent-green/10 px-2.5 py-0.5 text-accent-green-light">
-                  7 days free
-                </span>
+                {trialDays > 0 && (
+                  <span className="rounded-full border border-accent-green/40 bg-accent-green/10 px-2.5 py-0.5 text-accent-green-light">
+                    {trialDays}-day free trial
+                  </span>
+                )}
                 <span className="rounded-full border border-card-border px-2.5 py-0.5 text-text-muted">from $1 a month</span>
                 <span className="rounded-full border border-card-border px-2.5 py-0.5 text-text-muted">cancel any time</span>
               </div>
@@ -122,7 +133,7 @@ export default function SupporterSection({
                   href="/supporter"
                   className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
                 >
-                  Try it free for 7 days
+                  {trialDays > 0 ? `Start ${trialDays}-day free trial` : 'Become a Supporter'}
                 </ClanLink>
                 <ClanLink href="/supporter" className="text-[13.5px] text-gold hover:text-gold-light">
                   What each tier gets
@@ -191,6 +202,7 @@ export default function SupporterSection({
             Manage on Gumroad
           </a>
         </div>
+        {upgradeWarning && <p className="mt-2 text-[12.5px] leading-relaxed text-text-muted">Changing tier: {upgradeWarning}</p>}
         {looks && <div className="mt-4">
           <SupporterNameLooks tier={supporter.tier} name={name || 'Your name'} accountStyle={supporter.style} characters={characters} />
         </div>}
@@ -227,8 +239,8 @@ function InviteCard({ invite }: { invite: InviteView }) {
         </span>
       </div>
       <p className="mt-1 text-[13.5px] text-text-muted">
-        Every friend who becomes a Supporter through your link gives you a free month (three for yearly), and the
-        milestones stack on top.
+        A reward for inviting, not a trial: every friend who becomes a paying Supporter through your link earns you
+        one month of Supporter at no charge (three if they pay yearly), and the milestones stack on top.
       </p>
 
       {/* The ladder: what each milestone gives, and how far along it you are. */}

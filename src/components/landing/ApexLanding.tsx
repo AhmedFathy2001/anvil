@@ -10,6 +10,7 @@ import { EVENT_MODES } from '@/lib/eventModes';
 import { PLANS } from '@/lib/plans';
 import { heroCounts, type ShowcaseClan } from '@/lib/landingClansRules';
 import type { PlatformStats } from '@/lib/platformStats';
+import { autoTrialDays } from '@/lib/planTrialRules';
 
 /**
  * The apex, to someone who has not signed in.
@@ -100,7 +101,7 @@ export default function ApexLanding({ stats, clans }: { stats: PlatformStats; cl
           </p>
           <p className="mt-3.5 text-[13px] text-text-dim">
             {/* The same model as the FAQ and /pricing, off the same PLANS row. */}
-            Free for clans up to {PLANS.free.memberCap} members · bigger clans get a 30-day trial ·{' '}
+            Free for clans up to {PLANS.free.memberCap} members{autoTrialDays() > 0 && ` · every new clan starts with ${autoTrialDays()} days of ${PLANS.gold.name}, no card`} ·{' '}
             <ClanLink href="/pricing" className="text-gold hover:text-gold-light">
               Pricing
             </ClanLink>

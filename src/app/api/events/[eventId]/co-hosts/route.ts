@@ -13,6 +13,7 @@ import { settlementForEvent } from '@/lib/coHostSettlement';
 import { clanCan, minPlanNameFor } from '@/lib/entitlements';
 import { creatorCan, creatorMinPlanNameFor } from '@/lib/creatorCatalog';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { withPlanInForce } from '@/lib/planTrials';
 
 export const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 export type CashPolicy = (typeof CASH_POLICIES)[number];
@@ -95,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   // clanCan is true for everyone until FREEMIUM_ENFORCED flips (lib/entitlements) — so this door is
   // wired but does not bite yet.
   // Each kind asks its own catalogue: a creator space's tier is a creator one (lib/creatorCatalog).
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, plan: true } });
+  const host = await withPlanInForce(event.clanId, await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, plan: true } }));
   const creator = isCreatorSpace(host);
   const mayHost = creator ? creatorCan(host?.plan, 'host-multi-clan') : clanCan(host?.plan, 'host-multi-clan');
   if (!mayHost) {

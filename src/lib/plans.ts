@@ -27,6 +27,31 @@ export function trialDaysFrom(raw: string | undefined): number {
  */
 export const TRIAL_DAYS = trialDaysFrom(process.env.GUMROAD_TRIAL_DAYS);
 
+/**
+ * EARLY-BIRD PRICING: one line shown beside prices everywhere (components/EarlyBirdBadge), so people
+ * who are deciding know these are the launch prices. ONE config, here:
+ *   EARLY_BIRD_PRICING=off      hides it everywhere.
+ *   EARLY_BIRD_HEADING / EARLY_BIRD_LINE   reword it.
+ *   EARLY_BIRD_PRICE_LOCK=true  adds the price-lock promise. OFF by default: it is a promise the
+ *                               owner has to keep, so it is only said once they have decided to.
+ * It never names a date, a countdown or a number of places left: none of those would be true.
+ */
+export interface EarlyBird {
+  heading: string;
+  line: string;
+  /** The price-lock sentence, or null when that promise is not being made. */
+  lock: string | null;
+}
+export const EARLY_BIRD_LOCK_LINE = 'Subscribe now and keep this price for as long as your membership stays active.';
+export function earlyBird(env: Record<string, string | undefined> = process.env): EarlyBird | null {
+  if ((env.EARLY_BIRD_PRICING ?? '').trim().toLowerCase() === 'off') return null;
+  return {
+    heading: env.EARLY_BIRD_HEADING?.trim() || 'Early-bird pricing',
+    line: env.EARLY_BIRD_LINE?.trim() || 'These are our launch prices for early clans and supporters.',
+    lock: env.EARLY_BIRD_PRICE_LOCK === 'true' ? EARLY_BIRD_LOCK_LINE : null,
+  };
+}
+
 export const PLAN_IDS = ['free', 'bronze', 'silver', 'gold', 'custom'] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
 

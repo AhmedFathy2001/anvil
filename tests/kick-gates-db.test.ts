@@ -13,6 +13,10 @@ import { and, eq } from 'drizzle-orm';
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('kick-gates');
+// What each PAID tier allows is tested here on rows that hold no trial. A new clan or space now starts
+// Anvil's own trial of the top tier (lib/planTrials; tests/billing-trials-db.test.ts covers it), which
+// would lift them all to Gold, so automatic trials are switched off for this file.
+process.env.ANVIL_PLAN_TRIAL_DAYS = '0';
 
 process.env.KICK_CLIENT_ID = 'kcid';
 process.env.KICK_CLIENT_SECRET = 'kcsecret';

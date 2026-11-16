@@ -17,6 +17,12 @@ import { verifyUser } from '@/lib/auth';
 import { track } from '@/lib/analytics';
 import { isBotUserAgent } from '@/lib/analyticsPattern';
 import { ensureSupporterRef, supporterCheckoutUrl, supporterForUser } from '@/lib/supporter';
+import { buyWording, supporterBuy, type BuyWording } from '@/lib/buyOffer';
+import { supporterPlanNotes } from '@/lib/supporterPlanNotes';
+import { SECOND_MEMBERSHIP_WARNING } from '@/lib/supporterDuplicates';
+import BuyButtons from '@/components/BuyButtons';
+import EarlyBirdBadge from '@/components/EarlyBirdBadge';
+import SupporterPlanNotes from '@/components/SupporterPlanNotes';
 import PersonalNote from '@/components/PersonalNote';
 import { anvilServerMember } from '@/lib/anvilDiscord';
 import { operatorDiscordId } from '@/lib/welcomeDm';
@@ -67,7 +73,7 @@ function friendsCell(id: SupporterTierId): Cell {
   return `${c.liveEvents} at a time · ${c.playersPerEvent} players`;
 }
 
-export default async function SupporterPage() {
+export default async function SupporterPage({ searchParams }: { searchParams: Promise<{ soon?: string }> }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const session = await verifyUser();
@@ -86,6 +92,11 @@ export default async function SupporterPage() {
     ? (await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }))?.displayName ?? null
     : null;
   const configured = !!process.env.GUMROAD_URL_SUPPORTER;
+  // Which buttons this person gets (lib/buyOffer): "Start free trial" beside "Skip trial, pay now" only
+  // for someone who has never had a trial and only while Gumroad's is on; otherwise one "Subscribe".
+  const notes = session ? await supporterPlanNotes(session.userId) : null;
+  const buttons = notes?.buttons ?? supporterBuy(false);
+  const cameBackSoon = (await searchParams).soon === '1';
   // Decoration: a failed read is a page without the wall.
   const wall = await supporterWall().catch(() => ({ total: 0, entries: [] }));
   // "This season" = this calendar quarter, so the row resets and someone new can top it.
@@ -164,6 +175,14 @@ export default async function SupporterPage() {
         )}
       </header>
 
+      {notes && <SupporterPlanNotes notes={notes} />}
+      {cameBackSoon && buttons.kind === 'soon' && (
+        <p role="status" className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-[13.5px] text-gold-light">
+          Subscribing opens soon. You have had your free trial, so a membership is charged from the first day, and that
+          checkout is not open yet. Nothing was charged.
+        </p>
+      )}
+      <EarlyBirdBadge center className="mb-4" />
       <div className="grid gap-4 sm:grid-cols-3">
         {SUPPORTER_TIER_ORDER.map((id) => (
           <TierCard
@@ -172,7 +191,8 @@ export default async function SupporterPage() {
             current={current?.tier.id === id}
             signedIn={!!session}
             me={me}
-            checkout={configured ? checkout : null}
+            wording={configured && checkout ? buyWording(buttons, { tierName: SUPPORTER_TIERS[id].name, charge: `$${SUPPORTER_TIERS[id].monthlyUsd} a month or $${SUPPORTER_TIERS[id].yearlyUsd} a year`, verb: `Choose ${SUPPORTER_TIERS[id].name}`, chargedToday: `You'll be charged today: $${SUPPORTER_TIERS[id].monthlyUsd} for a month or $${SUPPORTER_TIERS[id].yearlyUsd} for a year, whichever you pick at checkout, then the same each month or year.` }) : null}
+            warning={notes?.paying ? SECOND_MEMBERSHIP_WARNING : null}
           />
         ))}
       </div>
@@ -228,8 +248,8 @@ export default async function SupporterPage() {
       {wall.entries.length > 0 && <Wall wall={wall} />}
 
       <p className="mt-6 text-center text-[13px] text-text-dim">
-        Billed through Gumroad. Cancel any time and your perks last to the end of the term you paid for.
-        Yearly plans get two months free.
+        Billed through Gumroad, monthly or yearly: you pick at checkout. Cancel any time and your perks last to the
+        end of the term you paid for. A year costs the same as ten months.
       </p>
     </div>
   );
@@ -240,14 +260,18 @@ function TierCard({
   current,
   signedIn,
   me,
-  checkout,
+  wording,
+  warning,
 }: {
   id: SupporterTierId;
   current: boolean;
   signedIn: boolean;
   /** The viewer's own name, previewed in this tier's flair. */
   me: string | null;
-  checkout: string | null;
+  /** The buy buttons and what they do to the card (lib/buyOffer); null when checkout is not configured. */
+  wording: BuyWording | null;
+  /** For someone already paying: buying another tier is a second membership. */
+  warning: string | null;
 }) {
   const t = SUPPORTER_TIERS[id];
   return (
@@ -277,14 +301,11 @@ function TierCard({
         >
           Sign in to support
         </ClanLink>
-      ) : checkout ? (
-        <a
-          // eslint-disable-next-line clan-scope/clan-prefix -- external Gumroad checkout, never a clan path
-          href={checkout}
-          className="mt-auto rounded-lg bg-gold px-3 py-2 text-center text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
-        >
-          Choose {t.name}
-        </a>
+      ) : wording ? (
+        <div className="mt-auto flex flex-col gap-2">
+          <BuyButtons wording={wording} />
+          {warning && <p className="text-[12px] leading-relaxed text-text-dim">{warning}</p>}
+        </div>
       ) : (
         <span className="mt-auto rounded-lg border border-card-border px-3 py-2 text-center text-sm text-text-dim">
           Opening soon

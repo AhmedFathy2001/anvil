@@ -12,6 +12,8 @@ import { clanCardModel, creatorCardModel, type BillingCardModel, type OwnedBilli
 import { creatorSeatMeter } from '@/lib/creatorPlansDb';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { supporterForUser, supporterSubscriptionIdForUser, type SupporterState } from '@/lib/supporter';
+import { openExtrasForClans } from '@/lib/extraMemberships';
+import { clansWithTrialUsed, runningPlanTrials } from '@/lib/planTrials';
 
 export interface BillingPortal {
   clans: BillingCardModel[];
@@ -41,6 +43,21 @@ export async function billingPortalForUser(userId: number, now = Date.now()): Pr
     // A friends host (lib/friendEventRules) is billed by nobody: it rides on the owner's Supporter tier.
     .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner'), ne(clans.kind, 'friends')))
     .orderBy(clans.name);
+
+  // The one-trial rule, each row's trial from Anvil, and its other open memberships, in three passes.
+  const ids = owned.map((c) => c.id);
+  const [used, trials, extras] = await Promise.all([
+    clansWithTrialUsed(owned.map((c) => ({ id: c.id, trialEndsAt: c.trialEndsAt, gumroadSubscriptionId: c.subscriptionId }))),
+    runningPlanTrials(ids, now),
+    openExtrasForClans(ids),
+  ]);
+  for (const c of owned) {
+    c.trialUsed = used.has(c.id);
+    c.siteTrial = trials.get(c.id) ?? null;
+    c.extras = extras
+      .filter((e) => e.clanId === c.id)
+      .map((e) => ({ state: e.state, subscriptionId: e.gumroadSubscriptionId, plan: e.plan, trialEndsAt: e.trialEndsAt?.getTime() ?? null }));
+  }
 
   const ownedClans = owned.filter((c) => !isCreatorSpace(c));
   const ownedSpaces = owned.filter((c) => isCreatorSpace(c));

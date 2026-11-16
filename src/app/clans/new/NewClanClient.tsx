@@ -125,8 +125,9 @@ export default function NewClanClient({
         {checkoutUrl && trialPlan && (
           <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.06] p-4">
             <p className="text-sm text-gray-200">
-              One step for the {trialPlan.name} trial: start it on Gumroad. Nothing is charged for{' '}
-              {trialPlan.trialDays} days, and the clan moves to {trialPlan.name} as soon as Gumroad confirms.
+              {trialPlan.trialDays > 0
+                ? `One step for the ${trialPlan.name} free trial: start it on Gumroad. Gumroad takes your card details now and charges nothing for ${trialPlan.trialDays} days; the clan moves to ${trialPlan.name} as soon as Gumroad confirms.`
+                : `One step for ${trialPlan.name}: subscribe on Gumroad. You are charged today, and the clan moves to ${trialPlan.name} as soon as Gumroad confirms.`}
             </p>
             <a
               href={checkoutUrl}
@@ -134,7 +135,7 @@ export default function NewClanClient({
               rel="noopener noreferrer"
               className="mt-3 inline-block rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
             >
-              Start {trialPlan.trialDays}-day {trialPlan.name} trial
+              {trialPlan.trialDays > 0 ? `Start ${trialPlan.trialDays}-day ${trialPlan.name} free trial` : `Subscribe to ${trialPlan.name}`}
             </a>
             <p className="mt-2 text-[12.5px] text-text-dim">
               Skipped it? It&rsquo;s on <ClanLink href="/portal" className="underline">Billing</ClanLink> whenever you want it.

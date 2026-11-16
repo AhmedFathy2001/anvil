@@ -267,7 +267,8 @@ export function siteHosts(): string[] {
   return [...new Set(['anvilosrs.com', apexDomain().replace(/^beta\./, '')].filter(Boolean))];
 }
 
-export async function createNotice(input: NoticeInput, actorUserId: number): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+/** `actorUserId` null: a notice the site itself sends (lib/trialReminders). */
+export async function createNotice(input: NoticeInput, actorUserId: number | null): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   const title = clip(str(input.title), TITLE_MAX);
   if (!title) return { ok: false, error: 'Give it a title.' };
   const body = str(input.body).trim().slice(0, BODY_MAX);

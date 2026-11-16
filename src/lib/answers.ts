@@ -13,7 +13,8 @@
 // counts from the same tables the landing derives its figures from. No competitor is named: what we
 // can say honestly about someone else's tool is less than what a reader assumes we're saying.
 
-import { PLANS } from '@/lib/plans';
+import { PLANS, earlyBird } from '@/lib/plans';
+import { autoTrialDays } from '@/lib/planTrialRules';
 import { EVENT_MODES } from '@/lib/eventModes';
 
 export interface Faq {
@@ -35,7 +36,7 @@ export const GENERAL_FAQ: Faq[] = [
   },
   {
     q: 'Is Anvil free?',
-    a: `Clans of up to ${PLANS.free.capLabel.replace(/^Up to /, '')} can run events on the free tier, with every event format included. Bigger rosters pay by size — from ${price(PLANS.bronze.priceUsd)} a month for ${PLANS.bronze.capLabel.replace(/^Up to /, '')} up to ${price(PLANS.gold.priceUsd)} a month for ${PLANS.gold.capLabel.replace(/^Up to /, '')} — with a 30-day trial. Players never pay; the plugin is free.`,
+    a: `Clans of up to ${PLANS.free.capLabel.replace(/^Up to /, '')} can run events on the free tier, with every event format included. Bigger rosters pay by size — from ${price(PLANS.bronze.priceUsd)} a month for ${PLANS.bronze.capLabel.replace(/^Up to /, '')} up to ${price(PLANS.gold.priceUsd)} a month for ${PLANS.gold.capLabel.replace(/^Up to /, '')}.${autoTrialDays() > 0 ? ` Every new clan starts with ${autoTrialDays()} days of ${PLANS.gold.name} from Anvil, with no card.` : ''}${earlyBird() ? ` ${earlyBird()!.line}${earlyBird()!.lock ? ` ${earlyBird()!.lock}` : ''}` : ''} Players never pay; the plugin is free.`,
   },
   {
     q: 'What event formats does Anvil support?',

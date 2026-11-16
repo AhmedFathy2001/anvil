@@ -5,8 +5,11 @@
 // its own catalogue (lib/creatorCatalog) and links creator checkouts. Neither ever offers the other's
 // tiers. A tier whose checkout URL is not configured has no button, the same rule for both.
 
-import { PLANS, PLAN_IDS, TRIAL_DAYS, checkoutUrl, checkoutUrlWithRef, overMemberCap, planOf } from '@/lib/plans';
-import { CREATOR_BUYABLE, creatorCheckoutUrl, creatorCheckoutUrlWithRef, creatorPlanOf } from '@/lib/creatorCatalog';
+import { PLANS, PLAN_IDS, checkoutUrl, overMemberCap, planOf, type Plan } from '@/lib/plans';
+import { CREATOR_BUYABLE, creatorCheckoutUrl, creatorPlanOf, type CreatorPlan } from '@/lib/creatorCatalog';
+import { buyWording, chargeText, clanBuy, creatorBuy } from '@/lib/buyOffer';
+import { tierNameOf } from '@/lib/planTrialRules';
+import { SECOND_MEMBERSHIP_WARNING } from '@/lib/supporterDuplicates';
 import { creatorPlanCard, type SeatMeter } from '@/lib/creatorPlans';
 import { billingStatus, subscriptionFacts } from '@/lib/clanBilling';
 
@@ -22,6 +25,28 @@ export interface OwnedBillingRow {
   cancelAtPeriodEnd: boolean;
   subscriptionId: string | null;
   gumroadRef: string | null;
+  /**
+   * It has had its one trial (Anvil's own, Gumroad's, or a membership): its buttons open the pay-now
+   * product only (lib/planTrials clansWithTrialUsed). Absent reads as not used.
+   */
+  trialUsed?: boolean;
+  /** Its running trial from Anvil (lib/planTrials), if any. */
+  siteTrial?: { tier: string; endsAt: number } | null;
+  /** Its other open Gumroad memberships (lib/extraMemberships): the older one to cancel, or one waiting for its first charge. */
+  extras?: { state: string; subscriptionId: string; plan: string; trialEndsAt: number | null }[];
+}
+
+/** A checkout button as the portal draws it. */
+export interface CardButton {
+  label: string;
+  /** Null with `soon`: this row has had its trial and the pay-now checkout is not configured yet. */
+  href: string | null;
+  detail: string;
+  soon?: boolean;
+  /** "Skip trial, pay now", beside a "Start free trial" button. */
+  skipHref?: string | null;
+  /** What pressing it does to their card, said before they press. */
+  note?: string;
 }
 
 export interface BillingCardModel {
@@ -46,13 +71,55 @@ export interface BillingCardModel {
   /** Orange warning: the roster / biggest event has outgrown the tier. */
   overLine: string | null;
   /** The one button: a checkout from the row's own catalogue. Null when none fits or none is configured. */
-  upgrade: { label: string; href: string; detail: string } | null;
+  upgrade: CardButton | null;
   /** Every other tier above the current one, each its own checkout: the button is a suggestion, not the only way up. */
   others: { label: string; href: string; detail: string }[];
   /** The Gumroad membership behind it, ended or not — its manage page updates the card, cancels or restarts. */
   subscriptionId: string | null;
   /** On free with nothing to offer yet. */
   freeNote: string | null;
+  /** A trial from Anvil running on it: the tier lent, and when it ends (the admin plan page has the detail). */
+  siteTrial: { tierName: string; endsAt: number } | null;
+  /** Older memberships still charging after an upgrade purchase: each needs cancelling on Gumroad. */
+  toCancel: { subscriptionId: string; tierName: string }[];
+  /** A second membership in Gumroad's free period that takes over at its first payment. */
+  waiting: { subscriptionId: string; tierName: string; startsAt: number | null } | null;
+  /** When a held membership's first payment is due (`held`). */
+  heldStartsAt: number | null;
+}
+
+/** The extra-membership and trial fields of a card, the same for both catalogues. */
+function extrasOf(row: OwnedBillingRow, now: number): Pick<BillingCardModel, 'siteTrial' | 'toCancel' | 'waiting' | 'heldStartsAt'> {
+  const extras = row.extras ?? [];
+  const wait = extras.find((e) => e.state === 'waiting');
+  const trialEnd = row.trialEndsAt ? Date.parse(row.trialEndsAt) : NaN;
+  return {
+    siteTrial: row.siteTrial && row.siteTrial.endsAt > now ? { tierName: tierNameOf(row.kind, row.siteTrial.tier), endsAt: row.siteTrial.endsAt } : null,
+    toCancel: extras.filter((e) => e.state === 'to_cancel').map((e) => ({ subscriptionId: e.subscriptionId, tierName: tierNameOf(row.kind, e.plan) })),
+    waiting: wait ? { subscriptionId: wait.subscriptionId, tierName: tierNameOf(row.kind, wait.plan), startsAt: wait.trialEndsAt } : null,
+    heldStartsAt: Number.isFinite(trialEnd) ? trialEnd : null,
+  };
+}
+
+/**
+ * One tier's button for this row, by the one-trial rule (lib/buyOffer): a row that has had its trial
+ * gets the pay-now checkout or "Subscribing opens soon"; one that has not gets the original product
+ * (Gumroad's trial when that is on) with "Skip trial, pay now" beside it.
+ */
+function buttonFor(row: OwnedBillingRow, tier: Plan | CreatorPlan, label: string, detail: string, moving: boolean): CardButton | null {
+  const buttons = row.kind === 'creator' ? creatorBuy(tier as CreatorPlan, row.gumroadRef, 'monthly', !!row.trialUsed) : clanBuy(tier as Plan, row.gumroadRef, 'monthly', !!row.trialUsed);
+  const wording = buyWording(buttons, { tierName: tier.name, charge: chargeText(tier.priceUsd ?? 0), verb: label });
+  if (!wording) return null;
+  // Moving between paid tiers is a NEW membership: said in one line before they buy.
+  const note = moving && wording.primary.href ? `${wording.note} ${SECOND_MEMBERSHIP_WARNING}` : wording.note;
+  return {
+    label: buttons.kind === 'trial' ? `${wording.primary.label}: ${tier.name}` : wording.primary.label,
+    href: wording.primary.href,
+    detail,
+    soon: buttons.kind === 'soon',
+    skipHref: wording.secondary?.href ?? null,
+    note,
+  };
 }
 
 function trialOf(row: OwnedBillingRow, now: number): { onTrial: boolean; trialDaysLeft: number } {
@@ -92,18 +159,22 @@ export function clanCardModel(row: OwnedBillingRow, members: number, now = Date.
   const renewing = lapsed && plan.priceUsd !== 0 && paid.includes(plan);
   const higher = renewing ? plan : overCap && fits ? fits : paid.find((p) => plan.memberCap != null && p.memberCap! > plan.memberCap);
   const cap = plan.memberCap == null ? '∞' : plan.memberCap.toLocaleString('en-US');
-  const href = higher && !held ? checkoutUrlWithRef(higher, row.gumroadRef) : null;
+  const upgrade =
+    higher && !held
+      ? buttonFor(row, higher, buttonLabel(higher.name, { renewing, lapsed, onTrial, hasSubscription }), `up to ${higher.memberCap?.toLocaleString('en-US')} members`, hasSubscription && !renewing)
+      : null;
   // The other tiers above this one that still hold the roster (never while a trial is held or a renewal is due).
   const others =
-    held || renewing || !href
+    held || renewing || !upgrade?.href
       ? []
       : paid
           .filter((p) => p !== higher && plan.memberCap != null && p.memberCap! > plan.memberCap && p.memberCap! >= members)
           .flatMap((p) => {
-            const to = checkoutUrlWithRef(p, row.gumroadRef);
+            const to = buttonFor(row, p, p.name, '', false)?.href;
             return to ? [{ label: p.name, href: to, detail: `up to ${p.memberCap?.toLocaleString('en-US')} members · $${p.priceUsd}/mo` }] : [];
           });
   return {
+    ...extrasOf(row, now),
     id: row.id,
     slug: row.slug,
     name: row.name,
@@ -120,15 +191,9 @@ export function clanCardModel(row: OwnedBillingRow, members: number, now = Date.
     overLine: overCap
       ? `This roster is over the ${plan.name} cap of ${cap}. Nothing breaks and nobody is removed — but the next tier gives you room.`
       : null,
-    upgrade:
-      higher && href
-        ? { label: buttonLabel(higher.name, { renewing, lapsed, onTrial, hasSubscription }), href, detail: `up to ${higher.memberCap?.toLocaleString('en-US')} members` }
-        : null,
+    upgrade,
     subscriptionId: row.subscriptionId,
-    freeNote:
-      !higher && plan.priceUsd === 0 && !onTrial
-        ? `On the free tier. Your ${TRIAL_DAYS}-day trial of the paid tiers is available whenever your roster needs it.`
-        : null,
+    freeNote: !higher && plan.priceUsd === 0 && !onTrial ? 'On the free tier. Paid tiers add room for a bigger roster whenever you need it.' : null,
   };
 }
 
@@ -159,15 +224,24 @@ export function creatorCardModel(
   // A creator space moves up by players at once across its events (creatorPlanCard.next), never by roster size.
   const higher = renewing ? plan : card.next ? (paid.find((p) => p.id === card.next!.id) ?? null) : null;
   const capText = card.playersCap == null ? '∞' : card.playersCap.toLocaleString('en-US');
-  const href = higher && !held ? creatorCheckoutUrlWithRef(higher, row.gumroadRef) : null;
+  const upgrade =
+    higher && !held
+      ? buttonFor(
+          row,
+          higher,
+          buttonLabel(higher.name, { renewing, lapsed, onTrial, hasSubscription }),
+          [higher.playersPerEvent != null ? `up to ${higher.playersPerEvent.toLocaleString('en-US')} players at once` : null, ...(renewing ? [] : higher.perks)].filter(Boolean).join(' · '),
+          hasSubscription && !renewing,
+        )
+      : null;
   // The other creator tiers above this one (never while a trial is held or a renewal is due).
   const others =
-    held || renewing || !href
+    held || renewing || !upgrade?.href
       ? []
       : paid
           .filter((p) => p !== higher && (p.priceUsd ?? 0) > (plan.priceUsd ?? 0))
           .flatMap((p) => {
-            const to = creatorCheckoutUrlWithRef(p, row.gumroadRef);
+            const to = buttonFor(row, p, p.name, '', false)?.href;
             return to
               ? [{ label: p.name, href: to, detail: [p.playersPerEvent != null ? `up to ${p.playersPerEvent.toLocaleString('en-US')} players at once` : null, `$${p.priceUsd}/mo`].filter(Boolean).join(' · ') }]
               : [];
@@ -177,6 +251,7 @@ export function creatorCardModel(
     slug: row.slug,
     name: row.name,
     creator: true,
+    ...extrasOf(row, now),
     others,
     tierName: card.planName,
     priceUsd: plan.priceUsd,
@@ -193,23 +268,8 @@ export function creatorCardModel(
     overLine: card.over
       ? `${overWhat(meter)} more players at once than ${card.planName} allows. Everyone still gets in for now — the next tier gives you room.`
       : null,
-    upgrade:
-      higher && href
-        ? {
-            label: buttonLabel(higher.name, { renewing, lapsed, onTrial, hasSubscription }),
-            href,
-            detail: [
-              higher.playersPerEvent != null ? `up to ${higher.playersPerEvent.toLocaleString('en-US')} players at once` : null,
-              ...(renewing ? [] : higher.perks),
-            ]
-              .filter(Boolean)
-              .join(' · '),
-          }
-        : null,
+    upgrade,
     subscriptionId: row.subscriptionId,
-    freeNote:
-      !higher && free && !onTrial
-        ? `On the free tier. Your ${TRIAL_DAYS}-day trial of the paid tiers is available whenever your events need it.`
-        : null,
+    freeNote: !higher && free && !onTrial ? 'On the free tier. Paid tiers add room for more players whenever your events need it.' : null,
   };
 }

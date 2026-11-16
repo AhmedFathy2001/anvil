@@ -17,6 +17,7 @@ import ClanBoostGift from './ClanBoostGift';
 import StaffTransferNow from './StaffTransferNow';
 import OwnershipTransfersClient from '../../ownership/OwnershipTransfersClient';
 import { idParam } from '@/lib/routeIds';
+import ClanTrialFacts from './ClanTrialFacts';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,11 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   // The query already took a clan filter; nothing had ever passed it one.
   const actions = await platformActions(20, { clanId: clan.id });
   const canWrite = hasPlatformRole(actor.role, 'staff');
+  // The billing columns the trial facts need, read straight from the row (lib/planTrials).
+  const trialRow = await db.query.clans.findFirst({
+    where: eq(clans.id, clan.id),
+    columns: { id: true, kind: true, plan: true, inGameName: true, trialEndsAt: true, gumroadSubscriptionId: true, gumroadRef: true },
+  });
   // clan-scope: this clan -- its own row, by id.
   const own = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true, foundVia: true, foundViaNote: true } });
   const hidden = !!own?.platformHidden;
@@ -224,6 +230,10 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
           </p>
         </Section>
       )}
+
+      <Section title="Plan trial and other memberships">
+        <ClanTrialFacts clan={trialRow ?? { id: clan.id, kind: 'clan', plan: 'free', inGameName: null, trialEndsAt: null, gumroadSubscriptionId: null, gumroadRef: null }} canGrant={hasPlatformRole(actor.role, 'root')} />
+      </Section>
 
       {canWrite && (
         <Section title="Gifted clan boost">

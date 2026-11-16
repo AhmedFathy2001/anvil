@@ -15,6 +15,7 @@ import CreatorPlanCard from './CreatorPlanCard';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { eventIsFull } from '@/lib/creatorPlans';
 import { hostEventSeats } from '@/lib/creatorPlansDb';
+import PlanTrialPanel from '@/components/PlanTrialPanel';
 
 function when(stamp: string | null): string {
   if (!stamp) return 'Not scheduled';
@@ -30,13 +31,16 @@ export default async function CreatorDashboard({
   clanId,
   setup,
   clanPlan,
+  paidPlan,
   canBuy,
   billing = 'monthly',
 }: {
   clanId: number;
   setup: SetupStatus;
-  /** clans.plan — a creator catalogue id (lib/creatorCatalog), never a clan tier. */
+  /** The plan IN FORCE — a creator catalogue id (lib/creatorCatalog), never a clan tier. A running trial from Anvil counts. */
   clanPlan: string;
+  /** clans.plan: what the space pays for. */
+  paidPlan: string;
   /** Admin or owner: may see the checkout button. */
   canBuy: boolean;
   /** ?billing= on the dashboard (from /pricing's switch): which price the plan card leads with. */
@@ -136,7 +140,10 @@ export default async function CreatorDashboard({
         </div>
       )}
       <div className="mt-8">
-        <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} canBuy={canBuy} billing={billing} />
+        <PlanTrialPanel clan={{ id: clanId, kind: 'creator', paidPlan }} billing={billing} canBuy={canBuy} />
+      </div>
+      <div className="mt-4">
+        <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} paidPlan={paidPlan} canBuy={canBuy} billing={billing} />
       </div>
 
       <div className="mt-8">

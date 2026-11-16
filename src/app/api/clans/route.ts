@@ -15,6 +15,7 @@ import { PLANS, checkoutUrlWithRef } from '@/lib/plans';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { parseBillingInterval } from '@/lib/billingInterval';
 import { welcomeLater } from '@/lib/welcomeDm';
+import { autoTrialDays } from '@/lib/planTrialRules';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -165,8 +166,10 @@ export async function POST(request: Request) {
   const picked = typeof body.plan === 'string' ? PLANS[body.plan as keyof typeof PLANS] : undefined;
   // `billing: 'yearly'` (the /pricing switch) takes the yearly checkout; unconfigured → the monthly one.
   const billing = parseBillingInterval(typeof body.billing === 'string' ? body.billing : null);
+  // Not while automatic trials are on: the clan just started Anvil's own trial with no card, and a
+  // clan that has had a trial is never sent to the product that starts Gumroad's (lib/buyOffer).
   const checkoutUrl =
-    freemiumEnforced() && picked?.priceUsd
+    autoTrialDays() <= 0 && freemiumEnforced() && picked?.priceUsd
       ? (billing === 'yearly' ? checkoutUrlWithRef(picked, row?.gumroadRef, 'yearly') : null) ?? checkoutUrlWithRef(picked, row?.gumroadRef)
       : null;
 

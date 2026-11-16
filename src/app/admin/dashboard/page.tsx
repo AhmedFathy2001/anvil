@@ -35,6 +35,7 @@ import { openRequestCountForClan } from '@/lib/accountChangeRequests';
 import { capacityFrom, clanEventPool, eventParticipantCounts } from '@/lib/webhookCapacity';
 import { clanBlockedWebhookUses } from '@/lib/sharedWebhooks';
 import { parseEventDiscordPrefs } from '@/lib/discordPostPolicy';
+import PlanTrialPanel from '@/components/PlanTrialPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
         clanId={clan.id}
         setup={setup}
         clanPlan={clan.plan}
+        paidPlan={clan.paidPlan}
         canBuy={!!session && atLeast(session.role, 'admin')}
         billing={parseBillingInterval((await searchParams).billing)}
       />
@@ -493,6 +495,12 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       </header>
 
       {!creator && <MemberCapNotice status={capStatus} />}
+      {/* The clan's trial from Anvil: the tier, the end date, and the one way to keep it (lib/planTrials). */}
+      {!creator && (
+        <div className="mb-6">
+          <PlanTrialPanel clan={clan} canBuy={!!session && atLeast(session.role, 'owner')} planHref={await clanHref('/admin/plan')} />
+        </div>
+      )}
 
       {/* The owner's guide (lib/guidedFlows/clanSetup), for admins: every button leads to a page only
           they can open. It stays until every step is done; "Hide" in the old checklist or "Skip" in the

@@ -12,6 +12,7 @@ import { clanStaff, clans } from '@/db/schema';
 import { operatorDiscordId } from '@/lib/welcomeDm';
 import { and, eq } from 'drizzle-orm';
 import NewClanClient from './NewClanClient';
+import { autoTrialDays } from '@/lib/planTrialRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +43,12 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
   const picked = planParam ? PLANS[planParam as keyof typeof PLANS] : undefined;
   const wanted = parseBillingInterval(billingParam);
   const billing: BillingInterval = picked && wanted === 'yearly' && checkoutUrl(picked, 'yearly') ? 'yearly' : 'monthly';
+  // Every new clan starts Anvil's own trial with no card (lib/planTrials), so while those are on the
+  // form never ends on a checkout: the clan subscribes later from its plan page, with the pay-now
+  // product. Only with automatic trials off does a picked tier go on to its checkout.
+  const autoDays = autoTrialDays();
   const trialPlan =
-    freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
+    autoDays <= 0 && freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
       ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS, billing }
       : null;
 
@@ -67,8 +72,14 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
       <p className="mt-1 text-sm text-gray-400">
         {trialPlan ? (
           <>
-            Make the clan first — it&rsquo;s live the moment you press the button. Then you&rsquo;ll start your{' '}
-            {TRIAL_DAYS}-day {trialPlan.name} trial on Gumroad.
+            Make the clan first — it&rsquo;s live the moment you press the button. Then you&rsquo;ll{' '}
+            {TRIAL_DAYS > 0 ? `start your ${TRIAL_DAYS}-day ${trialPlan.name} free trial on Gumroad.` : `subscribe to ${trialPlan.name} on Gumroad.`}
+          </>
+        ) : autoDays > 0 ? (
+          <>
+            Live the moment you press the button, with no card. Your clan starts with {autoDays} days of {PLANS.gold.name} from
+            Anvil; after that it is on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}) unless you subscribe. Add members
+            with the RuneLite plugin&rsquo;s roster sync, or by hand.
           </>
         ) : (
           <>
