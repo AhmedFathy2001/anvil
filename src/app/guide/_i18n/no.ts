@@ -421,7 +421,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'De ber om å bli med',
-          body: 'Medlemmer kommer bare fra medlemslista di i spillet. Ser pluginet noen spille i klanen din i spillet før medlemslista di har dem, oppretter det en forespørsel om å bli med for dem, som staben svarer på øverst i **Roster**-fanen. Alle andre kan trykke **Apply** på klansiden sin med RSN-et sitt i spillet: den som bekrefter karakteren med pluginet eller XP-sjekken, blir gjest med en gang, og den som ber staben din om å gå god for seg, blir lagt til som gjest og holdt under **Needs review** til du svarer. Setter du **Who can join** til stengt, stanser alt dette. Den som spiller en karakter som allerede står på medlemslista di, blir i stedet bekreftet under **Needs review**. Detaljene står i [Folkene dine]({peopleGuide}).',
+          body: 'Medlemmer kommer bare fra medlemslista di i spillet. Ser pluginet noen spille i klanen din i spillet før medlemslista di har dem, oppretter det en forespørsel om å bli med for dem, som staben svarer på øverst i **Roster**-fanen. Alle andre kan trykke **Apply** på klansiden sin med RSN-et sitt i spillet: den som bekrefter karakteren med pluginet eller XP-sjekken, blir gjest med en gang, og den som ber staben din om å gå god for seg, følger **Who can join**: der gjester må godkjennes er det en forespørsel om å bli med, og de har ingen plass før du godtar den; der gjester slipper inn fritt, blir de lagt til som gjest. Begge veier holdes de under **Needs review** til du går god for dem. Setter du **Who can join** til stengt, stanser alt dette. Den som spiller en karakter som allerede står på medlemslista di, blir i stedet bekreftet under **Needs review**. Detaljene står i [Folkene dine]({peopleGuide}).',
         },
         {
           term: 'For hånd',
@@ -865,10 +865,10 @@ const no: PartialGuideDict = {
         'På mobil eller i den offisielle klienten bruker du [Settings → Characters → Link a character](/settings/characters#link-account) i stedet:',
       noPluginOptions: [
         '**Verify by XP** — skriv inn RSN-et ditt, nettstedet velger en tilfeldig ferdighet, og du skal tjene 1 000 XP i den innen 30 minutter.',
-        '**Manual review** — for skjulte Hiscores eller helt nye altkontoer: be staben i klanen om å gå god for RSN-et ditt på klansiden. Du kan melde deg på arrangementene deres med en gang, og påmeldingen din holdes til de svarer.',
+        '**Manual review** — for skjulte Hiscores eller helt nye altkontoer: be staben i klanen om å gå god for RSN-et ditt på klansiden. Hvis klanen godkjenner gjestene sine først, kan du melde deg på arrangementene deres når staben har godtatt forespørselen din. Påmeldingen din holdes til de bekrefter karakteren.',
       ],
       signupNote:
-        'Du kan melde deg på et event så snart du har oppgitt karakteren din. Med pluginet eller en bestått XP-sjekk er du med med en gang. Ba du staben om å gå god for deg, holdes påmeldingen din til de svarer.',
+        'Du kan melde deg på et event så snart du har oppgitt karakteren din. Med pluginet eller en bestått XP-sjekk er du med med en gang. Ba du staben om å gå god for deg, kan du melde deg på når klanen har godtatt deg som gjest, og påmeldingen din holdes til de bekrefter karakteren.',
     },
 
     working: {
@@ -2703,7 +2703,7 @@ const no: PartialGuideDict = {
     verify: {
       title: 'Å verifisere kontoer',
       intro:
-        'Folk kan melde seg på med en gang, men den som ba deg om å gå god for seg, holdes til du svarer her: påmeldt, uten lag. Så denne køen hindrer folk direkte i å spille. Det er den som er verdt å tømme daglig.',
+        'Folk kan melde seg på med en gang, men den som ba deg om å gå god for seg, venter på deg: på forespørselen sin der gjestene dine må godkjennes, og så holdes til du går god for dem her: påmeldt, uten lag. Så denne køen hindrer folk direkte i å spille. Det er den som er verdt å tømme daglig.',
       rows: [
         {
           term: 'Verifisert via pluginet',
@@ -2715,7 +2715,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Manuell gjennomgang',
-          body: 'skjulte Hiscores, eller en altkonto som er for ny til å stå der. Noen ber deg om å gå god for et RSN, og du avgjør. De blir lagt til som gjest med en gang og kan melde seg på, men påmeldingene deres holdes, uten lag, til du godkjenner. Godkjenner du dem, blir de fullført, og **Not our member** trekker dem tilbake. Be om et skjermbilde av innloggingsskjermen hvis du er usikker.',
+          body: 'skjulte Hiscores, eller en altkonto som er for ny til å stå der. Noen ber deg om å gå god for et RSN, og du avgjør. Der gjestene dine må godkjennes sender de først en forespørsel om å bli med og har ingen plass før du godtar den; der gjester slipper inn fritt, blir de lagt til som gjest med en gang. Når de er gjest, kan de melde seg på, men påmeldingene deres holdes, uten lag, til du godkjenner. Godkjenner du dem, blir de fullført, og **Not our member** trekker dem tilbake. Be om et skjermbilde av innloggingsskjermen hvis du er usikker.',
         },
       ],
       note: {

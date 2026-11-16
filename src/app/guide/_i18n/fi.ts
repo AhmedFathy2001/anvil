@@ -420,7 +420,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'He pyytävät päästä mukaan',
-          body: 'Jäsenet tulevat vain pelin sisäisestä jäsenlistastasi. Jos plugin näkee jonkun pelaavan klaanissasi pelissä ennen kuin jäsenlistallasi on hänet, se tekee hänen puolestaan liittymispyynnön, johon henkilökunta vastaa **Roster**-välilehden yläosassa. Kuka tahansa muu voi painaa klaanisivullasi **Apply**-painiketta pelinimellään: joku, joka vahvistaa hahmonsa pluginilla tai XP-tarkistuksella, tulee heti vieraaksi, ja joku, joka pyytää henkilökuntaa takaamaan hänet, lisätään vieraaksi ja pidetään kohdassa **Needs review**, kunnes vastaat. Kun **Who can join** on asetettu suljetuksi, kaikki tämä pysähtyy. Joku, joka pelaa jo jäsenlistallasi olevaa hahmoa, vahvistetaan sen sijaan kohdassa **Needs review**. Yksityiskohdat ovat oppaassa [Väkesi]({peopleGuide}).',
+          body: 'Jäsenet tulevat vain pelin sisäisestä jäsenlistastasi. Jos plugin näkee jonkun pelaavan klaanissasi pelissä ennen kuin jäsenlistallasi on hänet, se tekee hänen puolestaan liittymispyynnön, johon henkilökunta vastaa **Roster**-välilehden yläosassa. Kuka tahansa muu voi painaa klaanisivullasi **Apply**-painiketta pelinimellään: joku, joka vahvistaa hahmonsa pluginilla tai XP-tarkistuksella, tulee heti vieraaksi, ja joku, joka pyytää henkilökuntaa takaamaan hänet, seuraa kohtaa **Who can join**: jos vieraat tarvitsevat hyväksynnän, se on liittymispyyntö, eikä hänellä ole paikkaa ennen kuin hyväksyt sen, ja jos vieraat päästetään vapaasti sisään, hänet lisätään vieraaksi. Molemmin tavoin hänet pidetään kohdassa **Needs review**, kunnes takaat hänet. Kun **Who can join** on asetettu suljetuksi, kaikki tämä pysähtyy. Joku, joka pelaa jo jäsenlistallasi olevaa hahmoa, vahvistetaan sen sijaan kohdassa **Needs review**. Yksityiskohdat ovat oppaassa [Väkesi]({peopleGuide}).',
         },
         {
           term: 'Käsin',
@@ -864,10 +864,10 @@ const fi: PartialGuideDict = {
         'Mobiililla tai virallisella asiakasohjelmalla käytä sen sijaan [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — syötä RSN:si, sivusto valitsee satunnaisen taidon, ja sinun on ansaittava siinä 1 000 XP 30 minuutin sisällä.',
-        '**Manual review** — piilotetuille Hiscoresille tai aivan uusille alt-tileille: pyydä klaanin sivulla sen henkilökuntaa takaamaan RSN:si. Voit ilmoittautua sen tapahtumiin heti, ja ilmoittautumisesi pidetään odottamassa, kunnes he vastaavat.',
+        '**Manual review** — piilotetuille Hiscoresille tai aivan uusille alt-tileille: pyydä klaanin sivulla sen henkilökuntaa takaamaan RSN:si. Jos klaani hyväksyy vieraansa ensin, voit ilmoittautua sen tapahtumiin, kun sen henkilökunta hyväksyy liittymispyyntösi. Ilmoittautumisesi pidetään odottamassa, kunnes he vahvistavat hahmon.',
       ],
       signupNote:
-        'Voit ilmoittautua tapahtumaan heti, kun olet nimennyt hahmosi. Pluginilla tai läpäistyn XP-tarkistuksen jälkeen olet mukana heti. Jos pyysit henkilökuntaa takaamaan sinut, ilmoittautumisesi pidetään odottamassa, kunnes he vastaavat.',
+        'Voit ilmoittautua tapahtumaan heti, kun olet nimennyt hahmosi. Pluginilla tai läpäistyn XP-tarkistuksen jälkeen olet mukana heti. Jos pyysit henkilökuntaa takaamaan sinut, voit ilmoittautua, kun klaani on hyväksynyt sinut vieraaksi, ja ilmoittautumisesi pidetään odottamassa, kunnes he vahvistavat hahmon.',
     },
 
     working: {
@@ -2468,7 +2468,7 @@ const fi: PartialGuideDict = {
     verify: {
       title: 'Tilien vahvistaminen',
       intro:
-        'Ihmiset voivat ilmoittautua heti, mutta joku, joka pyysi sinua takaamaan hänet, pidetään odottamassa, kunnes vastaat tässä: ilmoittautuneena, ilman joukkuetta. Tämä jono siis suoraan estää ihmisiä pelaamasta. Tämä on se, jonka kannattaa tyhjentää päivittäin.',
+        'Ihmiset voivat ilmoittautua heti, mutta joku, joka pyysi sinua takaamaan hänet, odottaa sinua: hänen liittymispyyntöään, jos vieraat tarvitsevat hyväksynnän, ja sen jälkeen hänet pidetään täällä, kunnes takaat hänet, ilmoittautuneena mutta ilman joukkuetta. Tämä jono siis suoraan estää ihmisiä pelaamasta. Tämä on se, jonka kannattaa tyhjentää päivittäin.',
       rows: [
         {
           term: 'Vahvistettu pluginilla',
@@ -2480,7 +2480,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Manuaalinen tarkistus',
-          body: 'piilotetut Hiscoresit, tai alt-tili, joka on liian uusi näkyäkseen niissä. Joku pyytää sinua takaamaan RSN:n, ja sinä päätät. Hänet lisätään heti vieraaksi ja hän voi ilmoittautua, mutta hänen ilmoittautumisiaan pidetään odottamassa ilman joukkuetta, kunnes hyväksyt ne. Hyväksyminen viimeistelee hänet, ja **Not our member** peruu sen. Pyydä kuvakaappaus kirjautumisruudusta, jos et ole varma.',
+          body: 'piilotetut Hiscoresit, tai alt-tili, joka on liian uusi näkyäkseen niissä. Joku pyytää sinua takaamaan RSN:n, ja sinä päätät. Jos vieraat tarvitsevat hyväksynnän, he lähettävät ensin liittymispyynnön eivätkä saa paikkaa ennen kuin hyväksyt sen; jos vieraat päästetään vapaasti sisään, hänet lisätään vieraaksi heti. Kun hän on vieras, hän voi ilmoittautua, mutta hänen ilmoittautumisiaan pidetään odottamassa ilman joukkuetta, kunnes hyväksyt ne. Hyväksyminen viimeistelee hänet, ja **Not our member** peruu sen. Pyydä kuvakaappaus kirjautumisruudusta, jos et ole varma.',
         },
       ],
       note: {

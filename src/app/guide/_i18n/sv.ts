@@ -420,7 +420,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'De ansöker om att gå med',
-          body: 'Medlemmar kommer bara från din medlemslista i spelet. Ser pluginet någon spela i din klan i spelet innan din medlemslista har hen, skapar det en ansökan om att gå med åt hen, och staben svarar på den överst på fliken **Roster**. Alla andra kan trycka på **Apply** på er klansida med sitt namn i spelet: den som bekräftar karaktären med pluginet eller XP-testet blir direkt gäst, och den som ber staben gå i god för hen läggs till som gäst och hålls under **Needs review** tills du svarar. Sätter du **Who can join** till stängd stoppas allt detta. Den som spelar en karaktär som redan står på din medlemslista bekräftas i stället under **Needs review**. Detaljerna finns i [Dina medlemmar]({peopleGuide}).',
+          body: 'Medlemmar kommer bara från din medlemslista i spelet. Ser pluginet någon spela i din klan i spelet innan din medlemslista har hen, skapar det en ansökan om att gå med åt hen, och staben svarar på den överst på fliken **Roster**. Alla andra kan trycka på **Apply** på er klansida med sitt namn i spelet: den som bekräftar karaktären med pluginet eller XP-testet blir direkt gäst, och den som ber staben gå i god för hen följer **Who can join**: där gäster måste godkännas är det en ansökan om att gå med, och hen har ingen plats förrän du godkänt den; där gäster släpps in fritt läggs hen till som gäst. Båda vägarna hålls under **Needs review** tills du går i god för hen. Sätter du **Who can join** till stängd stoppas allt detta. Den som spelar en karaktär som redan står på din medlemslista bekräftas i stället under **Needs review**. Detaljerna finns i [Dina medlemmar]({peopleGuide}).',
         },
         {
           term: 'För hand',
@@ -865,10 +865,10 @@ const sv: PartialGuideDict = {
         'På mobil eller i den officiella klienten använder du [Settings → Characters → Link a character](/settings/characters#link-account) i stället:',
       noPluginOptions: [
         '**Verify by XP** — skriv in ditt RSN, sajten väljer en slumpmässig färdighet, och du ska tjäna 1 000 XP i den inom 30 minuter.',
-        '**Manual review** — för dolda Hiscores eller helt nya altkonton: be staben i klanen att gå i god för ditt RSN. Du kan anmäla dig till deras event direkt, och anmälan hålls tills de svarat.',
+        '**Manual review** — för dolda Hiscores eller helt nya altkonton: be staben i klanen att gå i god för ditt RSN. Om klanen godkänner sina gäster först kan du anmäla dig till deras event när staben har godkänt din ansökan. Din anmälan hålls tills de har bekräftat karaktären.',
       ],
       signupNote:
-        'Du kan anmäla dig till ett event så snart du har namngett din karaktär. Med pluginet eller ett godkänt XP-test är du med direkt. Bad du staben gå i god för dig hålls din anmälan tills de svarat.',
+        'Du kan anmäla dig till ett event så snart du har namngett din karaktär. Med pluginet eller ett godkänt XP-test är du med direkt. Bad du staben gå i god för dig kan du anmäla dig när klanen har godkänt dig som gäst, och din anmälan hålls tills de bekräftat karaktären.',
     },
 
     working: {
@@ -2703,7 +2703,7 @@ const sv: PartialGuideDict = {
     verify: {
       title: 'Att verifiera konton',
       intro:
-        'Folk kan anmäla sig direkt, men någon som bett dig gå i god för hen hålls kvar tills du svarat här: anmäld, men på inget lag. Så den här kön hindrar folk direkt från att spela. Det är den värd att tömma dagligen.',
+        'Folk kan anmäla sig direkt, men någon som bett dig gå i god för hen väntar på dig: på sin ansökan om att gå med där dina gäster måste godkännas, och sedan hålls hen kvar här tills du gått i god för hen: anmäld, men på inget lag. Så den här kön hindrar folk direkt från att spela. Det är den värd att tömma dagligen.',
       rows: [
         {
           term: 'Verifierat via pluginet',
@@ -2715,7 +2715,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Manuell granskning',
-          body: 'dolda Hiscores, eller ett altkonto som är för nytt för att synas där. Någon ber dig gå i god för ett RSN och du avgör. De läggs till som gäst direkt och kan anmäla sig, men deras anmälningar hålls, utan lag, tills du godkänner. Godkänner du blir de klara, och **Not our member** drar tillbaka dem. Be om en skärmbild av inloggningsskärmen om du inte är säker.',
+          body: 'dolda Hiscores, eller ett altkonto som är för nytt för att synas där. Någon ber dig gå i god för ett RSN och du avgör. Där dina gäster måste godkännas skickar de först en ansökan om att gå med och har ingen plats förrän du godkänner den; där gäster släpps in fritt läggs de till som gäst direkt. När de är gäster kan de anmäla sig, men deras anmälningar hålls, utan lag, tills du godkänner. Godkänner du blir de klara, och **Not our member** drar tillbaka dem. Be om en skärmbild av inloggningsskärmen om du inte är säker.',
         },
       ],
       note: {

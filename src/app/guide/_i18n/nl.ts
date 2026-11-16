@@ -421,7 +421,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Ze vragen om te joinen',
-          body: 'Leden komen alleen van je ledenlijst in het spel. Ziet de plugin iemand spelen in je clan in het spel voordat je ledenlijst hem heeft, dan dient hij een joinverzoek voor hem in, dat de staf bovenaan het **Roster**-tabblad beantwoordt. Ieder ander kan met zijn RSN op **Apply** drukken op je clanpagina: iemand die het character bevestigt met de plugin of de XP-controle wordt meteen gast, en iemand die de staf vraagt hem in te staan wordt als gast toegevoegd en blijft onder **Needs review** staan tot je antwoordt. **Who can join** op gesloten zetten stopt dat allemaal. Wie een character speelt dat al op je ledenlijst staat, wordt in plaats daarvan bevestigd onder **Needs review**. De details staan in [Je mensen]({peopleGuide}).',
+          body: 'Leden komen alleen van je ledenlijst in het spel. Ziet de plugin iemand spelen in je clan in het spel voordat je ledenlijst hem heeft, dan dient hij een joinverzoek voor hem in, dat de staf bovenaan het **Roster**-tabblad beantwoordt. Ieder ander kan met zijn RSN op **Apply** drukken op je clanpagina: iemand die het character bevestigt met de plugin of de XP-controle wordt meteen gast, en iemand die de staf vraagt hem in te staan volgt **Who can join**: waar gasten goedkeuring nodig hebben is het een joinverzoek en heeft hij geen plek tot jij hem accepteert, en waar gasten vrij worden toegelaten wordt hij als gast toegevoegd. In beide gevallen blijft hij onder **Needs review** staan tot jij voor hem instaat. **Who can join** op gesloten zetten stopt dat allemaal. Wie een character speelt dat al op je ledenlijst staat, wordt in plaats daarvan bevestigd onder **Needs review**. De details staan in [Je mensen]({peopleGuide}).',
         },
         {
           term: 'Met de hand',
@@ -866,10 +866,10 @@ const nl: PartialGuideDict = {
         'Gebruik op mobiel of in de officiële client [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — vul je RSN in, de site kiest een willekeurige skill, en je moet daarin binnen 30 minuten 1.000 XP halen.',
-        '**Manual review** — voor verborgen Hiscores of gloednieuwe altaccounts: vraag op de pagina van een clan de staf om voor je RSN in te staan. Je kunt je meteen voor de events van die clan inschrijven, en je inschrijving blijft in de wacht tot ze antwoorden.',
+        '**Manual review** — voor verborgen Hiscores of gloednieuwe altaccounts: vraag op de pagina van een clan de staf om voor je RSN in te staan. Als de clan eerst gasten goedkeurt, kun je je voor de events van die clan inschrijven zodra de staf je verzoek accepteert. Je inschrijving blijft in de wacht tot ze het character bevestigen.',
       ],
       signupNote:
-        'Je kunt je voor een event inschrijven zodra je je character hebt opgegeven. Met de plugin of een geslaagde XP-controle ben je meteen binnen. Heb je de staf gevraagd voor je in te staan, dan wacht je inschrijving tot ze antwoorden.',
+        'Je kunt je voor een event inschrijven zodra je je character hebt opgegeven. Met de plugin of een geslaagde XP-controle ben je meteen binnen. Heb je de staf gevraagd voor je in te staan, dan kun je je inschrijven zodra de clan je als gast heeft geaccepteerd, en blijft je inschrijving in de wacht tot ze het character bevestigen.',
     },
 
     working: {
@@ -2470,7 +2470,7 @@ const nl: PartialGuideDict = {
     verify: {
       title: 'Accounts verifiëren',
       intro:
-        'Mensen kunnen meteen inschrijven, maar wie jou heeft gevraagd voor hem in te staan, wordt vastgehouden tot je hier antwoordt: ingeschreven, op geen enkel team. Deze wachtrij houdt mensen dus rechtstreeks van het spelen af. Die is het waard dagelijks leeg te maken.',
+        'Mensen kunnen meteen inschrijven, maar wie jou heeft gevraagd voor hem in te staan, wacht op jou: op zijn joinverzoek waar je gasten goedkeuring nodig hebben, en daarna vastgehouden tot jij voor hem instaat, ingeschreven maar op geen enkel team. Deze wachtrij houdt mensen dus rechtstreeks van het spelen af. Die is het waard dagelijks leeg te maken.',
       rows: [
         {
           term: 'Geverifieerd via de plugin',
@@ -2482,7 +2482,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Handmatige beoordeling',
-          body: 'verborgen Hiscores, of een altaccount dat te nieuw is om erop te staan. Iemand vraagt je om voor een RSN in te staan en jij beslist. Die persoon wordt meteen als gast toegevoegd en kan zich inschrijven, maar de inschrijvingen blijven vastgehouden, op geen enkel team, tot jij goedkeurt. Goedkeuren rondt het af, en **Not our member** trekt het terug. Vraag om een schermafbeelding van het inlogscherm als je het niet zeker weet.',
+          body: 'verborgen Hiscores, of een altaccount dat te nieuw is om erop te staan. Iemand vraagt je om voor een RSN in te staan en jij beslist. Waar gasten goedkeuring nodig hebben, stuurt die persoon eerst een joinverzoek en heeft hij geen plek tot jij het accepteert; waar gasten vrij worden toegelaten, wordt hij meteen als gast toegevoegd. Eenmaal gast kan hij zich inschrijven, maar de inschrijvingen blijven vastgehouden, op geen enkel team, tot jij goedkeurt. Goedkeuren rondt het af, en **Not our member** trekt het terug. Vraag om een schermafbeelding van het inlogscherm als je het niet zeker weet.',
         },
       ],
       note: {

@@ -420,7 +420,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Proszą o dołączenie',
-          body: 'Członkowie pochodzą tylko z listy członków w grze. Jeśli plugin widzi, że ktoś gra w twoim klanie w grze, zanim twój skład go ma, składa za niego prośbę o dołączenie, a sztab odpowiada na nią na górze zakładki **Roster**. Każdy inny może nacisnąć **Apply** na stronie twojego klanu, podając nazwę w grze: ktoś, kto potwierdzi postać pluginem albo sprawdzeniem XP, od razu staje się gościem, a ktoś, kto poprosi sztab o poręczenie, zostaje dodany jako gość i trzymany pod **Needs review**, aż odpowiesz. Ustawienie **Who can join** na zamknięte wstrzymuje to wszystko. Ktoś, kto gra postacią już obecną w twoim składzie, jest zamiast tego potwierdzany w **Needs review**. Szczegóły są w [Twoi ludzie]({peopleGuide}).',
+          body: 'Członkowie pochodzą tylko z listy członków w grze. Jeśli plugin widzi, że ktoś gra w twoim klanie w grze, zanim twój skład go ma, składa za niego prośbę o dołączenie, a sztab odpowiada na nią na górze zakładki **Roster**. Każdy inny może nacisnąć **Apply** na stronie twojego klanu, podając nazwę w grze: ktoś, kto potwierdzi postać pluginem albo sprawdzeniem XP, od razu staje się gościem, a ktoś, kto poprosi sztab o poręczenie, podąża za ustawieniem **Who can join**: tam, gdzie goście wymagają zgody, to prośba o dołączenie i nie ma miejsca, dopóki jej nie przyjmiesz, a tam, gdzie goście są wpuszczani swobodnie, zostaje dodany jako gość. Tak czy inaczej trzymany jest pod **Needs review**, aż poręczysz. Ustawienie **Who can join** na zamknięte wstrzymuje to wszystko. Ktoś, kto gra postacią już obecną w twoim składzie, jest zamiast tego potwierdzany w **Needs review**. Szczegóły są w [Twoi ludzie]({peopleGuide}).',
         },
         {
           term: 'Ręcznie',
@@ -864,9 +864,9 @@ const pl: PartialGuideDict = {
         'Na telefonie albo w oficjalnym kliencie użyj [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— wpisz swój RSN, strona losuje umiejętność, zdobądź w niej 1000 XP w ciągu 30 minut.',
-        '**Manual review** —— dla ukrytych Hiscores albo świeżych altów: na stronie klanu poproś jego sztab o poręczenie za twój RSN. Możesz od razu zapisać się na jego wydarzenia, a zapis wstrzymuje się, aż odpowiedzą.',
+        '**Manual review** —— dla ukrytych Hiscores albo świeżych altów: na stronie klanu poproś jego sztab o poręczenie za twój RSN. Jeśli klan najpierw zatwierdza swoich gości, możesz zapisać się na jego wydarzenia, gdy sztab przyjmie twoją prośbę. Zapis wstrzymuje się, aż potwierdzą postać.',
       ],
-      signupNote: 'Na wydarzenie możesz zapisać się, gdy tylko podasz nazwę swojej postaci. Z pluginem albo po zaliczonym sprawdzeniu XP zapis przechodzi od razu. Jeśli poprosiłeś sztab o poręczenie, zapis wstrzymuje się, aż odpowiedzą.',
+      signupNote: 'Na wydarzenie możesz zapisać się, gdy tylko podasz nazwę swojej postaci. Z pluginem albo po zaliczonym sprawdzeniu XP zapis przechodzi od razu. Jeśli poprosiłeś sztab o poręczenie, możesz zapisać się, gdy klan przyjmie cię jako gościa, a zapis wstrzymuje się, aż potwierdzą postać.',
     },
 
     working: {
@@ -2689,7 +2689,7 @@ const pl: PartialGuideDict = {
     verify: {
       title: 'Weryfikacja kont',
       intro:
-        'Ludzie mogą zapisać się od razu, ale ktoś, kto poprosił cię o poręczenie, czeka, aż odpowiesz tutaj: zapisany, bez drużyny. Ta kolejka wprost powstrzymuje ludzi od grania. To ta, którą warto czyścić codziennie.',
+        'Ludzie mogą zapisać się od razu, ale ktoś, kto poprosił cię o poręczenie, czeka na ciebie: najpierw na prośbę o dołączenie, jeśli twoi goście wymagają zgody, a potem wstrzymany tutaj, aż poręczysz: zapisany, bez drużyny. Ta kolejka wprost powstrzymuje ludzi od grania. To ta, którą warto czyścić codziennie.',
       rows: [
         {
           term: 'Zweryfikowane przez plugin',
@@ -2701,7 +2701,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Przegląd ręczny',
-          body: 'ukryte Hiscores albo alt zbyt świeży, żeby się na nich pojawić. Ktoś prosi cię o poręczenie za RSN, a ty decydujesz. Od razu zostaje dodany jako gość i może się zapisywać, ale jego zapisy wstrzymują się, bez drużyny, aż zatwierdzisz. Zatwierdzenie go kończy, a **Not our member** wycofuje. Poproś o zrzut ekranu logowania, jeśli nie jesteś pewien.',
+          body: 'ukryte Hiscores albo alt zbyt świeży, żeby się na nich pojawić. Ktoś prosi cię o poręczenie za RSN, a ty decydujesz. Tam, gdzie twoi goście wymagają zgody, najpierw wysyła prośbę o dołączenie i nie ma miejsca, dopóki jej nie przyjmiesz; tam, gdzie goście są wpuszczani swobodnie, od razu zostaje dodany jako gość. Gdy jest już gościem, może się zapisywać, ale jego zapisy wstrzymują się, bez drużyny, aż zatwierdzisz. Zatwierdzenie go kończy, a **Not our member** wycofuje. Poproś o zrzut ekranu logowania, jeśli nie jesteś pewien.',
         },
       ],
       note: {
