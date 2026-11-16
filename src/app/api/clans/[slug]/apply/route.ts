@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mayJoinWith } from '@/lib/characterState';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -78,7 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     where: and(eq(accounts.id, accountId), eq(accounts.playerId, session.playerId)),
   });
   if (!account) return NextResponse.json({ error: 'Not your character' }, { status: 403 });
-  if (!account.verifiedAt) {
+  if (!mayJoinWith(account)) {
     return NextResponse.json({ error: `${account.rsn} has to be verified first.` }, { status: 403 });
   }
 

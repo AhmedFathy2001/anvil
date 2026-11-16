@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mayJoinWith } from '@/lib/characterState';
 import { accountCap } from '@/lib/accountCap';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -273,7 +274,7 @@ export async function POST(
     if (!acc) {
       return NextResponse.json({ error: 'Account not linked to your user' }, { status: 403 });
     }
-    if (!acc.verifiedAt) {
+    if (!mayJoinWith(acc)) {
       return NextResponse.json({ error: `${acc.rsn} must be verified before signing up` }, { status: 403 });
     }
   }

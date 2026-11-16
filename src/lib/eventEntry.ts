@@ -4,6 +4,7 @@
 // route was the only place "may this stranger sit down?" was answered end to end, and a route
 // handler cannot be called from a test without faking a session.
 
+import { mayJoinWith } from '@/lib/characterState';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -66,7 +67,7 @@ export async function enterEvent(opts: {
     where: and(eq(accounts.id, opts.accountId), eq(accounts.playerId, opts.playerId)),
   });
   if (!account) return { outcome: 'bad-account', status: 403, error: 'Not your account' };
-  if (!account.verifiedAt) {
+  if (!mayJoinWith(account)) {
     return { outcome: 'bad-account', status: 403, error: `${account.rsn} has to be verified first.` };
   }
 

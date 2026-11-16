@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SKILL_LABELS } from '@/lib/constants';
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { continueFromLocation, rememberContinue, XP_CHECK_EVENT } from '@/lib/continueStore';
@@ -42,14 +42,17 @@ function formatSkill(s: string | null | undefined): string {
  * disabled one.
  */
 export default function LinkAccountClient({
-  manualReview = true,
+  manualReview,
   initialRsn = '',
 }: {
+  /** Default: offered exactly when a clan is named in the address, because staff of THAT clan are who vouch. */
   manualReview?: boolean;
   /** Pre-filled name, for arriving from a suggestion rather than from memory. */
   initialRsn?: string;
 }) {
   const router = useRouter();
+  const inClan = useClanPrefixValue() !== '';
+  manualReview = manualReview ?? inClan;
 
   if (!manualReview) return <StatDeltaPath router={router} initialRsn={initialRsn} />;
 
@@ -61,7 +64,7 @@ export default function LinkAccountClient({
       <StatDeltaPath router={router} initialRsn={initialRsn} />
       <details className="mt-4">
         <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
-          Something else — not on the hiscores, or the XP check won&apos;t work?
+          No XP check for you? Not on the hiscores, or it won&apos;t work: ask this clan&apos;s staff to vouch for you
         </summary>
         <div className="mt-3">
           <ManualReviewPath router={router} />
@@ -76,7 +79,7 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<boolean | 'request'>(false);
 
   async function submit() {
     setLoading(true);
@@ -87,11 +90,12 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rsn: rsn.trim(), note: note.trim() }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || 'Could not submit request');
       } else {
-        setSubmitted(true);
+        // 202: the clan's guest door asks its staff first. Say so rather than a bare "submitted".
+        setSubmitted(data?.admission === 'request' ? 'request' : true);
         router.refresh();
       }
     } catch (e) {
@@ -106,8 +110,10 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       <div className="border border-orange-500/30 bg-orange-500/5 rounded-lg p-4">
         <div className="text-orange-300 font-semibold mb-1">Request submitted</div>
         <div className="text-sm text-foreground/80">
-          A moderator will review your claim. Until then it shows in your profile as{' '}
-          <span className="text-yellow-400">awaiting review</span>.
+          Your clan&apos;s staff will look at it, usually within a day or two, and you will see it here when they do.
+          {submitted === 'request' && ' They also have to accept you as a guest first, and that comes with the same answer.'}{' '}
+          Until then it shows in your profile as <span className="text-yellow-400">awaiting review</span>, and you can already sign up
+          for events with it. You can add the plugin any time; it joins up with this same character.
         </div>
       </div>
     );
@@ -295,7 +301,8 @@ function StatDeltaPath({
           When you press Start, we pick one of your skills at random and a{' '}
           <b className="text-foreground">30-minute timer starts</b>. Gain{' '}
           <b className="text-foreground">1,000 XP in that skill</b> before it runs out and the character is yours.
-          Be ready to log in first. Don&apos;t like the skill? You can re-roll it.
+          Be ready to log in first. Don&apos;t like the skill? You can re-roll it. You can leave this page and
+          come back: the check keeps running.
         </p>
         <button
           onClick={() => start()}
@@ -319,8 +326,9 @@ function StatDeltaPath({
       <div className="border border-green-500/30 bg-green-500/10 rounded-lg p-4">
         <div className="text-green-400 font-semibold mb-1">Verification succeeded</div>
         <div className="text-sm text-foreground/80">
-          Detected {check.delta?.toLocaleString()} XP in {check.skill}. Your account is linked and ready
-          to use — it&apos;s flagged for a moderator to look over, which changes nothing for you.
+          Detected {check.delta?.toLocaleString()} XP in {check.skill}. Your character is linked and ready
+          to use: you can sign up and play now. A moderator of your clan still confirms it, which changes
+          nothing for you; with no clan yet, nobody needs to. Adding the plugin later joins up with this same character.
         </div>
       </div>
     );
