@@ -10,7 +10,7 @@
 
 export type JsonFetcher = (url: string) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
 
-export function createJsonCache(fetcher: JsonFetcher, now: () => number = Date.now, freshMs = 5_000) {
+export function createJsonCache(fetcher: JsonFetcher, now: () => number = Date.now, freshMs = 5_000, timeoutMs = 15_000) {
   const store = new Map<string, { data: unknown; at: number }>();
   const inflight = new Map<string, Promise<unknown | undefined>>();
 
@@ -21,9 +21,21 @@ export function createJsonCache(fetcher: JsonFetcher, now: () => number = Date.n
     if (running) return running as Promise<T | undefined>;
     const p = (async () => {
       try {
-        const res = await fetcher(url);
-        if (!res.ok) return hit?.data;
-        const data = await res.json();
+        // A read that never answers (a stalled socket, a dev server compiling) ends as a failed read, so
+        // the caller falls back instead of showing "loading" for good.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const STALLED = Symbol('stalled');
+        const stalled = new Promise<typeof STALLED>((resolve) => {
+          timer = setTimeout(() => resolve(STALLED), timeoutMs);
+        });
+        const read = (async () => {
+          const res = await fetcher(url);
+          return res.ok ? await res.json() : undefined;
+        })();
+        read.catch(() => undefined); // a late failure after the timeout is not unhandled
+        const got = await Promise.race([read, stalled]).finally(() => clearTimeout(timer));
+        if (got === STALLED || got === undefined) return hit?.data;
+        const data = got;
         store.set(url, { data, at: now() });
         return data;
       } catch {

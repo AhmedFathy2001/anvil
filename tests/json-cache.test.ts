@@ -48,3 +48,12 @@ test('prefetch warms the cache', async () => {
   assert.equal(s.calls(), 1);
   assert.deepEqual(s.cache.peek('p'), { n: 1 });
 });
+
+test('an empty answer is an answer, and a read that never answers ends as a failed read', async () => {
+  const empty = createJsonCache(async () => ({ ok: true, json: async () => [] }));
+  assert.deepEqual(await empty.load('/a'), []);
+  assert.deepEqual(empty.peek('/a'), []);
+  const hung = createJsonCache(() => new Promise(() => {}), Date.now, 5_000, 20);
+  assert.equal(await hung.load('/b'), undefined);
+  assert.equal(hung.peek('/b'), undefined);
+});
