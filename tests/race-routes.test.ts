@@ -498,7 +498,7 @@ test('a fork the team has not picked at takes no proof; a mission is not the rac
 
 // ── The dialog's label and the proof form ask about the same team ────────────────────────────────
 
-import { raceDetailTeam, raceTileInfo } from '../src/lib/raceRoutes.ts';
+import { raceDetailTeam } from '../src/lib/raceRoutes.ts';
 
 test('a viewer with no lens team is judged as their own team: label and proof rule agree', () => {
   // Two roads joining at 40 (step 3): 10 -> 20|21 -> 40, with 20 done and an uncredited-weight row counting.
