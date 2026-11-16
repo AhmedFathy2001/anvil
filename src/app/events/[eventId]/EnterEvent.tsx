@@ -258,14 +258,16 @@ export default function EnterEvent({
   // there. A character that is not verified yet is fixed on the link-account step — the sign-up page would only
   // send them back here.
   if (options.length === 0) {
-    const toSignup = signupsOpen && !info.hasCharacter;
+    // No character at all: the sign-up page names one inline (also for the host's own staff, and
+    // also once the event is running), so that is where this goes, never to Settings.
+    const toSignup = !info.hasCharacter;
     return (
       <Card tone="info">
         <div className="min-w-0">
-          <div className="font-semibold">{toSignup ? 'Sign up for this event' : 'Verify a character to sign up'}</div>
+          <div className="font-semibold">{toSignup ? 'Add your character to play' : 'Verify a character to sign up'}</div>
           <div className="text-sm text-text-muted">
             {toSignup
-              ? 'You’ll link your character on the sign-up page, then join as a guest of the hosting clan.'
+              ? 'Name your RuneScape character on the next screen and carry on from there.'
               : 'Signing up for someone else’s event needs a character you have proved is yours.'}
           </div>
         </div>
@@ -273,7 +275,7 @@ export default function EnterEvent({
           href={toSignup ? `/events/${eventId}/signup` : linkHere(backKey)}
           className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
         >
-          {toSignup ? 'Sign up' : 'Verify a character'}
+          {toSignup ? 'Add my character' : 'Verify a character'}
         </ClanLink>
       </Card>
     );
