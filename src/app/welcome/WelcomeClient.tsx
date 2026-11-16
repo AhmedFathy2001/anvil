@@ -161,8 +161,15 @@ export default function WelcomeClient({
         chosen={state.intent}
         next={next}
         onChoose={async (i) => {
-          await chooseIntent(i);
-          setChoosing(false);
+          // The two big answers go straight to the thing they mean: no rail page in between.
+          // Only "just me" opens the rail, because linking a character is its first step.
+          if (i === 'solo') {
+            await chooseIntent(i);
+            setChoosing(false);
+            return;
+          }
+          await post({ action: 'intent', intent: i });
+          router.push(i === 'owner' ? '/clans/new' : '/clans'); // clan-prefix: platform -- apex-only flow
         }}
       />
     );
@@ -400,20 +407,14 @@ function IntentChooser({
     {
       key: 'owner',
       title: 'I run a clan',
-      blurb: 'Put it on Anvil — boards, competitions, roster, Discord posts.',
+      blurb: 'Put it on Anvil and have your first event running in a couple of minutes.',
       aside: 'Free. Live the moment you make it.',
     },
     {
       key: 'member',
-      title: 'I\u2019m in a clan',
-      blurb: 'Find it here and get on its roster, so its boards count what you do.',
-      aside: 'Most clans take members on approval.',
-    },
-    {
-      key: 'solo',
-      title: 'Just me for now',
-      blurb: 'Track my own collection log, personal bests and records.',
-      aside: 'No clan needed. Join one whenever.',
+      title: 'I\u2019m joining a clan',
+      blurb: 'Find your clan and ask to join, so its boards count what you do.',
+      aside: 'Search, then one tap to apply.',
     },
   ];
 
@@ -425,19 +426,18 @@ function IntentChooser({
           className="pointer-events-none absolute -top-8 right-0 hidden text-gold/[0.05] sm:block"
         />
         <p className="relative font-mono text-[10.5px] uppercase tracking-[0.2em] text-gold/85">
-          Setting up
+          Welcome
         </p>
         <h1 className="display display-lg relative mt-2 text-[clamp(1.6rem,4vw,2.05rem)] font-semibold">
           Welcome to Anvil, {displayName}
         </h1>
         <p className="relative mt-2.5 max-w-[58ch] text-[15px] leading-relaxed text-text-muted">
-          One question first, so the rest of this is about you. You can change the answer at any
-          time — it only decides what Anvil leads with.
+          What are you here to do?
         </p>
         {next && <ContinueLink next={next} />}
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {options.map((o) => (
           <button
             key={o.key}
@@ -445,12 +445,12 @@ function IntentChooser({
             disabled={busy}
             onClick={() => onChoose(o.key)}
             aria-pressed={chosen === o.key}
-            className={`group flex h-full flex-col rounded-2xl border bg-card-bg p-5 text-left transition-colors disabled:opacity-60 ${
+            className={`group flex h-full flex-col rounded-2xl border bg-card-bg p-6 text-left transition-colors disabled:opacity-60 ${
               chosen === o.key ? 'border-gold' : 'border-card-border hover:border-gold/45'
             }`}
           >
-            <span className="display text-[17px] font-semibold text-foreground group-hover:text-gold">
-              {o.title}
+            <span className="display text-[19px] font-semibold text-foreground group-hover:text-gold">
+              {o.title} <span aria-hidden>&rarr;</span>
             </span>
             <span className="mt-2 text-[13.5px] leading-relaxed text-text-muted">{o.blurb}</span>
             <span className="mt-auto pt-3.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-text-dim">
@@ -461,7 +461,15 @@ function IntentChooser({
       </div>
 
       <p className="mt-5 text-center text-[13px] text-text-dim">
-        Not sure? Pick the middle one — nothing here is locked in.
+        Just here for yourself?{' '}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onChoose('solo')}
+          className="text-gold underline-offset-4 hover:text-gold-light hover:underline disabled:opacity-60"
+        >
+          Track my own progress
+        </button>
       </p>
       {/* A fourth door that is a plain link, not an answer: somebody with viewers and no in-game clan
           has no row above, and hosting is its own page rather than a step of this setup. */}
