@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
@@ -201,9 +200,9 @@ export default function NoticeBell({ className = '' }: { className?: string }) {
                     ) : n.kind === 'personal' ? (
                       // About this person's own characters: it opens where those notices are kept.
                       // clan-prefix: platform -- Settings is the platform's, never under a clan.
-                      <Link href="/settings/characters#claims" onClick={() => setOpen(false)} className="block">
+                      <ClanLink href="/settings/characters#claims" onClick={() => setOpen(false)} className="block">
                         {inner}
-                      </Link>
+                      </ClanLink>
                     ) : (
                       <a href="/inbox" className="block">
                         {inner}
