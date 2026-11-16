@@ -2,10 +2,11 @@
 
 import Select from '@/components/Select';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import KickLinkCode from '@/components/KickLinkCode';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
 import YoutubeGate, { type YoutubeGateInfo } from './YoutubeGate';
@@ -94,6 +95,9 @@ export default function EnterEvent({
   creator?: boolean;
 }) {
   const router = useRouter();
+  // Verifying a character is a trip away; it comes back to this same page (the sign-up page keeps its invite).
+  const linkHere = useLinkCharacterHere();
+  const backKey = (usePathname() ?? '').endsWith('/signup') ? 'event-signup' : 'event';
   const [info, setInfo] = useState<EnterInfo | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -216,7 +220,7 @@ export default function EnterEvent({
           </div>
         </div>
         <ClanLink
-          href={toSignup ? `/events/${eventId}/signup` : '/settings/characters#link-account'}
+          href={toSignup ? `/events/${eventId}/signup` : linkHere(backKey)}
           className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
         >
           {toSignup ? 'Sign up' : 'Verify a character'}
@@ -280,6 +284,9 @@ function CreatorJoin({
   signupFee: number | null;
 }) {
   const router = useRouter();
+  // Verifying a character is a trip away; it comes back to this same page (the sign-up page keeps its invite).
+  const linkHere = useLinkCharacterHere();
+  const backKey = (usePathname() ?? '').endsWith('/signup') ? 'event-signup' : 'event';
   const [chosen, setChosen] = useState<number | null>(info.options.length === 1 ? info.options[0].id : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -386,7 +393,7 @@ function CreatorJoin({
           </div>
         </div>
         <ClanLink
-          href={info.hasCharacter ? '/settings/characters#link-account' : `/events/${eventId}/signup`}
+          href={info.hasCharacter ? linkHere(backKey) : `/events/${eventId}/signup`}
           className="shrink-0 rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light"
         >
           {info.hasCharacter ? 'Prove it’s mine' : 'Add my character'}

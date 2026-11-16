@@ -1,4 +1,5 @@
 import { runningParts, runningTotal } from '@/lib/runningCount';
+import { linkCharacterHref } from '@/lib/clanScopedPaths';
 import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
@@ -184,7 +185,7 @@ export function YouStrip({
       ? {
           title: "You're signed in, but not on this clan's roster",
           sub: 'Link a RuneScape account, or ask a mod to add you as a guest',
-          href: '/settings/characters#link-account',
+          href: linkCharacterHref('', returnTo, 'clan'),
           cta: 'Link an account',
         }
       : {
