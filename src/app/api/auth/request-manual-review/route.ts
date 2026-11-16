@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   // A clan that takes no guests has nobody waiting to answer this: refused before anything is claimed,
   // so the person is not left holding an open request no one will ever see. (The clan's own staff are
   // not guests of it; `admit` seats them.)
-  if (!existing && clan.guestPolicy === 'closed' && !(session.playerId != null && (await staffOfClan(clan.id, session.playerId)))) {
+  if ((!existing || existing.leftAt) && clan.guestPolicy === 'closed' && !(session.playerId != null && (await staffOfClan(clan.id, session.playerId)))) {
     return NextResponse.json({ error: 'This clan is not taking guests.' }, { status: 403 });
   }
 
@@ -200,14 +200,14 @@ export async function POST(request: Request) {
 
   let clanMemberId: number;
 
-  if (existing) {
+  // Only a seat that is LIVE is touched here. A departed one (left, or dropped by a roster sync) is
+  // not revived on the person's word: it goes through admit() below like anyone with no seat, so the
+  // clan's own guest setting decides (approval files a request; closed refuses).
+  if (existing && !existing.leftAt) {
     await db
       .update(clanMemberships)
       .set({
         notes: note || existing.notes,
-        // Bring soft-deleted ghosts back into the active set on claim. A seat ended on purpose never
-        // reaches here (refused above).
-        leftAt: null,
       })
       .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
