@@ -9,7 +9,7 @@ import { accounts, memberDailyStats } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { listMembers } from '@/lib/memberProfile';
 import { ttlMemo } from '@/lib/ttlMemo';
-import { ACTIVE_XP_FLOOR, HISTORY_WEEKS, STREAK_MILESTONES, onStreak, streakFrom, type Streak } from '@/lib/activityStreak';
+import { ACTIVE_XP_FLOOR, activeThisWeek, HISTORY_WEEKS, STREAK_MILESTONES, onStreak, streakFrom, type Streak } from '@/lib/activityStreak';
 
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 /** The first day a replay can look at (a little before HISTORY_WEEKS, to start at a week boundary). */
@@ -134,15 +134,29 @@ export async function yearStreak(accountId: number, year: string): Promise<YearS
   return { best: s.best, activeWeeks, milestone };
 }
 
-/** Current streak weeks for many characters at once (a ranking's rows), keyed by account id; only those on one. */
-export async function streakWeeksFor(accountIds: number[]): Promise<Map<number, number>> {
+export interface StreakStatus {
+  weeks: number;
+  /** Any active day this week (not the same as weeks > 0). */
+  active: boolean;
+}
+
+/** Streak weeks and "active this week" for many characters, keyed by account id; those with either. One read of the days. */
+export async function streakStatusFor(accountIds: number[]): Promise<Map<number, StreakStatus>> {
   const days = await activeDaysFor(accountIds);
   const today = todayUtc();
-  const out = new Map<number, number>();
+  const out = new Map<number, StreakStatus>();
   for (const [id, list] of days) {
-    const w = streakFrom(list, today).weeks;
-    if (w > 0) out.set(id, w);
+    const s = streakFrom(list, today);
+    const active = activeThisWeek(s);
+    if (s.weeks > 0 || active) out.set(id, { weeks: s.weeks, active });
   }
+  return out;
+}
+
+/** Current streak weeks for many characters at once (a ranking's rows), keyed by account id; only those on one. */
+export async function streakWeeksFor(accountIds: number[]): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  for (const [id, st] of await streakStatusFor(accountIds)) if (st.weeks > 0) out.set(id, st.weeks);
   return out;
 }
 
@@ -156,16 +170,23 @@ export async function clanHeats(clanIds: number[]): Promise<Map<number, number>>
   return out;
 }
 
-/** Current streak weeks by character name (a roster the panel lists), keyed by normalizeRsn; only those on one. */
-export async function streakWeeksForRsns(rsns: string[]): Promise<Map<string, number>> {
+/** Streak status by character name (a roster), keyed by normalizeRsn. */
+export async function streakStatusForRsns(rsns: string[]): Promise<Map<string, StreakStatus>> {
   const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 200);
   if (keys.length === 0) return new Map();
   const rows = await db.select({ id: accounts.id, key: accounts.rsnNormalized }).from(accounts).where(inArray(accounts.rsnNormalized, keys));
-  const weeks = await streakWeeksFor(rows.map((r) => r.id));
-  const out = new Map<string, number>();
+  const status = await streakStatusFor(rows.map((r) => r.id));
+  const out = new Map<string, StreakStatus>();
   for (const r of rows) {
-    const w = weeks.get(r.id);
-    if (w) out.set(r.key, w);
+    const st = status.get(r.id);
+    if (st) out.set(r.key, st);
   }
+  return out;
+}
+
+/** Current streak weeks by character name (a roster the panel lists), keyed by normalizeRsn; only those on one. */
+export async function streakWeeksForRsns(rsns: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const [k, st] of await streakStatusForRsns(rsns)) if (st.weeks > 0) out.set(k, st.weeks);
   return out;
 }

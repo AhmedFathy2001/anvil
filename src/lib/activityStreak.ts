@@ -68,6 +68,11 @@ export interface Streak {
   resetsAt: string;
 }
 
+/** Played at all this week (any active day), whatever the streak says: a carried streak can be non-zero with nothing this week. */
+export function activeThisWeek(s: Pick<Streak, 'thisWeek'>): boolean {
+  return s.thisWeek > 0;
+}
+
 /**
  * A character's streak from the days it was active (UTC 'YYYY-MM-DD', any order, duplicates fine).
  * Replays HISTORY_WEEKS of weeks, so the answer only ever depends on the days given and `today`.
