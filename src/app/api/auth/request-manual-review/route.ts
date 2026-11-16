@@ -103,6 +103,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // The same for a character on ANOTHER clan's in-game list. The claim is global (one account, every
+  // clan), so taking it here would hand this person that clan's member seat, and with it that clan's
+  // members-only pages, on nothing but their word to a different clan's staff.
+  // clan-scope: global -- asking whether ANY clan's in-game list names this character.
+  const listedElsewhere = await findRosterSeat(
+    and(eq(clanRoster.rsnNormalized, rsnNormalized), eq(clanRoster.kind, 'member'), eq(clanRoster.source, 'roster'), isNull(clanRoster.leftAt)),
+  );
+  if (listedElsewhere && listedElsewhere.playerId !== session.playerId) {
+    return NextResponse.json(
+      { error: 'That character is on a clan’s in-game list, so staff here cannot vouch for it. Play it once with the Anvil plugin signed in and it links to you, or use the XP check.' },
+      { status: 409 },
+    );
+  }
+
   // One person, a few open claims at a time: a name each, never a string of other people's.
   if (session.playerId != null) {
     const open = await db
