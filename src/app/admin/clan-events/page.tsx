@@ -1,4 +1,5 @@
 import ClanEventsClient from './ClanEventsClient';
+import { parseGapPrefill } from '@/lib/gapPrefill';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +8,8 @@ export const dynamic = 'force-dynamic';
  * drop party. A name, a time, a place. Announced in Discord (and edited in place), reminded 15
  * minutes out and at the start, listed on the site and in the plugin, with "I'm going" (lib/clanEvents).
  */
-export default function ClanEventsPage() {
+export default async function ClanEventsPage({ searchParams }: { searchParams: Promise<{ start?: string }> }) {
+  const gap = parseGapPrefill((await searchParams).start, undefined);
   return (
     <div>
       <header className="mb-6">
@@ -17,7 +19,7 @@ export default function ClanEventsPage() {
           posted to Discord, reminded 15 minutes before and when it starts, and shown in the plugin&rsquo;s Clan tab.
         </p>
       </header>
-      <ClanEventsClient />
+      <ClanEventsClient prefillDay={gap?.start ?? null} />
     </div>
   );
 }

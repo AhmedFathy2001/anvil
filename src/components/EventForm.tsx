@@ -8,6 +8,7 @@ import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
 import { BOSSES, EFFICIENCY_METRICS, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
+import { localDayIso } from '@/lib/gapPrefill';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
@@ -55,6 +56,8 @@ interface EventFormProps {
    * form opens already on that format and does not show its own format picker — the choice was
    * made, and asking it again on the same screen is exactly the "asked twice" the redesign removed.
    */
+  /** Empty stretch from the schedule's "Fill the gap" (validated days): the dates start filled in. */
+  gapPrefill?: { start: string; end: string | null } | null;
   choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency'; placement?: 'solo' };
 }
 
@@ -154,7 +157,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, onDirtyChange, guardLeave = false }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, gapPrefill = null, onDirtyChange, guardLeave = false }: EventFormProps) {
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
@@ -216,6 +219,14 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [customDates, setCustomDates] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
+  // Browser-zone dates, so set after mount rather than in the initial state (no hydration mismatch).
+  useEffect(() => {
+    if (!gapPrefill) return;
+    setStartDate(localDayIso(gapPrefill.start));
+    setEndDate(localDayIso(gapPrefill.end ?? gapPrefill.start, 1));
+    setPrefilled(true);
+  }, [gapPrefill]);
   // A weekly competition is an event too — same page, same name field, same schedule. It just
   // stores itself in the competition tables, so picking one of these switches where we POST.
   const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(
@@ -1621,6 +1632,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             {/* One statement of the window, not three. With the picker open it already prints its
                 own "Ends …" line, so repeating the whole range underneath in a different date
                 format just made the panel look like it disagreed with itself. */}
+            {prefilled && gapPrefill && startDate === localDayIso(gapPrefill.start) && endDate === localDayIso(gapPrefill.end ?? gapPrefill.start, 1) && (
+              <p className="text-xs text-gold-light mt-2">
+                Dates filled in from the empty stretch you picked on the schedule. Change them with the buttons above or Pick dates.
+              </p>
+            )}
             <p className="text-xs text-text-muted mt-2">
               {!startDate ? (
                 weeklyType
