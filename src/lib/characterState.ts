@@ -33,3 +33,16 @@ export function characterState(a: CharacterProof): CharacterState | null {
 export function mayJoinWith(a: CharacterProof): boolean {
   return characterState(a) != null;
 }
+
+/**
+ * May a PROVEN claim take a character from somebody whose claim nobody has confirmed? Yes: an
+ * unconfirmed manual claim (staff have not vouched, nothing was proved) never beats a plugin report,
+ * a passed XP check or a staff yes. The reverse never happens: an unconfirmed claim cannot take a
+ * character anybody else holds, proven or not.
+ */
+export function mayDisplace(
+  holder: CharacterProof & { claimedAt?: string | null },
+  incoming: { verified: boolean; method: string },
+): boolean {
+  return !holder.verifiedAt && characterState(holder) === 'awaiting-manual' && incoming.verified && incoming.method !== 'manual';
+}

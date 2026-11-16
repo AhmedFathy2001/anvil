@@ -1,4 +1,6 @@
 import { db } from '@/db';
+import { inviteSignupWindow } from '@/lib/teamInvites';
+import { isEventOver } from '@/lib/eventLock';
 import { accountCap } from '@/lib/accountCap';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import { signupSeatsFor } from '@/lib/eventSeats';
@@ -60,6 +62,7 @@ export default async function EventSignupPage({
   // posts — this only decides whether to SAY where they're heading, so a stale link can't promise
   // a seat it no longer has.
   let invite: { token: string; teamName: string } | null = null;
+  let lateInvite = false;
   if (isWellFormedToken(inviteToken)) {
     const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, inviteToken!) });
     const window = signupWindowState({
@@ -69,7 +72,10 @@ export default async function EventSignupPage({
       signupsEnabled: event.signupsEnabled,
       hostKind: friendsKind,
     });
-    if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: window.open }).ok && row) {
+    // The invite is the host's consent, so a running event still takes a late joiner (lib/teamInvites).
+    const effective = inviteSignupWindow(window, isEventOver(event));
+    if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: effective.open }).ok && row) {
+      lateInvite = !window.open && effective.open;
       const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) });
       if (team) invite = { token: row.token, teamName: team.name };
     }
@@ -158,13 +164,15 @@ export default async function EventSignupPage({
         paymentDeadline: event.paymentDeadline,
         hostKind: friendsKind,
       })
-    : signupWindowState({
-        signupOpensAt: event.signupOpensAt,
-        signupDeadline: event.signupDeadline,
-        startDate: event.startDate,
-        signupsEnabled: event.signupsEnabled,
-        hostKind: friendsKind,
-      });
+    : lateInvite
+      ? { open: true as const, reason: null }
+      : signupWindowState({
+          signupOpensAt: event.signupOpensAt,
+          signupDeadline: event.signupDeadline,
+          startDate: event.startDate,
+          signupsEnabled: event.signupsEnabled,
+          hostKind: friendsKind,
+        });
 
   // Headcount for the page stays "approved"; the pot counts only fees actually in.
   const [approvedCount, paid, cofferFunded] = await Promise.all([countApprovedSignups(id), countPaidEntries(id), eventPoolGp(id)]);

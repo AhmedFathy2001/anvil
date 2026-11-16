@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { currentClan } from '@/lib/clanContext';
 import { claimAccountForPerson, claimBlockedBy } from '@/lib/accountClaim';
-import { clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { admit } from '@/lib/guestAdmission';
+import { isBannedFromClan } from '@/lib/clanBans';
 import { rosterClanSeat } from '@/lib/seatScope';
 
 const MAX_NOTE_LEN = 500;
+/** Open (unconfirmed) manual claims one person may hold at once. */
+const MAX_OPEN_MANUAL_CLAIMS = 3;
 
 // POST /api/auth/request-manual-review { rsn, note? }
 // Last-resort path for users who can't use the plugin (no RuneLite) and can't use stat-delta
@@ -32,6 +35,14 @@ export async function POST(request: Request) {
   // maxed accounts with no XP to gain, anyone who cannot log in right now — were the people it
   // refused. Null selects the claim-only path; a clan, when there is one, still gets its seat.
   const clan = await currentClan();
+  // Nobody to review it without a clan: a claim nobody can confirm would sit unconfirmed for ever, so
+  // it is not accepted here. The XP check and the plugin are the ways in away from a clan's page.
+  if (!clan) {
+    return NextResponse.json(
+      { error: 'Staff review is asked for from a clan’s own page, so that clan’s staff can see it. Here, use the XP check or the plugin.' },
+      { status: 400 },
+    );
+  }
 
   // Manual claims sit in a mod queue forever once submitted, so a tighter limit
   // discourages spam without blocking legitimate retries.
@@ -65,6 +76,35 @@ export async function POST(request: Request) {
     // The clan seat; an event player's seat is never revived or treated as one (admit() is the door).
     ? await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized), rosterClanSeat()))
     : null;
+
+  // BANNED: refused as everywhere else, before anything is claimed.
+  if (session.playerId != null && (await isBannedFromClan(clan.id, session.playerId))) {
+    return NextResponse.json({ error: 'This clan has barred you.' }, { status: 403 });
+  }
+
+  // THE IN-GAME LIST IS THE ONLY SOURCE OF A SEAT. A character already on this clan's roster belongs to
+  // somebody the game says is in the clan: a web request must not hand it to a stranger. Whoever really
+  // plays it links it by playing with the plugin signed in (the first-use link) or by the XP check.
+  if (existing && existing.playerId !== session.playerId) {
+    return NextResponse.json(
+      { error: 'That character is on this clan’s in-game list. Play it once with the Anvil plugin signed in and it links to you, or use the XP check.' },
+      { status: 409 },
+    );
+  }
+
+  // One person, a few open claims at a time: a name each, never a string of other people's.
+  if (session.playerId != null) {
+    const open = await db
+      .select({ id: accounts.id, rsnNormalized: accounts.rsnNormalized })
+      .from(accounts)
+      .where(and(eq(accounts.playerId, session.playerId), isNull(accounts.verifiedAt), eq(accounts.provisional, 1), eq(accounts.verificationMethod, 'manual')));
+    if (!open.some((a) => a.rsnNormalized === rsnNormalized) && open.length >= MAX_OPEN_MANUAL_CLAIMS) {
+      return NextResponse.json(
+        { error: `You already have ${MAX_OPEN_MANUAL_CLAIMS} characters waiting for staff review. Wait for an answer before asking for another.` },
+        { status: 429 },
+      );
+    }
+  }
 
   // Hard block: somebody else already owns this RSN.
   //

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { mayJoinWith } from '@/lib/characterState';
+import { characterState, mayJoinWith } from '@/lib/characterState';
+import { isEventOver } from '@/lib/eventLock';
 import { accountCap } from '@/lib/accountCap';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -9,7 +10,7 @@ import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
-import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
+import { checkInvite, inviteClosedMessage, inviteSignupWindow, isWellFormedToken } from '@/lib/teamInvites';
 import { parseEventRules } from '@/lib/eventRules';
 import { participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 import { track } from '@/lib/analytics';
@@ -226,10 +227,16 @@ export async function POST(
         signupsEnabled: event.signupsEnabled,
         hostKind: friendsKind,
       });
-  if (!window.open) {
+  // A team's invite is the host's consent, so it still seats a late joiner once the event is running
+  // (lib/teamInvites inviteSignupWindow). The invite itself is fully re-checked below.
+  const lateInviteRow = !window.open && !isEditingActive && isWellFormedToken(body?.inviteToken)
+    ? await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, body!.inviteToken!) })
+    : null;
+  const inviteWindow = lateInviteRow ? inviteSignupWindow(window, isEventOver(event)) : window;
+  if (!inviteWindow.open) {
     return NextResponse.json(
       {
-        error: isEditingActive ? 'Editing is closed for this sign-up' : 'Signups are not open',
+        error: isEditingActive ? 'Editing is closed for this sign-up' : lateInviteRow ? inviteClosedMessage(window.reason, isEventOver(event)) : 'Signups are not open',
         reason: window.reason,
       },
       { status: 403 },
@@ -254,7 +261,7 @@ export async function POST(
   const inviteToken = body?.inviteToken;
   if (isWellFormedToken(inviteToken)) {
     const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, inviteToken!) });
-    const verdict = checkInvite(row, { now: Date.now(), eventId: id, signupsOpen: window.open });
+    const verdict = checkInvite(row, { now: Date.now(), eventId: id, signupsOpen: inviteWindow.open });
     if (!verdict.ok) {
       return NextResponse.json({ error: verdict.message, reason: verdict.refusal }, { status: 403 });
     }
@@ -278,6 +285,13 @@ export async function POST(
       return NextResponse.json({ error: `${acc.rsn} must be verified before signing up` }, { status: 403 });
     }
   }
+
+  // AN UNCONFIRMED CHARACTER (a manual claim staff have not yet vouched for) may sign up, but only as
+  // a PENDING entry: no invite approval, no team, no board place, so nothing it earns counts and
+  // nothing team-private is open to it. The host sees it waiting like any pending sign-up and
+  // approves or removes it; confirming the character in Needs review is what clears it for good.
+  const held = selectedIds.some((cid) => characterState(accountById.get(cid)!) === 'awaiting-manual');
+  if (held) invite = null;
 
   // Deselected accounts (previously signed up, now unchecked) get withdrawn — but only when their fee
   // is untouched. A paid fee means money changed hands, so it needs an admin (mirrors DELETE). Check
@@ -344,7 +358,7 @@ export async function POST(
   const placement = placementOf(event);
   const teamChoiceOn = postRules.teamChoice && placement === 'draft';
   let pickTeamId: number | null = null;
-  if (placement === 'pick' && !invite) {
+  if (placement === 'pick' && !invite && !held) {
     const loads = await teamLoads(id);
     if (loads.length > 0) {
       const wantedId = typeof body?.requestedTeamId === 'number' ? body.requestedTeamId : null;
@@ -515,6 +529,8 @@ export async function POST(
     team: placedTeam ? { id: placedTeam.id, name: placedTeam.name, color: placedTeam.color } : null,
     signup: { ...primaryRow, profile: parseProfile(primaryRow.profileData) },
     signups: rows.map(({ row }) => ({ ...row, profile: parseProfile(row.profileData) })),
+    // True when a character is not confirmed yet: the entry waits for the host and holds no team.
+    held,
   });
 }
 

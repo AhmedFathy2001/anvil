@@ -1,6 +1,5 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
-import { mayJoinWith } from '@/lib/characterState';
 import { db } from '@/db';
 import { accounts, clanMemberships } from '@/db/schema';
 import { clanSeat } from '@/lib/seatScope';
@@ -22,7 +21,7 @@ export interface ApplyChoices {
  */
 export async function applyChoices(clanId: number, playerId: number): Promise<ApplyChoices> {
   const mine = await db
-    .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt, provisional: accounts.provisional, verificationMethod: accounts.verificationMethod })
+    .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
     .from(accounts)
     .where(eq(accounts.playerId, playerId));
   if (mine.length === 0) return { alreadyIn: false, options: [] };
@@ -44,7 +43,7 @@ export async function applyChoices(clanId: number, playerId: number): Promise<Ap
   return {
     alreadyIn: mine.every((a) => seatedIds.has(a.id)),
     options: mine
-      .filter((a) => mayJoinWith(a) && !seatedIds.has(a.id))
+      .filter((a) => a.verifiedAt != null && !seatedIds.has(a.id))
       .map((a) => ({ id: a.id, rsn: a.rsn })),
   };
 }

@@ -4,7 +4,8 @@ import { clans, events, teamInvites, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
-import { checkInvite, isWellFormedToken, invitePath } from '@/lib/teamInvites';
+import { checkInvite, inviteClosedMessage, inviteSignupWindow, isWellFormedToken, invitePath } from '@/lib/teamInvites';
+import { isEventOver } from '@/lib/eventLock';
 import { clanHrefFor } from '@/lib/clanScopedPaths';
 import { isAcceptedCohost } from '@/lib/coHost';
 import ClanLink from '@/components/ClanLink';
@@ -69,7 +70,15 @@ export default async function JoinPage({
       })
     : { open: false, reason: 'closed' as const };
 
-  const verdict = checkInvite(invite, { now: new Date().getTime(), eventId: id, signupsOpen: window.open });
+  // The invite is the host's consent, so a running event still takes a late joiner on its team.
+  const over = event ? isEventOver(event) : false;
+  const effective = inviteSignupWindow(window, over);
+  const verdict = checkInvite(invite, {
+    now: new Date().getTime(),
+    eventId: id,
+    signupsOpen: effective.open,
+    closedMessage: inviteClosedMessage(effective.reason, over),
+  });
 
   if (!verdict.ok || !invite || !event) {
     return (
