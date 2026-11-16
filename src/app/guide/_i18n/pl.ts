@@ -397,7 +397,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Wprowadź członków',
-          body: 'Zainstaluj plugin, zaloguj się przez Discorda, potem otwórz w grze okno klanu i naciśnij przycisk **Anvil** na jego pasku tytułu. Nikt nie zapisze się na wydarzenie, dopóki twoja lista członków nie trafi na stronę.',
+          body: 'Zainstaluj plugin, zaloguj się przez Discorda, potem otwórz w grze okno klanu i naciśnij przycisk **Anvil** na jego pasku tytułu. Z tej listy biorą się twoi członkowie. Dopóki ona nie trafi na stronę, ludzie mogą zapisywać się na twoje wydarzenia jako goście.',
         },
         {
           term: 'Zrób planszę',
@@ -420,7 +420,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Proszą o dołączenie',
-          body: 'Logowanie ani granie z pluginem samo z siebie nikomu nie daje miejsca. Jeśli plugin widzi, że ktoś gra w twoim klanie w grze, zanim twój skład go ma, składa za niego prośbę o dołączenie, a każdy inny może poprosić przyciskiem **Apply** na stronie twojego klanu. Sztab odpowiada na jedno i drugie na górze zakładki **Roster**, a **Who can join** decyduje, czy czekają na zgodę, wchodzą od razu, czy w ogóle nie mogą prosić. Ktoś, kto gra postacią już obecną w twoim składzie, jest zamiast tego potwierdzany w **Needs review**. Szczegóły są w [Twoi ludzie]({peopleGuide}).',
+          body: 'Członkowie pochodzą tylko z listy członków w grze. Jeśli plugin widzi, że ktoś gra w twoim klanie w grze, zanim twój skład go ma, składa za niego prośbę o dołączenie, a sztab odpowiada na nią na górze zakładki **Roster**. Każdy inny może nacisnąć **Apply** na stronie twojego klanu, podając nazwę w grze: ktoś, kto potwierdzi postać pluginem albo sprawdzeniem XP, od razu staje się gościem, a ktoś, kto poprosi sztab o poręczenie, zostaje dodany jako gość i trzymany pod **Needs review**, aż odpowiesz. Ustawienie **Who can join** na zamknięte wstrzymuje to wszystko. Ktoś, kto gra postacią już obecną w twoim składzie, jest zamiast tego potwierdzany w **Needs review**. Szczegóły są w [Twoi ludzie]({peopleGuide}).',
         },
         {
           term: 'Ręcznie',
@@ -864,9 +864,9 @@ const pl: PartialGuideDict = {
         'Na telefonie albo w oficjalnym kliencie użyj [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— wpisz swój RSN, strona losuje umiejętność, zdobądź w niej 1000 XP w ciągu 30 minut.',
-        '**Manual review** —— dla ukrytych Hiscores albo świeżych altów: wysyłasz RSN z notatką, a moderator zatwierdza.',
+        '**Manual review** —— dla ukrytych Hiscores albo świeżych altów: na stronie klanu poproś jego sztab o poręczenie za twój RSN. Możesz od razu zapisać się na jego wydarzenia, a zapis wstrzymuje się, aż odpowiedzą.',
       ],
-      signupNote: 'Zapis na wydarzenie wymaga co najmniej jednego zweryfikowanego konta, więc załatw to przed zapisem.',
+      signupNote: 'Na wydarzenie możesz zapisać się, gdy tylko podasz nazwę swojej postaci. Z pluginem albo po zaliczonym sprawdzeniu XP zapis przechodzi od razu. Jeśli poprosiłeś sztab o poręczenie, zapis wstrzymuje się, aż odpowiedzą.',
     },
 
     working: {
@@ -1461,7 +1461,7 @@ const pl: PartialGuideDict = {
       ],
       note: {
         tag: 'Czym zaproszenie nie jest',
-        body: 'To nie jest logowanie ani skrót omijający weryfikację. Kto je otworzy, i tak loguje się Discordem i i tak potrzebuje zweryfikowanego RSN-a, dokładnie jak przy każdym innym zapisie. Jedyne, o czym decyduje link, to _do której drużyny_ trafia zapis i że nie potrzebuje niczyjego zatwierdzenia.',
+        body: 'To nie jest logowanie ani skrót omijający weryfikację. Kto je otworzy, nadal loguje się Discordem i podaje swój RSN, dokładnie jak przy każdym innym zapisie. Jedyne, o czym decyduje link, to _do której drużyny_ trafia zapis i że nie potrzebuje niczyjego zatwierdzenia. Postać, która wciąż czeka na poręczenie sztabu, dołącza do drużyny, gdy ją potwierdzą.',
       },
     },
 
@@ -1594,7 +1594,7 @@ const pl: PartialGuideDict = {
           },
           {
             label: 'Reszta formularza',
-            body: 'bez zmian. Zweryfikowany RSN nadal jest wymagany, pytania z zapisu nadal się pojawiają, a wpisowe nadal obowiązuje.',
+            body: 'bez zmian. RSN nadal jest wymagany, pytania z zapisu nadal się pojawiają, a wpisowe nadal obowiązuje.',
           },
         ],
       },
@@ -2689,7 +2689,7 @@ const pl: PartialGuideDict = {
     verify: {
       title: 'Weryfikacja kont',
       intro:
-        'Nikt nie zapisze się na wydarzenie bez co najmniej jednego zweryfikowanego konta, więc ta kolejka wprost blokuje ludziom granie. To ta, którą warto czyścić codziennie.',
+        'Ludzie mogą zapisać się od razu, ale ktoś, kto poprosił cię o poręczenie, czeka, aż odpowiesz tutaj: zapisany, bez drużyny. Ta kolejka wprost powstrzymuje ludzi od grania. To ta, którą warto czyścić codziennie.',
       rows: [
         {
           term: 'Zweryfikowane przez plugin',
@@ -2697,11 +2697,11 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'dla graczy bez pluginu. Strona losuje umiejętność, a oni mają w niej zdobyć 1000 XP w ciągu trzydziestu minut. Sprawdza się sama, ale zaliczenie i tak trafia do **Needs review** do twojego tak albo nie, bo XP pokazuje, że ktoś trenował, a nie kto to jest. Nieudane sprawdzenie warto obejrzeć dokładniej.',
+          body: 'dla graczy bez pluginu. Strona losuje umiejętność, a oni mają w niej zdobyć 1000 XP w ciągu trzydziestu minut. Sprawdza się sama, a zaliczenie dodaje ich automatycznie do twojego klanu jako gościa, oznaczonego w **Needs review**, żebyś sprawdził, kiedy będziesz mieć czas (jeśli to pomyłka, usuń ich tam), bo XP pokazuje, że ktoś trenował, a nie kto to jest. Nieudane sprawdzenie warto obejrzeć dokładniej.',
         },
         {
           term: 'Przegląd ręczny',
-          body: 'ukryte Hiscores albo alt zbyt świeży, żeby się na nich pojawić. Ktoś przysyła RSN z notatką, a ty decydujesz. Poproś o zrzut ekranu logowania, jeśli notatka nie wystarcza.',
+          body: 'ukryte Hiscores albo alt zbyt świeży, żeby się na nich pojawić. Ktoś prosi cię o poręczenie za RSN, a ty decydujesz. Od razu zostaje dodany jako gość i może się zapisywać, ale jego zapisy wstrzymują się, bez drużyny, aż zatwierdzisz. Zatwierdzenie go kończy, a **Not our member** wycofuje. Poproś o zrzut ekranu logowania, jeśli nie jesteś pewien.',
         },
       ],
       note: {

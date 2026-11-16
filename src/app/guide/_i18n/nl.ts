@@ -398,7 +398,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Haal je leden binnen',
-          body: 'Installeer de plugin, meld je aan met Discord, open dan in het spel je clanvenster en druk op de **Anvil**-knop in de titelbalk. Niemand kan zich voor een event aanmelden tot je ledenlijst binnen is.',
+          body: 'Installeer de plugin, meld je aan met Discord, open dan in het spel je clanvenster en druk op de **Anvil**-knop in de titelbalk. Die lijst is waar je leden vandaan komen. Tot hij binnen is, kunnen mensen zich nog wel als gast voor je events inschrijven.',
         },
         {
           term: 'Maak een bord',
@@ -421,7 +421,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Ze vragen om te joinen',
-          body: 'Inloggen of spelen met de plugin geeft niemand uit zichzelf een plek. Ziet de plugin iemand spelen in je clan in het spel voordat je ledenlijst hem heeft, dan dient hij een joinverzoek voor hem in, en ieder ander kan het vragen met **Apply** op je clanpagina. De staf beantwoordt beide bovenaan het **Roster**-tabblad, en **Who can join** bepaalt of ze op een ja wachten, meteen binnenkomen of helemaal niet kunnen vragen. Wie een character speelt dat al op je ledenlijst staat, wordt in plaats daarvan bevestigd onder **Needs review**. De details staan in [Je mensen]({peopleGuide}).',
+          body: 'Leden komen alleen van je ledenlijst in het spel. Ziet de plugin iemand spelen in je clan in het spel voordat je ledenlijst hem heeft, dan dient hij een joinverzoek voor hem in, dat de staf bovenaan het **Roster**-tabblad beantwoordt. Ieder ander kan met zijn RSN op **Apply** drukken op je clanpagina: iemand die het character bevestigt met de plugin of de XP-controle wordt meteen gast, en iemand die de staf vraagt hem in te staan wordt als gast toegevoegd en blijft onder **Needs review** staan tot je antwoordt. **Who can join** op gesloten zetten stopt dat allemaal. Wie een character speelt dat al op je ledenlijst staat, wordt in plaats daarvan bevestigd onder **Needs review**. De details staan in [Je mensen]({peopleGuide}).',
         },
         {
           term: 'Met de hand',
@@ -866,10 +866,10 @@ const nl: PartialGuideDict = {
         'Gebruik op mobiel of in de officiële client [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — vul je RSN in, de site kiest een willekeurige skill, en je moet daarin binnen 30 minuten 1.000 XP halen.',
-        '**Manual review** — voor verborgen Hiscores of gloednieuwe altaccounts: dien je RSN in met een notitie, en een moderator keurt het goed.',
+        '**Manual review** — voor verborgen Hiscores of gloednieuwe altaccounts: vraag op de pagina van een clan de staf om voor je RSN in te staan. Je kunt je meteen voor de events van die clan inschrijven, en je inschrijving blijft in de wacht tot ze antwoorden.',
       ],
       signupNote:
-        'Inschrijven voor events vraagt minstens één geverifieerd account, dus regel dit voordat je je inschrijft.',
+        'Je kunt je voor een event inschrijven zodra je je character hebt opgegeven. Met de plugin of een geslaagde XP-controle ben je meteen binnen. Heb je de staf gevraagd voor je in te staan, dan wacht je inschrijving tot ze antwoorden.',
     },
 
     working: {
@@ -1474,7 +1474,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Wat een uitnodiging niet is',
-        body: 'Het is geen login en geen omweg om de verificatie heen. Wie hem opent logt nog steeds in met Discord en heeft nog steeds een geverifieerd RSN nodig, net als bij elke andere inschrijving. Het enige wat de link bepaalt is _in welk team_ de inschrijving belandt, en dat er niemands goedkeuring aan te pas komt.',
+        body: 'Het is geen login en geen omweg om de verificatie heen. Wie hem opent logt nog steeds in met Discord en moet nog steeds zijn RSN opgeven, net als bij elke andere inschrijving. Het enige wat de link bepaalt is _in welk team_ de inschrijving belandt, en dat er niemands goedkeuring aan te pas komt. Een character dat nog wacht tot de staf ervoor instaat, komt in het team zodra de staf het bevestigt.',
       },
     },
 
@@ -1609,7 +1609,7 @@ const nl: PartialGuideDict = {
           },
           {
             label: 'De rest van het formulier',
-            body: 'onveranderd. Een geverifieerd RSN is nog steeds vereist, de inschrijfvragen worden nog steeds gesteld, en inleg geldt nog steeds.',
+            body: 'onveranderd. Een RSN is nog steeds vereist, de inschrijfvragen worden nog steeds gesteld, en inleg geldt nog steeds.',
           },
         ],
       },
@@ -2470,7 +2470,7 @@ const nl: PartialGuideDict = {
     verify: {
       title: 'Accounts verifiëren',
       intro:
-        'Niemand kan zich zonder minstens één geverifieerd account voor een event inschrijven, deze wachtrij houdt mensen dus rechtstreeks van het spelen af. Die is het waard dagelijks leeg te maken.',
+        'Mensen kunnen meteen inschrijven, maar wie jou heeft gevraagd voor hem in te staan, wordt vastgehouden tot je hier antwoordt: ingeschreven, op geen enkel team. Deze wachtrij houdt mensen dus rechtstreeks van het spelen af. Die is het waard dagelijks leeg te maken.',
       rows: [
         {
           term: 'Geverifieerd via de plugin',
@@ -2478,11 +2478,11 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'voor spelers zonder plugin. De site kiest een willekeurige skill en ze moeten daarin binnen dertig minuten 1.000 XP halen. Dat controleert zichzelf, en een geslaagde controle komt toch in **Needs review** terecht, voor jouw ja of nee, want XP laat zien dat iemand getraind heeft, niet wie. Een mislukte controle is degene om nader te bekijken.',
+          body: 'voor spelers zonder plugin. De site kiest een willekeurige skill en ze moeten daarin binnen dertig minuten 1.000 XP halen. Dat controleert zichzelf, en een geslaagde controle voegt ze automatisch als gast aan je clan toe, gemarkeerd onder **Needs review** zodat je ze kunt nakijken wanneer het uitkomt (verwijder ze daar als het fout is), want XP laat zien dat iemand getraind heeft, niet wie. Een mislukte controle is degene om nader te bekijken.',
         },
         {
           term: 'Handmatige beoordeling',
-          body: 'verborgen Hiscores, of een altaccount dat te nieuw is om erop te staan. Iemand dient een RSN met een notitie in en jij beslist. Vraag om een schermafbeelding van het inlogscherm als de notitie niet volstaat.',
+          body: 'verborgen Hiscores, of een altaccount dat te nieuw is om erop te staan. Iemand vraagt je om voor een RSN in te staan en jij beslist. Die persoon wordt meteen als gast toegevoegd en kan zich inschrijven, maar de inschrijvingen blijven vastgehouden, op geen enkel team, tot jij goedkeurt. Goedkeuren rondt het af, en **Not our member** trekt het terug. Vraag om een schermafbeelding van het inlogscherm als je het niet zeker weet.',
         },
       ],
       note: {

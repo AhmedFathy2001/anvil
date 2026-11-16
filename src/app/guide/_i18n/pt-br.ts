@@ -398,7 +398,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Traga seus membros',
-          body: 'Instale o plugin, entre com o Discord, depois abra a janela do clã no jogo e aperte o botão **Anvil** na barra de título. Ninguém consegue se inscrever num evento até sua lista de membros estar lá.',
+          body: 'Instale o plugin, entre com o Discord, depois abra a janela do clã no jogo e aperte o botão **Anvil** na barra de título. Essa lista é de onde vêm os seus membros. Até ela estar lá, as pessoas ainda podem se inscrever nos seus eventos como convidados.',
         },
         {
           term: 'Faça um quadro',
@@ -421,7 +421,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Eles pedem para entrar',
-          body: 'Entrar no site ou jogar com o plugin nunca dá uma vaga a ninguém por si só. Se o plugin vê alguém jogando no seu clã do jogo antes de o seu quadro de membros ter essa pessoa, ele abre um pedido para entrar em nome dela, e qualquer outra pessoa pode pedir com **Apply** na página do seu clã. A staff responde aos dois no topo da aba **Roster**, e **Who can join** decide se as pessoas esperam um sim, entram na hora ou nem podem pedir. Quem joga com um personagem que já está no seu quadro é confirmado em **Needs review**. Os detalhes estão em [Sua gente]({peopleGuide}).',
+          body: 'Os membros vêm só da lista de membros do seu clã no jogo. Se o plugin vê alguém jogando no seu clã do jogo antes de o seu quadro ter essa pessoa, ele abre um pedido para entrar em nome dela, e a staff responde no topo da aba **Roster**. Qualquer outra pessoa pode apertar **Apply** na página do seu clã com o nome dela no jogo: quem confirma o personagem com o plugin ou com a verificação de XP vira convidado na hora, e quem pede para a staff garantir é adicionado como convidado e fica em **Needs review** até você responder. Com **Who can join** fechado, nada disso acontece. Quem joga com um personagem que já está no seu quadro é confirmado em **Needs review**. Os detalhes estão em [Sua gente]({peopleGuide}).',
         },
         {
           term: 'Na mão',
@@ -866,9 +866,9 @@ const ptBr: PartialGuideDict = {
         'No celular ou no cliente oficial, use [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— informe seu RSN, o site sorteia uma skill, ganhe 1.000 XP nela em até 30 minutos.',
-        '**Manual review** —— para Hiscores ocultos ou alts novas: envie seu RSN com uma observação e um moderador aprova.',
+        '**Manual review** — para Hiscores ocultos ou alts novas: na página de um clã, peça para a staff garantir o seu RSN. Você já pode se inscrever nos eventos dele na hora, e a inscrição fica retida até eles responderem.',
       ],
-      signupNote: 'Inscrever-se num evento exige ao menos uma conta verificada, então resolva isso antes de se inscrever.',
+      signupNote: 'Você pode se inscrever num evento assim que nomear seu personagem. Com o plugin ou com uma verificação de XP aprovada, você já entra na hora. Se pediu para a staff garantir, sua inscrição fica retida até eles responderem.',
     },
 
     working: {
@@ -1463,7 +1463,7 @@ const ptBr: PartialGuideDict = {
       ],
       note: {
         tag: 'O que um convite não é',
-        body: 'Não é um login e não é um atalho que pula a verificação. Quem abrir ainda entra com Discord e ainda precisa de um RSN verificado, exatamente como qualquer outra inscrição. As únicas coisas que o link decide são _em qual time_ a inscrição entra e que ela não precisa da aprovação de ninguém.',
+        body: 'Não é um login e não é um atalho que pula a verificação. Quem abrir ainda entra com Discord e ainda informa o seu RSN, exatamente como qualquer outra inscrição. As únicas coisas que o link decide são _em qual time_ a inscrição entra e que ela não precisa da aprovação de ninguém. Um personagem que ainda espera a staff garantir entra no time assim que ela confirmar.',
       },
     },
 
@@ -1596,7 +1596,7 @@ const ptBr: PartialGuideDict = {
           },
           {
             label: 'O resto do formulário',
-            body: 'inalterado. Um RSN verificado ainda é exigido, as perguntas de inscrição continuam sendo feitas, e a taxa de inscrição continua valendo.',
+            body: 'inalterado. Um RSN ainda é exigido, as perguntas de inscrição continuam sendo feitas, e a taxa de inscrição continua valendo.',
           },
         ],
       },
@@ -2691,7 +2691,7 @@ const ptBr: PartialGuideDict = {
     verify: {
       title: 'Verificando contas',
       intro:
-        'Ninguém consegue se inscrever num evento sem pelo menos uma conta verificada, então esta fila bloqueia gente de jogar diretamente. É a que vale esvaziar todo dia.',
+        'Pessoas podem se inscrever na hora, mas quem pediu para você garantir fica retida até você responder aqui: inscrita, mas sem time. Então esta fila impede diretamente que gente jogue. É a que vale esvaziar todo dia.',
       rows: [
         {
           term: 'Verificada pelo plugin',
@@ -2699,11 +2699,11 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'para jogadores sem o plugin. O site sorteia uma skill e eles ganham 1.000 XP nela em trinta minutos. Ele mesmo confere o resultado, e quem passa ainda cai em **Needs review** para o seu sim ou não, porque XP mostra que alguém treinou, não quem é. Uma verificação que falha é a que vale olhar com mais atenção.',
+          body: 'para jogadores sem o plugin. O site sorteia uma skill e eles ganham 1.000 XP nela em trinta minutos. Ele mesmo confere o resultado, e quem passa é adicionado automaticamente ao seu clã como convidado, marcado em **Needs review** para você conferir quando puder (remova ali se estiver errado), porque XP mostra que alguém treinou, não quem é. Uma verificação que falha é a que vale olhar com mais atenção.',
         },
         {
           term: 'Revisão manual',
-          body: 'Hiscores ocultos, ou uma alt nova demais para aparecer neles. Alguém envia um RSN com uma observação e você decide. Peça uma captura da tela de login se a observação não bastar.',
+          body: 'Hiscores ocultos, ou uma alt nova demais para aparecer neles. Alguém pede para você garantir um RSN e você decide. Essa pessoa é adicionada como convidada na hora e pode se inscrever, mas as inscrições dela ficam retidas, sem time, até você aprovar. Aprovar completa o cadastro, e **Not our member** retira a pessoa. Peça uma captura da tela de login se não tiver certeza.',
         },
       ],
       note: {

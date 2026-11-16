@@ -398,7 +398,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Trae a tus miembros',
-          body: 'Instala el plugin, inicia sesión con Discord, y luego abre la ventana del clan en el juego y pulsa el botón **Anvil** de su barra de título. Nadie puede inscribirse en un evento hasta que tu lista de miembros esté dentro.',
+          body: 'Instala el plugin, inicia sesión con Discord, y luego abre la ventana del clan en el juego y pulsa el botón **Anvil** de su barra de título. De esa lista salen tus miembros. Hasta que esté dentro, la gente aún puede inscribirse en tus eventos como invitados.',
         },
         {
           term: 'Haz un tablero',
@@ -421,7 +421,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Piden unirse',
-          body: 'Iniciar sesión o jugar con el plugin nunca le da a nadie un puesto por sí solo. Si el plugin ve a alguien jugando en tu clan del juego antes de que tu lista lo tenga, crea una solicitud para unirse a su nombre, y cualquier otro puede pedirlo con **Apply** en la página de tu clan. El staff responde a ambas arriba en la pestaña **Roster**, y **Who can join** decide si esperan un sí, entran al momento o no pueden pedirlo en absoluto. Quien juega un personaje que ya está en tu lista se confirma en **Needs review**. Los detalles están en [Tu gente]({peopleGuide}).',
+          body: 'Los miembros salen solo de la lista de miembros de tu clan en el juego. Si el plugin ve a alguien jugando en tu clan del juego antes de que tu lista lo tenga, crea una solicitud para unirse a su nombre, y el staff la responde arriba en la pestaña **Roster**. Cualquier otro puede pulsar **Apply** en la página de tu clan con su nombre en el juego: quien confirma el personaje con el plugin o con la prueba de XP pasa a ser invitado al momento, y quien pide que el staff lo avale se añade como invitado y queda en **Needs review** hasta que respondas. Poner **Who can join** en cerrado detiene todo esto. Quien juega un personaje que ya está en tu lista se confirma en **Needs review** en su lugar. Los detalles están en [Tu gente]({peopleGuide}).',
         },
         {
           term: 'A mano',
@@ -866,10 +866,10 @@ const es: PartialGuideDict = {
         'En móvil o en el cliente oficial, usa [Settings → Characters → Link a character](/settings/characters#link-account) en su lugar:',
       noPluginOptions: [
         '**Verify by XP** — escribe tu RSN, el sitio elige una habilidad al azar, y tienes que ganar 1.000 XP en ella en 30 minutos.',
-        '**Manual review** — para Hiscores ocultos o cuentas secundarias recién creadas: envía tu RSN con una nota y un moderador lo aprueba.',
+        '**Manual review** — para Hiscores ocultos o cuentas secundarias recién creadas: en la página de un clan, pide a su staff que avale tu RSN. Puedes inscribirte en sus eventos al momento, y tu inscripción queda retenida hasta que respondan.',
       ],
       signupNote:
-        'Inscribirse en un evento exige al menos una cuenta verificada, así que resuélvelo antes de apuntarte.',
+        'Puedes inscribirte en un evento en cuanto hayas indicado tu personaje. Con el plugin o una prueba de XP superada, quedas dentro al momento. Si pediste al staff que te avale, tu inscripción queda en espera hasta que respondan.',
     },
 
     working: {
@@ -1474,7 +1474,7 @@ const es: PartialGuideDict = {
       ],
       note: {
         tag: 'Lo que una invitación no es',
-        body: 'No es un inicio de sesión ni un atajo que salte la verificación. Quien la abra inicia sesión igualmente con Discord y sigue necesitando un RSN verificado, exactamente como en cualquier otra inscripción. Lo único que decide el enlace es _a qué equipo_ va la inscripción, y que no necesita la aprobación de nadie.',
+        body: 'No es un inicio de sesión ni un atajo que salte la verificación. Quien la abra inicia sesión igualmente con Discord y sigue indicando su RSN, exactamente como en cualquier otra inscripción. Lo único que decide el enlace es _a qué equipo_ va la inscripción, y que no necesita la aprobación de nadie. Un personaje que todavía espera a que el staff lo avale entra en el equipo cuando lo confirmen.',
       },
     },
 
@@ -1609,7 +1609,7 @@ const es: PartialGuideDict = {
           },
           {
             label: 'El resto del formulario',
-            body: 'sin cambios. Sigue haciendo falta un RSN verificado, se siguen haciendo las preguntas de inscripción, y sigue aplicándose la cuota.',
+            body: 'sin cambios. Sigue haciendo falta un RSN, se siguen haciendo las preguntas de inscripción, y sigue aplicándose la cuota.',
           },
         ],
       },
@@ -2704,7 +2704,7 @@ const es: PartialGuideDict = {
     verify: {
       title: 'Verificar cuentas',
       intro:
-        'Nadie puede inscribirse en un evento sin al menos una cuenta verificada, así que esta cola impide directamente que la gente juegue. Es la que merece vaciarse a diario.',
+        'La gente puede inscribirse al momento, pero quien te pidió que lo avales queda retenido hasta que respondas aquí: inscrito, sin equipo. Así que esta cola impide directamente que la gente juegue. Es la que merece vaciarse a diario.',
       rows: [
         {
           term: 'Verificada por el plugin',
@@ -2712,11 +2712,11 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'para jugadores sin plugin. El sitio elige una habilidad al azar y tienen que ganar 1.000 XP en ella en treinta minutos. Se comprueba solo, y una prueba superada igualmente llega a **Needs review** para tu sí o no, porque la XP muestra que alguien ha entrenado, no quién es. Un fallo es el que conviene mirar con más detalle.',
+          body: 'para jugadores sin plugin. El sitio elige una habilidad al azar y tienen que ganar 1.000 XP en ella en treinta minutos. Se comprueba solo, y una prueba superada los añade automáticamente a tu clan como invitados, marcados en **Needs review** para que los revises cuando puedas (quítalos ahí si es un error), porque la XP muestra que alguien ha entrenado, no quién es. Un fallo es el que conviene mirar con más detalle.',
         },
         {
           term: 'Revisión manual',
-          body: 'Hiscores ocultos, o una cuenta secundaria demasiado nueva para aparecer en ellos. Alguien envía un RSN con una nota y tú decides. Pide una captura de la pantalla de inicio de sesión si la nota no basta.',
+          body: 'Hiscores ocultos, o una cuenta secundaria demasiado nueva para aparecer en ellos. Alguien pide que avales un RSN y tú decides. Se añade al momento como invitado y puede inscribirse, pero sus inscripciones quedan retenidas, sin equipo, hasta que lo apruebes. Al aprobarlo, queda completo, y **Not our member** lo retira. Pide una captura de la pantalla de inicio de sesión si no estás seguro.',
         },
       ],
       note: {

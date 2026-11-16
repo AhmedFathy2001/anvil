@@ -397,7 +397,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Tuo jäsenesi mukaan',
-          body: 'Asenna lisäosa, kirjaudu sisään Discordilla, avaa sitten pelissä klaani-ikkunasi ja paina sen otsikkopalkin **Anvil**-painiketta. Kukaan ei voi ilmoittautua tapahtumaan ennen kuin jäsenlistasi on sisällä.',
+          body: 'Asenna lisäosa, kirjaudu sisään Discordilla, avaa sitten pelissä klaani-ikkunasi ja paina sen otsikkopalkin **Anvil**-painiketta. Tämä lista kertoo, keitä jäsenesi ovat. Siihen asti ihmiset voivat silti ilmoittautua tapahtumiisi vieraina.',
         },
         {
           term: 'Tee taulu',
@@ -420,7 +420,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'He pyytävät päästä mukaan',
-          body: 'Sisäänkirjautuminen tai pluginilla pelaaminen ei koskaan anna kenellekään paikkaa itsestään. Jos plugin näkee jonkun pelaavan pelin klaanissasi ennen kuin jäsenlistallasi on hänet, se tekee hänen puolestaan liittymispyynnön, ja kuka tahansa muu voi pyytää klaanisivusi **Apply**-painikkeella. Henkilökunta vastaa molempiin **Roster**-välilehden yläosassa, ja **Who can join** ratkaisee, odottavatko he hyväksyntää, pääsevätkö he heti sisään vai eivätkö he voi pyytää lainkaan. Joku, joka pelaa jäsenlistallasi jo olevaa hahmoa, vahvistetaan sen sijaan kohdassa **Needs review**. Yksityiskohdat ovat oppaassa [Väkesi]({peopleGuide}).',
+          body: 'Jäsenet tulevat vain pelin sisäisestä jäsenlistastasi. Jos plugin näkee jonkun pelaavan klaanissasi pelissä ennen kuin jäsenlistallasi on hänet, se tekee hänen puolestaan liittymispyynnön, johon henkilökunta vastaa **Roster**-välilehden yläosassa. Kuka tahansa muu voi painaa klaanisivullasi **Apply**-painiketta pelinimellään: joku, joka vahvistaa hahmonsa pluginilla tai XP-tarkistuksella, tulee heti vieraaksi, ja joku, joka pyytää henkilökuntaa takaamaan hänet, lisätään vieraaksi ja pidetään kohdassa **Needs review**, kunnes vastaat. Kun **Who can join** on asetettu suljetuksi, kaikki tämä pysähtyy. Joku, joka pelaa jo jäsenlistallasi olevaa hahmoa, vahvistetaan sen sijaan kohdassa **Needs review**. Yksityiskohdat ovat oppaassa [Väkesi]({peopleGuide}).',
         },
         {
           term: 'Käsin',
@@ -864,10 +864,10 @@ const fi: PartialGuideDict = {
         'Mobiililla tai virallisella asiakasohjelmalla käytä sen sijaan [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — syötä RSN:si, sivusto valitsee satunnaisen taidon, ja sinun on ansaittava siinä 1 000 XP 30 minuutin sisällä.',
-        '**Manual review** — piilotetuille Hiscoresille tai aivan uusille alt-tileille: lähetä RSN:si huomautuksen kera, ja moderaattori hyväksyy sen.',
+        '**Manual review** — piilotetuille Hiscoresille tai aivan uusille alt-tileille: pyydä klaanin sivulla sen henkilökuntaa takaamaan RSN:si. Voit ilmoittautua sen tapahtumiin heti, ja ilmoittautumisesi pidetään odottamassa, kunnes he vastaavat.',
       ],
       signupNote:
-        'Tapahtumiin ilmoittautuminen vaatii vähintään yhden vahvistetun tilin, joten hoida tämä ennen kuin ilmoittaudut.',
+        'Voit ilmoittautua tapahtumaan heti, kun olet nimennyt hahmosi. Pluginilla tai läpäistyn XP-tarkistuksen jälkeen olet mukana heti. Jos pyysit henkilökuntaa takaamaan sinut, ilmoittautumisesi pidetään odottamassa, kunnes he vastaavat.',
     },
 
     working: {
@@ -1472,7 +1472,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Mitä kutsu ei ole',
-        body: 'Se ei ole kirjautuminen eikä oikotie vahvistuksen ohi. Sen avaava kirjautuu silti sisään Discordilla ja tarvitsee silti vahvistetun RSN:n, aivan kuten missä tahansa muussa ilmoittautumisessa. Ainoa mitä linkki ratkaisee on _mihin joukkueeseen_ ilmoittautuminen menee, ja ettei se tarvitse kenenkään hyväksyntää.',
+        body: 'Se ei ole kirjautuminen eikä oikotie vahvistuksen ohi. Sen avaava kirjautuu silti sisään Discordilla ja nimeää silti RSN:nsä, aivan kuten missä tahansa muussa ilmoittautumisessa. Ainoa mitä linkki ratkaisee on _mihin joukkueeseen_ ilmoittautuminen menee, ja ettei se tarvitse kenenkään hyväksyntää. Hahmo, joka odottaa vielä henkilökunnan takausta, liittyy joukkueeseen, kun he vahvistavat sen.',
       },
     },
 
@@ -1607,7 +1607,7 @@ const fi: PartialGuideDict = {
           },
           {
             label: 'Loput lomakkeesta',
-            body: 'ennallaan. Vahvistettu RSN vaaditaan yhä, ilmoittautumiskysymykset kysytään yhä, ja ilmoittautumismaksu pätee yhä.',
+            body: 'ennallaan. RSN vaaditaan yhä, ilmoittautumiskysymykset kysytään yhä, ja ilmoittautumismaksu pätee yhä.',
           },
         ],
       },
@@ -2468,7 +2468,7 @@ const fi: PartialGuideDict = {
     verify: {
       title: 'Tilien vahvistaminen',
       intro:
-        'Kukaan ei voi ilmoittautua tapahtumaan ilman vähintään yhtä vahvistettua tiliä, joten tämä jono estää ihmisiä suoraan pelaamasta. Tämä kannattaa tyhjentää päivittäin.',
+        'Ihmiset voivat ilmoittautua heti, mutta joku, joka pyysi sinua takaamaan hänet, pidetään odottamassa, kunnes vastaat tässä: ilmoittautuneena, ilman joukkuetta. Tämä jono siis suoraan estää ihmisiä pelaamasta. Tämä on se, jonka kannattaa tyhjentää päivittäin.',
       rows: [
         {
           term: 'Vahvistettu pluginilla',
@@ -2476,11 +2476,11 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'pelaajille ilman pluginia. Sivusto valitsee satunnaisen taidon, ja heidän on ansaittava siinä 1 000 XP kolmenkymmenen minuutin sisällä. Se tarkistaa itsensä, mutta läpäisty tarkistus päätyy silti kohtaan **Needs review** odottamaan sinun kyllä- tai ei-päätöstäsi, koska XP osoittaa, että joku on harjoitellut, ei kuka. Epäonnistunut tarkistus kannattaa katsoa tarkemmin.',
+          body: 'pelaajille, joilla ei ole pluginia. Sivusto valitsee satunnaisen taidon, ja heidän on ansaittava siinä 1 000 XP kolmenkymmenen minuutin sisällä. Se tarkistaa itsensä, ja läpäisty tarkistus lisää heidät klaaniisi automaattisesti vieraana, merkittynä kohtaan **Needs review** tarkistettavaksi, kun ehdit (poista heidät siellä, jos se on väärin), koska XP osoittaa, että joku on harjoitellut, ei kuka. Epäonnistunut tarkistus kannattaa katsoa tarkemmin.',
         },
         {
           term: 'Manuaalinen tarkistus',
-          body: 'piilotetut Hiscoresit, tai alt-tili joka on liian uusi näkyäkseen niissä. Joku lähettää RSN:n huomautuksen kera ja sinä päätät. Pyydä kuvakaappaus kirjautumisruudusta jos huomautus ei riitä.',
+          body: 'piilotetut Hiscoresit, tai alt-tili, joka on liian uusi näkyäkseen niissä. Joku pyytää sinua takaamaan RSN:n, ja sinä päätät. Hänet lisätään heti vieraaksi ja hän voi ilmoittautua, mutta hänen ilmoittautumisiaan pidetään odottamassa ilman joukkuetta, kunnes hyväksyt ne. Hyväksyminen viimeistelee hänet, ja **Not our member** peruu sen. Pyydä kuvakaappaus kirjautumisruudusta, jos et ole varma.',
         },
       ],
       note: {
