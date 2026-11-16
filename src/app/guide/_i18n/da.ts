@@ -426,7 +426,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'De beder om at komme ind',
-          body: 'Medlemmer kommer kun fra din medlemsliste i spillet. Ser pluginet nogen spille i din klan i spillet, før din medlemsliste har dem, opretter det en anmodning om at komme ind for dem, og staben besvarer den øverst på **Roster**-fanen. Alle andre kan trykke på **Apply** på jeres klanside med deres navn i spillet: en, der bekræfter karakteren med pluginet eller XP-tjekket, bliver med det samme gæst, og en, der beder din stab om at gå i borgen for dem, bliver tilføjet som gæst og holdes under **Needs review**, indtil du svarer. At sætte **Who can join** til lukket stopper alt det her. En, der spiller en karakter, som allerede står på din medlemsliste, bliver i stedet bekræftet under **Needs review**. Detaljerne står i [Dine folk]({peopleGuide}).',
+          body: 'Medlemmer kommer kun fra din medlemsliste i spillet. Ser pluginet nogen spille i din klan i spillet, før din medlemsliste har dem, opretter det en anmodning om at komme ind for dem, og staben besvarer den øverst på **Roster**-fanen. Alle andre kan trykke på **Apply** på jeres klanside med deres navn i spillet: en, der bekræfter karakteren med pluginet eller XP-tjekket, bliver med det samme gæst, og en, der beder din stab om at gå i borgen for dem, følger **Who can join**: hvor gæster skal godkendes, er det en anmodning om at komme ind, og de har ingen plads, før du accepterer den; hvor gæster lukkes ind frit, bliver de tilføjet som gæst. Begge veje holdes de under **Needs review**, indtil du går i borgen for dem. At sætte **Who can join** til lukket stopper alt det her. En, der spiller en karakter, som allerede står på din medlemsliste, bliver i stedet bekræftet under **Needs review**. Detaljerne står i [Dine folk]({peopleGuide}).',
         },
         {
           term: 'I hånden',
@@ -870,10 +870,10 @@ const da: PartialGuideDict = {
         'På mobil eller i den officielle klient kan du i stedet bruge [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — skriv dit RSN, siden vælger en tilfældig skill, og du skal tjene 1.000 XP i den inden for 30 minutter.',
-        '**Manual review** — til skjulte Hiscores eller helt nye alts: gå på en klans side og bed dens stab om at gå i borgen for dit RSN. Du kan melde dig til dens events med det samme, og din tilmelding holdes, indtil de svarer.',
+        '**Manual review** — til skjulte Hiscores eller helt nye alts: gå på en klans side og bed dens stab om at gå i borgen for dit RSN. Hvis klanen godkender sine gæster først, kan du melde dig til dens events, når dens stab har accepteret din anmodning. Din tilmelding holdes, indtil de bekræfter karakteren.',
       ],
       signupNote:
-        'Du kan melde dig til et event, så snart du har navngivet din karakter. Med pluginet eller et bestået XP-tjek er du med det samme. Har du bedt staben om at gå i borgen for dig, holdes din tilmelding, indtil de svarer.',
+        'Du kan melde dig til et event, så snart du har navngivet din karakter. Med pluginet eller et bestået XP-tjek er du med det samme. Har du bedt staben om at gå i borgen for dig, kan du melde dig til, når klanen har accepteret dig som gæst, og din tilmelding holdes, indtil de bekræfter karakteren.',
     },
 
     working: {
@@ -2709,7 +2709,7 @@ const da: PartialGuideDict = {
     verify: {
       title: 'At verificere konti',
       intro:
-        'Folk kan melde sig til med det samme, men en, der har bedt dig om at gå i borgen, holdes, indtil du svarer her: tilmeldt, men på intet hold. Så den her kø blokerer folk direkte fra at spille. Det er den, der er værd at tømme dagligt.',
+        'Folk kan melde sig til med det samme, men en, der har bedt dig om at gå i borgen, venter på dig: på deres anmodning om at komme ind, hvor dine gæster skal godkendes, og derefter holdes de her, indtil du går i borgen for dem: tilmeldt, men på intet hold. Så den her kø blokerer folk direkte fra at spille. Det er den, der er værd at tømme dagligt.',
       rows: [
         {
           term: 'Verificeret via pluginnet',
@@ -2721,7 +2721,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Manuelt gennemsyn',
-          body: 'skjulte Hiscores eller en alt, der er for ny til at stå på dem. Nogen beder dig om at gå i borgen for et RSN, og du bestemmer. De tilføjes straks som gæst og kan melde sig til, men deres tilmeldinger holdes, på intet hold, indtil du godkender. Godkender du, bliver de fuldført, og **Not our member** trækker dem tilbage. Bed om et screenshot af login-skærmen, hvis du ikke er sikker.',
+          body: 'skjulte Hiscores eller en alt, der er for ny til at stå på dem. Nogen beder dig om at gå i borgen for et RSN, og du bestemmer. Hvor dine gæster skal godkendes, sender de først en anmodning om at komme ind og har ingen plads, før du accepterer den; hvor gæster lukkes ind frit, tilføjes de straks som gæst. Når de er gæst, kan de melde sig til, men deres tilmeldinger holdes, på intet hold, indtil du godkender. Godkender du, bliver de fuldført, og **Not our member** trækker dem tilbage. Bed om et screenshot af login-skærmen, hvis du ikke er sikker.',
         },
       ],
       note: {

@@ -9,6 +9,8 @@ import { verifyUser } from '@/lib/auth';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
+import { doorPolicy } from '@/lib/characterState';
+import { mayAddressClan } from '@/lib/clanAddress';
 import { admit } from '@/lib/guestAdmission';
 import { rosterClanSeat } from '@/lib/seatScope';
 
@@ -183,12 +185,25 @@ export async function POST(request: Request) {
   );
 
   let clanMemberId: number;
+  // A seat ended on purpose (an admin removed it, staff said "not our member", or the person left)
+  // stays ended: the character is theirs now, and the place in this clan is the clan's to give back.
+  if (existing?.leftAt && (existing.source === 'admin' || existing.source === 'manual')) {
+    return NextResponse.json({
+      status: 'succeeded',
+      skill: best.skill,
+      delta: best.delta,
+      provisional: true,
+      seated: false,
+      admission: 'refused',
+      note: 'Your character is linked. Your place in this clan was ended earlier, so ask its staff to add you back.',
+    });
+  }
   if (existing) {
     await db
       .update(clanMemberships)
       .set({
-        // An admin who removed somebody meant it; proving ownership is not an appeal.
-        leftAt: existing.source === 'admin' ? existing.leftAt : null,
+        // A departed ghost comes back on claim; a seat ended on purpose never reaches here (above).
+        leftAt: null,
         lastSeenInClan: nowIso,
       })
       .where(eq(clanMemberships.id, existing.id));
@@ -198,9 +213,18 @@ export async function POST(request: Request) {
     // default policy this raises a request instead of seating them — and the account stays linked to
     // them either way, which is what they actually asked for.
     // A passed XP check is semi-trusted: the guest seat now, flagged in Needs review (provisional) for
-    // staff to check when they can. Closed clans and bans are still refused; a seat staff removed is
-    // not put back (admit refuses it for anything that is not the person asking on the site).
-    const admission = await admit({ clanId: clan.id, accountId: claim.accountId, policy: 'open' });
+    // staff to check when they can, at a clan this person may address (lib/clanAddress). At a
+    // members-only or hidden clan they have no tie to, the clan's own guest setting decides. Closed
+    // clans and bans are still refused; a seat staff removed is not put back (kept ended above).
+    const admission = await admit({
+      clanId: clan.id,
+      accountId: claim.accountId,
+      policy: doorPolicy({
+        tier: 'xp',
+        mayAddress: await mayAddressClan({ clanId: clan.id, playerId: session.playerId, userId: session.userId, countRequests: false }),
+        removedByStaff: false,
+      }),
+    });
     if (admission.outcome !== 'seated') {
       return NextResponse.json(
         {

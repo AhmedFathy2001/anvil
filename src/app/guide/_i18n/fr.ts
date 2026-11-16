@@ -422,7 +422,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Ils demandent à rejoindre',
-          body: 'Les membres viennent uniquement de la liste des membres de votre clan en jeu. Si le plugin voit quelqu’un jouer dans votre clan en jeu avant que votre liste ne l’ait, il fait une demande d’adhésion pour lui, que le staff traite en haut de l’onglet **Roster**. N’importe qui d’autre peut appuyer sur **Apply** sur la page de votre clan avec son nom en jeu : quelqu’un qui confirme le personnage avec le plugin ou le test d’XP devient tout de suite invité, et quelqu’un qui demande au staff de le cautionner est ajouté comme invité et placé sous **Needs review** jusqu’à votre réponse. Mettre **Who can join** sur fermé arrête tout cela. Quelqu’un qui joue un personnage déjà sur votre liste est plutôt confirmé sous **Needs review**. Les détails sont dans [Vos membres]({peopleGuide}).',
+          body: 'Les membres viennent uniquement de la liste des membres de votre clan en jeu. Si le plugin voit quelqu’un jouer dans votre clan en jeu avant que votre liste ne l’ait, il fait une demande d’adhésion pour lui, que le staff traite en haut de l’onglet **Roster**. N’importe qui d’autre peut appuyer sur **Apply** sur la page de votre clan avec son nom en jeu : quelqu’un qui confirme le personnage avec le plugin ou le test d’XP devient tout de suite invité, et quelqu’un qui demande au staff de le cautionner suit **Who can join** : là où les invités doivent être approuvés, c’est une demande d’adhésion et il n’a aucune place tant que vous ne l’avez pas acceptée, et là où les invités sont admis librement, il est ajouté comme invité. Dans les deux cas, il reste placé sous **Needs review** jusqu’à ce que vous le cautionniez. Mettre **Who can join** sur fermé arrête tout cela. Quelqu’un qui joue un personnage déjà sur votre liste est plutôt confirmé sous **Needs review**. Les détails sont dans [Vos membres]({peopleGuide}).',
         },
         {
           term: 'À la main',
@@ -867,10 +867,10 @@ const fr: PartialGuideDict = {
         'Sur mobile ou sur le client officiel, utilisez plutôt [Settings → Characters → Link a character](/settings/characters#link-account) :',
       noPluginOptions: [
         '**Verify by XP** — saisissez votre RSN, le site choisit une compétence au hasard, et vous devez y gagner 1 000 XP en 30 minutes.',
-        '**Manual review** — pour des Hiscores masqués ou un compte secondaire tout neuf : sur la page d’un clan, demandez à son staff de se porter garant de votre RSN. Vous pouvez vous inscrire à ses événements tout de suite, et votre inscription reste en attente jusqu’à sa réponse.',
+        '**Manual review** — pour des Hiscores masqués ou un compte secondaire tout neuf : sur la page d’un clan, demandez à son staff de se porter garant de votre RSN. Si le clan accepte d’abord ses invités, vous pouvez vous inscrire à ses événements une fois que son staff a accepté votre demande. Votre inscription reste en attente jusqu’à ce qu’il confirme le personnage.',
       ],
       signupNote:
-        'Vous pouvez vous inscrire à un événement dès que vous avez indiqué votre personnage. Avec le plugin ou un test d’XP réussi, vous êtes inscrit tout de suite. Si vous avez demandé au staff de se porter garant, votre inscription reste en attente jusqu’à sa réponse.',
+        'Vous pouvez vous inscrire à un événement dès que vous avez indiqué votre personnage. Avec le plugin ou un test d’XP réussi, vous êtes inscrit tout de suite. Si vous avez demandé au staff de se porter garant, vous pouvez vous inscrire une fois que le clan vous a accepté comme invité, et votre inscription reste en attente jusqu’à ce qu’il confirme le personnage.',
     },
 
     working: {
@@ -2705,7 +2705,7 @@ const fr: PartialGuideDict = {
     verify: {
       title: 'Vérifier les comptes',
       intro:
-        'Les gens peuvent s’inscrire tout de suite, mais quelqu’un qui vous a demandé de le cautionner reste en attente jusqu’à votre réponse ici : inscrit, sans équipe. Cette file empêche donc directement des gens de jouer. C’est celle qui vaut la peine d’être vidée chaque jour.',
+        'Les gens peuvent s’inscrire tout de suite, mais quelqu’un qui vous a demandé de le cautionner attend de vous : pour sa demande d’adhésion là où vos invités doivent être approuvés, puis il reste ici jusqu’à ce que vous le cautionniez, inscrit mais sans équipe. Cette file empêche donc directement des gens de jouer. C’est celle qui vaut la peine d’être vidée chaque jour.',
       rows: [
         {
           term: 'Vérifié par le plugin',
@@ -2717,7 +2717,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Examen manuel',
-          body: 'Hiscores masqués, ou compte secondaire trop récent pour y figurer. Quelqu’un vous demande de cautionner un RSN et vous décidez. Il est ajouté tout de suite comme invité et peut s’inscrire, mais ses inscriptions restent en attente, sans équipe, jusqu’à votre approbation. L’approbation les complète, et **Not our member** les retire. Demandez une capture de l’écran de connexion si vous n’êtes pas sûr.',
+          body: 'Hiscores masqués, ou compte secondaire trop récent pour y figurer. Quelqu’un vous demande de cautionner un RSN et vous décidez. Là où vos invités doivent être approuvés, il envoie d’abord une demande d’adhésion et n’a aucune place tant que vous ne l’avez pas acceptée ; là où les invités sont admis librement, il est ajouté tout de suite comme invité. Une fois invité, il peut s’inscrire, mais ses inscriptions restent en attente, sans équipe, jusqu’à votre approbation. L’approbation les complète, et **Not our member** les retire. Demandez une capture de l’écran de connexion si vous n’êtes pas sûr.',
         },
       ],
       note: {

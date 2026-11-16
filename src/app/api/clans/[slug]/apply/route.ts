@@ -11,7 +11,8 @@ import { validRsn } from '@/lib/rsnRules';
 import { applyChoices } from '@/lib/clanApply';
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { admit, doorStates, removedByStaff } from '@/lib/guestAdmission';
-import { doorPolicy, mayJoinWith } from '@/lib/characterState';
+import { doorPolicy, mayJoinWith, tierOf } from '@/lib/characterState';
+import { mayAddressClan } from '@/lib/clanAddress';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -27,6 +28,10 @@ import { rateLimitByKey } from '@/lib/rate-limit';
  * honours the clan's policy, and files a request when the answer is "a human decides" — so this adds
  * an address, not a rule. A clan whose policy is `open` is joined outright; `approval` files a
  * request that /admin/clan now shows; `closed` is refused.
+ *
+ * A character proved by the plugin or the XP check is granted the guest seat over `approval`
+ * (lib/characterState doorPolicy), at a clan the person may address (lib/clanAddress). An unproven
+ * one, and anyone at a members-only or hidden clan they have no tie to, gets the clan's own setting.
  *
  * Addressed by SLUG rather than by the clan prefix: /api/clans is a platform root, so this route is
  * reachable identically from the apex directory and from inside the clan's own pages.
@@ -123,16 +128,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: `${account.rsn} has to be verified first.` }, { status: 403 });
   }
 
-  const message = typeof body?.message === 'string' ? body.message : undefined;
-  // Granted at once (a guest seat, as an approved request would give), flagged for staff in Needs review
-  // when it came by XP check or manual vouch. Closed clans and bans are still refused inside admit();
-  // a seat staff removed goes back to a request.
+  // A PROVEN character (plugin or XP check) is granted the guest seat at once, flagged for staff in
+  // Needs review when it came by XP check, but only at a clan this person may address (lib/clanAddress).
+  // At a members-only or hidden clan they have no tie to, and for a character that is only a claim
+  // (asked staff to vouch), nothing is overridden: the clan's own guest setting decides. Closed clans
+  // and bans are still refused inside admit(); a seat staff removed goes back to a request.
+  const tier = tierOf(account);
+  const mayAddress = await mayAddressClan({ clanId: clan.id, playerId: session.playerId, userId: session.userId, countRequests: tier === 'manual' });
+  // An unproven claim at a clan that is not theirs to address: the same answer as no such clan
+  // (the rule /api/auth/request-manual-review applies to the same person).
+  if (tier === 'manual' && !mayAddress) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const typed = typeof body?.message === 'string' ? body.message.trim() : '';
+  // Staff reading the queue are told when nothing proves the character yet.
+  const message = tier === 'manual' ? `Asks staff to vouch for ${account.rsn} (no plugin or XP check).${typed ? ` ${typed}` : ''}` : typed || undefined;
   const admission = await admit({
     clanId: clan.id,
     accountId,
     source: 'web',
     message,
-    policy: doorPolicy({ removedByStaff: await removedByStaff(clan.id, accountId) }),
+    policy: doorPolicy({ tier, mayAddress, removedByStaff: await removedByStaff(clan.id, accountId) }),
   });
 
   if (admission.outcome === 'refused') {

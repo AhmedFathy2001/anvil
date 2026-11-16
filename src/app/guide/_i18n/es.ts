@@ -421,7 +421,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Piden unirse',
-          body: 'Los miembros salen solo de la lista de miembros de tu clan en el juego. Si el plugin ve a alguien jugando en tu clan del juego antes de que tu lista lo tenga, crea una solicitud para unirse a su nombre, y el staff la responde arriba en la pestaña **Roster**. Cualquier otro puede pulsar **Apply** en la página de tu clan con su nombre en el juego: quien confirma el personaje con el plugin o con la prueba de XP pasa a ser invitado al momento, y quien pide que el staff lo avale se añade como invitado y queda en **Needs review** hasta que respondas. Poner **Who can join** en cerrado detiene todo esto. Quien juega un personaje que ya está en tu lista se confirma en **Needs review** en su lugar. Los detalles están en [Tu gente]({peopleGuide}).',
+          body: 'Los miembros salen solo de la lista de miembros de tu clan en el juego. Si el plugin ve a alguien jugando en tu clan del juego antes de que tu lista lo tenga, crea una solicitud para unirse a su nombre, y el staff la responde arriba en la pestaña **Roster**. Cualquier otro puede pulsar **Apply** en la página de tu clan con su nombre en el juego: quien confirma el personaje con el plugin o con la prueba de XP pasa a ser invitado al momento, y quien pide que el staff lo avale sigue **Who can join**: donde los invitados necesitan aprobación es una solicitud para unirse y no tiene puesto hasta que la aceptes, y donde los invitados entran libremente se añade como invitado. En ambos casos queda en **Needs review** hasta que lo avales. Poner **Who can join** en cerrado detiene todo esto. Quien juega un personaje que ya está en tu lista se confirma en **Needs review** en su lugar. Los detalles están en [Tu gente]({peopleGuide}).',
         },
         {
           term: 'A mano',
@@ -866,10 +866,10 @@ const es: PartialGuideDict = {
         'En móvil o en el cliente oficial, usa [Settings → Characters → Link a character](/settings/characters#link-account) en su lugar:',
       noPluginOptions: [
         '**Verify by XP** — escribe tu RSN, el sitio elige una habilidad al azar, y tienes que ganar 1.000 XP en ella en 30 minutos.',
-        '**Manual review** — para Hiscores ocultos o cuentas secundarias recién creadas: en la página de un clan, pide a su staff que avale tu RSN. Puedes inscribirte en sus eventos al momento, y tu inscripción queda retenida hasta que respondan.',
+        '**Manual review** — para Hiscores ocultos o cuentas secundarias recién creadas: en la página de un clan, pide a su staff que avale tu RSN. Si el clan aprueba antes a sus invitados, puedes inscribirte en sus eventos en cuanto su staff acepte tu solicitud. Tu inscripción queda retenida hasta que confirmen el personaje.',
       ],
       signupNote:
-        'Puedes inscribirte en un evento en cuanto hayas indicado tu personaje. Con el plugin o una prueba de XP superada, quedas dentro al momento. Si pediste al staff que te avale, tu inscripción queda en espera hasta que respondan.',
+        'Puedes inscribirte en un evento en cuanto hayas indicado tu personaje. Con el plugin o una prueba de XP superada, quedas dentro al momento. Si pediste al staff que te avale, puedes inscribirte cuando el clan te haya aceptado como invitado, y tu inscripción queda en espera hasta que confirmen el personaje.',
     },
 
     working: {
@@ -2704,7 +2704,7 @@ const es: PartialGuideDict = {
     verify: {
       title: 'Verificar cuentas',
       intro:
-        'La gente puede inscribirse al momento, pero quien te pidió que lo avales queda retenido hasta que respondas aquí: inscrito, sin equipo. Así que esta cola impide directamente que la gente juegue. Es la que merece vaciarse a diario.',
+        'La gente puede inscribirse al momento, pero quien te pidió que lo avales depende de ti: primero su solicitud para unirse, donde tus invitados necesitan aprobación, y luego queda retenido aquí hasta que lo avales, inscrito pero sin equipo. Así que esta cola impide directamente que la gente juegue. Es la que merece vaciarse a diario.',
       rows: [
         {
           term: 'Verificada por el plugin',
@@ -2716,7 +2716,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Revisión manual',
-          body: 'Hiscores ocultos, o una cuenta secundaria demasiado nueva para aparecer en ellos. Alguien pide que avales un RSN y tú decides. Se añade al momento como invitado y puede inscribirse, pero sus inscripciones quedan retenidas, sin equipo, hasta que lo apruebes. Al aprobarlo, queda completo, y **Not our member** lo retira. Pide una captura de la pantalla de inicio de sesión si no estás seguro.',
+          body: 'Hiscores ocultos, o una cuenta secundaria demasiado nueva para aparecer en ellos. Alguien pide que avales un RSN y tú decides. Donde tus invitados necesitan aprobación, primero envían una solicitud para unirse y no tienen puesto hasta que la aceptes; donde los invitados entran libremente, se añaden como invitados al momento. Una vez son invitados pueden inscribirse, pero sus inscripciones quedan retenidas, sin equipo, hasta que lo apruebes. Al aprobarlo, queda completo, y **Not our member** lo retira. Pide una captura de la pantalla de inicio de sesión si no estás seguro.',
         },
       ],
       note: {

@@ -5,7 +5,7 @@
 // verificationMethod; no schema change):
 //   named                   a name typed in, nothing claimed yet            -> nothing: no row exists
 //   xp-running              an XP check is open                             -> nothing yet: no row exists
-//   awaiting-manual         asked clan staff to vouch (verifiedAt empty)    -> may join; staff confirm
+//   awaiting-manual         asked clan staff to vouch (verifiedAt empty)    -> may ask; the clan's door decides
 //   passed-awaiting-review  passed the XP check or first plugin play, a
 //                           moderator still confirms (provisional)          -> may do everything
 //   verified                plugin hash match, or a moderator confirmed     -> may do everything
@@ -35,16 +35,19 @@ export function characterState(a: CharacterProof): CharacterState | null {
  * WHAT IS ADMITTED, WHAT IS HELD, WHO CAN UNDO IT (the answer to "an unverified character can now
  * join"). The owner's policy is three tiers, from `tierOf`:
  *   plugin  the plugin reported it while signed in (or staff confirmed it): trusted. Joins events and
- *           is granted a clan GUEST seat at once.
+ *           is granted a clan GUEST seat at once, at a clan they may address (lib/clanAddress); at a
+ *           members-only or hidden clan they have no tie to, that clan's own guest setting decides.
  *   xp      the XP check passed: semi-trusted (it can be passed by accident or spoofed). Exactly the
  *           same for the person, but the seat stays flagged in the clan's Needs review list as
  *           "added automatically, check when you can": flagged, never blocking.
- *   manual  the person asked the clan's staff to vouch and nothing else proves it. Admitted to sign
- *           up and to a guest seat, but everything that cannot be undone is held: the entry is
- *           PENDING (no team, no board place, so no progress, prize or payout), `verifiedAt` is empty
- *           so no Discord roles are given (lib/discord-roles reads it), and a seat here is never a
- *           member seat (membership only ever comes from the in-game list). One open request per
- *           person, only where a clan exists to review it, bans refused.
+ *   manual  the person asked the clan's staff to vouch and nothing else proves it. It never overrides
+ *           the clan's door (`doorPolicy`): a clan that lets guests in freely seats them, a clan whose
+ *           guests need approval gets a join request and gives NO seat until staff accept it, a
+ *           closed clan refuses. Once seated, everything that cannot be undone is still held: the
+ *           entry is PENDING (no team, no board place, so no progress, prize or payout), `verifiedAt`
+ *           is empty so no Discord roles are given (lib/discord-roles reads it), and a seat here is
+ *           never a member seat (membership only ever comes from the in-game list). One open request
+ *           per person, only where a clan exists to review it and may be addressed, bans refused.
  * Staff see the path on the Needs review row and on the sign-up row, can vouch in one click
  * (Needs review > approve) and can remove anyone (Needs review > not a member, which also withdraws
  * the entry). A seat staff removed is never re-granted automatically. Impersonation by screenshot or
@@ -67,13 +70,28 @@ export function tierOf(a: CharacterProof): JoinTier | null {
 }
 
 /**
- * How a clan door treats this person: `open` grants the guest seat at once (the existing rule for an
- * approved request: a guest seat, never a member one), `approval` files a request for staff. A clan
- * that is closed stays closed and a ban always wins, both decided inside `admit`. Somebody staff
- * removed is never put back automatically; the event's own approval setting is kept by the caller.
+ * How a clan door treats this person. `open` grants the guest seat at once (the existing rule for an
+ * approved request: a guest seat, never a member one), `approval` files a request for staff, and
+ * `undefined` means THE CLAN'S OWN GUEST SETTING DECIDES (`admit` with no override).
+ *
+ * Only a PROVEN character (plugin or XP check) is granted the seat over the clan's setting, and only
+ * at a clan the person may address (lib/clanAddress: public and not hidden by the platform, or
+ * somewhere they already hold a seat, a request or an invite). A `manual` character is a claim on the
+ * person's word alone, so it never overrides anything: where the clan lets guests in freely they are
+ * in (flagged for staff), where guests need approval it is a request and no seat, and a closed clan
+ * stays closed. A ban always wins and a closed clan stays closed for everyone, both inside `admit`.
+ * Somebody staff removed is never put back automatically; the event's own approval setting is kept.
  */
-export function doorPolicy(opts: { removedByStaff: boolean; eventNeedsApproval?: boolean }): 'open' | 'approval' {
-  return opts.removedByStaff || opts.eventNeedsApproval ? 'approval' : 'open';
+export function doorPolicy(opts: {
+  tier: JoinTier | null;
+  /** lib/clanAddress `mayAddressClan`: false for a members-only or hidden clan named by a stranger. */
+  mayAddress: boolean;
+  removedByStaff: boolean;
+  eventNeedsApproval?: boolean;
+}): 'open' | 'approval' | undefined {
+  if (opts.removedByStaff || opts.eventNeedsApproval) return 'approval';
+  if ((opts.tier !== 'plugin' && opts.tier !== 'xp') || !opts.mayAddress) return undefined;
+  return 'open';
 }
 
 /**

@@ -2,8 +2,13 @@
 //
 //   plugin  the plugin reported the character (or staff confirmed it): joins at once.
 //   xp      the XP check passed: the same for the person, flagged in the clan's Needs review list.
-//   manual  asked the clan's staff to vouch: admitted, but held (a pending entry with no team)
-//           until staff vouch.
+//   manual  asked the clan's staff to vouch: never overrides the clan's door. Where the clan lets
+//           guests in freely (`free`) they are admitted but held (a pending entry with no team)
+//           until staff vouch; where guests need approval (`host`) it is a join request and no seat
+//           until staff accept; a closed clan refuses.
+//
+// And the clan has to be one the person may address: a members-only or hidden clan named by a
+// stranger answers like a clan that does not exist (lib/clanAddress).
 //
 // A member seat only ever comes from the in-game list; every seat made here is a guest seat.
 //
@@ -29,6 +34,8 @@ let signupRoute: typeof import('../src/app/api/events/[eventId]/signup/route.ts'
 let verifyRoute: typeof import('../src/app/api/admin/verifications/[id]/route.ts');
 
 let host: number;
+/** A clan that lets guests in freely: where an unproven (manual) claim is seated. */
+let free: number;
 let staffUser: number;
 let n = 0;
 const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
@@ -94,12 +101,12 @@ const boardRow = async (eventId: number, accountId: number) =>
 
 const apply = (slug: string, who: { userId: number; accountId: number }) =>
   callRoute(applyRoute.POST, { userId: who.userId, params: { slug }, body: { accountId: who.accountId } });
-const askStaff = (who: { userId: number }, rsn: string, slug: string | null = 'host') =>
-  callRoute(manualRoute.POST, { userId: who.userId, body: { rsn, ...(slug ? { clan: `/c/${slug}` } : {}) } });
+const askStaff = (who: { userId: number }, rsn: string, slug: string | null = 'free', invite?: string) =>
+  callRoute(manualRoute.POST, { userId: who.userId, body: { rsn, ...(slug ? { clan: `/c/${slug}` } : {}), ...(invite ? { invite } : {}) } });
 const signUp = (slug: string, eventId: number, who: { userId: number }, seatId: number, inviteToken?: string) =>
   callRoute(signupRoute.POST, { userId: who.userId, slug, params: { eventId: String(eventId) }, body: { clanMemberIds: [seatId], inviteToken } });
-const review = (seatId: number, action: 'approve' | 'not_member') =>
-  callRoute(verifyRoute.POST, { userId: staffUser, slug: 'host', params: { id: String(seatId) }, body: { action } });
+const review = (seatId: number, action: 'approve' | 'not_member', slug = 'free') =>
+  callRoute(verifyRoute.POST, { userId: staffUser, slug, params: { id: String(seatId) }, body: { action } });
 const enter = (eventId: number, who: { playerId: number; userId: number; accountId: number }, inviteToken?: string) =>
   E.enterEvent({ eventId, playerId: who.playerId, accountId: who.accountId, actorUserId: who.userId, inviteToken });
 
@@ -121,10 +128,14 @@ before(async () => {
   verifyRoute = await import('../src/app/api/admin/verifications/[id]/route.ts');
 
   host = await clan('host');
+  free = await clan('free', { guestPolicy: 'open' });
   await clan('shut', { guestPolicy: 'closed' });
   const staff = await newcomer('none');
   staffUser = staff.userId;
-  await db.insert(s.clanStaff).values({ clanId: host, userId: staffUser, role: 'moderator' });
+  await db.insert(s.clanStaff).values([
+    { clanId: host, userId: staffUser, role: 'moderator' },
+    { clanId: free, userId: staffUser, role: 'moderator' },
+  ]);
 });
 
 after(async () => {
@@ -160,18 +171,19 @@ test('xp tier: the same guest seat at once, and the character stays flagged for 
   assert.equal((await requestsOf(host, who.accountId)).length, 0);
 });
 
-test('manual tier: asking staff to vouch gives a guest seat at once, unverified and flagged', async () => {
+test('manual tier, a clan that lets guests in freely: asking staff to vouch gives a guest seat at once, unverified and flagged', async () => {
   const who = await newcomer('none');
-  const r = await askStaff(who, 'Vouch Me');
+  const r = await askStaff(who, 'Vouch Me', 'free');
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'vouch me'));
   assert.equal(a.playerId, who.playerId);
   assert.equal(a.verifiedAt, null, 'nothing is proved yet');
   assert.equal(a.provisional, 1);
   assert.equal(a.verificationMethod, 'manual');
-  const seat = await seatOf(host, a.id);
+  const seat = await seatOf(free, a.id);
   assert.equal(seat.kind, 'guest');
   assert.equal(seat.leftAt, null);
+  assert.equal((await requestsOf(free, a.id)).length, 0, 'the clan lets guests in: no request');
 });
 
 for (const tier of ['plugin', 'xp', 'manual'] as const) {
@@ -196,15 +208,17 @@ for (const tier of ['plugin', 'xp', 'manual'] as const) {
 
   test(`${tier} tier: a seat staff removed is not granted again, it becomes a request`, async () => {
     const who = await newcomer(tier);
-    assert.equal((await apply('host', who)).json.seated, true);
-    const seat = await seatOf(host, who.accountId);
-    assert.equal((await review(seat.id, 'not_member')).status, 200);
+    // A proven character is seated over `approval` (host); an unproven one only where guests are let in freely.
+    const [slug, clanId] = tier === 'manual' ? (['free', free] as const) : (['host', host] as const);
+    assert.equal((await apply(slug, who)).json.seated, true);
+    const seat = await seatOf(clanId, who.accountId);
+    assert.equal((await review(seat.id, 'not_member', slug)).status, 200);
 
-    const again = await apply('host', who);
+    const again = await apply(slug, who);
     assert.equal(again.status, 202, JSON.stringify(again.json));
     assert.equal(again.json.pending, true);
-    assert.ok((await seatOf(host, who.accountId)).leftAt, 'the seat stays ended');
-    assert.equal((await requestsOf(host, who.accountId)).filter((q) => q.status === 'pending').length, 1);
+    assert.ok((await seatOf(clanId, who.accountId)).leftAt, 'the seat stays ended');
+    assert.equal((await requestsOf(clanId, who.accountId)).filter((q) => q.status === 'pending').length, 1);
   });
 }
 
@@ -212,7 +226,7 @@ test('a banned person cannot ask staff to vouch either, and nothing is claimed',
   const who = await newcomer('none');
   const { banFromClan } = await import('../src/lib/clanBans.ts');
   await banFromClan({ clanId: host, playerId: who.playerId, byUserId: staffUser });
-  const r = await askStaff(who, 'Barred One');
+  const r = await askStaff(who, 'Barred One', 'host');
   assert.equal(r.status, 403);
   assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'barred one'))).length, 0);
 });
@@ -223,6 +237,9 @@ test('a closed clan refuses a request for staff to vouch', async () => {
   assert.equal(r.status, 403);
   const shut = (await db.select().from(s.clans).where(eq(s.clans.slug, 'shut')))[0].id;
   assert.equal((await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.clanId, shut))).length, 0);
+  assert.match(String(r.json.error), /not taking guests/);
+  assert.equal((await db.select().from(s.clanJoinRequests).where(eq(s.clanJoinRequests.clanId, shut))).length, 0);
+  assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'shut out'))).length, 0, 'and nothing is claimed: no open request nobody will answer');
 });
 
 // ── Signing up for an event ───────────────────────────────────────────────────────────────────
@@ -242,13 +259,13 @@ test('plugin and xp tiers: a sign-up with no invite waits for the host, in the p
 });
 
 test('manual tier: a sign-up is held as pending with no team, even through an invite', async () => {
-  const ev = await event(host, 'Held');
+  const ev = await event(free, 'Held');
   const token = await invite(ev);
   const who = await newcomer('none');
   await askStaff(who, 'Held One');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'held one'));
-  const seat = await seatOf(host, a.id);
-  const r = await signUp('host', ev.id, who, seat.id, token);
+  const seat = await seatOf(free, a.id);
+  const r = await signUp('free', ev.id, who, seat.id, token);
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.held, true);
   assert.equal((await signupsOf(ev.id, who.userId))[0].status, 'pending');
@@ -373,12 +390,12 @@ test('an invite to a finished event adds nobody', async () => {
 // ── A proven claim against an unvouched one ───────────────────────────────────────────────────
 
 test('a proven claim takes the character from an unvouched manual claim: sign-ups withdrawn, audit written', async () => {
-  const ev = await event(host, 'Displaced');
+  const ev = await event(free, 'Displaced');
   const squatter = await newcomer('none');
   await askStaff(squatter, 'Real Owner');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'real owner'));
-  const seat = await seatOf(host, a.id);
-  assert.equal((await signUp('host', ev.id, squatter, seat.id)).status, 200);
+  const seat = await seatOf(free, a.id);
+  assert.equal((await signUp('free', ev.id, squatter, seat.id)).status, 200);
 
   const owner = await newcomer('none');
   const claim = await C.claimAccountForPerson({
@@ -397,9 +414,9 @@ test('a proven claim takes the character from an unvouched manual claim: sign-up
   assert.equal(after.verificationMethod, 'stat_delta');
   assert.equal((await signupsOf(ev.id, squatter.userId))[0].status, 'withdrawn');
   assert.equal(await boardRow(ev.id, a.id), undefined, 'and they are off the board');
-  const audit = await db.select().from(s.clanAuditLog).where(and(eq(s.clanAuditLog.clanId, host), eq(s.clanAuditLog.eventType, 'unconfirmed_claim_displaced')));
+  const audit = await db.select().from(s.clanAuditLog).where(and(eq(s.clanAuditLog.clanId, free), eq(s.clanAuditLog.eventType, 'unconfirmed_claim_displaced')));
   assert.ok(audit.some((r) => JSON.parse(r.newValue ?? '{}').accountId === a.id), 'the clan is told');
-  assert.ok((await seatOf(host, a.id)).leftAt, 'the seat the unvouched claim was given does not pass to the new owner');
+  assert.ok((await seatOf(free, a.id)).leftAt, 'the seat the unvouched claim was given does not pass to the new owner');
 });
 
 test('never the reverse: an unvouched claim cannot take a character anybody else holds', async () => {
@@ -419,7 +436,7 @@ test('a proven claim does not take a character staff have already vouched for', 
   const first = await newcomer('none');
   await askStaff(first, 'Vouched Char');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'vouched char'));
-  assert.equal((await review((await seatOf(host, a.id)).id, 'approve')).status, 200);
+  assert.equal((await review((await seatOf(free, a.id)).id, 'approve')).status, 200);
   const second = await newcomer('none');
   const claim = await C.claimAccountForPerson({ playerId: second.playerId, rsn: 'Vouched Char', rsnNormalized: 'vouched char', method: 'stat_delta', provisional: true });
   assert.equal(claim.ok, false);
@@ -433,6 +450,13 @@ test('one open request for staff per person; asking again for the same character
   assert.equal((await askStaff(who, 'First Ask')).status, 200);
   assert.equal((await askStaff(who, 'First Ask')).status, 200, 'the same one again is not a second request');
   const second = await askStaff(who, 'Second Ask');
+  // The same limit where the clan approves its guests: one request, asked twice is still one.
+  const other = await newcomer('none');
+  assert.equal((await askStaff(other, 'First Wait', 'host')).status, 202);
+  assert.equal((await askStaff(other, 'First Wait', 'host')).status, 202);
+  const [waiting] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'first wait'));
+  assert.equal((await requestsOf(host, waiting.id)).length, 1);
+  assert.equal((await askStaff(other, 'Second Wait', 'host')).status, 429);
   assert.equal(second.status, 429);
   assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'second ask'))).length, 0);
 });
@@ -449,7 +473,7 @@ test('a character on the clan’s in-game list cannot be taken by asking staff',
   const [a] = await db.insert(s.accounts).values({ playerId: ghost.id, rsn: 'Listed One', rsnNormalized: 'listed one' }).returning();
   await db.insert(s.clanMemberships).values({ clanId: host, accountId: a.id, kind: 'member', source: 'roster' });
   const who = await newcomer('none');
-  const r = await askStaff(who, 'Listed One');
+  const r = await askStaff(who, 'Listed One', 'host');
   assert.equal(r.status, 409);
   assert.equal((await accountRow(a.id)).claimedAt, null);
 });
@@ -470,16 +494,21 @@ test('nor a character on ANOTHER clan’s in-game list: asking here would hand o
 // ── Staff decline ─────────────────────────────────────────────────────────────────────────────
 
 test('staff decline a manual request: the seat ends and the held sign-up is withdrawn and off the board', async () => {
-  const ev = await event(host, 'Declined');
+  const ev = await event(free, 'Declined');
   const who = await newcomer('none');
   await askStaff(who, 'Not Ours');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'not ours'));
-  const seat = await seatOf(host, a.id);
-  await signUp('host', ev.id, who, seat.id);
+  const seat = await seatOf(free, a.id);
+  await signUp('free', ev.id, who, seat.id);
   assert.ok(await boardRow(ev.id, a.id));
 
   assert.equal((await review(seat.id, 'not_member')).status, 200);
-  assert.ok((await seatOf(host, a.id)).leftAt);
+  assert.ok((await seatOf(free, a.id)).leftAt);
+  // Asking again on their word does not bring the ended seat back.
+  const again = await askStaff(who, 'Not Ours');
+  assert.equal(again.status, 403, JSON.stringify(again.json));
+  assert.ok((await seatOf(free, a.id)).leftAt, 'the seat staff ended stays ended');
+  assert.equal((await requestsOf(free, a.id)).length, 0);
   assert.equal((await signupsOf(ev.id, who.userId))[0].status, 'withdrawn');
   assert.equal(await boardRow(ev.id, a.id), undefined);
 });
@@ -489,15 +518,15 @@ test('staff decline a manual request: the seat ends and the held sign-up is with
 const noticesOf = async (userId: number) => db.select().from(s.userNotices).where(eq(s.userNotices.userId, userId));
 
 test('staff vouch: the character is confirmed, an invited entry is approved onto its team, a plain one waits for the host, and the person is told', async () => {
-  const invited = await event(host, 'Vouch Invited');
+  const invited = await event(free, 'Vouch Invited');
   const token = await invite(invited, { maxUses: 3 });
-  const plain = await event(host, 'Vouch Plain');
+  const plain = await event(free, 'Vouch Plain');
   const who = await newcomer('none');
   await askStaff(who, 'Vouch Both');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'vouch both'));
-  const seat = await seatOf(host, a.id);
-  assert.equal((await signUp('host', invited.id, who, seat.id, token)).json.held, true);
-  assert.equal((await signUp('host', plain.id, who, seat.id)).json.held, true);
+  const seat = await seatOf(free, a.id);
+  assert.equal((await signUp('free', invited.id, who, seat.id, token)).json.held, true);
+  assert.equal((await signUp('free', plain.id, who, seat.id)).json.held, true);
 
   const r = await review(seat.id, 'approve');
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -518,7 +547,7 @@ test('staff vouch: the character is confirmed, an invited entry is approved onto
 
   const told = await noticesOf(who.userId);
   assert.equal(told.length, 1);
-  assert.match(told[0].title, /staff confirmed Vouch Both/);
+  assert.match(told[0].title, /free: staff confirmed Vouch Both/);
   assert.match(told[0].body, /You are on Vouch Invited team in Vouch Invited/);
   assert.match(told[0].body, /Vouch Plain now waits for the host/);
   assert.equal(told[0].readAt, null);
@@ -540,13 +569,13 @@ test('staff vouch: the character is confirmed, an invited entry is approved onto
 });
 
 test('staff vouch: an invite that ran out or was turned off while they waited leaves the entry for the host', async () => {
-  const ev = await event(host, 'Vouch Dead Invite');
+  const ev = await event(free, 'Vouch Dead Invite');
   const token = await invite(ev);
   const who = await newcomer('none');
   await askStaff(who, 'Vouch Late');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'vouch late'));
-  const seat = await seatOf(host, a.id);
-  await signUp('host', ev.id, who, seat.id, token);
+  const seat = await seatOf(free, a.id);
+  await signUp('free', ev.id, who, seat.id, token);
   await db.update(s.teamInvites).set({ revokedAt: new Date().toISOString() }).where(eq(s.teamInvites.token, token));
 
   const r = await review(seat.id, 'approve');
@@ -565,18 +594,18 @@ test('staff vouch says nothing about another clan’s events', async () => {
   const [otherSeat] = await db.insert(s.clanMemberships).values({ clanId: other, accountId: a.id, kind: 'guest', source: 'application' }).returning();
   assert.equal((await signUp('other-host', theirs.id, who, otherSeat.id)).json.held, true);
 
-  const r = await review((await seatOf(host, a.id)).id, 'approve');
+  const r = await review((await seatOf(free, a.id)).id, 'approve');
   assert.deepEqual(r.json.entries, { approved: 0, waiting: 0 });
   assert.equal((await signupsOf(theirs.id, who.userId))[0].status, 'pending');
 });
 
 test('staff decline: the person is told, in-game name and clan only', async () => {
-  const ev = await event(host, 'Decline Told');
+  const ev = await event(free, 'Decline Told');
   const who = await newcomer('none');
   await askStaff(who, 'Decline Me');
   const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'decline me'));
-  const seat = await seatOf(host, a.id);
-  await signUp('host', ev.id, who, seat.id);
+  const seat = await seatOf(free, a.id);
+  await signUp('free', ev.id, who, seat.id);
   const r = await review(seat.id, 'not_member');
   assert.equal(r.json.withdrawn, 1);
   const told = await noticesOf(who.userId);
@@ -589,7 +618,7 @@ test('staff decline: the person is told, in-game name and clan only', async () =
 test('a flagged XP character confirmed by staff is not told anything was held, because nothing was', async () => {
   const who = await newcomer('xp');
   await apply('host', who);
-  const r = await review((await seatOf(host, who.accountId)).id, 'approve');
+  const r = await review((await seatOf(host, who.accountId)).id, 'approve', 'host');
   assert.equal(r.json.entries, null);
   assert.equal((await noticesOf(who.userId)).length, 0);
   assert.equal((await accountRow(who.accountId)).provisional, 0);
@@ -744,3 +773,260 @@ test('the page is told plainly why an invite cannot be used, before any button i
   const entered = await enter(off.id, who, await invite(off));
   assert.notEqual(entered.outcome, 'seated');
 });
+
+// ── The clan's door is the clan's: an unproven claim never overrides it ───────────────────────
+
+const accountByName = async (rsn: string) => (await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, rsn.toLowerCase())))[0];
+
+test('manual tier, a clan whose guests need approval: a join request that says so, NO seat, and a 202 for the caller', async () => {
+  const who = await newcomer('none');
+  const r = await askStaff(who, 'Wait Here', 'host');
+  assert.equal(r.status, 202, JSON.stringify(r.json));
+  assert.equal(r.json.requested, true);
+  assert.equal(r.json.error, undefined, 'a request filed is a success, not an error');
+  assert.match(String(r.json.message), /Your request is with host’s staff/);
+  const a = await accountByName('Wait Here');
+  assert.equal(a.playerId, who.playerId, 'the claim is theirs');
+  assert.equal(a.verifiedAt, null);
+  assert.equal(await seatOf(host, a.id), undefined, 'no seat on nothing but their word');
+  const asked = await requestsOf(host, a.id);
+  assert.deepEqual(asked.map((q) => q.status), ['pending']);
+  assert.match(String(asked[0].message), /Asks staff to vouch for Wait Here/);
+  const { pendingRequests } = await import('../src/lib/guestAdmission.ts');
+  assert.ok((await pendingRequests(host)).some((q) => q.rsn === 'Wait Here' && /Asks staff to vouch/.test(q.message ?? '')), 'staff see it flagged in their queue');
+});
+
+test('manual tier: the other doors do not override either (apply with the claimed character, entering an event)', async () => {
+  const who = await newcomer('manual');
+  const applied = await apply('host', who);
+  assert.equal(applied.status, 202, JSON.stringify(applied.json));
+  assert.equal(await seatOf(host, who.accountId), undefined);
+  const asked = await requestsOf(host, who.accountId);
+  assert.equal(asked.length, 1);
+  assert.match(String(asked[0].message), /Asks staff to vouch/);
+
+  // Where the clan lets guests in freely, the clan's own setting seats them.
+  assert.equal((await apply('free', who)).json.seated, true);
+  assert.equal((await seatOf(free, who.accountId)).kind, 'guest');
+
+  const other = await newcomer('manual');
+  const ev = await event(host, 'Manual Enters');
+  const entered = await enter(ev.id, other);
+  assert.equal(entered.outcome, 'pending', JSON.stringify(entered));
+  assert.equal(await seatOf(host, other.accountId), undefined);
+});
+
+test('manual tier, approval clan: no sign-up without a seat; staff accept, they are told, the sign-up is held, the vouch completes it', async () => {
+  const G = await import('../src/lib/guestAdmission.ts');
+  const enterRoute = await import('../src/app/api/events/[eventId]/enter/route.ts');
+  const ev = await event(host, 'After Approval');
+  const who = await newcomer('none');
+  assert.equal((await askStaff(who, 'Sign Later', 'host')).status, 202);
+  const a = await accountByName('Sign Later');
+  const me = { ...who, accountId: a.id };
+
+  // The event's door says the same thing, files no second request and gives no seat.
+  const entered = await enter(ev.id, me);
+  assert.equal(entered.outcome, 'pending');
+  assert.match(entered.outcome === 'pending' ? entered.message : '', /Your request is with host’s staff\. You can sign up as soon as they accept it/);
+  assert.equal(await seatOf(host, a.id), undefined);
+  assert.equal((await requestsOf(host, a.id)).length, 1);
+  // The page is told they are waiting, and on whom.
+  const look = await callRoute(enterRoute.GET, { userId: who.userId, slug: 'host', method: 'GET', params: { eventId: String(ev.id) } });
+  assert.ok(look.json.pendingSince);
+  assert.equal(look.json.hostName, 'host');
+  // No seat, so nothing can be signed up: not with no seat, not with somebody else's.
+  const stranger = await newcomer('plugin');
+  await apply('host', stranger);
+  for (const ids of [[], [(await seatOf(host, stranger.accountId)).id]]) {
+    const r = await callRoute(signupRoute.POST, { userId: who.userId, slug: 'host', params: { eventId: String(ev.id) }, body: { clanMemberIds: ids } });
+    assert.notEqual(r.status, 200, JSON.stringify(r.json));
+  }
+  assert.equal((await signupsOf(ev.id, who.userId)).length, 0);
+  assert.equal(await boardRow(ev.id, a.id), undefined);
+
+  // Staff accept the request: a guest seat, still unverified, and the person is told on the site.
+  const [req] = await requestsOf(host, a.id);
+  const yes = await G.approveRequest(req.id, host, staffUser);
+  assert.equal(yes.ok, true);
+  const seat = await seatOf(host, a.id);
+  assert.equal(seat.kind, 'guest');
+  assert.equal((await accountRow(a.id)).verifiedAt, null, 'accepting a guest is not vouching for the character');
+  const told = await noticesOf(who.userId);
+  assert.equal(told.length, 1);
+  assert.match(told[0].title, /host accepted your request/);
+  assert.match(told[0].body, /you can sign up for its events/);
+  assert.doesNotMatch(told[0].title + told[0].body, /person-|77\d{6}/, 'no Discord name or id');
+
+  // One press on the sign-up they came for: held, like any unvouched entry.
+  const signed = await signUp('host', ev.id, who, seat.id);
+  assert.equal(signed.status, 200, JSON.stringify(signed.json));
+  assert.equal(signed.json.held, true);
+  assert.equal((await boardRow(ev.id, a.id)).teamId, null);
+
+  // The vouch completes it, as it always did.
+  const vouched = await review(seat.id, 'approve', 'host');
+  assert.deepEqual(vouched.json.entries, { approved: 0, waiting: 1 });
+  assert.ok((await accountRow(a.id)).verifiedAt);
+});
+
+test('a proven character accepted by staff is not sent the manual notice', async () => {
+  const G = await import('../src/lib/guestAdmission.ts');
+  const who = await newcomer('plugin');
+  const ev = await event(host, 'Plain Request');
+  assert.equal((await enter(ev.id, who)).outcome, 'pending');
+  const [req] = await requestsOf(host, who.accountId);
+  assert.equal((await G.approveRequest(req.id, host, staffUser)).ok, true);
+  assert.equal((await noticesOf(who.userId)).length, 0);
+});
+
+// ── A clan that is not theirs to address ──────────────────────────────────────────────────────
+
+let quiet: number;
+let quietOpen: number;
+let unlisted: number;
+async function privateClans() {
+  if (quiet) return;
+  quiet = await clan('quiet', { visibility: 'members' });
+  quietOpen = await clan('quiet-open', { visibility: 'members', guestPolicy: 'open' });
+  unlisted = await clan('unlisted', { platformHidden: true, guestPolicy: 'open' });
+}
+
+test('manual tier: a members-only or hidden clan named by a stranger answers exactly like a clan that does not exist', async () => {
+  await privateClans();
+  // A new person per call: the route allows five an hour each, and that limit is not what is tested.
+  const ask = async (slug: string, token?: string) => askStaff(await newcomer('none'), 'Probe One', slug, token);
+  const missing = await ask('no-such-clan');
+  assert.equal(missing.status, 400);
+  for (const slug of ['quiet', 'quiet-open', 'unlisted']) {
+    const r = await ask(slug);
+    assert.equal(r.status, missing.status, slug);
+    assert.deepEqual(r.json, missing.json, `${slug}: the same words as a slug that matches nothing`);
+    // Named by the request's own address instead of the body: the same.
+    const byPath = await callRoute(manualRoute.POST, { userId: (await newcomer('none')).userId, slug, body: { rsn: 'Probe One' } });
+    assert.equal(byPath.status, missing.status, slug);
+    assert.deepEqual(byPath.json, missing.json);
+  }
+  assert.equal(await accountByName('Probe One'), undefined, 'nothing is claimed');
+  for (const id of [quiet, quietOpen, unlisted]) {
+    assert.equal((await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.clanId, id))).length, 0);
+    assert.equal((await db.select().from(s.clanJoinRequests).where(eq(s.clanJoinRequests.clanId, id))).length, 0);
+  }
+  // A dead invite, or a good invite to some other clan's event, is no tie to this clan.
+  const theirs = await event(quiet, 'Quiet Event');
+  const elsewhere = await event(host, 'Elsewhere Event');
+  for (const token of [await invite(theirs, { revokedAt: day(-1) }), await invite(theirs, { expiresAt: day(-1) }), await invite(elsewhere), 'zzzzzzzzzzzzzzzz']) {
+    const r = await ask('quiet', token);
+    assert.deepEqual([r.status, r.json], [missing.status, missing.json]);
+  }
+});
+
+test('manual tier: an unproven character cannot use the other doors of a members-only clan either', async () => {
+  await privateClans();
+  const who = await newcomer('manual');
+  for (const slug of ['quiet', 'quiet-open', 'unlisted']) {
+    const r = await apply(slug, who);
+    assert.equal(r.status, 404, `${slug}: ${JSON.stringify(r.json)}`);
+  }
+  const ev = await event(quietOpen, 'Quiet Open Event');
+  const entered = await enter(ev.id, who);
+  assert.equal(entered.outcome, 'refused');
+  assert.equal(entered.outcome === 'refused' ? entered.status : 0, 404);
+  for (const id of [quiet, quietOpen, unlisted]) assert.equal(await seatOf(id, who.accountId), undefined);
+  assert.equal((await requestsOf(quiet, who.accountId)).length, 0);
+});
+
+test('manual tier: somebody with a seat, a waiting request or a good invite there may ask a members-only clan', async () => {
+  await privateClans();
+  // A seat: a guest of the clan asks its staff to vouch for another character of theirs.
+  const guest = await newcomer('plugin');
+  await db.insert(s.clanMemberships).values({ clanId: quiet, accountId: guest.accountId, kind: 'guest', source: 'application' });
+  const bySeat = await askStaff(guest, 'Seat Alt', 'quiet');
+  assert.equal(bySeat.status, 202, JSON.stringify(bySeat.json));
+  assert.equal(await seatOf(quiet, (await accountByName('Seat Alt')).id), undefined, 'approval there: a request, no seat');
+
+  // A good invite to one of that clan's events.
+  const ev = await event(quiet, 'Quiet Invited');
+  const token = await invite(ev);
+  const invited = await newcomer('none');
+  const byInvite = await askStaff(invited, 'Invite Ask', 'quiet', token);
+  assert.equal(byInvite.status, 202, JSON.stringify(byInvite.json));
+  const a = await accountByName('Invite Ask');
+  assert.equal(await seatOf(quiet, a.id), undefined);
+  assert.equal((await requestsOf(quiet, a.id)).length, 1);
+  assert.equal((await db.select().from(s.teamInvites).where(eq(s.teamInvites.token, token)))[0].uses, 0, 'naming the clan does not spend the invite');
+
+  // A request already waiting there: asking again (no invite this time) is answered, not hidden.
+  const again = await askStaff(invited, 'Invite Ask', 'quiet');
+  assert.equal(again.status, 202);
+  assert.equal((await requestsOf(quiet, a.id)).length, 1);
+
+  // Where that clan lets guests in freely, a person it already knows is seated, flagged.
+  const known = await newcomer('plugin');
+  await db.insert(s.clanMemberships).values({ clanId: quietOpen, accountId: known.accountId, kind: 'guest', source: 'application' });
+  assert.equal((await askStaff(known, 'Known Alt', 'quiet-open')).status, 200);
+  assert.equal((await seatOf(quietOpen, (await accountByName('Known Alt')).id)).kind, 'guest');
+});
+
+// ── Tiers 1 and 2: granted at once only at a clan they may address ────────────────────────────
+
+for (const tier of ['plugin', 'xp'] as const) {
+  test(`${tier} tier: a members-only or hidden clan named by a stranger grants nothing by itself; its own guest setting decides`, async () => {
+    await privateClans();
+    const who = await newcomer(tier);
+    const r = await apply('quiet', who);
+    assert.equal(r.status, 202, JSON.stringify(r.json));
+    assert.equal(r.json.pending, true);
+    assert.equal(await seatOf(quiet, who.accountId), undefined, 'no seat: its guests need approval');
+    assert.equal((await requestsOf(quiet, who.accountId)).filter((q) => q.status === 'pending').length, 1);
+
+    // Its event, entered by id: the same.
+    const other = await newcomer(tier);
+    const ev = await event(quiet, `Quiet ${tier}`);
+    assert.equal((await enter(ev.id, other)).outcome, 'pending');
+    assert.equal(await seatOf(quiet, other.accountId), undefined);
+
+    // Hidden by the platform, guests let in freely: that is the clan's own setting, so it stands.
+    const third = await newcomer(tier);
+    assert.equal((await apply('unlisted', third)).json.seated, true);
+
+    // With a request waiting there they are no longer a stranger, but the request still decides: no seat.
+    assert.equal((await apply('quiet', who)).status, 202);
+    assert.equal(await seatOf(quiet, who.accountId), undefined);
+  });
+
+  test(`${tier} tier: a name typed at a members-only clan, then proved, is a request there and not a seat`, async () => {
+    await privateClans();
+    const who = await newcomer('none');
+    const rsn = `Quiet ${tier} typed`.slice(0, 12);
+    assert.equal((await applyByName('quiet', who, rsn, tier)).status, 202);
+    const claim = await C.claimAccountForPerson({ playerId: who.playerId, rsn, rsnNormalized: rsn.toLowerCase(), method: tier === 'plugin' ? 'plugin_first_use' : 'stat_delta', provisional: true, accountHash: tier === 'plugin' ? `hash-${rsn}` : null });
+    assert.equal(claim.ok, true);
+    const a = await accountByName(rsn);
+    assert.equal(await seatOf(quiet, a.id), undefined);
+    assert.equal((await requestsOf(quiet, a.id)).filter((q) => q.status === 'pending').length, 1);
+  });
+
+  test(`${tier} tier: entering a closed clan's event grants nothing, a ban refuses, and a seat staff removed is asked for again`, async () => {
+    const shut = (await db.select().from(s.clans).where(eq(s.clans.slug, 'shut')))[0].id;
+    const who = await newcomer(tier);
+    const shutEvent = await event(shut, `Shut ${tier}`);
+    assert.equal((await enter(shutEvent.id, who)).outcome, 'refused');
+    assert.equal(await seatOf(shut, who.accountId), undefined);
+    assert.equal((await requestsOf(shut, who.accountId)).length, 0);
+
+    const { banFromClan } = await import('../src/lib/clanBans.ts');
+    const barred = await newcomer(tier);
+    await banFromClan({ clanId: host, playerId: barred.playerId, byUserId: staffUser });
+    const ev = await event(host, `Door ${tier}`);
+    const refused = await enter(ev.id, barred, await invite(ev));
+    assert.equal(refused.outcome, 'refused', 'an invite does not get a barred person in');
+    assert.equal(await seatOf(host, barred.accountId), undefined);
+
+    const removed = await newcomer(tier);
+    assert.equal((await apply('host', removed)).json.seated, true);
+    assert.equal((await review((await seatOf(host, removed.accountId)).id, 'not_member', 'host')).status, 200);
+    assert.equal((await enter(ev.id, removed)).outcome, 'pending');
+    assert.ok((await seatOf(host, removed.accountId)).leftAt, 'the seat stays ended');
+  });
+}

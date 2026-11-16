@@ -1,3 +1,4 @@
+import { mayJoinWith } from '@/lib/characterState';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -20,6 +21,8 @@ export interface SettingsCharacter {
   shared: boolean;
   accountType: string | null;
   verified: boolean;
+  /** May be used to sign up, enter or apply (lib/characterState mayJoinWith): proved, or waiting on a clan's staff. */
+  joinable: boolean;
   verificationMethod: string | null;
   provisional: boolean;
 }
@@ -51,6 +54,7 @@ export async function settingsCharacters(playerId: number): Promise<SettingsChar
     shared: !!r.shared,
     accountType: r.accountType,
     verified: r.verifiedAt != null,
+    joinable: mayJoinWith(r),
     verificationMethod: r.verificationMethod,
     provisional: r.provisional === 1,
   }));

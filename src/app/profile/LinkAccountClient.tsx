@@ -97,7 +97,7 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
         setError(data.error || 'Could not submit request');
       } else {
         // 202: the clan's guest door asks its staff first. Say so rather than a bare "submitted".
-        setSubmitted(data?.admission === 'requested' ? 'request' : true);
+        setSubmitted(res.status === 202 ? 'request' : true);
         router.refresh();
       }
     } catch (e) {
@@ -112,10 +112,12 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       <div className="border border-orange-500/30 bg-orange-500/5 rounded-lg p-4">
         <div className="text-orange-300 font-semibold mb-1">Request submitted</div>
         <div className="text-sm text-foreground/80">
-          Your clan&apos;s staff will look at it, usually within a day or two, and you will see it here when they do.
-          {submitted === 'request' && ' They also have to accept you as a guest first, and that comes with the same answer.'}{' '}
-          Until then it shows in your profile as <span className="text-yellow-400">awaiting review</span>, and you can already sign up
-          for events with it. You can add the plugin any time; it joins up with this same character.
+          Your clan&apos;s staff will look at it, usually within a day or two, and you will see it here when they do. Until then it
+          shows in your profile as <span className="text-yellow-400">awaiting review</span>
+          {submitted === 'request'
+            ? '. This clan accepts its guests first, so you can sign up for its events as soon as its staff accept your request.'
+            : ', and you can already sign up for events with it.'}{' '}
+          You can add the plugin any time; it joins up with this same character.
         </div>
       </div>
     );

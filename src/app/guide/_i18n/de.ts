@@ -421,7 +421,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Sie bitten um Beitritt',
-          body: 'Mitglieder kommen nur aus deiner Mitgliederliste im Spiel. Erkennt das Plugin jemanden, der in deinem Clan im Spiel spielt, bevor deine Liste ihn hat, stellt es für ihn eine Beitrittsanfrage, die das Team oben im Reiter **Roster** beantwortet. Alle anderen können mit ihrem RSN auf deiner Clanseite auf **Apply** drücken: Wer den Charakter per Plugin oder über den XP-Check bestätigt, wird sofort Gast, und wer das Team bittet, für ihn zu bürgen, wird als Gast hinzugefügt und unter **Needs review** festgehalten, bis du antwortest. Stellst du **Who can join** auf geschlossen, stoppt all das. Wer einen Charakter spielt, der schon auf deiner Mitgliederliste steht, wird stattdessen unter **Needs review** bestätigt. Die Details stehen in [Deine Leute]({peopleGuide}).',
+          body: 'Mitglieder kommen nur aus deiner Mitgliederliste im Spiel. Erkennt das Plugin jemanden, der in deinem Clan im Spiel spielt, bevor deine Liste ihn hat, stellt es für ihn eine Beitrittsanfrage, die das Team oben im Reiter **Roster** beantwortet. Alle anderen können mit ihrem RSN auf deiner Clanseite auf **Apply** drücken: Wer den Charakter per Plugin oder über den XP-Check bestätigt, wird sofort Gast, und wer das Team bittet, für ihn zu bürgen, folgt **Who can join**: Wo Gäste eine Freigabe brauchen, ist es eine Beitrittsanfrage, und die Person hat keinen Platz, bis du sie annimmst; wo Gäste ohne Prüfung hereinkommen, wird sie sofort als Gast hinzugefügt. In beiden Fällen wird sie unter **Needs review** festgehalten, bis du für sie bürgst. Stellst du **Who can join** auf geschlossen, stoppt all das. Wer einen Charakter spielt, der schon auf deiner Mitgliederliste steht, wird stattdessen unter **Needs review** bestätigt. Die Details stehen in [Deine Leute]({peopleGuide}).',
         },
         {
           term: 'Von Hand',
@@ -865,10 +865,10 @@ const de: PartialGuideDict = {
         'Auf Mobilgeräten oder im offiziellen Client nutzt du stattdessen [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — gib deinen RSN ein, die Seite wählt einen zufälligen Skill, und du musst darin innerhalb von 30 Minuten 1.000 XP sammeln.',
-        '**Manual review** — für verborgene Hiscores oder brandneue Zweitaccounts: bitte auf der Seite eines Clans das Team, für deinen RSN zu bürgen. Du kannst dich sofort für dessen Events anmelden, und deine Anmeldung wird festgehalten, bis sie antworten.',
+        '**Manual review** — für verborgene Hiscores oder brandneue Zweitaccounts: bitte auf der Seite eines Clans das Team, für deinen RSN zu bürgen. Wenn der Clan seine Gäste zuerst freigibt, kannst du dich für seine Events anmelden, sobald das Team deine Anfrage annimmt. Deine Anmeldung wird festgehalten, bis das Team den Charakter bestätigt.',
       ],
       signupNote:
-        'Du kannst dich für ein Event anmelden, sobald du deinen Charakter genannt hast. Mit dem Plugin oder einem bestandenen XP-Check bist du sofort drin. Hast du das Team gebeten, für dich zu bürgen, wird deine Anmeldung festgehalten, bis sie antworten.',
+        'Du kannst dich für ein Event anmelden, sobald du deinen Charakter genannt hast. Mit dem Plugin oder einem bestandenen XP-Check bist du sofort drin. Hast du das Team gebeten, für dich zu bürgen, kannst du dich anmelden, sobald der Clan dich als Gast angenommen hat, und deine Anmeldung wird festgehalten, bis das Team den Charakter bestätigt.',
     },
 
     working: {
@@ -2469,7 +2469,7 @@ const de: PartialGuideDict = {
     verify: {
       title: 'Accounts verifizieren',
       intro:
-        'Leute können sich sofort anmelden, aber wer dich gebeten hat, für ihn zu bürgen, wird hier festgehalten, bis du antwortest: angemeldet, aber in keinem Team. Diese Warteschlange hält Leute also direkt vom Spielen ab. Sie lohnt sich täglich zu leeren.',
+        'Leute können sich sofort anmelden, aber wer dich gebeten hat, für ihn zu bürgen, wartet auf dich: auf seine Beitrittsanfrage, wo deine Gäste eine Freigabe brauchen, und danach hier, bis du für ihn bürgst, angemeldet, aber in keinem Team. Diese Warteschlange hält Leute also direkt vom Spielen ab. Sie lohnt sich täglich zu leeren.',
       rows: [
         {
           term: 'Per Plugin verifiziert',
@@ -2481,7 +2481,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Manuelle Prüfung',
-          body: 'verborgene Hiscores, oder ein Zweitaccount, der zu neu ist, um dort aufzutauchen. Jemand bittet dich, für einen RSN zu bürgen, und du entscheidest. Die Person wird sofort als Gast hinzugefügt und kann sich anmelden, aber ihre Anmeldungen werden festgehalten, ohne Team, bis du zustimmst. Zustimmen schließt sie ab, und **Not our member** nimmt sie wieder zurück. Frag nach einem Screenshot des Anmeldebildschirms, wenn du dir nicht sicher bist.',
+          body: 'verborgene Hiscores, oder ein Zweitaccount, der zu neu ist, um dort aufzutauchen. Jemand bittet dich, für einen RSN zu bürgen, und du entscheidest. Wo deine Gäste eine Freigabe brauchen, schickt die Person zuerst eine Beitrittsanfrage und hat keinen Platz, bis du sie annimmst; wo Gäste ohne Prüfung hereinkommen, wird sie sofort als Gast hinzugefügt. Als Gast kann sie sich anmelden, aber ihre Anmeldungen werden festgehalten, ohne Team, bis du zustimmst. Zustimmen schließt sie ab, und **Not our member** nimmt sie wieder zurück. Frag nach einem Screenshot des Anmeldebildschirms, wenn du dir nicht sicher bist.',
         },
       ],
       note: {

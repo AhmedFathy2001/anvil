@@ -9,6 +9,8 @@ import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { admit, removedByStaff } from '@/lib/guestAdmission';
+import { mayAddressClan } from '@/lib/clanAddress';
+import { staffOfClan } from '@/lib/eventAccess';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { rosterClanSeat } from '@/lib/seatScope';
 
@@ -16,12 +18,19 @@ const MAX_NOTE_LEN = 500;
 /** Open (unvouched) manual requests one person may hold at once: one. */
 const MAX_OPEN_MANUAL_CLAIMS = 1;
 
-// POST /api/auth/request-manual-review { rsn, note? }
+// POST /api/auth/request-manual-review { rsn, note?, clan?, invite? }
 // Last-resort path for users who can't use the plugin (no RuneLite) and can't use stat-delta
 // (Hiscores opt-out, brand new account, etc). Creates or updates a clan_members row attached
 // to the requesting user, marked provisional with method='manual'. The row lands in the
 // moderator approval queue alongside stat-delta entries; the mod's note column shows the
 // reason the user gave.
+//
+// NOTHING HERE IS PROVED, SO NOTHING HERE OVERRIDES THE CLAN'S DOOR. The claim is the person's word;
+// whether it earns a seat is the clan's own guest setting (`admit` with no override): a clan that
+// lets guests in freely seats them (flagged in Needs review), a clan whose guests need approval gets
+// a join request that says they ask staff to vouch and gives no seat until staff accept, and a closed
+// clan refuses. And the clan has to be one this person may address (lib/clanAddress): a members-only
+// or hidden clan named by a stranger is answered exactly like a clan that does not exist.
 export async function POST(request: Request) {
   if (request.headers.get('sec-fetch-site') === 'cross-site') {
     return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
@@ -37,7 +46,7 @@ export async function POST(request: Request) {
   // unclaimed character has none. So the people who most need the "a mod vouches for me" path —
   // maxed accounts with no XP to gain, anyone who cannot log in right now — were the people it
   // refused. Null selects the claim-only path; a clan, when there is one, still gets its seat.
-  let clan: { id: number } | null = await currentClan();
+  let clan: { id: number; name: string; guestPolicy: string } | null = await currentClan();
 
   // Manual claims sit in a mod queue forever once submitted, so a tighter limit
   // discourages spam without blocking legitimate retries.
@@ -49,7 +58,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { rsn?: string; note?: string; clan?: string };
+  let body: { rsn?: string; note?: string; clan?: string; invite?: string };
   try {
     body = await request.json();
   } catch {
@@ -65,6 +74,21 @@ export async function POST(request: Request) {
         where: and(eq(clans.slug, m[2]), eq(clans.kind, m[1] === 's' ? 'creator' : 'clan')),
       })) ?? null;
     }
+  }
+  // The clan must be one this person may address, however the request named it (the body, or the
+  // request's own path): public and not hidden, or somewhere they already hold a seat, a request or a
+  // good invite. Otherwise it is treated as no clan at all, with the same answer a slug that matches
+  // nothing gets, so this cannot be used to find out which private clans exist.
+  if (
+    clan &&
+    !(await mayAddressClan({
+      clanId: clan.id,
+      playerId: session.playerId,
+      userId: session.userId,
+      inviteToken: typeof body.invite === 'string' ? body.invite : null,
+    }))
+  ) {
+    clan = null;
   }
   // Nobody to review it without a clan: a claim nobody can confirm would sit unconfirmed for ever, so
   // it is not accepted here. The XP check and the plugin are the ways in away from a clan's page.
@@ -120,6 +144,18 @@ export async function POST(request: Request) {
     );
   }
 
+  // A seat here that was ended on purpose (staff said "not our member", an admin removed it, or the
+  // person left) is not brought back by asking again on nothing but their word.
+  if (existing?.leftAt && (existing.source === 'manual' || existing.source === 'admin')) {
+    return NextResponse.json({ error: 'That character’s place in this clan was ended earlier. Ask the clan’s staff directly.' }, { status: 403 });
+  }
+  // A clan that takes no guests has nobody waiting to answer this: refused before anything is claimed,
+  // so the person is not left holding an open request no one will ever see. (The clan's own staff are
+  // not guests of it; `admit` seats them.)
+  if (!existing && clan.guestPolicy === 'closed' && !(session.playerId != null && (await staffOfClan(clan.id, session.playerId)))) {
+    return NextResponse.json({ error: 'This clan is not taking guests.' }, { status: 403 });
+  }
+
   // One person, a few open claims at a time: a name each, never a string of other people's.
   if (session.playerId != null) {
     const open = await db
@@ -169,47 +205,56 @@ export async function POST(request: Request) {
       .update(clanMemberships)
       .set({
         notes: note || existing.notes,
-        // Bring soft-deleted ghosts back into the active set on claim, unless an admin
-        // had removed them.
-        leftAt: existing.source === 'admin' ? existing.leftAt : null,
+        // Bring soft-deleted ghosts back into the active set on claim. A seat ended on purpose never
+        // reaches here (refused above).
+        leftAt: null,
       })
       .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
   } else {
-    // Asking for review proves nothing yet, and would not grant membership even once granted.
-    // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
-    // the default policy this raises a request instead of seating them; the account is still linked
-    // to them either way, which is what they actually asked for.
-    // No clan named — the apex, where the claim is the whole request and there is no roster to join.
-    // The character is linked to them either way, which is what they actually asked for; a seat, if
-    // they want one, comes from the clan's own door.
-    if (!clan) {
-      return NextResponse.json({ ok: true, claimed: true, provisional: true });
-    }
-
-    // Staff removed this character from this clan before: nothing automatic puts it back.
+    // Asking for review proves nothing, so the clan's own guest setting decides (no override):
+    //   guests let in freely   a guest seat now (never a member seat), flagged in Needs review as a
+    //                          manual request: staff vouch there, or remove it
+    //   guests need approval   a join request that says they ask staff to vouch; NO seat until staff
+    //                          accept it
+    //   closed, or banned      refused (above, and again inside admit())
+    // Staff removed this character from this clan before (found by the account, so a renamed one
+    // counts): nothing on the person's word puts it back.
     if (await removedByStaff(clan.id, claim.accountId)) {
-      return NextResponse.json({ error: 'This clan’s staff removed that character earlier. Ask them directly.' }, { status: 403 });
+      return NextResponse.json({ error: 'That character’s place in this clan was ended earlier. Ask the clan’s staff directly.' }, { status: 403 });
     }
-    // A guest seat now (never a member seat), flagged in Needs review as a manual request: staff
-    // vouch there, or remove it. Closed clans and bans are refused inside admit().
     const admission = await admit({
       clanId: clan.id,
       accountId: claim.accountId,
-      policy: 'open',
       source: 'web',
-      message: `Asked staff to vouch for ${rsn} (no plugin or XP check).${note ? ` ${note}` : ''}`.slice(0, 400),
+      message: `Asks staff to vouch for ${rsn} (no plugin or XP check).${note ? ` ${note}` : ''}`.slice(0, 400),
     });
+    if (admission.outcome === 'refused') {
+      return NextResponse.json(
+        { error: admission.reason === 'banned' ? 'This clan has barred you.' : 'This clan is not taking guests.', admission: admission.outcome },
+        { status: 403 },
+      );
+    }
     if (admission.outcome !== 'seated') {
+      db.insert(clanAuditLog)
+        .values({
+          clanId: clan.id,
+          eventType: 'manual_requested',
+          newValue: JSON.stringify({ userId: session.userId, rsn, requestId: admission.requestId }),
+          actorUserId: session.userId,
+          notes: note || null,
+        })
+        .catch(() => {});
+      // Accepted for the caller: the request is with the clan's staff. No seat exists yet.
       return NextResponse.json(
         {
-          error:
-            admission.outcome === 'refused'
-              ? 'This clan is not taking guests.'
-              : 'Sent to this clan’s staff — you’ll appear once they accept.',
-          admission: admission.outcome,
+          ok: true,
+          requested: true,
+          admission: 'requested',
+          status: 'requested',
+          message: `Your request is with ${clan.name}’s staff. You can sign up for their events as soon as they accept it.`,
         },
-        { status: admission.outcome === 'refused' ? 403 : 202 },
+        { status: 202 },
       );
     }
     clanMemberId = admission.seatId;

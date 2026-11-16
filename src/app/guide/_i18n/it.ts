@@ -422,7 +422,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Chiedono di entrare',
-          body: 'I membri arrivano solo dalla lista membri del tuo clan in gioco. Se il plugin vede qualcuno giocare nel tuo clan in gioco prima che il tuo roster lo abbia, crea per lui una richiesta di adesione, che lo staff risponde in cima alla scheda **Roster**. Chiunque altro può premere **Apply** sulla pagina del tuo clan con il suo nome in gioco: chi conferma il personaggio con il plugin o con il controllo XP diventa subito ospite, e chi chiede allo staff di garantire per lui viene aggiunto come ospite e tenuto in **Needs review** finché non rispondi. Impostare **Who can join** su chiuso blocca tutto questo. Chi gioca un personaggio già nel tuo roster viene invece confermato in **Needs review**. I dettagli sono in [La tua gente]({peopleGuide}).',
+          body: 'I membri arrivano solo dalla lista membri del tuo clan in gioco. Se il plugin vede qualcuno giocare nel tuo clan in gioco prima che il tuo roster lo abbia, crea per lui una richiesta di adesione, che lo staff risponde in cima alla scheda **Roster**. Chiunque altro può premere **Apply** sulla pagina del tuo clan con il suo nome in gioco: chi conferma il personaggio con il plugin o con il controllo XP diventa subito ospite, e chi chiede allo staff di garantire per lui segue **Who can join**: dove gli ospiti richiedono approvazione è una richiesta di adesione e non ha alcun posto finché non la accetti, e dove gli ospiti sono ammessi liberamente viene aggiunto come ospite. In entrambi i casi resta in **Needs review** finché non garantisci per lui. Impostare **Who can join** su chiuso blocca tutto questo. Chi gioca un personaggio già nel tuo roster viene invece confermato in **Needs review**. I dettagli sono in [La tua gente]({peopleGuide}).',
         },
         {
           term: 'A mano',
@@ -866,9 +866,9 @@ const it: PartialGuideDict = {
         'Da mobile o dal client ufficiale usa [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— inserisci il tuo RSN, il sito estrae una skill a caso, guadagni 1.000 XP in quella skill entro 30 minuti.',
-        '**Manual review** —— per Hiscores nascosti o alt appena creati: sulla pagina di un clan, chiedi al suo staff di garantire per il tuo RSN. Puoi iscriverti ai suoi eventi subito, e la tua iscrizione resta in sospeso finché non rispondono.',
+        '**Manual review** —— per Hiscores nascosti o alt appena creati: sulla pagina di un clan, chiedi al suo staff di garantire per il tuo RSN. Se il clan approva prima i suoi ospiti, puoi iscriverti ai suoi eventi quando il suo staff accetta la tua richiesta. La tua iscrizione resta in sospeso finché non confermano il personaggio.',
       ],
-      signupNote: 'Puoi iscriverti a un evento appena hai indicato il tuo personaggio. Con il plugin o con un controllo XP superato sei dentro subito. Se hai chiesto allo staff di garantire per te, la tua iscrizione resta in sospeso finché non rispondono.',
+      signupNote: 'Puoi iscriverti a un evento appena hai indicato il tuo personaggio. Con il plugin o con un controllo XP superato sei dentro subito. Se hai chiesto allo staff di garantire per te, puoi iscriverti una volta che il clan ti ha accettato come ospite, e la tua iscrizione resta in sospeso finché non confermano il personaggio.',
     },
 
     working: {
@@ -2691,7 +2691,7 @@ const it: PartialGuideDict = {
     verify: {
       title: 'Verificare gli account',
       intro:
-        'Le persone possono iscriversi subito, ma chi ti ha chiesto di garantire per lui resta in sospeso finché non rispondi qui: iscritto, ma senza squadra. Quindi questa coda impedisce direttamente alle persone di giocare. È quella che vale la pena svuotare ogni giorno.',
+        'Le persone possono iscriversi subito, ma chi ti ha chiesto di garantire per lui dipende da te: dalla sua richiesta di adesione dove gli ospiti richiedono approvazione, poi resta in sospeso qui finché non garantisci per lui, iscritto ma senza squadra. Quindi questa coda impedisce direttamente alle persone di giocare. È quella che vale la pena svuotare ogni giorno.',
       rows: [
         {
           term: 'Verificato dal plugin',
@@ -2703,7 +2703,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Revisione manuale',
-          body: 'Hiscores nascosti, o un alt troppo nuovo per comparirci. Qualcuno ti chiede di garantire per un RSN e decidi tu. Viene aggiunto subito come ospite e può iscriversi, ma le sue iscrizioni restano in sospeso, senza squadra, finché non approvi. Approvarlo lo completa, e **Not our member** lo ritira. Chiedi uno screenshot della schermata di accesso se non sei sicuro.',
+          body: 'Hiscores nascosti, o un alt troppo nuovo per comparirci. Qualcuno ti chiede di garantire per un RSN e decidi tu. Dove i tuoi ospiti richiedono approvazione, mandano prima una richiesta di adesione e non hanno alcun posto finché non la accetti; dove gli ospiti sono ammessi liberamente, vengono aggiunti subito come ospiti. Una volta ospiti possono iscriversi, ma le loro iscrizioni restano in sospeso, senza squadra, finché non approvi. Approvarlo lo completa, e **Not our member** lo ritira. Chiedi uno screenshot della schermata di accesso se non sei sicuro.',
         },
       ],
       note: {

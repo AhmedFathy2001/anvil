@@ -4,7 +4,8 @@
 // route was the only place "may this stranger sit down?" was answered end to end, and a route
 // handler cannot be called from a test without faking a session.
 
-import { doorPolicy, mayJoinWith } from '@/lib/characterState';
+import { doorPolicy, mayJoinWith, tierOf } from '@/lib/characterState';
+import { mayAddressClan } from '@/lib/clanAddress';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -132,7 +133,7 @@ export async function enterEvent(opts: {
   // Any other event is the clan's own guest policy, exactly as before.
   const host = await db.query.clans.findFirst({
     where: eq(clans.id, event.clanId),
-    columns: { kind: true, plan: true, streaming: true, guestPolicy: true },
+    columns: { name: true, kind: true, plan: true, streaming: true, guestPolicy: true },
   });
   const streamed = streamedEvent(host, event);
   // A FRIENDS event (lib/friendEventRules) seats its players the same way, but is not streamed: no
@@ -205,20 +206,32 @@ export async function enterEvent(opts: {
   //
   // Carry the REASON into the request. Staff clearing the queue see one list of strangers, and
   // "wants to play in Summer Bingo" is a different decision from "wants to join the clan".
+  // A PROVEN character (plugin or XP check) at a clan the person may address (lib/clanAddress) gets
+  // the guest seat now, unless the event asks for approval or staff removed them. A character that
+  // is only a claim (asked staff to vouch) never overrides the clan's door, and nobody does at a
+  // members-only or hidden clan they have no tie to: there the clan's own guest setting decides.
+  // A good invite is the host's own yes, whoever holds it. Closed/ban rules still apply inside admit().
+  const tier = tierOf(account);
+  const mayAddress = invited || (await mayAddressClan({ clanId: event.clanId, playerId: opts.playerId, userId: opts.actorUserId, countRequests: tier === 'manual' }));
+  // An unproven claim at a clan that is not theirs to address: as if the event were not there.
+  if (tier === 'manual' && !mayAddress) return { outcome: 'refused', reason: 'not-visible', status: 404, error: 'Not found' };
   const admission = await admit({
     clanId: event.clanId,
     accountId: opts.accountId,
     source: 'web',
-    message: `Wants to play in ${event.name}.`,
-    // A trusted door: the guest seat now, unless the event asks for approval or staff removed them. The
-    // clan's own closed/ban rules still apply inside admit().
-    policy: invited ? 'open' : doorPolicy({ removedByStaff: await removedByStaff(event.clanId, opts.accountId), eventNeedsApproval: verdict.needsApproval }),
+    message: tier === 'manual' ? `Asks staff to vouch for ${account.rsn} (no plugin or XP check). Wants to play in ${event.name}.` : `Wants to play in ${event.name}.`,
+    policy: invited ? 'open' : doorPolicy({ tier, mayAddress, removedByStaff: await removedByStaff(event.clanId, opts.accountId), eventNeedsApproval: verdict.needsApproval }),
   });
 
   if (admission.outcome === 'refused') {
     return { outcome: 'refused', reason: 'closed', status: 403, error: 'This clan is not taking guests.' };
   }
 
+  if (admission.outcome !== 'seated' && tier === 'manual') {
+    // Asked staff to vouch, at a clan whose guests need approval: the request is with its staff and
+    // there is no seat, so no sign-up yet (event_signups needs a seat to name).
+    return { outcome: 'pending', message: `Your request is with ${host?.name ?? 'the host clan'}’s staff. You can sign up as soon as they accept it.` };
+  }
   if (admission.outcome !== 'seated' && verdict.needsApproval && !invited) {
     return { outcome: 'pending', message: 'Sent to the host — you’ll be able to sign up once they accept.' };
   }

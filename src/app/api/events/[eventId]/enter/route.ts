@@ -92,6 +92,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   // Asked already? The "waiting on the host" card used to live only in the browser, so a reload (or
   // coming back the next day) offered "Ask to join" again as if nothing had been sent.
   let pendingSince: string | null = null;
+  // Whose staff the request is with, told only to somebody who has one waiting there.
+  let hostName: string | null = null;
   // A closed clan refuses every entry; say so up front instead of after the press.
   let guestsClosed = false;
   // Whether they have any character at all. With none, linking one is the next step, and the sign-up
@@ -152,6 +154,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
       }
       hasCharacter = mine.length > 0;
       pendingSince = asked?.requestedAt ?? null;
+      if (pendingSince) hostName = (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { name: true } }))?.name ?? null;
     }
   }
 
@@ -164,5 +167,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const invite =
     session?.playerId && verdict.outcome !== 'refused' ? await inviteStanding(eventId, new URL(request.url).searchParams.get('invite')) : null;
 
-  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, full, gate, invite });
+  return NextResponse.json({ verdict, options, pendingSince, hostName, guestsClosed, hasCharacter, full, gate, invite });
 }

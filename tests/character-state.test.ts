@@ -63,10 +63,21 @@ test('three tiers: which path a character came in by', () => {
   assert.equal(tierOf({ verifiedAt: null, provisional: 0, verificationMethod: null }), null);
 });
 
-test('the door: everyone is granted at once, except a seat staff removed or an event that asks', () => {
-  assert.equal(doorPolicy({ removedByStaff: false }), 'open');
-  assert.equal(doorPolicy({ removedByStaff: true }), 'approval'); // an XP-verified seat staff removed stays removed
-  assert.equal(doorPolicy({ removedByStaff: false, eventNeedsApproval: true }), 'approval');
+test('the door: a proven character is granted at once where the clan may be addressed; a claim on their word never overrides', () => {
+  const at = { mayAddress: true, removedByStaff: false };
+  assert.equal(doorPolicy({ tier: 'plugin', ...at }), 'open');
+  assert.equal(doorPolicy({ tier: 'xp', ...at }), 'open');
+  // manual (asked staff to vouch), or nothing claimed: the clan's own guest setting decides
+  assert.equal(doorPolicy({ tier: 'manual', ...at }), undefined);
+  assert.equal(doorPolicy({ tier: null, ...at }), undefined);
+  // a members-only or hidden clan named by a stranger: no override for anyone
+  assert.equal(doorPolicy({ tier: 'plugin', mayAddress: false, removedByStaff: false }), undefined);
+  assert.equal(doorPolicy({ tier: 'xp', mayAddress: false, removedByStaff: false }), undefined);
+  // a seat staff removed stays removed, and an event that asks is asked, whatever the tier
+  for (const tier of ['plugin', 'xp', 'manual'] as const) {
+    assert.equal(doorPolicy({ tier, mayAddress: true, removedByStaff: true }), 'approval');
+    assert.equal(doorPolicy({ tier, mayAddress: true, removedByStaff: false, eventNeedsApproval: true }), 'approval');
+  }
 });
 
 test('transitions: a manual request upgrades to tier 1 when a plugin claim arrives, never the reverse', () => {

@@ -26,6 +26,7 @@ export default function ContinueStrip({
 }: {
   fromUrl: ContinueTarget | null;
   linked: number;
+  /** Characters that can be used to sign up, enter or apply (lib/characterState mayJoinWith). */
   verified: number;
 }) {
   const router = useRouter();

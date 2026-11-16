@@ -7,13 +7,15 @@ import Input from '@/components/Input';
 import { XpCheckInline } from '@/app/profile/LinkAccountClient';
 import { discordStartHref } from '@/lib/discordStart';
 import { readApplyName, validRsn, withApplyName } from '@/lib/rsnRules';
+import { readContinue } from '@/lib/clanScopedPaths';
+import { rememberContinue, WAITING_ON_STAFF } from '@/lib/continueStore';
 
 type Via = 'plugin' | 'xp' | 'staff';
 
 const CHOICES: { via: Via; label: string; says: string }[] = [
   { via: 'plugin', label: 'I use the Anvil plugin', says: 'Sign in to the plugin and play once. You are added automatically.' },
   { via: 'xp', label: 'Verify with a quick XP gain', says: 'Gain 1,000 XP in one skill we pick, within 30 minutes. No plugin needed.' },
-  { via: 'staff', label: 'Ask this clan’s staff to vouch for me', says: 'Their staff confirm the character is yours. You can sign up meanwhile; entries are held until they answer.' },
+  { via: 'staff', label: 'Ask this clan’s staff to vouch for me', says: 'Their staff confirm the character is yours. If the clan approves its guests first, you can sign up once they accept. Entries are held until they confirm.' },
 ];
 
 /**
@@ -38,9 +40,12 @@ export default function NameCharacterInline({
   heading,
   applyLabel,
   ways,
+  inviteToken,
 }: {
   /** Which ways to confirm are offered, in order. Default: all three. */
   ways?: Via[];
+  /** A team's invite in the address, sent with a vouch request so the clan it belongs to can be named. */
+  inviteToken?: string | null;
   slug: string;
   clanName: string;
   /** The clan's address path (`/c/<slug>`), which is how the vouch request names its clan. */
@@ -58,7 +63,8 @@ export default function NameCharacterInline({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [onRoster, setOnRoster] = useState(false);
-  const [done, setDone] = useState<{ via: Via; rsn: string; onRoster: boolean } | null>(null);
+  // `requested`: asked staff to vouch at a clan that accepts its guests first, so there is no seat yet.
+  const [done, setDone] = useState<{ via: Via; rsn: string; onRoster: boolean; requested?: boolean } | null>(null);
   const [seated, setSeated] = useState(false);
   // Did THIS visit's click choose the XP check? Only then does the check start by itself; a page
   // that merely remembers an earlier application shows the Start button and writes nothing on load.
@@ -131,11 +137,18 @@ export default function NameCharacterInline({
         const res = await fetch('/api/auth/request-manual-review', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rsn: name, clan: clanPath }),
+          body: JSON.stringify({ rsn: name, clan: clanPath, ...(inviteToken ? { invite: inviteToken } : {}) }),
         });
         const data = await res.json().catch(() => null);
         if (!res.ok && res.status !== 202) throw new Error(data?.error ?? 'Could not send that');
-        setDone({ via: 'staff', rsn: name, onRoster: false });
+        const requested = res.status === 202;
+        // On an event's page: remember it in this browser, so Settings offers the way back once
+        // the clan's staff accept (lib/continueStore).
+        if (requested && mode === 'event') {
+          const back = readContinue({ next: `${window.location.pathname}${window.location.search}`, for: window.location.pathname.endsWith('/signup') ? 'event-signup' : 'event' });
+          if (back) rememberContinue(WAITING_ON_STAFF, back);
+        }
+        setDone({ via: 'staff', rsn: name, onRoster: false, requested });
         router.refresh();
         return;
       }
@@ -211,7 +224,13 @@ export default function NameCharacterInline({
             <XpCheckInline rsn={done.rsn} autoStart={pressed} />
           </>
         )}
-        {done.via === 'staff' && (
+        {done.via === 'staff' && done.requested && (
+          <p className="text-text-muted">
+            Your request is with {clanName}’s staff. You can sign up for their events as soon as they accept it (ask in their Discord to hurry it). Nothing else is needed from you
+            until then.
+          </p>
+        )}
+        {done.via === 'staff' && !done.requested && (
           <p className="text-text-muted">
             Next: {clanName}’s staff confirm {done.rsn} is yours. You can sign up for their events now; your entries are held until they answer, which is as soon as one of them
             next looks (ask in their Discord to hurry it). Signing in to the Anvil plugin on {done.rsn} confirms it at once instead.
