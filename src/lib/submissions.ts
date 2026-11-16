@@ -311,7 +311,8 @@ export async function syncDropTileCompletion(
         // A credit whose screenshot is on its way (lib/proofAfter: proofDueAt set) counts as having one:
         // it completes now, held from announcing, and a missing picture reverses it within the minute.
         // Without this the tile never completed — the attach doesn't re-run the check.
-        or(isNotNull(submissions.imageUrl), isNotNull(submissions.proofDueAt)),
+        // A clan admin's own correction (source 'staff') vouches for itself: no picture to wait for.
+        or(isNotNull(submissions.imageUrl), isNotNull(submissions.proofDueAt), eq(submissions.source, 'staff')),
         isNull(submissions.goal),
       ))
       .limit(1);

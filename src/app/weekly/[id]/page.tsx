@@ -1,3 +1,5 @@
+import { accentStyle } from '@/lib/accentStyle';
+import { sceneForMetric } from '@/lib/scenes';
 import type { Metadata } from 'next';
 
 import { weeklyStatus } from '@/lib/weeklyStage';
@@ -161,6 +163,8 @@ export default async function WeeklyLeaderboardPage({
         ← All competitions
       </ClanLink>
 
+      {/* The header's art takes the clan's own colour (lib/accentStyle). */}
+      <div className="contents" style={accentStyle(clan.accentColor)}>
       <CompetitionHero
         title={competition.title}
         type={view.type}
@@ -170,6 +174,7 @@ export default async function WeeklyLeaderboardPage({
         startDate={competition.startDate}
         endDate={competition.endDate}
         iconUrl={competitionIconUrl(competition.type, competition.metric)}
+        scene={sceneForMetric(competition.type, competition.metric)}
         clanTotal={view.clanTotal}
         todayTotal={showDaily ? view.todayTotal : null}
         scoring={view.scoring}
@@ -180,6 +185,7 @@ export default async function WeeklyLeaderboardPage({
         elapsed={view.elapsed}
         totalDays={view.days.length}
       />
+      </div>
 
       {view.me && (
         <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />

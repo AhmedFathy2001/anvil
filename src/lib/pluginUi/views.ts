@@ -1,3 +1,4 @@
+import { withoutPetDoubles } from '@/lib/momentDupes';
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
 import type { TenureGlyph } from '@/lib/supporterTiers';
 import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
@@ -881,7 +882,7 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
   if (!clan) return message('That clan isn’t listed on Anvil.');
   const n = Math.min(FEED_MAX, Math.max(FEED_STEP, positive(a.n) ?? FEED_STEP));
   const viewer = await verifyPluginTokenUser(request);
-  const rows = (await momentsForClan(clan.id, n + 12)).filter((m) => FEED_KINDS.has(m.kind));
+  const rows = withoutPetDoubles((await momentsForClan(clan.id, n + 12)).filter((m) => FEED_KINDS.has(m.kind)));
   const shown = rows.slice(0, n);
   const [summaries, supporter, member] = await Promise.all([
     reactionSummaries(shown.map((m) => m.id), viewer?.userId ?? null),

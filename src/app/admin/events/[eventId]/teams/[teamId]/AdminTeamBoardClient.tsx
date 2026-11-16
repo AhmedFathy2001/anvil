@@ -115,6 +115,18 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     await fetchCompletions();
   }
 
+  // A clan admin correcting one credit's amount in place (the route refuses anyone else).
+  async function handleSetAmount(submissionId: number, amount: number) {
+    const res = await clanFetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-amount', amount }),
+    });
+    await throwUnlessOk(res, 'Could not change that amount.');
+    await fetchSubmissions();
+    await fetchCompletions();
+  }
+
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions, completions, team.id);
 
   const pointsMode = isPointsMode(event.scoringMode);
@@ -178,6 +190,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           canToggle={true}
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
+          onSetAmount={handleSetAmount}
           onToggle={handleToggle}
           onClose={() => setSelectedTileId(null)}
           eventId={event.id}

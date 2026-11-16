@@ -85,11 +85,13 @@ export function routeEventPost(args: {
 }
 
 /** The words of a step line. `step` is 0-based; `steps` is the race's length. */
-export function stepPostText(kind: StepPostKind, who: string, step: number, steps: number): { title: string; description: string } {
+export function stepPostText(kind: StepPostKind, who: string, step: number, steps: number, road?: string | null): { title: string; description: string } {
   const n = step + 1;
   if (kind === 'finish') return { title: `🏁 ${who} finished the race`, description: `All ${steps} steps done.` };
-  if (kind === 'step') return { title: `✅ ${who} completed step ${n}`, description: `On to step ${n + 1} of ${steps}.` };
-  return { title: `⏳ ${who} made progress on step ${n}`, description: `Step ${n} of ${steps}.` };
+  // Which of the step's tiles it was, by its road letter: a step with three tiles has three ways through.
+  const where = road ? `step ${n}, road ${road}` : `step ${n}`;
+  if (kind === 'step') return { title: `✅ ${who} completed ${where}`, description: `On to step ${n + 1} of ${steps}.` };
+  return { title: `⏳ ${who} made progress on ${where}`, description: `Step ${n} of ${steps}.` };
 }
 
 /** One "made progress" line per team per step per this long; completions always post. */
