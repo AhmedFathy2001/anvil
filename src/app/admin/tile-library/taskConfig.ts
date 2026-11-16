@@ -1,5 +1,6 @@
 import type { TileCsvRow } from '@/lib/csvTiles';
-import type { ItemRequirement, TileConfig } from '@/lib/types';
+import type { ComboPartConfig, ItemRequirement, TileConfig } from '@/lib/types';
+import { parseComboRule } from '@/lib/combo';
 import { clanFetch } from '@/lib/clanFetch';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
@@ -94,8 +95,23 @@ export async function toTileConfig(
   const asPool = reqs.length > 0 && (amount != null || (reqs.length === 1 && !reqs[0].group));
   const poolAmount = amount ?? (asPool ? reqs[0].requiredAmount : null);
 
+  // A combo (lib/combo) carries its rule and its parts, each a whole task of its own. Without these a
+  // saved combo reopened as an empty one and went onto a board with no parts.
+  const combo = row.tileType === 'combo';
+  const parts: ComboPartConfig[] = [];
+  if (combo && Array.isArray(row.parts)) {
+    for (const part of row.parts) {
+      const cfg = await toTileConfig(part, { label: part.label ?? 'Part', points: 0, category: null, description: part.description ?? null }, lookupApi);
+      parts.push({ ...cfg, comboRule: null, parts: null, comboWeight: asNumber(part.comboWeight) } as ComboPartConfig);
+    }
+  }
+
   return {
     ...EMPTY,
+    comboRule: combo ? parseComboRule(row.comboRule) : null,
+    parts: combo ? parts : null,
+    statBasis: row.statBasis === 'milestone' ? 'milestone' : 'gain',
+    capBy: Array.isArray(row.capBy) && row.capBy.length ? row.capBy : null,
     label: row.label ?? fallback.label,
     description: row.description ?? fallback.description,
     tileType: row.tileType || 'standard',
@@ -164,7 +180,19 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
     perKillCap: (payload.perKillCap as number | null) ?? null,
     coopCredit: payload.coopCredit === 'per-kill' ? 'per-kill' : null,
     coopMinMembers: (payload.coopMinMembers as number | null) ?? null,
+    statBasis: payload.statBasis === 'milestone' ? 'milestone' : null,
+    capBy: Array.isArray(payload.capBy) && payload.capBy.length ? (payload.capBy as string[]) : null,
   };
+  // A combo keeps its rule and its parts, each stored as a row of its own (the importer reads them back).
+  if (row.tileType === 'combo') {
+    row.comboRule = parseComboRule(payload.comboRule);
+    row.parts = (Array.isArray(payload.parts) ? (payload.parts as Record<string, unknown>[]) : []).map((part) => {
+      const out = payloadToCsvRow(part);
+      delete out.points;
+      if (typeof part.comboWeight === 'number') out.comboWeight = part.comboWeight;
+      return out;
+    });
+  }
 
   // Drop empties so a stored task stays readable as a seed pack.
   (Object.keys(row) as (keyof TileCsvRow)[]).forEach((k) => {

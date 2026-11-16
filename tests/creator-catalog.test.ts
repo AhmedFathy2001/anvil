@@ -169,6 +169,11 @@ test('portal cards: a creator space links creator checkouts only, and none while
     assert.equal(silver.upgrade, null);
     assert.equal(silver.tierName, 'Silver');
 
+    // The button suggests one tier; every other tier above is one click away too.
+    assert.deepEqual(free.others.map((o) => [o.label, o.href]), [['Silver', 'https://gum.test/cr-silver?ref=ref-1']]);
+    const small = clanCardModel(row({ kind: 'clan', plan: 'free' }), 10);
+    assert.deepEqual([small.upgrade?.label, ...small.others.map((o) => o.label)], ['Upgrade to Bronze', 'Silver', 'Gold']);
+    assert.match(small.others[1].href, /clan-gold\?ref=ref-1$/);
     const clan = clanCardModel(row({ kind: 'clan', plan: 'free' }), 60);
     assert.equal(clan.upgrade?.href, 'https://gum.test/clan-bronze?ref=ref-1');
     assert.equal(clan.creator, false);

@@ -47,6 +47,8 @@ export interface BillingCardModel {
   overLine: string | null;
   /** The one button: a checkout from the row's own catalogue. Null when none fits or none is configured. */
   upgrade: { label: string; href: string; detail: string } | null;
+  /** Every other tier above the current one, each its own checkout: the button is a suggestion, not the only way up. */
+  others: { label: string; href: string; detail: string }[];
   /** The Gumroad membership behind it, ended or not — its manage page updates the card, cancels or restarts. */
   subscriptionId: string | null;
   /** On free with nothing to offer yet. */
@@ -91,11 +93,22 @@ export function clanCardModel(row: OwnedBillingRow, members: number, now = Date.
   const higher = renewing ? plan : overCap && fits ? fits : paid.find((p) => plan.memberCap != null && p.memberCap! > plan.memberCap);
   const cap = plan.memberCap == null ? '∞' : plan.memberCap.toLocaleString('en-US');
   const href = higher && !held ? checkoutUrlWithRef(higher, row.gumroadRef) : null;
+  // The other tiers above this one that still hold the roster (never while a trial is held or a renewal is due).
+  const others =
+    held || renewing || !href
+      ? []
+      : paid
+          .filter((p) => p !== higher && plan.memberCap != null && p.memberCap! > plan.memberCap && p.memberCap! >= members)
+          .flatMap((p) => {
+            const to = checkoutUrlWithRef(p, row.gumroadRef);
+            return to ? [{ label: p.name, href: to, detail: `up to ${p.memberCap?.toLocaleString('en-US')} members · $${p.priceUsd}/mo` }] : [];
+          });
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     creator: false,
+    others,
     tierName: plan.name,
     priceUsd: plan.priceUsd,
     meter: `${members.toLocaleString('en-US')} / ${cap} members`,
@@ -147,11 +160,24 @@ export function creatorCardModel(
   const higher = renewing ? plan : card.next ? (paid.find((p) => p.id === card.next!.id) ?? null) : null;
   const capText = card.playersCap == null ? '∞' : card.playersCap.toLocaleString('en-US');
   const href = higher && !held ? creatorCheckoutUrlWithRef(higher, row.gumroadRef) : null;
+  // The other creator tiers above this one (never while a trial is held or a renewal is due).
+  const others =
+    held || renewing || !href
+      ? []
+      : paid
+          .filter((p) => p !== higher && (p.priceUsd ?? 0) > (plan.priceUsd ?? 0))
+          .flatMap((p) => {
+            const to = creatorCheckoutUrlWithRef(p, row.gumroadRef);
+            return to
+              ? [{ label: p.name, href: to, detail: [p.playersPerEvent != null ? `up to ${p.playersPerEvent.toLocaleString('en-US')} players at once` : null, `$${p.priceUsd}/mo`].filter(Boolean).join(' · ') }]
+              : [];
+          });
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
     creator: true,
+    others,
     tierName: card.planName,
     priceUsd: plan.priceUsd,
     meter: meter

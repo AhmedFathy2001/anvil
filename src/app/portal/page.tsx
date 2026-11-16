@@ -195,6 +195,20 @@ function PlanCard({ card }: { card: BillingCardModel }) {
           <span className="text-[12px] text-text-dim">{card.upgrade.detail}</span>
         </div>
       )}
+      {card.others.length > 0 && (
+        <p className="mt-2 text-[12.5px] text-text-muted">
+          Or go straight to{' '}
+          {card.others.map((o, i) => (
+            <span key={o.label}>
+              {i > 0 && ' · '}
+              <a href={o.href} target="_blank" rel="noopener noreferrer" title={o.detail} className="font-medium text-gold hover:text-gold-light">
+                {o.label}
+              </a>
+              <span className="text-text-dim"> ({o.detail})</span>
+            </span>
+          ))}
+        </p>
+      )}
 
       {card.subscriptionId && <ManageOnGumroad subscriptionId={card.subscriptionId} />}
 

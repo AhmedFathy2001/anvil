@@ -259,6 +259,8 @@ export interface RacePostVeil {
   /** The step (0-based) of the first named route tile, and the race's last step. */
   step: number | null;
   lastStep: number;
+  /** That tile's road letter when its step has several tiles ("B"), so the step line says which one. */
+  road?: string | null;
   /** The names of every tile the public can't see yet: a shared post must carry none of them. */
   hiddenLabels: string[];
 }
@@ -292,5 +294,6 @@ export async function racePostVeil(event: RaceHideEvent, tileIds: number[], team
     (raceTileHidden(veil, veil.everyone, { id }) ? hidden : visible).add(r.label.trim().toLowerCase());
   }
   const hiddenLabels = rows.map((r) => r.label).filter((l) => hidden.has(l.trim().toLowerCase()) && !visible.has(l.trim().toLowerCase()));
-  return { hiddenFromOthers, step, lastStep: veil.lastStep, hiddenLabels: [...new Set(hiddenLabels)] };
+  const road = cells.map((id) => veil.roadOf.get(id)).find((r): r is string => !!r) ?? null;
+  return { hiddenFromOthers, step, lastStep: veil.lastStep, road, hiddenLabels: [...new Set(hiddenLabels)] };
 }

@@ -35,6 +35,21 @@ const openStack: HTMLElement[] = [];
  *   const ref = useModalA11y({ onClose });
  *   <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="title">…</div>
  */
+// The page's scroll is held while ANY modal is open, counted: each modal used to remember the value it
+// found and put it back on close, so a modal opened over another (a combo part's proofs over its
+// tile) remembered "hidden" and left the page unable to scroll once both had closed.
+let scrollLocks = 0;
+let scrollBefore = '';
+function lockPageScroll() {
+  if (scrollLocks++ === 0) {
+    scrollBefore = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+}
+function unlockPageScroll() {
+  if (scrollLocks > 0 && --scrollLocks === 0) document.body.style.overflow = scrollBefore;
+}
+
 export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
   onClose,
   skipFocusManagement,
@@ -104,13 +119,12 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>({
     };
 
     // Only a real modal takes the page's scroll away — an in-page panel leaves it alone.
-    const originalOverflow = document.body.style.overflow;
-    if (modal) document.body.style.overflow = 'hidden';
+    if (modal) lockPageScroll();
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      if (modal) document.body.style.overflow = originalOverflow;
+      if (modal) unlockPageScroll();
       if (trapped) previouslyFocused?.focus?.();
     };
   }, [onClose, skipFocusManagement, modal, trapped]);
