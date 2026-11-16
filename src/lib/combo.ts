@@ -28,11 +28,24 @@ export interface ComboRule {
   mode: ComboMode;
   /** nOf only: how many parts must complete (2..parts-1 to be meaningful; clamped to the part count). */
   n?: number;
+  /**
+   * A LIST tile: one kill-count or XP tile counting several bosses / skills, each to its own goal
+   * ("50 each of these five bosses", "3 of these skills to 1m"). Stored as a combo so tracking is the
+   * combo's, but made and edited as the Kills / Skill XP kind it is (components/TileTrackingConfig).
+   */
+  list?: ComboList;
 }
+export type ComboList = 'kills' | 'skill';
+const listOf = (v: unknown): { list?: ComboList } => (v === 'kills' || v === 'skill' ? { list: v } : {});
 
 export const COMBO_TILE_TYPE = 'combo';
-/** Parts a combo may have. Small on purpose: a combo is "this or that", not a board inside a cell. */
-export const MAX_COMBO_PARTS = 6;
+/**
+ * Parts a combo may have. No real limit for the host ("any one of these twenty uniques" is a fair
+ * tile); the number only stops one request from writing rows without end.
+ */
+export const MAX_COMBO_PARTS = 50;
+/** The most parts a typed line is read as when guessing a combo from text (lib/taskMatch): a bounded search. */
+export const MAX_PARSED_COMBO_PARTS = 6;
 export const MIN_COMBO_PARTS = 2;
 
 export function isComboTile(t: { tileType?: string | null }): boolean {
@@ -102,7 +115,7 @@ export function validateComboRule(input: unknown, partCount?: number): { ok: tru
   if (mode !== 'any' && mode !== 'all' && mode !== 'nOf' && mode !== 'mix') {
     return { ok: false, error: "comboRule.mode must be 'any', 'all', 'nOf' or 'mix'" };
   }
-  if (mode !== 'nOf') return { ok: true, value: { mode } };
+  if (mode !== 'nOf') return { ok: true, value: { mode, ...listOf(o.list) } };
   const n = o.n;
   if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > MAX_COMBO_PARTS) {
     return { ok: false, error: `comboRule.n must be a whole number between 1 and ${MAX_COMBO_PARTS}` };
@@ -110,7 +123,7 @@ export function validateComboRule(input: unknown, partCount?: number): { ok: tru
   if (partCount != null && n > partCount) {
     return { ok: false, error: `A combo can't need ${n} of only ${partCount} parts` };
   }
-  return { ok: true, value: { mode, n } };
+  return { ok: true, value: { mode, n, ...listOf(o.list) } };
 }
 
 /** A stored combo_rule (JSON text) → the rule; malformed/absent reads as 'any' (the forgiving default). */
@@ -121,7 +134,7 @@ export function parseComboRule(raw: unknown): ComboRule {
 }
 
 export function serializeComboRule(rule: ComboRule): string {
-  return JSON.stringify(rule.mode === 'nOf' ? { mode: 'nOf', n: rule.n } : { mode: rule.mode });
+  return JSON.stringify({ ...(rule.mode === 'nOf' ? { mode: 'nOf', n: rule.n } : { mode: rule.mode }), ...listOf(rule.list) });
 }
 
 /** How many parts must complete under the rule ('mix' counts shares instead: 1 whole part's worth). */

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { scoredOfEntered } from '@/lib/weeklyCountWords';
 import { shortValue } from './format';
 import type { CompetitionType } from '@/lib/competitionInsights';
+import type { Scene } from '@/lib/scenes';
+import SceneBackdrop from '@/components/SceneBackdrop';
 
 /**
  * The competition's header.
@@ -23,6 +25,8 @@ interface Props {
   startDate: string;
   endDate: string;
   iconUrl: string | null;
+  /** Backdrop art for the header (lib/scenes): where the skill is trained, or the boss itself. */
+  scene?: Scene | null;
   clanTotal: number;
   /** Today's clan gain, or null when the week's daily history isn't complete enough to claim one. */
   todayTotal: number | null;
@@ -43,7 +47,7 @@ function parts(ms: number) {
 const TYPE_WORD: Record<CompetitionType, string> = { skill: 'Skill', boss: 'Boss', efficiency: 'Efficiency' };
 
 export default function CompetitionHero({
-  title, type, metricLabel, unit, status, startDate, endDate, iconUrl,
+  title, type, metricLabel, unit, status, startDate, endDate, iconUrl, scene,
   clanTotal, todayTotal, scoring, entered, leader, projected, previous, elapsed, totalDays,
 }: Props) {
   const [now, setNow] = useState<number | null>(null);
@@ -64,6 +68,7 @@ export default function CompetitionHero({
 
   return (
     <div className="relative mb-4 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg">
+      {scene && <SceneBackdrop scene={scene} wide tone="#1a1513" />}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_80%_at_8%_0%,rgba(212,175,55,0.15),transparent_62%)]" />
       <div className="relative p-6 sm:p-7">
         <div className="flex flex-wrap items-start gap-4">
