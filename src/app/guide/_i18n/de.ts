@@ -398,7 +398,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Deine Mitglieder hereinholen',
-          body: 'Installiere das Plugin, melde dich mit Discord an, öffne dann im Spiel dein Clan-Fenster und drück den **Anvil**-Button in seiner Titelleiste. Niemand kann sich für ein Event anmelden, bevor deine Mitgliederliste drin ist.',
+          body: 'Installiere das Plugin, melde dich mit Discord an, öffne dann im Spiel dein Clan-Fenster und drück den **Anvil**-Button in seiner Titelleiste. Aus dieser Liste kommen deine Mitglieder. Bis sie drin ist, können sich Leute trotzdem als Gäste für deine Events anmelden.',
         },
         {
           term: 'Board erstellen',
@@ -421,7 +421,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Sie bitten um Beitritt',
-          body: 'Sich anmelden oder mit dem Plugin spielen gibt niemandem von selbst einen Sitz. Sieht das Plugin jemanden in deinem Clan im Spiel spielen, bevor deine Mitgliederliste ihn hat, stellt es für ihn eine Beitrittsanfrage, und alle anderen können mit **Apply** auf deiner Clanseite fragen. Das Team beantwortet beides oben im Reiter **Roster**, und **Who can join** entscheidet, ob sie auf ein Ja warten, sofort reinkommen oder gar nicht fragen können. Wer einen Charakter spielt, der schon auf deiner Mitgliederliste steht, wird stattdessen unter **Needs review** bestätigt. Die Details stehen in [Deine Leute]({peopleGuide}).',
+          body: 'Mitglieder kommen nur aus deiner Mitgliederliste im Spiel. Erkennt das Plugin jemanden, der in deinem Clan im Spiel spielt, bevor deine Liste ihn hat, stellt es für ihn eine Beitrittsanfrage, die das Team oben im Reiter **Roster** beantwortet. Alle anderen können mit ihrem RSN auf deiner Clanseite auf **Apply** drücken: Wer den Charakter per Plugin oder über den XP-Check bestätigt, wird sofort Gast, und wer das Team bittet, für ihn zu bürgen, wird als Gast hinzugefügt und unter **Needs review** festgehalten, bis du antwortest. Stellst du **Who can join** auf geschlossen, stoppt all das. Wer einen Charakter spielt, der schon auf deiner Mitgliederliste steht, wird stattdessen unter **Needs review** bestätigt. Die Details stehen in [Deine Leute]({peopleGuide}).',
         },
         {
           term: 'Von Hand',
@@ -865,10 +865,10 @@ const de: PartialGuideDict = {
         'Auf Mobilgeräten oder im offiziellen Client nutzt du stattdessen [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — gib deinen RSN ein, die Seite wählt einen zufälligen Skill, und du musst darin innerhalb von 30 Minuten 1.000 XP sammeln.',
-        '**Manual review** — für verborgene Hiscores oder brandneue Zweitaccounts: reiche deinen RSN mit einer Notiz ein, und ein Moderator bestätigt ihn.',
+        '**Manual review** — für verborgene Hiscores oder brandneue Zweitaccounts: bitte auf der Seite eines Clans das Team, für deinen RSN zu bürgen. Du kannst dich sofort für dessen Events anmelden, und deine Anmeldung wird festgehalten, bis sie antworten.',
       ],
       signupNote:
-        'Für die Event-Anmeldung braucht es mindestens einen verifizierten Account, erledige das also, bevor du dich anmeldest.',
+        'Du kannst dich für ein Event anmelden, sobald du deinen Charakter genannt hast. Mit dem Plugin oder einem bestandenen XP-Check bist du sofort drin. Hast du das Team gebeten, für dich zu bürgen, wird deine Anmeldung festgehalten, bis sie antworten.',
     },
 
     working: {
@@ -1473,7 +1473,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Was eine Einladung nicht ist',
-        body: 'Sie ist keine Anmeldung und keine Abkürzung um die Verifizierung herum. Wer sie öffnet, meldet sich trotzdem mit Discord an und braucht trotzdem einen verifizierten RSN, genau wie bei jeder anderen Anmeldung. Der Link entscheidet nur, _in welches Team_ die Anmeldung geht, und dass sie niemandes Freigabe braucht.',
+        body: 'Sie ist keine Anmeldung und keine Abkürzung um die Verifizierung herum. Wer sie öffnet, meldet sich trotzdem mit Discord an und nennt trotzdem seinen RSN, genau wie bei jeder anderen Anmeldung. Der Link entscheidet nur, _in welches Team_ die Anmeldung geht, und dass sie niemandes Freigabe braucht. Ein Charakter, für den das Team noch bürgen muss, kommt ins Team, sobald es ihn bestätigt.',
       },
     },
 
@@ -1608,7 +1608,7 @@ const de: PartialGuideDict = {
           },
           {
             label: 'Der Rest des Formulars',
-            body: 'unverändert. Ein verifizierter RSN ist weiterhin nötig, die Anmeldefragen werden weiterhin gestellt, und eine Anmeldegebühr gilt weiterhin.',
+            body: 'unverändert. Ein RSN ist weiterhin nötig, die Anmeldefragen werden weiterhin gestellt, und eine Anmeldegebühr gilt weiterhin.',
           },
         ],
       },
@@ -2469,7 +2469,7 @@ const de: PartialGuideDict = {
     verify: {
       title: 'Accounts verifizieren',
       intro:
-        'Niemand kann sich ohne mindestens einen verifizierten Account für ein Event anmelden, diese Warteschlange hindert Leute also unmittelbar am Spielen. Sie lohnt sich täglich zu leeren.',
+        'Leute können sich sofort anmelden, aber wer dich gebeten hat, für ihn zu bürgen, wird hier festgehalten, bis du antwortest: angemeldet, aber in keinem Team. Diese Warteschlange hält Leute also direkt vom Spielen ab. Sie lohnt sich täglich zu leeren.',
       rows: [
         {
           term: 'Per Plugin verifiziert',
@@ -2477,11 +2477,11 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'für Spieler ohne Plugin. Die Seite wählt einen zufälligen Skill, und sie müssen darin binnen dreißig Minuten 1.000 XP sammeln. Das prüft sich selbst, aber ein bestandener Test landet trotzdem unter **Needs review** für dein Ja oder Nein, denn XP zeigt, dass jemand trainiert hat, nicht wer. Ein fehlgeschlagener Check ist der, den du dir genauer ansehen solltest.',
+          body: 'für Spieler ohne Plugin. Die Seite wählt einen zufälligen Skill, und sie müssen darin binnen dreißig Minuten 1.000 XP sammeln. Das prüft sich selbst, und ein bestandener Test fügt sie automatisch als Gast in deinen Clan ein, markiert unter **Needs review**, damit du es prüfst, wenn du Zeit hast (entferne sie dort, falls es falsch war), denn XP zeigt, dass jemand trainiert hat, nicht wer. Ein fehlgeschlagener Check ist der, den du dir genauer ansehen solltest.',
         },
         {
           term: 'Manuelle Prüfung',
-          body: 'verborgene Hiscores, oder ein Zweitaccount, der zu neu ist, um dort aufzutauchen. Jemand reicht einen RSN mit Notiz ein, und du entscheidest. Frag nach einem Screenshot des Anmeldebildschirms, wenn die Notiz nicht reicht.',
+          body: 'verborgene Hiscores, oder ein Zweitaccount, der zu neu ist, um dort aufzutauchen. Jemand bittet dich, für einen RSN zu bürgen, und du entscheidest. Die Person wird sofort als Gast hinzugefügt und kann sich anmelden, aber ihre Anmeldungen werden festgehalten, ohne Team, bis du zustimmst. Zustimmen schließt sie ab, und **Not our member** nimmt sie wieder zurück. Frag nach einem Screenshot des Anmeldebildschirms, wenn du dir nicht sicher bist.',
         },
       ],
       note: {

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Select from '@/components/Select';
+import PathChip from '@/components/PathChip';
+import type { JoinPath } from '@/lib/characterState';
 import Input from '@/components/Input';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
@@ -72,6 +74,8 @@ interface ClanMember {
   pendingRole: PendingRole | null;
   /** The newest report this clan sent Anvil about the character, and where it stands. */
   anvilReport?: ClanReportView | null;
+  /** How the character came in: plugin, XP check, awaiting a staff vouch, or vouched (PathChip). */
+  path?: JoinPath | null;
 }
 
 // Staff roles that can be pre-assigned to a roster member (applied when they verify). Mirrors the
@@ -79,7 +83,7 @@ interface ClanMember {
 type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
 type PendingRoleValue = PendingRole | 'none';
 
-type FilterMode = 'active' | 'review' | 'quiet' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+type FilterMode = 'active' | 'review' | 'vouch' | 'quiet' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
 
 const QUIET_DAYS = 7;
 
@@ -403,6 +407,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
       // Everyone the plugin reported but no mod has confirmed yet — the queue this page exists
       // to clear, previously only reachable from another route entirely.
       if (filter === 'review' && (m.leftAt || !m.provisional)) return false;
+      if (filter === 'vouch' && (m.leftAt || m.path !== 'manual')) return false;
       // "Quiet", not "idle": someone who has never run the plugin isn't inactive, we simply have
       // no evidence either way, so they belong in neither bucket.
       if (filter === 'quiet') {
@@ -467,7 +472,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
   }, [members]);
 
   const counts = useMemo(() => {
-    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, quiet = 0, staff = 0, noPluginData = 0;
+    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, quiet = 0, staff = 0, noPluginData = 0, vouch = 0;
     for (const m of members) {
       if (m.leftAt) left++;
       else if (m.isGuest) guests++;
@@ -476,6 +481,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         if (m.userId) linked++;
         else unlinked++;
         if (m.provisional) review++;
+        if (m.path === 'manual') vouch++;
         if (STAFF_ROLES.has(m.userRole ?? '')) staff++;
         if (!m.isGuest) {
           const days = daysSincePlayed(m, nowMs);
@@ -484,7 +490,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         }
       }
     }
-    return { active, guests, left, linked, unlinked, review, quiet, staff, noPluginData, total: members.length };
+    return { active, guests, left, linked, unlinked, review, quiet, staff, noPluginData, vouch, total: members.length };
   }, [members, nowMs]);
 
   // ── Bulk selection ────────────────────────────────────────────────────────
@@ -887,6 +893,9 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
   //   seat-shaped answer to a person-shaped question looks like.
   const filterDefs: { key: FilterMode; label: string; count: number; attn?: boolean }[] = [
     { key: 'active', label: 'Active', count: counts.active },
+    // Only while somebody is waiting: the people who asked your staff to vouch and are held until
+    // someone does. The rows carry the chip, which opens Needs review where the vouch is one click.
+    ...(counts.vouch > 0 ? [{ key: 'vouch' as const, label: 'Awaiting vouch', count: counts.vouch, attn: true }] : []),
     { key: 'quiet', label: `Quiet ${QUIET_DAYS}d+`, count: counts.quiet },
     { key: 'guests', label: 'Guests', count: counts.guests },
     { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
@@ -1193,6 +1202,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                       <span>{m.rsn}</span>
                       <DiscordLink id={m.effectiveDiscordId ?? m.discordId} rsn={m.rsn} />
                       <AccountBadge m={m} />
+                      {!m.leftAt && <PathChip path={m.path} />}
                     </div>
                     {m.pendingRole && (
                       <div className="mt-1">
@@ -1259,6 +1269,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                     <span className="break-all">{m.rsn}</span>
                     <DiscordLink id={m.effectiveDiscordId ?? m.discordId} rsn={m.rsn} />
                     <AccountBadge m={m} />
+                    {!m.leftAt && <PathChip path={m.path} />}
                   </div>
                   {m.pendingRole && (
                     <div className="mt-1">

@@ -12,7 +12,7 @@ import { freemiumEnforced } from '@/lib/entitlements';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
 import { guestPolicyOf } from '@/lib/guestAdmission';
-import { enterEvent } from '@/lib/eventEntry';
+import { enterEvent, inviteStanding } from '@/lib/eventEntry';
 import { entryGateInfo } from '@/lib/entryGatesDb';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
@@ -31,6 +31,11 @@ import { rateLimitByKey } from '@/lib/rate-limit';
  * seat, the ordinary sign-up flow takes over and knows nothing about any of this.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // Entering takes a seat: never from another site's page (the same guard as the site's other
+  // state-changing routes; the session cookie is SameSite=Lax besides).
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
+  }
   const session = await verifyUser();
   if (!session?.playerId) return NextResponse.json({ error: 'Sign in first' }, { status: 401 });
 
@@ -71,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 }
 
 /** What entering would involve, so the page can say so before anyone presses anything. */
-export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const session = await verifyUser();
   const eventId = Number((await params).eventId);
   if (!Number.isInteger(eventId)) return NextResponse.json({ error: 'Bad event' }, { status: 400 });
@@ -153,5 +158,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // A creator-space event's "who can join", said up front (no Twitch or Discord call is made here).
   const gate = verdict.outcome === 'outsider' ? await entryGateInfo(eventId, session?.userId ?? null) : null;
 
-  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, full, gate });
+  // Arrived by a team's invite link: is it good for this event right now, and what would pressing
+  // Join do? Read-only; the entry re-checks all of it (lib/eventEntry inviteStanding). Only told to
+  // somebody signed in who may see the event.
+  const invite =
+    session?.playerId && verdict.outcome !== 'refused' ? await inviteStanding(eventId, new URL(request.url).searchParams.get('invite')) : null;
+
+  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, full, gate, invite });
 }

@@ -398,7 +398,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Få med medlemmene',
-          body: 'Installer pluginet, logg inn med Discord, åpne så klanvinduet i spillet og trykk **Anvil**-knappen i tittellinja. Ingen kan melde seg på et arrangement før medlemslista di er inne.',
+          body: 'Installer pluginet, logg inn med Discord, åpne så klanvinduet i spillet og trykk **Anvil**-knappen i tittellinja. Det er fra den lista medlemmene dine kommer. Til den er inne, kan folk fortsatt melde seg på arrangementene dine som gjester.',
         },
         {
           term: 'Lag et brett',
@@ -421,7 +421,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'De ber om å bli med',
-          body: 'Å logge inn eller spille med pluginet gir aldri noen en plass av seg selv. Ser pluginet noen spille i klanen din i spillet før medlemslista di har dem, oppretter det en forespørsel om å bli med for dem, og alle andre kan spørre med **Apply** på klansiden deres. Staben svarer på begge øverst i **Roster**-fanen, og **Who can join** avgjør om de venter på et ja, kommer inn med en gang eller ikke kan spørre i det hele tatt. Den som spiller en karakter som allerede står på medlemslista di, blir i stedet bekreftet under **Needs review**. Detaljene står i [Folkene dine]({peopleGuide}).',
+          body: 'Medlemmer kommer bare fra medlemslista di i spillet. Ser pluginet noen spille i klanen din i spillet før medlemslista di har dem, oppretter det en forespørsel om å bli med for dem, som staben svarer på øverst i **Roster**-fanen. Alle andre kan trykke **Apply** på klansiden sin med RSN-et sitt i spillet: den som bekrefter karakteren med pluginet eller XP-sjekken, blir gjest med en gang, og den som ber staben din om å gå god for seg, blir lagt til som gjest og holdt under **Needs review** til du svarer. Setter du **Who can join** til stengt, stanser alt dette. Den som spiller en karakter som allerede står på medlemslista di, blir i stedet bekreftet under **Needs review**. Detaljene står i [Folkene dine]({peopleGuide}).',
         },
         {
           term: 'For hånd',
@@ -865,10 +865,10 @@ const no: PartialGuideDict = {
         'På mobil eller i den offisielle klienten bruker du [Settings → Characters → Link a character](/settings/characters#link-account) i stedet:',
       noPluginOptions: [
         '**Verify by XP** — skriv inn RSN-et ditt, nettstedet velger en tilfeldig ferdighet, og du skal tjene 1 000 XP i den innen 30 minutter.',
-        '**Manual review** — for skjulte Hiscores eller helt nye altkontoer: send inn RSN-et ditt med en kommentar, så godkjenner en moderator det.',
+        '**Manual review** — for skjulte Hiscores eller helt nye altkontoer: be staben i klanen om å gå god for RSN-et ditt på klansiden. Du kan melde deg på arrangementene deres med en gang, og påmeldingen din holdes til de svarer.',
       ],
       signupNote:
-        'Påmelding til event krever minst én verifisert konto, så få det unnagjort før du melder deg på.',
+        'Du kan melde deg på et event så snart du har oppgitt karakteren din. Med pluginet eller en bestått XP-sjekk er du med med en gang. Ba du staben om å gå god for deg, holdes påmeldingen din til de svarer.',
     },
 
     working: {
@@ -1473,7 +1473,7 @@ const no: PartialGuideDict = {
       ],
       note: {
         tag: 'Hva en invitasjon ikke er',
-        body: 'Det er ikke en innlogging og ingen snarvei forbi verifisering. Den som åpner den, logger likevel inn med Discord og trenger likevel et verifisert RSN, akkurat som ved enhver annen påmelding. Det eneste lenken avgjør, er _hvilket lag_ påmeldingen havner på, og at den ikke trenger noens godkjenning.',
+        body: 'Det er ikke en innlogging og ingen snarvei forbi verifisering. Den som åpner den, logger likevel inn med Discord og oppgir likevel RSN-et sitt, akkurat som ved enhver annen påmelding. Det eneste lenken avgjør, er _hvilket lag_ påmeldingen havner på, og at den ikke trenger noens godkjenning. En karakter som fortsatt venter på at staben skal gå god for den, blir med i laget så snart staben har bekreftet den.',
       },
     },
 
@@ -1608,7 +1608,7 @@ const no: PartialGuideDict = {
           },
           {
             label: 'Resten av skjemaet',
-            body: 'uendret. Et verifisert RSN kreves fortsatt, påmeldingsspørsmålene stilles fortsatt, og en påmeldingsavgift gjelder fortsatt.',
+            body: 'uendret. Et RSN kreves fortsatt, påmeldingsspørsmålene stilles fortsatt, og en påmeldingsavgift gjelder fortsatt.',
           },
         ],
       },
@@ -2703,7 +2703,7 @@ const no: PartialGuideDict = {
     verify: {
       title: 'Å verifisere kontoer',
       intro:
-        'Ingen kan melde seg på et event uten minst én verifisert konto, så denne køen hindrer folk direkte i å spille. Det er den som er verdt å tømme daglig.',
+        'Folk kan melde seg på med en gang, men den som ba deg om å gå god for seg, holdes til du svarer her: påmeldt, uten lag. Så denne køen hindrer folk direkte i å spille. Det er den som er verdt å tømme daglig.',
       rows: [
         {
           term: 'Verifisert via pluginet',
@@ -2711,11 +2711,11 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'for spillere uten pluginet. Nettstedet velger en tilfeldig ferdighet, og de skal tjene 1 000 XP i den innen tretti minutter. Den sjekker seg selv, og et bestått forsøk havner fortsatt i **Needs review** for ditt ja eller nei, for XP viser at noen har trent, ikke hvem. Et mislykket forsøk er den du bør se nærmere på.',
+          body: 'for spillere uten pluginet. Nettstedet velger en tilfeldig ferdighet, og de skal tjene 1 000 XP i den innen tretti minutter. Den sjekker seg selv, og et bestått forsøk legger dem automatisk til i klanen din som gjest. De er merket i **Needs review** så du kan sjekke dem når du har tid (fjern dem der hvis det er feil), for XP viser at noen har trent, ikke hvem. Et mislykket forsøk er den du bør se nærmere på.',
         },
         {
           term: 'Manuell gjennomgang',
-          body: 'skjulte Hiscores, eller en altkonto som er for ny til å stå der. Noen sender inn et RSN med en kommentar, og du avgjør. Be om et skjermbilde av innloggingsskjermen hvis kommentaren ikke holder.',
+          body: 'skjulte Hiscores, eller en altkonto som er for ny til å stå der. Noen ber deg om å gå god for et RSN, og du avgjør. De blir lagt til som gjest med en gang og kan melde seg på, men påmeldingene deres holdes, uten lag, til du godkjenner. Godkjenner du dem, blir de fullført, og **Not our member** trekker dem tilbake. Be om et skjermbilde av innloggingsskjermen hvis du er usikker.',
         },
       ],
       note: {

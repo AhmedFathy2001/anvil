@@ -399,7 +399,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Porta dentro i tuoi membri',
-          body: 'Installa il plugin, accedi con Discord, poi apri la finestra del clan in gioco e premi il pulsante **Anvil** nella sua barra del titolo. Nessuno può iscriversi a un evento finché la tua lista membri non è dentro.',
+          body: 'Installa il plugin, accedi con Discord, poi apri la finestra del clan in gioco e premi il pulsante **Anvil** nella sua barra del titolo. Da quella lista arrivano i tuoi membri. Finché non c’è, le persone possono comunque iscriversi ai tuoi eventi come ospiti.',
         },
         {
           term: 'Crea una board',
@@ -422,7 +422,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Chiedono di entrare',
-          body: 'Accedere o giocare con il plugin non dà mai, da solo, un posto a nessuno. Se il plugin vede qualcuno giocare nel tuo clan in gioco prima che il tuo roster lo abbia, crea per lui una richiesta di adesione, e chiunque altro può chiedere con **Apply** sulla pagina del tuo clan. Lo staff risponde a entrambe in cima alla scheda **Roster**, e **Who can join** decide se aspettano un sì, entrano subito o non possono chiedere affatto. Chi gioca un personaggio già nel tuo roster viene invece confermato in **Needs review**. I dettagli sono in [La tua gente]({peopleGuide}).',
+          body: 'I membri arrivano solo dalla lista membri del tuo clan in gioco. Se il plugin vede qualcuno giocare nel tuo clan in gioco prima che il tuo roster lo abbia, crea per lui una richiesta di adesione, che lo staff risponde in cima alla scheda **Roster**. Chiunque altro può premere **Apply** sulla pagina del tuo clan con il suo nome in gioco: chi conferma il personaggio con il plugin o con il controllo XP diventa subito ospite, e chi chiede allo staff di garantire per lui viene aggiunto come ospite e tenuto in **Needs review** finché non rispondi. Impostare **Who can join** su chiuso blocca tutto questo. Chi gioca un personaggio già nel tuo roster viene invece confermato in **Needs review**. I dettagli sono in [La tua gente]({peopleGuide}).',
         },
         {
           term: 'A mano',
@@ -866,9 +866,9 @@ const it: PartialGuideDict = {
         'Da mobile o dal client ufficiale usa [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— inserisci il tuo RSN, il sito estrae una skill a caso, guadagni 1.000 XP in quella skill entro 30 minuti.',
-        '**Manual review** —— per Hiscores nascosti o alt appena creati: invii il tuo RSN con una nota e un moderatore approva.',
+        '**Manual review** —— per Hiscores nascosti o alt appena creati: sulla pagina di un clan, chiedi al suo staff di garantire per il tuo RSN. Puoi iscriverti ai suoi eventi subito, e la tua iscrizione resta in sospeso finché non rispondono.',
       ],
-      signupNote: 'Per iscriversi a un evento serve almeno un account verificato, quindi sistemalo prima di iscriverti.',
+      signupNote: 'Puoi iscriverti a un evento appena hai indicato il tuo personaggio. Con il plugin o con un controllo XP superato sei dentro subito. Se hai chiesto allo staff di garantire per te, la tua iscrizione resta in sospeso finché non rispondono.',
     },
 
     working: {
@@ -1463,7 +1463,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Cosa un invito non è',
-        body: 'Non è un accesso e non è una scorciatoia che salta la verifica. Chi lo apre accede comunque con Discord e ha comunque bisogno di un RSN verificato, esattamente come qualsiasi altra iscrizione. Le uniche cose che il link decide sono _in quale squadra_ entra l’iscrizione e che non serve l’approvazione di nessuno.',
+        body: 'Non è un accesso e non è una scorciatoia che salta la verifica. Chi lo apre accede comunque con Discord e deve comunque indicare il suo RSN, esattamente come qualsiasi altra iscrizione. Le uniche cose che il link decide sono _in quale squadra_ entra l’iscrizione e che non serve l’approvazione di nessuno. Un personaggio che aspetta ancora che lo staff garantisca per lui entra nella squadra quando lo confermano.',
       },
     },
 
@@ -1596,7 +1596,7 @@ const it: PartialGuideDict = {
           },
           {
             label: 'Il resto del modulo',
-            body: 'invariato. Serve comunque un RSN verificato, le domande d’iscrizione vengono comunque poste, e la quota d’iscrizione si applica comunque.',
+            body: 'invariato. Serve comunque un RSN, le domande d’iscrizione vengono comunque poste, e la quota d’iscrizione si applica comunque.',
           },
         ],
       },
@@ -2691,7 +2691,7 @@ const it: PartialGuideDict = {
     verify: {
       title: 'Verificare gli account',
       intro:
-        'Nessuno può iscriversi a un evento senza almeno un account verificato, quindi questa coda blocca direttamente delle persone dal giocare. È quella che vale la pena svuotare ogni giorno.',
+        'Le persone possono iscriversi subito, ma chi ti ha chiesto di garantire per lui resta in sospeso finché non rispondi qui: iscritto, ma senza squadra. Quindi questa coda impedisce direttamente alle persone di giocare. È quella che vale la pena svuotare ogni giorno.',
       rows: [
         {
           term: 'Verificato dal plugin',
@@ -2699,11 +2699,11 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'per i giocatori senza plugin. Il sito estrae una skill a caso e loro devono guadagnarci 1.000 XP entro trenta minuti. Si verifica da sé, ma un superamento finisce comunque in **Needs review** per il tuo sì o no, perché gli XP mostrano che qualcuno si è allenato, non chi è. Un controllo fallito è quello da guardare più da vicino.',
+          body: 'per i giocatori senza plugin. Il sito estrae una skill a caso e loro devono guadagnarci 1.000 XP entro trenta minuti. Si verifica da sé, e un superamento li aggiunge automaticamente al tuo clan come ospiti, segnati in **Needs review** perché tu li controlli quando puoi (rimuovili da lì se è sbagliato), perché gli XP mostrano che qualcuno si è allenato, non chi è. Un controllo fallito è quello da guardare più da vicino.',
         },
         {
           term: 'Revisione manuale',
-          body: 'Hiscores nascosti, o un alt troppo nuovo per comparirci. Qualcuno invia un RSN con una nota e decidi tu. Chiedi uno screenshot della schermata di accesso se la nota non basta.',
+          body: 'Hiscores nascosti, o un alt troppo nuovo per comparirci. Qualcuno ti chiede di garantire per un RSN e decidi tu. Viene aggiunto subito come ospite e può iscriversi, ma le sue iscrizioni restano in sospeso, senza squadra, finché non approvi. Approvarlo lo completa, e **Not our member** lo ritira. Chiedi uno screenshot della schermata di accesso se non sei sicuro.',
         },
       ],
       note: {

@@ -147,7 +147,7 @@ export interface AttentionFacts {
    * two boards had to open both to find out whether anything was waiting.
    */
   flaggedProofs?: { count: number; events: { name: string; count: number; href: string }[] };
-  /** Active roster seats. A new clan has at most its owner, and nobody can sign up until it syncs. */
+  /** Active roster seats. A new clan has at most its owner; members only arrive when it syncs (guests can still sign up). */
   rosterSize?: number;
   /**
    * A big clan on the free plan, and what just went well there (app/admin/plan). The caller only

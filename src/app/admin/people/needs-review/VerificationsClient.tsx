@@ -47,7 +47,20 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
         setError(data.error || 'Action failed');
       } else {
         if (data.status === 'applied') setNotice('Taken off them. Anvil will double-check it and can undo it if something is wrong.');
-        else if (data.status === 'removed') setNotice('Taken off your clan’s list. The character stays with its owner — they can remove it from their profile, or stop tracking it in the plugin.');
+        else if (data.status === 'removed')
+          setNotice(
+            `Taken off your clan’s list${data.withdrawn ? `, and ${data.withdrawn === 1 ? 'their sign-up was' : `their ${data.withdrawn} sign-ups were`} withdrawn` : ''}. The character stays with its owner: they can remove it from their profile, or stop tracking it in the plugin.`,
+          );
+        else if (data.status === 'approved' && data.entries && data.entries.approved + data.entries.waiting > 0)
+          setNotice(
+            [
+              'Confirmed.',
+              data.entries.approved > 0 ? `${data.entries.approved === 1 ? 'Their invited sign-up is' : `${data.entries.approved} invited sign-ups are`} approved and on the team.` : '',
+              data.entries.waiting > 0 ? `${data.entries.waiting === 1 ? 'One sign-up now waits' : `${data.entries.waiting} sign-ups now wait`} for the event’s host.` : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+          );
         else if (data.status === 'reported') setNotice(`Sent to Anvil.${data.why ? ` ${data.why}` : ''}`);
         router.refresh();
       }

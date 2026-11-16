@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { pathOf } from '@/lib/characterState';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
@@ -100,6 +101,8 @@ export async function GET(request: Request) {
         userRole: r.playerId != null ? userRole.get(r.playerId) ?? null : null,
         effectiveDiscordId: did,
         anvilReport: reports.get(r.accountId) ?? null,
+        // How the character came in (lib/characterState pathChip): only for one somebody has claimed.
+        path: r.claimedAt ? pathOf(r) : null,
       };
     }),
   );

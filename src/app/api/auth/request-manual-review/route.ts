@@ -23,6 +23,9 @@ const MAX_OPEN_MANUAL_CLAIMS = 1;
 // moderator approval queue alongside stat-delta entries; the mod's note column shows the
 // reason the user gave.
 export async function POST(request: Request) {
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
+  }
   const session = await verifyUser();
   if (!session || session.userId <= 0) {
     return NextResponse.json({ error: 'Sign in with Discord first' }, { status: 401 });
@@ -99,6 +102,20 @@ export async function POST(request: Request) {
   if (existing && existing.playerId !== session.playerId) {
     return NextResponse.json(
       { error: 'That character is on this clan’s in-game list. Play it once with the Anvil plugin signed in and it links to you, or use the XP check.' },
+      { status: 409 },
+    );
+  }
+
+  // The same for a character on ANOTHER clan's in-game list. The claim is global (one account, every
+  // clan), so taking it here would hand this person that clan's member seat, and with it that clan's
+  // members-only pages, on nothing but their word to a different clan's staff.
+  // clan-scope: global -- asking whether ANY clan's in-game list names this character.
+  const listedElsewhere = await findRosterSeat(
+    and(eq(clanRoster.rsnNormalized, rsnNormalized), eq(clanRoster.kind, 'member'), eq(clanRoster.source, 'roster'), isNull(clanRoster.leftAt)),
+  );
+  if (listedElsewhere && listedElsewhere.playerId !== session.playerId) {
+    return NextResponse.json(
+      { error: 'That character is on a clan’s in-game list, so staff here cannot vouch for it. Play it once with the Anvil plugin signed in and it links to you, or use the XP check.' },
       { status: 409 },
     );
   }

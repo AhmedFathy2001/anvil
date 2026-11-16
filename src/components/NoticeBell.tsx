@@ -197,6 +197,12 @@ export default function NoticeBell({ className = '' }: { className?: string }) {
                       <ClanLink href="/whats-new" onClick={() => setOpen(false)} className="block">
                         {inner}
                       </ClanLink>
+                    ) : n.kind === 'personal' ? (
+                      // About this person's own characters: it opens where those notices are kept.
+                      // clan-prefix: platform -- Settings is the platform's, never under a clan.
+                      <ClanLink href="/settings/characters#claims" onClick={() => setOpen(false)} className="block">
+                        {inner}
+                      </ClanLink>
                     ) : (
                       <a href="/inbox" className="block">
                         {inner}

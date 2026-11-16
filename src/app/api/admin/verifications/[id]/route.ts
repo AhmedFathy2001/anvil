@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
-import { clanAuditLog, clanMemberships, eventSignups } from '@/db/schema';
+import { clanAuditLog, clanMemberships } from '@/db/schema';
+import { completeHeldEntries, tellSeatOwner, withdrawSeatEntries, type CompletedEntries } from '@/lib/heldEntries';
 import { eq } from 'drizzle-orm';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { raiseCharacterReport } from '@/lib/characterReportActions';
@@ -81,6 +82,14 @@ export async function POST(
     // forget; no-op if role sync is off. (Manual approval previously synced nothing on its own.)
     syncRolesForClanMemberFireAndForget(memberId);
 
+    // A character that was only waiting on this yes (asked staff to vouch, nothing else proved it) had
+    // its sign-ups held. The yes completes them in the same action, and the person is told.
+    let completed: CompletedEntries | null = null;
+    if (!member.verifiedAt && member.verificationMethod === 'manual') {
+      completed = await completeHeldEntries({ clanId: member.clanId, seatId: memberId, actorUserId: session.userId > 0 ? session.userId : null, by: 'staff' });
+      await tellSeatOwner({ clanId: member.clanId, seatId: memberId, outcome: 'vouched', completed }).catch(() => {});
+    }
+
     db.insert(clanAuditLog)
       .values({
         clanMemberId: memberId,
@@ -92,7 +101,12 @@ export async function POST(
       })
       .catch(() => {});
 
-    return NextResponse.json({ success: true, status: 'approved' });
+    return NextResponse.json({
+      success: true,
+      status: 'approved',
+      // What the yes finished, for the reviewer's confirmation line.
+      entries: completed ? { approved: completed.approved.length, waiting: completed.waiting.length } : null,
+    });
   }
 
   if (body.action === 'not_member') {
@@ -111,7 +125,8 @@ export async function POST(
       .where(eq(clanMemberships.id, memberId));
     // A declined (or removed) entry goes with the seat: its sign-ups are withdrawn, so nothing of theirs
     // waits on a board for somebody staff said is not theirs.
-    await db.update(eventSignups).set({ status: 'withdrawn' }).where(eq(eventSignups.clanMemberId, memberId));
+    const withdrawn = await withdrawSeatEntries(memberId);
+    await tellSeatOwner({ clanId: member.clanId, seatId: memberId, outcome: 'declined', withdrawn }).catch(() => {});
     db.insert(clanAuditLog)
       .values({
         clanId: member.clanId,
@@ -123,7 +138,7 @@ export async function POST(
         notes: body.note || null,
       })
       .catch(() => {});
-    return NextResponse.json({ success: true, status: 'removed' });
+    return NextResponse.json({ success: true, status: 'removed', withdrawn: withdrawn.length });
   }
 
   // REPORT, not reject. Rejecting took the character off the person — an ownership change that holds

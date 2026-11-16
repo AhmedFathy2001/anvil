@@ -8,12 +8,14 @@ import { doorPolicy, mayJoinWith } from '@/lib/characterState';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clans, events, teamInvites } from '@/db/schema';
-import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
+import { accounts, clanAuditLog, clans, events, teamInvites, teams } from '@/db/schema';
+import { isEventOver } from '@/lib/eventLock';
+import { signupWindowState } from '@/lib/signup';
+import { checkInvite, inviteClosedMessage, inviteSignupWindow, isWellFormedToken } from '@/lib/teamInvites';
 import { canEnterEvent, invitedToEvent, staffOfClan, type EntryVerdict } from '@/lib/eventAccess';
 import { admit, removedByStaff, requestEventEntry } from '@/lib/guestAdmission';
 import { isCreatorSpace, seatsEventPlayers, streamedEvent } from '@/lib/creatorSpaces';
-import { friendsJoinCheck } from '@/lib/friendEvents';
+import { friendsHostOfEvent, friendsJoinCheck } from '@/lib/friendEvents';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { seatEventPlayer } from '@/lib/eventPlayers';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
@@ -21,6 +23,47 @@ import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
 import { streamPlanId } from '@/lib/creatorPlans';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { hostRoomVerdict } from '@/lib/creatorPlansDb';
+
+export interface InviteStanding {
+  ok: boolean;
+  /** Why it cannot be used, in plain words. Empty when ok. */
+  message: string;
+  teamName: string | null;
+  eventName: string | null;
+  hostName: string | null;
+}
+
+/**
+ * Where a team's invite stands for this event, right now: the one answer the join card shows before
+ * anything is pressed and the one the entry itself re-checks. Null for no token at all. A token that
+ * is malformed, unknown, for another event, turned off, expired or used up is refused, and so is a
+ * good one while the host has the form off, past the deadline, or after the event has finished
+ * (lib/teamInvites inviteSignupWindow, inviteClosedMessage). Names are given only for a good invite.
+ */
+export async function inviteStanding(eventId: number, token: string | null | undefined): Promise<InviteStanding | null> {
+  if (token == null || token === '') return null;
+  const none = { teamName: null, eventName: null, hostName: null };
+  if (!isWellFormedToken(token)) return { ok: false, message: checkInvite(null, { now: Date.now(), eventId, signupsOpen: true }).message, ...none };
+  const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, token) });
+  // clan-scope: global -- the event named by the invite's own URL; checkInvite pins the token to it.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { ok: false, message: checkInvite(null, { now: Date.now(), eventId, signupsOpen: true }).message, ...none };
+  const over = isEventOver(event);
+  const base = signupWindowState({
+    signupOpensAt: event.signupOpensAt,
+    signupDeadline: event.signupDeadline,
+    startDate: event.startDate,
+    signupsEnabled: event.signupsEnabled,
+    hostKind: (await friendsHostOfEvent(event.id)) != null ? 'friends' : null,
+  });
+  const window = inviteSignupWindow(base, over);
+  const verdict = checkInvite(row, { now: Date.now(), eventId, signupsOpen: window.open, closedMessage: inviteClosedMessage(base.reason, over) });
+  if (!verdict.ok || !row) return { ok: false, message: verdict.message, ...none };
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId), columns: { name: true, eventId: true } });
+  if (!team || team.eventId !== eventId) return { ok: false, message: 'That invite is for a team that no longer exists.', ...none };
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { name: true } });
+  return { ok: true, message: '', teamName: team.name, eventName: event.name, hostName: host?.name ?? null };
+}
 
 export type EnterResult =
   | { outcome: 'refused'; reason: 'not-visible' | 'banned' | 'signed-out' | 'closed' | 'full'; status: number; error: string }
@@ -60,13 +103,9 @@ export async function enterEvent(opts: {
   // host or captain already said yes, so the person is seated as a guest without waiting for an
   // approval that was given when the link was made. Bans are still refused above, and the clan's door
   // stays a GUEST seat: roster membership only ever comes from the in-game list.
-  let invited = false;
-  if (isWellFormedToken(opts.inviteToken)) {
-    const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, opts.inviteToken!) });
-    // clan-scope: global -- the event named by the invite's own URL; the invite check below pins the token to it.
-    const ev = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
-    invited = !!row && !!ev && checkInvite(row, { now: Date.now(), eventId: opts.eventId, signupsOpen: true }).ok;
-  }
+  // Re-checked here on every call, never taken from the page: the token, its event, its limits and
+  // the event's sign-up window (inviteStanding).
+  const invited = (await inviteStanding(opts.eventId, opts.inviteToken))?.ok === true;
 
   // clan-scope: global -- entering somebody ELSE'S event is the whole point; canEnterEvent has already ruled on access.
   const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });

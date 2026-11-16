@@ -9,6 +9,7 @@ import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/li
 import { SITE } from '@/lib/site';
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import ApplyToClan from '@/components/ApplyToClan';
+import NameCharacterInline from '@/components/NameCharacterInline';
 import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
 import type { Moment } from '@/lib/clanMomentsRules';
@@ -233,13 +234,10 @@ export default function PublicClanHome({
                 Apply on Discord
               </a>
             ) : !signedIn ? (
-              <div className="flex shrink-0 flex-col gap-1.5 sm:max-w-[15rem]">
-                <a
-                  href={/* clan-prefix: platform -- the Discord start is the platform's */ discordStartHref(clanBasePath(view))}
-                  className="rounded-lg bg-[var(--sa)] px-4 py-2 text-center text-[13px] font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
-                >
-                  Sign in to apply
-                </a>
+              // The same box a signed-in person gets: the name is typed first, and Apply starts
+              // sign-in and comes back here with it kept.
+              <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[24rem]">
+                <NameCharacterInline slug={view.slug} clanName={view.name} clanPath={clanBasePath(view)} returnPath={clanBasePath(view)} mode="apply" signedIn={false} />
                 <SignInReceives />
               </div>
             ) : (
@@ -278,13 +276,16 @@ export default function PublicClanHome({
               labels={{ open: 'Guest here', approval: 'Ask to guest' }}
             />
           ) : (
-            <div className="flex shrink-0 flex-col gap-1.5 sm:max-w-[15rem]">
-              <a
-                href={/* clan-prefix: platform -- the Discord start is the platform's */ discordStartHref(clanBasePath(view))}
-                className="rounded-lg border border-card-border px-4 py-2 text-center text-[13px] font-semibold transition-colors hover:border-[var(--sa)] hover:text-[var(--sa-text)]"
-              >
-                Sign in to ask
-              </a>
+            <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[24rem]">
+              <NameCharacterInline
+                slug={view.slug}
+                clanName={view.name}
+                clanPath={clanBasePath(view)}
+                returnPath={clanBasePath(view)}
+                mode="apply"
+                signedIn={false}
+                applyLabel={view.guestPolicy === 'open' ? 'Guest here' : 'Ask to guest'}
+              />
               <SignInReceives />
             </div>
           )}

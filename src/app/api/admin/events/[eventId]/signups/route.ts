@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { tierOf } from '@/lib/characterState';
+import { pathOf } from '@/lib/characterState';
 import { handleFor } from '@/lib/staffSight';
 import { eventForRequest } from '@/lib/eventScope';
 import { resolvePlayers } from '@/lib/signupPlayer';
@@ -145,8 +145,8 @@ export async function GET(
         ? { id: r.user.id, displayName: r.user.displayName, discordUsername: handleFor(session?.role, r.user.discordUsername) }
         : null,
     account: r.account,
-    /** How this character came in: plugin, xp (flagged for a check) or manual (awaiting this clan's staff). */
-    path: tierOf(r),
+    /** How this character came in: plugin, xp (flagged for a check), manual (awaiting this clan's staff) or vouched (staff confirmed it). */
+    path: pathOf(r),
     /** No member seat in a clan running the board (lib/entryFee). Null when guests pay the same. */
     guest: members ? !members.has(r.accountId) : null,
     captainTeam: r.user && r.user.id != null ? captainTeamByUser.get(r.user.id) ?? null : null,

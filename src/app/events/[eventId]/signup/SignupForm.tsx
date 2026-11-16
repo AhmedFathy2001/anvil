@@ -13,6 +13,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
+import NameCharacterInline from '@/components/NameCharacterInline';
 import EnterEvent from '@/app/events/[eventId]/EnterEvent';
 import Checkbox, { CheckboxBox } from '@/components/Checkbox';
 import Radio from '@/components/Radio';
@@ -115,6 +116,8 @@ interface Props {
    * rather than letting someone submit believing they're entering the draft pool.
    */
   invite?: { token: string; teamName: string } | null;
+  /** The clan hosting the event, for naming a character inline (null for a creator space's event). */
+  host?: { slug: string; name: string; path: string; viewerIsStaff: boolean } | null;
   /** A creator space's event (lib/creatorSpaces): no clan, no member list — just "join". */
   creator?: boolean;
 }
@@ -251,6 +254,7 @@ export default function SignupForm({
   pluginSeenIds = [],
   questions = [],
   creator = false,
+  host = null,
 }: Props) {
   const router = useRouter();
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
@@ -473,6 +477,10 @@ export default function SignupForm({
     if (hasAnyCharacter && creator) {
       return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} creator />;
     }
+    // Invited to a team: the join card says everything (who, what, one press). No member-list talk.
+    if (hasAnyCharacter && invite) {
+      return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} />;
+    }
     if (hasAnyCharacter) {
       return (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
@@ -491,15 +499,40 @@ export default function SignupForm({
     }
     return (
       <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
-        <h2 className="font-semibold">Which character is yours?</h2>
+        {invite && (
+          <p className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm font-medium text-gold">
+            You&apos;re invited to join <strong>{invite.teamName}</strong>. One thing first:
+          </p>
+        )}
+        <h2 className="font-semibold">{host?.viewerIsStaff ? 'Add your own character' : 'Which character is yours?'}</h2>
         <p className="text-sm text-text-muted">
-          Link your RuneScape character once and the sign-up form appears right here.
+          {host?.viewerIsStaff
+            ? 'You run this event, and you can play in it too. Name your character here and the sign-up form appears.'
+            : 'Name your RuneScape character once and the sign-up form appears right here.'}
         </p>
-        <AddCharacterClient first />
+        {host ? (
+          // The same box as the clan page's apply step: the name, then how to confirm it. A name on
+          // the clan's in-game member list is told the plugin recognises it. The clan's own staff are
+          // not offered "ask staff": they would be asking themselves.
+          <NameCharacterInline
+            slug={host.slug}
+            clanName={host.name}
+            clanPath={host.path}
+            returnPath={host.path}
+            mode="event"
+            signedIn
+            applyLabel="Continue"
+            ways={host.viewerIsStaff ? ['plugin', 'xp'] : undefined}
+          />
+        ) : (
+          <AddCharacterClient first />
+        )}
       </div>
     );
   }
 
+  // A character still waiting on staff to vouch: the entry is held (pending, no team) until they do.
+  const heldSelected = myAccounts.some((a) => (selectedIds.has(a.id) || selectedIds.size === 0) && characterState(a) === 'awaiting-manual');
   const isWithdrawn = existingSignup?.status === 'withdrawn';
   const isLocked = !windowOpen && !isWithdrawn;
 
@@ -511,8 +544,9 @@ export default function SignupForm({
             You&apos;re joining <strong>{invite.teamName}</strong> by invite.
           </p>
           <p className="text-text-muted text-xs mt-1">
-            Fill this in as normal — you go straight onto that team when you submit, with no waiting
-            on a host to approve you.
+            {heldSelected
+              ? 'Submit as normal. Your place on that team is held until this clan’s staff confirm your character, then you go straight onto it with no host approval. Signing in to the Anvil plugin on that character confirms it at once.'
+              : 'Fill this in as normal — you go straight onto that team when you submit, with no waiting on a host to approve you.'}
           </p>
         </div>
       )}
@@ -592,7 +626,11 @@ export default function SignupForm({
       {existingSignup && !isWithdrawn && (
         <div className="border border-accent-green/30 bg-accent-green/10 rounded-xl p-4 text-sm">
           <p className="font-medium text-accent-green-light">
-            {existingSignup.status === 'approved' ? 'You’re in.' : 'Sign-up received — the hosts still need to approve it.'}
+            {existingSignup.status === 'approved'
+              ? 'You’re in.'
+              : heldSelected
+                ? 'Sign-up received. It is held until this clan’s staff confirm your character is yours; signing in to the Anvil plugin on it confirms it at once.'
+                : 'Sign-up received — the hosts still need to approve it.'}
           </p>
           {/* What happens next, so "signed up" isn't the end of the trail. */}
           <ul className="text-text-muted text-xs mt-2 space-y-1 list-disc pl-4">

@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveBothBySlug, resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
+import { sanitizeRsn, isPlausibleRsn } from '@/lib/rsnRules';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
 import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { weeklyStatus } from '@/lib/weeklyStage';
@@ -1031,6 +1032,12 @@ async function ensurePluginVerifiedOnPlay(
       .set({ lastSeenInClan: nowIso })
       .where(eq(clanMemberships.id, member.id));
 
+    // The character was only waiting on staff to vouch (asked, nothing proved): the plugin has now
+    // proved it, so whatever was held for it completes, in every clan it holds a seat in.
+    if (member.verifiedAt == null && member.verificationMethod === 'manual') {
+      await completeHeldAfterPluginProof(member.id, userId).catch(() => {});
+    }
+
     if (needsVerify) {
       db.insert(clanAuditLog)
         .values({
@@ -1047,6 +1054,25 @@ async function ensurePluginVerifiedOnPlay(
     }
   } catch {
     // Verification is best-effort; a failure must not break the plugin request.
+  }
+}
+
+/** The plugin proved a character that was waiting on a staff vouch: finish its held entries. */
+async function completeHeldAfterPluginProof(seatId: number, userId: number): Promise<void> {
+  const { completeHeldEntries, tellSeatOwner } = await import('@/lib/heldEntries');
+  // clan-scope: global -- one account, every clan it holds a seat in: the proof is about the character.
+  const seats = await db
+    .select({ id: clanMemberships.id, clanId: clanMemberships.clanId })
+    .from(clanMemberships)
+    .where(
+      and(
+        eq(clanMemberships.accountId, db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(eq(clanMemberships.id, seatId))),
+        isNull(clanMemberships.leftAt),
+      ),
+    );
+  for (const seat of seats) {
+    const completed = await completeHeldEntries({ clanId: seat.clanId, seatId: seat.id, actorUserId: userId, by: 'plugin' });
+    await tellSeatOwner({ clanId: seat.clanId, seatId: seat.id, outcome: 'plugin', completed });
   }
 }
 
@@ -1581,6 +1607,24 @@ async function linkClanlessCharacterOnPlay(
   const byHash = await db.query.accounts.findFirst({ where: eq(accounts.accountHash, accountHash) });
   const existing = byHash ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, rsnNormalized) }));
   if (existing) {
+    // THEIR OWN character, linked earlier by the XP check (and still flagged for a look): the plugin
+    // reporting it while they are signed in is the stronger proof, exactly as it is for a character
+    // seated in a clan (ensurePluginVerifiedOnPlay). Same row, upgraded; never another person's, and
+    // never one anchored to a different client.
+    if (
+      existing.claimedAt != null &&
+      existing.verifiedAt != null &&
+      existing.provisional === 1 &&
+      existing.verificationMethod === 'stat_delta' &&
+      (existing.accountHash == null || existing.accountHash === accountHash) &&
+      existing.playerId === (await personOf(userId))
+    ) {
+      await db
+        .update(accounts)
+        .set({ verificationMethod: 'plugin', provisional: 0, accountHash: existing.accountHash ?? accountHash })
+        .where(eq(accounts.id, existing.id));
+      return;
+    }
     if (existing.claimedAt != null || existing.verifiedAt != null) return;
     if (existing.accountHash != null && existing.accountHash !== accountHash) return;
     // clan-scope: global -- asking whether this character has ANY roster history, which is what makes it established.
@@ -2370,32 +2414,7 @@ export function normalizeRsn(rsn: string): string {
   return rsn.trim().toLowerCase().replace(/[\s_]+/g, ' ');
 }
 
-/**
- * Display-side cleanup for an RSN: collapses any Unicode whitespace (notably U+00A0
- * non-breaking space, which is how OSRS in-game names encode their spaces to avoid
- * line-wrap) to ASCII space and trims edges. Preserves casing.
- *
- * Why this matters: the OSRS Hiscores library validates with /^[a-zA-Z0-9 _-]+$/,
- * which only accepts 0x20 — an NBSP-bearing RSN throws "RSN contains invalid character"
- * before the HTTP request goes out. Use this at every site that writes an RSN into a
- * column we'll later feed to Hiscores, and at the read site as defense in depth.
- */
-export function sanitizeRsn(rsn: string): string {
-  return rsn.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Could this string be an actual OSRS account name? Jagex allows 1-12 characters of letters, digits,
- * space, underscore and hyphen — nothing else.
- *
- * This exists because RuneLite hands us placeholders for clan members it can't resolve a name for
- * ("#Player1404"), and sanitizeRsn only collapses whitespace, so they were being stored as real
- * members: guest, unranked, permanently statless, and cluttering every roster view. A name with a
- * `#` in it can never be looked up on the hiscores, so there is nothing to gain by keeping it.
- */
-export function isPlausibleRsn(rsn: string): boolean {
-  return /^[A-Za-z0-9 _-]{1,12}$/.test(rsn);
-}
+export { sanitizeRsn, isPlausibleRsn };
 
 /**
  * The legacy player-link session. Signature, a 7-day age cap, and a re-read of the participant row:

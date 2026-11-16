@@ -3,7 +3,11 @@ import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
-import { verifyUser } from '@/lib/auth';
+import { normalizeRsn, verifyUser } from '@/lib/auth';
+import { claimBlockedBy } from '@/lib/accountClaim';
+import { applyIntentOf, fileApplyIntent, onInGameList } from '@/lib/applyIntents';
+import { isBannedFromClan } from '@/lib/clanBans';
+import { validRsn } from '@/lib/rsnRules';
 import { applyChoices } from '@/lib/clanApply';
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { admit, doorStates, removedByStaff } from '@/lib/guestAdmission';
@@ -29,12 +33,21 @@ import { rateLimitByKey } from '@/lib/rate-limit';
  */
 
 /** Which characters could apply, so the page can offer a choice before anyone presses anything. */
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const session = await verifyUser();
   const clan = await resolveClanBySlug((await params).slug);
   if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   if (!session?.playerId) return NextResponse.json({ signedIn: false, options: [] });
+
+  // A typed name, checked as they type: is it on this clan's in-game member list? Then there is
+  // nothing to apply for; the plugin recognises them. Signed-in people only, and throttled.
+  const typed = validRsn(new URL(request.url).searchParams.get('rsn'));
+  let named: { rsn: string; onRoster: boolean } | null = null;
+  if (typed) {
+    const peek = await rateLimitByKey('clan-apply-name', String(session.userId), { limit: 60, windowMs: 60_000 });
+    if (peek.ok) named = { rsn: typed, onRoster: await onInGameList(clan.id, normalizeRsn(typed)) };
+  }
 
   const { alreadyIn, options } = await applyChoices(clan.id, session.playerId);
   // Each character's standing at this door, so the page survives a reload: "asked" stays asked, and
@@ -45,6 +58,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     signedIn: true,
     guestPolicy: clan.guestPolicy,
     alreadyIn,
+    named,
+    // Applied with a name they have yet to prove (lib/applyIntents): shown as "applied", survives a reload.
+    intent: await applyIntentOf(clan.id, session.playerId),
     options: options.map((o) => ({
       ...o,
       pending: doors.get(o.id)?.pending ?? false,
@@ -54,6 +70,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
+  }
   const session = await verifyUser();
   if (!session?.playerId) return NextResponse.json({ error: 'Sign in first' }, { status: 401 });
 
@@ -68,6 +87,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   }
 
   const body = await request.json().catch(() => null);
+
+  // APPLYING WITH A NAME (no character linked yet), confirming by the plugin or the XP check. Nothing
+  // is granted and staff are asked nothing until the character is proved; then it goes through the
+  // same door as below (lib/applyIntents).
+  if (typeof body?.rsn === 'string' && body?.accountId == null) {
+    const rsn = validRsn(body.rsn);
+    if (!rsn) return NextResponse.json({ error: 'That is not an in-game name: 1 to 12 letters, numbers, spaces, hyphens or underscores.' }, { status: 400 });
+    if (body.via !== 'plugin' && body.via !== 'xp') return NextResponse.json({ error: 'Choose how you will confirm the character.' }, { status: 400 });
+    if (await isBannedFromClan(clan.id, session.playerId)) return NextResponse.json({ error: 'This clan has barred you.' }, { status: 403 });
+    if (clan.guestPolicy === 'closed') return NextResponse.json({ error: 'This clan is not taking applications.' }, { status: 403 });
+    const rsnNormalized = normalizeRsn(rsn);
+    if (await claimBlockedBy(rsnNormalized, session.playerId)) {
+      return NextResponse.json({ error: 'That character is already linked to someone else. If it is yours, claim it from Settings, under Characters.' }, { status: 409 });
+    }
+    // On the in-game list already: no application at all. The plugin's first report (or the XP
+    // check) links the character and the member seat is theirs.
+    if (await onInGameList(clan.id, rsnNormalized)) return NextResponse.json({ ok: true, onRoster: true, rsn });
+    await fileApplyIntent({ clanId: clan.id, playerId: session.playerId, rsn, rsnNormalized, via: body.via });
+    return NextResponse.json({ ok: true, applied: true, rsn, via: body.via }, { status: 202 });
+  }
+
   const accountId = Number(body?.accountId);
   if (!Number.isInteger(accountId) || accountId <= 0) {
     return NextResponse.json({ error: 'Which character are you applying with?' }, { status: 400 });

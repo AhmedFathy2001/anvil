@@ -399,7 +399,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Faire entrer vos membres',
-          body: 'Installez le plugin, connectez-vous avec Discord, puis ouvrez la fenêtre de votre clan en jeu et appuyez sur le bouton **Anvil** de sa barre de titre. Personne ne peut s’inscrire à un événement tant que votre liste de membres n’est pas importée.',
+          body: 'Installez le plugin, connectez-vous avec Discord, puis ouvrez la fenêtre de votre clan en jeu et appuyez sur le bouton **Anvil** de sa barre de titre. C’est cette liste qui fournit vos membres. Tant qu’elle n’est pas importée, les gens peuvent quand même s’inscrire à vos événements en tant qu’invités.',
         },
         {
           term: 'Faire un tableau',
@@ -422,7 +422,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Ils demandent à rejoindre',
-          body: 'Se connecter ou jouer avec le plugin ne donne jamais à lui seul de place à personne. Si le plugin voit quelqu’un jouer dans votre clan en jeu avant que votre liste ne l’ait, il fait une demande d’adhésion pour lui, et n’importe qui d’autre peut demander avec **Apply** sur la page de votre clan. Le staff répond aux deux en haut de l’onglet **Roster**, et **Who can join** décide s’ils attendent un oui, entrent tout de suite ou ne peuvent pas demander du tout. Quelqu’un qui joue un personnage déjà sur votre liste est plutôt confirmé sous **Needs review**. Les détails sont dans [Vos membres]({peopleGuide}).',
+          body: 'Les membres viennent uniquement de la liste des membres de votre clan en jeu. Si le plugin voit quelqu’un jouer dans votre clan en jeu avant que votre liste ne l’ait, il fait une demande d’adhésion pour lui, que le staff traite en haut de l’onglet **Roster**. N’importe qui d’autre peut appuyer sur **Apply** sur la page de votre clan avec son nom en jeu : quelqu’un qui confirme le personnage avec le plugin ou le test d’XP devient tout de suite invité, et quelqu’un qui demande au staff de le cautionner est ajouté comme invité et placé sous **Needs review** jusqu’à votre réponse. Mettre **Who can join** sur fermé arrête tout cela. Quelqu’un qui joue un personnage déjà sur votre liste est plutôt confirmé sous **Needs review**. Les détails sont dans [Vos membres]({peopleGuide}).',
         },
         {
           term: 'À la main',
@@ -867,10 +867,10 @@ const fr: PartialGuideDict = {
         'Sur mobile ou sur le client officiel, utilisez plutôt [Settings → Characters → Link a character](/settings/characters#link-account) :',
       noPluginOptions: [
         '**Verify by XP** — saisissez votre RSN, le site choisit une compétence au hasard, et vous devez y gagner 1 000 XP en 30 minutes.',
-        '**Manual review** — pour des Hiscores masqués ou un compte secondaire tout neuf : envoyez votre RSN avec une note et un modérateur l’approuve.',
+        '**Manual review** — pour des Hiscores masqués ou un compte secondaire tout neuf : sur la page d’un clan, demandez à son staff de se porter garant de votre RSN. Vous pouvez vous inscrire à ses événements tout de suite, et votre inscription reste en attente jusqu’à sa réponse.',
       ],
       signupNote:
-        'L’inscription aux événements exige au moins un compte vérifié, réglez donc cela avant de vous inscrire.',
+        'Vous pouvez vous inscrire à un événement dès que vous avez indiqué votre personnage. Avec le plugin ou un test d’XP réussi, vous êtes inscrit tout de suite. Si vous avez demandé au staff de se porter garant, votre inscription reste en attente jusqu’à sa réponse.',
     },
 
     working: {
@@ -1475,7 +1475,7 @@ const fr: PartialGuideDict = {
       ],
       note: {
         tag: 'Ce qu’une invitation n’est pas',
-        body: 'Ce n’est ni une connexion ni un raccourci contournant la vérification. Qui l’ouvre se connecte quand même avec Discord et a quand même besoin d’un RSN vérifié, exactement comme pour toute autre inscription. Le lien ne décide que de _quelle équipe_ rejoint l’inscription, et du fait qu’elle n’a besoin de l’approbation de personne.',
+        body: 'Ce n’est ni une connexion ni un raccourci contournant la vérification. Qui l’ouvre se connecte quand même avec Discord et indique quand même son RSN, exactement comme pour toute autre inscription. Le lien ne décide que de _quelle équipe_ rejoint l’inscription, et du fait qu’elle n’a besoin de l’approbation de personne. Un personnage encore en attente de la caution du staff rejoint l’équipe une fois celle-ci confirmée.',
       },
     },
 
@@ -1610,7 +1610,7 @@ const fr: PartialGuideDict = {
           },
           {
             label: 'Le reste du formulaire',
-            body: 'inchangé. Un RSN vérifié reste exigé, les questions d’inscription sont toujours posées, et des frais d’inscription s’appliquent toujours.',
+            body: 'inchangé. Un RSN reste exigé, les questions d’inscription sont toujours posées, et des frais d’inscription s’appliquent toujours.',
           },
         ],
       },
@@ -2705,7 +2705,7 @@ const fr: PartialGuideDict = {
     verify: {
       title: 'Vérifier les comptes',
       intro:
-        'Personne ne peut s’inscrire à un événement sans au moins un compte vérifié, cette file empêche donc directement des gens de jouer. C’est celle qui vaut la peine d’être vidée chaque jour.',
+        'Les gens peuvent s’inscrire tout de suite, mais quelqu’un qui vous a demandé de le cautionner reste en attente jusqu’à votre réponse ici : inscrit, sans équipe. Cette file empêche donc directement des gens de jouer. C’est celle qui vaut la peine d’être vidée chaque jour.',
       rows: [
         {
           term: 'Vérifié par le plugin',
@@ -2713,11 +2713,11 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'pour les joueurs sans plugin. Le site choisit une compétence au hasard et ils doivent y gagner 1 000 XP en trente minutes. Cela se vérifie tout seul ; un passage reste dans **Needs review** pour votre oui ou non, car l’XP montre quelqu’un qui s’est entraîné, pas qui c’est. Un échec est celui à regarder de plus près.',
+          body: 'pour les joueurs sans plugin. Le site choisit une compétence au hasard et ils doivent y gagner 1 000 XP en trente minutes. Cela se vérifie tout seul, et un passage les ajoute automatiquement à votre clan comme invités, signalés dans **Needs review** pour que vous vérifiiez quand vous le pouvez (retirez-les là si c’est une erreur), car l’XP montre quelqu’un qui s’est entraîné, pas qui c’est. Un échec est celui à regarder de plus près.',
         },
         {
           term: 'Examen manuel',
-          body: 'Hiscores masqués, ou compte secondaire trop récent pour y figurer. Quelqu’un envoie un RSN avec une note et vous décidez. Demandez une capture de l’écran de connexion si la note ne suffit pas.',
+          body: 'Hiscores masqués, ou compte secondaire trop récent pour y figurer. Quelqu’un vous demande de cautionner un RSN et vous décidez. Il est ajouté tout de suite comme invité et peut s’inscrire, mais ses inscriptions restent en attente, sans équipe, jusqu’à votre approbation. L’approbation les complète, et **Not our member** les retire. Demandez une capture de l’écran de connexion si vous n’êtes pas sûr.',
         },
       ],
       note: {

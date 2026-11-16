@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanMemberships, detectedAccounts, eventSignups, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, detectedAccounts, eventParticipants, eventSignups, signupFees, users } from '@/db/schema';
 import { mayDisplace } from '@/lib/characterState';
 import { findOrCreateAccount } from '@/lib/roster';
 import { mergeEmptyPersonInto } from '@/lib/mergePeople';
@@ -36,7 +36,17 @@ export type ClaimOutcome =
   | { ok: true; accountId: number; alreadyOurs: boolean }
   | { ok: false; code: 'owned_by_other'; error: string };
 
-export async function claimAccountForPerson(input: {
+export async function claimAccountForPerson(input: Parameters<typeof claimInTransaction>[0]): Promise<ClaimOutcome> {
+  const outcome = await claimInTransaction(input);
+  // A PROVEN claim carries out whatever this person applied for while the character was only a name
+  // (lib/applyIntents). After the transaction, and never able to fail the claim itself.
+  if (outcome.ok && input.verified !== false) {
+    await import('@/lib/applyIntents').then((m) => m.completeApplyIntents(input.playerId, outcome.accountId)).catch(() => {});
+  }
+  return outcome;
+}
+
+async function claimInTransaction(input: {
   /** The PERSON claiming it. `session.playerId`, never `session.userId`. */
   playerId: number;
   rsn: string;
@@ -132,10 +142,26 @@ export async function claimAccountForPerson(input: {
       const seats = await tx.select({ id: clanMemberships.id, clanId: clanMemberships.clanId }).from(clanMemberships).where(eq(clanMemberships.accountId, account.id));
       const theirLogins = tx.select({ id: users.id }).from(users).where(eq(users.playerId, previousPlayerId));
       if (seats.length > 0) {
-        await tx
+        const withdrawn = await tx
           .update(eventSignups)
           .set({ status: 'withdrawn' })
-          .where(and(inArray(eventSignups.clanMemberId, seats.map((s) => s.id)), inArray(eventSignups.userId, theirLogins)));
+          .where(and(inArray(eventSignups.clanMemberId, seats.map((s) => s.id)), inArray(eventSignups.userId, theirLogins)))
+          .returning({ id: eventSignups.id, eventId: eventSignups.eventId });
+        if (withdrawn.length > 0) {
+          // Off the board too: a held entry only ever waits in the pool (no team), and a withdrawn
+          // name left there could still be drafted. An untouched fee goes with it.
+          await tx.delete(signupFees).where(and(inArray(signupFees.signupId, withdrawn.map((w) => w.id)), eq(signupFees.status, 'pending')));
+          await tx
+            .delete(eventParticipants)
+            .where(and(inArray(eventParticipants.eventId, withdrawn.map((w) => w.eventId)), eq(eventParticipants.accountId, account.id), isNull(eventParticipants.teamId)));
+        }
+        // The guest seat the unconfirmed claim was given was theirs, not the character's: it ends here
+        // rather than passing to an owner who never asked that clan for anything. A seat the in-game
+        // list or staff made is left alone.
+        await tx
+          .update(clanMemberships)
+          .set({ leftAt: nowIso })
+          .where(and(inArray(clanMemberships.id, seats.map((s) => s.id)), eq(clanMemberships.kind, 'guest'), eq(clanMemberships.source, 'application'), isNull(clanMemberships.leftAt)));
       }
       for (const clanId of new Set(seats.map((s) => s.clanId))) {
         await tx.insert(clanAuditLog).values({

@@ -2,6 +2,8 @@
 
 import Checkbox from '@/components/Checkbox';
 import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
+import PathChip from '@/components/PathChip';
+import type { JoinPath } from '@/lib/characterState';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
@@ -55,6 +57,8 @@ interface DraftState {
 }
 
 interface Props {
+  /** How each player's character came in, by player id (PathChip): plugin, XP check, awaiting a vouch, vouched. */
+  paths?: Record<number, JoinPath>;
   event: Event;
   tiles: Tile[];
   teams: Team[];
@@ -72,7 +76,7 @@ interface Props {
 // player on their own solo team; 'one_team' = whole clan on one shared roster.
 type TeamFormat = 'draft' | 'preassigned' | 'individual' | 'one_team';
 
-export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, startingStats: initialStartingStats, editLocked = false }: Props) {
+export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, startingStats: initialStartingStats, editLocked = false, paths = {} }: Props) {
   const router = useRouter();
   // What this event actually IS — a ladder and a race aren't bingos, and the start copy says so.
   const noun = eventNoun(event.format);
@@ -1450,6 +1454,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         >
                           {player.name}
                         </button>
+                        <PathChip path={paths[player.id]} />
                         {player.discord && player.discord !== player.name && (
                           <span className="text-xs text-text-muted truncate">({player.discord})</span>
                         )}
@@ -1608,7 +1613,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Team Rosters
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
           </div>
         )}
@@ -1807,6 +1812,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         <div key={p.id} className="flex items-center gap-2 border border-card-border rounded-lg p-2 bg-card-bg">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <span className="text-sm font-medium truncate">{p.name}</span>
+                            <PathChip path={paths[p.id]} />
                             <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                           </div>
                           {/* An ACTION menu: it assigns and returns to empty, so the value is always
@@ -1901,6 +1907,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                 <span className="min-w-0 flex flex-col">
                                   <span className="truncate flex items-center gap-1.5 min-w-0">
                                     <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
+                                    <PathChip path={paths[p.id]} />
                                     <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                                     {frozen && (
                                       <span
@@ -2095,6 +2102,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     <div key={player.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-sm font-medium truncate">{player.name}</span>
+                        <PathChip path={paths[player.id]} />
                         {player.discord && player.discord !== player.name && (
                           <span className="text-[10px] text-text-muted truncate">({player.discord})</span>
                         )}
@@ -2146,7 +2154,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Draft results
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
             )}
           </div>
