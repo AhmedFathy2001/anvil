@@ -80,3 +80,6 @@ docs/PLUGIN_SUBMISSION.md
 
 # Local Playwright MCP session logs
 .playwright-mcp/
+
+# Written by `next dev` on every start; local only.
+/AGENTS.md
