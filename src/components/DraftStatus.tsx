@@ -1,5 +1,7 @@
 'use client';
 
+import { orderForRound } from '@/lib/draft';
+
 interface Team {
   id: number;
   name: string;
@@ -16,6 +18,8 @@ interface Props {
   poolRemaining: number;
   teams: Team[];
   teamOrder: number[];
+  /** Snake drafts flip the order every round; a dynamic-order draft has no fixed order to show. */
+  snake?: boolean;
 }
 
 export default function DraftStatus({
@@ -27,8 +31,11 @@ export default function DraftStatus({
   poolRemaining,
   teams,
   teamOrder,
+  snake = true,
 }: Props) {
   const currentTeam = teams.find((t) => t.id === currentTeamId);
+  const showRound = status === 'active' ? round : 0;
+  const shownOrder = snake ? orderForRound(teamOrder, showRound) : teamOrder;
 
   return (
     <div className="border border-card-border rounded-xl p-4 bg-card-bg">
@@ -80,9 +87,9 @@ export default function DraftStatus({
 
       {teamOrder.length > 0 && (
         <div className="mt-3 pt-3 border-t border-card-border">
-          <p className="text-xs text-text-muted mb-1.5">Draft Order (Round 1)</p>
+          <p className="text-xs text-text-muted mb-1.5">{status === 'active' ? `Draft order · round ${round + 1}` : 'Draft order'}</p>
           <div className="flex flex-wrap gap-1.5">
-            {teamOrder.map((tId, i) => {
+            {shownOrder.map((tId, i) => {
               const team = teams.find((t) => t.id === tId);
               if (!team) return null;
               const isActive = tId === currentTeamId && status === 'active';

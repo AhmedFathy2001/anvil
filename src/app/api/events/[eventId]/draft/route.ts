@@ -155,7 +155,8 @@ export async function GET(
     currentTeamId,
     round,
     pickInRound,
-    totalPicked: pickedPlayers.length,
+    // Picks made, not seats filled: a captain sits on a team from the start with no pick number.
+    totalPicked: currentPickNumber,
     poolRemaining: poolPlayers.length,
     // Late joiners on a running event: are their starting stats in yet (lib/startingStats)? Only
     // ids with something to say are present; nothing at all before the start.
