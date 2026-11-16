@@ -3,10 +3,7 @@
 import Select from '@/components/Select';
 import { useEffect, useState } from 'react';
 
-import ClanLink from '@/components/ClanLink';
-import { useClanPrefixValue } from '@/components/ClanLink';
-import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
-import { parseClanPrefix } from '@/lib/clanScopedPaths';
+import NameCharacterInline from '@/components/NameCharacterInline';
 import { parseStamp } from '@/lib/dbTime';
 
 interface Info {
@@ -54,11 +51,6 @@ export default function ApplyToClan({
   const [error, setError] = useState<string | null>(null);
   // The GET failed. Saying so beats an empty space under a panel that just invited them in.
   const [loadFailed, setLoadFailed] = useState(false);
-  // Linking a character is a trip away: it comes back to THIS clan's page, where the apply button is
-  // (from the directory too, so it is the clan's page and not the list).
-  const linkHere = useLinkCharacterHere();
-  const prefix = useClanPrefixValue();
-
   useEffect(() => {
     let alive = true;
     fetch(`/api/clans/${slug}/apply`)
@@ -93,15 +85,21 @@ export default function ApplyToClan({
 
   if (done) return <span className="shrink-0 text-[13px] text-accent-green-light">{done}</span>;
 
-  // Nothing to apply with. The fix is somewhere else, so say where rather than showing a dead button.
+  // Nothing to apply with yet: name the character right here and apply in one step (no trip to
+  // Settings). The same box a signed-out visitor sees (components/PublicClanHome).
   if (info.options.length === 0) {
     return (
-      <ClanLink
-        href={linkHere('clan-apply', parseClanPrefix(prefix)?.slug === slug ? prefix : `/c/${slug}`)}
-        className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-center text-[13px] font-semibold text-gold transition-colors hover:bg-gold/20"
-      >
-        Verify a character first
-      </ClanLink>
+      <div className="w-full shrink-0 sm:w-[24rem]">
+        <NameCharacterInline
+          slug={slug}
+          clanName={clanName}
+          clanPath={`/c/${slug}`}
+          returnPath={`/c/${slug}`}
+          mode="apply"
+          signedIn
+          applyLabel={info.guestPolicy === 'open' ? (labels?.open ?? 'Join') : (labels?.approval ?? 'Apply')}
+        />
+      </div>
     );
   }
 

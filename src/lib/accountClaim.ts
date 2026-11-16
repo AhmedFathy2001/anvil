@@ -36,7 +36,17 @@ export type ClaimOutcome =
   | { ok: true; accountId: number; alreadyOurs: boolean }
   | { ok: false; code: 'owned_by_other'; error: string };
 
-export async function claimAccountForPerson(input: {
+export async function claimAccountForPerson(input: Parameters<typeof claimInTransaction>[0]): Promise<ClaimOutcome> {
+  const outcome = await claimInTransaction(input);
+  // A PROVEN claim carries out whatever this person applied for while the character was only a name
+  // (lib/applyIntents). After the transaction, and never able to fail the claim itself.
+  if (outcome.ok && input.verified !== false) {
+    await import('@/lib/applyIntents').then((m) => m.completeApplyIntents(input.playerId, outcome.accountId)).catch(() => {});
+  }
+  return outcome;
+}
+
+async function claimInTransaction(input: {
   /** The PERSON claiming it. `session.playerId`, never `session.userId`. */
   playerId: number;
   rsn: string;

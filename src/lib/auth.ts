@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveBothBySlug, resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
+import { sanitizeRsn, isPlausibleRsn } from '@/lib/rsnRules';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
 import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { weeklyStatus } from '@/lib/weeklyStage';
@@ -2413,32 +2414,7 @@ export function normalizeRsn(rsn: string): string {
   return rsn.trim().toLowerCase().replace(/[\s_]+/g, ' ');
 }
 
-/**
- * Display-side cleanup for an RSN: collapses any Unicode whitespace (notably U+00A0
- * non-breaking space, which is how OSRS in-game names encode their spaces to avoid
- * line-wrap) to ASCII space and trims edges. Preserves casing.
- *
- * Why this matters: the OSRS Hiscores library validates with /^[a-zA-Z0-9 _-]+$/,
- * which only accepts 0x20 — an NBSP-bearing RSN throws "RSN contains invalid character"
- * before the HTTP request goes out. Use this at every site that writes an RSN into a
- * column we'll later feed to Hiscores, and at the read site as defense in depth.
- */
-export function sanitizeRsn(rsn: string): string {
-  return rsn.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Could this string be an actual OSRS account name? Jagex allows 1-12 characters of letters, digits,
- * space, underscore and hyphen — nothing else.
- *
- * This exists because RuneLite hands us placeholders for clan members it can't resolve a name for
- * ("#Player1404"), and sanitizeRsn only collapses whitespace, so they were being stored as real
- * members: guest, unranked, permanently statless, and cluttering every roster view. A name with a
- * `#` in it can never be looked up on the hiscores, so there is nothing to gain by keeping it.
- */
-export function isPlausibleRsn(rsn: string): boolean {
-  return /^[A-Za-z0-9 _-]{1,12}$/.test(rsn);
-}
+export { sanitizeRsn, isPlausibleRsn };
 
 /**
  * The legacy player-link session. Signature, a 7-day age cap, and a re-read of the participant row:

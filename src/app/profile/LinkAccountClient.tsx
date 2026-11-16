@@ -159,12 +159,21 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
   );
 }
 
+/** The XP check on its own, for a page that already took the name: `autoStart` begins it at once. */
+export function XpCheckInline({ rsn }: { rsn: string }) {
+  const router = useRouter();
+  return <StatDeltaPath router={router} initialRsn={rsn} autoStart />;
+}
+
 function StatDeltaPath({
   router,
   initialRsn = '',
+  autoStart = false,
 }: {
   router: ReturnType<typeof useRouter>;
   initialRsn?: string;
+  /** Start the check for `initialRsn` on arrival, unless one is already running. */
+  autoStart?: boolean;
 }) {
   const [rsn, setRsn] = useState(initialRsn);
   const [loading, setLoading] = useState(false);
@@ -195,6 +204,7 @@ function StatDeltaPath({
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { attempt?: { attemptId: number; rsn: string; expiresAt: string; minDelta: number; targetSkill: string } | null } | null) => {
         const a = d?.attempt;
+        if (!gone && !a && autoStart && initialRsn.trim()) void start(initialRsn.trim());
         if (gone || !a) return;
         setAttempt((prev) => prev ?? { attemptId: a.attemptId, rsn: a.rsn, expiresAt: a.expiresAt, minDelta: a.minDelta, targetSkill: a.targetSkill });
         // Picked up again with the way back in the address: keep it with this check.

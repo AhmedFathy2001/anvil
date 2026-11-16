@@ -594,3 +594,90 @@ test('a flagged XP character confirmed by staff is not told anything was held, b
   assert.equal((await noticesOf(who.userId)).length, 0);
   assert.equal((await accountRow(who.accountId)).provisional, 0);
 });
+
+// ── Applying with a name typed on the clan page ───────────────────────────────────────────────
+
+const applyByName = (slug: string, who: { userId: number }, rsn: string, via: string) =>
+  callRoute(applyRoute.POST, { userId: who.userId, params: { slug }, body: { rsn, via } });
+
+for (const via of ['plugin', 'xp'] as const) {
+  test(`apply with a typed name (${via}): nothing is granted and staff are asked nothing until the character is proved; then the seat is granted`, async () => {
+    const who = await newcomer('none');
+    const rsn = `Typed ${via}`;
+    const r = await applyByName('host', who, rsn, via);
+    assert.equal(r.status, 202, JSON.stringify(r.json));
+    const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, rsn.toLowerCase()));
+    assert.equal(a.claimedAt, null, 'typing a name claims nothing');
+    assert.equal(await seatOf(host, a.id), undefined);
+    assert.equal((await requestsOf(host, a.id)).filter((q) => q.status === 'pending').length, 0, 'nothing in the staff queue');
+    const { pendingRequests } = await import('../src/lib/guestAdmission.ts');
+    assert.equal((await pendingRequests(host)).some((q) => q.rsn === rsn), false);
+
+    // They prove it (first plugin play, or the XP check passing).
+    const claim = await C.claimAccountForPerson({
+      playerId: who.playerId,
+      rsn,
+      rsnNormalized: rsn.toLowerCase(),
+      method: via === 'plugin' ? 'plugin_first_use' : 'stat_delta',
+      provisional: true,
+      accountHash: via === 'plugin' ? `hash-${rsn}` : null,
+    });
+    assert.equal(claim.ok, true);
+    const seat = await seatOf(host, a.id);
+    assert.equal(seat.kind, 'guest');
+    assert.equal(seat.leftAt, null);
+    assert.deepEqual((await requestsOf(host, a.id)).map((q) => q.status), ['approved']);
+    assert.match((await noticesOf(who.userId))[0].title, /You’re in host/);
+  });
+}
+
+test('a typed-name application does nothing for somebody else who proves that character', async () => {
+  const asker = await newcomer('none');
+  const owner = await newcomer('none');
+  await applyByName('host', asker, 'Typed Other', 'plugin');
+  const claim = await C.claimAccountForPerson({ playerId: owner.playerId, rsn: 'Typed Other', rsnNormalized: 'typed other', method: 'stat_delta', provisional: true });
+  assert.equal(claim.ok, true);
+  const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'typed other'));
+  assert.equal(a.playerId, owner.playerId);
+  assert.equal(await seatOf(host, a.id), undefined, 'the real owner never asked this clan for anything');
+});
+
+test('a typed-name application: closed clan, ban, bad name, somebody else’s character and a missing choice are refused', async () => {
+  const who = await newcomer('none');
+  assert.equal((await applyByName('shut', who, 'Typed Shut', 'plugin')).status, 403);
+  assert.equal((await applyByName('host', who, 'bad#name', 'plugin')).status, 400);
+  assert.equal((await applyByName('host', who, 'Way Too Long Name', 'plugin')).status, 400);
+  assert.equal((await applyByName('host', who, 'Typed Ok', 'carrier-pigeon')).status, 400);
+  const holder = await newcomer('plugin');
+  assert.equal((await applyByName('host', who, holder.rsn, 'plugin')).status, 409);
+  const barred = await newcomer('none');
+  const { banFromClan } = await import('../src/lib/clanBans.ts');
+  await banFromClan({ clanId: host, playerId: barred.playerId, byUserId: staffUser });
+  assert.equal((await applyByName('host', barred, 'Typed Barred', 'plugin')).status, 403);
+  assert.equal((await db.select().from(s.clanJoinRequests).where(eq(s.clanJoinRequests.status, 'awaiting-proof'))).filter((q) => q.playerId === who.playerId || q.playerId === barred.playerId).length, 0);
+});
+
+test('a name on the clan’s in-game list is told so and files no application; the check answers the same as they type', async () => {
+  const [ghost] = await db.insert(s.players).values({ displayName: 'On The List' }).returning();
+  const [a] = await db.insert(s.accounts).values({ playerId: ghost.id, rsn: 'On The List', rsnNormalized: 'on the list' }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: host, accountId: a.id, kind: 'member', source: 'roster' });
+  const who = await newcomer('none');
+  const r = await applyByName('host', who, 'on the list', 'plugin');
+  assert.equal(r.status, 200);
+  assert.equal(r.json.onRoster, true);
+  assert.equal((await requestsOf(host, a.id)).length, 0);
+  const { onInGameList } = await import('../src/lib/applyIntents.ts');
+  assert.equal(await onInGameList(host, 'on the list'), true);
+  assert.equal(await onInGameList(host, 'nobody at all'), false);
+  // Once somebody has linked it, it is no longer "yours to be recognised by": no hint.
+  await db.update(s.accounts).set({ claimedAt: new Date().toISOString() }).where(eq(s.accounts.id, a.id));
+  assert.equal(await onInGameList(host, 'on the list'), false);
+});
+
+test('one typed-name application per clan: a new name replaces the old one', async () => {
+  const who = await newcomer('none');
+  await applyByName('host', who, 'Typed First', 'plugin');
+  await applyByName('host', who, 'Typed Second', 'xp');
+  const { applyIntentOf } = await import('../src/lib/applyIntents.ts');
+  assert.deepEqual(await applyIntentOf(host, who.playerId), { rsn: 'Typed Second', via: 'xp' });
+});
