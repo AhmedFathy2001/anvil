@@ -49,6 +49,12 @@ export interface JoinedMember {
   rank: string | null;
 }
 
+/** A type with no label yet: the words, not the stored name. */
+function sentenceCase(type: string): string {
+  const t = type.replace(/^platform_/, '').replace(/_/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   joined: { label: 'Joined', color: 'text-accent-green-light' },
   // Clan ownership transfer requests (lib/ownershipTransfers): the 3-day hold, start to finish.
@@ -90,6 +96,57 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   member_chose_this_clan: { label: 'Made this their clan', color: 'text-accent-green-light' },
   member_left_for_another_clan: { label: 'Moved to another clan', color: 'text-yellow-400' },
   roster_memberships_released: { label: 'Members released by Anvil', color: 'text-red-400' },
+  // Everything below once fell through to its raw name ("GUEST REJECTED"). Plain phrases only.
+  guest_approved: { label: 'Join request approved', color: 'text-accent-green-light' },
+  guest_rejected: { label: 'Join request declined', color: 'text-red-400' },
+  guest_made_viewer: { label: 'Event player made a viewer', color: 'text-text-muted' },
+  viewer_made_guest: { label: 'Viewer made an event player', color: 'text-text-muted' },
+  mod_not_member: { label: 'Mod said not a member', color: 'text-red-400' },
+  mod_reported: { label: 'Mod sent it to Anvil', color: 'text-gold' },
+  manual_requested: { label: 'Asked for a manual check', color: 'text-gold' },
+  rank_changed: { label: 'Rank changed', color: 'text-text-muted' },
+  primary_changed: { label: 'Main character changed', color: 'text-text-muted' },
+  unclaimed: { label: 'Character unlinked', color: 'text-yellow-400' },
+  role_pre_assigned: { label: 'Role set before joining', color: 'text-gold' },
+  clan_banned: { label: 'Banned from the clan', color: 'text-red-400' },
+  clan_unbanned: { label: 'Ban lifted', color: 'text-accent-green-light' },
+  clan_ban_restored: { label: 'Ban put back', color: 'text-red-400' },
+  staff_removed_on_ban: { label: 'Staff role removed by a ban', color: 'text-red-400' },
+  clan_created: { label: 'Clan created', color: 'text-gold' },
+  clan_policy_changed: { label: 'Who can join changed', color: 'text-text-muted' },
+  clan_profile_changed: { label: 'Clan profile changed', color: 'text-text-muted' },
+  ingame_name_verified: { label: 'In-game name verified', color: 'text-accent-green-light' },
+  ingame_name_unverified: { label: 'In-game name unverified', color: 'text-yellow-400' },
+  ingame_name_released: { label: 'In-game name released', color: 'text-yellow-400' },
+  ingame_name_claim_refused: { label: 'In-game name claim refused', color: 'text-red-400' },
+  ingame_name_owner_confirmed: { label: 'In-game name confirmed by its owner', color: 'text-accent-green-light' },
+  roster_sync_refused: { label: 'Roster update refused', color: 'text-red-400' },
+  friends_host_renamed: { label: 'Friends event host renamed', color: 'text-text-muted' },
+  editor_boards_set: { label: 'Board editor access set', color: 'text-gold' },
+  event_entry_gates_changed: { label: 'Event entry rules changed', color: 'text-text-muted' },
+  fees_closed_out: { label: 'Fees closed out', color: 'text-gold' },
+  discord_linked_by_hand: { label: 'Discord linked by hand', color: 'text-gold' },
+  discord_link_removed: { label: 'Discord link removed', color: 'text-yellow-400' },
+  discord_roles_removed: { label: 'Discord roles removed', color: 'text-yellow-400' },
+  onboarding_nudge_sent: { label: 'Welcome reminder sent', color: 'text-text-muted' },
+  accent_color_set: { label: 'Accent colour set', color: 'text-text-muted' },
+  boost_name_style_set: { label: 'Name style set', color: 'text-text-muted' },
+  gear_dataset_refreshed: { label: 'Gear data refreshed', color: 'text-text-muted' },
+  gear_override_changed: { label: 'Gear data changed', color: 'text-text-muted' },
+  gear_override_reverted: { label: 'Gear data change undone', color: 'text-text-muted' },
+  supporter_gift_granted: { label: 'Supporter gift given', color: 'text-gold' },
+  supporter_gift_ended: { label: 'Supporter gift ended', color: 'text-text-muted' },
+  stream_channel_moved_in: { label: 'Stream channel moved here', color: 'text-text-muted' },
+  stream_channel_moved_out: { label: 'Stream channel moved away', color: 'text-text-muted' },
+  stream_highlights_changed: { label: 'Stream highlights changed', color: 'text-text-muted' },
+  streaming_settings_changed: { label: 'Streaming settings changed', color: 'text-text-muted' },
+  creator_page_changed: { label: 'Creator page changed', color: 'text-text-muted' },
+  creator_settings_changed: { label: 'Creator settings changed', color: 'text-text-muted' },
+  creator_kick_connected: { label: 'Kick connected', color: 'text-text-muted' },
+  creator_kick_disconnected: { label: 'Kick disconnected', color: 'text-text-muted' },
+  creator_kick_settings: { label: 'Kick settings changed', color: 'text-text-muted' },
+  creator_twitch_disconnected: { label: 'Twitch disconnected', color: 'text-text-muted' },
+  creator_youtube_disconnected: { label: 'YouTube disconnected', color: 'text-text-muted' },
 };
 
 export default function AuditLogClient({
@@ -469,7 +526,7 @@ export default function AuditLogClient({
               // Unknown types (not in EVENT_LABELS) can be long ALL_CAPS_SNAKE tokens — de-snake them
               // so they wrap at spaces instead of overflowing the fixed-width label column into the RSN.
               const meta = EVENT_LABELS[e.eventType] ?? {
-                label: e.eventType.replace(/_/g, ' '),
+                label: sentenceCase(e.eventType),
                 color: 'text-foreground',
               };
               return (
