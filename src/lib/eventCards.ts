@@ -1,3 +1,4 @@
+import { entrantChip, playsAsIndividuals } from '@/lib/competitionRows';
 import { db } from '@/db';
 import { eventIconUrl } from '@/lib/eventImage';
 import { clans, completions, eventCohosts, events, teams, tiles } from '@/db/schema';
@@ -283,11 +284,8 @@ export async function loadEventCards(
     const cardHostSlug = event.clanId === clanId ? null : hostSlugByEvent.get(event.id) ?? null;
     const axes = eventAxes({ ...event, rules });
     const chips: string[] = [];
-    if (axes.competitors === 'individuals') {
-      if (teamCount > 0) chips.push(`${teamCount} player${teamCount === 1 ? '' : 's'}`);
-    } else if (teamCount > 0) {
-      chips.push(`${teamCount} team${teamCount === 1 ? '' : 's'}`);
-    }
+    const entrants = entrantChip(playsAsIndividuals(event, axes.competitors), teamCount);
+    if (entrants) chips.push(entrants);
     if (claimed > 0) chips.push(`${claimed} claimed`);
     // Appended (never first — eventsHub parses chips[0] for the entrant count) so a co-host's card
     // reads as theirs-to-play but not theirs-to-run.
