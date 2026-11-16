@@ -270,6 +270,18 @@ export default function WelcomeClient({
                     </>
                   )}
                 </div>
+                {state.intent !== 'owner' && characters.length === 0 && (
+                  // A clan takes a request from a linked character, and the character step is on this
+                  // page: link it here rather than finding that out on the clan's page and being sent
+                  // to Settings with no way back.
+                  <p className="mt-3.5 text-[13px] text-text-muted">
+                    A clan takes a request from a linked character.{' '}
+                    <button type="button" onClick={() => setOpen('character')} className="font-semibold text-gold hover:text-gold-light">
+                      Link yours here first
+                    </button>
+                    , then come back to find the clan.
+                  </p>
+                )}
                 <p className="mt-3.5 text-[13px] text-text-dim">
                   {state.intent === 'owner'
                     ? 'Free, and live the moment you press the button — nothing to approve, nothing to pay. This ticks the moment it exists.'

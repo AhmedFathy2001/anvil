@@ -97,11 +97,14 @@ export default function PublicClanHome({
   activity = null,
   boost = null,
   boosters = null,
+  guide = null,
 }: {
   /** Its boost level in force and (Level 2+) recruiting line (lib/clanBoosts). */
   boost?: { level: number; recruitingLine: string | null; nameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null } | null;
   /** The boosters wall (components/ClanBoost ClanBoostPanel), when anyone boosts it. */
   boosters?: ReactNode;
+  /** The getting-started strip, for a signed-in visitor who has not finished getting started. */
+  guide?: ReactNode;
   view: View;
   signedIn: boolean;
   /** Show the Report flag: signed in and not this clan's staff (lib/platformReportRules showReportButton). */
@@ -193,6 +196,8 @@ export default function PublicClanHome({
           </div>
         </div>
       </header>
+
+      {guide}
 
       {hall && <div className="mt-4">{hall}</div>}
 
