@@ -273,6 +273,11 @@ export default function SignupForm({
 
   const initialProfile = (existingSignup ?? { profile: prefillProfile }).profile;
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set(initialSelected));
+  // Seated as a guest a moment ago (the page refreshed under this form): the character that just became
+  // available must be the one picked, or the form says "Pick the RSN" about its only option.
+  useEffect(() => {
+    setSelectedIds((prev) => (prev.size > 0 || initialSelected.length === 0 ? prev : new Set(initialSelected)));
+  }, [initialSelected]);
 
   // Toggle an account. At maxAccounts=1 it behaves like a radio (replace); above that it's a capped
   // multi-select (a checked account always toggles off; an unchecked one adds only while under the cap).

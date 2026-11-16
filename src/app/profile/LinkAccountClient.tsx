@@ -75,6 +75,8 @@ export default function LinkAccountClient({
 }
 
 function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) {
+  // The clan whose page this is, by address (`/c/<slug>`): that clan's staff are who answer.
+  const clanPath = useClanPrefixValue();
   const [rsn, setRsn] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
@@ -88,14 +90,14 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       const res = await fetch('/api/auth/request-manual-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rsn: rsn.trim(), note: note.trim() }),
+        body: JSON.stringify({ rsn: rsn.trim(), note: note.trim(), clan: clanPath }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || 'Could not submit request');
       } else {
         // 202: the clan's guest door asks its staff first. Say so rather than a bare "submitted".
-        setSubmitted(data?.admission === 'request' ? 'request' : true);
+        setSubmitted(data?.admission === 'requested' ? 'request' : true);
         router.refresh();
       }
     } catch (e) {

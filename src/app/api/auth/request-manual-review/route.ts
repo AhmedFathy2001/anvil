@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { currentClan } from '@/lib/clanContext';
 import { claimAccountForPerson, claimBlockedBy } from '@/lib/accountClaim';
-import { accounts, clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, clans } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
@@ -34,15 +34,7 @@ export async function POST(request: Request) {
   // unclaimed character has none. So the people who most need the "a mod vouches for me" path —
   // maxed accounts with no XP to gain, anyone who cannot log in right now — were the people it
   // refused. Null selects the claim-only path; a clan, when there is one, still gets its seat.
-  const clan = await currentClan();
-  // Nobody to review it without a clan: a claim nobody can confirm would sit unconfirmed for ever, so
-  // it is not accepted here. The XP check and the plugin are the ways in away from a clan's page.
-  if (!clan) {
-    return NextResponse.json(
-      { error: 'Staff review is asked for from a clan’s own page, so that clan’s staff can see it. Here, use the XP check or the plugin.' },
-      { status: 400 },
-    );
-  }
+  let clan: { id: number } | null = await currentClan();
 
   // Manual claims sit in a mod queue forever once submitted, so a tighter limit
   // discourages spam without blocking legitimate retries.
@@ -54,11 +46,30 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { rsn?: string; note?: string };
+  let body: { rsn?: string; note?: string; clan?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  // This is a platform route, so a clan page names its clan in the body (its address path, `/c/<slug>`).
+  // Only a clan that exists counts; nothing else is read from it.
+  if (!clan && typeof body.clan === 'string') {
+    const m = /^\/([cs])\/([a-z0-9-]{2,32})$/.exec(body.clan);
+    if (m) {
+      clan = (await db.query.clans.findFirst({
+        where: and(eq(clans.slug, m[2]), eq(clans.kind, m[1] === 's' ? 'creator' : 'clan')),
+      })) ?? null;
+    }
+  }
+  // Nobody to review it without a clan: a claim nobody can confirm would sit unconfirmed for ever, so
+  // it is not accepted here. The XP check and the plugin are the ways in away from a clan's page.
+  if (!clan) {
+    return NextResponse.json(
+      { error: 'Staff review is asked for from a clan’s own page, so that clan’s staff can see it. Here, use the XP check or the plugin.' },
+      { status: 400 },
+    );
   }
 
   const rsn = (body.rsn || '').trim();
@@ -159,7 +170,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, claimed: true, provisional: true });
     }
 
-    const admission = await admit({ clanId: clan.id, accountId: claim.accountId });
+    const admission = await admit({
+      clanId: clan.id,
+      accountId: claim.accountId,
+      source: 'web',
+      message: `Asked staff to vouch for ${rsn} (no plugin or XP check).${note ? ` ${note}` : ''}`.slice(0, 400),
+    });
     if (admission.outcome !== 'seated') {
       return NextResponse.json(
         {

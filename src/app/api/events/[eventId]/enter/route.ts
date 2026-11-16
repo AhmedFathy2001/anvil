@@ -50,6 +50,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     playerId: session.playerId,
     accountId: Number(body?.accountId),
     actorUserId: session.userId,
+    inviteToken: typeof body?.inviteToken === 'string' ? body.inviteToken : null,
   });
 
   switch (result.outcome) {

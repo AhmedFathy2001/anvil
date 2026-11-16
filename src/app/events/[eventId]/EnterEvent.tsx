@@ -81,6 +81,15 @@ const TWITCH_BACK: Record<string, { ok: boolean; text: string }> = {
  * an outsider used to be told to "enter", sent to their profile, and then met "Sign up" everywhere
  * after. Underneath, pressing it still takes a guest seat through admit(); only the words changed.
  */
+/** The invite token on this page's address (`?invite=`), passed through unchanged; the server re-checks it. */
+function inviteFromLocation(): string | undefined {
+  try {
+    return new URLSearchParams(window.location.search).get('invite') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function EnterEvent({
   eventId,
   signupFee,
@@ -103,6 +112,9 @@ export default function EnterEvent({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  // Arrived by a team's invite link: the host already said yes by making it, so no "ask" wording.
+  const [hasInvite, setHasInvite] = useState(false);
+  useEffect(() => setHasInvite(!!inviteFromLocation()), []);
 
   useEffect(() => {
     let alive = true;
@@ -119,6 +131,23 @@ export default function EnterEvent({
       alive = false;
     };
   }, [eventId]);
+
+  // Waiting on the host: look again every few seconds while the tab is open, so the host's yes shows
+  // up without a manual reload (the page re-renders into the sign-up form once they are in).
+  const waiting = !!pending || !!info?.pendingSince;
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      clanFetch(`/api/events/${eventId}/enter`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: EnterInfo | null) => {
+          if (d && (d.verdict.outcome === 'insider' || !d.pendingSince)) router.refresh();
+        })
+        .catch(() => {});
+    }, 8000);
+    return () => clearInterval(t);
+  }, [waiting, eventId, router]);
 
   if (!info) return null;
   if (creator) return <CreatorJoin eventId={eventId} info={info} signupsOpen={signupsOpen} signupFee={signupFee} />;
@@ -149,7 +178,7 @@ export default function EnterEvent({
       const res = await clanFetch(`/api/events/${eventId}/enter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: chosen }),
+        body: JSON.stringify({ accountId: chosen, inviteToken: inviteFromLocation() }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? 'Could not sign up');
@@ -229,7 +258,7 @@ export default function EnterEvent({
     );
   }
 
-  const asks = verdict.needsApproval;
+  const asks = verdict.needsApproval && !hasInvite;
 
   return (
     <Card tone="info">
@@ -414,7 +443,7 @@ function CreatorJoin({
       const res = await clanFetch(`/api/events/${eventId}/enter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: chosen }),
+        body: JSON.stringify({ accountId: chosen, inviteToken: inviteFromLocation() }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok && data?.gate) {
