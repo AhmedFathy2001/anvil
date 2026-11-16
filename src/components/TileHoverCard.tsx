@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type FocusEvent, type PointerEvent, type ReactNode } from 'react';
+import { useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import type { TileHoverView } from '@/lib/tileHover';
+import { placeHoverCard } from '@/lib/tileHoverPlace';
 
 /** Wait before the card shows, and before "intent" (prefetch) fires. A pass-over shows nothing. */
 const SHOW_DELAY_MS = 350;
@@ -31,7 +33,8 @@ export function useTileHover(view: TileHoverView | null, onIntent?: () => void) 
   const ref = useRef<HTMLButtonElement | null>(null);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [rect, setRect] = useState<DOMRect | null>(null);
+  // The tile's box, and the board (the tile's grid) it sits in: the card goes outside the board (lib/tileHoverPlace).
+  const [rect, setRect] = useState<{ tile: DOMRect; board: DOMRect | null } | null>(null);
 
   const clear = useCallback(() => {
     if (showTimer.current) clearTimeout(showTimer.current);
@@ -48,7 +51,7 @@ export function useTileHover(view: TileHoverView | null, onIntent?: () => void) 
     if (onIntent) intentTimer.current = setTimeout(onIntent, INTENT_DELAY_MS);
     if (view) {
       showTimer.current = setTimeout(() => {
-        if (ref.current) setRect(ref.current.getBoundingClientRect());
+        if (ref.current) setRect({ tile: ref.current.getBoundingClientRect(), board: ref.current.parentElement?.getBoundingClientRect() ?? null });
       }, SHOW_DELAY_MS);
     }
   }, [clear, onIntent, view]);
@@ -85,15 +88,18 @@ export function useTileHover(view: TileHoverView | null, onIntent?: () => void) 
   return { bind, card };
 }
 
-function CardBody({ id, view, rect }: { id: string; view: TileHoverView; rect: DOMRect }) {
+function CardBody({ id, view, rect }: { id: string; view: TileHoverView; rect: { tile: DOMRect; board: DOMRect | null } }) {
   const W = 224;
-  const above = rect.top > 140;
-  const left = Math.max(8, Math.min(window.innerWidth - W - 8, rect.left + rect.width / 2 - W / 2));
-  const style = above
-    ? { left, width: W, bottom: window.innerHeight - rect.top + 6 }
-    : { left, width: W, top: rect.bottom + 6 };
+  const el = useRef<HTMLDivElement | null>(null);
+  const [h, setH] = useState(120);
+  // Measured once it is on screen, so the placement uses the card's real height.
+  useLayoutEffect(() => {
+    if (el.current) setH(el.current.offsetHeight);
+  }, [view]);
+  const pos = placeHoverCard(rect.tile, rect.board, { w: W, h }, { w: window.innerWidth, h: window.innerHeight });
+  const style = { left: pos.left, top: pos.top, width: W };
   return (
-    <div id={id} role="tooltip" style={style} className="pointer-events-none fixed z-[60] rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-xs shadow-xl shadow-black/50">
+    <div ref={el} id={id} role="tooltip" style={style} className="pointer-events-none fixed z-[60] rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-xs shadow-xl shadow-black/50">
       <p className="text-sm font-semibold text-foreground leading-snug">{view.title}</p>
       <p className={cn('mt-0.5 font-medium', STATE_TONE[view.state])}>{view.stateLabel}</p>
       {view.progress && <p className="mt-0.5 text-text-muted tabular-nums">{view.progress}</p>}
