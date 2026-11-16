@@ -841,21 +841,25 @@ const ja: PartialGuideDict = {
       title: 'アカウントを紐づける',
       body: [
         'トークンを設定すると、プレイしたアカウントが自動的にプロフィールへ表示されます。新しいアカウントはすぐに紐づけられますが、すでにクラン名簿にあるアカウントは最初に所有確認が必要です。公開されている RuneScape 名だけでは所有者を証明できないためです。',
-        '最初の紐づけには[簡単な XP 確認](/profile#link-account)を使うか、クランのモデレーターに[検出されたアカウント](/profile#detected-accounts)から承認してもらってください。確認後は安定したアカウント指紋が改名を追跡し、自動的に認識します。',
+        '最初の紐づけには[簡単な XP 確認](/settings/characters#link-account)を使うか、クランのモデレーターに [We noticed you playing](/settings/characters#detected) から承認してもらってください。確認後、プラグインは安定したアカウント指紋を保存し、今後の改名を追跡して、ログインのたびに自動的に認識します。',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'プロフィールページの RuneScape Accounts カード。プラグイン経由で確認済みのアカウントが並んでいる',
+        caption: 'Settings → Characters',
+        alt: '設定の Characters ページ。紐づけ済みキャラクターの一覧と、We noticed you playing のカードが枠で囲まれている',
         legend: [
           {
-            label: '紐づけ済みのアカウント',
-            body: '「Verified via plugin」と付いているアカウントは紐づけ済みで、今後は自動的に認識されます。既存のクラン名簿アカウントでは、最初に一度だけ XP 確認またはモデレーター承認を求められる場合があります。',
+            label: 'Your linked characters',
+            body: 'ここに表示されているものは紐づけ済みで、自動的に認識されます。',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'プラグインがあなたのプレイを検出したものの、まだ紐づけていないキャラクターです。**Verify ownership** を押すと紐づけられます（新しいアカウントはすぐに紐づき、クラン名簿にあるものは一度だけ XP 確認またはモデレーターの確認が必要です）。紐づけたくない場合は **Not mine** を押して非表示にします。',
           },
         ],
       },
       noPluginHeading: 'プラグインを動かせない場合は？',
       noPluginIntro:
-        'モバイルや公式クライアントでは、代わりに [Profile → account linking](/profile#link-account) を使ってください：',
+        'モバイルや公式クライアントでは、代わりに [Settings → Characters → Link a character](/settings/characters#link-account) を使ってください：',
       noPluginOptions: [
         '**Verify by XP** —— RSN を入力すると、サイトがスキルを 1 つ無作為に選びます。30 分以内にそのスキルで 1,000 経験値を稼いでください。',
         '**Manual review** —— Hiscores を非公開にしている場合や作りたてのサブの場合：RSN とメモを送ればモデレーターが承認します。',
@@ -973,74 +977,76 @@ const ja: PartialGuideDict = {
     notifications: {
       title: 'Discord 通知',
       intro:
-        'これらはビンゴが進行中かどうかに関係なく飛び、クランのチャンネルに投稿されます。どのチャンネルかは管理者がここで決めます —— あなたが選ぶのは_何を_投稿するかだけです。 次のプラグイン更新で、これらの設定はウェブサイトの **Settings → Discord posts & screenshots** に移り、どのパソコンでも同じ設定になります。同じページの **Screenshot privacy** では、プラグインが撮るすべてのスクリーンショットで隠すチャット（プライベートメッセージ、公開チャット、クランチャット）を選べます。プラグインには **Notifications** に2つのスイッチが残ります：**Share clan posts** はメインゲームの投稿をまとめて一時停止し、**Share seasonal activity** は Leagues、Deadman などのシーズンワールドで同じことをします。',
+        'これらはビンゴが進行中かどうかに関係なく発動し、クランのチャンネルに投稿されます。どのチャンネルに投稿されるかは管理者がここで設定します。あなたが選ぶのは _何を_ 投稿するかだけです。これらの選択は、ウェブサイトの **Settings → Posts & alerts → What your plugin posts** にあり、どのパソコンでも同じ設定が適用されます。プラグイン自体にはこれらの設定はもうありません。同じページの **Screenshot privacy** では、プラグインが撮影するすべてのスクリーンショットで非表示にするチャット（プライベートメッセージ、公開チャット、クランチャット）を選べます。プラグインには **Notifications** の下に2つのスイッチがあります：**Share clan posts** はメインゲームの投稿をすべて一時停止し、**Share seasonal activity** は Leagues、Deadman などのシーズンワールドで同じことを行います。',
       examplesFigure: {
         caption: '投稿の見た目',
         alt: 'Anvil による 2 つの Discord 投稿。ポイントと次のアンロックまでの進捗つきの Grandmaster 戦闘タスクと、メッセージつきの死亡。どちらにもその瞬間のスクリーンショットが付いている',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Deaths and kills と Drops and pets の通知セクション。各設定が枠で囲まれ番号が振られている',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Posts & alerts 設定ページの What your plugin posts 内にある Drops & pets と Deaths & PvP のグループ。各設定が枠で囲まれ番号が振られている',
         legend: [
           {
-            label: 'Notify on death',
-            body: '死亡した瞬間のスクリーンショットと一緒に、クランの死亡チャンネルに投稿されます。',
+            label: 'Rare drops',
+            body: 'ドロップ投稿の全体のスイッチです。初期設定ではオンです。',
           },
           {
-            label: 'Death message',
-            body: '自分で書く一文です。`{name}` は自分の RSN に置き換えられます。',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'ドロップは、この額以上の価値（GE または high alch の高い方）がある場合、または 1-in-N より希少な場合に投稿されます。Anvil 自体の数値は 1,000,000 gp と 1 in 1,000 で、これより緩く設定することはできません。数値を 0 にすると無効になります。クランはメンバー向けに独自の初期値を設定できます。数値を自分で入力するまで、各ボックスの下の行には **Using your clan’s default** と表示され、**Reset to clan default**（クランがない場合は **Reset to Anvil default**）を押すとクランの初期値に戻ります。クランはさらに厳格な希少性の下限を設定することもでき、これはそのクランのチャンネルへの投稿にのみ適用されます。',
           },
           {
-            label: 'Notify on PvP kill',
-            body: '対象の HP が 0 になった瞬間のスクリーンショットです。初期設定ではオフですが、ここではオンです。',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'ドロップ投稿の全体のスイッチです。',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'ドロップは、この額以上の価値（GE または high alch の高い方）がある場合、または 1-in-N より希少な場合に投稿されます。Anvil は 1m と 1/1,000 から始まります。クランはメンバー向けに独自の初期値を設定でき、自分で数値を決めるまではクランの値に従います。**Reset to clan default**（クランがない場合は **Reset to Anvil default**）を押すと、クランの値に戻ります。クランはさらに、クランのチャンネルの投稿にだけ適用される厳格な希少性の下限を設定できます。そこでは自分の数値をそれより緩くできず、価値の上限は変わりません。どちらの数値も 0 にすると無効になります。',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              '初期設定では、ドロップは価値 **or** 希少性を満たすと投稿されます。**Require both** をオンにすると、価値 **and** 希少性の両方を満たす必要があります。クランはメンバー向けにこの初期値を選べます。自分で選ぶまではそれに従い、クランがない場合はどちらか一方です。自分の webhook ごとに、独自の最低価値、希少性、either/both も設定できます。空欄のものは自分の設定に従います。',
+            label: 'Require both (and)',
+            body: '初期設定では、ドロップは価値に達するか**または**希少性を満たすと投稿されます。**Require both (and)** をオンにすると、価値に達し**かつ**希少性も満たす必要があります。クランはメンバー向けにこの初期値を選べます。自分で選ぶまで、ボックスの下の行には **Using your clan’s choice** と表示され、クランがない場合はどちらか一方になります。自分の各 webhook でも独自の最低価値、希少性、either/both を設定でき、空欄の項目は自分の設定に従います。',
           },
           {
             label: 'Loot key value',
-            body: 'ルートキーは、中身の合計がこの数値を超えると、1回だけ単独の通知として投稿されます。',
+            body: 'ルートキーは、中身全体がこの数値を超えると、1回だけ単独の通知として投稿されます。初期値は 1,000,000 gp で、0 にすると無効になります。',
           },
           {
-            label: 'Notify on pets',
-            body: 'ペットはレアドロップのチャンネルに投稿されます。',
+            label: 'Pets',
+            body: 'ペットはクランのドロップチャンネルに投稿されます。初期設定ではオンです。',
+          },
+          {
+            label: 'Deaths',
+            body: '死亡した瞬間のスクリーンショットと一緒に、クランの死亡チャンネルに投稿されます。初期設定ではオンです。',
+          },
+          {
+            label: 'Death message',
+            body: '自分で書く一文です。`{name}` は自分の RSN に置き換えられます。初期値は `{name} just died!` です。',
+          },
+          {
+            label: 'PvP kills',
+            body: '対象の HP が 0 になった瞬間のスクリーンショットを、クランの PvP チャンネルに投稿します。初期設定ではオフです。',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Combat achievements の通知セクション。各設定が枠で囲まれ番号が振られている',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Posts & alerts 設定ページの What your plugin posts 内にある Achievements のグループ。各設定が枠で囲まれ番号が振られている',
         legend: [
           {
-            label: 'CA post tier',
-            body: '投稿するタスクの最低ティア。ティア達成も投稿されます。既定は Master。Grandmaster なら最も稀なものだけ、**Off** なら何も投稿しません。ビンゴの CA マスはどちらでもカウントされます。',
+            label: 'Collection log slots',
+            body: '新しいコレクションログの枠がすべて、クランの実績チャンネルに投稿されます。初期設定ではオンです。',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'コレクションログの新しい枠が埋まるたびに。',
+            label: 'Level milestones',
+            body: 'クランが告知するよう選んだレベルアップ —— 初期値は 99 到達、1800 以上で合計レベルが 100 ごとの節目、そしてマックスです。ルールはクランの管理者が設定しますが、Announcements 設定から投稿を減らす（または個人用 webhook に自分のルールを設定する）ことができます。',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'クランが告知すると決めたレベルアップ —— 既定では 99 到達、1800 から 100 ごとの合計レベル、そしてマックス。ルールを決めるのはクランの管理者ですが、プロフィールの Announcements から投稿を減らす（または個人用 webhook に自分のルールを設定する）ことができます。',
+            label: 'Diary completions',
+            body: 'achievement diary のティアごと、スクリーンショット付き。初期設定ではオンです。',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'achievement diary の各ティア。スクリーンショット付き。',
+            label: 'Diary tier',
+            body: '投稿される最も低い diary のティアです。初期値は **Clan default** で、クランが別の設定をしていなければすべてのティアが対象です。より厳しいティアを選ぶことはできますが、クランより緩いティアは選べません。',
           },
           {
-            label: 'Quest post tier',
-            body: '選んだ難易度以上のクエスト。All（すべてのクエスト）から Grandmaster まで選べ、**Off** なら何も投稿しません。既定は Master。ビンゴのクエストマスはどちらでもカウントされます。',
+            label: 'Combat task tier',
+            body: '投稿される最も低いタスクのティアです。ティアのクリアも投稿されます。初期値は **Clan default**（クランが別のティアを選んでいなければ Master）。Grandmaster を選ぶと最も稀なものだけ投稿され、**Off** にすると何も投稿されません。クランより緩く設定することはできません。ビンゴの CA タイルは、どちらの場合もカウントされます。',
+          },
+          {
+            label: 'Quest tier',
+            body: '選んだ難易度以上のクエストを投稿します。All（すべてのクエスト）から Grandmaster まで選べ、**Off** にすると何も投稿されません。初期値は **Clan default**（クランが別の設定をしていなければ Master）。ビンゴのクエストタイルは、どちらの場合もカウントされます。',
           },
         ],
       },
@@ -1061,7 +1067,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'そのアカウントはまだ紐づいていません。[Profile → 検出されたアカウント](/profile#detected-accounts)を開いて追加するか、所有確認を開始してください。',
+          body: 'そのアカウントはまだ紐づいていません。[Settings → Characters → We noticed you playing](/settings/characters#detected) を開いて追加するか、所有確認を開始してください。',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1488,7 +1494,7 @@ const ja: PartialGuideDict = {
       ],
       figure: {
         caption: 'イベント → Teams & draft → 該当チーム → Team staff',
-        alt: '席が 1 つ付与された Team staff パネルと、追加用の検索欄が開いた状態',
+        alt: '席が 1 つ付与された Team staff パネルを示す図。Add someone ボタン、その席とメモ、Remove ボタンが枠で囲まれている',
         legend: [
           {
             label: 'Add someone',
@@ -1548,7 +1554,7 @@ const ja: PartialGuideDict = {
         ],
       },
       shape:
-        'リンクはこんな形です：`{origin}/events/{eventId}/join/{token}` —— 1 行で、Discord のメッセージに安心して貼れます。',
+        'リンクの形式は `{origin}/c/{clan}/events/{eventId}/join/{token}` です —— 1行で、Discord のメッセージに安全に貼り付けられます。',
       note: {
         tag: '妥当な初期値',
         body: 'モデレーター 1 人と人数を合意済みのクラン対抗なら、両方の欄を `0` のままにして相手に任せてください。席数と期限を持ち出すのは、リンクが自分の管理外の場所へ行くときだけで十分です。',

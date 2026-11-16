@@ -841,21 +841,25 @@ const ko: PartialGuideDict = {
       title: '계정 연결하기',
       body: [
         '토큰을 설정하면 플레이한 계정이 프로필에 자동으로 표시됩니다. 새 계정은 바로 연결할 수 있지만, 이미 클랜 명단에 있는 계정은 먼저 한 번의 소유권 확인이 필요합니다. 공개된 RuneScape 이름만으로는 소유자를 증명할 수 없기 때문입니다.',
-        '첫 연결에는 [빠른 XP 확인](/profile#link-account)을 사용하거나 클랜 관리자에게 [감지된 계정](/profile#detected-accounts)에서 승인해 달라고 요청하세요. 확인 후에는 안정적인 계정 지문이 이름 변경을 따라가며 계정을 자동으로 인식합니다.',
+        '처음 연결할 때는 [빠른 XP 확인](/settings/characters#link-account)을 사용하거나, [We noticed you playing](/settings/characters#detected)에서 시작해 클랜 관리자에게 승인을 요청하세요. 확인이 끝나면 플러그인이 안정적인 계정 지문을 저장하고, 이후 이름이 바뀌어도 따라가며 로그인할 때마다 자동으로 인식합니다.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: '프로필 페이지의 RuneScape Accounts 카드. 플러그인으로 확인된 계정들이 나열되어 있음',
+        caption: 'Settings → Characters',
+        alt: 'Settings 아래의 Characters 페이지. 연결된 캐릭터 목록과 We noticed you playing 카드가 네모로 표시되어 있음',
         legend: [
           {
-            label: '연결된 계정들',
-            body: '“Verified via plugin” 표시가 있는 계정은 연결되어 이후 자동으로 인식됩니다. 기존 클랜 명단 계정은 먼저 일회성 XP 확인이나 관리자 승인이 필요할 수 있습니다.',
+            label: 'Your linked characters',
+            body: '여기 나열된 계정은 연결되어 있으며 자동으로 인식됩니다.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: '플러그인이 플레이를 감지했지만 아직 연결되지 않은 캐릭터입니다. **Verify ownership**를 눌러 연결하거나(새 계정은 바로 연결되고, 이미 클랜 명단에 있는 계정은 일회성 XP 확인이나 관리자 확인이 먼저 필요합니다), **Not mine**을 눌러 숨기세요.',
           },
         ],
       },
       noPluginHeading: '플러그인을 돌릴 수 없다면?',
       noPluginIntro:
-        '모바일이나 공식 클라이언트에서는 대신 [Profile → account linking](/profile#link-account)을 사용하세요:',
+        '모바일이나 공식 클라이언트에서는 대신 [Settings → Characters → Link a character](/settings/characters#link-account)을 사용하세요:',
       noPluginOptions: [
         '**Verify by XP** —— RSN을 입력하면 사이트가 스킬 하나를 무작위로 고릅니다. 30분 안에 그 스킬에서 1,000 경험치를 올리면 됩니다.',
         '**Manual review** —— Hiscores를 숨겼거나 갓 만든 부계정인 경우: RSN과 메모를 제출하면 관리자가 승인합니다.',
@@ -973,74 +977,76 @@ const ko: PartialGuideDict = {
     notifications: {
       title: 'Discord 알림',
       intro:
-        '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널인지는 관리자가 여기서 정합니다 —— 당신은 _무엇을_ 올릴지만 고릅니다. 다음 플러그인 업데이트부터 이 선택들은 웹사이트의 **Settings → Discord posts & screenshots** 로 옮겨지고, 어느 컴퓨터에서든 그대로 따라옵니다. 같은 페이지의 **Screenshot privacy** 에서는 플러그인이 찍는 모든 스크린샷에서 숨길 채팅(개인 메시지, 공개 채팅, 클랜 채팅)을 고를 수 있습니다. 플러그인에는 **Notifications** 아래 스위치 두 개가 남습니다: **Share clan posts** 는 메인 게임 게시물을 한꺼번에 멈추고, **Share seasonal activity** 는 Leagues, Deadman 등 시즌 월드에서 같은 일을 합니다.',
+        '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널에 올릴지는 관리자가 여기서 정하고, 당신은 _무엇을_ 올릴지만 고릅니다. 이 선택들은 웹사이트의 **Settings → Posts & alerts → What your plugin posts**에서 관리하며, 어느 컴퓨터에서든 그대로 따라옵니다. 플러그인에는 이제 이 항목의 설정이 없습니다. 같은 페이지의 **Screenshot privacy**에서는 플러그인이 찍는 모든 스크린샷에서 숨길 채팅(개인 메시지, 공개 채팅, 클랜 채팅)을 고를 수 있습니다. 플러그인에는 **Notifications** 아래 스위치 두 개가 남습니다. **Share clan posts**는 메인 게임 게시물을 한꺼번에 멈추고, **Share seasonal activity**는 Leagues, Deadman 등 시즌 월드에서 같은 일을 합니다.',
       examplesFigure: {
         caption: '게시물은 이렇게 보입니다',
         alt: 'Anvil이 올린 Discord 게시물 두 개. 점수와 다음 해금까지의 진행도가 표시된 Grandmaster 전투 과제, 그리고 메시지가 담긴 사망 알림. 둘 다 그 순간의 스크린샷이 붙어 있음',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Deaths and kills와 Drops and pets 알림 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Posts & alerts 설정 페이지의 What your plugin posts 아래 Drops & pets와 Deaths & PvP 그룹. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
         legend: [
           {
-            label: 'Notify on death',
-            body: '사망 순간의 스크린샷과 함께 클랜 사망 채널에 게시됩니다.',
+            label: 'Rare drops',
+            body: '드롭 게시물의 전체 스위치입니다. 기본값은 켜짐입니다.',
           },
           {
-            label: 'Death message',
-            body: '직접 작성하는 문구입니다. `{name}`은 RSN으로 바뀝니다.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: '드롭은 이 금액 이상의 가치(GE 또는 high alch 중 더 높은 값)가 있거나, 1-in-N보다 희귀하면 게시됩니다. Anvil 기본값은 1,000,000 gp와 1/1,000이며, 이보다 느슨하게 설정할 수는 없습니다. 0으로 설정하면 끌 수 있습니다. 클랜은 멤버용 기본값을 정할 수 있습니다. 직접 숫자를 입력하기 전까지는 각 칸 아래에 **Using your clan’s default**라고 표시되며, **Reset to clan default**(클랜이 없으면 **Reset to Anvil default**)를 누르면 다시 클랜 기본값을 따릅니다. 클랜은 클랜 자체 채널의 게시물에만 적용되는 희귀도 하한도 정할 수 있습니다.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: '대상의 HP가 0이 되는 틱의 스크린샷입니다. 기본값은 꺼짐이며, 여기서는 켜져 있습니다.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: '드롭 게시의 전체 스위치입니다.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              '드롭은 이 금액 이상의 가치(GE 또는 high alch 중 더 높은 값)가 있거나 1-in-N보다 희귀하면 게시됩니다. Anvil은 1m과 1/1,000에서 시작합니다. 클랜은 멤버용 기본값을 설정할 수 있으며, 직접 숫자를 정하기 전까지는 클랜 값을 따릅니다. **Reset to clan default**(클랜이 없으면 **Reset to Anvil default**)를 누르면 다시 클랜 값을 따릅니다. 클랜은 클랜 채널 게시물에만 적용되는 엄격한 희귀도 하한도 설정할 수 있습니다. 그곳에서는 자신의 숫자를 그보다 느슨하게 설정할 수 없으며, 가치 상한은 바뀌지 않습니다. 두 숫자 모두 0으로 설정하면 끌 수 있습니다.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              '기본적으로 드롭은 가치 **or** 희귀도를 충족하면 게시됩니다. **Require both**를 켜면 가치 **and** 희귀도를 모두 충족해야 합니다. 클랜은 멤버용으로 이 기본값을 선택할 수 있습니다. 직접 선택하기 전까지는 클랜을 따르며, 클랜이 없으면 둘 중 하나입니다. 개인 webhook마다 자체 최소 가치, 희귀도, either/both를 설정할 수도 있으며, 비워 둔 항목은 개인 설정을 따릅니다.',
+            label: 'Require both (and)',
+            body: '기본적으로 드롭은 가치 **또는** 희귀도를 충족하면 게시됩니다. **Require both (and)**를 켜면 가치 **그리고** 희귀도를 모두 충족해야 합니다. 클랜은 멤버용으로 이 기본값을 정할 수 있습니다. 직접 선택하기 전까지 칸 아래에는 **Using your clan’s choice**라고 표시되며, 클랜이 없으면 둘 중 하나로 동작합니다. 개인 webhook마다 자체 최소 가치, 희귀도, either/both를 정할 수도 있고, 비워 둔 항목은 개인 설정을 따릅니다.',
           },
           {
             label: 'Loot key value',
-            body: '루트 키는 전체 내용물의 합계가 이 숫자를 넘으면 한 번, 단일 알림으로 게시됩니다.',
+            body: '루트 키는 내용물 전체가 이 숫자를 넘으면 한 번, 단일 알림으로 게시됩니다. 기본값은 1,000,000 gp이며, 0이면 끕니다.',
           },
           {
-            label: 'Notify on pets',
-            body: '펫은 희귀 드롭 채널에 게시됩니다.',
+            label: 'Pets',
+            body: '펫은 클랜 드롭 채널에 게시됩니다. 기본값은 켜짐입니다.',
+          },
+          {
+            label: 'Deaths',
+            body: '사망한 순간의 스크린샷과 함께 클랜 사망 채널에 게시됩니다. 기본값은 켜짐입니다.',
+          },
+          {
+            label: 'Death message',
+            body: '직접 작성하는 문구입니다. `{name}`은 RSN으로 바뀝니다. 기본값은 `{name} just died!`입니다.',
+          },
+          {
+            label: 'PvP kills',
+            body: '대상의 HP가 0이 되는 틱의 스크린샷을 클랜 PvP 채널에 게시합니다. 기본값은 꺼짐입니다.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Combat achievements 알림 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Posts & alerts 설정 페이지의 What your plugin posts 아래 Achievements 그룹. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
         legend: [
           {
-            label: 'CA post tier',
-            body: '올라가는 가장 낮은 과제 등급. 등급 달성도 함께 올라갑니다. 기본값은 Master이고, Grandmaster는 가장 희귀한 것만, **Off**는 아무것도 올리지 않습니다. 빙고 CA 칸은 어느 쪽이든 집계됩니다.',
+            label: 'Collection log slots',
+            body: '새로 채워지는 컬렉션 로그 슬롯마다 클랜 achievements 채널에 게시됩니다. 기본값은 켜짐입니다.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: '새 컬렉션 로그 슬롯이 채워질 때마다.',
+            label: 'Level milestones',
+            body: '클랜이 알리기로 정한 레벨업입니다. 기본값은 99 달성, 1800부터 총 레벨 100 단위마다, 그리고 만렙입니다. 규칙은 클랜 관리자가 정하며, Announcements 설정에서 더 적게 올리거나 개인 webhook용 규칙을 따로 정할 수 있습니다.',
           },
           {
-            label: 'Notify on level milestones',
-            body: '클랜이 알리기로 정한 레벨업 —— 기본값은 99 달성, 1800부터 총 레벨 100 단위, 그리고 만렙. 규칙은 클랜 관리자가 정하지만, 프로필의 Announcements에서 더 적게 올리도록 바꾸거나 개인 웹훅용 규칙을 직접 정할 수 있습니다.',
+            label: 'Diary completions',
+            body: 'achievement diary 등급을 스크린샷과 함께 게시합니다. 기본값은 켜짐입니다.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'achievement diary 등급. 스크린샷 포함.',
+            label: 'Diary tier',
+            body: '게시되는 가장 낮은 diary 등급입니다. 처음에는 **Clan default**로 시작하며, 클랜이 따로 정하지 않았다면 모든 등급이 게시됩니다. 더 엄격한 등급은 고를 수 있지만, 클랜보다 느슨하게는 고를 수 없습니다.',
           },
           {
-            label: 'Quest post tier',
-            body: '고른 난이도 이상의 퀘스트. All(모든 퀘스트)부터 Grandmaster까지 고를 수 있고, **Off**는 아무것도 올리지 않습니다. 기본값은 Master입니다. 빙고 퀘스트 칸은 어느 쪽이든 집계됩니다.',
+            label: 'Combat task tier',
+            body: '게시되는 가장 낮은 과제 등급입니다. 등급 달성도 함께 게시됩니다. 처음에는 **Clan default**(클랜이 다른 등급을 정하지 않았다면 Master)로 시작합니다. Grandmaster는 가장 희귀한 것만 게시하고, **Off**는 아무것도 게시하지 않습니다. 클랜보다 느슨하게는 설정할 수 없습니다. 빙고 CA 칸은 어느 쪽이든 집계됩니다.',
+          },
+          {
+            label: 'Quest tier',
+            body: '고른 난이도 이상의 퀘스트를 게시합니다. All(모든 퀘스트)부터 Grandmaster까지 고를 수 있고, **Off**는 아무것도 게시하지 않습니다. 처음에는 **Clan default**(클랜이 다르게 정하지 않았다면 Master)로 시작합니다. 빙고 퀘스트 칸은 어느 쪽이든 집계됩니다.',
           },
         ],
       },
@@ -1061,7 +1067,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: '그 계정은 아직 연결되지 않았습니다. [Profile → 감지된 계정](/profile#detected-accounts)을 열어 추가하거나 소유권 확인을 시작하세요.',
+          body: '그 계정은 아직 연결되지 않았습니다. [Settings → Characters → We noticed you playing](/settings/characters#detected)을 열어 추가하거나 소유권 확인을 시작하세요.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1488,7 +1494,7 @@ const ko: PartialGuideDict = {
       ],
       figure: {
         caption: '이벤트 → Teams & draft → 해당 팀 → Team staff',
-        alt: '자리 하나가 부여된 Team staff 패널과, 추가용 검색창이 열려 있는 모습',
+        alt: '자리 하나가 부여된 Team staff 패널. Add someone 버튼, 자리와 메모, Remove 버튼이 네모로 표시되어 있음',
         legend: [
           {
             label: 'Add someone',
@@ -1548,7 +1554,7 @@ const ko: PartialGuideDict = {
         ],
       },
       shape:
-        '링크는 이렇게 생겼습니다: `{origin}/events/{eventId}/join/{token}` —— 한 줄이라 Discord 메시지에 안심하고 붙여 넣을 수 있습니다.',
+        '링크는 `{origin}/c/{clan}/events/{eventId}/join/{token}` 형태이며 한 줄이라 Discord 메시지에 안심하고 붙여 넣을 수 있습니다.',
       note: {
         tag: '합리적인 기본값',
         body: '관리자 한 명과 인원을 합의한 클랜 대항전이라면 두 칸 모두 `0`으로 두고 그쪽에 맡기세요. 자리 수와 만료를 꺼내 드는 건, 링크가 당신이 통제하지 못하는 곳으로 갈 때뿐입니다.',

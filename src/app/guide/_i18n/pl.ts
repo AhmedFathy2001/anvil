@@ -843,21 +843,25 @@ const pl: PartialGuideDict = {
       title: 'Podłącz swoje konta',
       body: [
         'Po ustawieniu tokenu konta, na których grasz, pojawiają się automatycznie w twoim profilu. Zupełnie nowe konto można połączyć od razu; konto już obecne na liście klanu wymaga najpierw jednego potwierdzenia własności, bo publiczna nazwa RuneScape nie dowodzi, kto jest właścicielem.',
-        'Przy pierwszym połączeniu użyj [szybkiej weryfikacji XP](/profile#link-account) albo poproś moderatora klanu o zatwierdzenie konta w [wykrytych kontach](/profile#detected-accounts). Po weryfikacji stabilny odcisk śledzi zmiany nazwy i automatycznie rozpoznaje konto.',
+        'Przy pierwszym połączeniu użyj [szybkiej weryfikacji XP](/settings/characters#link-account) albo poproś moderatora klanu o zatwierdzenie, zaczynając od [We noticed you playing](/settings/characters#detected). Po potwierdzeniu wtyczka zapisuje stabilny odcisk konta, śledzi przyszłe zmiany nazwy i rozpoznaje konto automatycznie przy każdym logowaniu.',
       ],
       figure: {
-        caption: 'Profil → RuneScape Accounts',
-        alt: 'Karta RuneScape Accounts na stronie profilu z listą kont zweryfikowanych przez plugin',
+        caption: 'Settings → Characters',
+        alt: 'Strona Characters w ustawieniach z listą podłączonych postaci i ramką wokół karty We noticed you playing',
         legend: [
           {
-            label: 'Twoje podłączone konta',
-            body: 'wszystko oznaczone „Verified via plugin” jest połączone i będzie automatycznie rozpoznawane. Istniejące konta z listy klanu mogą najpierw wymagać jednorazowej weryfikacji XP lub moderatora.',
+            label: 'Your linked characters',
+            body: 'wszystko, co tu jest wymienione, jest podłączone i będzie rozpoznawane automatycznie.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'postaci, które wtyczka zauważyła w grze, a które nie są jeszcze podłączone. Naciśnij **Verify ownership**, aby podłączyć jedną (nowe konto podłącza się od razu; konto już z listy klanu wymaga jednorazowego sprawdzenia XP lub moderatora), albo **Not mine**, aby ją odrzucić.',
           },
         ],
       },
       noPluginHeading: 'Nie możesz używać pluginu?',
       noPluginIntro:
-        'Na telefonie albo w oficjalnym kliencie użyj [Profile → account linking](/profile#link-account):',
+        'Na telefonie albo w oficjalnym kliencie użyj [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— wpisz swój RSN, strona losuje umiejętność, zdobądź w niej 1000 XP w ciągu 30 minut.',
         '**Manual review** —— dla ukrytych Hiscores albo świeżych altów: wysyłasz RSN z notatką, a moderator zatwierdza.',
@@ -973,75 +977,76 @@ const pl: PartialGuideDict = {
     notifications: {
       title: 'Powiadomienia na Discordzie',
       intro:
-        'Działają niezależnie od tego, czy trwa bingo, i trafiają na kanały klanu. Który kanał, ustawiają adminowie —— ty wybierasz tylko _co_ publikujesz. W następnej aktualizacji wtyczki te ustawienia przenoszą się na stronę, do **Settings → Discord posts & screenshots**, i działają na każdym komputerze. Na tej samej stronie **Screenshot privacy** decyduje, który czat (prywatne wiadomości, czat publiczny, czat klanu) jest ukrywany na każdym zrzucie ekranu robionym przez wtyczkę. We wtyczce zostają dwa przełączniki w **Notifications**: **Share clan posts** wstrzymuje naraz wszystkie posty z głównej gry, a **Share seasonal activity** robi to samo na Leagues, Deadman i innych światach sezonowych.',
+        'Działają niezależnie od tego, czy trwa bingo, i publikują na kanałach klanu. Który kanał jest ustawiony, decydują admini — ty wybierasz tylko _co_ publikujesz. Te wybory żyją na stronie, w **Settings → Posts & alerts → What your plugin posts**, i podążają za tobą na każdy komputer; sama wtyczka nie ma już dla nich ustawień. Na tej samej stronie **Screenshot privacy** wybiera, który czat (prywatne wiadomości, czat publiczny, czat klanu) jest ukrywany na każdym zrzucie ekranu, jaki wtyczka wykona. Wtyczka zachowuje dwa przełączniki w **Notifications**: **Share clan posts** wstrzymuje naraz wszystkie posty z głównej gry, a **Share seasonal activity** robi to samo na Leagues, Deadman i innych światach sezonowych.',
       examplesFigure: {
         caption: 'Jak wygląda post',
         alt: 'Dwa posty Anvil na Discordzie: zadanie Grandmaster z combat achievements z punktami i postępem do następnego odblokowania oraz śmierć z wiadomością, każdy ze zrzutem ekranu z tej chwili',
       },
       dropsFigure: {
-        caption: 'Śmierci i kille · Dropy i pety',
-        alt: 'Sekcje powiadomień „Deaths and kills” oraz „Drops and pets” z każdym ustawieniem zaznaczonym i ponumerowanym',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Grupy Drops & pets oraz Deaths & PvP w sekcji What your plugin posts na stronie ustawień Posts & alerts, z każdym ustawieniem w ramce i z numerem',
         legend: [
           {
-            label: 'Powiadamiaj o śmierci',
-            body: 'publikuje na kanale klanu o zgonach zrzut ekranu z chwili Twojej śmierci.',
+            label: 'Rare drops',
+            body: 'główny przełącznik postów z dropami. Domyślnie włączony.',
           },
           {
-            label: 'Wiadomość o śmierci',
-            body: 'Twój własny tekst. `{name}` zostanie zastąpione Twoim RSN.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'drop jest publikowany, gdy jest wart co najmniej tyle (GE albo high alch, co wyższe), albo gdy jest rzadszy niż 1 na N. Wartości Anvila to 1,000,000 gp i 1 in 1,000; żadnej z nich nie możesz ustawić luźniej. Ustaw liczbę na 0, aby ją wyłączyć. Twój klan może ustawić własne domyślne wartości dla członków; linia pod każdym polem mówi **Using your clan’s default**, dopóki sam nie wpiszesz liczby, a **Reset to clan default** (albo **Reset to Anvil default**, gdy nie masz klanu) przywraca korzystanie z nich. Klan może też ustawić twarde minimum rzadkości, które dotyczy tylko postów w kanałach tego klanu.',
           },
           {
-            label: 'Powiadamiaj o zabójstwie PvP',
-            body: 'zrzut ekranu z ticka, w którym cel spada do 0 HP. Domyślnie wyłączone; tutaj włączone.',
+            label: 'Require both (and)',
+            body: 'domyślnie drop jest publikowany, gdy spełnia wartość **lub** rzadkość. Włącz **Require both (and)**, a musi spełnić wartość **i** rzadkość. Klan może wybrać ten domyślny tryb dla członków; dopóki sam nie wybierzesz, linia pod polem mówi **Using your clan’s choice**, a bez klanu obowiązuje jeden z trybów. Każdy z twoich webhooków może też ustawić własne minimum wartości, rzadkości oraz tryb either/both; wszystko, co zostawi puste, idzie według twoich ustawień.',
           },
           {
-            label: 'Powiadamiaj o rzadkich dropach',
-            body: 'główny przełącznik postów z dropami.',
+            label: 'Loot key value',
+            body: 'klucz łupu jest publikowany raz, jako jedno powiadomienie, gdy cała jego zawartość przekroczy tę wartość. Zaczyna od 1,000,000 gp; 0 wyłącza.',
           },
           {
-            label: 'Min. wartość dropu / Min. rzadkość dropu',
-            body:
-              'drop jest publikowany, gdy jest wart co najmniej tyle (GE lub high alch, co wyższe) albo rzadszy niż 1 na N. Anvil zaczyna od 1m i 1/1,000. Twój klan może ustawić własne domyślne wartości dla członków, a dopóki sam nie ustawisz liczby, korzystasz z wartości klanu; **Reset to clan default** (lub **Reset to Anvil default**, jeśli nie masz klanu) przywraca korzystanie z nich. Klan może też ustawić twarde minimum rzadkości, które dotyczy tylko postów w kanałach tego klanu. Twoja liczba nie może tam być luźniejsza i nigdy nie zmienia limitu wartości. Ustaw którąkolwiek liczbę na 0, aby ją wyłączyć.',
+            label: 'Pets',
+            body: 'pety są publikowane na kanale klanu z dropami. Domyślnie włączone.',
           },
           {
-            label: 'Wartość i rzadkość razem',
-            body:
-              'domyślnie drop jest publikowany, gdy spełnia wartość **or** rzadkość. Włącz **Require both**, a musi spełnić wartość **and** rzadkość. Klan może wybrać tę domyślną wartość dla członków; dopóki sam nie wybierzesz, korzystasz z niej, a bez klanu obowiązuje jedna z nich. Każdy z Twoich webhooków może też ustawić własne minimum wartości, rzadkości i either/both; wszystko, co zostawi puste, idzie według Twoich ustawień.',
+            label: 'Deaths',
+            body: 'publikuje na kanale klanu o śmierciach zrzut ekranu z chwili, w której zginąłeś. Domyślnie włączone.',
           },
           {
-            label: 'Wartość klucza łupu',
-            body:
-              'klucz łupu jest publikowany raz, jako jedno powiadomienie, gdy cała jego zawartość przekroczy tę liczbę.',
+            label: 'Death message',
+            body: 'twój własny tekst. `{name}` zostaje zastąpione twoim RSN. Domyślnie `{name} just died!`.',
           },
           {
-            label: 'Powiadamiaj o petach',
-            body: 'pety są publikowane na kanale rzadkich dropów.',
+            label: 'PvP kills',
+            body: 'zrzut ekranu z ticka, w którym cel spada do 0 HP, publikowany na kanale PvP klanu. Domyślnie wyłączone.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · poziomy · dzienniki · questy',
-        alt: 'Sekcja powiadomień Combat achievements z każdym ustawieniem zaznaczonym i ponumerowanym',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Grupa Achievements w sekcji What your plugin posts na stronie ustawień Posts & alerts, z każdym ustawieniem w ramce i z numerem',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'najniższy tier zadań, który się publikuje; ukończenia całych tierów też się publikują. Domyślnie Master; Grandmaster publikuje tylko najrzadsze, **Off** nic. Pola CA w bingo liczą się tak czy inaczej.',
+            label: 'Collection log slots',
+            body: 'każde nowe miejsce w collection logu, publikowane na kanale osiągnięć klanu. Domyślnie włączone.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'każde nowe miejsce w collection logu.',
+            label: 'Level milestones',
+            body: 'awanse poziomów, które klan wybrał do ogłaszania — domyślnie 99-tki, co 100 poziomów total od 1800 i max. Zasady ustalają admini klanu; możesz publikować mniej (albo ustawić własne zasady dla swoich osobistych webhooków) w ustawieniach Announcements.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'awanse poziomów, które twój klan postanowił ogłaszać —— domyślnie 99-tki, każde 100 poziomów total od 1800, i max. Zasady ustalają admini klanu; możesz publikować mniej (albo ustawić własne zasady dla swoich osobistych webhooków) w sekcji Announcements na swoim profilu.',
+            label: 'Diary completions',
+            body: 'tiery achievement diary, ze zrzutem ekranu. Domyślnie włączone.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'tiery achievement diary, ze zrzutem ekranu.',
+            label: 'Diary tier',
+            body: 'najniższy tier diary, który się publikuje. Zaczyna od **Clan default**, czyli każdego tieru, chyba że klan wybrał inaczej; możesz wybrać surowszy tier, nigdy luźniejszy niż klanowy.',
           },
           {
-            label: 'Quest post tier',
-            body: 'questy od wybranej trudności wzwyż, od All (każdy quest) aż po Grandmaster; **Off** nic nie publikuje. Domyślnie Master. Pola z questami w bingo liczą się tak czy inaczej.',
+            label: 'Combat task tier',
+            body: 'najniższy tier zadań, który się publikuje; ukończenia tierów też się publikują. Zaczyna od **Clan default** (Master, chyba że klan wybrał inny tier); Grandmaster publikuje tylko najrzadsze, **Off** nic. Nie możesz być luźniej niż klan. Pola CA w bingo liczą się w obu przypadkach.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'questy na wybranym poziomie trudności lub wyższym, od All (każdy quest) po Grandmaster; **Off** nic nie publikuje. Zaczyna od **Clan default** (Master, chyba że klan wybrał inny). Pola z questami w bingo liczą się w obu przypadkach.',
           },
         ],
       },
@@ -1062,7 +1067,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'To konto nie jest jeszcze podłączone. Otwórz [Profil → wykryte konta](/profile#detected-accounts), aby je dodać lub rozpocząć potwierdzenie własności.',
+          body: 'To konto nie jest jeszcze podłączone. Otwórz [Settings → Characters → We noticed you playing](/settings/characters#detected), aby je dodać albo rozpocząć sprawdzenie własności.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1480,7 +1485,7 @@ const pl: PartialGuideDict = {
       ],
       figure: {
         caption: 'Wydarzenie → Teams & draft → drużyna → Team staff',
-        alt: 'Panel Team staff z jednym przyznanym miejscem i otwartą wyszukiwarką „add someone”',
+        alt: 'Panel Team staff z jednym przyznanym miejscem; ramkami zaznaczone przyciski Add someone i Remove oraz miejsce wraz z jego notatką',
         legend: [
           {
             label: 'Add someone',
@@ -1539,7 +1544,7 @@ const pl: PartialGuideDict = {
           },
         ],
       },
-      shape: 'Link wygląda tak: `{origin}/events/{eventId}/join/{token}` —— jedna linijka, spokojnie można wkleić w wiadomość na Discordzie.',
+      shape: 'Link wygląda tak: `{origin}/c/{clan}/events/{eventId}/join/{token}` — jedna linijka, bezpiecznie wkleić w wiadomość na Discordzie.',
       note: {
         tag: 'Rozsądne ustawienia',
         body: 'Przy klan kontra klan, gdzie skład uzgodniłeś z jednym moderatorem, zostaw oba pola na `0` i pozwól mu to poprowadzić. Po miejsca i wygaśnięcie sięgaj, gdy link idzie tam, gdzie nie masz kontroli.',

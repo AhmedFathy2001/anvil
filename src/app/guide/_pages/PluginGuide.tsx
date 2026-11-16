@@ -143,7 +143,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
             <Figure
               src="/guide/site-link-device.png"
               width={555}
-              height={370}
+              height={425}
               alt={p.connect.linkFigure.alt}
               caption={p.connect.linkFigure.caption}
               legend={legend(p.connect.linkFigure.legend, v)}
@@ -195,7 +195,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         <Figure
           src="/guide/site-accounts.png"
           width={835}
-          height={290}
+          height={480}
           alt={p.accounts.figure.alt}
           caption={p.accounts.figure.caption}
           legend={legend(p.accounts.figure.legend, v)}
@@ -292,8 +292,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
         <Figure
           src="/guide/plugin-notify-drops.png"
-          width={542}
-          height={680}
+          width={774}
+          height={756}
           alt={p.notifications.dropsFigure.alt}
           caption={p.notifications.dropsFigure.caption}
           legend={legend(p.notifications.dropsFigure.legend, v)}
@@ -301,8 +301,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
         <Figure
           src="/guide/plugin-notify-ca.png"
-          width={542}
-          height={372}
+          width={774}
+          height={514}
           alt={p.notifications.caFigure.alt}
           caption={p.notifications.caFigure.caption}
           legend={legend(p.notifications.caFigure.legend, v)}

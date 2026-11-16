@@ -843,21 +843,25 @@ const fi: PartialGuideDict = {
       title: 'Yhdistä tilisi',
       body: [
         'Kun token on asetettu, pelaamasi tilit näkyvät profiilissasi automaattisesti. Täysin uusi tili voidaan yhdistää heti; jo klaanin jäsenlistalla oleva tili vaatii ensin omistajuustarkistuksen, koska julkinen RuneScape-nimi ei todista omistajaa.',
-        'Tee ensimmäinen yhdistäminen [nopealla XP-tarkistuksella](/profile#link-account) tai pyydä klaanin moderaattoria hyväksymään tili kohdassa [havaitut tilit](/profile#detected-accounts). Sen jälkeen pysyvä tilisormenjälki seuraa nimenvaihdoksia ja tunnistaa tilin automaattisesti.',
+        'Tee ensimmäinen yhdistäminen [nopealla XP-tarkistuksella](/settings/characters#link-account) tai pyydä klaanin moderaattoria hyväksymään tili, lähtien kohdasta [We noticed you playing](/settings/characters#detected). Kun tili on todistettu, lisäosa tallentaa sen pysyvän tilisormenjäljen, seuraa tulevat nimenvaihdokset ja tunnistaa tilin automaattisesti joka kirjautumisella.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'Profiilisivun RuneScape Accounts -kortti, jossa on listattu pluginin kautta vahvistetut tilit',
+        caption: 'Settings → Characters',
+        alt: 'Settings-osion Characters-sivu, jossa on linkitettyjen hahmojen lista ja We noticed you playing -kortti kehystettynä',
         legend: [
           {
-            label: 'Yhdistetyt tilisi',
-            body: 'kaikki merkinnällä “Verified via plugin” on yhdistetty ja tunnistetaan automaattisesti. Valmiiksi klaanin listalla oleva tili voi ensin vaatia kertaluonteisen XP- tai moderaattoritarkistuksen.',
+            label: 'Your linked characters',
+            body: 'tässä listatut hahmot on yhdistetty ja tunnistetaan automaattisesti.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'hahmot, jotka lisäosa näki sinun pelaavan eikä niitä ole vielä yhdistetty. Yhdistä hahmo painamalla **Verify ownership** (uusi tili yhdistyy heti; klaanin listalla jo oleva tili pyytää ensin kertaluonteisen XP- tai moderaattoritarkistuksen), tai hylkää se painamalla **Not mine**.',
           },
         ],
       },
       noPluginHeading: 'Etkö voi käyttää pluginia?',
       noPluginIntro:
-        'Mobiililla tai virallisella asiakasohjelmalla käytä [Profile → account linking](/profile#link-account):',
+        'Mobiililla tai virallisella asiakasohjelmalla käytä sen sijaan [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — syötä RSN:si, sivusto valitsee satunnaisen taidon, ja sinun on ansaittava siinä 1 000 XP 30 minuutin sisällä.',
         '**Manual review** — piilotetuille Hiscoresille tai aivan uusille alt-tileille: lähetä RSN:si huomautuksen kera, ja moderaattori hyväksyy sen.',
@@ -975,74 +979,76 @@ const fi: PartialGuideDict = {
     notifications: {
       title: 'Discord-ilmoitukset',
       intro:
-        'Nämä lähtevät riippumatta siitä onko bingo käynnissä, ja ne julkaistaan klaanin kanaviin. Minkä kanavan ylläpitäjät määrittävät täällä — sinä valitset vain _mitä_ julkaiset. Seuraavassa lisäosan päivityksessä nämä valinnat siirtyvät verkkosivulle kohtaan **Settings → Discord posts & screenshots**, ja ne seuraavat sinua jokaiselle tietokoneelle. Samalla sivulla **Screenshot privacy** valitsee, mikä chat (yksityisviestit, julkinen chat, klaanichat) piilotetaan jokaisesta lisäosan ottamasta kuvakaappauksesta. Lisäosaan jää kaksi kytkintä kohtaan **Notifications**: **Share clan posts** keskeyttää kaikki pääpelin julkaisut kerralla, ja **Share seasonal activity** tekee saman Leaguesissa, Deadmanissa ja muissa kausimaailmoissa.',
+        'Nämä lähtevät riippumatta siitä, onko bingo käynnissä, ja ne julkaistaan klaanin kanaviin. Kanavan määrittävät täällä ylläpitäjät — sinä valitset vain _mitä_ julkaiset. Nämä valinnat asuvat verkkosivulla kohdassa **Settings → Posts & alerts → What your plugin posts** ja seuraavat sinua jokaiselle tietokoneelle; lisäosalla ei enää ole niille omia asetuksia. Samalla sivulla **Screenshot privacy** valitsee, mikä chat (yksityisviestit, julkinen chat, klaanichat) piilotetaan jokaisesta lisäosan ottamasta kuvakaappauksesta. Lisäosassa on kaksi kytkintä kohdassa **Notifications**: **Share clan posts** keskeyttää kaikki pääpelin julkaisut kerralla, ja **Share seasonal activity** tekee saman Leaguesissa, Deadmanissa ja muissa kausimaailmoissa.',
       examplesFigure: {
         caption: 'Tältä julkaisu näyttää',
         alt: 'Kaksi Anvilin Discord-julkaisua: Grandmaster-taistelutehtävä pisteineen ja edistyminen seuraavaan avaukseen sekä kuolema viesteineen, kummassakin kuvakaappaus hetkestä',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Ilmoitusosiot Deaths and kills ja Drops and pets, joissa jokainen asetus on kehystetty ja numeroitu',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Ilmoitusasetusten sivun What your plugin posts -kohdan ryhmät Drops & pets ja Deaths & PvP, joissa jokainen asetus on kehystetty ja numeroitu',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'lähetetään klaanin kuolemakanavalle kuvakaappauksen kanssa hetkestä, jolloin kuolit.',
+            label: 'Rare drops',
+            body: 'drop-julkaisujen pääkytkin. Oletuksena päällä.',
           },
           {
-            label: 'Death message',
-            body: 'oma rivisi. `{name}` korvataan RSN:lläsi.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'drop julkaistaan, kun sen arvo on vähintään tämän verran (GE tai high alch, kumpi on suurempi) tai harvinaisempi kuin 1-in-N. Anvilin omat luvut ovat 1 000 000 gp ja 1 / 1 000, eikä kumpaakaan voi asettaa niitä löysemmäksi. Aseta luku 0:ksi kytkeäksesi sen pois. Klaanisi voi asettaa jäsenilleen omat oletuksensa; rivin alla lukee **Using your clan’s default**, kunnes kirjoitat oman luvun itse, ja **Reset to clan default** (tai **Reset to Anvil default**, jos sinulla ei ole klaania) palauttaa seurannan. Klaani voi myös asettaa kovan harvinaisuusrajan, joka koskee vain sen omien kanavien julkaisuja.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'kuvakaappaus tikistä, jolloin kohteesi putoaa 0 HP:hen. Oletuksena pois; täällä päällä.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'drop-julkaisujen pääkytkin.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'drop julkaistaan, kun sen arvo on vähintään tämän verran (GE tai high alch, kumpi on suurempi) tai harvinaisempi kuin 1-in-N. Anvil alkaa arvoista 1m ja 1/1,000. Klaanisi voi asettaa omat oletuksensa jäsenilleen, ja kunnes asetat oman lukusi, seuraat klaanisi lukua. **Reset to clan default** (tai **Reset to Anvil default**, jos sinulla ei ole klaania) palauttaa seurannan. Klaani voi myös asettaa kovan harvinaisuusrajan, joka koskee vain sen omien kanavien julkaisuja. Lukusi ei voi olla siellä löysempi, eikä se koskaan muuta arvorajaa. Aseta kumpi tahansa luku 0:ksi kytkeäksesi sen pois.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'oletuksena drop julkaistaan, kun se täyttää arvon **or** harvinaisuuden. Kytke **Require both** päälle, jolloin sen on täytettävä arvo **and** harvinaisuus. Klaanisi voi valita tämän oletuksen jäsenilleen. Kunnes valitset itse, seuraat sitä, ja ilman klaania riittää jompikumpi. Jokainen omista webhookeistasi voi myös asettaa oman vähimmäisarvonsa ja harvinaisuutensa sekä valita jompikumpi tai molemmat. Kaikki tyhjäksi jätetty seuraa asetuksiasi.',
+            label: 'Require both (and)',
+            body: 'oletuksena drop julkaistaan, kun se täyttää arvon **or** harvinaisuuden. Kytke **Require both (and)** päälle, jolloin sen on täytettävä arvo **and** harvinaisuus. Klaanisi voi valita tämän oletuksen jäsenilleen; kunnes valitset itse, rivin alla lukee **Using your clan’s choice**, ja ilman klaania kumpi tahansa käy. Jokainen omista webhookeistasi voi myös asettaa oman vähimmäisarvonsa, harvinaisuutensa sekä valita either/both; kaikki, mitä se jättää tyhjäksi, seuraa asetuksiasi.',
           },
           {
             label: 'Loot key value',
-            body: 'saaliisavain julkaistaan kerran yhtenä ilmoituksena, kun koko sisältö ylittää tämän luvun.',
+            body: 'saaliisavain julkaistaan kerran yhtenä ilmoituksena, kun koko sisältö ylittää tämän luvun. Se alkaa 1 000 000 gp:stä; 0 kytkee sen pois.',
           },
           {
-            label: 'Notify on pets',
-            body: 'petit julkaistaan harvinaisten dropien kanavalle.',
+            label: 'Pets',
+            body: 'petit julkaistaan klaanin drop-kanavalle. Oletuksena päällä.',
+          },
+          {
+            label: 'Deaths',
+            body: 'julkaistaan klaanin kuolemakanavalle kuvakaappauksen kera hetkestä, jolloin kuolit. Oletuksena päällä.',
+          },
+          {
+            label: 'Death message',
+            body: 'oma rivisi. `{name}` korvataan RSN:lläsi. Oletus on `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'kuvakaappaus tikistä, jolloin kohteesi putoaa 0 HP:hen, julkaistaan klaanin PvP-kanavalle. Oletuksena pois.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Ilmoitusosio Combat achievements, jossa jokainen asetus on kehystetty ja numeroitu',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Ilmoitusasetusten sivun What your plugin posts -kohdan ryhmä Achievements, jossa jokainen asetus on kehystetty ja numeroitu',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'alin tehtävätaso, joka julkaistaan; suoritetut tasot julkaistaan myös. Oletus on Master; Grandmaster julkaisee vain harvinaisimmat, **Off** ei mitään. Bingon CA-ruudut lasketaan joka tapauksessa.',
+            label: 'Collection log slots',
+            body: 'jokainen uusi collection log -paikka julkaistaan klaanin achievement-kanavalle. Oletuksena päällä.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'jokainen uusi paikka collection logissa.',
+            label: 'Level milestones',
+            body: 'tasonnousut, jotka klaanisi on päättänyt ilmoittaa — oletuksena 99:t, joka 100. kokonaistaso 1800:sta alkaen sekä max. Klaanisi ylläpitäjät asettavat säännöt; voit julkaista vähemmän (tai tehdä omat sääntösi henkilökohtaisille webhookeillesi) Announcements-asetuksista.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'tasonnousut, jotka klaanisi on päättänyt ilmoittaa — oletuksena 99:t, joka 100. kokonaistaso 1800:sta alkaen sekä max. Klaanisi ylläpitäjät asettavat säännöt; voit julkaista vähemmän (tai tehdä omat sääntösi henkilökohtaisille webhookeillesi) profiilisi Announcements-kohdasta.',
+            label: 'Diary completions',
+            body: 'achievement diary -tasot kuvakaappauksen kera. Oletuksena päällä.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'achievement diary -tasot, kuvakaappauksen kera.',
+            label: 'Diary tier',
+            body: 'alin diary-taso, joka julkaistaan. Se alkaa kohdasta **Clan default**, eli jokaisesta tasosta, ellei klaanisi ole valinnut toisin; voit valita tiukemman tason, et koskaan löysemmän kuin klaanisi.',
           },
           {
-            label: 'Quest post tier',
-            body: 'questit valitsemastasi vaikeustasosta ylöspäin, All (jokainen quest) -tasosta Grandmasteriin; **Off** ei julkaise mitään. Oletus on Master. Bingon quest-ruudut lasketaan joka tapauksessa.',
+            label: 'Combat task tier',
+            body: 'alin task-taso, joka julkaistaan; myös tason suoritukset julkaistaan. Se alkaa kohdasta **Clan default** (Master, ellei klaanisi ole valinnut toista tasoa); Grandmaster julkaisee vain harvinaisimmat, **Off** ei yhtään, eikä voi mennä klaania löysemmäksi. Bingon CA-ruudut lasketaan joka tapauksessa.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'questit valitsemastasi vaikeustasosta ylöspäin, All (jokainen quest) -tasosta Grandmasteriin; **Off** ei julkaise mitään. Se alkaa kohdasta **Clan default** (Master, ellei klaanisi ole valinnut toista). Bingon quest-ruudut lasketaan joka tapauksessa.',
           },
         ],
       },
@@ -1063,7 +1069,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Tiliä ei ole vielä yhdistetty. Avaa [Profile → havaitut tilit](/profile#detected-accounts) lisätäksesi sen tai aloittaaksesi omistajuustarkistuksen.',
+          body: 'Tiliä ei ole vielä yhdistetty. Avaa [Settings → Characters → We noticed you playing](/settings/characters#detected) lisätäksesi sen tai aloittaaksesi omistajuustarkistuksen.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1490,7 +1496,7 @@ const fi: PartialGuideDict = {
       ],
       figure: {
         caption: 'Tapahtuma → Teams & draft → joukkue → Team staff',
-        alt: 'Team staff -paneeli, jossa yksi paikka on myönnetty ja hakukenttä auki lisäämistä varten',
+        alt: 'Team staff -paneeli, jossa yksi paikka on myönnetty, ja kehystettynä Add someone -painike, paikka sen muistiinpanoineen sekä Remove-painike',
         legend: [
           {
             label: 'Add someone',
@@ -1550,7 +1556,7 @@ const fi: PartialGuideDict = {
         ],
       },
       shape:
-        'Linkki näyttää tältä: `{origin}/events/{eventId}/join/{token}` — yksi rivi, turvallinen liittää Discord-viestiin.',
+        'Linkki näyttää tältä: `{origin}/c/{clan}/events/{eventId}/join/{token}` — yksi rivi, turvallinen liittää Discord-viestiin.',
       note: {
         tag: 'Järkevät oletukset',
         body: 'Klaani vastaan klaani -tapahtumassa jossa olet sopinut kokoonpanosta yhden moderaattorin kanssa: jätä molemmat kentät arvoon `0` ja anna heidän hoitaa se. Turvaudu paikkoihin ja vanhenemiseen kun linkki menee jonnekin mitä et hallitse.',

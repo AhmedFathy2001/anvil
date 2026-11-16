@@ -844,21 +844,25 @@ const sv: PartialGuideDict = {
       title: 'Koppla dina konton',
       body: [
         'När token är inställd visas konton du spelar på automatiskt i din profil. Ett helt nytt konto kan kopplas direkt; ett konto som redan finns på en klanlista behöver först en ägarskapskontroll, eftersom ett offentligt RuneScape-namn inte bevisar vem som äger det.',
-        'För den första kopplingen använder du [den snabba XP-kontrollen](/profile#link-account), eller ber en klanmoderator godkänna kontot under [upptäckta konton](/profile#detected-accounts). Därefter följer det stabila kontofingeravtrycket namnbyten och känner igen kontot automatiskt.',
+        'För den första kopplingen använder du [den snabba XP-kontrollen](/settings/characters#link-account) eller ber en klanmoderator godkänna kontot, med utgångspunkt i [We noticed you playing](/settings/characters#detected). När kontot är bevisat sparar pluginet kontots stabila fingeravtryck, följer framtida namnbyten och känner igen kontot automatiskt vid varje inloggning.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'Kortet RuneScape Accounts på profilsidan som listar konton verifierade via pluginet',
+        caption: 'Settings → Characters',
+        alt: 'Sidan Characters under Settings, med listan över kopplade karaktärer och kortet We noticed you playing inramat',
         legend: [
           {
-            label: 'Dina kopplade konton',
-            body: 'allt märkt “Verified via plugin” är kopplat och känns igen automatiskt. Befintliga klanlistekonton kan först kräva en engångskontroll via XP eller moderator.',
+            label: 'Your linked characters',
+            body: 'allt som listas här är kopplat och känns igen automatiskt.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'karaktärer som pluginet såg dig spela men som ännu inte är kopplade. Tryck på **Verify ownership** för att koppla en (ett helt nytt konto kopplas direkt; ett konto som redan finns på en klanlista kräver först en engångskontroll via XP eller moderator), eller på **Not mine** för att avfärda den.',
           },
         ],
       },
       noPluginHeading: 'Kan du inte köra pluginet?',
       noPluginIntro:
-        'På mobil eller i den officiella klienten använder du [Profile → account linking](/profile#link-account) i stället:',
+        'På mobil eller i den officiella klienten använder du [Settings → Characters → Link a character](/settings/characters#link-account) i stället:',
       noPluginOptions: [
         '**Verify by XP** — skriv in ditt RSN, sajten väljer en slumpmässig färdighet, och du ska tjäna 1 000 XP i den inom 30 minuter.',
         '**Manual review** — för dolda Hiscores eller helt nya altkonton: skicka in ditt RSN med en kommentar så godkänner en moderator det.',
@@ -976,74 +980,76 @@ const sv: PartialGuideDict = {
     notifications: {
       title: 'Discord-notiser',
       intro:
-        'De skickas oavsett om en bingo pågår eller inte, och de postas i klanens kanaler. Vilken kanal bestämmer administratörerna här — du väljer bara _vad_ du postar. I nästa pluginuppdatering flyttar de här valen till webbplatsen, under **Settings → Discord posts & screenshots**, och följer med dig till varje dator. På samma sida väljer **Screenshot privacy** vilken chatt (privata meddelanden, offentlig chatt, klanchatt) som döljs på varje skärmdump pluginet tar. Pluginet behåller två reglage under **Notifications**: **Share clan posts** pausar alla inlägg från huvudspelet på en gång, och **Share seasonal activity** gör samma sak på Leagues, Deadman och andra säsongsvärldar.',
+        'Dessa skickas oavsett om en bingo pågår eller inte, och de postas i klanens kanaler. Vilken kanal som är inställd görs här av administratörerna — du väljer bara _vad_ du postar. Dessa val görs på webbplatsen, under **Settings → Posts & alerts → What your plugin posts**, och följer med dig till varje dator; pluginet har inte längre några egna inställningar för dem. På samma sida väljer **Screenshot privacy** vilken chatt (privata meddelanden, offentlig chatt, klanchatt) som döljs på varje skärmbild pluginet tar. Pluginet har två reglage under **Notifications**: **Share clan posts** pausar alla inlägg från huvudspelet på en gång, och **Share seasonal activity** gör samma sak för Leagues, Deadman och andra säsongsvärldar.',
       examplesFigure: {
         caption: 'Så ser en post ut',
         alt: 'Två Discord-poster från Anvil: en Grandmaster combat task med poäng och framsteg mot nästa upplåsning, och en död med sitt meddelande, båda med en skärmbild av ögonblicket',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Notisavsnitten Deaths and kills och Drops and pets med varje inställning inramad och numrerad',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Grupperna Drops & pets och Deaths & PvP under What your plugin posts på inställningssidan Posts & alerts, med varje inställning inramad och numrerad',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'postar i klanens dödskanal med en skärmbild av ögonblicket du dog.',
+            label: 'Rare drops',
+            body: 'huvudbrytaren för dropinlägg. Påslagen som standard.',
           },
           {
-            label: 'Death message',
-            body: 'din egen rad. `{name}` ersätts med ditt RSN.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'ett drop postas när det är värt minst detta (GE eller high alch, det som är högst) eller sällsyntare än 1 av N. Anvils egna tal är 1 000 000 gp och 1 av 1 000, och du kan inte ställa in något av dem mjukare än så. Sätt ett tal till 0 för att stänga av det. Din klan kan ställa in egna standarder för sina medlemmar; raden under varje ruta säger **Using your clan’s default** tills du själv skriver ett tal, och **Reset to clan default** (eller **Reset to Anvil default** om du saknar klan) går tillbaka till att följa den. En klan kan också sätta ett hårt sällsyntegolv, som bara gäller inlägg i just den klanens egna kanaler.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'en skärmbild av ticken då ditt mål når 0 HP. Av som standard; på här.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'huvudbrytaren för dropinlägg.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'ett drop postas när det är värt minst detta (GE eller high alch, det som är högst) eller sällsyntare än 1-av-N. Anvil börjar på 1m och 1/1,000. Din klan kan ställa in egna standarder för sina medlemmar, och tills du själv anger ett tal följer du klanens; **Reset to clan default** (eller **Reset to Anvil default** om du inte har någon klan) går tillbaka till att följa den. En klan kan också sätta ett hårt sällsyntegolv, som bara gäller inlägg i just den klanens egna kanaler. Ditt tal kan inte vara mjukare än så där, och det ändrar aldrig värdegränsen. Sätt något av talen till 0 för att stänga av det.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'som standard postas ett drop när det uppfyller värdet **or** sällsyntheten. Slå på **Require both** så måste det uppfylla värdet **and** sällsyntheten. Din klan kan välja den här standarden för sina medlemmar; tills du väljer följer du den, och utan klan gäller ett av dem. Var och en av dina egna webhooks kan också ange sitt eget minimivärde, sällsynthet och either/both; det som lämnas tomt följer dina inställningar.',
+            label: 'Require both (and)',
+            body: 'som standard postas ett drop när det uppfyller värdet **eller** sällsyntheten. Slår du på **Require both (and)** måste det uppfylla värdet **och** sällsyntheten. Din klan kan välja den här standarden för sina medlemmar; tills du väljer visar raden under rutan **Using your clan’s choice**, och utan klan gäller ett av dem. Var och en av dina egna webhooks kan också ange sitt eget minimivärde, sin egen sällsynthet och either/both; det som lämnas tomt följer dina inställningar.',
           },
           {
             label: 'Loot key value',
-            body: 'en lootnyckel postas en gång, som en enda notis, när hela innehållet når detta tal.',
+            body: 'en lootnyckel postas en gång, som en enda notis, när hela innehållet når detta tal. Den startar på 1 000 000 gp; 0 stänger av den.',
           },
           {
-            label: 'Notify on pets',
-            body: 'pets postas i kanalen för sällsynta drops.',
+            label: 'Pets',
+            body: 'pets postas i klanens drop-kanal. Påslaget som standard.',
+          },
+          {
+            label: 'Deaths',
+            body: 'postas i klanens dödskanal med en skärmbild av ögonblicket du dog. Påslaget som standard.',
+          },
+          {
+            label: 'Death message',
+            body: 'din egen rad. `{name}` ersätts med ditt RSN. Standardtexten är `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'en skärmbild av ticken då ditt mål når 0 HP, postad i klanens PvP-kanal. Avstängd som standard.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Notisavsnittet Combat achievements med varje inställning inramad och numrerad',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Gruppen Achievements under What your plugin posts på inställningssidan Posts & alerts, med varje inställning inramad och numrerad',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'den lägsta uppgiftsnivån som postas; avklarade nivåer postas också. Standard är Master; Grandmaster postar bara de allra ovanligaste, **Off** postar inga. CA-rutor i bingo räknas oavsett.',
+            label: 'Collection log slots',
+            body: 'varje ny plats i collection log, postad i klanens achievement-kanal. Påslagen som standard.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'varje ny plats i collection log.',
+            label: 'Level milestones',
+            body: 'nivåhöjningar som din klan har valt att annonsera — som standard 99:or, var 100:e totalnivå från 1800 och max. Klanens administratörer bestämmer reglerna; du kan posta mindre (eller ställa in egna regler för dina personliga webhooks) under inställningarna för Announcements.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'levlingar som din klan har valt att annonsera — som standard 99:or, varje 100 totalnivåer från 1800, samt max. Klanens administratörer bestämmer reglerna; du kan posta mindre (eller ställa in egna regler för dina personliga webhooks) under Announcements på din profil.',
+            label: 'Diary completions',
+            body: 'nivåer i achievement diary, med en skärmbild. Påslagen som standard.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'nivåer i achievement diary, med en skärmbild.',
+            label: 'Diary tier',
+            body: 'den lägsta diary-nivån som postas. Den startar på **Clan default**, vilket är alla nivåer om inte din klan valt annat; du kan välja en strängare nivå, aldrig en mjukare än klanens.',
           },
           {
-            label: 'Quest post tier',
-            body: 'quests från den svårighetsgrad du väljer och uppåt, från All (varje quest) upp till Grandmaster; **Off** postar inga. Standard är Master. Quest-rutor i bingo räknas oavsett.',
+            label: 'Combat task tier',
+            body: 'den lägsta uppgiftsnivån som postas; avklarade nivåer postas också. Den startar på **Clan default** (Master om inte din klan valt en annan nivå); Grandmaster postar bara de allra ovanligaste, **Off** postar inga, och du kan inte gå mjukare än klanen. CA-rutor i bingo räknas oavsett.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'quests från den svårighetsgrad du väljer och uppåt, från All (varje quest) upp till Grandmaster; **Off** postar inga. Den startar på **Clan default** (Master om inte din klan valt en annan). Quest-rutor i bingo räknas oavsett.',
           },
         ],
       },
@@ -1064,7 +1070,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Kontot är inte kopplat än. Öppna [Profile → upptäckta konton](/profile#detected-accounts) för att lägga till det eller starta ägarskapskontrollen.',
+          body: 'Kontot är inte kopplat än. Öppna [Settings → Characters → We noticed you playing](/settings/characters#detected) för att lägga till det eller starta ägarskapskontrollen.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1491,7 +1497,7 @@ const sv: PartialGuideDict = {
       ],
       figure: {
         caption: 'Eventet → Teams & draft → laget → Team staff',
-        alt: 'Team staff-panelen med en tilldelad plats och sökfältet öppet för att lägga till fler',
+        alt: 'Team staff-panelen med en tilldelad plats, med knappen Add someone, platsen och dess notering samt knappen Remove inramade',
         legend: [
           {
             label: 'Add someone',
@@ -1551,7 +1557,7 @@ const sv: PartialGuideDict = {
         ],
       },
       shape:
-        'Länken ser ut så här: `{origin}/events/{eventId}/join/{token}` — en rad, trygg att klistra in i ett Discord-meddelande.',
+        'Länken ser ut så här: `{origin}/c/{clan}/events/{eventId}/join/{token}` — en rad, trygg att klistra in i ett Discord-meddelande.',
       note: {
         tag: 'Vettiga standardval',
         body: 'I ett klan-mot-klan där du kommit överens om en trupp med en moderator: lämna båda fälten på `0` och låt dem sköta det. Ta till platser och giltighetstid när länken ska någonstans du inte kontrollerar.',

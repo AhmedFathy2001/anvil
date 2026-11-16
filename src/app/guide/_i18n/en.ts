@@ -853,21 +853,25 @@ export const en = {
       title: 'Link your accounts',
       body: [
         'Once the token is in, accounts you play appear on your profile automatically. A brand-new account can link immediately; an account already on a clan roster needs one ownership check first, because a public RuneScape name is not proof that the person holding the token owns it.',
-        'For that first link, use [the quick XP check](/profile#link-account) or ask a clan moderator to approve it under [accounts we noticed](/profile#detected-accounts). After it is proven, the plugin stores its stable account fingerprint, follows future name changes, and recognises it automatically on every login.',
+        'For that first link, use [the quick XP check](/settings/characters#link-account) or ask a clan moderator to approve it, starting from [We noticed you playing](/settings/characters#detected). After it is proven, the plugin stores its stable account fingerprint, follows future name changes, and recognises it automatically on every login.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'The RuneScape Accounts card on the profile page listing accounts verified via plugin',
+        caption: 'Settings → Characters',
+        alt: 'The Characters page under Settings, with the linked characters list and the We noticed you playing card boxed',
         legend: [
           {
-            label: 'Your linked accounts',
-            body: 'anything marked “Verified via plugin” is linked and will be recognised automatically. Established roster accounts may ask for a one-time XP or moderator check first.',
+            label: 'Your linked characters',
+            body: 'anything listed here is linked and will be recognised automatically.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'characters the plugin saw you play that aren’t linked yet. Press **Verify ownership** to link one (a brand-new account links straight away; one already on a clan roster asks for a one-time XP or moderator check first), or **Not mine** to dismiss it.',
           },
         ],
       },
       noPluginHeading: 'Can’t run the plugin?',
       noPluginIntro:
-        'On mobile or the official client, use [Profile → account linking](/profile#link-account) instead:',
+        'On mobile or the official client, use [Settings → Characters → Link a character](/settings/characters#link-account) instead:',
       noPluginOptions: [
         '**Verify by XP** — enter your RSN, the site picks a random skill, gain 1,000 XP in it within 30 minutes.',
         '**Manual review** — for hidden Hiscores or fresh alts: submit your RSN with a note and a moderator approves it.',
@@ -974,51 +978,55 @@ export const en = {
     notifications: {
       title: 'Discord notifications',
       intro:
-        'These fire whether or not a bingo is running, and they post to the clan’s channels. Which channel is set up here by the admins — you only choose _what_ you post. In the next plugin update these choices move to the website, under **Settings → Discord posts & screenshots**, and follow you to every computer. On the same page, **Screenshot privacy** picks which chat (private messages, public chat, clan chat) is hidden in every screenshot the plugin takes. The plugin keeps two switches under **Notifications**: **Share clan posts** pauses every main-game post at once, and **Share seasonal activity** does the same on Leagues, Deadman and other seasonal worlds.',
+        'These fire whether or not a bingo is running, and they post to the clan’s channels. Which channel is set up here by the admins — you only choose _what_ you post. These choices live on the website, under **Settings → Posts & alerts → What your plugin posts**, and follow you to every computer; the plugin itself no longer has settings for them. On the same page, **Screenshot privacy** picks which chat (private messages, public chat, clan chat) is hidden in every screenshot the plugin takes. The plugin keeps two switches under **Notifications**: **Share clan posts** pauses every main-game post at once, and **Share seasonal activity** does the same on Leagues, Deadman and other seasonal worlds.',
       examplesFigure: {
         caption: 'What a post looks like',
         alt: 'Two Discord posts from Anvil: a Grandmaster combat task with points and progress to the next unlock, and a death with its message, each with a screenshot of the moment',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'The Deaths and kills and Drops and pets notification sections with each setting boxed and numbered',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'The Drops & pets and Deaths & PvP groups under What your plugin posts on the Posts & alerts settings page, with each setting boxed and numbered',
         legend: [
-          { label: 'Notify on death', body: 'posts to the clan deaths channel with a screenshot of the moment you died.' },
-          { label: 'Death message', body: 'your own line. `{name}` is replaced with your RSN.' },
-          { label: 'Notify on PvP kill', body: 'a screenshot of the tick your target hits 0 HP. Off by default; on here.' },
-          { label: 'Notify on rare drops', body: 'the master switch for drop posts.' },
+          { label: 'Rare drops', body: 'the master switch for drop posts. On by default.' },
           {
-            label: 'Min drop value / Min drop rarity',
-            body: 'a drop posts when it is worth at least this much (GE or high alch, whichever is higher) or rarer than 1-in-N. Anvil starts at 1m and 1/1,000. Your clan can set its own defaults for its members, and until you set a number yourself you follow your clan\'s; **Reset to clan default** (or **Reset to Anvil default** if you have no clan) goes back to following it. A clan can also set a hard rarity floor, which only applies to posts in that clan’s own channels. Your number can’t go looser than it there, and it never changes the value limit. Set either number to 0 to switch it off.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'a drop posts when it is worth at least this much (GE or high alch, whichever is higher) or rarer than 1-in-N. Anvil’s own numbers are 1,000,000 gp and 1 in 1,000, and you can’t set either looser than that. Set a number to 0 to switch it off. Your clan can set its own defaults for its members; the line under each box says **Using your clan’s default** until you type a number yourself, and **Reset to clan default** (or **Reset to Anvil default** if you have no clan) goes back to following it. A clan can also set a hard rarity floor, which only applies to posts in that clan’s own channels.',
           },
           {
-            label: 'Value and rarity together',
-            body: 'by default a drop posts when it meets the value **or** the rarity. Turn on **Require both** and it must meet the value **and** the rarity. Your clan can choose this default for its members; until you choose, you follow it, and with no clan it is either one. Each of your own webhooks can also set its own minimum value, rarity and either/both; anything it leaves blank follows your settings.',
+            label: 'Require both (and)',
+            body: 'by default a drop posts when it meets the value **or** the rarity. Turn on **Require both (and)** and it must meet the value **and** the rarity. Your clan can choose this default for its members; until you choose, the line under the box says **Using your clan’s choice**, and with no clan it is either one. Each of your own webhooks can also set its own minimum value, rarity and either/both; anything it leaves blank follows your settings.',
           },
           {
             label: 'Loot key value',
-            body: 'a loot key posts once, as a single notification, when its whole contents clear this number.',
+            body: 'a loot key posts once, as a single notification, when its whole contents clear this number. It starts at 1,000,000 gp; 0 switches it off.',
           },
-          { label: 'Notify on pets', body: 'pets post to the rare-drops channel.' },
+          { label: 'Pets', body: 'pets post to the clan drops channel. On by default.' },
+          { label: 'Deaths', body: 'posts to the clan deaths channel with a screenshot of the moment you died. On by default.' },
+          { label: 'Death message', body: 'your own line. `{name}` is replaced with your RSN. The default is `{name} just died!`.' },
+          { label: 'PvP kills', body: 'a screenshot of the tick your target hits 0 HP, posted to the clan PvP channel. Off by default.' },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'The Combat achievements notification section with each setting boxed and numbered',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'The Achievements group under What your plugin posts on the Posts & alerts settings page, with each setting boxed and numbered',
         legend: [
+          { label: 'Collection log slots', body: 'every new collection-log slot, posted to the clan achievements channel. On by default.' },
           {
-            label: 'CA post tier',
-            body: 'the lowest task tier that posts; tier clears post too. The default is Master; Grandmaster posts only the rarest, **Off** posts none. Bingo CA tiles count either way.',
+            label: 'Level milestones',
+            body: 'level-ups your clan has chosen to announce — by default 99s, every 100 total levels from 1800, and max. Your clan’s admins set the rules; you can post less (or set your own rules for your personal webhooks) from the Announcements settings.',
           },
-          { label: 'Notify on collection log slots', body: 'every new collection-log slot.' },
+          { label: 'Diary completions', body: 'achievement-diary tiers, with a screenshot. On by default.' },
           {
-            label: 'Notify on level milestones',
-            body: 'level-ups your clan has chosen to announce — by default 99s, every 100 total levels from 1800, and max. Your clan’s admins set the rules; you can post less (or set your own rules for your personal webhooks) from your profile’s Announcements.',
+            label: 'Diary tier',
+            body: 'the lowest diary tier that posts. It starts on **Clan default**, which is every tier unless your clan chose otherwise; you can pick a stricter tier, never a looser one than your clan’s.',
           },
-          { label: 'Notify on diary completions', body: 'achievement-diary tiers, with a screenshot.' },
           {
-            label: 'Quest post tier',
-            body: 'quests at or above the difficulty you pick, from All (every quest) up to Grandmaster; **Off** posts none. The default is Master. Bingo quest tiles count either way.',
+            label: 'Combat task tier',
+            body: 'the lowest task tier that posts; tier clears post too. It starts on **Clan default** (Master unless your clan chose another tier); Grandmaster posts only the rarest, **Off** posts none, and you can’t go looser than your clan. Bingo CA tiles count either way.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'quests at or above the difficulty you pick, from All (every quest) up to Grandmaster; **Off** posts none. It starts on **Clan default** (Master unless your clan chose another). Bingo quest tiles count either way.',
           },
         ],
       },
@@ -1039,7 +1047,7 @@ export const en = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'That account isn’t linked yet. Open [Profile → accounts we noticed](/profile#detected-accounts) to add it or start the ownership check.',
+          body: 'That account isn’t linked yet. Open [Settings → Characters → We noticed you playing](/settings/characters#detected) to add it or start the ownership check.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1463,7 +1471,7 @@ export const en = {
       ],
       figure: {
         caption: 'Event → Teams & draft → the team → Team staff',
-        alt: 'The Team staff panel with one seat granted and the add-someone search open',
+        alt: 'The Team staff panel with one seat granted, with the Add someone button, the seat and its note, and the Remove button boxed',
         legend: [
           {
             label: 'Add someone',
@@ -1522,7 +1530,7 @@ export const en = {
           },
         ],
       },
-      shape: 'The link looks like `{origin}/events/{eventId}/join/{token}` — one line, safe to paste into a Discord message.',
+      shape: 'The link looks like `{origin}/c/{clan}/events/{eventId}/join/{token}` — one line, safe to paste into a Discord message.',
       note: {
         tag: 'Sensible defaults',
         body: 'For a clan-v-clan where you’ve agreed a roster with one moderator, leave both fields at `0` and let them run it. Reach for seats and expiry when the link is going somewhere you don’t control.',

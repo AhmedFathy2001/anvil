@@ -838,21 +838,25 @@ const zhHans: PartialGuideDict = {
       title: '关联你的账号',
       body: [
         '令牌设置完成后，你玩过的账号会自动显示在个人资料中。全新账号可以立即关联；已在公会名单中的账号需要先完成一次所有权验证，因为公开的 RuneScape 名称并不能证明账号属于谁。',
-        '首次关联时，请使用[快速 XP 验证](/profile#link-account)，或请公会管理员在[检测到的账号](/profile#detected-accounts)中批准。验证后，稳定的账号指纹会跟随改名，并自动识别该账号。',
+        '首次关联时，请使用[快速 XP 检查](/settings/characters#link-account)，或请公会管理员批准；可从 [We noticed you playing](/settings/characters#detected) 开始。验证完成后，插件会保存稳定的账号指纹，之后的改名会自动跟随，并在每次登录时自动识别该账号。',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: '个人资料页上的 RuneScape Accounts 卡片，列出通过插件验证的账号',
+        caption: 'Settings → Characters',
+        alt: '设置下的 Characters 页面，标出了已关联账号列表和 We noticed you playing 卡片',
         legend: [
           {
-            label: '你已关联的账号',
-            body: '标有 “Verified via plugin” 的账号已经关联，之后会被自动识别。已有公会名单的账号可能需要先进行一次 XP 验证或管理员批准。',
+            label: 'Your linked characters',
+            body: '这里列出的任何账号都已关联，并会被自动识别。',
+          },
+          {
+            label: 'We noticed you playing',
+            body: '插件检测到你玩过、但尚未关联的账号。点击 **Verify ownership** 即可关联（全新账号会立即关联；已在公会名单中的账号需要先进行一次性的 XP 或管理员检查），或点击 **Not mine** 将其忽略。',
           },
         ],
       },
       noPluginHeading: '没法运行插件？',
       noPluginIntro:
-        '在手机或官方客户端上，请改用 [Profile → account linking](/profile#link-account)：',
+        '在手机或官方客户端上，请改用 [Settings → Characters → Link a character](/settings/characters#link-account)：',
       noPluginOptions: [
         '**Verify by XP** —— 输入你的 RSN，网站随机挑一项技能，你需在 30 分钟内在该技能上获得 1,000 经验。',
         '**Manual review** —— 适用于隐藏了 Hiscores 或全新的小号：提交你的 RSN 并附上说明，由管理员批准。',
@@ -970,74 +974,76 @@ const zhHans: PartialGuideDict = {
     notifications: {
       title: 'Discord 通知',
       intro:
-        '无论是否有宾果在进行，这些都会发出，并且发到氏族的频道里。发到哪个频道由管理员在这里决定 —— 你只选择_发什么_。下一次插件更新后，这些选择会移到网站的 **Settings → Discord posts & screenshots**，在任何电脑上都一样。同一页面的 **Screenshot privacy** 可以选择在插件拍摄的每张截图中隐藏哪些聊天（私信、公共聊天、部落聊天）。插件在 **Notifications** 下保留两个开关：**Share clan posts** 一次性暂停所有主游戏的帖子，**Share seasonal activity** 在 Leagues、Deadman 等季节性世界做同样的事。',
+        '无论是否有宾果在进行，这些通知都会发出，并发布到公会的频道。发布到哪个频道由管理员在这里设定，你只需选择_发布什么_。这些选择保存在网站上，位于 **Settings → Posts & alerts → What your plugin posts** 下，并会跟随你到每台电脑；插件本身不再有这些设置。同一页面上的 **Screenshot privacy** 可以选择在插件拍摄的每张截图中隐藏哪些聊天（私信、公共聊天、公会聊天）。插件在 **Notifications** 下保留两个开关：**Share clan posts** 可一次性暂停所有主游戏的发布，**Share seasonal activity** 对 Leagues、Deadman 等季节性世界做同样的事。',
       examplesFigure: {
         caption: '一条帖子的样子',
         alt: 'Anvil 发出的两条 Discord 帖子：一条是 Grandmaster 战斗任务，附有积分和距下一次解锁的进度；一条是死亡记录及其消息，各自附有当时的截图',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Deaths and kills 与 Drops and pets 两个通知区块，每一项设置都被方框标出并编号',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Settings → Posts & alerts 页面上 What your plugin posts 下的 Drops & pets 与 Deaths & PvP 分组，每项设置都被方框标出并编号',
         legend: [
           {
-            label: 'Notify on death',
-            body: '在你死亡的那一刻，附带截图发送到团队死亡频道。',
+            label: 'Rare drops',
+            body: '掉落发布的总开关，默认开启。',
           },
           {
-            label: 'Death message',
-            body: '你自己的文字。`{name}` 会被替换为你的 RSN。',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: '掉落物的价值不低于此数（GE 或高价炼金，取较高者），或稀有度高于 1-in-N 时发布。Anvil 的默认值为 1,000,000 gp 和 1 in 1,000，两者都不能设得比这更宽松。将数值设为 0 即可关闭。你的公会可以为成员设置各自的默认值；在你自己输入数字之前，每个输入框下方会显示 **Using your clan’s default**，点击 **Reset to clan default**（若你没有公会，则为 **Reset to Anvil default**）即可恢复为跟随公会的设置。公会还可以设置硬性的稀有度下限，它只作用于该公会自己频道中的发布。',
           },
           {
-            label: 'Notify on PvP kill',
-            body: '目标生命值降至 0 的那一 tick 的截图。默认关闭；此处已开启。',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: '掉落帖子的总开关。',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              '掉落物价值不低于此数（GE 或高价炼金中较高者）或稀有度高于 1/N 时发布。Anvil 默认为 1m 和 1/1,000。你的团队可以为成员设置自己的默认值，在你自己设置数值之前，你会遵循团队的设置；**Reset to clan default**（若无团队则为 **Reset to Anvil default**）可恢复为遵循团队设置。团队还可以设置硬性稀有度下限，它只作用于该团队自己频道中的帖子。你的数值在那里不能比它更宽松，并且它从不改变价值限制。将任一数值设为 0 即可关闭。',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              '默认情况下，掉落满足价值**or**稀有度即发布。开启 **Require both** 后，必须同时满足价值**and**稀有度。你的团队可以为成员选择此默认值；在你自行选择之前，你会遵循它，若无团队则满足其中一项即可。你自己的每个 webhook 也可以设置各自的最低价值、稀有度以及 either/both（任一/两者）；留空的项遵循你的设置。',
+            label: 'Require both (and)',
+            body: '默认情况下，掉落满足价值**或**稀有度之一即发布。开启 **Require both (and)** 后，必须同时满足价值**和**稀有度。公会可以为成员选择此默认值；在你自行选择之前，输入框下方会显示 **Using your clan’s choice**，没有公会时则二者择一。你自己的每个 webhook 也可以设置各自的最低价值、稀有度以及 either/both；留空的项遵循你的设置。',
           },
           {
             label: 'Loot key value',
-            body: '当一把 loot key 的全部内容达到此数值时，它会作为一条通知发布一次。',
+            body: '当一个 loot key 的全部内容达到此数值时，会作为一条通知发布一次。默认为 1,000,000 gp；设为 0 即关闭。',
           },
           {
-            label: 'Notify on pets',
-            body: '宠物发布到稀有掉落频道。',
+            label: 'Pets',
+            body: '宠物发布到公会的掉落频道，默认开启。',
+          },
+          {
+            label: 'Deaths',
+            body: '发布到公会的死亡频道，附带你死亡那一刻的截图，默认开启。',
+          },
+          {
+            label: 'Death message',
+            body: '你自己的死亡文案。`{name}` 会被替换为你的 RSN，默认为 `{name} just died!`。',
+          },
+          {
+            label: 'PvP kills',
+            body: '目标生命值降至 0 那一 tick 的截图，发布到公会的 PvP 频道，默认关闭。',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Combat achievements 通知区块，每一项设置都被方框标出并编号',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Settings → Posts & alerts 页面上 What your plugin posts 下的 Achievements 分组，每项设置都被方框标出并编号',
         legend: [
           {
-            label: 'CA post tier',
-            body: '会播报的最低任务层级；完成整个层级时也会播报。默认是 Master；Grandmaster 只播报最稀有的，**Off** 则一条都不发。无论如何，宾果的 CA 格子都照常计数。',
+            label: 'Collection log slots',
+            body: '每个新的 collection-log 格位都会发布到公会的成就频道，默认开启。',
           },
           {
-            label: 'Notify on collection log slots',
-            body: '每个新解锁的 collection log 格位。',
+            label: 'Level milestones',
+            body: '公会选择播报的升级 —— 默认为 99 级、从 1800 总等级起每 100 总等级，以及满级。规则由公会管理员设定；你可以在 Announcements 设置中少发一些（或为你的个人 webhook 设定自己的规则）。',
           },
           {
-            label: 'Notify on level milestones',
-            body: '你的氏族选择播报的升级 —— 默认是 99 级、从 1800 起每 100 总等级，以及满级。规则由氏族管理员设定；你可以在个人资料的 Announcements 中少发一些（或为你的个人 webhook 设定自己的规则）。',
+            label: 'Diary completions',
+            body: '成就日记的各个层级，附带截图，默认开启。',
           },
           {
-            label: 'Notify on diary completions',
-            body: '成就日记的各个层级，附带截图。',
+            label: 'Diary tier',
+            body: '会发布的最低日记层级。默认为 **Clan default**，即除非公会另有选择，否则所有层级都会发布；你可以选择比公会更严格的层级，但不能更宽松。',
           },
           {
-            label: 'Quest post tier',
-            body: '你选定难度及以上的任务，从 All（所有任务）到 Grandmaster；**Off** 则一条都不发。默认是 Master。无论如何，宾果的任务格子都照常计数。',
+            label: 'Combat task tier',
+            body: '会发布的最低任务层级；完成整个层级时也会发布。默认为 **Clan default**（除非公会选择了其他层级，否则为 Master）；Grandmaster 只发布最稀有的，**Off** 则一条都不发，你的设置也不能比公会更宽松。宾果的 CA 格子无论如何都会计数。',
+          },
+          {
+            label: 'Quest tier',
+            body: '达到你所选难度及以上的任务会发布，从 All（所有任务）到 Grandmaster；**Off** 则一条都不发。默认为 **Clan default**（除非公会另有选择，否则为 Master）。宾果的任务格子无论如何都会计数。',
           },
         ],
       },
@@ -1058,7 +1064,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: '该账号尚未关联。打开 [Profile → 检测到的账号](/profile#detected-accounts)以添加它或开始所有权验证。',
+          body: '该账号尚未关联。打开 [Settings → Characters → We noticed you playing](/settings/characters#detected) 以添加它或开始所有权验证。',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1485,7 +1491,7 @@ const zhHans: PartialGuideDict = {
       ],
       figure: {
         caption: '活动 → Teams & draft → 该队伍 → Team staff',
-        alt: 'Team staff 面板，已授予一个席位，添加成员的搜索框处于打开状态',
+        alt: 'Team staff 面板，已授予一个席位，标出了 Add someone 按钮、该席位及其备注，以及 Remove 按钮',
         legend: [
           {
             label: 'Add someone',
@@ -1545,7 +1551,7 @@ const zhHans: PartialGuideDict = {
         ],
       },
       shape:
-        '链接长这样：`{origin}/events/{eventId}/join/{token}` —— 一行，可以放心粘进 Discord 消息。',
+        '链接形如 `{origin}/c/{clan}/events/{eventId}/join/{token}` —— 一行，可以放心粘贴到 Discord 消息中。',
       note: {
         tag: '合理的默认值',
         body: '如果这是一场氏族对抗赛，而且你已经和某位管理员谈好了阵容，那就把两个字段都留在 `0`，让他们自己安排。只有当链接要去一个你控制不了的地方时，才动用席位数和过期时间。',
