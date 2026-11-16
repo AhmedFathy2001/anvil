@@ -269,7 +269,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   // Read through the tile-data cache: a hover/focus on the tile warmed it already, a reopened tile
   // paints its last proof at once, and the fresh read replaces it when it lands.
   const proofRows = useTileData<FullSubmission[]>(selectedTileId ? tileProofUrl(event.id, selectedTileId, lensTeamId) : null, []);
-  const proofForOpenTile = selectedTileId ? (Array.isArray(proofRows) ? proofRows : null) : null;
+  // Any answer is an answer: an empty list reads as empty, and an odd shape is no proof, never "loading".
+  const proofForOpenTile = selectedTileId ? (proofRows === undefined ? null : Array.isArray(proofRows) ? proofRows : []) : null;
   const intentTile = useCallback(
     (tileId: number) => {
       const t = tiles.find((x) => x.id === tileId);
