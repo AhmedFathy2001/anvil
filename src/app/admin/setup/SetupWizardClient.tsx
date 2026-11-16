@@ -159,7 +159,7 @@ export default function SetupWizardClient({ initial, channels, provisioned, chec
           {isDone
             ? rosterDone(initial)
               ? 'Your clan is ready to run its first bingo.'
-              : 'One thing left: load your member list from the plugin. Nobody can sign up for an event until it is in.'
+              : 'One thing left: load your member list from the plugin, so your clanmates are members. Until it is in, people can still join your events as guests.'
             : 'A few quick questions to get your clan running. You can change any of this later.'}
         </p>
       </header>

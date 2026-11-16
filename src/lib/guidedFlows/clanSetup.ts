@@ -79,7 +79,7 @@ export function clanSetupFlow(f: ClanSetupFacts): FlowView {
         return {
           title: 'Bring your members in',
           sentence:
-            'Press the Anvil button in your clan window to load the member list, because nobody can sign up for an event until they are on it.',
+            'Press the Anvil button in your clan window to load the member list. That is how your clanmates become members; anyone else can still sign up for your events as a guest.',
           action: { kind: 'link', label: 'Show me the steps', href: '/admin/setup?step=game' },
           guideHref: '/guide/admin#roster',
         };

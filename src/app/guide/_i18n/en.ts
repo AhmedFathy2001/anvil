@@ -406,7 +406,7 @@ export const en = {
         },
         {
           term: 'Bring your members in',
-          body: 'Install the plugin, sign in with Discord, then open your clan window in game and press the **Anvil** button in its title bar. Nobody can sign up for an event until your member list is in.',
+          body: 'Install the plugin, sign in with Discord, then open your clan window in game and press the **Anvil** button in its title bar. That list is where your members come from. Until it is in, people can still sign up for your events as guests.',
         },
         {
           term: 'Make a board',
@@ -430,7 +430,7 @@ export const en = {
         },
         {
           term: 'They ask to join',
-          body: 'Signing in or playing with the plugin never gives anyone a seat by itself. If the plugin sees someone playing in your in-game clan before your roster has them, it files a join request for them, and anyone else can ask with **Apply** on your clan page. Staff answer both at the top of the **Roster** tab, and **Who can join** decides whether they wait for a yes, get in straight away, or cannot ask at all. Someone who plays a character already on your roster is confirmed under **Needs review** instead. The details are in [Your people]({peopleGuide}).',
+          body: 'Members come only from your in-game member list. If the plugin sees someone playing in your in-game clan before your roster has them, it files a join request for them, which staff answer at the top of the **Roster** tab. Anyone else can press **Apply** on your clan page with their in-game name: someone who confirms the character with the plugin or the XP check becomes a guest straight away, and someone who asks your staff to vouch is added as a guest and held under **Needs review** until you answer. Setting **Who can join** to closed stops all of it. Someone who plays a character already on your roster is confirmed under **Needs review** instead. The details are in [Your people]({peopleGuide}).',
         },
         {
           term: 'By hand',
@@ -874,9 +874,9 @@ export const en = {
         'On mobile or the official client, use [Settings → Characters → Link a character](/settings/characters#link-account) instead:',
       noPluginOptions: [
         '**Verify by XP** — enter your RSN, the site picks a random skill, gain 1,000 XP in it within 30 minutes.',
-        '**Manual review** — for hidden Hiscores or fresh alts: submit your RSN with a note and a moderator approves it.',
+        '**Manual review** — for hidden Hiscores or fresh alts: on a clan’s page, ask its staff to vouch for your RSN. You can sign up for its events straight away, and your sign-up is held until they answer.',
       ],
-      signupNote: 'Event sign-ups need at least one verified account, so get this done before you sign up.',
+      signupNote: 'You can sign up for an event as soon as you have named your character. With the plugin or a passed XP check you are in straight away. If you asked staff to vouch, your sign-up is held until they answer.',
     },
 
     working: {
@@ -1447,7 +1447,7 @@ export const en = {
       ],
       note: {
         tag: 'What an invite is not',
-        body: 'It is not a login and not a shortcut past verification. Whoever opens it still signs in with Discord and still needs a verified RSN, exactly like any other sign-up. The only things the link decides are _which team_ the sign-up joins and that it needs nobody’s approval.',
+        body: 'It is not a login and not a shortcut past verification. Whoever opens it still signs in with Discord and still names their RSN, exactly like any other sign-up. The only things the link decides are _which team_ the sign-up joins and that it needs nobody’s approval. A character still waiting for staff to vouch joins the team once they confirm it.',
       },
     },
 
@@ -1580,7 +1580,7 @@ export const en = {
           },
           {
             label: 'The rest of the form',
-            body: 'unchanged. A verified RSN is still required, sign-up questions are still asked, and a sign-up fee still applies.',
+            body: 'unchanged. An RSN is still required, sign-up questions are still asked, and a sign-up fee still applies.',
           },
         ],
       },
@@ -2442,7 +2442,7 @@ export const en = {
     verify: {
       title: 'Verifying accounts',
       intro:
-        'Nobody can sign up for an event without at least one verified account, so this queue directly blocks people from playing. It is the one worth clearing daily.',
+        'People can sign up straight away, but someone who asked you to vouch is held until you answer here: signed up, on no team. So this queue directly keeps people from playing. It is the one worth clearing daily.',
       rows: [
         {
           term: 'Verified by plugin',
@@ -2454,7 +2454,7 @@ export const en = {
         },
         {
           term: 'Manual review',
-          body: 'hidden Hiscores, or an alt too fresh to appear on them. Someone submits an RSN with a note and you decide. Ask for a screenshot of the login screen if the note isn’t enough.',
+          body: 'hidden Hiscores, or an alt too fresh to appear on them. Someone asks you to vouch for an RSN and you decide. They are added as a guest at once and can sign up, but their sign-ups are held, on no team, until you approve. Approving completes them and **Not our member** withdraws them. Ask for a screenshot of the login screen if you are not sure.',
         },
       ],
       note: {
