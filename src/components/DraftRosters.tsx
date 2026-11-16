@@ -1,5 +1,7 @@
 'use client';
 
+import PathChip from '@/components/PathChip';
+import type { JoinPath } from '@/lib/characterState';
 import PlayerRatingBadge from '@/components/PlayerRatingBadge';
 import type { PlayerRatings } from '@/hooks/usePlayerRatings';
 
@@ -43,6 +45,8 @@ interface Props {
   accountSlotMode?: string; // 'per-person' counts a person's accounts as one toward the headcount
   /** Staff-only pool ratings. Omitted on the public spectator board — no badges render there. */
   ratings?: PlayerRatings | null;
+  /** Staff-only: how each player's character came in, by player id (PathChip). Omitted for spectators and captains. */
+  paths?: Record<number, JoinPath>;
 }
 
 // How many "slots" a roster fills: distinct people in per-person mode, else raw account rows.
@@ -60,7 +64,7 @@ function formatCompact(value: number, type: string): string {
   return `${value.toLocaleString()} kc`;
 }
 
-export default function DraftRosters({ players, teams, teamOrder, onPlayerClick, gainsData, tileGoals, accountSlotMode, ratings }: Props) {
+export default function DraftRosters({ players, teams, teamOrder, onPlayerClick, gainsData, tileGoals, accountSlotMode, ratings, paths }: Props) {
   const perPerson = accountSlotMode === 'per-person';
   const pickedPlayers = players
     .filter((p) => p.teamId !== null)
@@ -114,6 +118,7 @@ export default function DraftRosters({ players, teams, teamOrder, onPlayerClick,
                         ) : (
                           <span className="text-foreground">{p.name}</span>
                         )}
+                        {paths && <PathChip path={paths[p.id]} />}
                         <PlayerRatingBadge ratings={ratings} playerId={p.id} className="ml-auto" />
                       </div>
                       {pg && tileGoals && tileGoals.length > 0 && (

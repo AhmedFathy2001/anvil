@@ -1613,7 +1613,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Team Rosters
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
           </div>
         )}
@@ -2154,7 +2154,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Draft results
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
             )}
           </div>
