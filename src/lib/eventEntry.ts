@@ -62,6 +62,7 @@ export async function enterEvent(opts: {
   let invited = false;
   if (isWellFormedToken(opts.inviteToken)) {
     const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, opts.inviteToken!) });
+    // clan-scope: global -- the event named by the invite's own URL; the invite check below pins the token to it.
     const ev = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
     invited = !!row && !!ev && checkInvite(row, { now: Date.now(), eventId: opts.eventId, signupsOpen: true }).ok;
   }
