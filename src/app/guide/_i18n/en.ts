@@ -2450,7 +2450,7 @@ export const en = {
         },
         {
           term: 'Verify by XP',
-          body: 'for players without the plugin. The site picks a random skill and they gain 1,000 XP in it within thirty minutes. It checks itself, and a pass still lands in **Needs review** for your yes or no, because XP shows someone trained, not who. A failed check is the one to look at more closely.',
+          body: 'for players without the plugin. The site picks a random skill and they gain 1,000 XP in it within thirty minutes. It checks itself, and a pass adds them to your clan automatically as a guest, flagged in **Needs review** for you to check when you can (remove them there if it is wrong), because XP shows someone trained, not who. A failed check is the one to look at more closely.',
         },
         {
           term: 'Manual review',

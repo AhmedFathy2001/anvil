@@ -1,5 +1,6 @@
 'use client';
 
+import { characterState, mayJoinWith } from '@/lib/characterState';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BOSSES, SKILLS, SKILL_LABELS, SKILL_ALIASES } from '@/lib/constants';
@@ -252,7 +253,7 @@ export default function SignupForm({
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
   const { confirm } = useDialog();
   const verifiedAccounts = useMemo(
-    () => myAccounts.filter((a) => a.verifiedAt),
+    () => myAccounts.filter((a) => mayJoinWith(a)),
     [myAccounts],
   );
 
@@ -272,6 +273,11 @@ export default function SignupForm({
 
   const initialProfile = (existingSignup ?? { profile: prefillProfile }).profile;
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set(initialSelected));
+  // Seated as a guest a moment ago (the page refreshed under this form): the character that just became
+  // available must be the one picked, or the form says "Pick the RSN" about its only option.
+  useEffect(() => {
+    setSelectedIds((prev) => (prev.size > 0 || initialSelected.length === 0 ? prev : new Set(initialSelected)));
+  }, [initialSelected]);
 
   // Toggle an account. At maxAccounts=1 it behaves like a radio (replace); above that it's a capped
   // multi-select (a checked account always toggles off; an unchecked one adds only while under the cap).
@@ -436,7 +442,7 @@ export default function SignupForm({
             One quick XP check: we pick one of your skills, you gain 1,000 XP in it within 30 minutes, and the
             sign-up form appears right here.
           </p>
-          <LinkAccountClient manualReview={false} initialRsn={myAccounts[0].rsn} />
+          <LinkAccountClient initialRsn={myAccounts[0].rsn} />
         </div>
       );
     }
@@ -701,6 +707,11 @@ export default function SignupForm({
                 {acct.isPrimary === 1 && (
                   <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">
                     primary
+                  </span>
+                )}
+                {characterState(acct) === 'awaiting-manual' && (
+                  <span className="text-[11px] text-amber-300">
+                    waiting for staff to confirm it. You can still sign up
                   </span>
                 )}
               </label>

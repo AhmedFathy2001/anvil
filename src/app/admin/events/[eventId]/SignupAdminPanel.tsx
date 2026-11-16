@@ -52,6 +52,8 @@ interface SignupRow {
     discordUsername: string | null;
   } | null;
   account: { id: number; rsn: string };
+  /** How the character came in (lib/characterState tierOf). */
+  path?: 'plugin' | 'xp' | 'manual' | null;
   /** Pays the guest fee: no member seat in a clan running the board. Null when guests pay the same. */
   guest?: boolean | null;
   /**
@@ -1024,6 +1026,14 @@ export default function SignupAdminPanel({
                                admin form. So the character being scored takes "playing", and where
                                they came from becomes the footnote. */
                             <span className="text-text-muted text-xs ml-2">
+                              {s.path === 'manual' && (
+                                <ClanLink href="/admin/people/needs-review" className="mr-2 rounded border border-amber-400/40 px-1 py-0.5 text-[10px] uppercase tracking-wide text-amber-300">
+                                  awaiting your staff: vouch
+                                </ClanLink>
+                              )}
+                              {s.path === 'xp' && (
+                                <span className="mr-2 rounded border border-card-border px-1 py-0.5 text-[10px] uppercase tracking-wide">verified by XP check</span>
+                              )}
                               playing {s.trackedAs ?? s.account.rsn}
                               {s.trackedAs && (
                                 <span className="text-text-muted/70"> · signed up as {s.account.rsn}</span>

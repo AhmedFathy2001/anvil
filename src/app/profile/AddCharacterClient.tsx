@@ -129,7 +129,7 @@ export default function AddCharacterClient({
     };
   }, [heard, router]);
 
-  const byName = <LinkAccountClient manualReview={false} initialRsn={suggestedRsn} />;
+  const byName = <LinkAccountClient initialRsn={suggestedRsn} />;
 
   if (touchFirst && !suggestedRsn) {
     return (
@@ -204,8 +204,8 @@ export default function AddCharacterClient({
         ) : (
           <div>
             <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
-              No plugin — prove it is yours by training. We snapshot the hiscores, pick a skill, and verify the
-              XP you gain in it.
+              No plugin? Prove it is yours by training: we snapshot the hiscores, pick a skill, and verify the
+              XP you gain in it. Cannot do that? Open your clan&apos;s page and ask its staff to vouch for you there.
             </p>
             {byName}
           </div>

@@ -1,3 +1,5 @@
+import { safeReturnPath } from './safe-redirect.ts';
+
 // Which paths belong to a clan, and which belong to the platform.
 //
 // This is the one list both the link helpers and the lint rule read, and it exists so that ~470
@@ -267,11 +269,97 @@ export function stripClanPrefix(path: string): string {
  * same name: without the prefix, signing in from a clan's page landed on the apex.
  */
 export function loginHref(prefix: string, path: string | null | undefined): string {
-  const p = path && path.startsWith('/') ? path : '/';
-  let target: string;
-  if (parseClanPrefix(p)) target = p;
-  else if (prefix && (p === '/' || p.startsWith('/?'))) target = `${prefix}${p.slice(1)}`;
-  else target = withClanPrefix(prefix, p);
+  const target = returnTargetOf(prefix, path);
   if (target === '/' || target === '/login' || target.startsWith('/login?')) return '/login';
   return `/login?return=${encodeURIComponent(target)}`;
+}
+
+/** The page `path` names, with the tenant prefix kept (shared by `loginHref` and `stepHref`). */
+function returnTargetOf(prefix: string, path: string | null | undefined): string {
+  const p = path && path.startsWith('/') ? path : '/';
+  if (parseClanPrefix(p)) return p;
+  if (prefix && (p === '/' || p.startsWith('/?'))) return `${prefix}${p.slice(1)}`;
+  return withClanPrefix(prefix, p);
+}
+
+// ── "Do this first, then come back": a required step that carries its way home ───────────────────
+//
+// Signing in already returns (`loginHref`). The other steps a person is sent away to finish, such as
+// linking a character, did not: they ended on Settings and had to find their own way back. One
+// mechanism for all of them: the link carries `next` (a same-site path, prefix kept) and `for` (a
+// SHORT FIXED KEY from the list below, never free text), and the step reads both back through
+// `readContinue`, which refuses anything that is not a same-site page.
+
+/**
+ * What each origin needs from the step and how to word it. `needs`: `linked` = any character of
+ * theirs; `verified` = one they have proved is theirs. `doing` completes "Link a character to ...";
+ * `back` completes "Continue: back to ...".
+ */
+export const CONTINUE_KEYS = {
+  'event-signup': { doing: 'continue signing up', back: 'your sign-up', needs: 'verified' },
+  event: { doing: 'join the event', back: 'the event', needs: 'verified' },
+  'clan-apply': { doing: 'apply to the clan', back: 'the clan page', needs: 'verified' },
+  clan: { doing: 'find your place in the clan', back: 'the clan page', needs: 'linked' },
+  challenge: { doing: 'start a challenge', back: 'challenges', needs: 'verified' },
+  start: { doing: 'finish getting started', back: 'getting started', needs: 'linked' },
+} as const;
+
+export type ContinueKey = keyof typeof CONTINUE_KEYS;
+
+export function isContinueKey(v: unknown): v is ContinueKey {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(CONTINUE_KEYS, v);
+}
+
+/** The places a return may never point: the step itself (a loop), sign-in, and anything that is not a page. */
+const NEVER_RETURN_TO = /^\/(?:settings\/characters|login|logout|api)(?:[/?#]|$)/;
+
+/**
+ * A return target read from a URL, or null. Same-site paths only: one leading slash, no backslash,
+ * whitespace or control characters (`safeReturnPath`), plus no encoded slash, backslash or control
+ * character (`/%2F`, `/%5C`) that a proxy or an older browser might decode into one, and a length cap.
+ */
+export function safeContinuePath(raw: string | string[] | null | undefined): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const safe = safeReturnPath(value, '');
+  if (!safe || safe === '/' || safe.length > 600) return null;
+  if (/%(?:2f|5c|0[0-9a-f]|1[0-9a-f]|7f)/i.test(safe)) return null;
+  if (NEVER_RETURN_TO.test(safe)) return null;
+  return safe;
+}
+
+/**
+ * A link to a required step that comes back to `path` afterwards: `<step>?next=<path>&for=<key>`,
+ * the step's own `#hash` kept at the end. `prefix` and `path` are read exactly as `loginHref` reads
+ * them. With a path that cannot be a return target it is the plain step link.
+ */
+export function stepHref(step: string, prefix: string, path: string | null | undefined, key: ContinueKey): string {
+  const hashAt = step.indexOf('#');
+  const base = hashAt < 0 ? step : step.slice(0, hashAt);
+  const hash = hashAt < 0 ? '' : step.slice(hashAt);
+  const target = safeContinuePath(returnTargetOf(prefix, path));
+  if (!target || !isContinueKey(key)) return step;
+  return `${base}${base.includes('?') ? '&' : '?'}next=${encodeURIComponent(target)}&for=${key}${hash}`;
+}
+
+/** The link-a-character step, coming back to `path`. */
+export function linkCharacterHref(prefix: string, path: string | null | undefined, key: ContinueKey): string {
+  return stepHref('/settings/characters#link-account', prefix, path, key);
+}
+
+export interface ContinueTarget {
+  next: string;
+  key: ContinueKey;
+}
+
+/** `next` and `for` read back off a step's query. Null unless BOTH are valid. */
+export function readContinue(params: { next?: string | string[] | null; for?: string | string[] | null }): ContinueTarget | null {
+  const next = safeContinuePath(params.next);
+  const rawKey = Array.isArray(params.for) ? params.for[0] : params.for;
+  if (!next || !isContinueKey(rawKey)) return null;
+  return { next, key: rawKey };
+}
+
+/** The `next`/`for` query to keep on a link that stays on the step (for example "Open the check"). */
+export function continueQuery(c: ContinueTarget | null): string {
+  return c ? `next=${encodeURIComponent(c.next)}&for=${c.key}` : '';
 }

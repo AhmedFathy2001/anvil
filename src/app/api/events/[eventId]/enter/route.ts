@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mayJoinWith } from '@/lib/characterState';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -50,6 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     playerId: session.playerId,
     accountId: Number(body?.accountId),
     actorUserId: session.userId,
+    inviteToken: typeof body?.inviteToken === 'string' ? body.inviteToken : null,
   });
 
   switch (result.outcome) {
@@ -106,7 +108,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       const seatedIds = new Set(seated.map((r) => r.accountId));
 
       const mine = await db
-        .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
+        .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt, provisional: accounts.provisional, verificationMethod: accounts.verificationMethod })
         .from(accounts)
         .where(eq(accounts.playerId, session.playerId));
       // A streamed event (a creator space's, or a Streaming clan's open to viewers) asks per event, so
@@ -117,7 +119,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
         event,
       );
       options = mine
-        .filter((a) => a.verifiedAt != null && (streamed || !seatedIds.has(a.id)))
+        .filter((a) => mayJoinWith(a) && (streamed || !seatedIds.has(a.id)))
         .map((a) => ({ id: a.id, rsn: a.rsn }));
 
       const [policy, asked] = await Promise.all([

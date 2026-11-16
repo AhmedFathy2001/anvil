@@ -6,7 +6,8 @@ import { accounts } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { applyChoices } from '@/lib/clanApply';
 import { resolveClanBySlug } from '@/lib/clanContext';
-import { admit, doorStates } from '@/lib/guestAdmission';
+import { admit, doorStates, removedByStaff } from '@/lib/guestAdmission';
+import { doorPolicy, mayJoinWith } from '@/lib/characterState';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -78,12 +79,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     where: and(eq(accounts.id, accountId), eq(accounts.playerId, session.playerId)),
   });
   if (!account) return NextResponse.json({ error: 'Not your character' }, { status: 403 });
-  if (!account.verifiedAt) {
+  if (!mayJoinWith(account)) {
     return NextResponse.json({ error: `${account.rsn} has to be verified first.` }, { status: 403 });
   }
 
   const message = typeof body?.message === 'string' ? body.message : undefined;
-  const admission = await admit({ clanId: clan.id, accountId, source: 'web', message });
+  // Granted at once (a guest seat, as an approved request would give), flagged for staff in Needs review
+  // when it came by XP check or manual vouch. Closed clans and bans are still refused inside admit();
+  // a seat staff removed goes back to a request.
+  const admission = await admit({
+    clanId: clan.id,
+    accountId,
+    source: 'web',
+    message,
+    policy: doorPolicy({ removedByStaff: await removedByStaff(clan.id, accountId) }),
+  });
 
   if (admission.outcome === 'refused') {
     // The ban is told plainly and the closed door is not — being barred is a decision the person

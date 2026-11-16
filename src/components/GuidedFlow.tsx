@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import QuickSettings from '@/components/QuickSettings';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import { revealHash } from '@/components/HashReveal';
 import { clanSlugOf } from '@/lib/analyticsPattern';
@@ -71,6 +72,7 @@ export default function GuidedFlow({
   const mode: GuideMode = stored ?? local ?? (startDismissed ? 'dismissed' : 'open');
 
   const pathname = usePathname();
+  const linkHere = useLinkCharacterHere();
   const bodyId = useId();
   const cur = view.current;
   if (view.complete || !cur) return null;
@@ -188,7 +190,7 @@ export default function GuidedFlow({
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
             {link ? (
               <ClanLink
-                href={link.anchor ? `${link.href}#${link.anchor}` : link.href}
+                href={link.href === '/settings/characters' && link.anchor === 'link-account' ? linkHere('start') : link.anchor ? `${link.href}#${link.anchor}` : link.href}
                 className="molten-btn !px-4 !py-2 text-sm"
                 onClick={() => {
                   onStep();

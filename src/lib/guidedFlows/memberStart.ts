@@ -92,7 +92,7 @@ export function memberStartFlow(f: MemberStartFacts): FlowView {
         return {
           title: 'Install the plugin and sign in',
           sentence:
-            'In RuneLite, install Anvil from the Plugin Hub, open its panel from the side strip and press Sign in with Discord, so your kills and drops count without screenshots.',
+            'Recommended, not required: in RuneLite, install Anvil from the Plugin Hub, open its panel and press Sign in with Discord, so your kills and drops count without screenshots. You can add it any time, also after linking by XP or staff review; it joins up with the same character.',
           action: { kind: 'link', label: 'Open plugin setup', href: '/profile', anchor: 'connect-plugin' },
           guideHref: '/guide/plugin#install',
         };
@@ -101,7 +101,7 @@ export function memberStartFlow(f: MemberStartFacts): FlowView {
           title: 'Link your character',
           sentence: f.xpCheck
             ? `${xpCheckLine(f.xpCheck)} Open it to finish.`
-            : 'Log in to the game with the plugin signed in and your character links itself; if it does not show up, add it by hand with Verify by XP.',
+            : 'The plugin is the fastest way: log in with it signed in and your character links itself. No plugin? Verify with a quick XP gain, or ask your clan\u2019s staff to vouch for you.',
           action: { kind: 'link', label: f.xpCheck ? 'Open the check' : 'Link a character', ...LINK_CHARACTER },
           guideHref: '/guide/plugin#accounts',
         };
@@ -159,7 +159,7 @@ export function clanlessStartFlow(f: ClanlessStartFacts): FlowView {
           title: 'Link your character',
           sentence: f.xpCheck
             ? `${xpCheckLine(f.xpCheck)} Open it to finish.`
-            : 'Link the character you play and Anvil tracks its XP, kills and collection log from then on; it stays yours in every clan you join, with no clan needed.',
+            : 'Link the character you play and Anvil tracks its XP, kills and collection log from then on; it stays yours in every clan you join, with no clan needed. The plugin is the fastest way; without it, verify with a quick XP gain or ask your clan\u2019s staff.',
           action: { kind: 'link', label: f.xpCheck ? 'Open the check' : 'Link a character', ...LINK_CHARACTER },
           guideHref: '/guide/plugin#accounts',
         };

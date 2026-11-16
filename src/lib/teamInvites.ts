@@ -55,6 +55,8 @@ export interface InviteContext {
   eventId: number;
   /** Whether the event is accepting sign-ups at all — lib/signup's window decides this. */
   signupsOpen: boolean;
+  /** Why it is closed, in plain words (`inviteClosedMessage`); the generic line when absent. */
+  closedMessage?: string;
 }
 
 export interface InviteCheck {
@@ -105,7 +107,7 @@ export function checkInvite(
     return { ok: false, refusal: 'exhausted', message: message('exhausted'), seatsLeft: 0 };
   }
   if (!ctx.signupsOpen) {
-    return { ok: false, refusal: 'closed', message: message('closed'), seatsLeft };
+    return { ok: false, refusal: 'closed', message: ctx.closedMessage ?? message('closed'), seatsLeft };
   }
 
   return { ok: true, message: '', seatsLeft };
@@ -218,4 +220,33 @@ export function inviteExpiry(hours: number | null | undefined, now: number): str
   if (hours == null || !Number.isFinite(hours) || hours <= 0) return null;
   const capped = Math.min(Math.round(hours), MAX_INVITE_HOURS);
   return new Date(now + capped * 3_600_000).toISOString();
+}
+
+/**
+ * A team's invite is the host's consent to this person joining, so it is not held to the sign-up
+ * window's START: once the event is running the link still seats a late joiner on its team. What it
+ * does not override is the host switching the form off ("staff add players": `off`), the sign-up
+ * deadline (`closed`), or a finished event. `over` is lib/eventLock `isEventOver`.
+ */
+export function inviteSignupWindow<W extends { open: boolean; reason: string | null }>(
+  base: W,
+  over: boolean,
+): W | { open: true; reason: null } {
+  if (!base.open && base.reason === 'event_started' && !over) return { open: true, reason: null };
+  return base;
+}
+
+/** Plain words for an invite that cannot be used because of the sign-up window (never "not open" with no why). */
+export function inviteClosedMessage(reason: string | null | undefined, over: boolean): string {
+  if (over) return 'This event has finished, so the invite can no longer add anyone.';
+  switch (reason) {
+    case 'off':
+      return 'The host adds players to this event by hand, so this link cannot add you. Ask them to put you on the team.';
+    case 'closed':
+      return 'The sign-up deadline for this event has passed. Ask the host if they can still add you.';
+    case 'not_open_yet':
+      return 'Sign-ups for this event have not opened yet. Try the link again when the host opens them.';
+    default:
+      return message('closed');
+  }
 }

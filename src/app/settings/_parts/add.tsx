@@ -3,6 +3,7 @@ import { detectedFor, settingsCharacters } from '@/lib/settingsData';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
 import IgnoredAccountsClient from '@/app/profile/IgnoredAccountsClient';
+import { continueQuery, readContinue } from '@/lib/clanScopedPaths';
 import { SettingsBlock, SettingsGroup } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
 
@@ -11,9 +12,12 @@ import { settingsSession } from '@/app/settings/settingsSession';
  * linked yet, and the ones you said weren't yours. `?connect=<rsn>` (from the apex home or an old
  * /profile link) pre-fills the name.
  */
-export async function AddGroups({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
+export async function AddGroups({ searchParams }: { searchParams: Promise<{ connect?: string; next?: string; for?: string }> }) {
   const session = await settingsSession();
-  const suggestedRsn = ((await searchParams).connect ?? '').trim().slice(0, 12);
+  const params = await searchParams;
+  const suggestedRsn = (params.connect ?? '').trim().slice(0, 12);
+  // Kept on the "Verify ownership" link, so the way back survives that hop.
+  const continueQs = continueQuery(readContinue(params));
   const characters = session.playerId ? await settingsCharacters(session.playerId) : [];
   const checkRunning = !!(await runningXpCheck(session.userId).catch(() => null));
   const detected = await detectedFor(session.userId, characters);
@@ -23,7 +27,7 @@ export async function AddGroups({ searchParams }: { searchParams: Promise<{ conn
       {detected.pending.length > 0 && (
         <SettingsGroup title="We noticed you playing" id="detected">
           <SettingsBlock>
-            <DetectedAccountsClient initial={detected.pending} />
+            <DetectedAccountsClient initial={detected.pending} continueQs={continueQs} />
           </SettingsBlock>
         </SettingsGroup>
       )}

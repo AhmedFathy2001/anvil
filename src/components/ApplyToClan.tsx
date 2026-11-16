@@ -4,6 +4,9 @@ import Select from '@/components/Select';
 import { useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { useClanPrefixValue } from '@/components/ClanLink';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
+import { parseClanPrefix } from '@/lib/clanScopedPaths';
 import { parseStamp } from '@/lib/dbTime';
 
 interface Info {
@@ -51,6 +54,10 @@ export default function ApplyToClan({
   const [error, setError] = useState<string | null>(null);
   // The GET failed. Saying so beats an empty space under a panel that just invited them in.
   const [loadFailed, setLoadFailed] = useState(false);
+  // Linking a character is a trip away: it comes back to THIS clan's page, where the apply button is
+  // (from the directory too, so it is the clan's page and not the list).
+  const linkHere = useLinkCharacterHere();
+  const prefix = useClanPrefixValue();
 
   useEffect(() => {
     let alive = true;
@@ -90,7 +97,7 @@ export default function ApplyToClan({
   if (info.options.length === 0) {
     return (
       <ClanLink
-        href="/settings/characters#link-account"
+        href={linkHere('clan-apply', parseClanPrefix(prefix)?.slug === slug ? prefix : `/c/${slug}`)}
         className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-center text-[13px] font-semibold text-gold transition-colors hover:bg-gold/20"
       >
         Verify a character first

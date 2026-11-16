@@ -570,3 +570,15 @@ export async function leaveClan(seatId: number, playerId: number): Promise<boole
     .catch(() => {});
   return true;
 }
+
+/**
+ * Did this clan's staff end this character's seat on purpose ("not a member")? Then nothing automatic
+ * puts it back: the person asking again files a request instead of being granted a seat.
+ */
+export async function removedByStaff(clanId: number, accountId: number): Promise<boolean> {
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId), ne(clanMemberships.kind, 'event')),
+    columns: { leftAt: true, source: true },
+  });
+  return !!seat?.leftAt && seat.source === 'manual';
+}

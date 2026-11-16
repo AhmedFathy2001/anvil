@@ -4,12 +4,14 @@
 // route was the only place "may this stranger sit down?" was answered end to end, and a route
 // handler cannot be called from a test without faking a session.
 
+import { doorPolicy, mayJoinWith } from '@/lib/characterState';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clans, events } from '@/db/schema';
+import { accounts, clanAuditLog, clans, events, teamInvites } from '@/db/schema';
+import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { canEnterEvent, invitedToEvent, staffOfClan, type EntryVerdict } from '@/lib/eventAccess';
-import { admit, requestEventEntry } from '@/lib/guestAdmission';
+import { admit, removedByStaff, requestEventEntry } from '@/lib/guestAdmission';
 import { isCreatorSpace, seatsEventPlayers, streamedEvent } from '@/lib/creatorSpaces';
 import { friendsJoinCheck } from '@/lib/friendEvents';
 import { isFriendsHost } from '@/lib/friendEventRules';
@@ -35,6 +37,8 @@ export async function enterEvent(opts: {
   accountId: number;
   /** Who pressed it, for the audit line. */
   actorUserId: number | null;
+  /** A team's invite token for this event: the host's consent, so no separate approval (lib/teamInvites). */
+  inviteToken?: string | null;
 }): Promise<EnterResult> {
   const verdict: EntryVerdict = await canEnterEvent({ eventId: opts.eventId, playerId: opts.playerId });
 
@@ -52,6 +56,18 @@ export async function enterEvent(opts: {
   }
   if (verdict.outcome === 'insider') return { outcome: 'insider' };
 
+  // AN INVITE IS ADMISSION. A good token (this event, not revoked, not expired, not used up) means the
+  // host or captain already said yes, so the person is seated as a guest without waiting for an
+  // approval that was given when the link was made. Bans are still refused above, and the clan's door
+  // stays a GUEST seat: roster membership only ever comes from the in-game list.
+  let invited = false;
+  if (isWellFormedToken(opts.inviteToken)) {
+    const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, opts.inviteToken!) });
+    // clan-scope: global -- the event named by the invite's own URL; the invite check below pins the token to it.
+    const ev = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
+    invited = !!row && !!ev && checkInvite(row, { now: Date.now(), eventId: opts.eventId, signupsOpen: true }).ok;
+  }
+
   // clan-scope: global -- entering somebody ELSE'S event is the whole point; canEnterEvent has already ruled on access.
   const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
   if (!event) return { outcome: 'refused', reason: 'not-visible', status: 404, error: 'Not found' };
@@ -66,7 +82,7 @@ export async function enterEvent(opts: {
     where: and(eq(accounts.id, opts.accountId), eq(accounts.playerId, opts.playerId)),
   });
   if (!account) return { outcome: 'bad-account', status: 403, error: 'Not your account' };
-  if (!account.verifiedAt) {
+  if (!mayJoinWith(account)) {
     return { outcome: 'bad-account', status: 403, error: `${account.rsn} has to be verified first.` };
   }
 
@@ -111,7 +127,7 @@ export async function enterEvent(opts: {
     // `approval`, for somebody who is neither the host's staff nor invited to this event: ask about
     // THIS event. No seat, no sign-up, until the host says yes (approveRequest then seats them as
     // this event's player and invites them to it).
-    if (verdict.needsApproval && !staff && !(await invitedToEvent(event.id, opts.playerId))) {
+    if (verdict.needsApproval && !staff && !invited && !(await invitedToEvent(event.id, opts.playerId))) {
       await requestEventEntry({
         clanId: event.clanId,
         eventId: event.id,
@@ -155,13 +171,16 @@ export async function enterEvent(opts: {
     accountId: opts.accountId,
     source: 'web',
     message: `Wants to play in ${event.name}.`,
+    // A trusted door: the guest seat now, unless the event asks for approval or staff removed them. The
+    // clan's own closed/ban rules still apply inside admit().
+    policy: invited ? 'open' : doorPolicy({ removedByStaff: await removedByStaff(event.clanId, opts.accountId), eventNeedsApproval: verdict.needsApproval }),
   });
 
   if (admission.outcome === 'refused') {
     return { outcome: 'refused', reason: 'closed', status: 403, error: 'This clan is not taking guests.' };
   }
 
-  if (admission.outcome !== 'seated' && verdict.needsApproval) {
+  if (admission.outcome !== 'seated' && verdict.needsApproval && !invited) {
     return { outcome: 'pending', message: 'Sent to the host — you’ll be able to sign up once they accept.' };
   }
   if (admission.outcome !== 'seated') {

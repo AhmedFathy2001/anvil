@@ -88,20 +88,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Cancel any other open attempts by this user for the same RSN.
-  const nowIso = new Date().toISOString();
-  await db
-    .update(verificationAttempts)
-    .set({ completedAt: nowIso, succeeded: 0, failureReason: 'superseded' })
-    .where(
-      and(
-        eq(verificationAttempts.userId, session.userId),
-        eq(verificationAttempts.rsnNormalized, rsnNormalized),
-        sql`${verificationAttempts.completedAt} IS NULL`,
-        gt(verificationAttempts.expiresAt, nowIso),
-      ),
-    );
-
   const snapshot = await fetchHiscoresSnapshot(rsn);
   if (!snapshot) {
     return NextResponse.json(
@@ -170,6 +156,21 @@ export async function POST(request: Request) {
       { status: 422 },
     );
   }
+
+  // Cancel any other open attempts by this user for the same RSN. Only now: a failed hiscores read
+  // used to cancel the check that was already running before it found out it could not start a new one.
+  const nowIso = new Date().toISOString();
+  await db
+    .update(verificationAttempts)
+    .set({ completedAt: nowIso, succeeded: 0, failureReason: 'superseded' })
+    .where(
+      and(
+        eq(verificationAttempts.userId, session.userId),
+        eq(verificationAttempts.rsnNormalized, rsnNormalized),
+        sql`${verificationAttempts.completedAt} IS NULL`,
+        gt(verificationAttempts.expiresAt, nowIso),
+      ),
+    );
 
   // _target is embedded in the JSON snapshot rather than a dedicated column to avoid
   // a one-off migration. The check route reads it from here.

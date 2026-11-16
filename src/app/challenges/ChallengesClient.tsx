@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
 import { useDialog } from '@/components/Confirm';
 import Combobox from '@/components/Combobox';
 import { clanFetch } from '@/lib/clanFetch';
@@ -312,6 +313,7 @@ function Bar({ label, value, top, unit, lead }: { label: string; value: number; 
 }
 
 function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOpponent: string; onSent: () => Promise<void> }) {
+  const linkHere = useLinkCharacterHere();
   const [opponent, setOpponent] = useState(presetOpponent);
   const [check, setCheck] = useState<{ ok: boolean; rsn?: string; error?: string } | null>(null);
   const [accountId, setAccountId] = useState<number>(data.characters[0]?.accountId ?? 0);
@@ -380,7 +382,7 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
         <p className="rounded-xl border border-dashed border-card-border px-4 py-3 text-sm text-text-muted">
           Verify one of your characters first, so Anvil can track you. Connect the Anvil plugin and log in to it, or
           use the quick XP check.{' '}
-          <ClanLink href="/settings/characters#link-account" className="font-medium text-gold hover:text-gold-light">
+          <ClanLink href={linkHere('challenge')} className="font-medium text-gold hover:text-gold-light">
             Link a character
           </ClanLink>
         </p>

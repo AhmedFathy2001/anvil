@@ -2,10 +2,11 @@
 
 import Select from '@/components/Select';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import KickLinkCode from '@/components/KickLinkCode';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
 import YoutubeGate, { type YoutubeGateInfo } from './YoutubeGate';
@@ -80,6 +81,15 @@ const TWITCH_BACK: Record<string, { ok: boolean; text: string }> = {
  * an outsider used to be told to "enter", sent to their profile, and then met "Sign up" everywhere
  * after. Underneath, pressing it still takes a guest seat through admit(); only the words changed.
  */
+/** The invite token on this page's address (`?invite=`), passed through unchanged; the server re-checks it. */
+function inviteFromLocation(): string | undefined {
+  try {
+    return new URLSearchParams(window.location.search).get('invite') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function EnterEvent({
   eventId,
   signupFee,
@@ -94,11 +104,17 @@ export default function EnterEvent({
   creator?: boolean;
 }) {
   const router = useRouter();
+  // Verifying a character is a trip away; it comes back to this same page (the sign-up page keeps its invite).
+  const linkHere = useLinkCharacterHere();
+  const backKey = (usePathname() ?? '').endsWith('/signup') ? 'event-signup' : 'event';
   const [info, setInfo] = useState<EnterInfo | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  // Arrived by a team's invite link: the host already said yes by making it, so no "ask" wording.
+  const [hasInvite, setHasInvite] = useState(false);
+  useEffect(() => setHasInvite(!!inviteFromLocation()), []);
 
   useEffect(() => {
     let alive = true;
@@ -115,6 +131,23 @@ export default function EnterEvent({
       alive = false;
     };
   }, [eventId]);
+
+  // Waiting on the host: look again every few seconds while the tab is open, so the host's yes shows
+  // up without a manual reload (the page re-renders into the sign-up form once they are in).
+  const waiting = !!pending || !!info?.pendingSince;
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      clanFetch(`/api/events/${eventId}/enter`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: EnterInfo | null) => {
+          if (d && (d.verdict.outcome === 'insider' || !d.pendingSince)) router.refresh();
+        })
+        .catch(() => {});
+    }, 8000);
+    return () => clearInterval(t);
+  }, [waiting, eventId, router]);
 
   if (!info) return null;
   if (creator) return <CreatorJoin eventId={eventId} info={info} signupsOpen={signupsOpen} signupFee={signupFee} />;
@@ -145,7 +178,7 @@ export default function EnterEvent({
       const res = await clanFetch(`/api/events/${eventId}/enter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: chosen }),
+        body: JSON.stringify({ accountId: chosen, inviteToken: inviteFromLocation() }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? 'Could not sign up');
@@ -216,7 +249,7 @@ export default function EnterEvent({
           </div>
         </div>
         <ClanLink
-          href={toSignup ? `/events/${eventId}/signup` : '/settings/characters#link-account'}
+          href={toSignup ? `/events/${eventId}/signup` : linkHere(backKey)}
           className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
         >
           {toSignup ? 'Sign up' : 'Verify a character'}
@@ -225,7 +258,7 @@ export default function EnterEvent({
     );
   }
 
-  const asks = verdict.needsApproval;
+  const asks = verdict.needsApproval && !hasInvite;
 
   return (
     <Card tone="info">
@@ -280,6 +313,9 @@ function CreatorJoin({
   signupFee: number | null;
 }) {
   const router = useRouter();
+  // Verifying a character is a trip away; it comes back to this same page (the sign-up page keeps its invite).
+  const linkHere = useLinkCharacterHere();
+  const backKey = (usePathname() ?? '').endsWith('/signup') ? 'event-signup' : 'event';
   const [chosen, setChosen] = useState<number | null>(info.options.length === 1 ? info.options[0].id : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -386,7 +422,7 @@ function CreatorJoin({
           </div>
         </div>
         <ClanLink
-          href={info.hasCharacter ? '/settings/characters#link-account' : `/events/${eventId}/signup`}
+          href={info.hasCharacter ? linkHere(backKey) : `/events/${eventId}/signup`}
           className="shrink-0 rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light"
         >
           {info.hasCharacter ? 'Prove it’s mine' : 'Add my character'}
@@ -407,7 +443,7 @@ function CreatorJoin({
       const res = await clanFetch(`/api/events/${eventId}/enter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: chosen }),
+        body: JSON.stringify({ accountId: chosen, inviteToken: inviteFromLocation() }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok && data?.gate) {
