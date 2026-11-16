@@ -115,6 +115,8 @@ interface Props {
   canToggle: boolean;
   onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number; attachments?: ProofAttachmentInput[] }) => Promise<void>;
   onDelete?: (submissionId: number, reason: string) => Promise<void>;
+  /** Staff: change one credit's amount in place (the admin team board passes it). */
+  onSetAmount?: (submissionId: number, amount: number) => Promise<void>;
   onToggle?: (tileId: number) => Promise<void>;
   onClose: () => void;
   eventId: number;
@@ -165,6 +167,7 @@ export default function TileDetailModal({
   canToggle,
   onSubmit,
   onDelete,
+  onSetAmount,
   onToggle,
   onClose,
   eventId,
@@ -216,6 +219,27 @@ export default function TileDetailModal({
   // Delete confirmation modal state
   // A combo's part opened for its own screenshot form (the part is a real tile: it takes its own proof).
   const [openPart, setOpenPart] = useState<Tile | null>(null);
+  // Staff correcting a credit's amount in place: which earner's credits are open, and the typed numbers.
+  const [editAmountsFor, setEditAmountsFor] = useState<string | null>(null);
+  const [amountDrafts, setAmountDrafts] = useState<Record<number, string>>({});
+  const [savingAmountId, setSavingAmountId] = useState<number | null>(null);
+  async function saveAmount(id: number, was: number) {
+    const n = parseInt(amountDrafts[id] ?? '', 10);
+    if (!onSetAmount || !Number.isInteger(n) || n < 1 || n === was) return;
+    setSavingAmountId(id);
+    setActionError('');
+    try {
+      await onSetAmount(id, n);
+      setAmountDrafts((d) => {
+        const { [id]: _done, ...rest } = d;
+        return rest;
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not change that amount.');
+    } finally {
+      setSavingAmountId(null);
+    }
+  }
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteSubmissionId, setDeleteSubmissionId] = useState<number | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
@@ -282,7 +306,9 @@ export default function TileDetailModal({
   const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms || isClog;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
-  const perUnitProof = isDrop;
+  // A drop tile that counts a big stack ("500 Demon tears") is the same: one amount, one screenshot.
+  // Whoever manages the board (staff, a captain) enters an amount instead, whatever the goal.
+  const perUnitProof = isDrop && (tile.requiredAmount ?? 1) <= 10 && !canManage;
   // Collection tile = a drop tile with per-item requirements. Its submissions must name WHICH item in
   // the set (itemId), so the count form gets an item picker and handleSubmit requires a selection.
   const itemReqs: { itemId: number; name: string }[] = (() => {
@@ -404,6 +430,8 @@ export default function TileDetailModal({
       autoLogs: number;
       /** Credits that landed without a starting shot on file (lib/startProof) — staff should look. */
       flagged: number;
+      /** Each credit behind the total, for staff correcting one in place. */
+      subs: { id: number; amount: number; createdAt: string }[];
       /** Game modes these credits were earned on (lib/worldModes keys); empty = all main game. */
       modes: string[];
       shots: ProofShot[];
@@ -418,10 +446,12 @@ export default function TileDetailModal({
         amount: 0,
         autoLogs: 0,
         flagged: 0,
+        subs: [],
         modes: [],
         shots: [],
       };
       row.amount += sub.amount;
+      row.subs.push({ id: sub.id, amount: sub.amount, createdAt: sub.createdAt });
       if (sub.worldMode && !row.modes.includes(sub.worldMode)) row.modes.push(sub.worldMode);
       if (sub.flaggedReason) row.flagged += 1;
       if (submissionHasProof(sub)) {
@@ -496,13 +526,16 @@ export default function TileDetailModal({
 
     // Validate all images are uploaded
     const validImages = imageUrls.filter((url) => url && url.trim());
-    if (validImages.length === 0) {
+    // Staff managing the board may add a count with no picture (a correction for something the
+    // plugin missed); the server allows it for clan admins only and refuses anyone else.
+    const adjusting = validImages.length === 0 && !!canManage;
+    if (validImages.length === 0 && !adjusting) {
       setError('Please upload at least one image as evidence');
       return;
     }
 
     // Real drops want one screenshot per unit; other count tiles take a single proof for the amount.
-    if (perUnitProof && parsedAmount > 1 && validImages.length < parsedAmount) {
+    if (!adjusting && perUnitProof && parsedAmount > 1 && validImages.length < parsedAmount) {
       setError(`Please upload ${parsedAmount} images (one for each drop)`);
       return;
     }
@@ -526,13 +559,13 @@ export default function TileDetailModal({
     try {
       // Submit each image as a separate submission with amount=1
       // Or if only 1 image, submit with the full amount
-      if (validImages.length === 1) {
+      if (validImages.length <= 1) {
         await onSubmit({
           tileId: tile.id,
           teamId,
           amount: parsedAmount,
-          imageUrl: validImages[0],
-          note,
+          imageUrl: validImages[0] ?? '',
+          note: adjusting && !note.trim() ? 'Added by staff, no screenshot' : note,
           creditPlayerId: parseInt(creditPlayerId, 10),
           itemId: submittedItemId,
           attachments: extras,
@@ -944,6 +977,12 @@ export default function TileDetailModal({
                           {canFile && onSubmit && teamId && !st?.state.done && PART_PROOF_TYPES.has(p.tileType ?? '') && (
                             <button type="button" onClick={() => setOpenPart(p)} className="text-[11px] text-gold hover:underline">
                               Add screenshot
+                            </button>
+                          )}
+                          {/* This part's own proof and credits, whoever is looking (a part that is done has no "Add screenshot"). */}
+                          {submissions.some((sub) => sub.tileId === p.id) && (
+                            <button type="button" onClick={() => setOpenPart(p)} className="text-[11px] text-gold hover:underline">
+                              Proof ({submissions.filter((sub) => sub.tileId === p.id).length})
                             </button>
                           )}
                           {teamsDone.map((t) => (
@@ -1420,6 +1459,15 @@ export default function TileDetailModal({
                               · {g.autoLogs} auto log{g.autoLogs !== 1 ? 's' : ''}
                             </span>
                           )}
+                          {canManage && onSetAmount && (
+                            <button
+                              type="button"
+                              onClick={() => setEditAmountsFor(editAmountsFor === g.key ? null : g.key)}
+                              className="text-[11px] text-gold hover:underline"
+                            >
+                              {editAmountsFor === g.key ? 'Done' : 'Edit amounts'}
+                            </button>
+                          )}
                           {g.flagged > 0 && (
                             <span
                               title="Landed before this player filed their starting shot"
@@ -1429,6 +1477,35 @@ export default function TileDetailModal({
                             </span>
                           )}
                         </div>
+
+                        {/* Staff: each credit behind the total, with its amount editable in place. */}
+                        {canManage && onSetAmount && editAmountsFor === g.key && (
+                          <ul className="mt-2 space-y-1 border-t border-card-border/60 pt-2">
+                            {g.subs.map((sub) => (
+                              <li key={sub.id} className="flex items-center gap-2 text-xs">
+                                <span className="flex-1 text-text-muted">
+                                  <LocalTime date={sub.createdAt} format="date" />
+                                </span>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={amountDrafts[sub.id] ?? String(sub.amount)}
+                                  onChange={(e) => setAmountDrafts((d) => ({ ...d, [sub.id]: e.target.value }))}
+                                  aria-label="Amount for this credit"
+                                  className="w-24 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs text-foreground"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void saveAmount(sub.id, sub.amount)}
+                                  disabled={savingAmountId === sub.id || !amountDrafts[sub.id] || parseInt(amountDrafts[sub.id], 10) === sub.amount}
+                                  className="rounded border border-gold/40 px-2 py-1 text-[11px] text-gold hover:border-gold disabled:opacity-40"
+                                >
+                                  {savingAmountId === sub.id ? 'Saving…' : 'Save'}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
 
                         {/* Contact sheet: proof is evidence you open, not a feed you scroll. */}
                         {g.shots.length > 0 && (
@@ -1521,6 +1598,12 @@ export default function TileDetailModal({
             return (
             <form data-proof-form ref={proofFormRef} onSubmit={handleSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Add Submission</h3>
+              {canManage && (
+                <p className="text-xs text-text-muted">
+                  Correcting a count the plugin missed? A clan admin can submit an amount with no screenshot; it is
+                  filed as a staff correction.
+                </p>
+              )}
               {remaining !== undefined && (
                 <p className="text-xs text-yellow-400">
                   {remaining} more {countNoun}{remaining !== 1 ? 's' : ''} needed to complete this tile
@@ -1901,10 +1984,15 @@ export default function TileDetailModal({
       )}
       {openPart && (() => {
         const st = dropProgress?.combo?.parts.find((x) => x.id === openPart.id)?.state;
+        // A part's state may carry only "done": fall back to the part's own goal and what has been
+        // submitted for it, or the form asked for "0/99" screenshots on a one-item part already done.
+        const partSubs = submissions.filter((sub) => sub.tileId === openPart.id);
+        const partRequired = st?.required ?? openPart.requiredAmount ?? null;
+        const partCurrent = st?.current ?? (st?.done && partRequired != null ? partRequired : partSubs.reduce((n, sub) => n + sub.amount, 0));
         return (
           <TileDetailModal
             tile={openPart}
-            submissions={submissions.filter((sub) => sub.tileId === openPart.id)}
+            submissions={partSubs}
             submissionsLoading={submissionsLoading}
             completedBy={[]}
             canSubmit={canSubmit}
@@ -1912,10 +2000,11 @@ export default function TileDetailModal({
             canToggle={false}
             onSubmit={onSubmit}
             onDelete={onDelete}
+            onSetAmount={onSetAmount}
             onClose={() => setOpenPart(null)}
             eventId={eventId}
             teamId={teamId}
-            dropProgress={st?.required != null ? { current: st.current ?? 0, required: st.required } : undefined}
+            dropProgress={partRequired != null ? { current: partCurrent, required: partRequired } : undefined}
             teamPlayers={teamPlayers}
             currentPlayerId={currentPlayerId}
             pointsMode={pointsMode}

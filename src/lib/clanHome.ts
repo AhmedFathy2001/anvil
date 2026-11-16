@@ -7,6 +7,7 @@
 
 import { unsharedRosterNames } from '@/lib/clanInsider';
 import { withoutHiddenRows } from '@/lib/rosterVisibility';
+import { sceneFor } from '@/lib/scenes';
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
 import { clanStreaks } from '@/lib/activityStreaks';
 import type { TenureStepId } from '@/lib/supporterTiers';
@@ -156,6 +157,8 @@ export interface VisitorItem {
   /** Leader while live, winner once finished. */
   top: { name: string; text: string } | null;
   when: string | null;
+  /** Backdrop art for the card (lib/scenes), when it is about one skill or boss. */
+  scene?: { url: string; kind: 'emblem' | 'figure' } | null;
 }
 
 export interface PublicClanActivity {
@@ -167,7 +170,8 @@ export interface PublicClanActivity {
   moments: Moment[];
 }
 
-const WEEK_KIND: Record<string, string> = { SOTW: 'Skill of the week', BOTW: 'Boss of the week', EOTW: 'Efficiency of the week' };
+// Keyed by lib/weeklyCards WeeklyKind. (Upper-case keys here never matched, so every week read "Competition".)
+const WEEK_KIND: Record<string, string> = { sotw: 'Skill of the week', botw: 'Boss of the week', eff: 'Efficiency of the week' };
 
 export async function publicClanActivity(clanId: number, now = new Date()): Promise<PublicClanActivity> {
   const [hub, clanEvts, members, moments] = await Promise.all([
@@ -213,6 +217,7 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
     line: `${w.entrants} entered`,
     top: w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null,
     when: w.state === 'upcoming' ? w.startDate : w.endDate,
+    scene: w.kind === 'sotw' ? sceneFor('skill', w.metricLabel) : w.kind === 'botw' ? sceneFor('boss', w.metricLabel) : null,
   });
 
   return {

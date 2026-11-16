@@ -1,5 +1,6 @@
 "use client";
 
+import { itemIconUrl } from '@/lib/tileIcons';
 import { useUnsavedChanges, UnsavedIndicator } from "@/components/UnsavedChanges";
 import { stableKey } from "@/lib/unsavedChanges";
 import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react";
@@ -40,7 +41,8 @@ import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import ComboPartsField, { blankPart, draftsFromParts, partPayload, type ComboPartDraft } from '@/components/ComboPartsField';
 import ClogTileFields from '@/components/ClogTileFields';
-import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboRule } from '@/lib/combo';
+import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboList, type ComboRule } from '@/lib/combo';
+import { listKillKey, listRule, readListTile } from '@/lib/listTile';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, isGotrEnergyCapped } from '@/lib/tileCaps';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
@@ -97,6 +99,8 @@ interface Props {
   asPart?: boolean;
   /** A combo saved itself after one of its parts was finished — same shape as onSaved, but the editor stays open. */
   onAutoSaved?: Props['onSaved'];
+  /** Part editor only: lets the combo editor commit this part when another is opened. */
+  saveRef?: { current: (() => void) | null };
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -430,6 +434,91 @@ function rowToPartConfig(row: Record<string, unknown>): ComboPartConfig {
   } as ComboPartConfig;
 }
 
+/**
+ * "Count each one separately" for a Kills / Skill XP tile (lib/listTile): the switch, how many of the
+ * entries must finish, and each entry's own goal where it differs from the shared one.
+ */
+function ListOptions({
+  on, onToggle, need, onNeed, locked, noun, entries, goals, onGoal, onRemove, shared, unit,
+}: {
+  on: boolean;
+  onToggle: (on: boolean) => void;
+  need: string;
+  onNeed: (v: string) => void;
+  locked: boolean;
+  noun: 'monster' | 'skill';
+  entries: { key: string; name: string }[];
+  goals: Record<string, string>;
+  onGoal: (key: string, v: string) => void;
+  onRemove?: (key: string) => void;
+  shared: string;
+  unit: string;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-card-border/70 bg-brown-dark/40 p-2.5">
+      <Checkbox
+        checked={on}
+        onChange={onToggle}
+        disabled={locked}
+        label={`Count each ${noun} separately`}
+        className="text-xs font-medium"
+      />
+      <p className="text-[11px] text-text-muted">
+        {on
+          ? `Each ${noun} has its own ${unit} goal, and the tile is done when all of them (or as many as you say) reach it.`
+          : noun === 'monster'
+            ? 'Off: kills of any listed monster add up to one total.'
+            : `Off: the tile tracks one skill. On: several skills, each to its own goal.`}
+      </p>
+      {on && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+            <span>Done when at least</span>
+            <Input
+              type="number"
+              value={need}
+              onChange={(e) => onNeed(e.target.value)}
+              disabled={locked}
+              placeholder="all"
+              min="1"
+              max={String(Math.max(1, entries.length))}
+              aria-label={`How many ${noun}s must reach their goal`}
+              className="w-16 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs text-foreground disabled:opacity-50"
+            />
+            <span>
+              of the {entries.length} {noun}s reach {entries.length === 1 ? 'its' : 'their'} goal (blank = all of them)
+            </span>
+          </div>
+          {entries.length > 0 && (
+            <ul className="space-y-1">
+              {entries.map((e) => (
+                <li key={e.key} className="flex items-center gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-foreground">{e.name}</span>
+                  <Input
+                    type="number"
+                    value={goals[e.key] ?? ''}
+                    onChange={(ev) => onGoal(e.key, ev.target.value)}
+                    placeholder={shared || 'goal'}
+                    min="1"
+                    aria-label={`${e.name}: its own ${unit} goal`}
+                    className="w-28 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs text-foreground"
+                  />
+                  {onRemove && (
+                    <button type="button" onClick={() => onRemove(e.key)} className="text-[11px] text-red-300 hover:underline" aria-label={`Remove ${e.name}`}>
+                      Remove
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-text-muted">Leave a goal blank to use the one below for that {noun}.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** The monsters a stored kills tile already counts, as editor picks. Plugin names stay verbatim. */
 function initialKillPicks(initial: TileConfig): KillPick[] {
   const source = killSourceOf(initial);
@@ -717,7 +806,7 @@ function TileTrackingEditor({
   tileId,
   eventId,
   onSave,
-  initial,
+  initial: given,
   onSaved,
   eventStarted,
   isAdmin,
@@ -730,6 +819,7 @@ function TileTrackingEditor({
   cofferAvailable = null,
   asPart = false,
   onAutoSaved,
+  saveRef,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -747,6 +837,20 @@ function TileTrackingEditor({
     : 'Locked because the event has started. Only an admin can unlock it.';
   // Lookups go to the clan's /api/admin, or /api/library in the Anvil library editor (no clan there).
   const lookupApi = useContext(AuthoringApiContext);
+  // A LIST tile (lib/listTile): several bosses or skills counted separately, stored as a combo. It
+  // opens as the Kills / Skill XP tile it is, seeded from an ordinary tile holding every entry.
+  const [listInit] = useState(() => (asPart ? null : readListTile(given)));
+  const initial = listInit ? listInit.seed : given;
+  const [eachOn, setEachOn] = useState(!!listInit);
+  /** How many entries must finish; blank = all of them. */
+  const [eachNeed, setEachNeed] = useState<string>(listInit && listInit.need > 0 ? String(listInit.need) : '');
+  /** An entry's own goal where it differs from the shared one, by entry key. */
+  const [eachGoals, setEachGoals] = useState<Record<string, string>>(() =>
+    Object.fromEntries((listInit?.entries ?? []).filter((e) => e.goal !== listInit!.shared).map((e) => [e.key, String(e.goal)])),
+  );
+  const [eachSkills, setEachSkills] = useState<string[]>(() => (listInit?.list === 'skill' ? listInit.entries.map((e) => e.key) : []));
+  /** The saved part behind each entry: its id (so a re-save keeps its progress) and its engine. */
+  const listMeta = useRef(new Map((listInit?.entries ?? []).map((e) => [e.key, e])));
   const [kind, setKind] = useState<TileKind>(() => deriveKind(initial));
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(initial.description || "");
@@ -775,6 +879,28 @@ function TileTrackingEditor({
   const [comboRule, setComboRule] = useState<ComboRule>(initial.comboRule ?? { mode: 'any' });
   const [comboParts, setComboParts] = useState<ComboPartDraft[]>(() => draftsFromParts(initial.parts));
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
+  // The tile's own picture (an item's), when the host wants one other than what the tile works out.
+  const [iconUrl, setIconUrl] = useState<string | null>(initial.icon ?? null);
+  const [iconQuery, setIconQuery] = useState('');
+  const [iconHits, setIconHits] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => {
+    const q = iconQuery.trim();
+    if (q.length < 2) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const res = await clanFetch(`${lookupApi}/items-search?q=${encodeURIComponent(q)}`);
+        const hits = res.ok ? ((await res.json()) as { id: number; name: string }[]) : [];
+        if (!cancelled) setIconHits(hits.slice(0, 8));
+      } catch {
+        /* no results: the field just stays as it is */
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [iconQuery, lookupApi]);
   const [category, setCategory] = useState<string>(initial.category || "");
   // Balance-only calibration. These values never alter plugin matching or completion; they only
   // tell the effort audit what kind of raid/skill burden the author intended.
@@ -1029,6 +1155,31 @@ function TileTrackingEditor({
     () => chooseKillSource(killPicks, frozenKillSource, killPreferPlugin),
     [killPicks, frozenKillSource, killPreferPlugin],
   );
+  // The list in force: which kind it is and its entries' keys, in order. Fewer than two is no list.
+  const listKind: ComboList | null = eachOn && !asPart ? (kind === 'kills' ? 'kills' : kind === 'skill' ? 'skill' : null) : null;
+  const listKeys = listKind === 'kills' ? killPicks.map(listKillKey) : listKind === 'skill' ? eachSkills : [];
+  const listActive = listKeys.length >= 2;
+  const listShared = parseInt(listKind === 'kills' ? killAmount : statGoal, 10);
+  const listGoal = (key: string) => parseInt(eachGoals[key] ?? '', 10) || listShared;
+  /** One part per entry: an ordinary kill-count / XP tile for that boss or skill alone. */
+  function listParts(): Record<string, unknown>[] {
+    const mode = statBasis === 'milestone' ? 'individual' : trackingMode;
+    return listKeys.map((key, i) => {
+      const goal = listGoal(key);
+      const meta = listMeta.current.get(key);
+      const id = meta?.id != null ? { id: meta.id } : {};
+      if (listKind === 'skill') {
+        return { ...id, label: `${goal.toLocaleString('en-US')} ${SKILL_LABELS[key] || key} XP`, tileType: 'standard', statType: 'skill', trackedStat: key, statGoal: goal, statBasis, trackingMode: mode, requiredAmount: null, targetNpcs: null };
+      }
+      const pick = killPicks[i];
+      // Once the event runs, a saved entry keeps the engine it was saved on.
+      const c = chooseKillSource([pick], eventStarted ? (meta?.source ?? frozenKillSource) : null, killPreferPlugin);
+      const label = `${goal.toLocaleString('en-US')} ${pick.name}`;
+      return c.ok && c.source === 'hiscores'
+        ? { ...id, label, tileType: 'standard', statType: 'boss', trackedStat: c.trackedStat, statGoal: goal, statBasis, trackingMode: mode, requiredAmount: null, targetNpcs: null }
+        : { ...id, label, tileType: 'kill', statType: null, trackedStat: null, statGoal: null, requiredAmount: goal, targetNpcs: c.ok && c.source === 'plugin' ? c.targetNpcs : [pick.name], trackingMode, coopCredit: coopPerKill ? 'per-kill' : null, coopMinMembers: coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null };
+    });
+  }
   // Every pick is on the hiscores and countable off a KC line: the host may choose either engine.
   const killEngineChoosable = !frozenKillSource && killPicks.length > 0
     && killPicks.every((p) => !!p.key && !!killLineNameForKey(p.key));
@@ -1165,7 +1316,12 @@ function TileTrackingEditor({
         } catch { /* ignore */ }
         return { id, name: `Item #${id}`, perItemAmount: 1 };
       }),
-    ).then(setTrackedItems);
+      // Names only, onto whatever the list holds by now: replacing the list here undid any item
+      // added or removed while the lookups were still out.
+    ).then((named) => {
+      const nameOf = new Map(named.map((n: { id: number; name: string }) => [n.id, n.name]));
+      setTrackedItems((prev) => prev.map((i) => (nameOf.has(i.id) && i.name === `Item #${i.id}` ? { ...i, name: nameOf.get(i.id)! } : i)));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1473,6 +1629,24 @@ function TileTrackingEditor({
   }
 
   function validate(): string | null {
+    if (listKind) {
+      const what = listKind === 'kills' ? 'monsters' : 'skills';
+      if (listKeys.length < 2) return `Add at least two ${what} to count each one separately, or switch that off.`;
+      if (listKeys.length > MAX_COMBO_PARTS) return `A tile can count up to ${MAX_COMBO_PARTS} ${what} separately.`;
+      if (new Set(listKeys).size !== listKeys.length) return `Each of the ${what} can only be listed once.`;
+      if (listKeys.some((k) => !(listGoal(k) >= 1))) return listKind === 'kills' ? 'Set how many kills each one needs (at least 1).' : 'Set an XP goal of at least 1 for each skill.';
+      if (eachNeed.trim()) {
+        const n = parseInt(eachNeed, 10);
+        if (!Number.isInteger(n) || n < 1 || n > listKeys.length) return `"At least" must be between 1 and ${listKeys.length}, or blank for all of them.`;
+      }
+      if (listKind === 'kills') {
+        for (const [i, pick] of killPicks.entries()) {
+          const c = chooseKillSource([pick], eventStarted ? (listMeta.current.get(listKeys[i])?.source ?? frozenKillSource) : null, killPreferPlugin);
+          if (!c.ok) return c.error;
+        }
+      }
+      return null;
+    }
     if (kind === 'combo') {
       if (comboParts.length < MIN_COMBO_PARTS || comboParts.length > MAX_COMBO_PARTS) {
         return `A combo needs ${MIN_COMBO_PARTS}–${MAX_COMBO_PARTS} parts.`;
@@ -1639,6 +1813,7 @@ function TileTrackingEditor({
         } : {}),
       },
       category: category.trim() || null,
+      ...(asPart ? {} : { icon: iconUrl }),
       // A counter's cap rides only a plugin kills tile (lib/tileCaps); cleared on every other kind.
       capBy: isKill && capBy.length > 0 ? capBy : null,
       // A combo's rule and parts (lib/combo) — the parts saved with it, each its own tile row.
@@ -1677,7 +1852,13 @@ function TileTrackingEditor({
       pvpMinLootValue: null,
     };
 
-    if (isStat) {
+    if (listActive && listKind) {
+      // A list tile saves as a combo of one part per entry (lib/listTile); the editor reads it back as this kind.
+      payload.tileType = 'combo';
+      payload.comboRule = listRule(listKind, parseInt(eachNeed, 10) || 0, listKeys.length);
+      payload.parts = listParts();
+      payload.capBy = null;
+    } else if (isStat) {
       // A skill tile, or a kills tile whose monsters are all on the hiscores (statType 'boss').
       const killsOnHiscores = kind === 'kills' && killChoice.ok && killChoice.source === 'hiscores';
       payload.statType = kind === 'skill' ? 'skill' : 'boss';
@@ -1846,6 +2027,14 @@ function TileTrackingEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comboParts]);
 
+  useEffect(() => {
+    if (!saveRef) return;
+    saveRef.current = () => void handleSave();
+    return () => {
+      saveRef.current = null;
+    };
+  });
+
   async function handleSave(quiet = false) {
     const err = validate();
     if (err) {
@@ -1880,6 +2069,7 @@ function TileTrackingEditor({
         setBaseStamp(updated.updatedAt ?? null);
         markTileSaved();
         (quiet ? onAutoSaved : onSaved)?.({
+          icon: updated.icon ?? null,
           label: updated.label,
           description: updated.description,
           tileType: updated.tileType,
@@ -1912,6 +2102,9 @@ function TileTrackingEditor({
           updatedAt: updated.updatedAt ?? null,
         });
         if (Array.isArray(updated.parts)) {
+          // A list tile's new parts now have ids: the next save must update them, not replace them.
+          const again = readListTile({ tileType: 'combo', comboRule: updated.comboRule ? parseComboRule(updated.comboRule) : null, parts: updated.parts.map(rowToPartConfig) } as TileConfig);
+          if (again) listMeta.current = new Map(again.entries.map((e) => [e.key, e]));
           const rows = draftsFromParts(updated.parts.map(rowToPartConfig));
           setComboParts((prev) => rows.map((r, i) => (prev[i] ? { ...r, key: prev[i].key } : r)));
         }
@@ -2148,19 +2341,55 @@ function TileTrackingEditor({
       {/* ---- SKILL XP (hiscores) ---- */}
       {kind === 'skill' && (
         <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Skill</label>
-            <Select
-              value={trackedStat}
-              onChange={setTrackedStat}
-              placeholder="Select a skill..."
-              ariaLabel="Skill"
-              options={SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))}
+          {!eachOn && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Skill</label>
+              <Select
+                value={trackedStat}
+                onChange={setTrackedStat}
+                placeholder="Select a skill..."
+                ariaLabel="Skill"
+                options={SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))}
+              />
+            </div>
+          )}
+          {eachOn && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Skills</label>
+              <Select
+                value=""
+                onChange={(key) => key && setEachSkills((prev) => (prev.includes(key) ? prev : [...prev, key]))}
+                placeholder="Add a skill..."
+                ariaLabel="Add a skill"
+                disabled={locked}
+                options={SKILLS.filter((key) => !eachSkills.includes(key)).map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))}
+              />
+            </div>
+          )}
+          {!asPart && (
+            <ListOptions
+              on={eachOn}
+              onToggle={(on) => {
+                setEachOn(on);
+                // Carry the one picked skill into the list (and the first back out of it).
+                if (on && trackedStat && !eachSkills.includes(trackedStat)) setEachSkills((prev) => [trackedStat, ...prev]);
+                if (!on && !trackedStat && eachSkills[0]) setTrackedStat(eachSkills[0]);
+              }}
+              need={eachNeed}
+              onNeed={setEachNeed}
+              locked={locked}
+              noun="skill"
+              entries={eachSkills.map((key) => ({ key, name: SKILL_LABELS[key] || key }))}
+              goals={eachGoals}
+              onGoal={(key, v) => setEachGoals((g) => ({ ...g, [key]: v }))}
+              onRemove={locked ? undefined : (key) => setEachSkills((prev) => prev.filter((k) => k !== key))}
+              shared={statGoal}
+              unit="XP"
             />
-          </div>
+          )}
 
           <div>
-            <label className="block text-xs text-text-muted mb-1">Goal (XP)</label>
+            <label className="block text-xs text-text-muted mb-1">{eachOn ? 'Goal (XP) for each' : 'Goal (XP)'}</label>
             <Input
               type="number"
               value={statGoal}
@@ -3010,8 +3239,23 @@ function TileTrackingEditor({
             </p>
           )}
 
+          {(killPicks.length >= 2 || eachOn) && !asPart && (
+            <ListOptions
+              on={eachOn}
+              onToggle={setEachOn}
+              need={eachNeed}
+              onNeed={setEachNeed}
+              locked={locked}
+              noun="monster"
+              entries={killPicks.map((p) => ({ key: listKillKey(p), name: p.name }))}
+              goals={eachGoals}
+              onGoal={(key, v) => setEachGoals((g) => ({ ...g, [key]: v }))}
+              shared={killAmount}
+              unit="kills"
+            />
+          )}
           <div>
-            <label className="block text-xs text-text-muted mb-1">Kills needed</label>
+            <label className="block text-xs text-text-muted mb-1">{eachOn ? 'Kills needed for each' : 'Kills needed'}</label>
             <Input
               type="number"
               value={killAmount}
@@ -3957,6 +4201,55 @@ function TileTrackingEditor({
       {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
           on every tile it triples the length of the form for no one's benefit. Opens by default when
           any of it is actually in use, so an existing tile never hides its own configuration. */}
+      {/* The tile's picture: automatic from what it tracks, or an item the host picks (a combo otherwise
+          shows its first part's, and a tile with nothing to show gets its name's first letter). */}
+      {!asPart && (
+        <div className="space-y-2 rounded-lg border border-card-border/60 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-foreground">Tile picture</span>
+            {iconUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- a 24px item sprite from our own asset cache */}
+                <img src={iconUrl} alt="" className="h-6 w-6 object-contain" />
+                <button type="button" onClick={() => setIconUrl(null)} className="text-[11px] text-gold hover:underline">
+                  Use the automatic one
+                </button>
+              </>
+            ) : (
+              <span className="text-[11px] text-text-muted">Automatic, from what the tile tracks</span>
+            )}
+          </div>
+          <Input
+            type="search"
+            value={iconQuery}
+            onChange={(e) => setIconQuery(e.target.value)}
+            placeholder="Search an item to use its picture…"
+            aria-label="Search an item for the tile picture"
+            className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+          />
+          {iconQuery.trim().length >= 2 && iconHits.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {iconHits.map((hit) => (
+                <button
+                  key={hit.id}
+                  type="button"
+                  onClick={() => {
+                    setIconUrl(itemIconUrl(hit.id));
+                    setIconQuery('');
+                    setIconHits([]);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded border border-card-border px-2 py-1 text-xs text-foreground hover:border-gold/50"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- an item sprite from our own asset cache */}
+                  <img src={itemIconUrl(hit.id)} alt="" className="h-5 w-5 object-contain" />
+                  {hit.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {!asPart && (
       <details open={optional || lottery || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
         <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
