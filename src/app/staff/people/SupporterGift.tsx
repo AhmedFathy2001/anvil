@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
@@ -20,7 +20,23 @@ interface Gift {
   grantedBy?: string | null;
   endedBy?: string | null;
   note?: string | null;
+  mode?: 'lift' | 'add';
+  addedDays?: number;
+  queued?: boolean;
+  queuedDays?: number | null;
 }
+
+type Mode = 'lift' | 'add';
+interface Preview {
+  text: string;
+  nothing: boolean;
+  blocked: boolean;
+}
+
+const MODES: { value: Mode; label: string; says: string }[] = [
+  { value: 'lift', label: 'Lift to a tier', says: 'Until the end date they have at least this tier, on top of whatever they pay for.' },
+  { value: 'add', label: 'Add time', says: 'The time is added to what they already hold at this tier. It never overlaps.' },
+];
 
 const tierName = (t: SupporterTierId | null) => (t ? SUPPORTER_TIERS[t].name : 'None');
 
@@ -45,6 +61,10 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
   const [boostSlots, setBoostSlots] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>('lift');
+  const [preview, setPreview] = useState<Preview | null>(null);
+  // A lift that would change nothing visible: the button then reads "Give anyway" (the second click).
+  const [confirming, setConfirming] = useState(false);
 
   const url = `/api/staff/people/${playerId}/supporter`;
 
@@ -54,10 +74,13 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
     try {
       const res = await clanFetch(url + query, init);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) setError(data.error ?? 'Failed');
-      else {
+      if (!res.ok) {
+        setError(data.error ?? 'Failed');
+        if (data.needsConfirm) setConfirming(true);
+      } else {
         setGifts(data.gifts);
         setStanding(data.standing ?? null);
+        setConfirming(false);
       }
     } finally {
       setBusy(false);
@@ -72,6 +95,25 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
 
   const length = custom.trim() ? Number(custom) : days;
 
+  // What this gift WOULD do, in plain words, before anything is saved (the server works it out).
+  useEffect(() => {
+    if (!open || !(length >= 1)) return;
+    let stale = false;
+    const t = setTimeout(async () => {
+      const res = await clanFetch(`${url}?tier=${tier}&days=${length}&mode=${mode}`);
+      const data = await res.json().catch(() => ({}));
+      if (!stale && res.ok) setPreview(data.preview ?? null);
+    }, 200);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
+  }, [open, url, tier, length, mode, gifts]);
+  const reset = () => {
+    setConfirming(false);
+    setError(null);
+  };
+
   return (
     <div className="w-full">
       <button
@@ -85,10 +127,26 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
         <div className="mt-2 space-y-3 rounded-lg border border-card-border bg-brown-dark/40 p-3 text-xs">
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-gray-400">
+              What to give
+              <Select
+                value={mode}
+                onChange={(v) => {
+                  setMode(v as Mode);
+                  reset();
+                }}
+                options={MODES.map((m) => ({ value: m.value, label: m.label }))}
+                ariaLabel="What to give"
+                className="mt-1 w-36"
+              />
+            </label>
+            <label className="text-gray-400">
               Tier
               <Select
                 value={tier}
-                onChange={(v) => setTier(v as SupporterTierId)}
+                onChange={(v) => {
+                  setTier(v as SupporterTierId);
+                  reset();
+                }}
                 options={(Object.keys(SUPPORTER_TIERS) as SupporterTierId[]).map((t) => ({ value: t, label: SUPPORTER_TIERS[t].name }))}
                 ariaLabel="Tier"
                 className="mt-1 w-32"
@@ -128,19 +186,28 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
             </label>
             <button
               type="button"
-              disabled={busy || !(length >= 1)}
+              disabled={busy || !(length >= 1) || preview?.blocked === true}
               onClick={() =>
                 void call({
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ tier, days: length, note, boostSlots }),
+                  body: JSON.stringify({ tier, days: length, note, boostSlots, mode, confirm: confirming }),
                 })
               }
               className="rounded-lg bg-gold px-3 py-1.5 font-semibold text-brown-dark disabled:opacity-50"
             >
-              Give {SUPPORTER_TIERS[tier].name}
+              {confirming ? 'Give anyway' : mode === 'add' ? `Add ${SUPPORTER_TIERS[tier].name} time` : `Lift to ${SUPPORTER_TIERS[tier].name}`}
             </button>
           </div>
+          <p className="text-gray-400">{MODES.find((m) => m.value === mode)?.says}</p>
+          {preview && (
+            <p className={`rounded-lg border px-3 py-2 ${preview.nothing || preview.blocked ? 'border-yellow-500/40 text-yellow-200' : 'border-card-border text-gray-200'}`}>
+              <span className="text-gray-500">What this will do: </span>
+              {preview.text}
+              {preview.nothing && ' Press the button twice to give it anyway.'}
+              <span className="text-gray-500"> Dates are UTC. Nothing is sent to Gumroad.</span>
+            </p>
+          )}
           <Checkbox
             checked={boostSlots}
             onChange={setBoostSlots}
@@ -185,8 +252,12 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
             <ul className="space-y-1">
               {gifts.map((g) => (
                 <li key={g.id} className="flex flex-wrap items-center gap-2 text-gray-300">
-                  <span className={g.live ? 'text-gold' : 'text-gray-500'}>{SUPPORTER_TIERS[g.tier].name}</span>
+                  <span className={g.live || g.queued ? 'text-gold' : 'text-gray-500'}>{SUPPORTER_TIERS[g.tier].name}</span>
+                  <span className="rounded-full border border-card-border px-1.5 text-[10px] text-gray-400">{g.mode === 'add' ? 'Add time' : 'Lift to a tier'}</span>
                   {g.boostSlots && <span className="rounded-full border border-card-border px-1.5 text-[10px] text-gray-400">with boost slots</span>}
+                  {g.queued ? (
+                    <span className="text-gray-400">{g.queuedDays ?? 0} days stored, starting when their paid membership ends</span>
+                  ) : (
                   <span className="text-gray-500">
                     from <LocalTime date={g.startedAt} />
                     {g.endsAt && (
@@ -196,17 +267,19 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
                       </>
                     )}
                     {!g.live && (g.endedBy ? ` · ended early by ${g.endedBy}` : ' · ended')}
+                    {!!g.addedDays && ` · ${g.addedDays} days added since`}
                   </span>
+                  )}
                   <span className="text-gray-500">· given by {g.grantedBy ?? 'unknown (no audit entry)'}</span>
                   {g.note && <span className="text-gray-500">· “{g.note}”</span>}
-                  {g.live && (
+                  {(g.live || g.queued) && (
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void call({ method: 'DELETE' }, `?gift=${g.id}`)}
                       className="text-red-300 hover:text-red-200"
                     >
-                      End now
+                      {g.queued ? 'Remove' : 'End now'}
                     </button>
                   )}
                 </li>
