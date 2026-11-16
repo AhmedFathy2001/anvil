@@ -495,3 +495,25 @@ test('a fork the team has not picked at takes no proof; a mission is not the rac
   assert.match(raceProofBlock(g, atFork, 30, { bank: true })!, /pick its road/);
   assert.equal(raceProofBlock(g, atFork, 99), null);
 });
+
+// ── The dialog's label and the proof form ask about the same team ────────────────────────────────
+
+import { raceDetailTeam, raceTileInfo } from '../src/lib/raceRoutes.ts';
+
+test('a viewer with no lens team is judged as their own team: label and proof rule agree', () => {
+  // Two roads joining at 40 (step 3): 10 -> 20|21 -> 40, with 20 done and an uncredited-weight row counting.
+  const g = raceGraph([
+    { id: 10, position: 0, raceStep: 0, raceNext: [20, 21] },
+    { id: 20, position: 1, raceStep: 1, raceNext: [40] },
+    { id: 21, position: 2, raceStep: 1, raceNext: [40] },
+    { id: 40, position: 3, raceStep: 2, raceNext: [] },
+  ]);
+  assert.equal(raceDetailTeam(null, 15), 15);
+  assert.equal(raceDetailTeam(16, 15), 16);
+  assert.equal(raceDetailTeam(undefined, undefined), null);
+  const route = teamRoute(g, [10, 20]);
+  assert.equal(raceProofBlock(g, route, 40), null);
+  assert.equal(raceTileInfo(g, route, 40, String)!.state, 'open');
+  // With no team the banner can only say locked, which is why the two must name one team.
+  assert.equal(raceTileInfo(g, null, 40, String)!.state, null);
+});
