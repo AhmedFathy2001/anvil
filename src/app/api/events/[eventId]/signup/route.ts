@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { noteHeldInvite } from '@/lib/heldEntries';
 import { characterState, mayJoinWith } from '@/lib/characterState';
 import { isEventOver } from '@/lib/eventLock';
 import { accountCap } from '@/lib/accountCap';
@@ -291,6 +292,9 @@ export async function POST(
   // nothing team-private is open to it. The host sees it waiting like any pending sign-up and
   // approves or removes it; confirming the character in Needs review is what clears it for good.
   const held = selectedIds.some((cid) => characterState(accountById.get(cid)!) === 'awaiting-manual');
+  // The invite's yes is not spent while they wait: it is remembered against the entry and used when
+  // staff vouch (lib/heldEntries), so the person does not need the link a second time.
+  const heldInvite = held ? invite : null;
   if (held) invite = null;
 
   // Deselected accounts (previously signed up, now unchecked) get withdrawn — but only when their fee
@@ -473,6 +477,13 @@ export async function POST(
     await releaseInviteSeat();
     if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
     throw e;
+  }
+
+  if (heldInvite) {
+    for (const { row } of rows) {
+      if (row.status !== 'pending') continue;
+      await noteHeldInvite({ clanId: event.clanId, seatId: row.clanMemberId, signupId: row.id, eventId: id, inviteId: heldInvite.id }).catch(() => {});
+    }
   }
 
   // 3) Seat every active account (one player row per account): the invite's team, the place the

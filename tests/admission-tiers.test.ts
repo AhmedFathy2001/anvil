@@ -483,3 +483,114 @@ test('staff decline a manual request: the seat ends and the held sign-up is with
   assert.equal((await signupsOf(ev.id, who.userId))[0].status, 'withdrawn');
   assert.equal(await boardRow(ev.id, a.id), undefined);
 });
+
+// ── Staff vouch: everything held completes in the same action ─────────────────────────────────
+
+const noticesOf = async (userId: number) => db.select().from(s.userNotices).where(eq(s.userNotices.userId, userId));
+
+test('staff vouch: the character is confirmed, an invited entry is approved onto its team, a plain one waits for the host, and the person is told', async () => {
+  const invited = await event(host, 'Vouch Invited');
+  const token = await invite(invited, { maxUses: 3 });
+  const plain = await event(host, 'Vouch Plain');
+  const who = await newcomer('none');
+  await askStaff(who, 'Vouch Both');
+  const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'vouch both'));
+  const seat = await seatOf(host, a.id);
+  assert.equal((await signUp('host', invited.id, who, seat.id, token)).json.held, true);
+  assert.equal((await signUp('host', plain.id, who, seat.id)).json.held, true);
+
+  const r = await review(seat.id, 'approve');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(r.json.entries, { approved: 1, waiting: 1 });
+
+  const after = await accountRow(a.id);
+  assert.ok(after.verifiedAt, 'verified by the vouch');
+  assert.equal(after.provisional, 0, 'no longer in Needs review');
+  assert.equal(after.verifiedByUserId, staffUser);
+  const { pathOf } = await import('../src/lib/characterState.ts');
+  assert.equal(pathOf(after), 'vouched');
+
+  assert.equal((await signupsOf(invited.id, who.userId))[0].status, 'approved');
+  assert.equal((await boardRow(invited.id, a.id)).teamId, invited.teamId, 'on the team the invite named');
+  assert.equal((await db.select().from(s.teamInvites).where(eq(s.teamInvites.token, token)))[0].uses, 1, 'the invite seat is spent now');
+  assert.equal((await signupsOf(plain.id, who.userId))[0].status, 'pending', 'no invite: the host still answers');
+  assert.equal((await boardRow(plain.id, a.id)).teamId, null);
+
+  const told = await noticesOf(who.userId);
+  assert.equal(told.length, 1);
+  assert.match(told[0].title, /staff confirmed Vouch Both/);
+  assert.match(told[0].body, /You are on Vouch Invited team in Vouch Invited/);
+  assert.match(told[0].body, /Vouch Plain now waits for the host/);
+  assert.equal(told[0].readAt, null);
+
+  // And it is in the bell every page carries, until they open it.
+  const N = await import('../src/lib/notices.ts');
+  const inbox = await N.inboxFor(who.userId);
+  const mine = inbox.notices.filter((x) => x.kind === 'personal');
+  assert.equal(mine.length, 1);
+  assert.match(mine[0].title, /staff confirmed Vouch Both/);
+  assert.ok(inbox.unread >= 1);
+  await N.markRead(who.userId, [mine[0].id]);
+  assert.ok((await noticesOf(who.userId))[0].readAt, 'opening the bell marks it read');
+  assert.equal((await N.inboxFor(who.userId)).notices.filter((x) => x.kind === 'personal').length, 0);
+
+  // Vouching twice is refused and completes nothing twice.
+  assert.equal((await review(seat.id, 'approve')).status, 400);
+  assert.equal((await db.select().from(s.teamInvites).where(eq(s.teamInvites.token, token)))[0].uses, 1);
+});
+
+test('staff vouch: an invite that ran out or was turned off while they waited leaves the entry for the host', async () => {
+  const ev = await event(host, 'Vouch Dead Invite');
+  const token = await invite(ev);
+  const who = await newcomer('none');
+  await askStaff(who, 'Vouch Late');
+  const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'vouch late'));
+  const seat = await seatOf(host, a.id);
+  await signUp('host', ev.id, who, seat.id, token);
+  await db.update(s.teamInvites).set({ revokedAt: new Date().toISOString() }).where(eq(s.teamInvites.token, token));
+
+  const r = await review(seat.id, 'approve');
+  assert.deepEqual(r.json.entries, { approved: 0, waiting: 1 });
+  assert.equal((await signupsOf(ev.id, who.userId))[0].status, 'pending');
+  assert.equal((await boardRow(ev.id, a.id)).teamId, null);
+});
+
+test('staff vouch says nothing about another clan’s events', async () => {
+  const other = await clan('other-host');
+  const theirs = await event(other, 'Other Clan Event');
+  const who = await newcomer('none');
+  await askStaff(who, 'Two Clans');
+  const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'two clans'));
+  // A guest seat in the other clan too, with a held entry there.
+  const [otherSeat] = await db.insert(s.clanMemberships).values({ clanId: other, accountId: a.id, kind: 'guest', source: 'application' }).returning();
+  assert.equal((await signUp('other-host', theirs.id, who, otherSeat.id)).json.held, true);
+
+  const r = await review((await seatOf(host, a.id)).id, 'approve');
+  assert.deepEqual(r.json.entries, { approved: 0, waiting: 0 });
+  assert.equal((await signupsOf(theirs.id, who.userId))[0].status, 'pending');
+});
+
+test('staff decline: the person is told, in-game name and clan only', async () => {
+  const ev = await event(host, 'Decline Told');
+  const who = await newcomer('none');
+  await askStaff(who, 'Decline Me');
+  const [a] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'decline me'));
+  const seat = await seatOf(host, a.id);
+  await signUp('host', ev.id, who, seat.id);
+  const r = await review(seat.id, 'not_member');
+  assert.equal(r.json.withdrawn, 1);
+  const told = await noticesOf(who.userId);
+  assert.equal(told.length, 1);
+  assert.match(told[0].title, /staff did not confirm Decline Me/);
+  assert.match(told[0].body, /sign-up for Decline Told was withdrawn/);
+  assert.doesNotMatch(told[0].title + told[0].body, /person-|77\d{6}/, 'no Discord name or id');
+});
+
+test('a flagged XP character confirmed by staff is not told anything was held, because nothing was', async () => {
+  const who = await newcomer('xp');
+  await apply('host', who);
+  const r = await review((await seatOf(host, who.accountId)).id, 'approve');
+  assert.equal(r.json.entries, null);
+  assert.equal((await noticesOf(who.userId)).length, 0);
+  assert.equal((await accountRow(who.accountId)).provisional, 0);
+});

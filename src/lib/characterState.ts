@@ -88,3 +88,31 @@ export function mayDisplace(
 ): boolean {
   return !holder.verifiedAt && characterState(holder) === 'awaiting-manual' && incoming.verified && incoming.method !== 'manual';
 }
+
+/** What staff are shown beside a name: the three paths, plus `vouched` once staff have confirmed a manual one. */
+export type JoinPath = JoinTier | 'vouched';
+
+export function pathOf(a: CharacterProof): JoinPath | null {
+  const tier = tierOf(a);
+  if (tier === 'plugin' && a.verificationMethod === 'manual') return 'vouched';
+  return tier;
+}
+
+/**
+ * The chip's words and tooltip, one place for the sign-up rows, the roster and an event's team list.
+ * Never a Discord identity: it describes the character's proof, nothing about the login behind it.
+ */
+export function pathChip(path: JoinPath | null | undefined): { label: string; title: string; tone: 'ok' | 'check' | 'wait' } | null {
+  switch (path) {
+    case 'plugin':
+      return { label: 'plugin', title: 'The Anvil plugin reported this character while its owner was signed in.', tone: 'ok' };
+    case 'vouched':
+      return { label: 'vouched by staff', title: 'Your staff confirmed this character belongs to this person.', tone: 'ok' };
+    case 'xp':
+      return { label: 'verified by XP check', title: 'Passed the XP check. Added automatically; confirm it in Needs review when you can.', tone: 'check' };
+    case 'manual':
+      return { label: 'awaiting your staff: vouch', title: 'Asked your staff to vouch for this character. Nothing proves it yet: held until someone vouches in Needs review.', tone: 'wait' };
+    default:
+      return null;
+  }
+}
