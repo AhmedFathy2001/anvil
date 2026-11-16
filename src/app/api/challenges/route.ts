@@ -6,7 +6,7 @@ import {
   capForPlayer,
   challengesForPlayer,
   createChallenge,
-  getH2hPrefs,
+  getH2hPrefsView,
   myH2hCharacters,
   openCount,
   recordForPlayer,
@@ -29,7 +29,7 @@ export async function GET() {
     recordForPlayer(session.playerId, false),
     capForPlayer(session.playerId),
     openCount(session.playerId),
-    getH2hPrefs(session.playerId),
+    getH2hPrefsView(session.playerId),
     myH2hCharacters(session.playerId),
   ]);
   return NextResponse.json({ challenges, record, cap, open, prefs, characters });

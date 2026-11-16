@@ -21,6 +21,7 @@ import {
   type H2hKind,
   type H2hRecord,
 } from '@/lib/h2hRules';
+import { DELETED_ACCOUNT, type BlockedPerson } from '@/lib/h2hBlocked';
 import { CheckboxBox } from '@/components/Checkbox';
 import Select from '@/components/Select';
 
@@ -29,7 +30,7 @@ interface Data {
   record: H2hRecord & { lastWin: { rsn: string; label: string; kind: H2hKind } | null };
   cap: number | null;
   open: number;
-  prefs: H2hPrefs;
+  prefs: H2hPrefs & { people: BlockedPerson[] };
   characters: H2hCharacter[];
 }
 
@@ -570,7 +571,7 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
   );
 }
 
-function Settings({ prefs, onChange }: { prefs: H2hPrefs; onChange: () => Promise<void> }) {
+function Settings({ prefs, onChange }: { prefs: H2hPrefs & { people: BlockedPerson[] }; onChange: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   async function put(body: Record<string, unknown>) {
     setBusy(true);
@@ -591,6 +592,18 @@ function Settings({ prefs, onChange }: { prefs: H2hPrefs; onChange: () => Promis
             Unblock all
           </button>
         </div>
+      )}
+      {prefs.people.length > 0 && (
+        <ul className="mt-2 divide-y divide-card-border rounded-lg border border-card-border">
+          {prefs.people.map((p) => (
+            <li key={p.playerId} className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className={p.name === DELETED_ACCOUNT ? 'text-text-dim' : ''}>{p.name}</span>
+              <button type="button" disabled={busy} onClick={() => put({ unblock: p.playerId })} className="text-xs text-gold hover:underline disabled:opacity-50">
+                Unblock
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

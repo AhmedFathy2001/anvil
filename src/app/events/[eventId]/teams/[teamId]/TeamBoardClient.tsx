@@ -34,9 +34,11 @@ interface Props {
   tierBands?: TierBand[];
   /** Weekly activity streak (weeks) by player name (lib/activityStreaks), for the member list. */
   streaks?: Record<string, number>;
+  /** Names with an active day this week (lib/activityStreaks), streak or not. */
+  activeNow?: string[];
 }
 
-export default function TeamBoardClient({ event, team, tiles, completions, players, startingStats = {}, tierBands = DEFAULT_TIER_BANDS, streaks = {} }: Props) {
+export default function TeamBoardClient({ event, team, tiles, completions, players, startingStats = {}, tierBands = DEFAULT_TIER_BANDS, streaks = {}, activeNow = [] }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
@@ -212,7 +214,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)
-        .map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
+        .map((c) => ({ teamId: team.id, teamName: team.name, color: team.color, completedAt: c.completedAt }))
     : [];
 
   return (
@@ -320,6 +322,13 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
               <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
                 <span className="w-1 h-5 rounded-full" style={{ backgroundColor: team.color }} />
                 Team Roster
+                {(() => {
+                  const live = teamPlayers.filter((p) => !p.frozenAt);
+                  const n = live.filter((p) => activeNow.includes(p.name)).length;
+                  return live.length > 0 ? (
+                    <span className="text-xs font-normal text-text-muted">{n} of {live.length} active this week</span>
+                  ) : null;
+                })()}
               </h2>
               <div className="flex flex-wrap gap-2">
                 {teamPlayers.map((player) => (
@@ -328,6 +337,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                     className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 ${player.frozenAt ? 'bg-card-bg/50 text-text-muted' : 'bg-card-bg'}`}
                   >
                     <span className={player.frozenAt ? 'line-through' : ''}>{player.name}</span>
+                    {!player.frozenAt && activeNow.includes(player.name) && (
+                      <span aria-label="Active this week" title="Active this week" className="h-1.5 w-1.5 rounded-full bg-accent-green-light" />
+                    )}
                     {player.frozenAt && (
                       <span
                         className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px"
@@ -400,6 +412,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={false}
           canManage={false}
           canToggle={false}

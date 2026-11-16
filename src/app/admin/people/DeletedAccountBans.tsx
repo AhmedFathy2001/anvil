@@ -56,7 +56,7 @@ export default function DeletedAccountBans({ initial }: { initial: DeletedAccoun
   }
 
   return (
-    <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-4">
+    <section className="mb-6 mt-6 rounded-xl border border-card-border bg-card-bg p-4">
       <div className="mb-1 flex items-center gap-2">
         <span className="h-5 w-1 shrink-0 rounded-sm bg-gold" />
         <h2 className="text-[15px] font-semibold">

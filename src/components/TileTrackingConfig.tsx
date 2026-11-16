@@ -741,6 +741,10 @@ function TileTrackingEditor({
   const canOverride = !!eventStarted && !!isAdmin;
   const [liveOverride, setLiveOverride] = useState(false);
   const locked = !!eventStarted && !(canOverride && liveOverride);
+  // One sentence for every frozen field: why it is locked and what unlocks it (the checkbox at the top).
+  const lockNote = canOverride
+    ? 'Locked because the event has started. Tick “Override live-event lock (admin)” above to change it.'
+    : 'Locked because the event has started. Only an admin can unlock it.';
   // Lookups go to the clan's /api/admin, or /api/library in the Anvil library editor (no clan there).
   const lookupApi = useContext(AuthoringApiContext);
   const [kind, setKind] = useState<TileKind>(() => deriveKind(initial));
@@ -2026,7 +2030,7 @@ function TileTrackingEditor({
         </div>
         <p className="text-[10px] text-text-muted mt-1 leading-relaxed">
           {KINDS.find((k) => k.key === kind)?.blurb}
-          {locked && ' · Kind is locked after the event starts.'}
+          {locked && ` · ${lockNote}`}
         </p>
       </div>
 
@@ -2040,7 +2044,7 @@ function TileTrackingEditor({
           disabled={locked}
           className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
         />
-        {locked && <p className="text-[10px] text-text-muted mt-0.5">Cannot change after event start</p>}
+        {locked && <p className="text-[10px] text-text-muted mt-0.5">{lockNote}</p>}
       </div>
 
       {/* Description */}

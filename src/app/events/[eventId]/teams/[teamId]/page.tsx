@@ -1,6 +1,6 @@
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { boardPlayer, clientEvent } from '@/lib/clientRows';
-import { streakWeeksForRsns } from '@/lib/activityStreaks';
+import { streakStatusForRsns } from '@/lib/activityStreaks';
 import { normalizeRsn } from '@/lib/auth';
 import { db } from '@/db';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
@@ -169,19 +169,22 @@ export default async function TeamBoardPage({
         players={eventPlayers.map(boardPlayer)}
         startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         tierBands={tierBands}
-        streaks={await teamStreaks(rawEventPlayers.filter((p) => p.teamId === tId).map((p) => p.name))}
+        {...(await teamStreaks(rawEventPlayers.filter((p) => p.teamId === tId).map((p) => p.name)))}
       />
     </>
   );
 }
 
-/** Streak weeks by name for this team's members; decoration, so a failed read is none. */
-async function teamStreaks(names: string[]): Promise<Record<string, number>> {
-  const weeks = await streakWeeksForRsns(names).catch(() => new Map<string, number>());
-  const out: Record<string, number> = {};
+/** Streak weeks, and who played this week, by name for this team's members; decoration, so a failed read is none. */
+async function teamStreaks(names: string[]): Promise<{ streaks: Record<string, number>; activeNow: string[] }> {
+  const status = await streakStatusForRsns(names).catch(() => new Map<string, { weeks: number; active: boolean }>());
+  const streaks: Record<string, number> = {};
+  const activeNow: string[] = [];
   for (const n of names) {
-    const w = weeks.get(normalizeRsn(n));
-    if (w) out[n] = w;
+    const st = status.get(normalizeRsn(n));
+    if (!st) continue;
+    if (st.weeks) streaks[n] = st.weeks;
+    if (st.active) activeNow.push(n);
   }
-  return out;
+  return { streaks, activeNow };
 }

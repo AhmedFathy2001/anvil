@@ -238,6 +238,7 @@ export default function LadderClient({
           submissions={proofForOpenTile ?? []}
           submissionsLoading={proofForOpenTile === null}
           completedBy={[]}
+          ended={finished}
           canSubmit={false}
           canManage={false}
           canToggle={false}

@@ -50,3 +50,14 @@ export function pageOf<T>(rows: readonly T[], page: number, size = AUDIT_PAGE_SI
   const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
   return { rows: rows.slice((p - 1) * size, p * size), page: p, pages };
 }
+
+/** Older rows appended below the loaded ones, newest first, with any row already shown skipped. */
+export function appendOlder<T extends { id: number }>(loaded: readonly T[], older: readonly T[]): T[] {
+  const seen = new Set(loaded.map((r) => r.id));
+  return [...loaded, ...older.filter((r) => !seen.has(r.id))];
+}
+
+/** The id to ask "older than" for: the smallest id loaded. */
+export function oldestId(rows: readonly { id: number }[]): number | null {
+  return rows.length ? Math.min(...rows.map((r) => r.id)) : null;
+}

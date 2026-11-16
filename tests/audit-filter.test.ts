@@ -35,3 +35,13 @@ test('paging clamps', () => {
   assert.equal(pageOf(list, 99).page, 3);
   assert.equal(pageOf([], 1).pages, 1);
 });
+
+import { appendOlder, oldestId } from '../src/lib/auditFilter';
+test('appendOlder keeps order and skips rows already loaded', () => {
+  const got = appendOlder([{ id: 9 }, { id: 8 }], [{ id: 8 }, { id: 7 }, { id: 6 }]);
+  assert.deepEqual(got.map((r) => r.id), [9, 8, 7, 6]);
+});
+test('oldestId is the smallest id, null when empty', () => {
+  assert.equal(oldestId([{ id: 9 }, { id: 4 }, { id: 8 }]), 4);
+  assert.equal(oldestId([]), null);
+});

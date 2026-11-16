@@ -49,6 +49,7 @@ interface DraftState {
   pickInRound: number;
   totalPicked: number;
   poolRemaining: number;
+  balanceMode?: string;
   /** Late joiners' starting-stats line, by player id (lib/startingStats). Absent = nothing to say. */
   startingStats?: Record<number, StartingStatsStatus>;
 }
@@ -1253,6 +1254,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         {format === 'draft' && (activeStep === 2 || activeStep === 3) && (draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">
             <DraftStatus
+            snake={draft.balanceMode !== 'dynamic-order'}
               status={draft.status}
               currentTeamId={draft.currentTeamId}
               round={draft.round}

@@ -18,6 +18,11 @@ export function getTeamForPick(teamOrder: number[], pickNumber: number): number 
   return teamOrder[index];
 }
 
+/** The order teams pick in during a 0-based round: reversed on odd rounds (snake). */
+export function orderForRound(teamOrder: number[], round: number): number[] {
+  return round % 2 === 1 ? [...teamOrder].reverse() : [...teamOrder];
+}
+
 /** Compute the current round (0-based) for a given pick number. */
 export function getRoundForPick(numTeams: number, pickNumber: number): number {
   return Math.floor(pickNumber / numTeams);

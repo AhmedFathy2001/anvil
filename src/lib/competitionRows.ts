@@ -224,6 +224,17 @@ export function boardPlaceWords(v: BoardViewer, ranking: BoardRanking | null | u
   return placeWords(ahead + 1, Math.max(ranking.teams, ranking.scores.length), ahead === 0 && tied === 1 && ranking.teams > 1);
 }
 
+/** Whose board plays as individuals: a players board (ladder) or a solo-placement event, where each player is a team of one. */
+export function playsAsIndividuals(event: { teamPlacement?: string | null }, competitors: 'teams' | 'individuals'): boolean {
+  return competitors === 'individuals' || event.teamPlacement === 'solo';
+}
+
+/** The entrant chip an events row leads with: '3 players' or '3 teams'; null when nobody is in yet. */
+export function entrantChip(individuals: boolean, count: number): string | null {
+  if (count <= 0) return null;
+  return `${count} ${individuals ? 'player' : 'team'}${count === 1 ? '' : 's'}`;
+}
+
 function yoursWords(v: BoardViewer, individuals: boolean, ranking?: BoardRanking | null): string | null {
   if (v.teamNames.length > 0) {
     const place = boardPlaceWords(v, ranking);
