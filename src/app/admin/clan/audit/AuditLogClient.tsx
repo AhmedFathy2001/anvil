@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
-import { AUDIT_PAGE_SIZE, filterAudit, pageOf, type AuditScope } from '@/lib/auditFilter';
+import { AUDIT_PAGE_SIZE, appendOlder, filterAudit, oldestId, pageOf, type AuditScope } from '@/lib/auditFilter';
 import { clanFetch } from '@/lib/clanFetch';
 
 interface RenameSuggestion {
@@ -93,15 +93,41 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function AuditLogClient({
-  entries,
+  entries: firstEntries,
+  hasMore: firstHasMore,
   leftMembers,
   activeMembers,
 }: {
   entries: AuditEntry[];
+  hasMore: boolean;
   leftMembers: LeftMember[];
   activeMembers: JoinedMember[];
 }) {
   const router = useRouter();
+  // The page hands over the newest 500; "Load older" fetches the next slice and the filter and search below
+  // run over everything loaded.
+  const [older, setOlder] = useState<AuditEntry[]>([]);
+  const [hasMore, setHasMore] = useState(firstHasMore);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [olderError, setOlderError] = useState<string | null>(null);
+  const entries = useMemo(() => appendOlder(firstEntries, older), [firstEntries, older]);
+  async function loadOlder() {
+    const before = oldestId(entries);
+    if (before == null || loadingOlder) return;
+    setLoadingOlder(true);
+    setOlderError(null);
+    try {
+      const res = await clanFetch(`/api/admin/clan/audit?before=${before}`);
+      const data = (await res.json().catch(() => ({}))) as { entries?: AuditEntry[]; hasMore?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error || 'Could not load older entries.');
+      setOlder((prev) => appendOlder(prev, data.entries ?? []));
+      setHasMore(!!data.hasMore);
+    } catch (e) {
+      setOlderError(e instanceof Error ? e.message : 'Could not load older entries.');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
   const [filter, setFilter] = useState<string>('all');
   // People's actions first: the roster sync writes joins and leaves all day and buried them.
   const [scope, setScope] = useState<AuditScope>('people');
@@ -487,6 +513,20 @@ export default function AuditLogClient({
           </ul>
         )}
       </div>
+      {hasMore && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-muted">
+          <button
+            type="button"
+            onClick={() => void loadOlder()}
+            disabled={loadingOlder}
+            className="rounded border border-card-border px-3 py-1.5 hover:text-foreground disabled:opacity-40"
+          >
+            {loadingOlder ? 'Loading…' : 'Load older entries'}
+          </button>
+          <span>{entries.length} loaded, and there are older ones.</span>
+          {olderError && <span className="text-red-400">{olderError}</span>}
+        </div>
+      )}
       {paged.pages > 1 && (
         <div className="mt-3 flex items-center justify-between text-xs text-text-muted">
           <span>
