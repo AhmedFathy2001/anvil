@@ -143,7 +143,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
             <Figure
               src="/guide/site-link-device.png"
               width={555}
-              height={370}
+              height={425}
               alt={p.connect.linkFigure.alt}
               caption={p.connect.linkFigure.caption}
               legend={legend(p.connect.linkFigure.legend, v)}
@@ -195,7 +195,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         <Figure
           src="/guide/site-accounts.png"
           width={835}
-          height={290}
+          height={480}
           alt={p.accounts.figure.alt}
           caption={p.accounts.figure.caption}
           legend={legend(p.accounts.figure.legend, v)}

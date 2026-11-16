@@ -853,21 +853,25 @@ export const en = {
       title: 'Link your accounts',
       body: [
         'Once the token is in, accounts you play appear on your profile automatically. A brand-new account can link immediately; an account already on a clan roster needs one ownership check first, because a public RuneScape name is not proof that the person holding the token owns it.',
-        'For that first link, use [the quick XP check](/profile#link-account) or ask a clan moderator to approve it under [accounts we noticed](/profile#detected-accounts). After it is proven, the plugin stores its stable account fingerprint, follows future name changes, and recognises it automatically on every login.',
+        'For that first link, use [the quick XP check](/settings/characters#link-account) or ask a clan moderator to approve it, starting from [We noticed you playing](/settings/characters#detected). After it is proven, the plugin stores its stable account fingerprint, follows future name changes, and recognises it automatically on every login.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'The RuneScape Accounts card on the profile page listing accounts verified via plugin',
+        caption: 'Settings → Characters',
+        alt: 'The Characters page under Settings, with the linked characters list and the We noticed you playing card boxed',
         legend: [
           {
-            label: 'Your linked accounts',
-            body: 'anything marked “Verified via plugin” is linked and will be recognised automatically. Established roster accounts may ask for a one-time XP or moderator check first.',
+            label: 'Your linked characters',
+            body: 'anything listed here is linked and will be recognised automatically.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'characters the plugin saw you play that aren’t linked yet. Press **Verify ownership** to link one (a brand-new account links straight away; one already on a clan roster asks for a one-time XP or moderator check first), or **Not mine** to dismiss it.',
           },
         ],
       },
       noPluginHeading: 'Can’t run the plugin?',
       noPluginIntro:
-        'On mobile or the official client, use [Profile → account linking](/profile#link-account) instead:',
+        'On mobile or the official client, use [Settings → Characters → Link a character](/settings/characters#link-account) instead:',
       noPluginOptions: [
         '**Verify by XP** — enter your RSN, the site picks a random skill, gain 1,000 XP in it within 30 minutes.',
         '**Manual review** — for hidden Hiscores or fresh alts: submit your RSN with a note and a moderator approves it.',
@@ -1039,7 +1043,7 @@ export const en = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'That account isn’t linked yet. Open [Profile → accounts we noticed](/profile#detected-accounts) to add it or start the ownership check.',
+          body: 'That account isn’t linked yet. Open [Settings → Characters → We noticed you playing](/settings/characters#detected) to add it or start the ownership check.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1463,7 +1467,7 @@ export const en = {
       ],
       figure: {
         caption: 'Event → Teams & draft → the team → Team staff',
-        alt: 'The Team staff panel with one seat granted and the add-someone search open',
+        alt: 'The Team staff panel with one seat granted, with the Add someone button, the seat and its note, and the Remove button boxed',
         legend: [
           {
             label: 'Add someone',
