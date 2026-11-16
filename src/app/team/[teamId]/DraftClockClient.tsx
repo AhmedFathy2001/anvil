@@ -1,5 +1,6 @@
 'use client';
 
+import { formatClock } from '@/lib/clockFormat';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTeamForPick } from '@/lib/draft';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
@@ -38,16 +39,14 @@ interface DraftState {
 function countdown(dueIso: string, nowMs: number): string {
   const ms = Math.max(0, Date.parse(dueIso) - nowMs);
   const total = Math.floor(ms / 1000);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  return formatClock(total);
 }
 
 function elapsed(sinceIso: string, nowMs: number): string {
   const ms = nowMs - Date.parse(sinceIso);
   if (!Number.isFinite(ms) || ms < 0) return '0:00';
   const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return formatClock(total);
 }
 
 export default function DraftClockClient({ teamId, eventId }: { teamId: number; eventId: number }) {
