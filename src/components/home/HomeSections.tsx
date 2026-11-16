@@ -3,7 +3,7 @@ import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
 import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
-import { boardRow, countRows, rowWhen, sectionRows, weeklyRow, type BoardViewer, type WeeklyViewer } from '@/lib/competitionRows';
+import { boardRow, countRows, rowWhen, sectionRows, weeklyRow, youreInNote, type BoardViewer, type WeeklyViewer } from '@/lib/competitionRows';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
@@ -636,6 +636,11 @@ export function Competitions({
     mineKeys,
   );
   const cards = [...sections.running, ...sections.upNext];
+  // What the viewer is in that "Happening now" already shows: counted in the heading, not listed twice.
+  const featuredMine = {
+    events: view.live.event && featured.has(`e${view.live.event.id}`) && myBoards?.has(view.live.event.id) ? 1 : 0,
+    competitions: view.weeklies.filter((w) => w.mine && w.status !== 'completed' && featured.has(`w${w.id}`)).length,
+  };
   const anyOpen = sections.mine.length + cards.length > 0;
 
   const finished: FinishedRow[] = [
@@ -673,7 +678,7 @@ export function Competitions({
     <>
       {sections.mine.length > 0 && (
         <>
-          <SectionHead title="You’re in" note={runningParts(countRows(sections.mine))} more={all} />
+          <SectionHead title="You’re in" note={youreInNote(countRows(sections.mine), featuredMine)} more={all} />
           <div className="mb-9">
             <CompetitionRowList count={sections.mine.length}>
               {sections.mine.map((r) => (

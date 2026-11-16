@@ -326,3 +326,12 @@ test('a board gives no place without a score, with several teams, or when standi
   const players = boardRow({ ...board(), chips: ['40 players'], ranking: { teams: 40, scores: [{ teamId: 1, value: 5 }, { teamId: 2, value: 3 }] } }, { teamNames: ['Max'], teamIds: [2], signedUp: false });
   assert.equal(players.yours, 'Playing as Max \u00b7 2nd of 40');
 });
+
+import { youreInNote } from '../src/lib/competitionRows.ts';
+
+test('the clan home counts what the viewer is in the way the events page does, and says what is shown above', () => {
+  // Home lists 7 events + 4 competitions (the other 1 + 1 are the featured cards); events page: 8 + 5.
+  assert.equal(youreInNote({ events: 7, competitions: 4 }, { events: 1, competitions: 1 }), '8 events and 5 competitions · 1 event and 1 competition shown above');
+  assert.equal(youreInNote({ events: 2, competitions: 0 }, { events: 0, competitions: 0 }), '2 events');
+  assert.equal(youreInNote({ events: 0, competitions: 1 }, { events: 1, competitions: 0 }), '1 event and 1 competition · 1 event shown above');
+});
