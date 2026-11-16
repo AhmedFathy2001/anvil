@@ -6,7 +6,7 @@
 // force wins, so a gift above what someone pays shows the gift's tier until it ends, then their
 // own again. Every grant and early end is in the platform audit log.
 
-import { and, desc, eq, inArray, isNull, like } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, ownerTrials, supporterSubscriptions, users } from '@/db/schema';
@@ -16,7 +16,7 @@ import {
   giftModes,
   giftSources,
   liftPreview,
-  paidAtTier,
+  paidAtOrAbove,
   planAddTime,
   supporterStanding,
   type AddTimePlan,
@@ -130,9 +130,21 @@ const PLAN_COLUMNS = {
   queuedDays: supporterSubscriptions.queuedDays,
 } as const;
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Reader = typeof db | Tx;
+
 /** The rows that decide what "add time" does: this login's own (a gift is given to a login). */
-async function planRows(userId: number): Promise<GiftPlanRow[]> {
-  return db.select(PLAN_COLUMNS).from(supporterSubscriptions).where(eq(supporterSubscriptions.userId, userId));
+async function planRows(userId: number, reader: Reader = db): Promise<GiftPlanRow[]> {
+  return reader.select(PLAN_COLUMNS).from(supporterSubscriptions).where(eq(supporterSubscriptions.userId, userId));
+}
+
+/** Every login of the same PERSON (users.player_id), this one included; just this one when it has no person. */
+async function personLogins(userId: number): Promise<number[]> {
+  const me = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { id: true, playerId: true } });
+  if (!me) return [];
+  if (me.playerId == null) return [me.id];
+  const all = await db.select({ id: users.id }).from(users).where(eq(users.playerId, me.playerId)).orderBy(users.id);
+  return all.map((u) => u.id);
 }
 
 /**
@@ -175,55 +187,62 @@ export async function giveGift(opts: {
   const days = Math.round(opts.days);
   if (!(days >= 1 && days <= MAX_GIFT_DAYS)) throw new Error(`A gift runs 1 to ${MAX_GIFT_DAYS} days.`);
   const note = opts.note?.slice(0, 200) || null;
-  const start = new Date();
-  const audit = (eventType: string, value: Record<string, unknown>) =>
-    db.insert(clanAuditLog).values({ clanId: null, eventType, actorUserId: opts.actorUserId, newValue: JSON.stringify(value) });
-  const view = (row: typeof supporterSubscriptions.$inferSelect, outcome: GiftResult['outcome']): GiftResult => ({
-    id: row.id, tier: opts.tier, startedAt: row.startedAt, endsAt: row.currentPeriodEnd, live: row.status === 'granted', boostSlots: row.grantsBoostSlots,
-    grantedBy: null, endedBy: null, note, mode, addedDays: 0, queued: row.status === QUEUED_STATUS, queuedDays: row.queuedDays, outcome,
-  });
+  // ONE AT A TIME per login. "Add time" reads what they hold and then writes to it; two submits at
+  // once (a double click, two staff) both read the same end date and one extension was lost, or two
+  // stored rows were made. A transaction-scoped advisory lock keyed on the login makes the second
+  // wait for the first to commit, so it reads the moved end and extends again in sequence.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(7188, ${opts.userId}::int)`);
+    const start = new Date();
+    const audit = (eventType: string, value: Record<string, unknown>) =>
+      tx.insert(clanAuditLog).values({ clanId: null, eventType, actorUserId: opts.actorUserId, newValue: JSON.stringify(value) });
+    const view = (row: typeof supporterSubscriptions.$inferSelect, outcome: GiftResult['outcome']): GiftResult => ({
+      id: row.id, tier: opts.tier, startedAt: row.startedAt, endsAt: row.currentPeriodEnd, live: row.status === 'granted', boostSlots: row.grantsBoostSlots,
+      grantedBy: null, endedBy: null, note, mode, addedDays: 0, queued: row.status === QUEUED_STATUS, queuedDays: row.queuedDays, outcome,
+    });
 
-  const plan: AddTimePlan | null = mode === 'add' ? planAddTime(await planRows(opts.userId), opts.tier, days, start.getTime()) : null;
-  if (plan?.kind === 'endless') throw new Error('They already hold this tier from Anvil with no end date, so there is nothing to add to.');
+    const plan: AddTimePlan | null = mode === 'add' ? planAddTime(await planRows(opts.userId, tx), opts.tier, days, start.getTime()) : null;
+    if (plan?.kind === 'endless') throw new Error('They already hold this tier from Anvil with no end date, so there is nothing to add to.');
 
-  if (plan?.kind === 'queue') {
-    // They pay for this tier: stored, in force for nobody, until the paid membership stops.
-    if (plan.queuedId != null) {
-      const [row] = await db.update(supporterSubscriptions).set({ queuedDays: plan.queuedDays, ...(boostSlots ? { grantsBoostSlots: true } : {}) }).where(eq(supporterSubscriptions.id, plan.queuedId)).returning();
-      await audit('supporter_gift_extended', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, queuedDays: plan.queuedDays, starts: 'when their paid membership ends', paidUntil: plan.paidUntil, note });
+    if (plan?.kind === 'queue') {
+      // They pay for this tier: stored, in force for nobody, until the paid membership stops.
+      if (plan.queuedId != null) {
+        const [row] = await tx.update(supporterSubscriptions).set({ queuedDays: plan.queuedDays, ...(boostSlots ? { grantsBoostSlots: true } : {}) }).where(eq(supporterSubscriptions.id, plan.queuedId)).returning();
+        await audit('supporter_gift_extended', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, queuedDays: plan.queuedDays, starts: 'when their paid membership ends', paidUntil: plan.paidUntil, note });
+        return view(row, 'queued');
+      }
+      const [row] = await tx
+        .insert(supporterSubscriptions)
+        .values({ userId: opts.userId, tier: opts.tier, status: QUEUED_STATUS, recurrence: GIFT_RECURRENCE, currentPeriodEnd: null, startedAt: start.toISOString(), grantsBoostSlots: boostSlots, queuedDays: days })
+        .returning();
+      await audit('supporter_gift_granted', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, from: null, endsAt: null, starts: 'when their paid membership ends', paidUntil: plan.paidUntil, boostSlots, note });
       return view(row, 'queued');
     }
-    const [row] = await db
+
+    if (plan?.kind === 'extend') {
+      const [row] = await tx.update(supporterSubscriptions).set({ currentPeriodEnd: plan.to }).where(eq(supporterSubscriptions.id, plan.giftId)).returning();
+      // An Anvil trial riding on this gift ends when the gift does: its record moves with it.
+      await tx.update(ownerTrials).set({ endsAt: new Date(plan.to) }).where(and(eq(ownerTrials.kind, 'supporter'), eq(ownerTrials.entitlementId, plan.giftId), isNull(ownerTrials.revokedAt)));
+      await audit('supporter_gift_extended', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, from: plan.from, endsAt: plan.to, note });
+      return view(row, 'extended');
+    }
+
+    const end = plan?.kind === 'new' ? new Date(plan.to) : new Date(start.getTime() + days * 86_400_000);
+    const [row] = await tx
       .insert(supporterSubscriptions)
-      .values({ userId: opts.userId, tier: opts.tier, status: QUEUED_STATUS, recurrence: GIFT_RECURRENCE, currentPeriodEnd: null, startedAt: start.toISOString(), grantsBoostSlots: boostSlots, queuedDays: days })
+      .values({
+        userId: opts.userId,
+        tier: opts.tier,
+        status: 'granted',
+        recurrence: GIFT_RECURRENCE,
+        currentPeriodEnd: end.toISOString(),
+        startedAt: start.toISOString(),
+        grantsBoostSlots: boostSlots,
+      })
       .returning();
-    await audit('supporter_gift_granted', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, from: null, endsAt: null, starts: 'when their paid membership ends', paidUntil: plan.paidUntil, boostSlots, note });
-    return view(row, 'queued');
-  }
-
-  if (plan?.kind === 'extend') {
-    const [row] = await db.update(supporterSubscriptions).set({ currentPeriodEnd: plan.to }).where(eq(supporterSubscriptions.id, plan.giftId)).returning();
-    // An Anvil trial riding on this gift ends when the gift does: its record moves with it.
-    await db.update(ownerTrials).set({ endsAt: new Date(plan.to) }).where(and(eq(ownerTrials.kind, 'supporter'), eq(ownerTrials.entitlementId, plan.giftId), isNull(ownerTrials.revokedAt)));
-    await audit('supporter_gift_extended', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, from: plan.from, endsAt: plan.to, note });
-    return view(row, 'extended');
-  }
-
-  const end = plan?.kind === 'new' ? new Date(plan.to) : new Date(start.getTime() + days * 86_400_000);
-  const [row] = await db
-    .insert(supporterSubscriptions)
-    .values({
-      userId: opts.userId,
-      tier: opts.tier,
-      status: 'granted',
-      recurrence: GIFT_RECURRENCE,
-      currentPeriodEnd: end.toISOString(),
-      startedAt: start.toISOString(),
-      grantsBoostSlots: boostSlots,
-    })
-    .returning();
-  await audit('supporter_gift_granted', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, from: start.toISOString(), endsAt: end.toISOString(), boostSlots, note });
-  return view(row, 'new');
+    await audit('supporter_gift_granted', { userId: opts.userId, giftId: row.id, tier: opts.tier, mode, days, from: start.toISOString(), endsAt: end.toISOString(), boostSlots, note });
+    return view(row, 'new');
+  });
 }
 
 /** End a gift now (a running one, or stored time that has not started). False when it isn't this person's gift or already ended. */
@@ -251,16 +270,24 @@ export async function endGift(userId: number, giftId: number, actorUserId: numbe
 }
 
 /**
- * Start this login's stored "add time" whose paid membership at that tier has stopped: the row
+ * Start this PERSON's stored "add time" once they no longer pay for that tier or a higher one: the row
  * becomes an ordinary gift running from now for its stored days. Called when the Supporter webhook
  * ends, refunds or cancels a membership, and once a day for anything a notification missed. Returns
  * how many started.
  */
 export async function startQueuedGifts(userId: number, now = Date.now()): Promise<number> {
-  const rows = await planRows(userId);
+  // The PERSON, not the login: the paid membership may sit on another login of theirs, and so may
+  // the stored time.
+  const logins = await personLogins(userId);
+  if (logins.length === 0) return 0;
+  const rows = await db
+    .select({ ...PLAN_COLUMNS, userId: supporterSubscriptions.userId })
+    .from(supporterSubscriptions)
+    .where(inArray(supporterSubscriptions.userId, logins));
   let started = 0;
   for (const q of rows.filter((r) => r.status === QUEUED_STATUS && r.recurrence === GIFT_RECURRENCE)) {
-    if (paidAtTier(rows, q.tier as SupporterTierId, now)) continue;
+    // Still paying for this tier OR A HIGHER ONE (they upgraded): the stored time keeps waiting.
+    if (paidAtOrAbove(rows, q.tier as SupporterTierId, now)) continue;
     const days = q.queuedDays ?? 0;
     if (days < 1) continue;
     const from = new Date(now).toISOString();
@@ -275,7 +302,7 @@ export async function startQueuedGifts(userId: number, now = Date.now()): Promis
     await db.insert(clanAuditLog).values({
       clanId: null,
       eventType: 'supporter_gift_started',
-      newValue: JSON.stringify({ userId, giftId: q.id, tier: q.tier, days, from, endsAt: to, reason: 'their paid membership at this tier stopped' }),
+      newValue: JSON.stringify({ userId: q.userId, giftId: q.id, tier: q.tier, days, from, endsAt: to, reason: 'their paid membership at this tier or higher stopped' }),
     });
   }
   return started;

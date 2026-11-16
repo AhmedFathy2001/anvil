@@ -15,7 +15,6 @@ import SupporterName from '@/components/SupporterName';
 import { clanPathOf } from '@/lib/clanScopedPaths';
 import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import { manageUrl } from '@/lib/gumroadLinks';
-import { TWO_MEMBERSHIPS_NOTICE } from '@/lib/supporterDuplicates';
 import SupporterPlanNotes from '@/components/SupporterPlanNotes';
 import { supporterPlanNotes } from '@/lib/supporterPlanNotes';
 
@@ -181,12 +180,16 @@ function PlanCard({ card }: { card: BillingCardModel }) {
       )}
 
       {card.toCancel.map((m) => (
-        <div key={m.subscriptionId} role="status" className="mt-3 rounded-lg border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-[12.5px] leading-relaxed text-orange-200">
-          {TWO_MEMBERSHIPS_NOTICE}:{' '}
+        <div
+          key={m.subscriptionId}
+          role="status"
+          className={`mt-3 rounded-lg border px-3 py-2 text-[12.5px] leading-relaxed ${m.askCancel ? 'border-orange-500/40 bg-orange-500/10 text-orange-200' : 'border-card-border text-text-muted'}`}
+        >
+          {m.lead}:{' '}
           <a href={manageUrl(m.subscriptionId)} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
-            manage the older {m.tierName} membership on Gumroad
+            {m.link}
           </a>
-          . Gumroad emails a sign-in link to the address you paid with. This notice goes away once Gumroad tells us it is cancelled.
+          .{m.askCancel && ' Gumroad emails a sign-in link to the address you paid with. This notice goes away once that membership has ended.'}
         </div>
       ))}
 

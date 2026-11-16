@@ -7,8 +7,8 @@ import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, pars
 import { endMembership, logBilling } from '@/lib/billingLapse';
 import { runOnPaid, runOnRefund } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, withYearlyRecurrence, type BillingTier } from '@/lib/billingCatalog';
-import { applyClanSale, chargedAt, purchasedPlan } from '@/lib/clanSale';
-import { handleExtraMembershipEvent } from '@/lib/extraMemberships';
+import { applyClanSale, chargedAt, heldTierFor, purchasedPlan } from '@/lib/clanSale';
+import { fallBackToOlderMembership, handleExtraMembershipEvent, resolveExtraBySubscription } from '@/lib/extraMemberships';
 import { log } from '@/lib/logger';
 import { recordLedger } from '@/lib/moneyLedger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
@@ -216,7 +216,11 @@ export async function POST(req: NextRequest) {
     case 'recurring_charge': {
       // A charge on a clan already dropped to free is a membership taken up again (the restart's own
       // notification may come after it, or not at all): it gets back the plan it had.
-      const plan = purchasedPlan(ev, clan.kind, current.free ? ((await planBeforeEnd(clan.id, clan.kind)) ?? entryTierFor(clan.kind)) : current);
+      // The first charge of a sale that was HELD (trial already used) applies the tier that sale bought.
+      const held = current.free ? await heldTierFor(clan.id, clan.kind, ev.subscriptionId) : null;
+      const plan = held ?? purchasedPlan(ev, clan.kind, current.free ? ((await planBeforeEnd(clan.id, clan.kind)) ?? entryTierFor(clan.kind)) : current);
+      // If this membership was recorded as waiting, it is the clan's own now.
+      await resolveExtraBySubscription(ev.subscriptionId, 'applied');
       await db
         .update(clans)
         .set({
@@ -299,6 +303,16 @@ export async function POST(req: NextRequest) {
     // ── Refund or chargeback ─────────────────────────────────────────────────────────────────
     case 'refund':
     case 'dispute': {
+      // A full REFUND of the newer membership while an older one the clan was told to cancel is still
+      // running (on Gumroad's own word): the clan goes back to the older one it is still paying for,
+      // instead of being suspended and dropped to free. A dispute still suspends: that is the abuse case.
+      if (ev.kind === 'refund') {
+        const back = await fallBackToOlderMembership(clan, 'gumroad webhook', 'the newer membership was refunded');
+        if (back) {
+          await logBilling(clan.id, 'billing_refund', { from: clan.plan, sale: ev.saleId, fellBackTo: back.id });
+          return Response.json({ received: true, plan: back.id, note: 'fell back to the older membership' });
+        }
+      }
       await db
         .update(clans)
         .set({

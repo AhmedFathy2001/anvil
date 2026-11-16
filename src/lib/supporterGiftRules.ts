@@ -82,6 +82,20 @@ export function paidAtTier<T extends GiftPlanRow>(rows: T[], tier: SupporterTier
   return rows.find((r) => r.tier === tier && !!r.gumroadSubscriptionId && (r.status === 'active' || r.status === 'cancelling') && rowInForce(r, now)) ?? null;
 }
 
+/**
+ * The Gumroad membership they pay for at this tier OR A HIGHER ONE right now, or null. What stored
+ * "add time" waits on: someone who upgraded from Supporter to Champion is still paying, and their
+ * stored Supporter time must not start (and run out unseen) underneath the Champion they pay for.
+ * Pass every login of the PERSON: the membership may sit on another login of theirs.
+ */
+export function paidAtOrAbove<T extends GiftPlanRow>(rows: T[], tier: SupporterTierId, now = Date.now()): T | null {
+  return (
+    rows.find(
+      (r) => r.tier in SUPPORTER_TIERS && rank(r.tier as SupporterTierId) >= rank(tier) && !!r.gumroadSubscriptionId && (r.status === 'active' || r.status === 'cancelling') && rowInForce(r, now),
+    ) ?? null
+  );
+}
+
 export type AddTimePlan =
   /** They pay for this tier: stored to begin when the paid membership stops. `queuedId` is an existing stored row to add to. */
   | { kind: 'queue'; queuedId: number | null; queuedDays: number; paidUntil: string | null; cancelling: boolean }

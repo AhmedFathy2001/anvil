@@ -80,7 +80,7 @@ export function effectiveMemberCap(kind: string | null | undefined, stored: stri
 
 // ── The one-trial rule ──────────────────────────────────────────────────────────────────────────
 
-export type AutoTrialRefusal = 'off' | 'clan-had-trial' | 'had-membership' | 'name-had-trial';
+export type AutoTrialRefusal = 'off' | 'clan-had-trial' | 'had-membership' | 'name-had-trial' | 'owner-deleted-trialed';
 
 export interface AutoTrialFacts {
   /** autoTrialDays(): 0 = automatic trials are off. */
@@ -94,18 +94,25 @@ export interface AutoTrialFacts {
    * again does not restart the trial. False for a space, and for a clan that names no in-game clan yet.
    */
   nameHadTrial: boolean;
+  /**
+   * The person creating it has DELETED a clan or space that had used its automatic trial. Not a
+   * once-per-owner rule (a second clan gets its trial): only the delete-and-create-again loop.
+   */
+  ownerDeletedTrialed: boolean;
 }
 
 /**
  * Does a new clan or creator space start its automatic trial? Every one does, a person's second clan
  * included, except: automatic trials are off; this row already had one; it has had a paid membership;
- * or it is a deleted clan (same verified in-game name) created again.
+ * it is a deleted clan (same verified in-game name) created again; or its creator deleted a clan that
+ * had used its automatic trial. Staff can still grant one by hand in every case.
  */
 export function autoTrialDecision(f: AutoTrialFacts): { grant: true } | { grant: false; reason: AutoTrialRefusal } {
   if (f.days <= 0) return { grant: false, reason: 'off' };
   if (f.clanHadTrial) return { grant: false, reason: 'clan-had-trial' };
   if (f.hadMembership) return { grant: false, reason: 'had-membership' };
   if (f.nameHadTrial) return { grant: false, reason: 'name-had-trial' };
+  if (f.ownerDeletedTrialed) return { grant: false, reason: 'owner-deleted-trialed' };
   return { grant: true };
 }
 
@@ -141,6 +148,44 @@ export function daysLeft(endsAt: number, now = Date.now()): number {
 /** A clan converted if it now PAYS (a Gumroad membership) for the trial's tier or above. */
 export function planConverted(clan: { kind: string; plan: string; gumroadSubscriptionId: string | null }, trialTier: string): boolean {
   return !!clan.gumroadSubscriptionId && tierRankOf(clan.kind, clan.plan) >= tierRankOf(clan.kind, trialTier) && tierRankOf(clan.kind, trialTier) > 0;
+}
+
+// ── Holding a sale to its first real charge ─────────────────────────────────────────────────────
+
+export interface TrialHoldFacts {
+  /** The buyer (clan, space or person) has already had a trial or a membership. */
+  trialUsed: boolean;
+  /** Gumroad's own record of the subscriber's trial end: an ISO date, null = no trial, undefined = could not ask. */
+  asked: string | null | undefined;
+  /** The notification's `free_trial_ends_at`, when it carried a readable one. */
+  said: string | null;
+  /** The product bought is a pay-now copy (`_NOW`): it has no trial by construction. */
+  nowProduct: boolean;
+  /** The configured length of Gumroad's trial on the ORIGINAL product (TRIAL_DAYS / the Supporter one); 0 = off. */
+  configuredTrialDays: number;
+  /** The notification's `price`, in cents: the only charge evidence a sale notification carries. */
+  priceCents: number | null;
+}
+
+/**
+ * Is this sale held until its first real charge, because the buyer has already had their one trial
+ * and Gumroad opened this membership with another free period?
+ *
+ *  - Gumroad answered (asked): its word decides, either way.
+ *  - It could not be asked, but the notification names a trial end still ahead: held.
+ *  - It could not be asked and the notification names none: held ONLY when a trial is still possible
+ *    (not a pay-now product, a trial configured for the original) AND nothing shows money moved
+ *    (no price above zero). A sale that shows a real charge is never held.
+ * `until` is when the first charge is due: the known end, or the configured trial length from now.
+ */
+export function usedTrialHold(f: TrialHoldFacts, now = Date.now()): { hold: false } | { hold: true; until: string; known: boolean } {
+  if (!f.trialUsed) return { hold: false };
+  const ahead = (iso: string | null | undefined) => !!iso && Date.parse(iso) > now;
+  if (f.asked !== undefined) return ahead(f.asked) ? { hold: true, until: f.asked as string, known: true } : { hold: false };
+  if (ahead(f.said)) return { hold: true, until: f.said as string, known: true };
+  if (f.nowProduct || f.configuredTrialDays <= 0) return { hold: false };
+  if (f.priceCents != null && Number.isFinite(f.priceCents) && f.priceCents > 0) return { hold: false };
+  return { hold: true, until: new Date(now + f.configuredTrialDays * DAY).toISOString(), known: false };
 }
 
 // ── Which checkout a buy button opens ───────────────────────────────────────────────────────────

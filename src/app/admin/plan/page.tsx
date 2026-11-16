@@ -20,7 +20,7 @@ import { buyWording, chargeText, clanBuy, soonReason } from '@/lib/buyOffer';
 import { openExtrasForClans } from '@/lib/extraMemberships';
 import { manageUrl } from '@/lib/gumroadLinks';
 import { clanTrialUsed } from '@/lib/planTrials';
-import { SECOND_MEMBERSHIP_WARNING, TWO_MEMBERSHIPS_NOTICE } from '@/lib/supporterDuplicates';
+import { SECOND_MEMBERSHIP_WARNING, extraMembershipNotice } from '@/lib/supporterDuplicates';
 import BuyButtons from '@/components/BuyButtons';
 import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import PlanTrialPanel from '@/components/PlanTrialPanel';
@@ -121,15 +121,28 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
         </p>
       </section>
 
-      {toCancel.map((m) => (
-        <div key={m.id} role="status" className="mt-5 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-[13.5px] leading-relaxed text-orange-200">
-          {TWO_MEMBERSHIPS_NOTICE}:{' '}
-          <a href={manageUrl(m.gumroadSubscriptionId)} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
-            manage the older {planOf(m.plan).name} membership on Gumroad
-          </a>
-          . Gumroad emails a sign-in link to the address you paid with. This notice goes away once Gumroad tells us it is cancelled.
-        </div>
-      ))}
+      {toCancel.map((m) => {
+        const n = extraMembershipNotice({
+          tierName: planOf(m.plan).name,
+          keptTierName: plan.name,
+          reason: m.reason,
+          cancelledAt: m.cancelledAt?.getTime() ?? null,
+          periodEndsAt: m.periodEndsAt?.getTime() ?? null,
+        });
+        return (
+          <div
+            key={m.id}
+            role="status"
+            className={`mt-5 rounded-xl border px-4 py-3 text-[13.5px] leading-relaxed ${n.askCancel ? 'border-orange-500/40 bg-orange-500/10 text-orange-200' : 'border-card-border text-text-muted'}`}
+          >
+            {n.lead}:{' '}
+            <a href={manageUrl(m.gumroadSubscriptionId)} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+              {n.link}
+            </a>
+            .{n.askCancel && ' Gumroad emails a sign-in link to the address you paid with. This notice goes away once that membership has ended.'}
+          </div>
+        );
+      })}
       {waiting && (
         <div role="status" className="mt-5 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-[13.5px] leading-relaxed text-gold-light">
           You&rsquo;ve already had your free trial, so {planOf(waiting.plan).name} starts when your first payment goes through

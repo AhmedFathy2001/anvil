@@ -5391,6 +5391,12 @@ export const clanExtraMemberships = pgTable('clan_extra_memberships', {
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
   /** to_cancel: the last time Gumroad charged it after it was superseded. */
   lastChargedAt: timestamp('last_charged_at', { withTimezone: true }),
+  /** to_cancel (drizzle/0268): 'superseded' (the older one after an upgrade) or 'lower_tier' (a lower or equal tier bought while a higher one is live). */
+  reason: text('reason'),
+  /** to_cancel: Gumroad reported it cancelled; it keeps its paid term, so the row stays open until it ends. */
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  /** to_cancel: when its paid term runs out, as far as we know. */
+  periodEndsAt: timestamp('period_ends_at', { withTimezone: true }),
   notedAt: timestamp('noted_at', { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   /** 'cancelled' | 'ended' | 'refunded' | 'applied' | 'restored' | 'dismissed' */

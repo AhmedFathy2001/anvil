@@ -9,7 +9,7 @@ import { PLANS, PLAN_IDS, checkoutUrl, overMemberCap, planOf, type Plan } from '
 import { CREATOR_BUYABLE, creatorCheckoutUrl, creatorPlanOf, type CreatorPlan } from '@/lib/creatorCatalog';
 import { buyWording, chargeText, clanBuy, creatorBuy } from '@/lib/buyOffer';
 import { tierNameOf } from '@/lib/planTrialRules';
-import { SECOND_MEMBERSHIP_WARNING } from '@/lib/supporterDuplicates';
+import { SECOND_MEMBERSHIP_WARNING, extraMembershipNotice } from '@/lib/supporterDuplicates';
 import { creatorPlanCard, type SeatMeter } from '@/lib/creatorPlans';
 import { billingStatus, subscriptionFacts } from '@/lib/clanBilling';
 
@@ -33,7 +33,7 @@ export interface OwnedBillingRow {
   /** Its running trial from Anvil (lib/planTrials), if any. */
   siteTrial?: { tier: string; endsAt: number } | null;
   /** Its other open Gumroad memberships (lib/extraMemberships): the older one to cancel, or one waiting for its first charge. */
-  extras?: { state: string; subscriptionId: string; plan: string; trialEndsAt: number | null }[];
+  extras?: { state: string; subscriptionId: string; plan: string; trialEndsAt: number | null; reason?: string | null; cancelledAt?: number | null; periodEndsAt?: number | null }[];
 }
 
 /** A checkout button as the portal draws it. */
@@ -81,7 +81,7 @@ export interface BillingCardModel {
   /** A trial from Anvil running on it: the tier lent, and when it ends (the admin plan page has the detail). */
   siteTrial: { tierName: string; endsAt: number } | null;
   /** Older memberships still charging after an upgrade purchase: each needs cancelling on Gumroad. */
-  toCancel: { subscriptionId: string; tierName: string }[];
+  toCancel: { subscriptionId: string; tierName: string; lead: string; link: string; askCancel: boolean }[];
   /** A second membership in Gumroad's free period that takes over at its first payment. */
   waiting: { subscriptionId: string; tierName: string; startsAt: number | null } | null;
   /** When a held membership's first payment is due (`held`). */
@@ -95,7 +95,13 @@ function extrasOf(row: OwnedBillingRow, now: number): Pick<BillingCardModel, 'si
   const trialEnd = row.trialEndsAt ? Date.parse(row.trialEndsAt) : NaN;
   return {
     siteTrial: row.siteTrial && row.siteTrial.endsAt > now ? { tierName: tierNameOf(row.kind, row.siteTrial.tier), endsAt: row.siteTrial.endsAt } : null,
-    toCancel: extras.filter((e) => e.state === 'to_cancel').map((e) => ({ subscriptionId: e.subscriptionId, tierName: tierNameOf(row.kind, e.plan) })),
+    toCancel: extras
+      .filter((e) => e.state === 'to_cancel')
+      .map((e) => ({
+        subscriptionId: e.subscriptionId,
+        tierName: tierNameOf(row.kind, e.plan),
+        ...extraMembershipNotice({ tierName: tierNameOf(row.kind, e.plan), keptTierName: tierNameOf(row.kind, row.plan), reason: e.reason ?? null, cancelledAt: e.cancelledAt ?? null, periodEndsAt: e.periodEndsAt ?? null }),
+      })),
     waiting: wait ? { subscriptionId: wait.subscriptionId, tierName: tierNameOf(row.kind, wait.plan), startsAt: wait.trialEndsAt } : null,
     heldStartsAt: Number.isFinite(trialEnd) ? trialEnd : null,
   };

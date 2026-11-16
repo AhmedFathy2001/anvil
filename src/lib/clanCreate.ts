@@ -223,7 +223,7 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
 
       // Every new clan starts Anvil's own trial of the top tier, no card (lib/planTrials). The clan
       // row itself stays on free: the trial is a separate, dated entitlement.
-      await startAutoTrial(tx, clan);
+      await startAutoTrial(tx, clan, input.ownerUserId);
 
       return { ok: true as const, clanId: clan.id, slug };
     });
@@ -348,7 +348,7 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
       });
 
       // The space's own automatic trial of the top creator tier (lib/planTrials).
-      await startAutoTrial(tx, clan);
+      await startAutoTrial(tx, clan, input.ownerUserId);
 
       return { ok: true as const, clanId: clan.id, slug };
     });

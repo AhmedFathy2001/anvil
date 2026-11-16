@@ -36,3 +36,40 @@ export const SECOND_MEMBERSHIP_WARNING =
 
 /** The persistent notice once two are running. */
 export const TWO_MEMBERSHIPS_NOTICE = 'You now have two memberships. Cancel the older one here so you are not charged twice';
+
+/** One extra clan / space membership (lib/extraMemberships, state 'to_cancel'), as its notice needs it. */
+export interface ExtraMembershipFacts {
+  /** The extra membership's tier, and the tier that stays the plan. */
+  tierName: string;
+  keptTierName: string;
+  /** 'superseded' (the older one after an upgrade) or 'lower_tier' (a lower / equal tier bought while a higher one is live). */
+  reason: string | null;
+  /** Gumroad reported it cancelled: it will not charge again, and runs to `periodEndsAt` (ms) when that is known. */
+  cancelledAt: number | null;
+  periodEndsAt: number | null;
+}
+
+const dayMonthYear = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/**
+ * The owner's notice for an extra membership. `lead` ends where the link to manage it on Gumroad
+ * goes; `link` is that link's words; `askCancel` false = nothing to do (already cancelled), shown quietly.
+ */
+export function extraMembershipNotice(f: ExtraMembershipFacts): { lead: string; link: string; askCancel: boolean } {
+  if (f.cancelledAt != null) {
+    const until = f.periodEndsAt != null ? `, ends ${dayMonthYear(f.periodEndsAt)}` : '';
+    return {
+      lead: `Your other ${f.tierName} membership is cancelled${until}. It will not be charged again, so there is nothing more to do`,
+      link: `see it on Gumroad`,
+      askCancel: false,
+    };
+  }
+  if (f.reason === 'lower_tier') {
+    const lead =
+      f.tierName === f.keptTierName
+        ? `You bought ${f.tierName} twice. One ${f.tierName} membership stays. Cancel the second one here so you are not charged twice`
+        : `You bought ${f.tierName} while you have ${f.keptTierName}. ${f.keptTierName} stays. Cancel the ${f.tierName} membership here so you are not charged twice`;
+    return { lead, link: `manage the ${f.tierName} membership on Gumroad`, askCancel: true };
+  }
+  return { lead: TWO_MEMBERSHIPS_NOTICE, link: `manage the older ${f.tierName} membership on Gumroad`, askCancel: true };
+}

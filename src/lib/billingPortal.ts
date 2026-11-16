@@ -56,7 +56,15 @@ export async function billingPortalForUser(userId: number, now = Date.now()): Pr
     c.siteTrial = trials.get(c.id) ?? null;
     c.extras = extras
       .filter((e) => e.clanId === c.id)
-      .map((e) => ({ state: e.state, subscriptionId: e.gumroadSubscriptionId, plan: e.plan, trialEndsAt: e.trialEndsAt?.getTime() ?? null }));
+      .map((e) => ({
+        state: e.state,
+        subscriptionId: e.gumroadSubscriptionId,
+        plan: e.plan,
+        trialEndsAt: e.trialEndsAt?.getTime() ?? null,
+        reason: e.reason,
+        cancelledAt: e.cancelledAt?.getTime() ?? null,
+        periodEndsAt: e.periodEndsAt?.getTime() ?? null,
+      }));
   }
 
   const ownedClans = owned.filter((c) => !isCreatorSpace(c));

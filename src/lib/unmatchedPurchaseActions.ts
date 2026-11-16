@@ -123,7 +123,7 @@ export async function attachToSpace(opts: {
   const notes = `staff attach of unmatched purchase #${row.id}`;
   let result: Awaited<ReturnType<typeof applyClanSale>>;
   try {
-    result = await applyClanSale(target, ev, notes);
+    result = await applyClanSale(target, ev, notes, { replaceConfirmed: !!opts.confirmReplace });
   } catch (err) {
     await unclaim(row.id);
     throw err;

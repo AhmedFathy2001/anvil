@@ -192,14 +192,65 @@ test('a deleted clan created again under the same VERIFIED in-game name does not
   assert.equal(await T.runningPlanTrial(again.clanId), null, 'same name, deleted and created again: no second trial');
   assert.equal(await T.planInForce(await reload(again.clanId)), 'free');
 
-  // An UNVERIFIED name that was deleted leaves no mark: typing a name proves nothing.
-  const other = await createClan({ slug: 'unproven-a', name: 'Unproven', inGameName: 'Unproven CC', ownerUserId: owner.id });
+  // The NAME memory is about the name, whoever asks: a different person creating it gets no trial either.
+  const stranger = await user('Stranger');
+  await deleteClan(again.clanId, owner.id, 'test');
+  const byStranger = await createClan({ slug: 'repeat-c', name: 'Repeat', inGameName: 'Repeat CC', ownerUserId: stranger.id });
+  assert.ok(byStranger.ok);
+  if (byStranger.ok) assert.equal(await T.runningPlanTrial(byStranger.clanId), null);
+
+  // An UNVERIFIED name that was deleted leaves no mark on the NAME: typing a name proves nothing.
+  const first2 = await user('Unproven One');
+  const second2 = await user('Unproven Two');
+  const other = await createClan({ slug: 'unproven-a', name: 'Unproven', inGameName: 'Unproven CC', ownerUserId: first2.id });
   assert.ok(other.ok);
   if (!other.ok) return;
-  await deleteClan(other.clanId, owner.id, 'test');
-  const otherAgain = await createClan({ slug: 'unproven-b', name: 'Unproven', inGameName: 'Unproven CC', ownerUserId: owner.id });
+  await deleteClan(other.clanId, first2.id, 'test');
+  const otherAgain = await createClan({ slug: 'unproven-b', name: 'Unproven', inGameName: 'Unproven CC', ownerUserId: second2.id });
   assert.ok(otherAgain.ok);
   if (otherAgain.ok) assert.equal((await T.runningPlanTrial(otherAgain.clanId))?.tier, 'gold');
+});
+
+test('delete and create again: an owner who DELETED a trialed clan gets no automatic trial on the next, and is told so', async () => {
+  const { db, schema: s } = await loadDb();
+  const { createClan, createCreatorSpace } = await import('../src/lib/clanCreate.ts');
+  const { deleteClan } = await import('../src/lib/clanDelete.ts');
+  const T = await import('../src/lib/planTrials.ts');
+  const O = await import('../src/lib/ownerTrials.ts');
+  const owner = await user('Looper');
+  const root = await user('Root', { platformRole: 'root' });
+  assert.deepEqual(await T.autoTrialOfferFor(owner.id), { days: 30, reason: null });
+
+  // The name is never verified, and is even changed before the delete: the owner memory does not care.
+  const a = await createClan({ slug: 'loop-a', name: 'Loop A', inGameName: 'Loop A CC', ownerUserId: owner.id });
+  assert.ok(a.ok);
+  if (!a.ok) return;
+  assert.equal((await T.runningPlanTrial(a.clanId))?.tier, 'gold');
+  await db.update(s.clans).set({ inGameName: 'Renamed Before Delete', ingameNameVerifiedAt: null }).where(eq(s.clans.id, a.clanId));
+  await deleteClan(a.clanId, root.id, 'deleted by staff on the owner\'s request');
+
+  assert.equal(await T.ownerDeletedTrialedClan(owner.id), true, 'remembered against the clan\'s OWNER, whoever pressed delete');
+  assert.equal(await T.ownerDeletedTrialedClan(root.id), false);
+  assert.deepEqual(await T.autoTrialOfferFor(owner.id), { days: 0, reason: 'owner-deleted-trialed' }, 'the create screen says so instead of promising a trial');
+  const b = await createClan({ slug: 'loop-b', name: 'Loop B', inGameName: 'Loop B CC', ownerUserId: owner.id });
+  assert.ok(b.ok);
+  if (!b.ok) return;
+  assert.equal(await T.runningPlanTrial(b.clanId), null, 'no fresh 30 days from deleting and creating again');
+  assert.equal(await T.planInForce(await reload(b.clanId)), 'free');
+  const space = await createCreatorSpace({ slug: 'loop-space', name: 'Loop Space', ownerUserId: owner.id } as never);
+  assert.ok(space.ok);
+  if (space.ok) assert.equal(await T.runningPlanTrial(space.clanId), null, 'a creator space is the same loop');
+
+  // Staff can still grant one by hand.
+  await O.grantTrial({ kind: 'plan', clanId: b.clanId, tier: 'gold', days: 14, actorUserId: root.id });
+  assert.equal(await T.planInForce(await reload(b.clanId)), 'gold');
+
+  // Deleting a clan that never had an automatic trial marks nobody.
+  const clean = await user('Clean');
+  const bare = await clanRow({});
+  await db.insert(s.clanStaff).values({ clanId: bare.id, userId: clean.id, role: 'owner', canEditTiles: true });
+  await deleteClan(bare.id, clean.id, 'test');
+  assert.equal(await T.ownerDeletedTrialedClan(clean.id), false);
 });
 
 test('a clan with a past membership, or one that already had a trial, gets no automatic trial', async () => {
@@ -232,7 +283,8 @@ test('a clan that later takes a deleted clan\'s in-game name keeps its trial and
   if (!old.ok) return;
   await db.update(s.clans).set({ ingameNameVerifiedAt: new Date().toISOString() }).where(eq(s.clans.id, old.clanId));
   await deleteClan(old.clanId, owner.id, 'test');
-  const fresh = await createClan({ slug: 'later-new', name: 'Later New', inGameName: 'Something Else', ownerUserId: owner.id });
+  const someoneElse = await user('Later Two');
+  const fresh = await createClan({ slug: 'later-new', name: 'Later New', inGameName: 'Something Else', ownerUserId: someoneElse.id });
   assert.ok(fresh.ok);
   if (!fresh.ok) return;
   await db.update(s.clans).set({ inGameName: 'Later CC' }).where(eq(s.clans.id, fresh.clanId));
@@ -344,7 +396,7 @@ test('a trial-product sale after a SITE trial is held until its first real charg
   const { db } = await loadDb();
   const T = await import('../src/lib/planTrials.ts');
   const clan = await clanRow({});
-  await db.transaction((tx) => T.startAutoTrial(tx, clan, Date.now() - 40 * DAY)); // a trial that has ended
+  await db.transaction((tx) => T.startAutoTrial(tx, clan, null, Date.now() - 40 * DAY)); // a trial that has ended
   assert.equal(await T.runningPlanTrial(clan.id), null);
   const end = trialEnd();
   await withGumroad({ 'sub-st-1': { free_trial_ends_at: end } }, async () => {
@@ -393,7 +445,7 @@ test('a site trial ended, then a purchase: applies at once', async () => {
   const { db } = await loadDb();
   const T = await import('../src/lib/planTrials.ts');
   const clan = await clanRow({});
-  await db.transaction((tx) => T.startAutoTrial(tx, clan, Date.now() - 40 * DAY));
+  await db.transaction((tx) => T.startAutoTrial(tx, clan, null, Date.now() - 40 * DAY));
   await withGumroad({ 'sub-et-1': { free_trial_ends_at: null } }, () =>
     post({ resource_name: 'sale', sale_id: 'sale-et-1', subscription_id: 'sub-et-1', 'variants[Tier]': 'Anvil Silver', recurrence: 'monthly', 'url_params[ref]': clan.gumroadRef! }),
   );
@@ -433,21 +485,156 @@ test('an upgrade purchase while another membership is live applies at once; the 
   assert.deepEqual([row.plan, row.status, row.gumroadSubscriptionId], ['gold', 'active', 'sub-up-new']);
   assert.equal((await extrasOf(clan.id))[0].resolvedAt, null);
 
-  // Its cancellation arrives: cleared.
+  // Its cancellation arrives: it still has the term that was paid for, so the row STAYS OPEN, marked
+  // cancelled, and the owner is no longer asked to cancel it.
   await post({ resource_name: 'cancellation', subscription_id: 'sub-up-old' });
   extras = await extrasOf(clan.id);
-  assert.equal(extras[0].resolution, 'cancelled');
-  assert.ok(extras[0].resolvedAt);
+  assert.equal(extras[0].resolvedAt, null, 'not closed by a cancellation');
+  assert.ok(extras[0].cancelledAt);
+  const D = await import('../src/lib/supporterDuplicates.ts');
+  const notice = D.extraMembershipNotice({ tierName: 'Silver', keptTierName: 'Gold', reason: extras[0].reason, cancelledAt: extras[0].cancelledAt!.getTime(), periodEndsAt: Date.parse('2027-03-14T00:00:00Z') });
+  assert.equal(notice.askCancel, false);
+  assert.equal(notice.lead, 'Your other Silver membership is cancelled, ends 14 Mar 2027. It will not be charged again, so there is nothing more to do');
   row = await reload(clan.id);
   assert.deepEqual([row.plan, row.cancelAtPeriodEnd], ['gold', false], 'the kept membership is not the one cancelled');
+
+  // Its END arrives: closed.
+  await post({ resource_name: 'subscription_ended', subscription_id: 'sub-up-old' });
+  extras = await extrasOf(clan.id);
+  assert.equal(extras[0].resolution, 'ended');
+  assert.ok(extras[0].resolvedAt);
   assert.equal((await X.listOpenExtras()).filter((e) => e.clanId === clan.id).length, 0);
+
+  // A resolved row is never reopened by a replay: noting it again writes nothing.
+  assert.equal(await X.noteToCancel(clan.id, 'sub-up-old', 'silver'), false);
+  assert.ok((await extrasOf(clan.id))[0].resolvedAt, 'still closed');
 });
 
-test('an older membership already cancelled and running out its term is not an item', async () => {
-  const clan = await clanRow({ plan: 'silver', memberCap: 300, gumroadSubscriptionId: 'sub-co-old', cancelAtPeriodEnd: true });
+test('latest sale does not always win: the older membership\'s sale redelivered after an upgrade is not applied', async () => {
+  const clan = await clanRow({});
+  const silver = { resource_name: 'sale', sale_id: 'sale-rd-silver', subscription_id: 'sub-rd-silver', 'variants[Tier]': 'Anvil Silver', recurrence: 'monthly', 'url_params[ref]': clan.gumroadRef! };
+  await post(silver);
+  await post({ resource_name: 'sale', sale_id: 'sale-rd-gold', subscription_id: 'sub-rd-gold', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': clan.gumroadRef! });
+  assert.equal((await reload(clan.id)).plan, 'gold');
+
+  // Silver's own sale notification arrives again (Gumroad redelivers, or someone replays it).
+  const res = await post(silver);
+  assert.equal((await res.json()).note, 'older membership, not applied');
+  const row = await reload(clan.id);
+  assert.deepEqual([row.plan, row.memberCap, row.gumroadSubscriptionId], ['gold', 600, 'sub-rd-gold'], 'Gold stays the plan');
+  assert.deepEqual((await extrasOf(clan.id)).map((e) => [e.gumroadSubscriptionId, e.state, e.reason, e.resolvedAt]), [['sub-rd-silver', 'to_cancel', 'superseded', null]], 'and Gold was not made the one to cancel');
+
+  // Even after the older one has ENDED (its row resolved), its sale replayed changes nothing.
+  await post({ resource_name: 'subscription_ended', subscription_id: 'sub-rd-silver' });
+  await post(silver);
+  assert.deepEqual([(await reload(clan.id)).plan, (await reload(clan.id)).gumroadSubscriptionId], ['gold', 'sub-rd-gold']);
+});
+
+test('two tiers arriving in either order end on the higher; a Gold payer buying Bronze stays Gold', async () => {
+  const D = await import('../src/lib/supporterDuplicates.ts');
+  // Silver first, then Gold: Gold applies, Silver is the older one to cancel.
+  const up = await clanRow({});
+  await post({ resource_name: 'sale', sale_id: 'sale-or-1', subscription_id: 'sub-or-silver', 'variants[Tier]': 'Anvil Silver', recurrence: 'monthly', 'url_params[ref]': up.gumroadRef! });
+  await post({ resource_name: 'sale', sale_id: 'sale-or-2', subscription_id: 'sub-or-gold', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': up.gumroadRef! });
+  assert.deepEqual([(await reload(up.id)).plan, (await reload(up.id)).gumroadSubscriptionId], ['gold', 'sub-or-gold']);
+
+  // Gold first, then Silver: Gold STAYS, Silver is the extra membership to cancel.
+  const down = await clanRow({});
+  await post({ resource_name: 'sale', sale_id: 'sale-or-3', subscription_id: 'sub-or-gold2', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': down.gumroadRef! });
+  const res = await post({ resource_name: 'sale', sale_id: 'sale-or-4', subscription_id: 'sub-or-silver2', 'variants[Tier]': 'Anvil Silver', recurrence: 'monthly', 'url_params[ref]': down.gumroadRef! });
+  assert.equal((await res.json()).note, 'kept the higher plan');
+  let row = await reload(down.id);
+  assert.deepEqual([row.plan, row.memberCap, row.gumroadSubscriptionId], ['gold', 600, 'sub-or-gold2']);
+  let extras = await extrasOf(down.id);
+  assert.deepEqual(extras.map((e) => [e.gumroadSubscriptionId, e.plan, e.state, e.reason]), [['sub-or-silver2', 'silver', 'to_cancel', 'lower_tier']]);
+  assert.ok(extras[0].periodEndsAt, 'when the extra one next charges is known');
+
+  // A Gold payer buys Bronze: Gold stays, and the notice says exactly that.
+  await post({ resource_name: 'sale', sale_id: 'sale-or-5', subscription_id: 'sub-or-bronze', 'variants[Tier]': 'Anvil Bronze', recurrence: 'monthly', 'url_params[ref]': down.gumroadRef! });
+  row = await reload(down.id);
+  assert.deepEqual([row.plan, row.gumroadSubscriptionId], ['gold', 'sub-or-gold2']);
+  extras = await extrasOf(down.id);
+  const bronze = extras.find((e) => e.plan === 'bronze')!;
+  assert.deepEqual(D.extraMembershipNotice({ tierName: 'Bronze', keptTierName: 'Gold', reason: bronze.reason, cancelledAt: null, periodEndsAt: null }), {
+    lead: 'You bought Bronze while you have Gold. Gold stays. Cancel the Bronze membership here so you are not charged twice',
+    link: 'manage the Bronze membership on Gumroad',
+    askCancel: true,
+  });
+
+  // The same tier bought twice: the existing one is kept, the new one is the extra.
+  await post({ resource_name: 'sale', sale_id: 'sale-or-6', subscription_id: 'sub-or-gold-again', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': down.gumroadRef! });
+  row = await reload(down.id);
+  assert.equal(row.gumroadSubscriptionId, 'sub-or-gold2');
+  const twice = (await extrasOf(down.id)).find((e) => e.gumroadSubscriptionId === 'sub-or-gold-again')!;
+  assert.deepEqual([twice.plan, twice.reason], ['gold', 'lower_tier']);
+  assert.match(D.extraMembershipNotice({ tierName: 'Gold', keptTierName: 'Gold', reason: twice.reason, cancelledAt: null, periodEndsAt: null }).lead, /^You bought Gold twice\. One Gold membership stays\./);
+
+  // The extra lower one ending, or being charged, never touches the plan; the kept one ending falls
+  // back to a lower one only on Gumroad's word that it is alive.
+  await post({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-or-7', subscription_id: 'sub-or-bronze', recurrence: 'monthly' });
+  await post({ resource_name: 'subscription_ended', subscription_id: 'sub-or-silver2' });
+  assert.equal((await reload(down.id)).plan, 'gold');
+});
+
+test('a held sale remembers the tier that was bought: the first charge applies it even when the charge names no tier', async () => {
+  const { db, schema: s } = await loadDb();
+  const clan = await clanRow({});
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_ended', newValue: JSON.stringify({ from: 'bronze', to: 'free' }) });
+  const end = trialEnd();
+  await withGumroad({ 'sub-ht-1': { free_trial_ends_at: end } }, async () => {
+    await post({ resource_name: 'sale', sale_id: 'sale-ht-1', subscription_id: 'sub-ht-1', 'variants[Tier]': 'Anvil Gold', 'url_params[ref]': clan.gumroadRef! });
+    assert.equal((await reload(clan.id)).plan, 'free');
+    // The first charge carries no tier and no product: before, this fell back to the plan the clan had
+    // before its last membership ended (Bronze) or the entry tier, not the Gold that was bought.
+    await post({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-ht-2', subscription_id: 'sub-ht-1', recurrence: 'monthly' });
+  });
+  const row = await reload(clan.id);
+  assert.deepEqual([row.plan, row.memberCap], ['gold', 600]);
+});
+
+test('could not ask Gumroad: a sale that shows a real charge is applied, never held', async () => {
+  const { db, schema: s } = await loadDb();
+  const clan = await clanRow({});
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_ended', newValue: JSON.stringify({ from: 'silver', to: 'free' }) });
+  // No token (nobody to ask), no trial field, a price: applied at once.
+  await post({ resource_name: 'sale', sale_id: 'sale-rc-1', subscription_id: 'sub-rc-1', 'variants[Tier]': 'Anvil Silver', recurrence: 'monthly', price: '699', 'url_params[ref]': clan.gumroadRef! });
+  assert.equal((await reload(clan.id)).plan, 'silver');
+});
+
+test('a full refund of the NEWER membership while the older one is alive falls back to it instead of suspending', async () => {
+  const clan = await clanRow({ plan: 'silver', memberCap: 300, gumroadSubscriptionId: 'sub-rf-old', currentPeriodEnd: new Date(Date.now() + 12 * DAY).toISOString() });
+  await post({ resource_name: 'sale', sale_id: 'sale-rf-1', subscription_id: 'sub-rf-new', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': clan.gumroadRef! });
+  assert.equal((await reload(clan.id)).plan, 'gold');
+  await withGumroad({ 'sub-rf-old': { status: 'alive' } }, () => post({ resource_name: 'refund', refunded: 'true', sale_id: 'sale-rf-1', subscription_id: 'sub-rf-new' }));
+  const row = await reload(clan.id);
+  assert.deepEqual([row.plan, row.memberCap, row.status, row.gumroadSubscriptionId], ['silver', 300, 'active', 'sub-rf-old'], 'still paying Silver: Silver, and not suspended');
+  assert.ok(row.currentPeriodEnd, 'with the older membership\'s own term end');
+  assert.equal((await extrasOf(clan.id))[0].resolution, 'restored');
+
+  // With nobody to ask, or no older membership, a full refund suspends exactly as before.
+  const plain = await clanRow({ plan: 'silver', memberCap: 300, gumroadSubscriptionId: 'sub-rf-plain' });
+  await post({ resource_name: 'refund', refunded: 'true', sale_id: 'sale-rf-9', subscription_id: 'sub-rf-plain' });
+  const after = await reload(plain.id);
+  assert.deepEqual([after.plan, after.status], ['free', 'suspended']);
+  const unasked = await clanRow({ plan: 'silver', memberCap: 300, gumroadSubscriptionId: 'sub-rf-old2' });
+  await post({ resource_name: 'sale', sale_id: 'sale-rf-3', subscription_id: 'sub-rf-new2', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': unasked.gumroadRef! });
+  await post({ resource_name: 'refund', refunded: 'true', sale_id: 'sale-rf-3', subscription_id: 'sub-rf-new2' });
+  assert.equal((await reload(unasked.id)).status, 'suspended', 'no token: nothing is granted unconfirmed');
+});
+
+test('an older membership already cancelled is recorded as cancelled, not as something to cancel, and can still be fallen back to', async () => {
+  const until = new Date(Date.now() + 9 * DAY).toISOString();
+  const clan = await clanRow({ plan: 'silver', memberCap: 300, gumroadSubscriptionId: 'sub-co-old', cancelAtPeriodEnd: true, currentPeriodEnd: until });
   await post({ resource_name: 'sale', sale_id: 'sale-co-1', subscription_id: 'sub-co-new', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly', 'url_params[ref]': clan.gumroadRef! });
   assert.equal((await reload(clan.id)).plan, 'gold');
-  assert.deepEqual(await extrasOf(clan.id), []);
+  const [extra] = await extrasOf(clan.id);
+  assert.deepEqual([extra.gumroadSubscriptionId, extra.state, extra.resolvedAt], ['sub-co-old', 'to_cancel', null]);
+  assert.ok(extra.cancelledAt, 'nobody is asked to cancel it');
+  assert.equal(extra.periodEndsAt?.toISOString(), until);
+  // The new Gold ends while the cancelled Silver still has term: back to Silver, still leaving.
+  await withGumroad({ 'sub-co-old': { status: 'pending_cancellation' } }, () => post({ resource_name: 'subscription_ended', subscription_id: 'sub-co-new' }));
+  const row = await reload(clan.id);
+  assert.deepEqual([row.plan, row.gumroadSubscriptionId, row.cancelAtPeriodEnd, row.currentPeriodEnd], ['silver', 'sub-co-old', true, until]);
 });
 
 test('an upgrade bought WITH a Gumroad trial on a clan with history waits for its first charge, then takes over', async () => {
@@ -764,4 +951,102 @@ test('stored time can be removed before it starts, and the daily pass starts any
   await db.update(s.supporterSubscriptions).set({ status: 'ended', endedAt: new Date().toISOString() }).where(eq(s.supporterSubscriptions.id, paid.id));
   assert.ok((await G.startDueQueuedGifts()).started >= 1);
   assert.equal(await tierOf(u.id), 'supporter');
+});
+
+test('a waiting membership stops being an extra one the moment it is the clan\'s own', async () => {
+  const { db, schema: s } = await loadDb();
+  const X = await import('../src/lib/extraMemberships.ts');
+  const clan = await clanRow({ plan: 'silver', memberCap: 300, gumroadSubscriptionId: 'sub-wo-old' });
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_subscribed', newValue: JSON.stringify({ plan: 'silver' }) });
+  await withGumroad({ 'sub-wo-new': { free_trial_ends_at: trialEnd() } }, () =>
+    post({ resource_name: 'sale', sale_id: 'sale-wo-1', subscription_id: 'sub-wo-new', 'variants[Tier]': 'Anvil Gold', 'url_params[ref]': clan.gumroadRef! }),
+  );
+  assert.equal((await extrasOf(clan.id))[0].state, 'waiting');
+  // The Silver ends first, and staff put the clan on the waiting membership by hand: its next charge
+  // arrives for the clan's OWN subscription, and the waiting row is closed with it.
+  await db.update(s.clans).set({ plan: 'free', memberCap: 50, gumroadSubscriptionId: 'sub-wo-new' }).where(eq(s.clans.id, clan.id));
+  await post({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-wo-2', subscription_id: 'sub-wo-new', 'variants[Tier]': 'Anvil Gold', recurrence: 'monthly' });
+  assert.equal((await reload(clan.id)).plan, 'gold');
+  assert.equal((await extrasOf(clan.id))[0].resolution, 'applied');
+  assert.equal((await X.listOpenExtras()).filter((e) => e.clanId === clan.id).length, 0);
+});
+
+test('Supporter: the trial is read from Gumroad\'s own record when the notification does not carry it', async () => {
+  const O = await import('../src/lib/ownerTrials.ts');
+  const root = await user('Root', { platformRole: 'root' });
+  const u = await user('AskedGumroad', { supporterRef: 'sref-asked' });
+  const t = await O.grantTrial({ kind: 'supporter', userId: u.id, tier: 'supporter', days: 7, actorUserId: root.id });
+  await O.revokeTrial(t.id, root.id);
+  const end = trialEnd();
+  // No free_trial_ends_at in the notification: before, this was applied at once.
+  await withGumroad({ 'ssub-ask-1': { free_trial_ends_at: end } }, () =>
+    post({ product_id: 'prod-supporter', resource_name: 'sale', sale_id: 'ss-ask-1', subscription_id: 'ssub-ask-1', 'variants[Tier]': 'Champion', recurrence: 'monthly', 'url_params[ref]': 'sref-asked' }),
+  );
+  const rows = await supporterRows(u.id);
+  assert.deepEqual([rows.at(-1)?.status, rows.at(-1)?.currentPeriodEnd], ['held', new Date(end).toISOString()]);
+  assert.equal(await tierOf(u.id), null);
+
+  // Gumroad says there is NO trial: applied, even for someone who has had one.
+  const v = await user('NoTrialSaid', { supporterRef: 'sref-notrial' });
+  const t2 = await O.grantTrial({ kind: 'supporter', userId: v.id, tier: 'supporter', days: 7, actorUserId: root.id });
+  await O.revokeTrial(t2.id, root.id);
+  await withGumroad({ 'ssub-ask-2': { free_trial_ends_at: null } }, () =>
+    post({ product_id: 'prod-supporter', resource_name: 'sale', sale_id: 'ss-ask-2', subscription_id: 'ssub-ask-2', 'variants[Tier]': 'Champion', recurrence: 'monthly', 'url_params[ref]': 'sref-notrial' }),
+  );
+  assert.equal(await tierOf(v.id), 'champion');
+});
+
+test('a queued gift waits while the PERSON pays for that tier or a higher one, on any of their logins', async () => {
+  const { db, schema: s } = await loadDb();
+  const G = await import('../src/lib/supporterGifts.ts');
+  const root = await user('Root', { platformRole: 'root' });
+  const [person] = await db.insert(s.players).values({ displayName: 'Two Logins' }).returning();
+  const main = await user('Main', { supporterRef: 'sref-q-main', playerId: person.id });
+  await user('Alt', { supporterRef: 'sref-q-alt', playerId: person.id });
+
+  // Pays for Supporter, staff add Supporter time: stored.
+  await post({ product_id: 'prod-supporter', resource_name: 'sale', sale_id: 'sq-up-1', subscription_id: 'qsub-up-1', 'variants[Tier]': 'Supporter', recurrence: 'monthly', 'url_params[ref]': 'sref-q-main' });
+  const gift = await G.giveGift({ userId: main.id, tier: 'supporter', days: 30, actorUserId: root.id, mode: 'add' });
+  assert.equal(gift.outcome, 'queued');
+
+  // They UPGRADE: a Champion membership (bought on their other login), then the Supporter one ends.
+  await post({ product_id: 'prod-supporter-now', resource_name: 'sale', sale_id: 'sq-up-2', subscription_id: 'qsub-up-2', 'variants[Tier]': 'Champion', recurrence: 'monthly', 'url_params[ref]': 'sref-q-alt' });
+  await post({ product_id: 'prod-supporter', resource_name: 'subscription_ended', subscription_id: 'qsub-up-1' });
+  let stored = (await supporterRows(main.id)).find((r) => r.id === gift.id)!;
+  assert.equal(stored.status, 'queued', 'still paying, for a HIGHER tier: the stored Supporter time must not start and run out unseen');
+  assert.equal(await G.startQueuedGifts(main.id), 0);
+  assert.equal((await G.startDueQueuedGifts()).started, 0);
+
+  // The Champion membership ends too: now it starts.
+  await post({ product_id: 'prod-supporter-now', resource_name: 'subscription_ended', subscription_id: 'qsub-up-2' });
+  stored = (await supporterRows(main.id)).find((r) => r.id === gift.id)!;
+  assert.equal(stored.status, 'granted', 'started by the end of a membership on the person\'s OTHER login');
+  assert.equal(await tierOf(main.id), 'supporter');
+});
+
+test('add time submitted twice at once extends twice in sequence: no lost extension, no second row', async () => {
+  const G = await import('../src/lib/supporterGifts.ts');
+  const root = await user('Root', { platformRole: 'root' });
+  const u = await user('DoubleClick');
+  await G.giveGift({ userId: u.id, tier: 'champion', days: 10, actorUserId: root.id, mode: 'add' });
+  const [a, b] = await Promise.all([
+    G.giveGift({ userId: u.id, tier: 'champion', days: 30, actorUserId: root.id, mode: 'add' }),
+    G.giveGift({ userId: u.id, tier: 'champion', days: 30, actorUserId: root.id, mode: 'add' }),
+  ]);
+  assert.equal(a.id, b.id);
+  const rows = await supporterRows(u.id);
+  assert.equal(rows.length, 1, 'one entitlement');
+  const days = (Date.parse(rows[0].currentPeriodEnd!) - Date.parse(rows[0].startedAt)) / DAY;
+  assert.ok(Math.abs(days - 70) < 0.01, `10 + 30 + 30 = 70 days, got ${days}`);
+
+  // Two at once for someone holding NOTHING: one row, both lengths on it.
+  const fresh = await user('DoubleFresh');
+  await Promise.all([
+    G.giveGift({ userId: fresh.id, tier: 'patron', days: 30, actorUserId: root.id, mode: 'add' }),
+    G.giveGift({ userId: fresh.id, tier: 'patron', days: 30, actorUserId: root.id, mode: 'add' }),
+  ]);
+  const made = await supporterRows(fresh.id);
+  assert.equal(made.length, 1);
+  const total = (Date.parse(made[0].currentPeriodEnd!) - Date.parse(made[0].startedAt)) / DAY;
+  assert.ok(Math.abs(total - 60) < 0.01, `30 + 30 = 60 days, got ${total}`);
 });

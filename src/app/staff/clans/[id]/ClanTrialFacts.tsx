@@ -94,6 +94,8 @@ export default async function ClanTrialFacts({
               <span className="text-text-muted">
                 noted {day(e.notedAt)}
                 {e.trialEndsAt && ` · first charge due ${day(e.trialEndsAt)}`}
+                {e.reason === 'lower_tier' && ' · a lower or equal tier bought while the higher plan was live'}
+                {e.cancelledAt && ` · cancelled ${day(e.cancelledAt)}, ends ${day(e.periodEndsAt)}`}
                 {e.lastChargedAt && ` · charged again ${day(e.lastChargedAt)}`}
                 {e.resolvedAt ? ` · closed ${day(e.resolvedAt)} (${e.resolution})` : ' · open'}
               </span>

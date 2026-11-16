@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { users } from '@/db/schema';
@@ -29,7 +29,9 @@ import { MAX_GIFT_DAYS, endGift, giveGift, isGiftTier, listGifts, previewGift, s
 async function loginFor(params: Promise<{ id: string }>) {
   const playerId = Number((await params).id);
   if (!Number.isInteger(playerId) || playerId <= 0) return null;
-  const login = await db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { id: true } });
+  // A person can have several logins. Always the same one: the oldest (lowest id), so a gift, its
+  // preview and its history are read and written on one login every time.
+  const login = await db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { id: true }, orderBy: asc(users.id) });
   return login ? { id: login.id, playerId } : null;
 }
 

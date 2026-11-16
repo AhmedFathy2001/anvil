@@ -12,13 +12,15 @@
 // another by being created again. A deleted clan takes its rows with it, so deleting one that had a
 // trial leaves a line in the platform audit log with no clan (event 'plan_trial_used', notes
 // 'ign:<name>'), which is what that check reads. A clan that only names or verifies that in-game
-// name LATER keeps its trial; staff see it flagged in the trials view (repeatNameClans).
+// name LATER keeps its trial; staff see it flagged in the trials view (repeatNameClans). The same
+// deletion also remembers the clan's OWNERS when the trial was the automatic one, so deleting a
+// trialed clan and making another does not restart it (a person's second clan still gets its trial).
 
 import { cache } from 'react';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, ownerTrials } from '@/db/schema';
+import { clanAuditLog, clanStaff, ownerTrials } from '@/db/schema';
 import {
   autoTrialDays,
   autoTrialDecision,
@@ -35,6 +37,8 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Reader = typeof db | Tx;
 
 const USED_EVENT = 'plan_trial_used';
+/** clan_audit_log.notes of the per-owner memory (the actor is the owner). */
+const OWNER_NOTE = 'owner';
 /** owner_trials.note of the automatic trial (granted_by null). */
 export const AUTO_TRIAL_NOTE = 'on create';
 
@@ -175,6 +179,8 @@ export async function clansWithTrialUsed(rows: { id: number; trialEndsAt?: strin
 export async function startAutoTrial(
   tx: Tx,
   clan: { id: number; kind: string | null; inGameName: string | null },
+  /** The person creating it; null (a seed, a test) asks nothing about the owner. */
+  ownerUserId: number | null = null,
   now = Date.now(),
 ): Promise<{ granted: true; tier: string; endsAt: Date } | { granted: false; reason: AutoTrialRefusal }> {
   const days = autoTrialDays();
@@ -184,6 +190,7 @@ export async function startAutoTrial(
     clanHadTrial: days > 0 && (await hadPlanTrial(clan.id, tx)),
     hadMembership: days > 0 && (await hadMembership(clan.id, tx)),
     nameHadTrial: days > 0 && !!nameKey && (await nameUsedTrial(nameKey, tx)),
+    ownerDeletedTrialed: days > 0 && ownerUserId != null && (await ownerDeletedTrialedClan(ownerUserId, tx)),
   });
   if (!decision.grant) return { granted: false, reason: decision.reason };
 
@@ -215,21 +222,54 @@ async function nameUsedTrial(nameKey: string, reader: Reader = db): Promise<bool
 }
 
 /**
- * Call just BEFORE a clan is deleted: if it had a plan trial and its in-game name was verified, the
- * platform log remembers that name used one (the trial rows are about to cascade away).
+ * Has this person DELETED a clan or space that had used its automatic trial? The delete-and-create-
+ * again loop, closed: their next clan starts on Free (staff can still grant a trial by hand). Someone
+ * who simply makes a second clan is not affected.
+ */
+export async function ownerDeletedTrialedClan(userId: number, reader: Reader = db): Promise<boolean> {
+  // clan-scope: global -- the platform's own record, which outlives the deleted clan.
+  const [r] = await reader
+    .select({ id: clanAuditLog.id })
+    .from(clanAuditLog)
+    .where(and(isNull(clanAuditLog.clanId), eq(clanAuditLog.eventType, USED_EVENT), eq(clanAuditLog.actorUserId, userId), eq(clanAuditLog.notes, OWNER_NOTE)))
+    .limit(1);
+  return !!r;
+}
+
+/** For the create screens: will a clan or space this person makes now start the automatic trial, and for how long? */
+export async function autoTrialOfferFor(userId: number | null): Promise<{ days: number; reason: null | 'off' | 'owner-deleted-trialed' }> {
+  const days = autoTrialDays();
+  if (days <= 0) return { days: 0, reason: 'off' };
+  if (userId != null && (await ownerDeletedTrialedClan(userId))) return { days: 0, reason: 'owner-deleted-trialed' };
+  return { days, reason: null };
+}
+
+/**
+ * Call just BEFORE a clan is deleted (its trial rows are about to cascade away). The platform log,
+ * which has no clan and so outlives it, remembers two things:
+ *  - if it had ANY plan trial and its in-game name was verified: that name used one ('ign:<name>');
+ *  - if it had used its AUTOMATIC trial: each of its owners deleted a trialed clan ('owner'), so
+ *    deleting a clan and making another does not start a fresh trial. This does not depend on the
+ *    name being verified, so changing or un-verifying the name before deleting escapes nothing.
  */
 export async function rememberTrialBeforeDelete(
   reader: Reader,
   clan: { id: number; kind: string | null; inGameName: string | null; ingameNameVerifiedAt: string | null },
 ): Promise<void> {
+  const trials = await reader
+    .select({ grantedBy: ownerTrials.grantedBy, note: ownerTrials.note })
+    .from(ownerTrials)
+    .where(and(eq(ownerTrials.kind, 'plan'), eq(ownerTrials.clanId, clan.id)));
+  if (trials.length === 0) return;
   const nameKey = clan.kind === 'creator' || !clan.ingameNameVerifiedAt ? null : inGameNameKey(clan.inGameName);
-  if (!nameKey || !(await hadPlanTrial(clan.id, reader))) return;
-  await reader.insert(clanAuditLog).values({
-    clanId: null,
-    eventType: USED_EVENT,
-    newValue: JSON.stringify({ clanId: clan.id, inGameName: clan.inGameName }),
-    notes: `ign:${nameKey}`,
-  });
+  const value = JSON.stringify({ clanId: clan.id, inGameName: clan.inGameName });
+  const rows: (typeof clanAuditLog.$inferInsert)[] = [];
+  if (nameKey) rows.push({ clanId: null, eventType: USED_EVENT, newValue: value, notes: `ign:${nameKey}` });
+  if (trials.some((t) => t.grantedBy == null && t.note === AUTO_TRIAL_NOTE)) {
+    const owners = await reader.select({ userId: clanStaff.userId }).from(clanStaff).where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.role, 'owner')));
+    for (const o of owners) rows.push({ clanId: null, eventType: USED_EVENT, actorUserId: o.userId, newValue: value, notes: OWNER_NOTE });
+  }
+  if (rows.length) await reader.insert(clanAuditLog).values(rows);
 }
 
 /**

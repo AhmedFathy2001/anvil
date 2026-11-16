@@ -20,29 +20,77 @@ import { billingTierOf, type BillingTier } from '@/lib/billingCatalog';
 import { logBilling } from '@/lib/billingLapse';
 import { runOnPaid } from '@/lib/clanTenure';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
+import { tierRankOf } from '@/lib/planTrialRules';
 
 export type ExtraMembership = typeof clanExtraMemberships.$inferSelect;
 type Clan = typeof clans.$inferSelect;
 
 export { manageUrl } from '@/lib/gumroadLinks';
 
-async function note(clanId: number, subscriptionId: string, plan: string, state: 'to_cancel' | 'waiting', trialEndsAt: Date | null) {
-  const values = { clanId, plan, state, trialEndsAt, notedAt: new Date(), resolvedAt: null, resolution: null, lastChargedAt: null };
-  await db
-    .insert(clanExtraMemberships)
-    .values({ gumroadSubscriptionId: subscriptionId, ...values })
-    .onConflictDoUpdate({ target: clanExtraMemberships.gumroadSubscriptionId, set: values });
+/** Why a membership is extra: the older one after an upgrade, or a lower / equal tier bought while a higher one is live. */
+export type ExtraReason = 'superseded' | 'lower_tier';
+
+interface NoteFields {
+  trialEndsAt?: Date | null;
+  reason?: ExtraReason | null;
+  /** Already cancelled on Gumroad (it will not charge again) when it was noted. */
+  cancelled?: boolean;
+  periodEndsAt?: Date | null;
 }
 
-/** The older membership after an upgrade purchase: open until Gumroad says it was cancelled or ended. */
-export function noteToCancel(clanId: number, subscriptionId: string, plan: string) {
-  return note(clanId, subscriptionId, plan, 'to_cancel', null);
+const dateOf = (stamp: string | null | undefined): Date | null => {
+  if (!stamp) return null;
+  const ms = Date.parse(stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`);
+  return Number.isFinite(ms) ? new Date(ms) : null;
+};
+
+/**
+ * Record an extra membership. One row per subscription, ever: an OPEN row is brought up to date, and
+ * a RESOLVED row is never reopened (a replayed notification for a membership that already ended or
+ * was applied must not put its notice back). Returns false when nothing was written.
+ */
+async function note(clanId: number, subscriptionId: string, plan: string, state: 'to_cancel' | 'waiting', f: NoteFields = {}): Promise<boolean> {
+  const existing = await db.query.clanExtraMemberships.findFirst({ where: eq(clanExtraMemberships.gumroadSubscriptionId, subscriptionId) });
+  if (existing?.resolvedAt) return false;
+  const values = {
+    clanId,
+    plan,
+    state,
+    trialEndsAt: f.trialEndsAt ?? null,
+    reason: f.reason ?? null,
+    cancelledAt: f.cancelled ? new Date() : null,
+    periodEndsAt: f.periodEndsAt ?? null,
+  };
+  if (existing) {
+    await db.update(clanExtraMemberships).set(values).where(and(eq(clanExtraMemberships.id, existing.id), isNull(clanExtraMemberships.resolvedAt)));
+    return true;
+  }
+  const made = await db.insert(clanExtraMemberships).values({ gumroadSubscriptionId: subscriptionId, ...values }).onConflictDoNothing().returning({ id: clanExtraMemberships.id });
+  return made.length > 0;
+}
+
+/**
+ * A membership that is not the row's own and keeps charging on Gumroad: the OLDER one after an upgrade
+ * ('superseded'), or a LOWER / equal tier bought while a higher one is live ('lower_tier'). Open until
+ * Gumroad says it ENDED. `cancelled`: it was already cancelled when noted, so nobody is asked to cancel
+ * it, but it stays open (it still has paid term, and the fall-back can still find it).
+ */
+export function noteToCancel(clanId: number, subscriptionId: string, plan: string, opts: { reason?: ExtraReason; cancelled?: boolean; periodEndsAt?: string | null } = {}) {
+  return note(clanId, subscriptionId, plan, 'to_cancel', { reason: opts.reason ?? 'superseded', cancelled: opts.cancelled, periodEndsAt: dateOf(opts.periodEndsAt) });
 }
 
 /** A new membership held to its first real charge (Gumroad's free trial on a row that has had one). */
 export function noteWaiting(clanId: number, subscriptionId: string, plan: string, trialEndsAt: string | null) {
-  const ms = trialEndsAt ? Date.parse(trialEndsAt) : NaN;
-  return note(clanId, subscriptionId, plan, 'waiting', Number.isFinite(ms) ? new Date(ms) : null);
+  return note(clanId, subscriptionId, plan, 'waiting', { trialEndsAt: dateOf(trialEndsAt) });
+}
+
+/** Any row for this subscription on this clan, open or resolved: what a redelivered sale is checked against. */
+export async function extraForClanSubscription(clanId: number, subscriptionId: string | null): Promise<ExtraMembership | null> {
+  if (!subscriptionId) return null;
+  const row = await db.query.clanExtraMemberships.findFirst({
+    where: and(eq(clanExtraMemberships.clanId, clanId), eq(clanExtraMemberships.gumroadSubscriptionId, subscriptionId)),
+  });
+  return row ?? null;
 }
 
 export async function resolveExtra(id: number, resolution: string) {
@@ -90,6 +138,9 @@ export async function listOpenExtras() {
       subscriptionId: clanExtraMemberships.gumroadSubscriptionId,
       plan: clanExtraMemberships.plan,
       state: clanExtraMemberships.state,
+      reason: clanExtraMemberships.reason,
+      cancelledAt: clanExtraMemberships.cancelledAt,
+      periodEndsAt: clanExtraMemberships.periodEndsAt,
       trialEndsAt: clanExtraMemberships.trialEndsAt,
       lastChargedAt: clanExtraMemberships.lastChargedAt,
       notedAt: clanExtraMemberships.notedAt,
@@ -106,7 +157,11 @@ export async function listOpenExtras() {
  * free while it is being charged. Only on Gumroad's own word that it is alive: with no token to ask,
  * nothing is granted and the item stays open for staff. Returns the tier it fell back to, or null.
  */
-export async function fallBackToOlderMembership(clan: { id: number; kind: string; plan: string }, notes = 'gumroad webhook'): Promise<BillingTier | null> {
+export async function fallBackToOlderMembership(
+  clan: { id: number; kind: string; plan: string },
+  notes = 'gumroad webhook',
+  why = 'the newer membership ended',
+): Promise<BillingTier | null> {
   const open = (await openExtrasForClans([clan.id])).filter((e) => e.state === 'to_cancel').reverse();
   for (const extra of open) {
     const check = await checkSubscriptionWithGumroad(extra.gumroadSubscriptionId);
@@ -123,15 +178,17 @@ export async function fallBackToOlderMembership(clan: { id: number; kind: string
         plan: tier.id,
         memberCap: tier.memberCap,
         gumroadSubscriptionId: extra.gumroadSubscriptionId,
-        // Not known: the next charge sets it, and the daily check asks Gumroad about a row with no date.
-        currentPeriodEnd: null,
-        cancelAtPeriodEnd: false,
+        // Its own term end when we know it; else the next charge sets it, and the daily check asks
+        // Gumroad about a row with no date.
+        currentPeriodEnd: extra.periodEndsAt?.toISOString() ?? null,
+        // Cancelled on Gumroad but still inside its paid term: it comes back as leaving, not renewing.
+        cancelAtPeriodEnd: extra.cancelledAt != null,
         trialEndsAt: null,
         paidEndedAt: null,
       })
       .where(eq(clans.id, clan.id));
     await resolveExtra(extra.id, 'restored');
-    await logBilling(clan.id, 'billing_fell_back', { plan: tier.id, subscription: extra.gumroadSubscriptionId, reason: 'the newer membership ended and this one is still running' }, notes);
+    await logBilling(clan.id, 'billing_fell_back', { plan: tier.id, subscription: extra.gumroadSubscriptionId, reason: `${why} and this one is still running` }, notes);
     return tier;
   }
   return null;
@@ -149,22 +206,35 @@ export async function handleExtraMembershipEvent(ev: GumroadEvent): Promise<{ st
 
   if (extra.state === 'to_cancel') {
     switch (ev.kind) {
-      case 'cancellation':
+      case 'cancellation': {
+        // Cancelled, but it still has the term that was paid for: the row STAYS OPEN (the fall-back
+        // can still go back to it) and the owner is no longer asked to cancel it.
+        await db.update(clanExtraMemberships).set({ cancelledAt: new Date() }).where(eq(clanExtraMemberships.id, extra.id));
+        await logBilling(extra.clanId, 'billing_duplicate_cancelled', { ...detail, endsAt: extra.periodEndsAt?.toISOString() ?? null });
+        return ok('older membership cancelled, runs to its term end');
+      }
       case 'subscription_ended': {
-        const how = ev.kind === 'cancellation' ? 'cancelled' : 'ended';
-        await resolveExtra(extra.id, how);
-        await logBilling(extra.clanId, 'billing_duplicate_cleared', { ...detail, how });
+        await resolveExtra(extra.id, 'ended');
+        await logBilling(extra.clanId, 'billing_duplicate_cleared', { ...detail, how: 'ended' });
         return ok('older membership closed');
       }
       case 'recurring_charge': {
         // Charged again while superseded: exactly what the notice warns about. Kept open, and said to staff.
-        await db.update(clanExtraMemberships).set({ lastChargedAt: new Date() }).where(eq(clanExtraMemberships.id, extra.id));
+        const stamp = ev.saleTimestamp ? Date.parse(ev.saleTimestamp) : NaN;
+        const due = new Date(nextChargeDue(ev.recurrence, Number.isFinite(stamp) ? Math.min(stamp, Date.now()) : Date.now()));
+        await db.update(clanExtraMemberships).set({ lastChargedAt: new Date(), periodEndsAt: due, cancelledAt: null }).where(eq(clanExtraMemberships.id, extra.id));
         await logBilling(extra.clanId, 'billing_duplicate_charged', { ...detail, sale: ev.saleId });
         return ok('older membership charged again');
       }
+      case 'restarted': {
+        // Taken up again on Gumroad: it will charge, so the owner is asked to cancel it again.
+        await db.update(clanExtraMemberships).set({ cancelledAt: null }).where(eq(clanExtraMemberships.id, extra.id));
+        await logBilling(extra.clanId, 'billing_duplicate_event', { ...detail, kind: ev.kind });
+        return ok('older membership restarted');
+      }
       default:
-        // A refund, dispute or restart of the older one changes nothing about the plan in force and
-        // never suspends: the row's own membership is a different one. Logged for staff.
+        // A refund or dispute of the older one changes nothing about the plan in force and never
+        // suspends: the row's own membership is a different one. Logged for staff.
         await logBilling(extra.clanId, 'billing_duplicate_event', { ...detail, kind: ev.kind, sale: ev.saleId });
         return ok('older membership, no change');
     }
@@ -203,11 +273,22 @@ async function takeOver(clan: Clan, extra: ExtraMembership, ev: GumroadEvent): P
   const plan = billingTierOf(clan.kind, extra.plan);
   const current = billingTierOf(clan.kind, clan.plan);
   const older = clan.gumroadSubscriptionId;
-  // Still paying for another and not already leaving it: that one is now the one to cancel.
-  if (!current.free && older && older !== extra.gumroadSubscriptionId && !clan.cancelAtPeriodEnd) {
+  const stamp = ev.saleTimestamp ? Date.parse(ev.saleTimestamp) : NaN;
+  const due = nextChargeDue(ev.recurrence, Number.isFinite(stamp) ? Math.min(stamp, Date.now()) : Date.now());
+  const stillPaying = !current.free && !!older && older !== extra.gumroadSubscriptionId;
+  // The clan moved to a higher tier while this one waited: the higher one stays, and this one, now
+  // charging, is the extra membership to cancel.
+  if (stillPaying && !clan.cancelAtPeriodEnd && tierRankOf(clan.kind, plan.id) <= tierRankOf(clan.kind, current.id)) {
+    await db
+      .update(clanExtraMemberships)
+      .set({ state: 'to_cancel', reason: 'lower_tier', lastChargedAt: new Date(), periodEndsAt: new Date(due), trialEndsAt: null })
+      .where(eq(clanExtraMemberships.id, extra.id));
+    await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: extra.gumroadSubscriptionId, kept: older, keptPlan: clan.plan, reason: 'lower tier' });
+    return current;
+  }
+  if (stillPaying) {
     await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: extra.gumroadSubscriptionId, replaced: older, replacedPlan: clan.plan });
   }
-  const stamp = ev.saleTimestamp ? Date.parse(ev.saleTimestamp) : NaN;
   await db
     .update(clans)
     .set({
@@ -217,14 +298,14 @@ async function takeOver(clan: Clan, extra: ExtraMembership, ev: GumroadEvent): P
       gumroadSaleId: ev.saleId ?? clan.gumroadSaleId,
       gumroadProductId: ev.productId ?? clan.gumroadProductId,
       gumroadProductPermalink: ev.productPermalink ?? clan.gumroadProductPermalink,
-      currentPeriodEnd: nextChargeDue(ev.recurrence, Number.isFinite(stamp) ? Math.min(stamp, Date.now()) : Date.now()),
+      currentPeriodEnd: due,
       cancelAtPeriodEnd: false,
       trialEndsAt: null,
       ...runOnPaid(clan),
     })
     .where(eq(clans.id, clan.id));
   await resolveExtra(extra.id, 'applied');
-  if (!current.free && older && older !== extra.gumroadSubscriptionId && !clan.cancelAtPeriodEnd) await noteToCancel(clan.id, older, clan.plan);
+  if (stillPaying && older) await noteToCancel(clan.id, older, clan.plan, { cancelled: clan.cancelAtPeriodEnd, periodEndsAt: clan.currentPeriodEnd });
   await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: extra.gumroadSubscriptionId, after: 'first charge' });
   return plan;
 }

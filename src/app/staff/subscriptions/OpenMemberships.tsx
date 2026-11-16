@@ -56,7 +56,7 @@ export default async function OpenMemberships() {
       </div>
       <p className="mb-3 text-xs text-gray-400">
         Moving tier is a new Gumroad purchase, and the old membership keeps charging until it is cancelled on Gumroad. The owner
-        sees the same notice with the link. A line closes when Gumroad reports the cancellation or end.
+        sees the same notice with the link. A cancelled one stays listed until its paid term ends; a line closes when Gumroad reports the end.
       </p>
       <ul className="space-y-1.5 text-sm">
         {extras.map((e) => (
@@ -65,8 +65,10 @@ export default async function OpenMemberships() {
               {e.clanName}
             </ClanLink>
             {e.state === 'to_cancel' ? (
-              <span className="text-orange-200">
-                has two memberships: now on {tierNameOf(e.kind, e.currentPlan)}, and the older {tierNameOf(e.kind, e.plan)} one is still to cancel
+              <span className={e.cancelledAt ? 'text-gray-300' : 'text-orange-200'}>
+                has two memberships: on {tierNameOf(e.kind, e.currentPlan)}, and{' '}
+                {e.reason === 'lower_tier' ? `a ${tierNameOf(e.kind, e.plan)} one bought while it had the higher plan` : `the older ${tierNameOf(e.kind, e.plan)} one`}{' '}
+                {e.cancelledAt ? `is cancelled, ends ${day(e.periodEndsAt)}` : 'is still to cancel'}
                 {e.lastChargedAt && <b> · charged again {day(e.lastChargedAt)}</b>}
               </span>
             ) : (

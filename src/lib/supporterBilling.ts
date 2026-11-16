@@ -15,7 +15,9 @@ import { db } from '@/db';
 import { ownerTrials, supporterSubscriptions, users } from '@/db/schema';
 import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { recordSupporterReferral, revokeReferrals } from '@/lib/referrals';
-import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
+import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, trialEndWithGumroad, type GumroadEvent } from '@/lib/gumroad';
+import { SUPPORTER_TRIAL_DAYS } from '@/lib/buyOffer';
+import { usedTrialHold } from '@/lib/planTrialRules';
 import { HELD_STATUS, parseStamp, runStartOnReturn, supporterTierForGumroad, type SupporterTierId } from '@/lib/supporterTiers';
 import { startQueuedGifts } from '@/lib/supporterGifts';
 import { noteUnmatchedFollowUp, recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
@@ -81,12 +83,37 @@ function saleTerms(ev: GumroadEvent): { trialEnd: number; periodEnd: string; isT
  * checkout ref found the buyer, and what staff attaching an unmatched sale (lib/unmatchedPurchaseActions)
  * does for the person they picked. The caller has already checked the sale, its subscription and tier.
  */
+/** Is this notification for the PAY-NOW copy of the Supporter product (no Gumroad trial by construction)? */
+export function isSupporterNowEvent(ev: Pick<GumroadEvent, 'productId' | 'productPermalink'>): boolean {
+  const id = process.env.GUMROAD_PRODUCT_SUPPORTER_NOW;
+  if (id && ev.productId === id) return true;
+  return !!ev.productPermalink && ev.productPermalink === (process.env.GUMROAD_PERMALINK_SUPPORTER_NOW || 'supporter-now');
+}
+
 export async function startSupporterMembership(userId: number, ev: GumroadEvent, tier: SupporterTierId): Promise<number | null> {
-  const { trialEnd, periodEnd, isTrial } = saleTerms(ev);
+  const terms = saleTerms(ev);
+  // The trial is decided the way the clan side decides it (lib/clanSale): Gumroad's own record of
+  // the subscriber when it can be asked, since the sale notification does not reliably carry a trial.
+  const asked = await trialEndWithGumroad(ev.subscriptionId);
+  const said = Number.isFinite(terms.trialEnd) ? new Date(terms.trialEnd).toISOString() : null;
   // ONE TRIAL. Gumroad started this with its free trial for someone who has already had one (Anvil's
   // or Gumroad's): recorded, and the tier starts with the first real charge (recurring_charge makes
   // it 'active'). The buttons never send them to the trial product, but its address is public.
-  const held = isTrial && (await supporterTrialUsed(userId, ev.subscriptionId));
+  // lib/planTrialRules usedTrialHold is the whole decision, the same one a clan sale gets.
+  const hold = usedTrialHold({
+    trialUsed: await supporterTrialUsed(userId, ev.subscriptionId),
+    asked,
+    said,
+    nowProduct: isSupporterNowEvent(ev),
+    configuredTrialDays: SUPPORTER_TRIAL_DAYS,
+    priceCents: ev.priceCents,
+  });
+  const held = hold.hold;
+  const knownEnd = hold.hold ? hold.until : asked !== undefined ? asked : said;
+  const trialEnd = knownEnd ? Date.parse(knownEnd) : NaN;
+  const isTrial = Number.isFinite(trialEnd) && trialEnd > Date.now();
+  // A free trial's first charge is due when the trial runs out, not a whole term from now.
+  const periodEnd = isTrial ? new Date(trialEnd).toISOString() : terms.periodEnd;
   const [created] = await db.insert(supporterSubscriptions).values({
     userId,
     tier,
@@ -154,10 +181,10 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       if (row) {
         await db
           .update(supporterSubscriptions)
-          // A held membership (trial already used) stays held until a real charge, whatever is replayed.
-          .set({ tier, status: row.status === HELD_STATUS && isTrial ? HELD_STATUS : 'active', recurrence: ev.recurrence, gumroadSaleId: ev.saleId, currentPeriodEnd: periodEnd, endedAt: null, ...runStartOnReturn(row) })
+          // A held membership (trial already used) stays held until a real CHARGE (recurring_charge), whatever sale is replayed.
+          .set({ tier, status: row.status === HELD_STATUS ? HELD_STATUS : 'active', recurrence: ev.recurrence, gumroadSaleId: ev.saleId, currentPeriodEnd: periodEnd, endedAt: null, ...runStartOnReturn(row) })
           .where(eq(supporterSubscriptions.id, row.id));
-        afterSupporterChange(row.userId, { announceRowId: isTrial ? null : row.id });
+        if (row.status !== HELD_STATUS) afterSupporterChange(row.userId, { announceRowId: isTrial ? null : row.id });
         return ok({ tier });
       }
       // A new membership: the buyer is whoever's checkout ref came back. Never the email.

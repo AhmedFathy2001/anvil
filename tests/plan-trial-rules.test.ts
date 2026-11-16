@@ -18,6 +18,7 @@ import {
   planConverted,
   topTrialTier,
   trialPhase,
+  usedTrialHold,
 } from '../src/lib/planTrialRules.ts';
 import { buyWording, chargeText, clanBuy, creatorBuy, supporterBuy } from '../src/lib/buyOffer.ts';
 import { PLANS, checkoutUrl, earlyBird, planForGumroadProduct, trialDaysFrom, EARLY_BIRD_LOCK_LINE } from '../src/lib/plans.ts';
@@ -46,7 +47,7 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
 
 // ── The automatic trial: every new clan, with three exceptions ──────────────────────────────────
 
-const fresh = { days: 30, clanHadTrial: false, hadMembership: false, nameHadTrial: false };
+const fresh = { days: 30, clanHadTrial: false, hadMembership: false, nameHadTrial: false, ownerDeletedTrialed: false };
 
 test('every new clan or space starts its trial', () => {
   assert.deepEqual(autoTrialDecision(fresh), { grant: true });
@@ -70,7 +71,9 @@ test('the same verified in-game clan name, deleted and created again, does not r
 
 test('there is no once-per-owner rule: nothing about the owner is asked', () => {
   // The facts the rule reads name the clan and its in-game name only.
-  assert.deepEqual(Object.keys(fresh).sort(), ['clanHadTrial', 'days', 'hadMembership', 'nameHadTrial']);
+  assert.deepEqual(Object.keys(fresh).sort(), ['clanHadTrial', 'days', 'hadMembership', 'nameHadTrial', 'ownerDeletedTrialed']);
+  // The one thing asked about the owner is whether they DELETED a clan that had used its trial.
+  assert.deepEqual(autoTrialDecision({ ...fresh, ownerDeletedTrialed: true }), { grant: false, reason: 'owner-deleted-trialed' });
 });
 
 test('the trial length is 30 days by default, configurable, and 0 or junk means off', () => {
@@ -274,4 +277,34 @@ test('early-bird line: on by default, one switch off, rewordable, the price lock
   assert.deepEqual(earlyBird({ EARLY_BIRD_HEADING: 'Launch prices', EARLY_BIRD_LINE: 'Prices for our first clans.' }), { heading: 'Launch prices', line: 'Prices for our first clans.', lock: null });
   const said = JSON.stringify(earlyBird({ EARLY_BIRD_PRICE_LOCK: 'true' }));
   assert.ok(!/\d+ (left|days|hours)|until|ends on|only/i.test(said), 'no date, countdown or scarcity');
+});
+
+// ── Holding a sale to its first real charge (clan, space and Supporter share this) ──────────────
+
+const holdFacts = { trialUsed: true, asked: undefined as string | null | undefined, said: null as string | null, nowProduct: false, configuredTrialDays: 30, priceCents: null as number | null };
+const ahead = new Date(NOW + 30 * DAY).toISOString();
+
+test('someone who has never had a trial is never held', () => {
+  assert.deepEqual(usedTrialHold({ ...holdFacts, trialUsed: false, asked: ahead }, NOW), { hold: false });
+});
+
+test('Gumroad answered: its word decides, either way', () => {
+  assert.deepEqual(usedTrialHold({ ...holdFacts, asked: ahead }, NOW), { hold: true, until: ahead, known: true });
+  assert.deepEqual(usedTrialHold({ ...holdFacts, asked: null, said: ahead, priceCents: 0 }, NOW), { hold: false }, 'confirmed absent beats the notification');
+  assert.deepEqual(usedTrialHold({ ...holdFacts, asked: new Date(NOW - DAY).toISOString() }, NOW), { hold: false }, 'a trial already over');
+});
+
+test('could not ask, but the notification names a trial end still ahead: held', () => {
+  assert.deepEqual(usedTrialHold({ ...holdFacts, said: ahead, priceCents: 699 }, NOW), { hold: true, until: ahead, known: true });
+});
+
+test('could not ask and nothing said: held only when a trial is possible and no money shows', () => {
+  // No price, or a price of zero: no charge evidence, so held until the configured trial would end.
+  assert.deepEqual(usedTrialHold(holdFacts, NOW), { hold: true, until: ahead, known: false });
+  assert.deepEqual(usedTrialHold({ ...holdFacts, priceCents: 0 }, NOW), { hold: true, until: ahead, known: false });
+  // A real charge is never held.
+  assert.deepEqual(usedTrialHold({ ...holdFacts, priceCents: 699 }, NOW), { hold: false });
+  // A pay-now product has no trial by construction; nor has anything when the configured trial is 0.
+  assert.deepEqual(usedTrialHold({ ...holdFacts, nowProduct: true }, NOW), { hold: false });
+  assert.deepEqual(usedTrialHold({ ...holdFacts, configuredTrialDays: 0 }, NOW), { hold: false });
 });

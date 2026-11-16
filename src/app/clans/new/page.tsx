@@ -12,7 +12,7 @@ import { clanStaff, clans } from '@/db/schema';
 import { operatorDiscordId } from '@/lib/welcomeDm';
 import { and, eq } from 'drizzle-orm';
 import NewClanClient from './NewClanClient';
-import { autoTrialDays } from '@/lib/planTrialRules';
+import { autoTrialOfferFor } from '@/lib/planTrials';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,9 +46,11 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
   // Every new clan starts Anvil's own trial with no card (lib/planTrials), so while those are on the
   // form never ends on a checkout: the clan subscribes later from its plan page, with the pay-now
   // product. Only with automatic trials off does a picked tier go on to its checkout.
-  const autoDays = autoTrialDays();
+  // Asked for THIS person: someone who deleted a clan that had used its trial starts the next one on Free.
+  const offer = await autoTrialOfferFor(session?.userId ?? null);
+  const autoDays = offer.days;
   const trialPlan =
-    autoDays <= 0 && freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
+    offer.reason === 'off' && freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
       ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS, billing }
       : null;
 
@@ -74,6 +76,12 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
           <>
             Make the clan first — it&rsquo;s live the moment you press the button. Then you&rsquo;ll{' '}
             {TRIAL_DAYS > 0 ? `start your ${TRIAL_DAYS}-day ${trialPlan.name} free trial on Gumroad.` : `subscribe to ${trialPlan.name} on Gumroad.`}
+          </>
+        ) : offer.reason === 'owner-deleted-trialed' ? (
+          <>
+            Live the moment you press the button, with no card. This clan starts on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}):
+            the free {PLANS.gold.name} trial was used on a clan you deleted, so it does not start again. You can subscribe from
+            the clan&rsquo;s plan page whenever you need more room.
           </>
         ) : autoDays > 0 ? (
           <>
