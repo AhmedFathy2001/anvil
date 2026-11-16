@@ -1,5 +1,6 @@
 'use client';
 
+import { eventStage } from '@/lib/eventStage';
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import EventBoard from '@/components/EventBoard';
@@ -244,7 +245,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)
-        .map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
+        .map((c) => ({ teamId: team.id, teamName: team.name, color: team.color, completedAt: c.completedAt }))
     : [];
 
   return (
@@ -461,6 +462,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={eventStarted}
           canManage={eventStarted}
           canToggle={!selectedTile.trackedStat && eventStarted}

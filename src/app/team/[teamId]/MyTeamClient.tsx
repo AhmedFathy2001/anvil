@@ -340,7 +340,7 @@ export default function MyTeamClient({
     myPlayerId,
   });
   const selectedTileCompletedBy = selectedTileId
-    ? completions.filter((c) => c.tileId === selectedTileId).map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
+    ? completions.filter((c) => c.tileId === selectedTileId).map((c) => ({ teamId: team.id, teamName: team.name, color: team.color, completedAt: c.completedAt }))
     : [];
   const selectedMember = teamPlayers.find((p) => p.id === selectedMemberId) ?? null;
   const selectedMemberSubmissions = selectedMemberId
@@ -720,6 +720,7 @@ export default function MyTeamClient({
           race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={eventStarted && !finished}
           canManage={isCaptain && eventStarted && !finished}
           canToggle={isCaptain && !selectedTile.trackedStat && eventStarted && !finished}

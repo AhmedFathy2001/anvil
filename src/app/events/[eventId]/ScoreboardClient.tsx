@@ -690,11 +690,12 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
           submissions={proofForOpenTile ?? []}
           submissionsLoading={proofForOpenTile === null}
+          ended={finished}
           completedBy={selectedTileCompletions
             .filter((c) => lensTeamId == null || c.teamId === lensTeamId)
             .map((c) => {
             const team = teams.find((t) => t.id === c.teamId);
-            return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };
+            return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888', completedAt: c.completedAt };
           })}
           canSubmit={false}
           canManage={false}

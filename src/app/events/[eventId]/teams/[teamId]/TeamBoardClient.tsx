@@ -214,7 +214,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)
-        .map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
+        .map((c) => ({ teamId: team.id, teamName: team.name, color: team.color, completedAt: c.completedAt }))
     : [];
 
   return (
@@ -412,6 +412,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={false}
           canManage={false}
           canToggle={false}

@@ -18,7 +18,7 @@ import { isBranchingRoute, raceGraph } from '@/lib/raceRoutes';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 import { ProofsToCheck } from './EventNextStep';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { setupFacts, type EventStage, type StageCounts } from '@/lib/eventStage';
+import { eventStage, setupFacts, type EventStage, type StageCounts } from '@/lib/eventStage';
 import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
 import { parseEventRules } from '@/lib/eventRules';
@@ -175,7 +175,7 @@ export default function OverviewClient({
         .filter((c) => c.tileId === selectedTileId)
         .map((c) => {
           const t = teams.find((tm) => tm.id === c.teamId);
-          return { teamId: c.teamId, teamName: t?.name ?? 'Team', color: t?.color ?? '#888' };
+          return { teamId: c.teamId, teamName: t?.name ?? 'Team', color: t?.color ?? '#888', completedAt: c.completedAt };
         })
     : [];
 
@@ -327,6 +327,7 @@ export default function OverviewClient({
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={false}
           canManage={true}
           canToggle={false}

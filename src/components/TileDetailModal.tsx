@@ -19,6 +19,7 @@ import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
 import LapCounterTip from './LapCounterTip';
 import TileBeforeYouStart from './TileBeforeYouStart';
+import { outcomeLines } from '@/lib/tileOutcome';
 import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
 import { killSourceOf } from '@/lib/killSource';
 import { lapUnitNoun } from '@/lib/constants';
@@ -73,6 +74,8 @@ interface CompletedByTeam {
   teamId: number;
   teamName: string;
   color: string;
+  /** When the team completed it, for the ended-event "how it went" line. */
+  completedAt?: string | null;
 }
 
 interface TeamPlayer {
@@ -105,6 +108,8 @@ interface Props {
   /** Proof is being fetched — show a placeholder rather than "no submissions" while it lands. */
   submissionsLoading?: boolean;
   completedBy: CompletedByTeam[];
+  /** The event is over: the dialog says how the tile went and gives no instructions to play. */
+  ended?: boolean;
   canSubmit: boolean;
   canManage: boolean;
   canToggle: boolean;
@@ -154,6 +159,7 @@ export default function TileDetailModal({
   submissions,
   submissionsLoading = false,
   completedBy,
+  ended = false,
   canSubmit,
   canManage,
   canToggle,
@@ -787,6 +793,13 @@ export default function TileDetailModal({
                 )}
               </div>
               {/* How a player gets this one, in words a phone can show — the ✋ and badge blurbs are hover-only. */}
+              {ended ? (
+                <div className="text-xs text-text-muted mt-2 space-y-0.5">
+                  {outcomeLines(completedBy, (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })).map((l) => (
+                    <p key={l}>{l}</p>
+                  ))}
+                </div>
+              ) : (
               <p className="text-xs text-text-muted mt-2">
                 <span className={howCounts.auto ? 'text-accent-green-light' : 'text-amber-300'}>
                   {howCounts.auto ? 'Automatic. ' : 'Screenshot. '}
@@ -801,6 +814,7 @@ export default function TileDetailModal({
                   </>
                 )}
               </p>
+              )}
             </div>
           </div>
           <button
@@ -832,11 +846,11 @@ export default function TileDetailModal({
           <TileTargets tile={tile} hideItems={!!perItemProgress?.length} />
 
           {/* Course laps only (the Sepulchre prints its own floor lines, no counter to toggle). */}
-          {isLap && countNoun === 'lap' && !manualOnly && <LapCounterTip />}
+          {!ended && isLap && countNoun === 'lap' && !manualOnly && <LapCounterTip />}
 
           {/* What this tile needs from a player and what it can't do (lib/tileRequirements), with the
               viewer's own problems on top ("you haven't synced your collection log yet"). */}
-          <TileBeforeYouStart tile={tile} eventId={eventId} />
+          {!ended && <TileBeforeYouStart tile={tile} eventId={eventId} />}
 
           {/* The board is read-only: the proof form is on the team page, which opens on this tile. */}
           {/* A race tile the team has not reached takes no proof: say why instead of a form or a link to one. */}
