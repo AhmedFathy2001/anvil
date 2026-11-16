@@ -331,7 +331,7 @@ const es: PartialGuideDict = {
     facts: [
       {
         strong: 'Gratis',
-        rest: 'sin tarjeta, sin prueba',
+        rest: 'sin tarjeta para empezar',
       },
       {
         strong: 'En línea',
@@ -347,7 +347,7 @@ const es: PartialGuideDict = {
       title: 'Antes de empezar',
       body: [
         'Necesitas una cuenta de Discord, y esa es toda la lista. Inicia sesión primero en `{apex}`: un clan necesita un propietario, y el inicio de sesión es como el sitio sabe que eres tú. Empieza desde **Crear un clan** en las páginas de la plataforma, o ve directo a `{apex}/clans/new`.',
-        'No cuesta nada. No hay plan que elegir, ni tarjeta que introducir, ni prueba que caduque y se lleve tu tablero — un clan empieza gratis y sigue siendo usable.',
+        'Empezar no cuesta nada. No hay plan que elegir ni tarjeta que introducir. Un clan nuevo recibe una prueba gratuita del plan más alto de Anvil. Cuando termina la prueba, el clan pasa al plan gratuito y conserva su tablero, su lista de miembros y su historial.',
         'Los clanes grandes pueden subir de plan más adelante desde **Plan and billing** en Admin. Todo lo que pagas en Anvil — un clan, un espacio de creador o tu propia membresía Supporter — está en [tu página de facturación](/portal).',
       ],
       note: {
@@ -3813,7 +3813,7 @@ const es: PartialGuideDict = {
       ],
       note: {
         tag: 'Una mejora temporal del staff de Anvil',
-        body: 'El staff puede dar a alguien un nivel superior durante un tiempo, por ejemplo como agradecimiento. Se suma a lo que pagas y nunca cambia tu suscripción. Settings → Account → Your plan & billing muestra **A gift from Anvil** y cuándo termina; después vuelves a tu nivel de pago. Un regalo solo da huecos de boost de clan cuando el staff los incluye.',
+        body: 'El staff puede dar a alguien un nivel superior durante un tiempo, por ejemplo como agradecimiento. Se suma a lo que pagas y nunca cambia tu suscripción. Settings → Account → Your plan & billing muestra **A gift from Anvil** y cuándo termina; después vuelves a tu nivel de pago. El staff también puede añadir tiempo a un nivel que ya tienes. Si pagas por ese nivel, el tiempo añadido empieza cuando termina tu membresía, y tus cargos no cambian. Un regalo solo da huecos de boost de clan cuando el staff los incluye.',
       },
     },
   },

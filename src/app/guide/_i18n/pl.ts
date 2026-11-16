@@ -330,7 +330,7 @@ const pl: PartialGuideDict = {
     facts: [
       {
         strong: 'Za darmo',
-        rest: 'bez karty, bez okresu próbnego',
+        rest: 'bez karty na start',
       },
       {
         strong: 'Działa',
@@ -346,7 +346,7 @@ const pl: PartialGuideDict = {
       title: 'Zanim zaczniesz',
       body: [
         'Potrzebujesz konta Discord i to cała lista. Najpierw zaloguj się na `{apex}`: klan musi mieć właściciela, a logowanie jest tym, po czym strona wie, że to ty. Zacznij od **Załóż klan** na stronach platformy albo wejdź prosto na `{apex}/clans/new`.',
-        'To nic nie kosztuje. Nie ma planu do wyboru, karty do wpisania ani okresu próbnego, który wygasa i zabiera twoją planszę — klan startuje za darmo i pozostaje używalny.',
+        'Start nic nie kosztuje. Nie ma planu do wyboru ani karty do wpisania. Nowy klan dostaje darmowy okres próbny najwyższego planu od Anvil. Gdy okres próbny się skończy, klan przechodzi na plan darmowy i zachowuje swoją planszę, skład i historię.',
         'Duże klany mogą później przejść na wyższy plan w **Plan and billing** w panelu Admin. Wszystko, za co płacisz w Anvil — klan, przestrzeń twórcy albo własne członkostwo Supporter — jest na [twojej stronie płatności](/portal).',
       ],
       note: {
@@ -3798,7 +3798,7 @@ const pl: PartialGuideDict = {
       ],
       note: {
         tag: 'Tymczasowe podwyższenie od sztabu Anvil',
-        body: 'Sztab może dać komuś na jakiś czas wyższy pakiet, na przykład w podziękowaniu. Działa ono ponad tym, za co płacisz, i nigdy nie zmienia twojej subskrypcji. **Settings** → **Account** → **Your plan & billing** pokazuje **A gift from Anvil** i kiedy się kończy; potem wracasz do opłacanego pakietu. Taki prezent daje miejsca na boosty klanu tylko wtedy, gdy sztab je uwzględni.',
+        body: 'Sztab może dać komuś na jakiś czas wyższy pakiet, na przykład w podziękowaniu. Działa ono ponad tym, za co płacisz, i nigdy nie zmienia twojej subskrypcji. **Settings** → **Account** → **Your plan & billing** pokazuje **A gift from Anvil** i kiedy się kończy; potem wracasz do opłacanego pakietu. Sztab może też dodać czas do pakietu, który już masz. Jeśli za niego płacisz, dodany czas zaczyna się, gdy twoje członkostwo się kończy, a opłaty się nie zmieniają. Taki prezent daje miejsca na boosty klanu tylko wtedy, gdy sztab je uwzględni.',
       },
     },
   },

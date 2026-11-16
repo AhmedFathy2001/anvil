@@ -331,7 +331,7 @@ const nl: PartialGuideDict = {
     facts: [
       {
         strong: 'Gratis',
-        rest: 'geen kaart, geen proefperiode',
+        rest: 'geen kaart om te starten',
       },
       {
         strong: 'Live',
@@ -347,7 +347,7 @@ const nl: PartialGuideDict = {
       title: 'Voordat je begint',
       body: [
         'Je hebt een Discord-account nodig, en dat is de hele lijst. Meld je eerst aan op `{apex}`: een clan heeft een eigenaar nodig, en via het aanmelden weet de site dat jij dat bent. Begin bij **Een clan starten** op de platformpagina’s, of ga direct naar `{apex}/clans/new`.',
-        'Het kost niets. Geen abonnement te kiezen, geen kaart in te vullen, en geen proefperiode die verloopt en je bord meeneemt — een clan begint gratis en blijft bruikbaar.',
+        'Starten kost niets. Er is geen abonnement om te kiezen en geen kaart om in te voeren. Een nieuwe clan krijgt een gratis proefperiode van het topabonnement van Anvil. Als die proefperiode eindigt, valt de clan terug op het gratis abonnement en behoudt ze haar bord, haar ledenlijst en haar geschiedenis.',
         'Grote clans kunnen later overstappen op een groter abonnement via **Plan and billing** in Admin. Alles wat je op Anvil betaalt — een clan, een creator-space of je eigen Supporter-lidmaatschap — staat op [je factuurpagina](/portal).',
       ],
       note: {
@@ -3812,7 +3812,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Een tijdelijke upgrade van de Anvil-staf',
-        body: 'De staf kan iemand een tijdje een hoger niveau geven, bijvoorbeeld als bedankje. Dat komt bovenop wat je betaalt en verandert nooit je abonnement. Settings → Account → Your plan & billing toont **A gift from Anvil** en wanneer het afloopt; daarna zit je weer op je betaalde niveau. Een cadeau geeft alleen clanboostplekken als de staf die erbij doet.',
+        body: 'De staf kan iemand een tijdje een hoger niveau geven, bijvoorbeeld als bedankje. Dat komt bovenop wat je betaalt en verandert nooit je abonnement. Settings → Account → Your plan & billing toont **A gift from Anvil** en wanneer het afloopt; daarna zit je weer op je betaalde niveau. De staf kan ook tijd toevoegen aan een niveau dat je al hebt. Betaal je voor dat niveau, dan begint de extra tijd zodra je lidmaatschap eindigt, en veranderen je kosten niet. Een cadeau geeft alleen clanboostplekken als de staf die erbij doet.',
       },
     },
   },

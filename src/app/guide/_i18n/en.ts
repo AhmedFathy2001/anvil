@@ -339,7 +339,7 @@ export const en = {
     title: 'Start a clan',
     dek: 'Two names and an address, and your clan is live — free, and there is nothing to wait for. This is that, plus the four things worth doing straight afterwards.',
     facts: [
-      { strong: 'Free', rest: 'no card, no trial' },
+      { strong: 'Free', rest: 'no card to start' },
       { strong: 'Live', rest: 'the moment you submit' },
       { strong: '~4 min', rest: 'to a working clan' },
     ],
@@ -350,7 +350,7 @@ export const en = {
       title: 'Before you start',
       body: [
         'You need a Discord account, and that is the whole list. Sign in on `{apex}` first: a clan needs an owner, and signing in is how the site knows that is you. Start from **Start a clan** on the platform pages, or go straight to `{apex}/clans/new`.',
-        'It costs nothing. There is no plan to pick, no card to enter, and no trial that expires and takes your board with it — a clan starts free and stays usable.',
+        'It costs nothing to start. There is no plan to pick and no card to enter. A new clan gets a free trial of the top plan from Anvil. When the trial ends the clan is on the free plan and keeps its board, its roster and its history.',
         'Big clans can move up a plan later from **Plan and billing** in Admin. Everything you pay for on Anvil — a clan, a creator space or your own Supporter membership — is on [your billing page](/portal).',
       ],
       note: {
@@ -3795,7 +3795,7 @@ export const en = {
       ],
       note: {
         tag: 'A temporary upgrade from Anvil staff',
-        body: 'Staff can give someone a higher tier for a while, for example as a thank-you. It sits on top of what you pay and never changes your subscription. Settings → Account → Your plan & billing shows **A gift from Anvil** and when it ends; after that you are back on your paid tier. A gift only gives clan boost slots when staff include them.',
+        body: 'Staff can give someone a higher tier for a while, for example as a thank-you. It sits on top of what you pay and never changes your subscription. Settings → Account → Your plan & billing shows **A gift from Anvil** and when it ends; after that you are back on your paid tier. Staff can also add time to a tier you already have. If you pay for that tier, the added time starts when your membership ends, and your charges do not change. A gift only gives clan boost slots when staff include them.',
       },
     },
   },

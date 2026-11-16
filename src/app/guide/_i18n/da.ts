@@ -336,7 +336,7 @@ const da: PartialGuideDict = {
     facts: [
       {
         strong: 'Gratis',
-        rest: 'intet kort, ingen prøveperiode',
+        rest: 'intet kort for at starte',
       },
       {
         strong: 'Live',
@@ -352,7 +352,7 @@ const da: PartialGuideDict = {
       title: 'Før du går i gang',
       body: [
         'Du skal bruge en Discord-konto, og det er hele listen. Log først ind på `{apex}`: en klan skal have en ejer, og indlogningen er måden siden ved, at det er dig. Start fra **Start en klan** på platformsiderne, eller gå direkte til `{apex}/clans/new`.',
-        'Det koster ingenting. Ingen plan at vælge, intet kort at indtaste, og ingen prøveperiode der udløber og tager dit bræt med sig — en klan starter gratis og bliver ved med at virke.',
+        'Det koster ingenting at starte. Ingen plan at vælge og intet kort at indtaste. En ny klan får en gratis prøveperiode på den øverste plan fra Anvil. Når prøveperioden slutter, står klanen på den gratis plan og beholder sit bræt, sin medlemsliste og sin historik.',
         'Store klaner kan senere skifte til en større plan via **Plan and billing** i Admin. Alt, hvad du betaler for på Anvil — en klan, et creator-rum eller dit eget Supporter-medlemskab — står på [din betalingsside](/portal).',
       ],
       note: {
@@ -3820,7 +3820,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'En midlertidig opgradering fra Anvils stab',
-        body: 'Staben kan give nogen et højere niveau i en periode, fx som tak. Det ligger oven på det, du betaler, og ændrer aldrig dit abonnement. Settings → Account → Your plan & billing viser **A gift from Anvil** og hvornår den udløber; derefter er du tilbage på dit betalte niveau. En gave giver kun pladser til klan-boosts, når staben tager dem med.',
+        body: 'Staben kan give nogen et højere niveau i en periode, fx som tak. Det ligger oven på det, du betaler, og ændrer aldrig dit abonnement. Settings → Account → Your plan & billing viser **A gift from Anvil** og hvornår den udløber; derefter er du tilbage på dit betalte niveau. Staben kan også tilføje tid til et niveau, du allerede har. Betaler du for det niveau, starter den tilføjede tid, når dit medlemskab slutter, og dine betalinger ændrer sig ikke. En gave giver kun pladser til klan-boosts, når staben tager dem med.',
       },
     },
   },

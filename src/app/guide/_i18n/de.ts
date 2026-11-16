@@ -331,7 +331,7 @@ const de: PartialGuideDict = {
     facts: [
       {
         strong: 'Kostenlos',
-        rest: 'keine Karte, keine Testphase',
+        rest: 'keine Karte zum Starten',
       },
       {
         strong: 'Sofort online',
@@ -347,7 +347,7 @@ const de: PartialGuideDict = {
       title: 'Bevor du loslegst',
       body: [
         'Du brauchst ein Discord-Konto, das ist die ganze Liste. Melde dich zuerst auf `{apex}` an: ein Clan braucht einen Besitzer, und über die Anmeldung weiß die Seite, dass du das bist. Starte über **Clan gründen** auf den Plattformseiten oder direkt über `{apex}/clans/new`.',
-        'Es kostet nichts. Kein Tarif, keine Karte und keine Testphase, die abläuft und dein Board mitnimmt — ein Clan startet kostenlos und bleibt nutzbar.',
+        'Der Start kostet nichts. Kein Tarif zum Auswählen und keine Karte zum Eingeben. Ein neuer Clan bekommt eine kostenlose Testphase des höchsten Tarifs von Anvil. Wenn die Testphase endet, ist der Clan im kostenlosen Tarif und behält sein Board, seine Mitgliederliste und seinen Verlauf.',
         'Große Clans können später unter **Plan and billing** im Admin-Bereich in einen höheren Tarif wechseln. Alles, wofür du auf Anvil zahlst — ein Clan, ein Creator-Space oder deine eigene Supporter-Mitgliedschaft —, findest du auf [deiner Abrechnungsseite](/portal).',
       ],
       note: {
@@ -3811,7 +3811,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Ein befristetes Upgrade vom Anvil-Team',
-        body: 'Das Anvil-Team kann jemandem für eine Weile eine höhere Stufe geben, zum Beispiel als Dankeschön. Sie liegt über dem, was du bezahlst, und ändert nie dein Abo. Unter Settings → Account → Your plan & billing zeigt sich **A gift from Anvil** und wann es endet; danach bist du wieder auf deiner bezahlten Stufe. Ein Geschenk gibt nur dann Clan-Boost-Plätze, wenn das Team sie mit einschließt.',
+        body: 'Das Anvil-Team kann jemandem für eine Weile eine höhere Stufe geben, zum Beispiel als Dankeschön. Sie liegt über dem, was du bezahlst, und ändert nie dein Abo. Unter Settings → Account → Your plan & billing zeigt sich **A gift from Anvil** und wann es endet; danach bist du wieder auf deiner bezahlten Stufe. Das Team kann auch Zeit zu einer Stufe hinzufügen, die du bereits hast. Zahlst du für diese Stufe, beginnt die hinzugefügte Zeit, sobald deine Mitgliedschaft endet, und deine Abbuchungen ändern sich nicht. Ein Geschenk gibt nur dann Clan-Boost-Plätze, wenn das Team sie mit einschließt.',
       },
     },
   },

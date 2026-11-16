@@ -331,7 +331,7 @@ const ptBr: PartialGuideDict = {
     facts: [
       {
         strong: 'Grátis',
-        rest: 'sem cartão, sem teste',
+        rest: 'sem cartão para começar',
       },
       {
         strong: 'No ar',
@@ -347,7 +347,7 @@ const ptBr: PartialGuideDict = {
       title: 'Antes de começar',
       body: [
         'Você precisa de uma conta do Discord, e a lista acaba aí. Entre primeiro em `{apex}`: um clã precisa de um dono, e o login é como o site sabe que é você. Comece por **Criar um clã** nas páginas da plataforma, ou vá direto para `{apex}/clans/new`.',
-        'Não custa nada. Nenhum plano para escolher, nenhum cartão para digitar e nenhum teste que expira e leva seu quadro junto — um clã começa grátis e continua utilizável.',
+        'Começar não custa nada. Não há plano para escolher nem cartão para digitar. Um clã novo ganha um teste grátis do plano mais alto da Anvil. Quando o teste acaba, o clã passa para o plano grátis e mantém o quadro, o elenco e o histórico.',
         'Clãs grandes podem subir de plano depois em **Plan and billing**, no Admin. Tudo o que você paga no Anvil — um clã, um espaço de criador ou sua própria assinatura Supporter — fica na [sua página de cobrança](/portal).',
       ],
       note: {
@@ -3800,7 +3800,7 @@ const ptBr: PartialGuideDict = {
       ],
       note: {
         tag: 'Um upgrade temporário da staff do Anvil',
-        body: 'A staff pode dar a alguém um nível mais alto por um tempo, por exemplo como agradecimento. Ele fica por cima do que você paga e nunca muda a sua assinatura. Settings → Account → Your plan & billing mostra **A gift from Anvil** e quando acaba; depois disso você volta para o seu nível pago. Um presente só dá espaços de boost de clã quando a staff os inclui.',
+        body: 'A staff pode dar a alguém um nível mais alto por um tempo, por exemplo como agradecimento. Ele fica por cima do que você paga e nunca muda a sua assinatura. Settings → Account → Your plan & billing mostra **A gift from Anvil** e quando acaba; depois disso você volta para o seu nível pago. A staff também pode acrescentar tempo a um nível que você já tem. Se você paga por esse nível, o tempo acrescentado começa quando a sua assinatura termina, e as suas cobranças não mudam. Um presente só dá espaços de boost de clã quando a staff os inclui.',
       },
     },
   },

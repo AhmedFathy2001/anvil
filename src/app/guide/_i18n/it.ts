@@ -332,7 +332,7 @@ const it: PartialGuideDict = {
     facts: [
       {
         strong: 'Gratis',
-        rest: 'nessuna carta, nessuna prova',
+        rest: 'nessuna carta per iniziare',
       },
       {
         strong: 'Online',
@@ -348,7 +348,7 @@ const it: PartialGuideDict = {
       title: 'Prima di iniziare',
       body: [
         'Ti serve un account Discord, e la lista finisce qui. Accedi prima su `{apex}`: un clan ha bisogno di un proprietario, e l’accesso è il modo in cui il sito sa che sei tu. Parti da **Creare un clan** nelle pagine della piattaforma, o vai direttamente su `{apex}/clans/new`.',
-        'Non costa niente. Nessun piano da scegliere, nessuna carta da inserire e nessuna prova che scade portandosi via la tua board — un clan parte gratis e resta utilizzabile.',
+        'Iniziare non costa niente. Nessun piano da scegliere e nessuna carta da inserire. Un nuovo clan ottiene una prova gratuita del piano più alto di Anvil. Quando la prova finisce, il clan passa al piano gratuito e conserva la sua board, la sua lista membri e la sua cronologia.',
         'I clan grandi possono passare a un piano superiore più avanti da **Plan and billing** in Admin. Tutto ciò che paghi su Anvil — un clan, uno spazio creator o il tuo abbonamento Supporter — è nella [tua pagina di fatturazione](/portal).',
       ],
       note: {
@@ -3800,7 +3800,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Un upgrade temporaneo dallo staff di Anvil',
-        body: 'Lo staff può dare a qualcuno una fascia più alta per un periodo, per esempio come ringraziamento. Si aggiunge a ciò che paghi e non cambia mai il tuo abbonamento. Settings → Account → Your plan & billing mostra **A gift from Anvil** e quando finisce; dopo torni alla fascia che paghi. Un regalo dà spazi per i boost del clan solo se lo staff li include.',
+        body: 'Lo staff può dare a qualcuno una fascia più alta per un periodo, per esempio come ringraziamento. Si aggiunge a ciò che paghi e non cambia mai il tuo abbonamento. Settings → Account → Your plan & billing mostra **A gift from Anvil** e quando finisce; dopo torni alla fascia che paghi. Lo staff può anche aggiungere tempo a una fascia che hai già. Se paghi per quella fascia, il tempo aggiunto inizia alla fine del tuo abbonamento e i tuoi addebiti non cambiano. Un regalo dà spazi per i boost del clan solo se lo staff li include.',
       },
     },
   },

@@ -330,7 +330,7 @@ const fi: PartialGuideDict = {
     facts: [
       {
         strong: 'Ilmainen',
-        rest: 'ei korttia, ei kokeilujaksoa',
+        rest: 'ei korttia aloittaessa',
       },
       {
         strong: 'Pystyssä',
@@ -346,7 +346,7 @@ const fi: PartialGuideDict = {
       title: 'Ennen kuin aloitat',
       body: [
         'Tarvitset Discord-tilin, ja siinä on koko lista. Kirjaudu ensin sisään osoitteessa `{apex}`: klaanilla pitää olla omistaja, ja kirjautuminen on se, mistä sivusto tietää sen olevan sinä. Aloita platform-sivujen kohdasta **Perusta klaani**, tai mene suoraan osoitteeseen `{apex}/clans/new`.',
-        'Se ei maksa mitään. Ei pakettia valittavana, ei korttia syötettävänä eikä kokeilujaksoa joka päättyy ja vie taulusi mukanaan — klaani alkaa ilmaisena ja pysyy käytettävänä.',
+        'Aloittaminen ei maksa mitään. Ei pakettia valittavana eikä korttia syötettävänä. Uusi klaani saa ilmaisen kokeilujakson Anvilin ylimmästä paketista. Kokeilujakson päättyessä klaani siirtyy ilmaiseen pakettiin ja säilyttää taulunsa, jäsenlistansa ja historiansa.',
         'Isot klaanit voivat myöhemmin siirtyä isompaan pakettiin Adminin kohdasta **Plan and billing**. Kaikki, mistä maksat Anvilissa — klaani, creator-tila tai oma Supporter-jäsenyytesi — löytyy [laskutussivultasi](/portal).',
       ],
       note: {
@@ -3811,7 +3811,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Anvilin henkilökunnan väliaikainen korotus',
-        body: 'Henkilökunta voi antaa jollekulle korkeamman tason joksikin aikaa, esimerkiksi kiitoksena. Se tulee maksamasi päälle eikä koskaan muuta tilaustasi. Settings → Account → Your plan & billing näyttää **A gift from Anvil** ja milloin se päättyy; sen jälkeen olet taas maksamallasi tasolla. Lahja antaa klaaniboostipaikkoja vain, jos henkilökunta sisällyttää ne.',
+        body: 'Henkilökunta voi antaa jollekulle korkeamman tason joksikin aikaa, esimerkiksi kiitoksena. Se tulee maksamasi päälle eikä koskaan muuta tilaustasi. Settings → Account → Your plan & billing näyttää **A gift from Anvil** ja milloin se päättyy; sen jälkeen olet taas maksamallasi tasolla. Henkilökunta voi myös lisätä aikaa tasoon, jonka sinulla jo on. Jos maksat siitä tasosta, lisätty aika alkaa, kun jäsenyytesi päättyy, eivätkä veloituksesi muutu. Lahja antaa klaaniboostipaikkoja vain, jos henkilökunta sisällyttää ne.',
       },
     },
   },

@@ -332,7 +332,7 @@ const fr: PartialGuideDict = {
     facts: [
       {
         strong: 'Gratuit',
-        rest: 'pas de carte, pas d’essai',
+        rest: 'pas de carte pour commencer',
       },
       {
         strong: 'En ligne',
@@ -348,7 +348,7 @@ const fr: PartialGuideDict = {
       title: 'Avant de commencer',
       body: [
         'Il vous faut un compte Discord, et c’est toute la liste. Connectez-vous d’abord sur `{apex}` : un clan a besoin d’un propriétaire, et la connexion est ce qui indique au site que c’est vous. Partez de **Créer un clan** sur les pages de la plateforme, ou allez directement à `{apex}/clans/new`.',
-        'Cela ne coûte rien. Aucune formule à choisir, aucune carte à saisir, et aucun essai qui expire en emportant votre tableau — un clan démarre gratuit et le reste.',
+        'Le démarrage ne coûte rien. Aucune formule à choisir et aucune carte à saisir. Un nouveau clan bénéficie d’un essai gratuit de la formule supérieure d’Anvil. Quand l’essai se termine, le clan passe à la formule gratuite et garde son tableau, sa liste de membres et son historique.',
         'Les grands clans peuvent passer à une formule supérieure plus tard, depuis **Plan and billing** dans l’Admin. Tout ce que vous payez sur Anvil — un clan, un espace créateur ou votre propre abonnement Supporter — se trouve sur [votre page de facturation](/portal).',
       ],
       note: {
@@ -3814,7 +3814,7 @@ const fr: PartialGuideDict = {
       ],
       note: {
         tag: 'Une amélioration temporaire offerte par le staff d’Anvil',
-        body: 'Le staff peut donner à quelqu’un un palier supérieur pendant un temps, par exemple pour remercier. Il s’ajoute à ce que vous payez et ne change jamais votre abonnement. Settings → Account → Your plan & billing affiche **A gift from Anvil** et sa date de fin ; ensuite, vous revenez à votre palier payé. Un cadeau ne donne des emplacements de boost de clan que si le staff les inclut.',
+        body: 'Le staff peut donner à quelqu’un un palier supérieur pendant un temps, par exemple pour remercier. Il s’ajoute à ce que vous payez et ne change jamais votre abonnement. Settings → Account → Your plan & billing affiche **A gift from Anvil** et sa date de fin ; ensuite, vous revenez à votre palier payé. Le staff peut aussi ajouter du temps à un palier que vous avez déjà. Si vous payez ce palier, le temps ajouté commence à la fin de votre abonnement, et vos prélèvements ne changent pas. Un cadeau ne donne des emplacements de boost de clan que si le staff les inclut.',
       },
     },
   },
