@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import ClanLink from '@/components/ClanLink';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
-import { capForPlayer, challengesForPlayer, getH2hPrefs, myH2hCharacters, openCount, recordForPlayer } from '@/lib/h2h';
+import { capForPlayer, challengesForPlayer, getH2hPrefsView, myH2hCharacters, openCount, recordForPlayer } from '@/lib/h2h';
 import ChallengesClient from './ChallengesClient';
 
 export const dynamic = 'force-dynamic';
@@ -45,7 +45,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
     recordForPlayer(session.playerId, false),
     capForPlayer(session.playerId),
     openCount(session.playerId),
-    getH2hPrefs(session.playerId),
+    getH2hPrefsView(session.playerId),
     myH2hCharacters(session.playerId),
   ]);
 
