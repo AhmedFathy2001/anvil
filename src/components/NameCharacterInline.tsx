@@ -37,7 +37,10 @@ export default function NameCharacterInline({
   returnPath,
   heading,
   applyLabel,
+  ways,
 }: {
+  /** Which ways to confirm are offered, in order. Default: all three. */
+  ways?: Via[];
   slug: string;
   clanName: string;
   /** The clan's address path (`/c/<slug>`), which is how the vouch request names its clan. */
@@ -266,7 +269,7 @@ export default function NameCharacterInline({
         </div>
       ) : (
         <div role="radiogroup" aria-label="How you will confirm the character" className="space-y-1">
-          {CHOICES.map((c) => (
+          {CHOICES.filter((c) => !ways || ways.includes(c.via)).map((c) => (
             <button
               key={c.via}
               type="button"

@@ -23,7 +23,9 @@ import { toQuestionView } from '@/lib/survey';
 import { isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { teamLoads } from '@/lib/teamPlacementDb';
 import { resolveClanById } from '@/lib/clanContext';
-import { streamedEvent } from '@/lib/creatorSpaces';
+import { clanKindOf, streamedEvent } from '@/lib/creatorSpaces';
+import { clanBasePath } from '@/lib/clanScopedPaths';
+import { staffOfClan } from '@/lib/eventAccess';
 import { friendsHostOfEvent } from '@/lib/friendEvents';
 
 export const dynamic = 'force-dynamic';
@@ -260,7 +262,18 @@ export default async function EventSignupPage({
 
   // A creator space's event: no member list to be missing from, so no "guest" wording either.
   // A streamed event (a creator space's, or a Streaming clan's open to viewers) gets the viewer's join flow.
-  const creatorEvent = streamedEvent(await resolveClanById(event.clanId), event);
+  const hostClan = await resolveClanById(event.clanId);
+  const creatorEvent = streamedEvent(hostClan, event);
+  // For naming a character inline on this page (an in-game clan's event only).
+  const inlineHost =
+    hostClan && clanKindOf(hostClan.kind) === 'clan' && !creatorEvent
+      ? {
+          slug: hostClan.slug,
+          name: hostClan.name,
+          path: clanBasePath(hostClan),
+          viewerIsStaff: session.playerId != null && (await staffOfClan(event.clanId, session.playerId)),
+        }
+      : null;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -341,6 +354,7 @@ export default async function EventSignupPage({
         fee={fee ?? null}
         invite={invite}
         prefillClanMemberId={prefillClanMemberId}
+        host={inlineHost}
         prefillProfile={prefillProfile}
         windowOpen={window.open}
         windowReason={window.reason}
