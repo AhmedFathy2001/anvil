@@ -6,8 +6,8 @@ import { parseLoginTarget } from '@/lib/loginTarget';
 
 /**
  * The one line /login shows above its button when it knows why the person is signing in, or null
- * for a bare sign-in. Names come from public rows only: an event is named only when it is `public`
- * and its clan is a public, listed one; anything else gets the generic wording for the same reason.
+ * for a bare sign-in. Names come from public rows only: an event is named only when it is not invite-only
+ * and its clan is public (a 'clan' event on a public clan is readable by anyone, as its own page is); anything else gets the generic wording for the same reason.
  * Never a person's name.
  */
 export async function loginReason(returnTo: string): Promise<string | null> {
@@ -37,7 +37,7 @@ export async function loginReason(returnTo: string): Promise<string | null> {
         const clan = event
           ? await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { visibility: true, platformHidden: true } })
           : null;
-        const nameable = !!event && event.visibility === 'public' && clan?.visibility === 'public' && !clan.platformHidden;
+        const nameable = !!event && event.visibility !== 'invited' && clan?.visibility === 'public' && !clan.platformHidden;
         if (target.kind === 'event-signup') return nameable ? `Sign in to sign up for ${event!.name}.` : 'Sign in to sign up for this event.';
         if (!nameable) return 'You’re invited to join a team. Sign in to accept.';
         const invite = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, target.token), columns: { teamId: true } });

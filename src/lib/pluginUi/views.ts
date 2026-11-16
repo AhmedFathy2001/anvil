@@ -636,11 +636,13 @@ async function homeView(request: Request, a: Args): Promise<View> {
   const res = await configRoute(request);
   // No dead end: the two ways to get a clan are one click each. Your own characters are on the You tab.
   const noClan = () =>
-    message('You’re not in a clan or an event on Anvil yet. Your characters are on the You tab.', [
+    message('You’re signed in, but not in a clan or an event yet. Find your clan, or open an invite link from your host. Your characters are on the You tab.', [
       gap(6),
       button('Find a clan', { a: 'site', path: '/clans' }),
       gap(4),
-      button('Start one', { a: 'site', path: '/clans/new' }),
+      button('Events open to everyone', { a: 'site', path: '/events' }),
+      gap(4),
+      button('Start a clan', { a: 'site', path: '/clans/new' }),
     ]);
   if (!res.ok) {
     return res.status === 404 ? noClan() : message('Couldn’t reach Anvil — try again in a moment.');

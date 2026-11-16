@@ -142,8 +142,9 @@ export default function NewClanClient({
           </div>
         )}
         <p className="mt-4 text-sm text-gray-300">
-          A few things left: name it in Discord, point it at a channel, load your members, make a board,
-          fill it. The checklist on your dashboard walks them and knows which you have done.
+          Make your first event now: it is ready to go, with the name and tiles filled in. Loading your
+          members with the plugin and the Discord setup wait on your dashboard checklist, for whenever
+          you want them.
         </p>
         <PersonalNote
           contactId={contactId}
@@ -159,10 +160,16 @@ export default function NewClanClient({
               navigation instead of a client route that would leave the app holding the apex's
               context while showing a clan's page. */}
           <ClanLink
-            href={`${home}/admin/setup`}
+            href={`${home}/admin/events/first`}
             className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
-            Set it up
+            Create your first event
+          </ClanLink>
+          <ClanLink
+            href={`${home}/admin/setup`}
+            className="rounded-xl border border-card-border px-4 py-2.5 text-sm text-text-muted transition-colors hover:border-gold/45"
+          >
+            Plugin and roster setup
           </ClanLink>
           <ClanLink
             href={home}

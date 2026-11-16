@@ -66,6 +66,9 @@ export default function FirstEventClient({
   const [created, setCreated] = useState<number | null>(null);
   const [invitePath, setInvitePath] = useState<string | null>(null);
   const [filled, setFilled] = useState(false);
+  // Whether the event can take sign-ups right now: a sign-up window only exists for an event with a
+  // start date still ahead (lib/signup signupWindowState). Remembered from the form at creation.
+  const [takesSignups, setTakesSignups] = useState(false);
   const [copied, setCopied] = useState(false);
   // Ready-made tiles (lib/starterTiles) unless the host asks for a blank board. Keyed by format so
   // flipping between cards doesn't refetch.
@@ -149,20 +152,33 @@ export default function FirstEventClient({
       setCreated(data.id);
       setInvitePath(data.invitePath ?? null);
       setFilled(Boolean(tiles));
+      setTakesSignups(Boolean(startIso) && new Date(startIso).getTime() > Date.now());
     } finally {
       setBusy(false);
     }
   }
 
   if (created != null) {
-    // A friends event's link is its private invite (/f/<token>, on the apex); everyone else's is the board.
-    const link = invitePath ? `${window.location.origin}${invitePath}` : `${window.location.origin}${clanUrl(`/events/${created}`)}`;
+    // THE LINK PEOPLE ARE SENT. A friends event's is its private invite (/f/<token>, on the apex). A
+    // clan event that is still ahead of its start takes sign-ups, so its link is the sign-up page, which
+    // signs people in and carries them straight to the form. A creator space joins from the event page
+    // itself, and an event that has started or has no dates yet takes no sign-ups, so it gets the page.
+    const signupLink = !invitePath && !creator && takesSignups;
+    const link = invitePath
+      ? `${window.location.origin}${invitePath}`
+      : `${window.location.origin}${clanUrl(signupLink ? `/events/${created}/signup` : `/events/${created}`)}`;
     return (
       <div className="mx-auto max-w-xl py-6">
         <div className="rounded-2xl border border-gold/30 bg-card-bg p-8 text-center">
           <h1 className="display text-3xl font-semibold">Your event is ready</h1>
           <p className="mt-2 text-text-muted">
-            {friends ? 'Send this link to your friends. Only people with it can join.' : 'Share this link on stream or in Discord.'}
+            {friends
+              ? 'Send this link to your friends. Only people with it can join.'
+              : signupLink
+                ? 'Send this link to the people you want in. It signs them in and takes them to the sign-up.'
+                : creator
+                  ? 'Share this link on stream or in Discord.'
+                  : 'Sign-ups open once the event has a start date still ahead of it. Until then, this is the page to share.'}
           </p>
           {gateNote && <p className="mt-2 text-sm text-accent-red">{gateNote}</p>}
           <p className="mt-4 break-all rounded-lg bg-brown-dark px-3 py-2 font-mono text-sm text-foreground">{link}</p>
@@ -178,12 +194,16 @@ export default function FirstEventClient({
             }}
             className="mt-5 w-full rounded-xl bg-gold px-6 py-4 text-lg font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
-            {copied ? 'Copied!' : 'Copy invite link'}
+            {copied ? 'Copied!' : friends ? 'Copy invite link' : signupLink ? 'Copy the sign-up link' : 'Copy the event link'}
           </button>
         </div>
         <p className="mt-4 text-center text-[13px] text-text-dim">
           <ClanLink href={`/admin/events/${created}`} className="hover:text-gold">
             {filled ? 'Change your tiles' : 'Fill in your tiles'}
+          </ClanLink>
+          {' · '}
+          <ClanLink href={`/events/${created}`} className="hover:text-gold">
+            Open the event page
           </ClanLink>
         </p>
       </div>

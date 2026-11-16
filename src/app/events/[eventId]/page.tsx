@@ -950,7 +950,15 @@ export default async function EventScoreboardPage({
         ) : (
           <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
             <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
-            <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+            {event.startDate && new Date(event.startDate).getTime() <= Date.now() ? (
+              // Start time reached: the tiles are revealed by the minute-by-minute start check, or the
+              // start is being held until the event is ready (teams, draft). Not "before it begins".
+              <p className="text-sm">This event has reached its start time. The tiles appear as soon as it goes live, usually within a minute. If it stays hidden, the host still has something to finish.</p>
+            ) : event.startDate ? (
+              <p className="text-sm">The tiles appear when the event starts, <LocalTime date={event.startDate} />.</p>
+            ) : (
+              <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+            )}
           </div>
         )
       ) : (

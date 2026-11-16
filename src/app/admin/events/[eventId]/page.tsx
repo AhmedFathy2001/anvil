@@ -9,6 +9,8 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import OverviewClient from './OverviewClient';
 import EventArchiveCard from './EventArchiveCard';
+import EmptyRosterNotice from './EmptyRosterNotice';
+import OwnCharacterNudge from './OwnCharacterNudge';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventStage } from '@/lib/eventStage';
@@ -94,6 +96,8 @@ export default async function EventOverviewPage({
           </ul>
         </div>
       )}
+      {stage === 'build' && <OwnCharacterNudge eventId={id} />}
+      {stage === 'build' && <EmptyRosterNotice clanId={event.clanId} eventId={id} entry={event.entry} />}
       <OverviewClient
         event={clientEvent(event)}
         tiles={withSearchText(nestParts(eventTiles))}
