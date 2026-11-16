@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { tierOf } from '@/lib/characterState';
 import { handleFor } from '@/lib/staffSight';
 import { eventForRequest } from '@/lib/eventScope';
 import { resolvePlayers } from '@/lib/signupPlayer';
@@ -56,6 +57,9 @@ export async function GET(
       // DIFFERENT character of theirs — see the participant lookup below.
       personId: clanRoster.playerId,
       accountId: clanRoster.accountId,
+      verifiedAt: clanRoster.verifiedAt,
+      provisional: clanRoster.provisional,
+      verificationMethod: clanRoster.verificationMethod,
     })
     .from(eventSignups)
     // LEFT join so guest sign-ups (no linked user) still list — they show by RSN from `account`.
@@ -141,6 +145,8 @@ export async function GET(
         ? { id: r.user.id, displayName: r.user.displayName, discordUsername: handleFor(session?.role, r.user.discordUsername) }
         : null,
     account: r.account,
+    /** How this character came in: plugin, xp (flagged for a check) or manual (awaiting this clan's staff). */
+    path: tierOf(r),
     /** No member seat in a clan running the board (lib/entryFee). Null when guests pay the same. */
     guest: members ? !members.has(r.accountId) : null,
     captainTeam: r.user && r.user.id != null ? captainTeamByUser.get(r.user.id) ?? null : null,

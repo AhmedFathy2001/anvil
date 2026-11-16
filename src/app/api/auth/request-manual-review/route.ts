@@ -8,13 +8,13 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
-import { admit } from '@/lib/guestAdmission';
+import { admit, removedByStaff } from '@/lib/guestAdmission';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { rosterClanSeat } from '@/lib/seatScope';
 
 const MAX_NOTE_LEN = 500;
-/** Open (unconfirmed) manual claims one person may hold at once. */
-const MAX_OPEN_MANUAL_CLAIMS = 3;
+/** Open (unvouched) manual requests one person may hold at once: one. */
+const MAX_OPEN_MANUAL_CLAIMS = 1;
 
 // POST /api/auth/request-manual-review { rsn, note? }
 // Last-resort path for users who can't use the plugin (no RuneLite) and can't use stat-delta
@@ -170,9 +170,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, claimed: true, provisional: true });
     }
 
+    // Staff removed this character from this clan before: nothing automatic puts it back.
+    if (await removedByStaff(clan.id, claim.accountId)) {
+      return NextResponse.json({ error: 'This clan’s staff removed that character earlier. Ask them directly.' }, { status: 403 });
+    }
+    // A guest seat now (never a member seat), flagged in Needs review as a manual request: staff
+    // vouch there, or remove it. Closed clans and bans are refused inside admit().
     const admission = await admit({
       clanId: clan.id,
       accountId: claim.accountId,
+      policy: 'open',
       source: 'web',
       message: `Asked staff to vouch for ${rsn} (no plugin or XP check).${note ? ` ${note}` : ''}`.slice(0, 400),
     });

@@ -197,7 +197,10 @@ export async function POST(request: Request) {
     // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under the
     // default policy this raises a request instead of seating them — and the account stays linked to
     // them either way, which is what they actually asked for.
-    const admission = await admit({ clanId: clan.id, accountId: claim.accountId });
+    // A passed XP check is semi-trusted: the guest seat now, flagged in Needs review (provisional) for
+    // staff to check when they can. Closed clans and bans are still refused; a seat staff removed is
+    // not put back (admit refuses it for anything that is not the person asking on the site).
+    const admission = await admit({ clanId: clan.id, accountId: claim.accountId, policy: 'open' });
     if (admission.outcome !== 'seated') {
       return NextResponse.json(
         {

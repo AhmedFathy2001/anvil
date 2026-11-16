@@ -29,9 +29,51 @@ export function characterState(a: CharacterProof): CharacterState | null {
   return null;
 }
 
-/** May this character be used to sign up for an event, enter one or apply to a clan? */
+/**
+ * May this character be used to sign up for an event, enter one or apply to a clan?
+ *
+ * WHAT IS ADMITTED, WHAT IS HELD, WHO CAN UNDO IT (the answer to "an unverified character can now
+ * join"). The owner's policy is three tiers, from `tierOf`:
+ *   plugin  the plugin reported it while signed in (or staff confirmed it): trusted. Joins events and
+ *           is granted a clan GUEST seat at once.
+ *   xp      the XP check passed: semi-trusted (it can be passed by accident or spoofed). Exactly the
+ *           same for the person, but the seat stays flagged in the clan's Needs review list as
+ *           "added automatically, check when you can": flagged, never blocking.
+ *   manual  the person asked the clan's staff to vouch and nothing else proves it. Admitted to sign
+ *           up and to a guest seat, but everything that cannot be undone is held: the entry is
+ *           PENDING (no team, no board place, so no progress, prize or payout), `verifiedAt` is empty
+ *           so no Discord roles are given (lib/discord-roles reads it), and a seat here is never a
+ *           member seat (membership only ever comes from the in-game list). One open request per
+ *           person, only where a clan exists to review it, bans refused.
+ * Staff see the path on the Needs review row and on the sign-up row, can vouch in one click
+ * (Needs review > approve) and can remove anyone (Needs review > not a member, which also withdraws
+ * the entry). A seat staff removed is never re-granted automatically. Impersonation by screenshot or
+ * AI review is deliberately not built here (a later problem); what IS enforced, invisibly, is that a
+ * character somebody else has proved cannot be claimed (lib/accountClaim).
+ */
 export function mayJoinWith(a: CharacterProof): boolean {
   return characterState(a) != null;
+}
+
+export type JoinTier = 'plugin' | 'xp' | 'manual';
+
+/** Which of the three paths this character came in by, or null when it has not come in at all. */
+export function tierOf(a: CharacterProof): JoinTier | null {
+  const s = characterState(a);
+  if (s === 'awaiting-manual') return 'manual';
+  if (s === 'passed-awaiting-review') return a.verificationMethod === 'stat_delta' ? 'xp' : 'plugin';
+  if (s === 'verified') return 'plugin';
+  return null;
+}
+
+/**
+ * How a clan door treats this person: `open` grants the guest seat at once (the existing rule for an
+ * approved request: a guest seat, never a member one), `approval` files a request for staff. A clan
+ * that is closed stays closed and a ban always wins, both decided inside `admit`. Somebody staff
+ * removed is never put back automatically; the event's own approval setting is kept by the caller.
+ */
+export function doorPolicy(opts: { removedByStaff: boolean; eventNeedsApproval?: boolean }): 'open' | 'approval' {
+  return opts.removedByStaff || opts.eventNeedsApproval ? 'approval' : 'open';
 }
 
 /**

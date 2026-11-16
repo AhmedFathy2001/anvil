@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
-import { clanAuditLog, clanMemberships } from '@/db/schema';
+import { clanAuditLog, clanMemberships, eventSignups } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { raiseCharacterReport } from '@/lib/characterReportActions';
@@ -109,6 +109,9 @@ export async function POST(
       .update(clanMemberships)
       .set({ leftAt: new Date().toISOString(), source: 'manual' })
       .where(eq(clanMemberships.id, memberId));
+    // A declined (or removed) entry goes with the seat: its sign-ups are withdrawn, so nothing of theirs
+    // waits on a board for somebody staff said is not theirs.
+    await db.update(eventSignups).set({ status: 'withdrawn' }).where(eq(eventSignups.clanMemberId, memberId));
     db.insert(clanAuditLog)
       .values({
         clanId: member.clanId,

@@ -52,3 +52,27 @@ test('invite limits still apply on a running event, and closed reasons are said 
   assert.match(inviteClosedMessage('event_started', true), /finished/);
   assert.equal(checkInvite(base, { ...ctx, signupsOpen: false, closedMessage: inviteClosedMessage('off', false) }).message, inviteClosedMessage('off', false));
 });
+
+import { doorPolicy, tierOf } from '../src/lib/characterState.ts';
+
+test('three tiers: which path a character came in by', () => {
+  assert.equal(tierOf(proven), 'plugin');
+  assert.equal(tierOf({ verifiedAt: 'x', provisional: 1, verificationMethod: 'plugin_first_use' }), 'plugin');
+  assert.equal(tierOf(xpPassed), 'xp');
+  assert.equal(tierOf(manualPending), 'manual');
+  assert.equal(tierOf({ verifiedAt: null, provisional: 0, verificationMethod: null }), null);
+});
+
+test('the door: everyone is granted at once, except a seat staff removed or an event that asks', () => {
+  assert.equal(doorPolicy({ removedByStaff: false }), 'open');
+  assert.equal(doorPolicy({ removedByStaff: true }), 'approval'); // an XP-verified seat staff removed stays removed
+  assert.equal(doorPolicy({ removedByStaff: false, eventNeedsApproval: true }), 'approval');
+});
+
+test('transitions: a manual request upgrades to tier 1 when a plugin claim arrives, never the reverse', () => {
+  // the plugin claim displaces the unvouched one (and its entries), so the person becomes tier 1
+  assert.equal(mayDisplace(manualPending, { verified: true, method: 'plugin' }), true);
+  assert.equal(tierOf({ verifiedAt: 'x', provisional: 0, verificationMethod: 'plugin' }), 'plugin');
+  // the same person's own proven claim on their own manual row is the ordinary re-verify (not a displacement)
+  assert.equal(mayDisplace(proven, { verified: true, method: 'plugin' }), false);
+});
