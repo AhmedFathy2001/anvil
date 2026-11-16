@@ -348,8 +348,13 @@ test('a first sign-in into a creator space goes straight back to the event, not 
   assert.deepEqual(spaceSlugOf('/c/Cool-Streamer/events/5'), { slug: 'cool-streamer', kind: 'clan' });
   assert.equal(spaceSlugOf('/events/5'), null);
   assert.equal(firstLoginDestination('/s/cool-streamer/events/5', false, true), '/s/cool-streamer/events/5');
-  // A clan's deep link still goes through onboarding, carrying the target along.
-  assert.equal(firstLoginDestination('/c/afk/events/5', false), `/welcome?next=${encodeURIComponent('/c/afk/events/5')}`);
+  // The path comes back exactly as it went in: prefix once, query kept.
+  assert.equal(firstLoginDestination('/s/cool-streamer/events/5?tab=teams', false, true), '/s/cool-streamer/events/5?tab=teams');
+  // A clan's deep link lands on that page too (lib/firstLogin STRAIGHT_THROUGH, tests/first-login.test.ts):
+  // the person signed in to look at that clan, so they are not asked "do you run a clan?" first.
+  assert.equal(firstLoginDestination('/c/afk/events/5', false), '/c/afk/events/5');
+  // A page that names no clan or space still goes through onboarding, carrying the target along.
+  assert.equal(firstLoginDestination('/events/5', false), `/welcome?next=${encodeURIComponent('/events/5')}`);
 });
 
 test('admin chrome words: a creator space or friends host is a "space", never a "clan"', () => {
