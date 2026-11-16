@@ -439,7 +439,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         onClick={() => setLimit((l) => l + ROSTER_CHUNK)}
         className="w-full rounded-lg border border-card-border px-3 py-2 text-sm text-text-muted transition-colors hover:border-gold/50 hover:text-foreground"
       >
-        Show {Math.min(ROSTER_CHUNK, filtered.length - limit)} more ({filtered.length - limit} left)
+        Show {Math.min(ROSTER_CHUNK, filtered.length - limit)} more{filtered.length - limit > ROSTER_CHUNK ? ` (${filtered.length - limit} left)` : ''}
       </button>
     ) : null;
 
