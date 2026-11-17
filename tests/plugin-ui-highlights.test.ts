@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import type { ScheduleWeekly } from '../src/lib/pluginConfig';
 import { type HomeConfig, type HomeData, eventUi, homeUi, weeklyKind } from '../src/lib/pluginUi/homeUi';
 import { type PanelDrop, dropRow, highlightNodes, panelHighlights } from '../src/lib/pluginUi/highlightsUi';
-import type { Node } from '../src/lib/pluginUi/nodes';
 
 const NOW = Date.parse('2026-11-17T12:00:00Z');
 

@@ -15,7 +15,7 @@ import { WEEKLY_KIND_LABEL as KIND_LABEL, WEEKLY_VERB as VERB, timeLeft, weeklyG
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { idOrNull } from '@/lib/routeIds';
 import { competitionImageUrl, itemIconUrl } from '@/lib/tileIcons';
-import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyStatus } from '@/lib/weeklyStage';
 
 export const dynamic = 'force-dynamic';

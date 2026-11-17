@@ -8,8 +8,6 @@ import { eq, asc, and, or, isNull, lt } from 'drizzle-orm';
 import {
   enrollAllPlayers,
   probeRsnForAccount,
-  computeLeaderboard,
-  getEffectiveParticipants,
 } from '@/lib/weekly';
 import { announceCompetitionStart, announceHalfwayIfDue } from '@/lib/competitionTeamsPosts';
 import { log } from '@/lib/logger';

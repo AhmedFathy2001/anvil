@@ -60,7 +60,7 @@ import {
 } from '@/lib/startingStatsRules';
 import { log } from '@/lib/logger';
 import { parseStamp } from '@/lib/dbTime';
-import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot } from '@/lib/weekly';
 import { competitionStat } from '@/lib/weeklyMetric';
 
 /** Same window as the sweep's (lib/statsSweep STALE_OVERLAY_MS). */

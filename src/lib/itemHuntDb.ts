@@ -244,7 +244,9 @@ export async function recordHuntReports(
       const same = mine.find((row) => isSameDrop(sightingOf(row), sighting));
       if (same) {
         // A second sighting only fills in what the first lacked. It never revives a turned-down row.
-        const patch = mergeSighting(sightingOf(same), sighting);
+        // A kill count the site filled in itself gives way to the plugin's own, once a sighting has it.
+        const stored = same.statBasis === 'reported' ? sightingOf(same) : { ...sightingOf(same), kc: null };
+        const patch = mergeSighting(stored, sighting);
         if (patch) {
           await db
             .update(huntDrops)

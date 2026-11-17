@@ -4,7 +4,6 @@ import { competitionForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { computeLeaderboard } from '@/lib/weekly';
 import { verifyUser } from '@/lib/auth';
 import { competitionStandingsReadableBy } from '@/lib/competitionTeamsDb';
 
