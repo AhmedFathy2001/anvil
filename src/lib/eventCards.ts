@@ -9,6 +9,7 @@ import { hasRevealPolicy, parseEventRules } from '@/lib/eventRules';
 import { eventShapeBadge, isPointsMode } from '@/lib/utils';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { eventStage, START_WAITING_WORDS, startIsHeld } from '@/lib/eventStage';
+import { raceStandingsForEvent } from '@/lib/raceRoutesDb';
 
 /**
  * One event, reduced to what a card needs.
@@ -242,6 +243,21 @@ export async function loadEventCards(
     : [];
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
 
+  // A tile race is ordered by the route, not by tiles claimed: first to finish, then steps done, then
+  // who reached that step first (lib/raceRoutesDb raceStandingsForEvent, the event page's own order).
+  // A branching board has more tiles than steps, so "most tiles" named the wrong leader.
+  // The route's length is the board's size: like the tile count, it stays back until the reveal.
+  const raceTop = new Map<number, NonNullable<EventCard['top']>>();
+  for (const event of shown) {
+    if (event.format !== 'tilerace' || !event.startDate || upcoming.some((e) => e.id === event.id)) continue;
+    if (standingsHidden({ ...event, rules: rulesById.get(event.id)! })) continue;
+    const race = await raceStandingsForEvent(event).catch(() => null);
+    const first = race?.standings.find((r) => r.rank === 1 && r.stepsDone > 0);
+    if (!race || !first) continue;
+    const [team] = await db.select({ name: teams.name, color: teams.color }).from(teams).where(eq(teams.id, first.teamId)).limit(1);
+    if (team) raceTop.set(event.id, { name: team.name, color: team.color, score: first.stepsDone, total: event.tilesRevealed || past.some((e) => e.id === event.id) ? race.steps : 0, unit: 'steps' });
+  }
+
   return shown.map((event) => {
     const status: EventCard['status'] = live.some((e) => e.id === event.id)
       ? 'live'
@@ -278,6 +294,7 @@ export async function loadEventCards(
       if (!team || team.eventId !== event.id) continue;
       top = { name: team.name, color: team.color, score: value, total, unit };
     }
+    if (event.format === 'tilerace') top = scoreable ? raceTop.get(event.id) ?? null : null;
 
     const teamCount = teamCounts.get(event.id) ?? 0;
     // Set only in a CO-HOST's view (the event's own clan is someone else).
