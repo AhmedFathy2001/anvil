@@ -1903,7 +1903,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             const busy = busyPlayerId === p.id;
                             const frozen = !!p.frozenAt;
                             return (
-                              <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                              <div key={p.id} className="flex items-center justify-between gap-2 text-sm max-sm:flex-col max-sm:items-stretch max-sm:gap-1 max-sm:border-t max-sm:border-card-border/50 max-sm:pt-2 max-sm:first:border-t-0 max-sm:first:pt-0">
                                 <span className="min-w-0 flex flex-col">
                                   <span className="truncate flex items-center gap-1.5 min-w-0">
                                     <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
@@ -1926,7 +1926,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                 </span>
                                 {/* All-mutating action cluster — disabled on a locked event; the
                                     player name beside it stays selectable. */}
-                                <fieldset disabled={editLocked} className="flex items-center gap-1 shrink-0 border-0 p-0 m-0 min-w-0">
+                                <fieldset disabled={editLocked} className="flex items-center gap-1 max-sm:gap-2 max-sm:flex-wrap shrink-0 border-0 p-0 m-0 min-w-0">
                                   {removeChoiceId === p.id ? (
                                     <>
                                       <span className="text-[10px] text-text-muted mr-0.5">Remove:</span>
@@ -1934,7 +1934,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setRemoveChoiceId(null); removeFromTeam(p.id); }}
                                         disabled={busy}
                                         title="Move back to the pool, keeping their contributions intact"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         To pool
                                       </button>
@@ -1942,7 +1942,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => resetPlayer(p.id, p.name, false, false, true)}
                                         disabled={busy}
                                         title="Delete this player from the event entirely — strips their share from team tiles, voids their submissions, and removes them from all headcounts. For mistaken enrollments or subs who shouldn't linger."
-                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         From event
                                       </button>
@@ -1950,7 +1950,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => setRemoveChoiceId(null)}
                                         disabled={busy}
                                         title="Cancel"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         ✕
                                       </button>
@@ -1962,7 +1962,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setSubChoiceId(null); toggleFrozen(p.id, true); }}
                                         disabled={busy}
                                         title="Bench this player but KEEP their points — their frozen contribution still counts toward team tiles."
-                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         {busy ? '…' : 'Keep pts'}
                                       </button>
@@ -1970,7 +1970,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => resetPlayer(p.id, p.name, false, true)}
                                         disabled={busy}
                                         title="Bench this player AND clear their points (reopens their solo tiles, voids submissions, strips their team-tile share). They still show as subbed out."
-                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         Clear pts
                                       </button>
@@ -1978,7 +1978,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => setSubChoiceId(null)}
                                         disabled={busy}
                                         title="Cancel"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         ✕
                                       </button>
@@ -1989,7 +1989,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setRemoveChoiceId(null); if (frozen) toggleFrozen(p.id, false); else setSubChoiceId(p.id); }}
                                         disabled={busy}
                                         title={frozen ? 'Resume live tracking for this player' : 'Sub this player out — choose whether to keep or clear their points'}
-                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         {busy ? '…' : frozen ? 'Sub in' : 'Sub out'}
                                       </button>
@@ -1997,7 +1997,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => resetPlayer(p.id, p.name, false)}
                                         disabled={busy}
                                         title="Reset this player’s own progress (reopens their solo tiles, voids their submissions, strips their team-tile share) but keep them active. The team keeps its completed tiles."
-                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         Clear progress
                                       </button>
@@ -2005,7 +2005,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setSubChoiceId(null); setRemoveChoiceId(p.id); }}
                                         disabled={removingPlayerId === p.id || busy}
                                         title="Remove this player — choose whether they go back to the pool or leave the event entirely"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         {removingPlayerId === p.id ? '…' : 'Remove'}
                                       </button>

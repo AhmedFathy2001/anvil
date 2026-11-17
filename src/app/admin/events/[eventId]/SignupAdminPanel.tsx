@@ -1013,11 +1013,12 @@ export default function SignupAdminPanel({
                 >
                   <button
                     onClick={() => toggleExpanded(s.id)}
-                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-brown-dark transition-colors text-left"
+                    className="w-full flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-1.5 px-3 py-2.5 hover:bg-brown-dark transition-colors text-left"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="min-w-0">
-                        <div className="font-medium truncate">
+                        {/* Phones: the name wraps instead of being cut to a few letters. */}
+                        <div className="font-medium sm:truncate max-sm:break-words">
                           {s.user?.displayName ?? s.account.rsn}
                           {s.user ? (
                             /* "PLAYING" NAMES THE CHARACTER IN PLAY. When an admin has pointed the
@@ -1058,10 +1059,10 @@ export default function SignupAdminPanel({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap justify-end min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap justify-end max-sm:justify-start min-w-0">
                       {s.captainTeam && (
                         <span
-                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[7.5rem] sm:max-w-[20rem]"
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[14rem] sm:max-w-[20rem]"
                           style={{
                             color: s.captainTeam.color,
                             borderColor: `${s.captainTeam.color}55`,
@@ -1075,7 +1076,7 @@ export default function SignupAdminPanel({
                           filter sorts by, said on the row so a filtered list explains itself. */}
                       {!s.captainTeam && s.team && (
                         <span
-                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[7.5rem] sm:max-w-[20rem]"
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[14rem] sm:max-w-[20rem]"
                           style={{
                             color: s.team.color,
                             borderColor: `${s.team.color}55`,
@@ -1092,7 +1093,7 @@ export default function SignupAdminPanel({
                       )}
                       <SignupStatusBadge status={s.status} />
                       {s.fee && <FeeStatusBadge status={s.fee.status} />}
-                      <span className="text-xs text-text-muted">
+                      <span className="text-xs text-text-muted max-sm:ml-auto">
                         {isExpanded ? '▾' : '▸'}
                       </span>
                     </div>

@@ -571,7 +571,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               key={p.id}
               className="border border-card-border rounded-xl p-4 bg-card-bg flex flex-wrap items-center gap-x-4 gap-y-3"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0 flex-1 max-sm:basis-full">
                 <span className="text-lg w-7 text-center shrink-0">{medal(p.place)}</span>
                 <div className="min-w-0">
                   <div className="font-medium truncate">{p.rsn}</div>
