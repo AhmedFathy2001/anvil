@@ -105,11 +105,11 @@ export const WEEKLY_FAQ: Faq[] = [
 export const CLANS_FAQ: Faq[] = [
   {
     q: 'Where is the Clan Hall in OSRS, and how do you get there?',
-    a: 'The in-game Clan Hall is reached through the blue portal in the Clan Hub, the building in the south-east corner of the Grand Exchange. You need to be in a clan to use the portal, and guests can enter if the clan allows it. The Clan Hall on this page is a different thing: Anvil’s directory of clans.',
+    a: 'The in-game Clan Hall is reached through the blue portal in the Clan Hub, the building in the south-east corner of the Grand Exchange. You need to be in a clan to use the portal, and guests can enter if the clan allows it. Anvil’s Clan Hall is a different thing: the directory of clans on this site.',
   },
   {
     q: 'How do I find an OSRS clan to join?',
-    a: 'Browse the clans on this page: you can see which are recruiting and which are active this week. Open a clan to see its events and how to join. In the game itself, you join when a member of that clan with the right rank invites you.',
+    a: 'Browse Anvil’s clan directory: you can see which clans are recruiting and which are active this week. Open a clan to see its events and how to join. In the game itself, you join when a member of that clan with the right rank invites you.',
   },
   {
     q: 'Can you be in more than one clan in OSRS?',
@@ -238,6 +238,94 @@ export const FEATURE_PAGES: FeaturePage[] = [
     ],
     faq: [GENERAL_FAQ[1], GENERAL_FAQ[4], GENERAL_FAQ[0]],
     guide: { href: '/guide/plugin', label: 'Plugin setup guide' },
+  },
+  {
+    slug: 'osrs-leaderboards',
+    title: 'OSRS Leaderboards for Players and Clans — XP, EHP and EHB — Anvil',
+    h1: 'OSRS leaderboards for players and clans',
+    summary:
+      'Anvil ranks Old School RuneScape players and clans by experience gained, efficient hours played and efficient hours bossed, over this week, the last 30 days or all time. Players can be filtered by account type, and nobody needs a clan to appear.',
+    sections: [
+      {
+        heading: 'Three measures, side by side',
+        body: 'Experience shows how much was done, efficient hours played (EHP) how long it would take at efficient rates, and efficient hours bossed (EHB) how much of it was bossing. A player or clan can lead one and be nowhere on another, so all three are shown.',
+      },
+      {
+        heading: 'Players and clans',
+        body: 'The player table can be narrowed to regular accounts, ironmen, hardcore ironmen, ultimate ironmen or group ironmen. The clan table ranks whole clans, and shows how much of each roster was actually active, so a small busy clan is not buried under a large quiet one.',
+      },
+      {
+        heading: 'This week, 30 days, all time',
+        body: 'Pick the window you care about. Gains come from the hiscores and from the Anvil RuneLite plugin, the same numbers that run a clan’s Skill of the Week and Boss of the Week.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Is there a leaderboard for OSRS clans?',
+        a: 'Yes. Anvil’s leaderboard ranks Old School RuneScape clans against each other by experience gained, efficient hours played and efficient hours bossed, for this week, the last 30 days or all time.',
+      },
+      {
+        q: 'Does Anvil have a Hardcore Worlds leaderboard?',
+        a: 'Not a separate one. The Hardcore filter on Anvil’s leaderboard means hardcore ironman accounts. The ranking for the Hardcore Worlds game mode is the one on the official Old School RuneScape hiscores.',
+      },
+      {
+        q: 'What are EHP and EHB in OSRS?',
+        a: 'EHP is efficient hours played: the time your skilling XP would take at efficient training rates. EHB is efficient hours bossed: the same idea for boss kills. Both turn very different activities into one comparable number of hours.',
+      },
+    ],
+    guide: { href: '/leaderboard', label: 'Open the leaderboard' },
+  },
+  {
+    slug: 'find-an-osrs-clan',
+    title: 'OSRS Clan Finder — Find an Active Clan to Join — Anvil',
+    h1: 'Find an OSRS clan that is actually active',
+    summary:
+      'Anvil’s clan directory lists Old School RuneScape clans that run bingos and weekly competitions, and shows which are recruiting, which are active this week and which are open to a clan-vs-clan challenge.',
+    sections: [
+      {
+        heading: 'See what a clan does before you join',
+        body: 'Every clan on Anvil has a public page with its events, weekly competitions and recent highlights. You can tell whether a clan runs the kind of events you want before you ask to join.',
+      },
+      {
+        heading: 'Recruiting and active',
+        body: 'The directory marks clans that are recruiting and clans with something running this week, so you are not messaging a clan that went quiet months ago.',
+      },
+      {
+        heading: 'For clan leaders',
+        body: 'Start your clan on Anvil and it appears in the directory. Members install one RuneLite plugin, the roster stays in sync from the game, and your events show on your clan page for anyone looking for a clan like yours.',
+      },
+    ],
+    faq: [...CLANS_FAQ],
+    guide: { href: '/clans', label: 'Browse clans' },
+  },
+  {
+    slug: 'osrs-clan-event-formats',
+    title: 'OSRS Clan Event Ideas — Tile Race, Ladder, Bounty Hunt and More — Anvil',
+    h1: 'OSRS clan event formats beyond bingo',
+    summary: `Anvil runs ${EVENT_MODES.length} event formats for Old School RuneScape clans: ${EVENT_MODES.map((m) => m.label).join(', ')}. Each is tracked by the same RuneLite plugin, so drops, kills and XP count without anyone posting screenshots.`,
+    sections: [
+      {
+        heading: 'Boards and races',
+        body: 'Classic bingo is a square grid where teams complete tiles in any order. Point Hunt is a task list where each tile has its own point value. A tile race is an ordered track: teams reach tiles in sequence, and the team furthest along wins.',
+      },
+      {
+        heading: 'Hidden and timed formats',
+        body: 'In a Showdown, tiles stay hidden until their scheduled moment. A Lucky draw reveals hidden tiles at random on a fixed interval, like a bingo caller. A Bounty hunt opens one tile at a time: the first team to finish it takes the points and the next bounty is drawn.',
+      },
+      {
+        heading: 'Ladders and weekly competitions',
+        body: 'A Ladder ranks individuals on a list of tasks that can rotate and lose value over time, which suits a month-long event. Skill of the Week, Boss of the Week and Item hunts need no board at all: everyone on the roster is entered.',
+      },
+    ],
+    faq: [
+      {
+        q: 'What is a tile race in OSRS?',
+        a: 'A tile race is a clan event where teams move along an ordered track of tasks, such as drops, boss kills or XP goals. Each team must finish its current tile to reach the next, and the team furthest along the track at the end wins.',
+      },
+      GENERAL_FAQ[3],
+      GENERAL_FAQ[4],
+    ],
+    guide: { href: '/guide/formats', label: 'Formats guide' },
   },
 ];
 
