@@ -13,7 +13,7 @@ import { ownedCreatorSpace } from '@/lib/clanCreate';
 import { ensureClanCheckoutRef } from '@/lib/billing';
 import { PLANS, PLAN_IDS, TRIAL_DAYS, checkoutUrl, planOf, truthfulFeatures, type Plan } from '@/lib/plans';
 import { creatorBuy } from '@/lib/buyOffer';
-import { clanTrialUsed } from '@/lib/planTrials';
+import { autoTrialOfferFor, clanTrialUsed } from '@/lib/planTrials';
 import { autoTrialDays } from '@/lib/planTrialRules';
 import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import {
@@ -100,6 +100,8 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   const enforced = freemiumEnforced();
   // Anvil's own trial on every new clan and space (lib/planTrialRules): 0 = off.
   const trialDays = autoTrialDays();
+  // Would a clan THIS viewer makes now start that trial? (Not after deleting a clan that used it.)
+  const trialOffer = trialDays > 0 ? await autoTrialOfferFor(session?.userId ?? null) : { days: 0 };
   // The creator table's direct checkout for a Free space's owner follows the one-trial rule (lib/buyOffer):
   // a space that has had its trial gets the pay-now product, or its plan card when that is not open yet.
   const spaceRow = owned && ref ? await db.query.clans.findFirst({ where: eq(clans.id, owned.id), columns: { id: true, trialEndsAt: true, gumroadSubscriptionId: true } }) : null;
@@ -154,15 +156,26 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         </p>
       )}
       <EarlyBirdBadge center className="mb-4" />
+      {/* The trial offer, once, above the grid: each tier's own button names its own tier. */}
+      {trialOffer.days > 0 && !ownClan && (
+        <p className="mb-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-[14px] text-foreground/90">
+          <span>
+            New clans get {PLANS.gold.name} free for {trialOffer.days} days, no card.
+          </span>
+          <ClanLink href="/clans/new" className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light">
+            Create a clan
+          </ClanLink>
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
           <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} own={ownClan} trialDays={trialDays} />
         ))}
       </div>
-      {trialDays > 0 && !ownClan && (
+      {trialOffer.days > 0 && !ownClan && (
         <p className="mt-4 text-center text-[13px] leading-relaxed text-text-muted">
-          Every new clan starts with {trialDays} days of {PLANS.gold.name} from Anvil: no card, nothing charged. When the trial
-          ends the clan is on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}) unless you subscribe, and nothing is deleted.
+          When the trial ends the clan is on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}) unless you subscribe, and
+          nothing is deleted.
         </p>
       )}
 
@@ -288,7 +301,7 @@ function TierCard({ plan, enforced, interval, own, trialDays }: { plan: Plan; en
               : 'border border-card-border hover:border-gold/45'
           }`}
         >
-          {paidStart ? (TRIAL_DAYS > 0 ? `Start ${TRIAL_DAYS}-day free trial` : `Start with ${plan.name}`) : trialDays > 0 && paid ? `Try ${plan.name === PLANS.gold.name ? plan.name : PLANS.gold.name} free for ${trialDays} days` : 'Start free'}
+          {paidStart ? (TRIAL_DAYS > 0 ? `Start ${TRIAL_DAYS}-day free trial` : `Start with ${plan.name}`) : trialDays > 0 && paid ? `Start with ${plan.name}` : 'Start free'}
         </ClanLink>
       )}
     </div>
@@ -389,7 +402,6 @@ function CreatorPricing({
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[20px] font-semibold">For streamers &amp; creators</h2>
       </div>
-      <EarlyBirdBadge className="mb-2 ml-4" />
       <p className="mb-5 ml-4 max-w-[66ch] text-[13.5px] text-text-muted">
         Host events for your viewers without an in-game clan. Creator plans count the players in your
         events running at the same time, not everyone who ever joined. Events that overlap share the

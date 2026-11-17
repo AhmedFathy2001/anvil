@@ -238,8 +238,8 @@ const LEGACY_MATCH_MS = 5 * 60_000;
  * an older grant without one is matched to the same tier's gift started closest in time (within a few
  * minutes). `actorName` null on a matched entry means the staff login was since deleted.
  */
-export function giftSources(gifts: GiftLike[], audit: GiftAuditRow[]): Map<number, { grantedBy: string | null; endedBy: string | null; note: string | null }> {
-  const out = new Map<number, { grantedBy: string | null; endedBy: string | null; note: string | null }>();
+export function giftSources(gifts: GiftLike[], audit: GiftAuditRow[]): Map<number, { grantedBy: string | null; endedBy: string | null; note: string | null; neverStarted?: boolean }> {
+  const out = new Map<number, { grantedBy: string | null; endedBy: string | null; note: string | null; neverStarted?: boolean }>();
   for (const g of gifts) out.set(g.id, { grantedBy: null, endedBy: null, note: null });
   const claimed = new Set<number>();
   const legacy: { row: GiftAuditRow; v: Record<string, unknown> }[] = [];
@@ -249,6 +249,7 @@ export function giftSources(gifts: GiftLike[], audit: GiftAuditRow[]): Map<numbe
     const id = typeof v.giftId === 'number' ? v.giftId : null;
     if (row.eventType === 'supporter_gift_ended' && id != null && out.has(id)) {
       out.get(id)!.endedBy = row.actorName ?? 'a deleted login';
+      if (v.neverStarted === true) out.get(id)!.neverStarted = true;
     } else if (row.eventType === 'supporter_gift_granted') {
       if (id != null && out.has(id)) {
         Object.assign(out.get(id)!, { grantedBy: row.actorName ?? 'a deleted login', note: typeof v.note === 'string' ? v.note : null });

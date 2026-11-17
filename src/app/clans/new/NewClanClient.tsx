@@ -43,6 +43,8 @@ export default function NewClanClient({
   const [foundVia, setFoundVia] = useState('');
   const [foundViaNote, setFoundViaNote] = useState('');
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  // What the create call said about the automatic trial (absent when coming back via ?created=).
+  const [trial, setTrial] = useState<{ granted: true; tierName: string; endsAt: number } | { granted: false; reason: string } | null>(null);
 
   // Suggest the slug from the display name — or the in-game name when no display name is given, since
   // that is now the required field — until they edit the slug themselves, then leave it alone.
@@ -103,6 +105,7 @@ export default function NewClanClient({
       const made = j.clan?.slug ?? slug;
       // Joining the Anvil Discord is opt-in: a button on the finished screen, never a redirect before it.
       setCheckoutUrl(j.checkoutUrl ?? null);
+      setTrial(j.trial ?? null);
       setDone(made);
     } finally {
       setBusy(false);
@@ -122,6 +125,23 @@ export default function NewClanClient({
           Nothing to wait for — it is already serving, at{' '}
           <code className="text-gold">{apex}{home}</code>. You are its owner.
         </p>
+        {trial?.granted && (
+          <p className="mt-2 text-sm text-gray-300">
+            <span className="font-semibold text-gold">
+              {trial.tierName} trial until {new Date(trial.endsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            , no card needed. After that the clan is on Free unless you subscribe; nothing is deleted.
+          </p>
+        )}
+        {trial && !trial.granted && trial.reason !== 'off' && (
+          <p className="mt-2 text-sm text-gray-300">
+            This clan starts on Free:{' '}
+            {trial.reason === 'owner-deleted-trialed'
+              ? 'the free trial was used on a clan you deleted, so it does not start again.'
+              : 'a clan with this in-game name already used the free trial, so it does not start again.'}{' '}
+            You can subscribe from the clan&rsquo;s plan page whenever you need more room.
+          </p>
+        )}
         {checkoutUrl && trialPlan && (
           <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.06] p-4">
             <p className="text-sm text-gray-200">

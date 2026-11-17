@@ -69,7 +69,7 @@ export async function PlanGroups() {
       )}
 
       {/* A trial or gift from Anvil, a membership waiting for its first payment, two memberships at once. */}
-      <SupporterPlanNotes notes={notes} />
+      <SupporterPlanNotes notes={notes} earlyBird={false} />
 
       <SupporterSection
         bare

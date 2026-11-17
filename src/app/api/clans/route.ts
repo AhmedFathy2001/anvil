@@ -16,6 +16,7 @@ import { freemiumEnforced } from '@/lib/entitlements';
 import { parseBillingInterval } from '@/lib/billingInterval';
 import { welcomeLater } from '@/lib/welcomeDm';
 import { autoTrialDays } from '@/lib/planTrialRules';
+import { latestPlanTrial, ownerDeletedTrialedClan } from '@/lib/planTrials';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -173,5 +174,13 @@ export async function POST(request: Request) {
       ? (billing === 'yearly' ? checkoutUrlWithRef(picked, row?.gumroadRef, 'yearly') : null) ?? checkoutUrlWithRef(picked, row?.gumroadRef)
       : null;
 
-  return NextResponse.json({ ok: true, clan: row, checkoutUrl });
+  // What the finished screen says about the automatic trial: granted and until when, or why not
+  // (a reused in-game name and a deleted trialed clan both start on Free).
+  const started = await latestPlanTrial(result.clanId);
+  const trial =
+    started && !started.revoked && started.endsAt > Date.now()
+      ? { granted: true as const, tierName: PLANS[started.tier as keyof typeof PLANS]?.name ?? started.tier, endsAt: started.endsAt }
+      : { granted: false as const, reason: autoTrialDays() <= 0 ? ('off' as const) : (await ownerDeletedTrialedClan(session.userId)) ? ('owner-deleted-trialed' as const) : ('name-had-trial' as const) };
+
+  return NextResponse.json({ ok: true, clan: row, checkoutUrl, trial });
 }

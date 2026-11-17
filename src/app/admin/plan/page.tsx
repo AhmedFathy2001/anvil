@@ -165,7 +165,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
 
       <div className="mt-5">
         {/* A membership already waiting for its first payment: no second buy button beside it. */}
-        <PlanTrialPanel clan={clan} billing={billing} canBuy={isOwner && !held} viewerIsStaff={viewerIsStaff} />
+        <PlanTrialPanel clan={clan} billing={billing} canBuy={isOwner && !held} viewerIsStaff={viewerIsStaff} earlyBird={paying || !fits} />
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">

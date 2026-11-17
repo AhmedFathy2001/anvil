@@ -140,7 +140,7 @@ export default async function CreatorDashboard({
         </div>
       )}
       <div className="mt-8">
-        <PlanTrialPanel clan={{ id: clanId, kind: 'creator', paidPlan }} billing={billing} canBuy={canBuy} />
+        <PlanTrialPanel clan={{ id: clanId, kind: 'creator', paidPlan }} billing={billing} canBuy={canBuy} earlyBird={false} />
       </div>
       <div className="mt-4">
         <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} paidPlan={paidPlan} canBuy={canBuy} billing={billing} />

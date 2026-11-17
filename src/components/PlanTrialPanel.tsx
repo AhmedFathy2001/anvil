@@ -7,7 +7,7 @@ import { CAP_GRACE_DAYS } from '@/lib/memberCapRules';
 import { CREATOR_PLANS, creatorPlanOf, isCreatorPlanId } from '@/lib/creatorCatalog';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { PLANS, planOf } from '@/lib/plans';
-import { latestPlanTrial } from '@/lib/planTrials';
+import { latestPlanTrial, membershipHeld } from '@/lib/planTrials';
 import { daysLeft, tierRankOf, trialPhase } from '@/lib/planTrialRules';
 
 /**
@@ -24,6 +24,7 @@ export default async function PlanTrialPanel({
   canBuy,
   planHref = null,
   viewerIsStaff = false,
+  earlyBird = true,
 }: {
   clan: { id: number; kind: string; paidPlan: string };
   billing?: BillingInterval;
@@ -31,6 +32,8 @@ export default async function PlanTrialPanel({
   canBuy: boolean;
   planHref?: string | null;
   viewerIsStaff?: boolean;
+  /** False where the page already shows the early-bird line elsewhere (once per page). */
+  earlyBird?: boolean;
 }) {
   const trial = await latestPlanTrial(clan.id);
   if (!trial) return null;
@@ -38,6 +41,12 @@ export default async function PlanTrialPanel({
   const paidCovers = tierRankOf(clan.kind, clan.paidPlan) >= tierRankOf(clan.kind, trial.tier);
   const phase = trialPhase({ endsAt: trial.endsAt, revoked: trial.revoked }, paidCovers);
   if (phase === 'none') return null;
+  // A membership already bought and waiting for its first charge (on the free tier meanwhile): the
+  // page's own notice says so. An ended trial's "Subscribe to get it back" would contradict it, and a
+  // running one keeps its dates but loses the button.
+  const held = tierRankOf(clan.kind, clan.paidPlan) <= 0 && (await membershipHeld(clan.id));
+  if (held && phase === 'just-ended') return null;
+  if (held) canBuy = false;
 
   const enforced = freemiumEnforced();
   const ref = canBuy ? await ensureClanCheckoutRef(clan.id) : null;
@@ -93,7 +102,7 @@ export default async function PlanTrialPanel({
       planHref={planHref}
       staffNote={viewerIsStaff && soon ? soonReason(urlEnv) : null}
     >
-      <EarlyBirdBadge />
+      {earlyBird && <EarlyBirdBadge />}
     </TrialCard>
   );
 }

@@ -57,6 +57,9 @@ export default async function PortalPage() {
   const anySubscription =
     [...portal.clans, ...portal.spaces].some((c) => c.subscriptionId) || !!portal.supporterSubscriptionId;
 
+  // The early-bird line once per page: on the first card that has something to buy.
+  const firstWithUpgrade = [...portal.clans, ...portal.spaces].find((c) => c.upgrade)?.id ?? null;
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
       <header className="relative mb-9 overflow-hidden">
@@ -75,7 +78,7 @@ export default async function PortalPage() {
         {portal.clans.length > 0 && (
           <Section title={YOUR_CLANS_HEADING}>
             {portal.clans.map((c) => (
-              <PlanCard key={c.id} card={c} />
+              <PlanCard key={c.id} card={c} earlyBird={c.id === firstWithUpgrade} />
             ))}
           </Section>
         )}
@@ -83,7 +86,7 @@ export default async function PortalPage() {
         {portal.spaces.length > 0 && (
           <Section title={YOUR_SPACES_HEADING}>
             {portal.spaces.map((c) => (
-              <PlanCard key={c.id} card={c} />
+              <PlanCard key={c.id} card={c} earlyBird={c.id === firstWithUpgrade} />
             ))}
           </Section>
         )}
@@ -137,7 +140,15 @@ function ManageOnGumroad({ subscriptionId }: { subscriptionId: string }) {
 }
 
 /** One clan or creator space — the model (lib/billingPortalCards) already chose its catalogue. */
-function PlanCard({ card }: { card: BillingCardModel }) {
+function PlanCard({ card, earlyBird = true }: { card: BillingCardModel; earlyBird?: boolean }) {
+  // During a trial from Anvil the main action is the same as on the admin plan page: keep the tier
+  // being tried. Its pay-now checkout is the trial tier's own link (the suggested tier, or one of the others).
+  const trial = card.siteTrial;
+  const keepHref = trial
+    ? (card.upgrade?.href && card.upgrade.label.includes(trial.tierName) ? card.upgrade.href : (card.others.find((o) => o.label === trial.tierName)?.href ?? null))
+    : null;
+  const keepDetail = trial ? (card.others.find((o) => o.label === trial.tierName)?.detail ?? null) : null;
+  const lowerIsSecondary = !!trial && !(card.upgrade?.label.includes(trial.tierName) ?? false);
   return (
     <div className="rounded-2xl border border-card-border bg-card-bg p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -175,8 +186,31 @@ function PlanCard({ card }: { card: BillingCardModel }) {
       {card.siteTrial && (
         <p className="mt-3 text-[12.5px] text-text-muted">
           A trial from Anvil: no card, nothing charged. On {dayMonth(card.siteTrial.endsAt)} this {card.creator ? 'space' : 'clan'} is
-          back on {card.tierName}. Open admin to keep {card.siteTrial.tierName}.
+          back on {card.tierName}.
         </p>
+      )}
+      {trial && !card.held && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {keepHref ? (
+            <a
+              href={keepHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            >
+              Keep {trial.tierName} after {dayMonth(trial.endsAt)}
+            </a>
+          ) : (
+            <span aria-disabled="true" className="cursor-default rounded-lg border border-card-border px-3.5 py-1.5 text-[13px] font-semibold text-text-dim">
+              Subscribing opens soon
+            </span>
+          )}
+          {keepHref && (
+            <span className="text-[12px] text-text-dim">
+              {keepDetail ? `${keepDetail}. ` : ''}Charged today; the days left on the trial are not carried over.
+            </span>
+          )}
+        </div>
       )}
 
       {card.toCancel.map((m) => (
@@ -237,7 +271,11 @@ function PlanCard({ card }: { card: BillingCardModel }) {
               href={card.upgrade.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+              className={
+                lowerIsSecondary
+                  ? 'rounded-lg border border-gold/40 px-3.5 py-1.5 text-[13px] text-gold transition-colors hover:border-gold'
+                  : 'rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light'
+              }
             >
               {card.upgrade.label}
             </a>
@@ -260,7 +298,7 @@ function PlanCard({ card }: { card: BillingCardModel }) {
         </div>
       )}
       {card.upgrade?.note && <p className="mt-2 max-w-[70ch] text-[12.5px] leading-relaxed text-text-muted">{card.upgrade.note}</p>}
-      {card.upgrade && <EarlyBirdBadge className="mt-2" />}
+      {card.upgrade && earlyBird && <EarlyBirdBadge className="mt-2" />}
       {card.others.length > 0 && (
         <p className="mt-2 text-[12.5px] text-text-muted">
           Or go straight to{' '}

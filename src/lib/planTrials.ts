@@ -20,7 +20,7 @@ import { cache } from 'react';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanStaff, ownerTrials } from '@/db/schema';
+import { clanAuditLog, clanStaff, clans, ownerTrials } from '@/db/schema';
 import {
   autoTrialDays,
   autoTrialDecision,
@@ -286,6 +286,18 @@ export async function repeatNameClans(rows: { id: number; kind: string | null; i
     .where(and(isNull(clanAuditLog.clanId), eq(clanAuditLog.eventType, USED_EVENT), inArray(clanAuditLog.notes, keyed.map((c) => `ign:${c.key}`))));
   const names = new Set(used.map((u) => u.notes));
   return new Set(keyed.filter((c) => names.has(`ign:${c.key}`)).map((c) => c.id));
+}
+
+/**
+ * A membership bought but not yet charged: Gumroad opened it with a free period while the row stays on
+ * its free tier until the first payment (the plan page and the portal show the "starts when your first
+ * payment goes through" notice). While that is so, nothing else on the page asks them to subscribe.
+ */
+export async function membershipHeld(clanId: number, now = Date.now()): Promise<boolean> {
+  // clan-scope: explicit -- the caller's own clan id.
+  const [r] = await db.select({ sub: clans.gumroadSubscriptionId, trialEndsAt: clans.trialEndsAt }).from(clans).where(eq(clans.id, clanId)).limit(1);
+  const ends = r?.trialEndsAt ? Date.parse(r.trialEndsAt) : NaN;
+  return !!r?.sub && ends > now;
 }
 
 /** Is `tier` one a plan trial may lend a row of this kind? */

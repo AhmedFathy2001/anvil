@@ -19,6 +19,7 @@ interface Gift {
   boostSlots?: boolean;
   grantedBy?: string | null;
   endedBy?: string | null;
+  neverStarted?: boolean;
   note?: string | null;
   mode?: 'lift' | 'add';
   addedDays?: number;
@@ -259,6 +260,10 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
                   {g.boostSlots && <span className="rounded-full border border-card-border px-1.5 text-[10px] text-gray-400">with boost slots</span>}
                   {g.queued ? (
                     <span className="text-gray-400">{g.queuedDays ?? 0} days stored, starting when their paid membership ends</span>
+                  ) : g.neverStarted ? (
+                    <span className="text-gray-500">
+                      {g.queuedDays ?? 0} days stored · removed before it started{g.endedBy ? ` by ${g.endedBy}` : ''}
+                    </span>
                   ) : (
                   <span className="text-gray-500">
                     from <LocalTime date={g.startedAt} />

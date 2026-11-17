@@ -44,6 +44,8 @@ export interface SupporterGift {
   grantedBy: string | null;
   /** Who ended it early, or null (still running, or ran its course). */
   endedBy: string | null;
+  /** Stored "add time" that was removed before it ever started. */
+  neverStarted?: boolean;
   note: string | null;
   /** Which option it was given with: 'lift' (to a tier until a date) or 'add' (time added). */
   mode: GiftMode;
@@ -91,6 +93,7 @@ export async function listGifts(userId: number, now = Date.now()): Promise<Suppo
     boostSlots: r.grantsBoostSlots,
     grantedBy: sources.get(r.id)?.grantedBy ?? null,
     endedBy: sources.get(r.id)?.endedBy ?? null,
+    neverStarted: sources.get(r.id)?.neverStarted ?? false,
     note: sources.get(r.id)?.note ?? null,
     mode: modes.get(r.id)?.mode ?? 'lift',
     addedDays: modes.get(r.id)?.addedDays ?? 0,
@@ -247,24 +250,30 @@ export async function giveGift(opts: {
 
 /** End a gift now (a running one, or stored time that has not started). False when it isn't this person's gift or already ended. */
 export async function endGift(userId: number, giftId: number, actorUserId: number): Promise<boolean> {
-  const ended = await db
-    .update(supporterSubscriptions)
-    .set({ status: 'ended', endedAt: new Date().toISOString(), currentPeriodEnd: new Date().toISOString() })
-    .where(
-      and(
-        eq(supporterSubscriptions.id, giftId),
-        eq(supporterSubscriptions.userId, userId),
-        eq(supporterSubscriptions.recurrence, GIFT_RECURRENCE),
-        inArray(supporterSubscriptions.status, ['granted', QUEUED_STATUS]),
-      ),
-    )
-    .returning({ tier: supporterSubscriptions.tier });
+  // Stored time that never started is tried first, so the record can say it was removed before it
+  // began (the row keeps no trace of having been queued once it is 'ended').
+  const close = (statuses: string[]) =>
+    db
+      .update(supporterSubscriptions)
+      .set({ status: 'ended', endedAt: new Date().toISOString(), currentPeriodEnd: new Date().toISOString() })
+      .where(
+        and(
+          eq(supporterSubscriptions.id, giftId),
+          eq(supporterSubscriptions.userId, userId),
+          eq(supporterSubscriptions.recurrence, GIFT_RECURRENCE),
+          inArray(supporterSubscriptions.status, statuses),
+        ),
+      )
+      .returning({ tier: supporterSubscriptions.tier });
+  let ended = await close([QUEUED_STATUS]);
+  const neverStarted = ended.length > 0;
+  if (!neverStarted) ended = await close(['granted']);
   if (!ended.length) return false;
   await db.insert(clanAuditLog).values({
     clanId: null,
     eventType: 'supporter_gift_ended',
     actorUserId,
-    newValue: JSON.stringify({ userId, giftId, tier: ended[0].tier }),
+    newValue: JSON.stringify({ userId, giftId, tier: ended[0].tier, ...(neverStarted ? { neverStarted: true } : {}) }),
   });
   return true;
 }

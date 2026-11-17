@@ -15,7 +15,7 @@ const dayOf = (iso: string | null) => {
  * On a person's own plan page (Settings → Account, /supporter): their trial from Anvil, gifts from
  * Anvil, a membership waiting for its first payment, and the "two memberships" notice.
  */
-export default function SupporterPlanNotes({ notes }: { notes: Notes }) {
+export default function SupporterPlanNotes({ notes, earlyBird = true }: { notes: Notes; /** False where the page shows the early-bird line itself (once per page). */ earlyBird?: boolean }) {
   const { trial, buttons } = notes;
   if (!trial && notes.giftLines.length === 0 && !notes.held && notes.toCancel.length === 0) return null;
   return (
@@ -61,7 +61,7 @@ export default function SupporterPlanNotes({ notes }: { notes: Notes }) {
           remindUrl="/api/supporter/trial-remind"
           remindRequested={trial.remindRequested}
         >
-          <EarlyBirdBadge />
+          {earlyBird && <EarlyBirdBadge />}
         </TrialCard>
       )}
       {notes.giftLines.map((line) => (

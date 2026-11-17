@@ -175,7 +175,7 @@ export default async function SupporterPage({ searchParams }: { searchParams: Pr
         )}
       </header>
 
-      {notes && <SupporterPlanNotes notes={notes} />}
+      {notes && <SupporterPlanNotes notes={notes} earlyBird={false} />}
       {cameBackSoon && buttons.kind === 'soon' && (
         <p role="status" className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-[13.5px] text-gold-light">
           Subscribing opens soon. You have had your free trial, so a membership is charged from the first day, and that
