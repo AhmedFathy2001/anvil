@@ -568,7 +568,11 @@ function weeklyRow(d: HomeData, w: ScheduleWeekly): Node {
   // A hunt's label carries its rule too ("Pet chaos elemental · first to get it"), so its bare target (`metric`) is checked as well.
   const lower = name.toLowerCase();
   const named = lower.includes(w.metricLabel.toLowerCase()) || (!!w.metric && w.type === 'hunt' && lower.includes(w.metric.toLowerCase()));
-  const lines: Node[] = [named ? row(weeklyIcon(w), when(), undefined, { gap: 6 }) : row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, when())];
+  // The picture rides on a text, as on every other row (on its own in a row it is drawn cut off). Beside
+  // it, something the title does not already say: a hunt's rule, else what is being counted.
+  const shortLabel =
+    w.type === 'hunt' ? (w.metricLabel.split(' · ')[1] ?? 'Item hunt') : w.type === 'skill' ? 'XP gained' : w.type === 'boss' ? 'Kills gained' : 'Hours gained';
+  const lines: Node[] = [named ? row(muted(clip(shortLabel, 16), { icon: weeklyIcon(w) }), undefined, when()) : row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, when())];
   if (!upcoming) lines.push(withMove(small(clip(yourWeeklyLine(w, s), 32), s?.you ? GOLD : FAINT), s?.you?.move));
   return openRow(text(name, '#e6e6e6', { wrap: 170 }), undefined, lines, home(`weekly:${w.id}`), name);
 }
