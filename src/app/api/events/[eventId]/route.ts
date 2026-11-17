@@ -743,6 +743,15 @@ export async function PATCH(
     throw e;
   }
 
+  // A race's easing switches changed (lib/raceEase): open panels refetch what is live now.
+  if ((updated.rules ?? '') !== (existing.rules ?? '')) {
+    const was = parseEventRules(existing.rules), now = parseEventRules(updated.rules);
+    if (JSON.stringify([was.raceEase, was.raceLifelines]) !== JSON.stringify([now.raceEase, now.raceLifelines])) {
+      const { easeChanged } = await import('@/lib/raceEaseDb');
+      await easeChanged(id);
+    }
+  }
+
   // A changed fee moves the entries nobody has paid or priced by hand onto it — a guest who entered
   // at the member fee before the guest fee existed owes the guest fee now, not forever the old one.
   if (

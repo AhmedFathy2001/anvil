@@ -102,6 +102,23 @@ export function bumpEaseContext(eventId: number): void {
 }
 
 /** The race's easier options and who they're live for. Null off a race, or with none written. */
+/**
+ * Easier options, or the switches that open them, changed on a race: drop the memo and have every
+ * team's plugin refetch, so a panel left open doesn't keep saying what was true before the save.
+ */
+export async function easeChanged(eventId: number): Promise<void> {
+  bumpEaseContext(eventId);
+  try {
+    const [{ notifyTeamTiles }, rows] = await Promise.all([
+      import('@/lib/pushNotify'),
+      db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId)),
+    ]);
+    for (const t of rows) notifyTeamTiles(eventId, t.id, []);
+  } catch (error) {
+    log.warn('race-ease.notify-fail', { eventId }, error);
+  }
+}
+
 export async function loadEaseContext(event: EaseEvent): Promise<EaseContext | null> {
   if (event.format !== 'tilerace') return null;
   return ttlMemo(`race-ease:${event.id}:${easeEpoch.get(event.id) ?? 0}:${event.rules ?? ''}:${event.startDate ?? ''}`, () => loadEaseContextFresh(event), 3_000);
@@ -457,6 +474,7 @@ export async function afterEaseOptionSaved(
     const { ensureRaceBaselines } = await import('@/lib/raceRoutesDb');
     await ensureRaceBaselines(eventId);
     void settleEasedTiles(eventId).catch(() => {});
+    await easeChanged(eventId);
   } catch (error) {
     log.warn('race-ease.after-save-fail', { eventId, optionId: before.id }, error);
   }
