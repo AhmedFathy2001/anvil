@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ClanPulse from './ClanPulse';
+import WeekLeaders from './WeekLeaders';
 import ClanActivities from './ClanActivities';
 import ClanLuck from './ClanLuck';
 import MembersDirectory from './MembersDirectory';
@@ -112,8 +113,10 @@ export default function MembersTabs({
       {tab === 'roster' && (
         <>
           {/* The list first: it used to sit about two and a half screens down, under the stats. */}
+          {/* The week's top three stay on the first screen; the whole block is under the list. */}
+          <WeekLeaders topWeek={analytics.topWeek} />
           <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} initialSort={initialSort} streaks={streaks} />
-          <div className="mt-8">
+          <div id="clan-week" className="mt-8 scroll-mt-24">
             <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} heat={heatOf(members, streaks)} />
           </div>
         </>
