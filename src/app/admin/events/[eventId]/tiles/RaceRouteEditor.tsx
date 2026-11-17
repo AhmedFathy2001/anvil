@@ -19,6 +19,7 @@ import {
   isBranchingRoute,
   moveTileToStep,
   removeStep,
+  routeStamp,
   removeTileFromRoute,
   routeEntries,
   swapSteps,
@@ -88,6 +89,10 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   // them back until then.
   const [removed, setRemoved] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
+  // The stored road this person's edits started from (lib/raceRoutes routeStamp): sent with Save, so
+  // the server can say when someone else saved in between. It follows the stored road until the first edit.
+  const [baseStamp, setBaseStamp] = useState(() => routeStamp(stored));
+  if (!dirty && baseStamp !== routeStamp(stored)) setBaseStamp(routeStamp(stored));
   const [selected, setSelected] = useState<number | null>(openTileId);
   // "Link to…": clicks on the neighbouring steps add or remove roads from the selected tile.
   const [linking, setLinking] = useState(false);
@@ -215,8 +220,11 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     }
   }
 
-  async function save() {
-    if (problems.length) return;
+  async function save(force = false) {
+    // Before the start an unfinished road saves as a draft (the race cannot start on it); once it
+    // runs, only a playable road saves.
+    const asDraft = problems.length > 0;
+    if (asDraft && eventStarted) return;
     setSaving(true);
     try {
       // Tiles taken off the map go first, so the route saved below no longer names them.
@@ -232,7 +240,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
           return notify('Some tiles could not be deleted, so the roads were not saved. Try again.', 'error');
         }
       }
-      const routeBody = { route: shown.map((e) => ({ id: e.id, step: e.step, next: e.next })) };
+      // The stamp is left out when tiles were just deleted: the stored road changed by this save's own hand.
+      const routeBody = { route: shown.map((e) => ({ id: e.id, step: e.step, next: e.next })), ...(asDraft ? { draft: true } : {}), ...(force ? { force: true } : removed.length ? {} : { base: baseStamp }) };
       if (liveEdit && !(await decideIfNeeded(routeBody))) return;
       const res = await clanFetch(`/api/events/${eventId}/race-route`, {
         method: 'PUT',
@@ -240,7 +249,20 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         body: JSON.stringify({ ...routeBody, policy: 'keep' }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.conflict) {
+        const mine = await confirm({
+          title: 'Someone else changed the roads',
+          body: 'The road map was saved by someone else after you opened it. Saving yours replaces theirs. To see theirs first, cancel, then Discard your changes.',
+          confirmLabel: 'Save mine over theirs',
+        });
+        if (mine) {
+          setSaving(false);
+          return save(true);
+        }
+        return;
+      }
       if (!res.ok) return notify(data.error || 'Could not save the roads.', 'error');
+      if (asDraft) notify(`Saved as a draft. ${problems.length} thing${problems.length === 1 ? '' : 's'} left to finish the road.`);
       const order: number[] = data.order ?? [];
       const update = new Map(shown.map((e) => [e.id, { raceStep: e.step, raceNext: e.next, position: order.indexOf(e.id) }]));
       onSaved(update);
@@ -311,6 +333,26 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   }
 
   /** "Remove": the tile leaves the map now and is deleted when the roads are saved (Undo brings it back). */
+  /** Every tile that is not on the road, taken off the board in one go (deleted on Save, one Undo away until then). */
+  async function removeAllUnplaced() {
+    const ids = unplaced.map((e) => e.id);
+    if (!ids.length) return;
+    const ok = await confirm({
+      title: `Remove ${ids.length} tile${ids.length === 1 ? '' : 's'} that ${ids.length === 1 ? 'is' : 'are'} not on the road?`,
+      body: `${ids.slice(0, 6).map(nameOf).join(', ')}${ids.length > 6 ? ` and ${ids.length - 6} more` : ''} will be deleted when you save the roads. Undo brings them back until then.`,
+      confirmLabel: 'Remove them',
+    });
+    if (!ok) return;
+    let next = live;
+    let gone = removed;
+    for (const id of ids) {
+      next = removeTileFromRoute(next, id, gone);
+      gone = [...gone, id];
+    }
+    change(next, 0, '', gone);
+    if (selected != null && ids.includes(selected)) pick(null);
+  }
+
   function removeTile(id: number) {
     // Its step closes up when it was the only tile there (lib/raceRoutes removeTileFromRoute).
     change(removeTileFromRoute(live, id, removed), 0, '', [...removed, id]);
@@ -585,7 +627,14 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
 
       {!locked && unplaced.length > 0 && (
         <div className="border border-card-border rounded-xl bg-card-bg p-3">
-          <p className="text-xs text-text-muted mb-2">Not on the map yet — click one, then pick its step above:</p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-text-muted">Not on the map yet — click one, then pick its step above:</p>
+            {canAdd && (
+              <button type="button" className={cn(btn, 'hover:text-red-300 hover:border-red-500/40')} onClick={() => void removeAllUnplaced()} title="Deletes these tiles when you save the roads">
+                Remove all {unplaced.length} from the board
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {unplaced.map((e) => (
               <button key={e.id} type="button" onClick={() => pick(e.id)} className={`text-xs px-2 py-1 rounded-md border ${selected === e.id ? 'border-gold text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}>
@@ -600,7 +649,11 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
 
       {!locked && problems.length > 0 && (
         <div className="border border-red-500/30 rounded-xl bg-card-bg p-3 space-y-2">
-          <p className="text-xs font-semibold text-red-400">Fix {problems.length === 1 ? 'this' : `these ${problems.length}`} before saving:</p>
+          <p className="text-xs font-semibold text-red-400">
+            {eventStarted
+              ? `Fix ${problems.length === 1 ? 'this' : `these ${problems.length}`} before saving:`
+              : `${problems.length === 1 ? 'One thing' : `${problems.length} things`} left to finish the road. You can save it as a draft meanwhile; a tile left off the road is simply not in the race:`}
+          </p>
           <ul className="space-y-1">
             {problems.slice(0, 12).map((p, i) => (
               <li key={i} className="text-xs text-text-muted">
@@ -836,7 +889,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-gold align-middle" aria-hidden />
             <span className="text-text-muted">Unsaved road changes{removed.length ? ` (${removed.length} tile${removed.length === 1 ? '' : 's'} to delete)` : ''} · </span>
             {problems.length > 0 ? (
-              <span className="text-red-300">{problems.length} thing{problems.length === 1 ? '' : 's'} to fix first</span>
+              <span className="text-red-300">{problems.length} thing{problems.length === 1 ? '' : 's'} {eventStarted ? 'to fix first' : 'left to finish'}</span>
             ) : (
               <span className="text-green-400">playable: {playableLine}</span>
             )}
@@ -854,11 +907,11 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             )}
             <button
               type="button"
-              disabled={saving || problems.length > 0}
-              onClick={save}
+              disabled={saving || (problems.length > 0 && eventStarted)}
+              onClick={() => void save()}
               className="min-h-10 rounded-lg bg-gold px-5 text-sm font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving…' : 'Save roads'}
+              {saving ? 'Saving…' : problems.length > 0 ? 'Save as a draft' : 'Save roads'}
             </button>
           </div>
         </div>
