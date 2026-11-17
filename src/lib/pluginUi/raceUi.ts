@@ -99,7 +99,7 @@ function mainPage(x: Ctx): Node[] {
       text(x.o.title, 'brand', { font: 'bold' }),
     ]),
     whereCard(x),
-    ...(x.o.ctx.ease?.lifelines ? [muted(`Lifelines: ${x.o.ctx.ease.lifelines.left} of ${x.o.ctx.ease.lifelines.total} left. Open a tile you’re stuck on to use one.`, { wrap: CARD_W })] : []),
+    ...(x.o.ctx.ease?.lifelines ? [muted(`Lifelines: ${x.o.ctx.ease.lifelines.left} of ${x.o.ctx.ease.lifelines.total} left. A lifeline opens a tile’s easier option. Open a tile you’re stuck on to use one.`, { wrap: CARD_W })] : []),
     ...(route.roadsOpen ? [muted(ROADS_OPEN_NOTE, { wrap: CARD_W })] : []),
     nextCard(x, route),
     ...(x.o.tracked ? [x.o.tracked] : []),
@@ -376,7 +376,7 @@ function easeSection(x: Ctx, id: number): Node | null {
   const line = lifelineLine(ease, tile);
   if (line) rows.push(muted(line, { wrap: CARD_W }));
   if (lifelineSpendable(ease, tile) && !x.o.ctx.claimBlock) {
-    rows.push({ t: 'button', label: 'Use a lifeline', tip: 'Open this tile’s easier option for your team', on: pane(`life:${id}`) });
+    rows.push({ t: 'button', label: 'Use a lifeline', tip: 'A lifeline opens this tile’s easier option, so your team can finish it the easier way. Your team has a set number, and using one can’t be taken back. You’ll be asked to confirm.', on: pane(`life:${id}`) });
   }
   if (!rows.length) return null;
   return section(tile?.live.length ? rows : [title('Easier option'), ...rows]);
