@@ -389,6 +389,26 @@ test('prizes wait for the winners\' drops to be confirmed, unless the clan chose
   assert.deepEqual(unconfirmedPrizeDrops(base(), rankHunt(base(), entrants('nobody'), [], window), 3), []);
 });
 
+test('the prize hold is asked of the rows that are paid, not of the public board', () => {
+  const cfg = base({ rule: 'first' });
+  // A guest got it first and is unconfirmed; the clan does not pay guests, so the settle ranks the
+  // hunt over the members only. The paying member's drop is confirmed: nothing holds the payout.
+  const drops = [drop('guest', 1), drop('member', 2, { confirmed: true }), drop('other', 3)];
+  const eligible = rankHunt(cfg, entrants('member', 'other'), drops, window);
+  assert.deepEqual(eligible.map((r) => r.rsn), ['member', 'other']);
+  assert.deepEqual(unconfirmedPrizeDrops(cfg, eligible, 1), []);
+  // The public board would have looked at the guest and held it for the wrong reason.
+  const publicBoard = rankHunt(cfg, entrants('guest', 'member', 'other'), drops, window);
+  assert.deepEqual(unconfirmedPrizeDrops(cfg, publicBoard, 1).map((d) => d.rsnKey), ['guest']);
+
+  // The other way round: the excluded guest above is confirmed, the member who is actually paid is
+  // not. Looking at the public top place would miss it; the paid rows hold.
+  const drops2 = [drop('guest', 1, { confirmed: true }), drop('member', 2)];
+  const paid = rankHunt(cfg, entrants('member'), drops2, window);
+  assert.deepEqual(unconfirmedPrizeDrops(cfg, paid, 1).map((d) => d.rsnKey), ['member']);
+  assert.deepEqual(unconfirmedPrizeDrops(cfg, rankHunt(cfg, entrants('guest', 'member'), drops2, window), 1), []);
+});
+
 test('the stored key is built on the server from what happened, in ten-second buckets', () => {
   const t = Date.parse('2026-11-10T12:00:03Z');
   const a = serverDropKey({ kind: 'drop', itemId: ONYX, itemName: 'Uncut onyx', source: 'Zulrah' }, t);

@@ -124,6 +124,7 @@ function startsIn(comp: StageWeekly, now: number): string {
 export function weeklyUnit(type: string): string {
   if (type === 'boss') return 'kills';
   if (type === 'efficiency') return 'hours';
+  if (type === 'hunt') return 'drops';
   return 'xp';
 }
 
@@ -131,4 +132,5 @@ export const WEEKLY_BADGE: Record<string, string> = {
   skill: 'SOTW',
   boss: 'BOTW',
   efficiency: 'Efficiency',
+  hunt: 'Item hunt',
 };

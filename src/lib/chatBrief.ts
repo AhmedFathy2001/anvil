@@ -17,7 +17,7 @@ export interface BriefFacts {
   bingo: { name: string; rank: number | null; teams: number; nearly: string[]; solo?: boolean } | null;
   /** The character's OTHER live boards (the config's `boards`, minus the one in `bingo`); rank is null where hidden. */
   others?: { name: string; rank: number | null; of: number; done: number; total: number; points: boolean }[];
-  weeklies: { label: string; unit: 'XP' | 'KC' | 'h'; rank: number | null; gained: number; ahead: number | null }[];
+  weeklies: { label: string; unit: 'XP' | 'KC' | 'h' | 'drops'; rank: number | null; gained: number; ahead: number | null }[];
   clanEvents: { title: string; startsInMin: number }[];
   goal: { text: string; pct: number } | null;
   /** The weekly activity streak's line (lib/activityStreak streakBriefLine), when there is one. */
@@ -29,7 +29,8 @@ const ord = (n: number) => {
   return `${n}${['th', 'st', 'nd', 'rd'][(v - 20) % 10] ?? ['th', 'st', 'nd', 'rd'][v] ?? 'th'}`;
 };
 
-export function amount(n: number, unit: 'XP' | 'KC' | 'h'): string {
+export function amount(n: number, unit: 'XP' | 'KC' | 'h' | 'drops'): string {
+  if (unit === 'drops') return `${Math.round(n).toLocaleString('en-US')} ${Math.round(n) === 1 ? 'drop' : 'drops'}`;
   if (unit === 'h') return `${(n / 1000).toFixed(1)}h`;
   if (unit === 'KC') return `${Math.round(n).toLocaleString('en-US')} KC`;
   if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(1))}M XP`;

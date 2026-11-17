@@ -342,7 +342,7 @@ export async function eventCard(d: EventCardData): Promise<Response> {
 // ── Skill / Boss of the Week ───────────────────────────────────────────────────────────────────
 
 export interface WeeklyCardData {
-  kind: 'skill' | 'boss' | 'efficiency';
+  kind: 'skill' | 'boss' | 'efficiency' | 'hunt';
   /** "Skill of the Week · The AFK Spot". */
   eyebrow: string;
   stage: 'upcoming' | 'active' | 'completed';

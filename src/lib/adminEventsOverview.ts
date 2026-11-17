@@ -13,6 +13,7 @@
 // lib/statStandings (reveal-policy aware) and only runs for events that are actually live —
 // typically one or two.
 
+import { huntStandings } from '@/lib/itemHuntDb';
 import { db } from '@/db';
 import { completions, eventSignups, events, payouts, playerEventFacts, eventParticipants, signupFees, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
@@ -616,6 +617,20 @@ export async function getPastWeeklyResults(
       }
     }
     out.set(id, { winner: best > 0 ? winner : null, gained: best > 0 ? best : null, players: mine.length });
+  }
+
+  // An item hunt is won by drops, not by a gain: its winner is whoever its rule puts first, and the
+  // number beside them is their count (lib/itemHuntDb).
+  // clan-scope: global -- ids the caller took from a clan-scoped list.
+  const hunts = await db.select().from(weeklyCompetitions).where(and(inArray(weeklyCompetitions.id, competitionIds), eq(weeklyCompetitions.type, 'hunt')));
+  for (const hunt of hunts) {
+    const standings = await huntStandings(hunt);
+    const first = standings?.rows[0];
+    out.set(hunt.id, {
+      winner: first && first.count > 0 ? first.rsn : null,
+      gained: first && first.count > 0 ? first.count : null,
+      players: standings?.rows.length ?? out.get(hunt.id)?.players ?? 0,
+    });
   }
 
   return out;

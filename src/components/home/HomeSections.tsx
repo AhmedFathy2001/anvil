@@ -48,10 +48,12 @@ const dateShort = (iso: string) =>
 const WEEK_KIND: Record<string, HubKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
 
 function unitFor(w: HomeWeekly): string {
+  if (w.hunt) return 'drops';
   return w.type === 'skill' ? 'XP' : w.type === 'boss' ? 'KC' : 'h';
 }
 
 function weeklyValue(w: HomeWeekly, value: number): string {
+  if (w.hunt) return `${value.toLocaleString()} ${value === 1 ? 'drop' : 'drops'}`;
   if (w.type === 'efficiency') return `${(value / 1000).toFixed(1)}h`;
   return `${short(value)} ${unitFor(w)}`;
 }
@@ -621,7 +623,7 @@ export function Competitions({
       ...liveWeeklies.map((w) =>
         weeklyRow({
           id: w.id,
-          kind: WEEK_KIND[w.type] ?? 'sotw',
+          kind: w.hunt ? 'hunt' : WEEK_KIND[w.type] ?? 'sotw',
           name: w.title,
           metricLabel: w.metricLabel,
           iconUrl: w.iconUrl,
@@ -650,7 +652,7 @@ export function Competitions({
       .map((w) => ({
         key: `w${w.id}`,
         href: `/weekly/${w.id}`,
-        kind: WEEK_KIND[w.type] ?? 'sotw',
+        kind: w.hunt ? 'hunt' : WEEK_KIND[w.type] ?? 'sotw',
         name: w.title,
         sub: `${w.metricLabel} · ${w.entrants} entered`,
         winner: w.top ? { name: w.top.rsn, text: weeklyValue(w, w.top.value) } : null,

@@ -7,6 +7,8 @@ import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionIns
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { weeklyStage } from '@/lib/weeklyStage';
 import { competitionReadableBy } from '@/lib/competitionTeamsDb';
+import { huntIconUrl, huntLine, parseHunt } from '@/lib/itemHunt';
+import { huntStandings } from '@/lib/itemHuntDb';
 
 /**
  * A weekly competition, reduced to what a card needs.
@@ -23,7 +25,7 @@ import { competitionReadableBy } from '@/lib/competitionTeamsDb';
  * the hub draws it.
  */
 
-export type WeeklyKind = 'sotw' | 'botw' | 'eff';
+export type WeeklyKind = 'sotw' | 'botw' | 'eff' | 'hunt';
 
 export interface WeeklyCard {
   id: number;
@@ -65,7 +67,7 @@ export interface LoadWeeklyCardsOptions {
   viewer?: { playerId: number | null; userId: number | null } | null;
 }
 
-const KIND: Record<string, WeeklyKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
+const KIND: Record<string, WeeklyKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff', hunt: 'hunt' };
 
 function metricLabel(type: string, metric: string): string {
   if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
@@ -73,7 +75,7 @@ function metricLabel(type: string, metric: string): string {
   return bossMetricLabel(metric) || metric;
 }
 
-const unitFor = (type: string) => (type === 'skill' ? 'XP' : type === 'boss' ? 'KC' : 'h');
+const unitFor = (type: string) => (type === 'skill' ? 'XP' : type === 'boss' ? 'KC' : type === 'hunt' ? 'drops' : 'h');
 
 export async function loadWeeklyCards(
   clanId: number,
@@ -157,6 +159,15 @@ export async function loadWeeklyCards(
 
   const entrants = new Map(entrantRows.map((r) => [r.competitionId, r.c]));
   const leaders = new Map<number, { rsn: string; gained: number; tied: boolean }>();
+  // An item hunt's leader is decided by its drops, not by a gain (lib/itemHuntDb): whoever its rule
+  // puts first, with their count as the number on the card. Never "tied": the rule breaks every tie.
+  const huntLeaders = new Map<number, { rsn: string; gained: number; tied: boolean }>();
+  for (const c of shown) {
+    if (c.type !== 'hunt') continue;
+    const standings = await huntStandings(c);
+    const first = standings?.rows[0];
+    if (first && first.count > 0) huntLeaders.set(c.id, { rsn: first.rsn, gained: first.count, tied: false });
+  }
   for (const row of leaderRows.filter((r) => r.rn === 1)) {
     const runnerUp = leaderRows.find((r) => r.competitionId === row.competitionId && r.rn === 2);
     leaders.set(row.competitionId, {
@@ -202,6 +213,8 @@ export async function loadWeeklyCards(
 
     const parsed = dailyRows.map((r) => ({ ...r, parsed: safeParse(r.deltas) }));
     for (const comp of live) {
+      // A hunt has no daily gain to draw: its card shows the drops instead.
+      if (comp.type === 'hunt') continue;
       const members = new Set(
         memberRows
           .filter((m) => m.competitionId === comp.id && m.accountId != null)
@@ -257,13 +270,15 @@ export async function loadWeeklyCards(
     // Boss of the Week that ended yesterday sat under "On now" with a LIVE badge until then.
     const stage = weeklyStage(c, now.getTime());
     const state: WeeklyCard['state'] = stage === 'run' ? 'live' : stage === 'build' ? 'upcoming' : 'past';
-    const leader = leaders.get(c.id);
+    const leader = c.type === 'hunt' ? huntLeaders.get(c.id) : leaders.get(c.id);
+    const hunt = c.type === 'hunt' ? parseHunt(c.hunt) : null;
     return {
       id: c.id,
       kind: KIND[c.type] ?? 'sotw',
       name: c.title,
-      metricLabel: metricLabel(c.type, c.metric),
-      iconUrl: competitionIconUrl(c.type, c.metric),
+      // "Uncut onyx from Zulrah · most by the end": a hunt's card names its rule too.
+      metricLabel: c.type === 'hunt' ? huntLine(hunt, c.metric) : metricLabel(c.type, c.metric),
+      iconUrl: c.type === 'hunt' ? huntIconUrl(hunt) : competitionIconUrl(c.type, c.metric),
       state,
       startDate: c.startDate,
       endDate: c.endDate,

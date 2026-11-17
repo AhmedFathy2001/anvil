@@ -1,3 +1,5 @@
+import HuntSettingsPanel from '../HuntSettingsPanel';
+import { parseHunt } from '@/lib/itemHunt';
 import { notFound } from 'next/navigation';
 
 import { requireClan } from '@/lib/clanContext';
@@ -28,6 +30,8 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
   const comp = await getWeeklyRow(clan.id, id);
   if (!comp) notFound();
 
+  // An item hunt has two settings of its own: how it ends, and who confirms its drops.
+  const hunt = comp.type === 'hunt' ? parseHunt(comp.hunt) : null;
   const session = await verifyUser();
   const repeat = await getWeeklyRepeat(clan.id, comp.id);
   // "SOTW: Agility" → "Agility", for the rotation sentence.
@@ -35,6 +39,7 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
 
   return (
     <>
+    {hunt && <HuntSettingsPanel competitionId={comp.id} initial={{ ends: hunt.ends, confirm: hunt.confirm }} finished={comp.status === 'completed'} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
     <WeeklySettingsPanel
       comp={{

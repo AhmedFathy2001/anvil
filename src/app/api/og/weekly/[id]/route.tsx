@@ -1,3 +1,4 @@
+import { huntIconFor } from '@/lib/itemHunt';
 import { competitionBoard } from '@/lib/itemHuntDb';
 import { eq } from 'drizzle-orm';
 
@@ -53,7 +54,8 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
   const board = (await competitionBoard(comp, participants)).filter((e) => e.gained > 0);
   const name = clanName || clan.name;
 
-  const art = await remoteSprite(competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);
+  // An item hunt draws the item or pet it hunts.
+  const art = await remoteSprite(kind === 'hunt' ? huntIconFor(comp.hunt) : competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);
 
   // The clan's own title only when it says something the metric doesn't ("Double XP week").
   const subtitle = comp.title && !comp.title.toLowerCase().includes(label.toLowerCase()) ? comp.title : null;

@@ -1254,7 +1254,8 @@ export async function getCompetitionHistory(
     .innerJoin(weeklyCompetitions, eq(weeklyParticipants.competitionId, weeklyCompetitions.id))
     .where(eq(weeklyParticipants.clanMemberId, clanMemberId));
 
-  const finished = mine.filter((m) => m.status === 'completed');
+  // Item hunts are left out: they are won by drops, and this history ranks by the hiscores gain.
+  const finished = mine.filter((m) => m.status === 'completed' && m.type !== 'hunt');
   const weeklies: WeeklyResult[] = [];
   if (finished.length > 0) {
     const compIds = finished.map((m) => m.competitionId);

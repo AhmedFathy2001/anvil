@@ -8,6 +8,7 @@ import {
   dropOriginWords,
   dropStatWords,
   huntEndingWords,
+  huntIconUrl,
   huntKindWord,
   huntLine,
   huntStat,
@@ -16,7 +17,6 @@ import {
   petGroupOf,
 } from '@/lib/itemHunt';
 import { huntStandings, type HuntStandings } from '@/lib/itemHuntDb';
-import { itemIconUrl } from '@/lib/tileIcons';
 import { weeklyStatus } from '@/lib/weeklyStage';
 
 export interface HuntViewDrop {
@@ -80,16 +80,6 @@ export interface HuntView {
   /** Drops the "after N drops" ending is waiting on staff for. */
   awaiting: { rsn: string; itemName: string; occurredAt: string }[];
   proof: { targets: HuntProofTarget[]; statKind: 'kc' | 'xp' | 'either'; xpSkill: string | null; pets: boolean };
-}
-
-/** The picture that stands for a hunt: its first item, or a pet from the group. */
-export function huntIconUrl(config: HuntConfig | null): string | null {
-  if (!config) return null;
-  if (config.target === 'pets') {
-    const group = petGroupOf(config.petGroup);
-    return group?.items[0] ? itemIconUrl(group.items[0].id) : null;
-  }
-  return config.items[0] ? itemIconUrl(config.items[0].id) : null;
 }
 
 export function proofTargets(config: HuntConfig): HuntProofTarget[] {

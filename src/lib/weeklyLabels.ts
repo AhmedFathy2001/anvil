@@ -8,6 +8,8 @@ import { EFFICIENCY_LABELS, SKILL_LABELS, bossMetricLabel, formatEfficiencyHours
 
 /** 'Agility', 'Zulrah', 'EHP' — what the competition ranks by. */
 export function weeklyMetricLabel(type: string, metric: string): string {
+  // An item hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
+  if (type === 'hunt') return metric;
   if (type === 'skill') return SKILL_LABELS[metric] || metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
   return bossMetricLabel(metric) || metric;
@@ -22,6 +24,8 @@ export function weeklyStatValue(type: string, value: number | null): string {
 /** A gain, with its unit — '4.1m xp', '412 kills', '12.4 hrs'. */
 export function weeklyGain(type: string, gained: number): string {
   if (type === 'efficiency') return `${formatEfficiencyHours(gained)} hrs`;
+  // An item hunt's board counts drops (lib/itemHuntDb competitionBoard).
+  if (type === 'hunt') return `${gained.toLocaleString()} ${gained === 1 ? 'drop' : 'drops'}`;
   if (type === 'boss') return `${gained.toLocaleString()} kills`;
   if (gained >= 1_000_000) return `${(gained / 1_000_000).toFixed(1).replace(/\.0$/, '')}m xp`;
   if (gained >= 1_000) return `${Math.round(gained / 1_000)}k xp`;

@@ -135,7 +135,7 @@ export default async function AdminEventsPage() {
     kind: 'weekly',
     id: w.id,
     title: w.title,
-    type: w.type === 'boss' ? 'boss' : w.type === 'efficiency' ? 'efficiency' : 'skill',
+    type: w.type === 'boss' ? 'boss' : w.type === 'efficiency' ? 'efficiency' : w.type === 'hunt' ? 'hunt' : 'skill',
     metric: w.metric,
     status: w.status,
     startDate: w.startDate,

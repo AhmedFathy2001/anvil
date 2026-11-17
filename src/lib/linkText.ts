@@ -8,21 +8,24 @@ import { EFFICIENCY_SCALE, SKILLS } from '@/lib/constants';
 import { parseStamp } from '@/lib/dbTime';
 import { eventStage, START_WAITING_WORDS, startIsHeld, type StageEvent } from '@/lib/eventStage';
 
-export type WeeklyKind = 'skill' | 'boss' | 'efficiency';
+export type WeeklyKind = 'skill' | 'boss' | 'efficiency' | 'hunt';
 
 export const WEEKLY_KIND_LABEL: Record<WeeklyKind, string> = {
   skill: 'Skill of the Week',
   boss: 'Boss of the Week',
   efficiency: 'Efficiency week',
+  hunt: 'Item hunt',
 };
 
 export function weeklyKind(type: string): WeeklyKind {
-  return type === 'boss' || type === 'efficiency' ? type : 'skill';
+  return type === 'boss' || type === 'efficiency' || type === 'hunt' ? type : 'skill';
 }
 
 /** One person's gain in the competition's own unit: "+4.82M xp", "212 kc", "+31.5h". */
 export function weeklyGain(kind: WeeklyKind, gained: number): string {
   if (kind === 'boss') return `${gained.toLocaleString('en-US')} kc`;
+  // An item hunt's board counts drops (lib/itemHuntDb competitionBoard).
+  if (kind === 'hunt') return plural(gained, 'drop');
   if (kind === 'efficiency') return `+${(gained / EFFICIENCY_SCALE).toFixed(1)}h`;
   return `+${compact(gained)} xp`;
 }
@@ -30,6 +33,7 @@ export function weeklyGain(kind: WeeklyKind, gained: number): string {
 /** The clan's combined gain: "1,284 kills", "58.9M xp", "412.0 hours". */
 export function weeklyTotal(kind: WeeklyKind, total: number): string {
   if (kind === 'boss') return `${total.toLocaleString('en-US')} kills`;
+  if (kind === 'hunt') return plural(total, 'drop');
   if (kind === 'efficiency') return `${(total / EFFICIENCY_SCALE).toFixed(1)} hours`;
   return `${compact(total)} xp`;
 }
@@ -126,7 +130,7 @@ export function eventLinkDescription(
 
 // ── Skill / Boss of the Week ───────────────────────────────────────────────────────────────────
 
-export const WEEKLY_VERB: Record<WeeklyKind, string> = { skill: 'training', boss: 'bossing', efficiency: 'playing' };
+export const WEEKLY_VERB: Record<WeeklyKind, string> = { skill: 'training', boss: 'bossing', efficiency: 'playing', hunt: 'hunting' };
 
 /**
  *   "Lynx Titan leads with +4.82M xp · 38 members training · 3d 2h left"

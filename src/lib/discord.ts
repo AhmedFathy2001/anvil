@@ -2126,7 +2126,9 @@ const weeklyKind = weeklyKindLabel;
 
 // The competition's own icon: the skill's wiki icon for a SOTW, the boss's hiscores sprite (the one
 // RuneLite shows) for a BOTW. Efficiency spans everything, so it gets none.
-function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thumbnail'> {
+function weeklyThumbnail(type: string, metric: string, hunt?: WeeklyHuntPost | null): Pick<DiscordEmbed, 'thumbnail'> {
+  // An item hunt shows the item or pet it hunts.
+  if (hunt) return hunt.iconUrl ? { thumbnail: { url: discordAssetUrl(hunt.iconUrl) } } : {};
   if (type === 'skill') {
     const url = skillIconUrl(metric);
     return url ? { thumbnail: { url: discordAssetUrl(url) } } : {};
@@ -2209,6 +2211,19 @@ export interface WeeklyGroupPost {
   you?: number | null;
 }
 
+/**
+ * An item hunt, as its posts name it (lib/itemHunt). Absent on every other kind of competition.
+ * `kind` is 'Item hunt' or 'Pet hunt'; `line` is "Uncut onyx from Zulrah · most by the end".
+ */
+export interface WeeklyHuntPost {
+  kind: string;
+  line: string;
+  rule: 'first' | 'most';
+  iconUrl: string | null;
+}
+
+const dropsWord = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'drop' : 'drops'}`;
+
 function weeklyGroupField(type: string, g: WeeklyGroupPost, label: string) {
   const fmt = (n: number) => (type === 'efficiency' ? formatEfficiencyHours(Math.round(n)) : Math.round(n).toLocaleString());
   const unit = type === 'efficiency' ? 'h' : type === 'skill' ? 'XP' : 'KC';
@@ -2229,16 +2244,17 @@ interface WeeklyStartParams {
   endDate: string;
   /** Teams / clan-vs-clan line-up. Absent on a solo competition. */
   groups?: WeeklyGroupPost | null;
+  hunt?: WeeklyHuntPost | null;
 }
 
 export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
-  const { type, title, metric, endDate } = params;
-  const kind = weeklyKind(type);
-  const emoji = type === 'efficiency' ? '⏱️' : type === 'skill' ? '📈' : '⚔️';
+  const { type, title, metric, endDate, hunt } = params;
+  const kind = hunt ? hunt.kind : weeklyKind(type);
+  const emoji = hunt ? '🎁' : type === 'efficiency' ? '⏱️' : type === 'skill' ? '📈' : '⚔️';
 
   const embed: DiscordEmbed = {
     author: { name: kind },
-    ...weeklyThumbnail(type, metric),
+    ...weeklyThumbnail(type, metric, hunt),
     // Just the admin-set title — no raw metric key (e.g. "lunarChests").
     title: clamp(`${emoji} ${title}`, LIMIT.title),
     // No sign-up step to advertise: the clan roster IS the entry list, so everyone synced from the
@@ -2252,7 +2268,9 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
       ...(params.groups ? [weeklyGroupField(type, params.groups, params.groups.mode === 'clans' ? 'Clans racing' : 'Teams')] : []),
     ],
   };
-  if (params.groups?.mode === 'clans') {
+  if (hunt) {
+    embed.description = `**${hunt.line}**\nLive now. Everyone on the clan roster is entered. Drops count from the Anvil plugin, or from a screenshot with the kill count or XP that staff approve.`;
+  } else if (params.groups?.mode === 'clans') {
     embed.description = 'Clan vs clan — live now. Every clan on the line-up races its whole roster; clan totals decide it.';
   } else if (params.groups) {
     embed.description = 'Team competition — live now. Your gains count for your team; team totals decide it.';
@@ -2295,12 +2313,16 @@ interface WeeklyResultsParams {
   standings: { rsn: string; gained: number }[];
   /** Teams / clan-vs-clan final standings — lead the post when present. */
   groups?: WeeklyGroupPost | null;
+  /** An item hunt: `standings[].gained` is then each player's drops, already in the rule's order. */
+  hunt?: WeeklyHuntPost | null;
 }
 
 // Fired when a weekly competition ends — announces the winner and the final standings (top 10).
 export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<boolean> {
-  const { type, title, metric, standings } = params;
-  const kind = weeklyKind(type);
+  const { type, title, metric, hunt } = params;
+  // A hunt lists only the people who got one: everyone else has nothing to rank.
+  const standings = hunt ? params.standings.filter((s) => s.gained > 0) : params.standings;
+  const kind = hunt ? hunt.kind : weeklyKind(type);
   const winner = standings[0];
   // Human unit, not the raw metric key. Efficiency is stored in milli-hours, so its values are
   // scaled back to hours where they're rendered below.
@@ -2313,19 +2335,28 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
     .slice(0, 10)
     .map((s, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-      return `${medal} **${s.rsn}** — +${fmt(s.gained)}`;
+      return hunt ? `${medal} **${s.rsn}** — ${dropsWord(s.gained)}` : `${medal} **${s.rsn}** — +${fmt(s.gained)}`;
     })
     .join('\n');
 
   const embed: DiscordEmbed = {
     author: { name: `${kind} · results` },
-    ...weeklyThumbnail(type, metric),
+    ...weeklyThumbnail(type, metric, hunt),
     title: clamp(`🏁 ${title}`, LIMIT.title),
-    description: winner
-      ? `🥇 **${winner.rsn}** takes it with **+${fmt(winner.gained)}** ${unit}.`
-      : 'It has ended — nobody posted a gain.',
+    description: hunt
+      ? `**${hunt.line}**\n` +
+        (winner
+          ? hunt.rule === 'first'
+            ? `🥇 **${winner.rsn}** got it first.`
+            : `🥇 **${winner.rsn}** takes it with **${dropsWord(winner.gained)}**.`
+          : 'It has ended and nobody got one.')
+      : winner
+        ? `🥇 **${winner.rsn}** takes it with **+${fmt(winner.gained)}** ${unit}.`
+        : 'It has ended — nobody posted a gain.',
     color: EMBED_COLOR.gold,
-    fields: [field('Final standings', standingsText || 'No participants', false)],
+    fields: hunt
+      ? standingsText ? [field(hunt.rule === 'first' ? 'In the order they got it' : 'Final standings', standingsText, false)] : []
+      : [field('Final standings', standingsText || 'No participants', false)],
   };
   // Team / clan competitions: the group result is the headline, the players are the detail.
   if (params.groups && params.groups.groups.length) {

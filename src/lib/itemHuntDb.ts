@@ -12,7 +12,7 @@
 //
 // TRUST. A plugin report is the client's word and no hiscores read can confirm a drop, so a report
 // alone never ends a hunt and never pays a prize: both wait for staff (recordHuntReports,
-// decideHuntDrop, huntPrizeHolds).
+// decideHuntDrop, huntPrizeBoard).
 
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 
@@ -384,13 +384,27 @@ export async function updateHuntSettings(
 }
 
 /**
- * Prizes on a hunt wait for staff: every drop behind a prize-winning place has to be confirmed
- * before the coffer pays on it. Returns the drops still waiting (empty = clear to settle).
+ * A hunt ranked over exactly the entrants handed in, for the prize settle (lib/weeklyPrizeSettle).
+ *
+ * The coffer pays a narrower list than the public board shows (no event seats, guests only when
+ * the clan includes them), so "who is in a paying place" and "is their drop confirmed" have to be
+ * asked of that list and no other. `holds` are the unconfirmed drops behind the first `prizePlaces`
+ * of THESE rows: empty means the paying places rest only on drops staff have confirmed.
  */
-export async function huntPrizeHolds(comp: Competition, prizePlaces: number): Promise<HuntDrop[]> {
-  if (prizePlaces <= 0) return [];
-  const standings = await huntStandings(comp);
-  return standings ? unconfirmedPrizeDrops(standings.config, standings.rows, prizePlaces) : [];
+export async function huntPrizeBoard(
+  comp: Competition,
+  entrants: { rsn: string; baselineValue: number | null; currentValue: number | null }[],
+  prizePlaces: number,
+): Promise<{ rows: HuntRow[]; holds: HuntDrop[] } | null> {
+  const config = parseHunt(comp.hunt);
+  if (comp.type !== 'hunt' || !config) return null;
+  const rows = rankHunt(
+    config,
+    entrants.map((p) => ({ rsn: p.rsn, statGain: p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null })),
+    (await huntDropRows(comp.id)).map(toHuntDrop),
+    windowOf(comp),
+  );
+  return { rows, holds: unconfirmedPrizeDrops(config, rows, prizePlaces) };
 }
 
 // ── Manual proofs ─────────────────────────────────────────────────────────────────────────────

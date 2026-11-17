@@ -132,7 +132,7 @@ export default function SeasonCalendar({
       laneFor('Boards', (i) => !i.clanEvent && hubKind(i.kind).group === 'boards'),
       laneFor('Skill', (i) => i.kind === 'sotw'),
       laneFor('Boss', (i) => i.kind === 'botw'),
-      laneFor('Other', (i) => !i.clanEvent && i.kind === 'eff'),
+      laneFor('Other', (i) => !i.clanEvent && (i.kind === 'eff' || i.kind === 'hunt')),
       laneFor('Clan events', (i) => !!i.clanEvent),
     ].filter((l) => l.rows.length > 0);
 
@@ -257,7 +257,7 @@ export default function SeasonCalendar({
         </div>
 
         <div className="mt-4 flex min-w-[620px] flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-text-muted">
-          {['classic', 'leagues', 'race', 'showdown', 'luckydraw', 'bounty', 'ladder', 'sotw', 'botw', 'eff'].map((k) => {
+          {['classic', 'leagues', 'race', 'showdown', 'luckydraw', 'bounty', 'ladder', 'sotw', 'botw', 'eff', 'hunt'].map((k) => {
             const meta = hubKind(k as CalendarItem['kind']);
             return (
               <span key={k} className="inline-flex items-center gap-1.5">

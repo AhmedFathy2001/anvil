@@ -9,10 +9,18 @@ import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { competitionMode, pastHalfway } from '@/lib/competitionTeams';
 import { buildGroupStandings, racingClans } from '@/lib/competitionTeamsDb';
-import { notifyWeeklyHalfway, notifyWeeklyResults, notifyWeeklyStart, type WeeklyGroupPost } from '@/lib/discord';
+import { notifyWeeklyHalfway, notifyWeeklyResults, notifyWeeklyStart, type WeeklyGroupPost, type WeeklyHuntPost } from '@/lib/discord';
+import { huntIconUrl, huntKindWord, huntLine, parseHunt } from '@/lib/itemHunt';
 import { log } from '@/lib/logger';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
+
+/** How an item hunt's posts name it; null for every other kind. */
+function huntPost(comp: Comp): WeeklyHuntPost | null {
+  if (comp.type !== 'hunt') return null;
+  const config = parseHunt(comp.hunt);
+  return { kind: huntKindWord(config), line: huntLine(config, comp.metric), rule: config?.rule ?? 'first', iconUrl: huntIconUrl(config) };
+}
 
 async function groupPost(comp: Comp): Promise<WeeklyGroupPost | null> {
   const view = await buildGroupStandings(comp);
@@ -41,6 +49,7 @@ export async function announceCompetitionStart(comp: Comp): Promise<void> {
         metric: comp.metric,
         endDate: comp.endDate,
         groups: groups ? { ...groups, you: t.you } : null,
+        hunt: huntPost(comp),
       });
     } catch (err) {
       log.warn('weekly.notify-start-fail', { competitionId: comp.id, clanId: t.clanId }, err);
@@ -59,6 +68,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
         metric: comp.metric,
         standings,
         groups: groups ? { ...groups, you: t.you } : null,
+        hunt: huntPost(comp),
       });
     } catch (err) {
       log.warn('weekly.notify-results-fail', { competitionId: comp.id, clanId: t.clanId }, err);

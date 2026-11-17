@@ -16,6 +16,7 @@ import { BOSSES, RAIDS_ANY_MODE, SKILL_LABELS, bossMetricLabel } from '@/lib/con
 import { dropCounts } from '@/lib/h2hRules';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
+import { itemIconUrl } from '@/lib/tileIcons';
 
 export type HuntRule = 'first' | 'most';
 export type HuntCountMode = 'drops' | 'quantity';
@@ -668,4 +669,19 @@ export function manualStatKind(config: HuntConfig): 'kc' | 'xp' | 'either' {
   if (config.killsOf) return 'kc';
   if (config.xpSkill) return 'xp';
   return 'either';
+}
+
+/** The picture that stands for a hunt: its first item, or a pet from the group. */
+export function huntIconUrl(config: HuntConfig | null): string | null {
+  if (!config) return null;
+  if (config.target === 'pets') {
+    const group = petGroupOf(config.petGroup);
+    return group?.items[0] ? itemIconUrl(group.items[0].id) : null;
+  }
+  return config.items[0] ? itemIconUrl(config.items[0].id) : null;
+}
+
+/** The same, straight from the stored column: for cards and lists that hold only the row. */
+export function huntIconFor(hunt: string | null | undefined): string | null {
+  return huntIconUrl(parseHunt(hunt));
 }

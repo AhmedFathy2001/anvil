@@ -60,6 +60,8 @@ const whole = (n: number) => Math.round(n).toLocaleString('en-US');
 export function weeklyValueText(unit: string, value: number): string {
   if (unit === 'h') return `${(value / 1000).toFixed(1)}h`;
   if (unit === 'KC') return `${whole(value)} KC`;
+  // An item hunt's number is its drops (lib/itemHunt).
+  if (unit === 'drops') return `${whole(value)} ${value === 1 ? 'drop' : 'drops'}`;
   return `${short(value)} XP`;
 }
 
@@ -140,7 +142,8 @@ export interface WeeklyRowInput {
 
 /** 'Fishing XP', 'Vorkath KC'; an efficiency race's label already says hours. */
 function measured(metricLabel: string, unit: string): string {
-  return unit === 'h' ? metricLabel : `${metricLabel} ${unit}`;
+  // An item hunt's label is its targets and rule already ("Uncut onyx from Zulrah · most by the end").
+  return unit === 'h' || unit === 'drops' ? metricLabel : `${metricLabel} ${unit}`;
 }
 
 function noLeaderWords(state: RowState): string | null {

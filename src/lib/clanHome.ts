@@ -171,7 +171,7 @@ export interface PublicClanActivity {
 }
 
 // Keyed by lib/weeklyCards WeeklyKind. (Upper-case keys here never matched, so every week read "Competition".)
-const WEEK_KIND: Record<string, string> = { sotw: 'Skill of the week', botw: 'Boss of the week', eff: 'Efficiency of the week' };
+const WEEK_KIND: Record<string, string> = { sotw: 'Skill of the week', botw: 'Boss of the week', eff: 'Efficiency of the week', hunt: 'Item hunt' };
 
 export async function publicClanActivity(clanId: number, now = new Date()): Promise<PublicClanActivity> {
   const [hub, clanEvts, members, moments] = await Promise.all([

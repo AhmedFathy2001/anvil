@@ -1,3 +1,5 @@
+import { huntStat } from '@/lib/itemHunt';
+import { huntStandings } from '@/lib/itemHuntDb';
 import { enteredWord } from '@/lib/weeklyCountWords';
 import { requireClan } from '@/lib/clanContext';
 import { notFound } from 'next/navigation';
@@ -37,7 +39,14 @@ export default async function WeeklyLayout({
   const comp = await getWeeklyRow(clan.id, id);
   if (!comp) notFound();
 
-  const counts = await getWeeklyCounts(id);
+  const baseCounts = await getWeeklyCounts(id);
+  // An item hunt scores drops: "moving" is who has one, and a hunt that shows no stat beside them
+  // has no starting line to wait for (lib/itemHunt).
+  const hunt = comp.type === 'hunt' ? await huntStandings(comp) : null;
+  const huntHasStat = hunt ? huntStat(hunt.config) != null : true;
+  const counts = hunt
+    ? { ...baseCounts, moving: hunt.rows.filter((r) => r.count > 0).length, ...(huntHasStat ? {} : { withBaseline: baseCounts.participants, flagged: 0 }) }
+    : baseCounts;
   const stage = weeklyStage(comp);
   const steps = weeklyLifecycleSteps(comp, counts);
 
@@ -48,7 +57,7 @@ export default async function WeeklyLayout({
         ? { label: 'Live', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
         : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' };
 
-  const rail = weeklyRailGroups({ weeklyId: id, stage, counts, mode: comp.mode });
+  const rail = weeklyRailGroups({ weeklyId: id, stage, counts, mode: comp.mode, hunt: hunt ? { hasStat: huntHasStat } : undefined });
 
   return (
     <div className="lg:flex lg:gap-6">
@@ -79,7 +88,7 @@ export default async function WeeklyLayout({
         </span>
         <span>{enteredWord(counts.participants)}</span>
         <span>·</span>
-        <span>{counts.moving} scored</span>
+        <span>{hunt ? `${counts.moving} with a drop` : `${counts.moving} scored`}</span>
       </div>
 
       <EventLifecycleBar
