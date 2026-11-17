@@ -4,10 +4,22 @@ import type { BuyWording } from '@/lib/buyOffer';
  * A tier's buy buttons (lib/buyOffer buyWording): "Start free trial" beside "Skip trial, pay now",
  * or one "Subscribe", or the not-yet-open state, with the line that says what happens to their card.
  */
-export default function BuyButtons({ wording, staffNote = null, className = '' }: { wording: BuyWording; staffNote?: string | null; className?: string }) {
+export default function BuyButtons({
+  wording,
+  staffNote = null,
+  className = '',
+  caption = null,
+}: {
+  wording: BuyWording;
+  staffNote?: string | null;
+  className?: string;
+  /** "Monthly" / "Yearly", where a page stacks both: the trial and not-yet-open buttons read the same for either. */
+  caption?: string | null;
+}) {
   const main = 'rounded-lg bg-gold px-4 py-2.5 text-center text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light';
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
+      {caption && <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted">{caption}</p>}
       <div className="flex flex-wrap gap-2">
         {wording.primary.href ? (
           <a

@@ -214,6 +214,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                     <BuyButtons
                       key={o.interval}
                       wording={wording}
+                      caption={offers.length > 1 ? (o.interval === 'yearly' ? 'Yearly' : 'Monthly') : null}
                       staffNote={viewerIsStaff && o.buttons.kind === 'soon' ? soonReason(o.interval === 'yearly' ? fits.gumroadUrlYearlyEnv : fits.gumroadUrlEnv) : null}
                     />
                   ) : null;

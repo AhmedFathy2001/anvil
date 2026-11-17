@@ -57,6 +57,9 @@ function sentenceCase(type: string): string {
 
 const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   joined: { label: 'Joined', color: 'text-accent-green-light' },
+  // A trial from Anvil (lib/planTrials, lib/ownerTrials): started with the clan, or by Anvil staff.
+  owner_trial_granted: { label: 'Trial from Anvil started', color: 'text-gold' },
+  owner_trial_revoked: { label: 'Trial from Anvil ended early', color: 'text-text-muted' },
   // Clan ownership transfer requests (lib/ownershipTransfers): the 3-day hold, start to finish.
   ownership_transfer_requested: { label: 'Ownership transfer asked', color: 'text-gold' },
   ownership_transfer_cancelled: { label: 'Ownership transfer cancelled', color: 'text-text-muted' },

@@ -155,7 +155,7 @@ export default async function CreatorPlanCard({
                 charge: chargeText(next.priceUsd ?? 0, o.interval),
                 verb: o.interval === 'yearly' ? `Subscribe to ${next.name}, yearly` : `Subscribe to ${next.name}`,
               });
-              return wording ? <BuyButtons key={o.interval} wording={wording} className="w-full" /> : null;
+              return wording ? <BuyButtons key={o.interval} wording={wording} caption={offers.length > 1 ? (o.interval === 'yearly' ? 'Yearly' : 'Monthly') : null} className="w-full" /> : null;
             })}
             <ClanLink href={withBilling('/pricing#creators', billing)} className="text-[13px] text-gold hover:text-gold-light">
               Compare plans

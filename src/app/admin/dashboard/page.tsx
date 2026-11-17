@@ -52,6 +52,12 @@ function betweenDays(column: unknown, now: number, fromDaysAgo: number, toDaysAg
   return sql`substr(${column}, 1, 10) >= ${dayKey(now, fromDaysAgo)} AND substr(${column}, 1, 10) < ${dayKey(now, toDaysAgo)}`;
 }
 
+/** Activity rows whose stored name is an internal word: said plainly instead. */
+const FEED_WORDS: Record<string, string> = {
+  owner_trial_granted: 'trial from Anvil started',
+  owner_trial_revoked: 'trial from Anvil ended early',
+};
+
 export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
   const clan = await requireClan();
   // WHAT THIS READER CAN ACTUALLY OPEN. This page is the landing tile for every staff tier, and it
@@ -1170,7 +1176,7 @@ function Activity({
                       <div className="text-sm">
                         {a.memberRsn && <span className="font-semibold">{a.memberRsn}</span>}
                         {a.memberRsn && ' '}
-                        <span className="text-text-muted">{a.eventType.replace(/_/g, ' ')}</span>
+                        <span className="text-text-muted">{FEED_WORDS[a.eventType] ?? a.eventType.replace(/_/g, ' ')}</span>
                         {a.count > 1 && (
                           <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold/90 align-middle">
                             ×{a.count}
