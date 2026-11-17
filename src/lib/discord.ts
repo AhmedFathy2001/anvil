@@ -2279,6 +2279,17 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
   return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
+/**
+ * The "Best drops" field of a results post: the top three lines, each cut to fit, the whole field
+ * inside Discord's 1024. Null when there is nothing to show, so no empty field is posted.
+ */
+export function bestDropsField(lines: string[] | null | undefined) {
+  const top = (lines ?? []).filter(Boolean).slice(0, 3);
+  if (top.length === 0) return null;
+  const medals = ['🥇', '🥈', '🥉'];
+  return field('Best drops', top.map((l, i) => `${medals[i]} ${clamp(l, 300)}`).join('\n'), false);
+}
+
 /** Halfway through a team / clan-vs-clan competition: the standings so far. Solo comps don't post one. */
 export async function notifyWeeklyHalfway(params: {
   clanId: number;
@@ -2315,6 +2326,8 @@ interface WeeklyResultsParams {
   groups?: WeeklyGroupPost | null;
   /** An item hunt: `standings[].gained` is then each player's drops, already in the rule's order. */
   hunt?: WeeklyHuntPost | null;
+  /** The competition's best drops, best first, one line each (lib/bestDrops bestDropLine). At most three are shown. */
+  bestDrops?: string[] | null;
 }
 
 // Fired when a weekly competition ends — announces the winner and the final standings (top 10).
@@ -2369,6 +2382,10 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
       field('Top players', standingsText || 'No participants', false),
     ];
   }
+  // The week's best drops, after the standings. Part of the same results post, so the clan's own
+  // switch for weekly posts covers it; there is no separate one.
+  const best = bestDropsField(params.bestDrops);
+  if (best) embed.fields = [...(embed.fields ?? []), best];
 
   return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }

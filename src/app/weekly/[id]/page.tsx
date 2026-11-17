@@ -29,6 +29,7 @@ import { competitionMode } from '@/lib/competitionTeams';
 import { ANONYMOUS_VIEWER, buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
 import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
+import BestDrops from '@/components/weekly/BestDrops';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
 import { loadHuntView } from '@/lib/itemHuntView';
 
@@ -281,6 +282,7 @@ export default async function WeeklyLeaderboardPage({
             unit={view.unit}
             showDaily={showDaily}
           />
+          <BestDrops drops={view.bestDrops} />
           <SidePanels milestones={view.milestones} highlights={view.highlights} />
         </div>
       </div>

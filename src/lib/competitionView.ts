@@ -4,7 +4,9 @@ import { memberDailyStats, memberMilestones, weeklyCompetitions, clanRoster } fr
 import { and, eq, gte, inArray, isNull, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
-import { momentsForCompetition } from '@/lib/momentsStore';
+import { bestDropMoments, momentsForCompetition } from '@/lib/momentsStore';
+import { rankBestDrops, type BestDrop } from '@/lib/bestDrops';
+import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import { collapseMomentRuns } from '@/lib/feedRuns';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
@@ -121,6 +123,12 @@ export interface CompetitionView {
    * Plugin-reported and never scored — the colour around the standings.
    */
   highlights: CompetitionHighlight[];
+  /**
+   * The competition's best drops out of ALL its moments, ranked (lib/bestDrops): pets, then rarest,
+   * then dearest; no deaths. Only for people still on the board, so someone who opted out or left
+   * is off this list as they are off the standings.
+   */
+  bestDrops: BestDrop[];
   /**
    * The week's superlatives. Every one is decided by the SHAPE of the days rather than by when a
    * number arrived, because the plugin reports in seconds and the sweep can be hours behind — see
@@ -330,6 +338,8 @@ export async function buildCompetitionView(
 
   const milestones = await loadMilestones(accountIds, rsnByAccount, competition, days, type, metric);
   const highlights = await loadHighlights(competition.id);
+  const onBoard = new Set(entries.map((e) => weeklyRsnKey(e.rsn)));
+  const bestDrops = rankBestDrops((await bestDropMoments(competition.id)).filter((m) => onBoard.has(weeklyRsnKey(m.rsn))));
 
   return {
     type,
@@ -353,6 +363,7 @@ export async function buildCompetitionView(
     me,
     milestones,
     highlights,
+    bestDrops,
     // Every record here is a claim about a single day — biggest day, longest streak, most consistent.
     // A week the daily rows can't account for produces confident nonsense (a 397K "biggest day" in a
     // week whose leader gained 1.0M), so it produces nothing instead.

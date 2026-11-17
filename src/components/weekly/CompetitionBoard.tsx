@@ -306,9 +306,9 @@ export function SidePanels({
           milestone is still true tomorrow. */}
       {highlights.length > 0 && (
         <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
-          <h3 className="text-sm font-bold">Moments</h3>
+          <h3 className="text-sm font-bold">Latest</h3>
           <p className="mt-0.5 text-xs text-text-muted">
-            pets, uniques and deaths from this competition&apos;s own content — reported by the plugin, never scored
+            the newest pets, uniques and deaths from this competition&apos;s own content — reported by the plugin, never scored
           </p>
           <div className="mt-2.5">
             {highlights.map((h) => (

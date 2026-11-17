@@ -11,6 +11,9 @@ import { competitionMode, pastHalfway } from '@/lib/competitionTeams';
 import { buildGroupStandings, racingClans } from '@/lib/competitionTeamsDb';
 import { notifyWeeklyHalfway, notifyWeeklyResults, notifyWeeklyStart, type WeeklyGroupPost, type WeeklyHuntPost } from '@/lib/discord';
 import { huntIconUrl, huntKindWord, huntLine, parseHunt } from '@/lib/itemHunt';
+import { BEST_DROPS_IN_RESULTS, bestDropLine, rankBestDrops } from '@/lib/bestDrops';
+import { bestDropMoments } from '@/lib/momentsStore';
+import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import { log } from '@/lib/logger';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
@@ -20,6 +23,17 @@ function huntPost(comp: Comp): WeeklyHuntPost | null {
   if (comp.type !== 'hunt') return null;
   const config = parseHunt(comp.hunt);
   return { kind: huntKindWord(config), line: huntLine(config, comp.metric), rule: config?.rule ?? 'first', iconUrl: huntIconUrl(config) };
+}
+
+/**
+ * The top three best drops for the results post (lib/bestDrops), from people still in the standings
+ * so the post names nobody the board has dropped. A hunt has none: its standings are its drops.
+ */
+async function resultsBestDrops(comp: Comp, standings: { rsn: string }[]): Promise<string[]> {
+  if (comp.type === 'hunt') return [];
+  const onBoard = new Set(standings.map((s) => weeklyRsnKey(s.rsn)));
+  const ranked = rankBestDrops((await bestDropMoments(comp.id)).filter((m) => onBoard.has(weeklyRsnKey(m.rsn))));
+  return ranked.slice(0, BEST_DROPS_IN_RESULTS).map(bestDropLine);
 }
 
 async function groupPost(comp: Comp): Promise<WeeklyGroupPost | null> {
@@ -59,6 +73,7 @@ export async function announceCompetitionStart(comp: Comp): Promise<void> {
 
 export async function announceCompetitionResults(comp: Comp, standings: { rsn: string; gained: number }[]): Promise<void> {
   const groups = await groupPost(comp);
+  const bestDrops = await resultsBestDrops(comp, standings).catch(() => [] as string[]);
   for (const t of await targets(comp)) {
     try {
       await notifyWeeklyResults({
@@ -69,6 +84,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
         standings,
         groups: groups ? { ...groups, you: t.you } : null,
         hunt: huntPost(comp),
+        bestDrops,
       });
     } catch (err) {
       log.warn('weekly.notify-results-fail', { competitionId: comp.id, clanId: t.clanId }, err);
