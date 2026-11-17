@@ -24,6 +24,8 @@ const DAY_MS = 86_400_000;
 const TERM_DAYS: Record<string, number> = { monthly: 30, quarterly: 91, biannually: 182, yearly: 365, every_two_years: 730 };
 /** Never the whole payment: a full refund ends the membership on Gumroad. */
 export const MAX_REFUND_SHARE = 0.9;
+/** A sale older than this gets no automatic refund: its date is the notification's word, and an old one would count days already used. */
+export const MAX_SALE_AGE_MS = 48 * 3_600_000;
 /** Below this it is not worth a card transaction. */
 export const MIN_REFUND_CENTS = 50;
 
@@ -79,7 +81,11 @@ export async function refundUnusedTrial(clanId: number, ev: GumroadEvent, charge
       .where(and(eq(ownerTrials.kind, 'plan'), eq(ownerTrials.clanId, clanId), isNull(ownerTrials.revokedAt), isNull(ownerTrials.convertedAt), sql`${ownerTrials.endsAt} > ${new Date(chargedAtMs).toISOString()}`))
       .limit(1);
     if (!trial) return;
-    const { cents, days } = trialRefundCents({ priceCents: ev.priceCents, recurrence: ev.recurrence, trialEndsAtMs: trial.endsAt.getTime(), chargedAtMs });
+    // Only a sale made just now, during the trial. The charge time comes from the notification, so it
+    // is never trusted to be older than two days, nor earlier than the trial itself.
+    if (Date.now() - chargedAtMs > MAX_SALE_AGE_MS) return;
+    const from = Math.max(chargedAtMs, trial.startsAt.getTime());
+    const { cents, days } = trialRefundCents({ priceCents: ev.priceCents, recurrence: ev.recurrence, trialEndsAtMs: trial.endsAt.getTime(), chargedAtMs: from });
     if (cents <= 0) return;
     const detail = { sale: ev.saleId, cents, days, price: ev.priceCents, recurrence: ev.recurrence };
     if (!trialRefundOn()) {

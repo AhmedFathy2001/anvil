@@ -122,6 +122,9 @@ test('no refund for a renewal, a free sale, a clan with no running trial, or a t
     await R.refundUnusedTrial(none.id, sale(), Date.now());
     const over = await clanOnTrial(-2);
     await R.refundUnusedTrial(over.clan.id, sale(), Date.now());
+    const old = await clanOnTrial(11);
+    await R.refundUnusedTrial(old.clan.id, sale(), Date.now() - 3 * DAY);
+    assert.equal((await audit(old.clan.id)).length, 0, 'a sale dated days ago is not refunded');
     const revoked = await clanOnTrial(11);
     await db.update(s.ownerTrials).set({ revokedAt: new Date() }).where(eq(s.ownerTrials.id, revoked.trial.id));
     await R.refundUnusedTrial(revoked.clan.id, sale(), Date.now());
