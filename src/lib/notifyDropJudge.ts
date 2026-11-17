@@ -1,4 +1,10 @@
-import { dropRarity, judgeDropFor, type CandidateItem, type DropCandidate, type DropVerdict } from '@/lib/notifyDrops';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { accounts, accountStatSnapshots } from '@/db/schema';
+import { parseStatKeyTimes } from '@/lib/liveStats';
+import { dropRarity, enrichNotable, freshSiteKc, judgeDropFor, type CandidateItem, type DropCandidate, type DropVerdict } from '@/lib/notifyDrops';
+import { parsePluginStats } from '@/lib/pluginStats';
+import { jsonStatValue } from '@/lib/statTracking';
 import { characterClanDrops, dropHookFilters } from '@/lib/notifyDefaults';
 import { itemNameIndex } from '@/lib/notifyDropItems';
 import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
@@ -63,6 +69,42 @@ export async function judgeDropRequest(
     guaranteed: settings.facts?.guaranteed,
     nameOf: names.nameOf,
   }, hooks);
+}
+
+/**
+ * A notable item's facts with what the site knows added (lib/notifyDrops enrichNotable): an unlock's
+ * one possible source, the drop rate, and this character's kill count there when the plugin sent
+ * none. The count is the reading the site already holds (hiscores read + live push, one row by id);
+ * nothing is fetched. Any other facts come back unchanged.
+ */
+export async function withNotableFacts(facts: unknown, accountId: number | null, nowMs: number = Date.now()): Promise<unknown> {
+  if (!facts || typeof facts !== 'object' || Array.isArray(facts)) return facts;
+  const o = facts as Record<string, unknown>;
+  if (o.notable !== 'loot' && o.notable !== 'unlock') return facts;
+  const { nameOf, idsByName } = await itemNameIndex();
+  const kc = num(o.kc);
+  // clan-scope: global -- an OSRS account is one account however many clans roster it.
+  const [row] = accountId == null || (kc != null && kc > 0)
+    ? []
+    : await db
+      .select({ live: accounts.liveStats, keyTimes: accounts.liveStatKeyTimes, polledAt: accounts.statsPolledAt, snapshot: accountStatSnapshots.snapshot })
+      .from(accounts)
+      .leftJoin(accountStatSnapshots, eq(accountStatSnapshots.accountId, accounts.id))
+      .where(eq(accounts.id, accountId));
+  const live = parsePluginStats(row?.live);
+  const keyTimes = parseStatKeyTimes(row?.keyTimes);
+  return enrichNotable(o, {
+    nameOf,
+    idsOf: (name) => idsByName.get(name),
+    siteKc: row
+      ? (key) => freshSiteKc({
+        hiscores: jsonStatValue(row.snapshot, 'boss', key),
+        polledAt: row.snapshot ? row.polledAt : null,
+        live: live[key],
+        liveAt: keyTimes[key],
+      }, nowMs)
+      : undefined,
+  });
 }
 
 /**

@@ -1,5 +1,9 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
+import { parseStamp } from '@/lib/dbTime';
 import type { GuaranteedDrops } from '@/lib/dropFacts';
+import { bossKeyForSource } from '@/lib/itemHunt';
+import { dropSourcesFor } from '@/lib/itemObtain';
+import { rollTableFor } from '@/lib/rollTables';
 import { DROP_MINIMUMS, dropGates, hookGates, modeGate, type ClanDropSettings, type DropGates, type HookDropFilter, type NotifyPrefs } from '@/lib/notifyPrefs';
 
 /**
@@ -274,6 +278,91 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: D
     );
   }
   return post(qualifying, !!ctx.mode && modeOnly);
+}
+
+// ── What the site knows about a notable item ──────────────────────────────────────────────────
+
+/** A site kill count older than this is not printed. */
+export const SITE_KC_MAX_AGE_MS = 24 * 60 * 60_000;
+
+/**
+ * The site's own kill count for one boss: the hiscores read raised by the live plugin push, when
+ * either was taken within the last 24 hours. Null otherwise: an old number is not printed.
+ */
+export function freshSiteKc(
+  r: { hiscores: number; polledAt: string | null | undefined; live: number | null | undefined; liveAt: string | null | undefined },
+  nowMs: number,
+): number | null {
+  const at = Math.max(parseStamp(r.polledAt) ?? 0, (r.live ?? 0) > 0 ? parseStamp(r.liveAt) ?? 0 : 0);
+  if (at <= 0 || nowMs - at > SITE_KC_MAX_AGE_MS) return null;
+  const kc = Math.max(r.hiscores, r.live ?? 0);
+  return kc > 0 ? Math.round(kc) : null;
+}
+
+export interface NotableLookups {
+  nameOf: (id: number) => string | undefined;
+  /** Every item id that carries this (lowercased) name: an unlock line names the item, not its id. */
+  idsOf?: (name: string) => number[] | undefined;
+  /** The site's fresh kill count for a hiscores boss key (freshSiteKc), when it has one. */
+  siteKc?: (bossKey: string) => number | null;
+}
+
+const text = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+
+/**
+ * A notable item's post (judgeDrop's `notable` facts, or an older plugin's own) with what the site can
+ * add: the source of an unlock when the drop tables name exactly one, the drop rate, and the site's
+ * kill count when the plugin sent none (marked `kcAbout`: the push for this very kill may not be in).
+ * Nothing is guessed: several sources, no table row or no fresh count leave the fact out.
+ */
+export function enrichNotable(facts: Record<string, unknown>, look: NotableLookups): Record<string, unknown> {
+  if (facts.notable !== 'loot' && facts.notable !== 'unlock') return facts;
+  if (!Array.isArray(facts.items) || facts.items.length !== 1) return facts;
+  const raw = (facts.items[0] ?? {}) as Record<string, unknown>;
+  const name = text(raw.name);
+  if (!name) return facts;
+  const id = typeof raw.id === 'number' && raw.id > 0 ? raw.id : null;
+  const qty = typeof raw.qty === 'number' && raw.qty > 0 ? raw.qty : 1;
+  const out = { ...facts };
+
+  let source = text(facts.source);
+  let sourceKind = text(facts.sourceKind);
+  if (!source && facts.notable === 'unlock') {
+    const ids = id != null ? [id] : look.idsOf?.(name.toLowerCase()) ?? [];
+    // One monster's wiki variants ("Vorkath#Post-quest") are one source.
+    const sources = new Set(ids.flatMap((i) => dropSourcesFor(i, Infinity)).map((s) => s.split('#')[0].trim()));
+    if (sources.size === 1) {
+      [source] = sources;
+      sourceKind = 'npc';
+      out.source = source;
+      out.sourceKind = sourceKind;
+    }
+  }
+  if (!source) return out;
+
+  const hasRate = typeof facts.dropRate === 'number' && facts.dropRate > 0;
+  if (!hasRate && facts.earned !== true && facts.guaranteed !== true) {
+    const rate = dropRarity(sourceKind, source, { id, name, qty }, look.nameOf);
+    if (rate != null && rate > 0 && rate <= 1) out.dropRate = rate;
+  }
+  // A vestige's listed rate is for the whole item, which lands on the third hidden roll
+  // (lib/rollTables): the luck maths needs to know, or a low count reads far too ordinary.
+  const rolls = rollTableFor(source);
+  if (rolls && rolls.rollsPerVestige > 1 && (rolls.vestigeItemId === id || rolls.vestigeName.toLowerCase() === name.toLowerCase())) {
+    out.rateRolls = rolls.rollsPerVestige;
+  }
+
+  const hasKc = typeof facts.kc === 'number' && facts.kc > 0;
+  if (!hasKc && look.siteKc && sourceKind !== 'pvp' && sourceKind !== 'pickpocket') {
+    // A raid is two hiscores rows (normal and hard): no single count to print.
+    const key = bossKeyForSource(source);
+    const kc = key && !key.includes(',') ? look.siteKc(key) : null;
+    if (kc != null && kc > 0) {
+      out.kc = kc;
+      out.kcAbout = true;
+    }
+  }
+  return out;
 }
 
 /**
