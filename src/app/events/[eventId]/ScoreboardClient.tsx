@@ -28,6 +28,9 @@ import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import TeamLens from '@/components/board/TeamLens';
 import LineWatch, { completedLinePositions, needyPositions } from '@/components/board/LineWatch';
+import { lineProgress, nearlyLines } from '@/lib/bingoLines';
+import { closestToDone, lineNotes, ordinal, teamStanding } from '@/lib/yourTeam';
+import YourTeamBar, { type YourTeamTile } from '@/components/board/YourTeamBar';
 import BoardMinimap from '@/components/board/BoardMinimap';
 import RacePace, { type RaceTeam } from '@/components/board/RacePace';
 import RevealSchedule from '@/components/board/RevealSchedule';
@@ -769,7 +772,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             <div className="min-w-0">
               <div className="truncate text-[11px] font-bold uppercase tracking-widest text-gold">{solo ? 'Your race' : 'Your team'} · {me.team.name}</div>
               <div className="mt-1.5 flex items-baseline gap-2">
-                {!curtain && <span className="text-3xl font-bold leading-none tabular-nums">{me.rank}{me.rank % 10 === 1 && me.rank % 100 !== 11 ? 'st' : me.rank % 10 === 2 && me.rank % 100 !== 12 ? 'nd' : me.rank % 10 === 3 && me.rank % 100 !== 13 ? 'rd' : 'th'}</span>}
+                {!curtain && <span className="text-3xl font-bold leading-none tabular-nums">{ordinal(me.rank)}</span>}
                 {!curtain && <span className="text-sm text-text-muted">of {raceLineList.length}</span>}
               </div>
               <div className="mt-2 text-sm text-foreground/90 tabular-nums">{me.stepsDone} of {steps} steps done</div>
@@ -894,14 +897,91 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     );
   }
 
+  // ---- Your team: the bar that opens every other board -----------------------------------------
+  // The viewer's own team, where it stands, and up to three tiles worth going for: the ones nearest
+  // to done; with nothing started, the biggest still open on a points board, or the tiles that would
+  // finish a line on a grid.
+  const myTeam = [proofTeamId, ...myTeamIds].map((id) => teams.find((t) => t.id === id)).find((t) => t != null);
+  const myScore = myTeam ? scores.get(myTeam.id) : undefined;
+  const standing = myTeam ? teamStanding(teams, (id) => scores.get(id)?.score ?? 0, myTeam.id, pointsMode) : null;
+  let yourHeading: string | null = null;
+  let yourTiles: YourTeamTile[] = [];
+  if (myTeam && !finished) {
+    const mine = new Set(completions.filter((c) => c.teamId === myTeam.id).map((c) => c.tileId));
+    const open = board.filter((t) => !mine.has(t.id) && !t.closedAt && !staffOnlySet?.has(t.id));
+    const gains = teamGains.find((tg) => tg.teamId === myTeam.id)?.tileGains ?? {};
+    const counts = dropProgressFor(
+      tiles as unknown as FullTile[],
+      (submissions as unknown as FullSubmission[]).filter((x) => x.teamId === myTeam.id),
+      completions,
+      myTeam.id,
+    ).dropProgress;
+    const nearly = isGrid ? nearlyLines(lineProgress(event.boardSize, ownedByTeam.get(myTeam.id) ?? new Set<number>(), existingPositions), 2) : [];
+    const notes = lineNotes(nearly);
+    const card = (t: (typeof board)[number]): YourTeamTile => ({
+      id: t.id,
+      label: t.label,
+      icon: t.icon ?? deriveTileIcon(t),
+      points: pointsMode ? t.points : null,
+      note: notes.get(t.position) ?? null,
+    });
+    const started = closestToDone(
+      open.flatMap((t) => {
+        if (t.trackedStat && t.statGoal && t.statBasis !== 'milestone') return [{ id: t.id, current: gains[t.id] ?? 0, goal: t.statGoal, tile: t }];
+        const count = counts.get(t.id);
+        return count && count.required > 1 ? [{ id: t.id, current: count.current, goal: count.required, tile: t }] : [];
+      }),
+    );
+    if (started.length > 0) {
+      yourHeading = solo ? 'Closest to done for you' : 'Closest to done for your team';
+      yourTiles = started.map((x) => ({ ...card(x.tile), progress: { current: x.current, goal: x.goal } }));
+    } else if (pointsMode) {
+      yourHeading = 'Worth the most still open';
+      yourTiles = [...open]
+        .filter((t) => (t.points ?? 0) > 0)
+        .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
+        .slice(0, 3)
+        .map((t) => {
+          // Who already has it. Behind the curtain other teams' tiles are not ours to tell.
+          const holders = [...new Set(completions.filter((c) => c.tileId === t.id && c.teamId !== myTeam.id).map((c) => c.teamId))];
+          const names = holders.slice(0, 2).map((id) => teams.find((tm) => tm.id === id)?.name ?? 'Someone');
+          const note = curtain
+            ? null
+            : holders.length === 0
+              ? 'Nobody has it yet'
+              : holders.length > 2
+                ? `${holders.length} ${solo ? 'players' : 'teams'} have it`
+                : `${names.join(' and ')} ${holders.length === 1 ? 'has' : 'have'} it`;
+          return { ...card(t), note };
+        });
+    } else {
+      const finishing = new Set(nearly.filter((n) => n.missing.length === 1).map((n) => n.missing[0]));
+      yourTiles = open.filter((t) => finishing.has(t.position)).slice(0, 3).map(card);
+      if (yourTiles.length > 0) yourHeading = 'One tile from a line';
+    }
+  }
+
   return (
-    // Phones: the board comes straight after its controls; the MVP cards follow it.
-    <div className="max-sm:flex max-sm:flex-col">
+    <div>
+      {myTeam && myScore && standing && (
+        <YourTeamBar
+          label={solo ? 'Your board' : 'Your team'}
+          teamName={myTeam.name}
+          rank={curtain ? null : standing.rank}
+          of={standing.of}
+          noun={solo ? 'players' : 'teams'}
+          score={`${myScore.score.toLocaleString()} of ${myScore.total.toLocaleString()} ${pointsMode ? 'points' : 'tiles'}`}
+          gap={standing.gap}
+          heading={yourHeading}
+          tiles={yourTiles}
+          onTileClick={setSelectedTileId}
+        />
+      )}
       {/* Identity, prize and countdown now live in the EventHero above the board; this row keeps just
           the board-level controls. */}
       {/* Phones: this row only shows for a live draft link. Its standings toggle moves into the board's
           own heading there, so the board is not pushed down by a row holding one button. */}
-      <div className={`mb-6 flex flex-wrap items-center gap-3 max-sm:order-1 ${draftActive ? '' : 'max-sm:hidden'}`}>
+      <div className={`mb-6 flex flex-wrap items-center gap-3 ${draftActive ? '' : 'max-sm:hidden'}`}>
         {draftActive && (
           <ClanLink
             href={`/events/${event.id}/draft`}
@@ -923,81 +1003,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
         </button>
       </div>
 
-      {(mvpToday || mvp) && (
-        <div className={`mb-6 grid gap-3 max-sm:order-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
-          {mvpToday && (
-            <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />
-          )}
-          {mvp && (
-            <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />
-          )}
-        </div>
-      )}
-
-      <div className={`grid gap-8 items-start max-sm:order-2 ${fullscreen ? '' : 'lg:grid-cols-[1fr_1.2fr]'}`}>
-        {!fullscreen && (
-          <div className="min-w-0 max-lg:order-2">
-            <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
-            </h2>
-            {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
-            {windowed && !curtain ? (
-              <SoloStandings teams={teams} scores={scores} eventId={event.id} pointsMode={pointsMode} myTeamIds={myTeamIds} noun={solo ? 'players' : 'teams'} members={teamMembers} />
-            ) : (!curtain || teams.length > 0) && <Scoreboard
-              teams={teams}
-              scores={scores}
-              eventId={event.id}
-              dropProgressByTeam={dropProgressByTeam}
-              pointsMode={pointsMode}
-              teamMvps={teamMvps}
-              unranked={!!curtain}
-            />}
-
-            {/* XP/Stat Gains */}
-            {statTiles.some((t) => t.statType === 'skill' && t.statBasis !== 'milestone') && teamGains.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
-                  <span className="w-1 h-4 bg-blue-400 rounded-full" />
-                  XP gained
-                  {windowed && teamGains.length > SOLO_XP_SHOWN && (
-                    <span className="text-xs font-normal text-text-muted">top {SOLO_XP_SHOWN} of {teamGains.length.toLocaleString()} {solo ? 'players' : 'teams'}</span>
-                  )}
-                </h3>
-                <div className="space-y-2">
-                  {[...teamGains]
-                    .sort((a, b) => b.totalGained - a.totalGained)
-                    // A players board: the leaders, not one row per player.
-                    .slice(0, windowed ? SOLO_XP_SHOWN : undefined)
-                    .map((tg, index) => {
-                      const team = teams.find((t) => t.id === tg.teamId);
-                      return (
-                        <div
-                          key={tg.teamId}
-                          className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
-                        >
-                          <div className="flex items-center gap-3">
-                            {!curtain && <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>}
-                            {team?.color && (
-                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: team.color }} />
-                            )}
-                            <span className="font-medium">{team?.name || 'Unknown'}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-lg font-bold text-blue-400" title={exactTitle(tg.totalGained)}>
-                              {formatNumber(tg.totalGained)}
-                            </span>
-                            <span className="text-xs text-text-muted ml-1">XP</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        <div className="min-w-0 max-lg:order-1">
+      {/* The board keeps the room; the standings sit in a rail beside it (under it on a phone). */}
+      <div className={`grid gap-8 items-start ${fullscreen ? '' : 'lg:grid-cols-[minmax(0,1fr)_360px]'}`}>
+        <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
@@ -1258,7 +1266,80 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           </>
           )}
         </div>
+        {!fullscreen && (
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
+              <span className="w-1 h-5 bg-gold rounded-full" />
+              {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
+            </h2>
+            {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
+            {windowed && !curtain ? (
+              <SoloStandings teams={teams} scores={scores} eventId={event.id} pointsMode={pointsMode} myTeamIds={myTeamIds} noun={solo ? 'players' : 'teams'} members={teamMembers} />
+            ) : (!curtain || teams.length > 0) && <Scoreboard
+              teams={teams}
+              scores={scores}
+              eventId={event.id}
+              dropProgressByTeam={dropProgressByTeam}
+              pointsMode={pointsMode}
+              teamMvps={teamMvps}
+              unranked={!!curtain}
+            />}
+
+            {/* XP/Stat Gains */}
+            {statTiles.some((t) => t.statType === 'skill' && t.statBasis !== 'milestone') && teamGains.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
+                  <span className="w-1 h-4 bg-blue-400 rounded-full" />
+                  XP gained
+                  {windowed && teamGains.length > SOLO_XP_SHOWN && (
+                    <span className="text-xs font-normal text-text-muted">top {SOLO_XP_SHOWN} of {teamGains.length.toLocaleString()} {solo ? 'players' : 'teams'}</span>
+                  )}
+                </h3>
+                <div className="space-y-2">
+                  {[...teamGains]
+                    .sort((a, b) => b.totalGained - a.totalGained)
+                    // A players board: the leaders, not one row per player.
+                    .slice(0, windowed ? SOLO_XP_SHOWN : undefined)
+                    .map((tg, index) => {
+                      const team = teams.find((t) => t.id === tg.teamId);
+                      return (
+                        <div
+                          key={tg.teamId}
+                          className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
+                        >
+                          <div className="flex items-center gap-3">
+                            {!curtain && <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>}
+                            {team?.color && (
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: team.color }} />
+                            )}
+                            <span className="font-medium">{team?.name || 'Unknown'}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold text-blue-400" title={exactTitle(tg.totalGained)}>
+                              {formatNumber(tg.totalGained)}
+                            </span>
+                            <span className="text-xs text-text-muted ml-1">XP</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {(mvpToday || mvp) && (
+        <div className={`mt-8 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
+          {mvpToday && (
+            <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />
+          )}
+          {mvp && (
+            <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />
+          )}
+        </div>
+      )}
 
       {/* Read-only tile detail — the same rich modal members and captains see, now shown to
           public/logged-out viewers. Cross-team submission proof is withheld (submissions=[]);
