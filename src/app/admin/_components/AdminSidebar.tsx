@@ -277,6 +277,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
           over the page, covering each page's back-link / heading). As the first in-flow child it now
           sits cleanly above the content on small screens. */}
       <button
+        data-admin-shell
         onClick={() => setMobileOpen(true)}
         className="lg:hidden mb-4 inline-flex items-center gap-2 px-3 py-2 text-sm border border-card-border bg-card-bg rounded-lg"
         aria-label="Open admin menu"

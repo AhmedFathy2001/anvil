@@ -416,6 +416,86 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
   }
 }
 
+/* Admin and staff pages on phones: a 40px floor for boxed controls. Any page that renders the admin
+   menu button (data-admin-shell) gets it, dialogs included (they mount on body). Only controls with
+   their own vertical padding are raised (buttons, button-like links, fold headers) plus text fields;
+   pills (py-0, py-0.5, py-px) and bare text links are left alone. In the base layer, so a utility
+   on the element still wins. */
+@layer base {
+  @media (max-width: 639.98px) {
+    body:has([data-admin-shell]) :where(button, [role='button'], a, summary)[class*='py-']:not([class*='py-0'], [class*='py-px']),
+    body:has([data-admin-shell]) :where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']), select) {
+      min-height: 2.5rem;
+    }
+    body:has([data-admin-shell]) :where(button)[class*='py-']:not([class*='py-0'], [class*='py-px']) {
+      min-width: 2.5rem;
+    }
+    body:has([data-admin-shell]) :where(a)[class*='py-']:not([class*='py-0'], [class*='py-px']) {
+      display: inline-block;
+      align-content: center;
+    }
+  }
+}
+
+/* A table that turns into one card per row on phones: add `stack-phone` to the table and a
+   `data-label` to each cell that needs its column name above it. The header row is hidden (the
+   labels repeat it), empty cells take no room, `stack-half` / `stack-third` put short values side by
+   side, and `stack-actions` lays a cell's buttons out in a wrapping row. Desktop is untouched. */
+@media (max-width: 639.98px) {
+  table.stack-phone,
+  table.stack-phone > tbody,
+  table.stack-phone > tbody > tr,
+  table.stack-phone > tbody > tr > td {
+    display: block;
+  }
+  table.stack-phone {
+    min-width: 0;
+  }
+  table.stack-phone > thead {
+    display: none;
+  }
+  table.stack-phone > tbody > tr {
+    padding: 0.75rem 1rem;
+  }
+  table.stack-phone > tbody > tr > td {
+    padding: 0.125rem 0;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  table.stack-phone > tbody > tr > td:empty {
+    display: none;
+  }
+  table.stack-phone > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-top: 0.375rem;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    opacity: 0.75;
+  }
+  /* Short values side by side: two or three to a line. */
+  table.stack-phone > tbody > tr > td.stack-half,
+  table.stack-phone > tbody > tr > td.stack-third {
+    display: inline-block;
+    vertical-align: top;
+    width: 50%;
+  }
+  table.stack-phone > tbody > tr > td.stack-third {
+    width: 33.33%;
+  }
+  table.stack-phone > tbody > tr > td.stack-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+}
+
 /* ── Phone floors ───────────────────────────────────────────────────────────────────────────────
    Phones only (under Tailwind's `sm`, 640px); desktop is untouched.
    1. Text: the shared tiny sizes (9-11.5px, and their rem spellings) are raised to 12px. The unlayered rule beats the
