@@ -222,6 +222,102 @@ test('the plugin config watches an easier option only once it is live for that t
   assert.ok(!((await config(red)).trackedDrops ?? []).some((d) => d.tileId === opt.id));
 });
 
+test('kills on an easier option count from when the tile opened: past the easier number, it finishes the moment it opens', async () => {
+  const raceDb = await import('../src/lib/raceRoutesDb.ts');
+  const [ev] = await db
+    .insert(s.events)
+    .values({ clanId, name: 'KC race', boardSize: 3, format: 'tilerace', tilesRevealed: 1, startDate: new Date(Date.now() - 30 * H).toISOString(), rules: JSON.stringify({ raceLifelines: { count: 1, afterHours: 0, opens: 'first' } }) })
+    .returning();
+  const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Green', color: '#00ff00' }).returning();
+  const stats = (kc: number) => JSON.stringify({ bosses: { zulrah: { score: kc } }, skills: {} });
+  // 100 Zulrah KC at the event start, 150 by the time the KC tile opens: those 50 must not count.
+  const [p] = await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, name: 'Greenman', statsSnapshot: stats(100), cachedStats: stats(150) }).returning();
+  const [start] = await db.insert(s.tiles).values({ eventId: ev.id, position: 0, label: 'Start' }).returning();
+  const [hard] = await db.insert(s.tiles).values({ eventId: ev.id, position: 1, label: '100 Zulrah', trackedStat: 'zulrah', statType: 'boss', statGoal: 100 }).returning();
+  await db.insert(s.tiles).values({ eventId: ev.id, position: 2, label: 'End' });
+  const [easy] = await db.insert(s.tiles).values({ eventId: ev.id, position: 1, label: '20 Zulrah', trackedStat: 'zulrah', statType: 'boss', statGoal: 20, parentTileId: hard.id, easeLevel: 1, points: 0 }).returning();
+  const kcEvent = async () => (await db.query.events.findFirst({ where: eq(s.events.id, ev.id) }))!;
+  const setKc = (kc: number) => db.update(s.eventParticipants).set({ cachedStats: stats(kc) }).where(eq(s.eventParticipants.id, p.id));
+
+  // The team reaches the KC tile: both it and its (hidden) easier option take their baseline there.
+  await db.insert(s.completions).values({ teamId: team.id, tileId: start.id });
+  await raceDb.ensureRaceBaselines(ev.id, [team.id]);
+  const base = JSON.parse((await tile(easy.id)).revealStats!);
+  assert.equal(base[p.id].g, 50, 'the easier option counts from the open, like its tile');
+
+  // 10 kills later the team spends its lifeline: 10 of 20, so nothing finishes.
+  await setKc(160);
+  assert.equal((await ease.spendLifeline(await kcEvent(), team.id, hard.id, null)).ok, true);
+  assert.equal(await done(team.id, hard.id), false);
+
+  // Give it back; the team plays on to 25 kills since the open, still far from the hard 100.
+  assert.equal(await ease.refundLifeline(ev.id, team.id, hard.id), true);
+  await setKc(175);
+  await ease.settleEasedTiles(ev.id, [team.id]);
+  assert.equal(await done(team.id, hard.id), false, 'locked again: 25 kills finish nothing');
+
+  // Spent again: the 25 kills since the tile opened are past the easier 20, so the tile is done at once.
+  assert.equal((await ease.spendLifeline(await kcEvent(), team.id, hard.id, null)).ok, true);
+  assert.equal(await done(team.id, easy.id), true);
+  assert.equal(await done(team.id, hard.id), true);
+});
+
+test('Discord hears a lifeline and an easing interval, without ever naming the tile or what opened', async () => {
+  // The clan's channel is a Discord webhook; the network is stood in for, so the posts are read here.
+  await db.insert(s.settings).values({ clanId, key: 'discord_webhook_url', value: 'https://discord.com/api/webhooks/123456789012345678/test-token' });
+  const sent: { title?: string; description?: string }[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: string | URL, init?: RequestInit) => {
+    try {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { embeds?: { title?: string; description?: string }[] };
+      for (const e of body.embeds ?? []) sent.push(e);
+    } catch {
+      /* not a post body */
+    }
+    return new Response(JSON.stringify({ id: '1', channel_id: '1' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    // A fresh straight race, started 30 hours ago: Hard A (with an easier option) then Hard B (with one).
+    const [ev] = await db
+      .insert(s.events)
+      .values({ clanId, name: 'Post race', boardSize: 2, format: 'tilerace', tilesRevealed: 1, startDate: new Date(Date.now() - 30 * H).toISOString(), rules: JSON.stringify({ raceLifelines: { count: 2, afterHours: 0, opens: 'first' } }) })
+      .returning();
+    const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Posters', color: '#123456' }).returning();
+    const [a] = await db.insert(s.tiles).values({ eventId: ev.id, position: 0, label: 'Secret Hard A' }).returning();
+    const [b] = await db.insert(s.tiles).values({ eventId: ev.id, position: 1, label: 'Secret Hard B' }).returning();
+    await db.insert(s.tiles).values({ eventId: ev.id, position: 0, label: 'Secret Easy A', parentTileId: a.id, easeLevel: 1, points: 0 });
+    await db.insert(s.tiles).values({ eventId: ev.id, position: 1, label: 'Secret Easy B', parentTileId: b.id, easeLevel: 1, points: 0 });
+    const fresh = async () => (await db.query.events.findFirst({ where: eq(s.events.id, ev.id) }))!;
+    const waitFor = async (match: (e: { title?: string }) => boolean) => {
+      for (let i = 0; i < 50 && !sent.some(match); i++) await new Promise((r) => setTimeout(r, 100));
+      return sent.find(match);
+    };
+
+    assert.equal((await ease.spendLifeline(await fresh(), team.id, a.id, null)).ok, true);
+    const life = await waitFor((e) => /^Posters used a lifeline/.test(e.title ?? ''));
+    assert.ok(life, 'the lifeline post went out');
+    assert.equal(life!.title, 'Posters used a lifeline at the start');
+    assert.match(life!.description ?? '', /1 of 2 lifelines left/);
+
+    // Timed easing switched on at 24 hours: the tick opens step 1's option and says so, once.
+    await db.update(s.events).set({ rules: JSON.stringify({ raceEase: { hours: 24 } }) }).where(eq(s.events.id, ev.id));
+    ease.bumpEaseContext(ev.id);
+    await tick.processRaceEasing();
+    const eased = await waitFor((e) => /^Post race: .*just got easier/.test(e.title ?? ''));
+    assert.ok(eased, 'the easing post went out');
+    assert.equal(eased!.title, 'Post race: Start just got easier');
+    await tick.processRaceEasing();
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(sent.filter((e) => /^Post race: .*just got easier/.test(e.title ?? '')).length, 1, 'announced once');
+
+    // Neither post names a tile or an easier option.
+    assert.ok(!JSON.stringify(sent).includes('Secret'), 'no tile or option name in any post');
+  } finally {
+    globalThis.fetch = realFetch;
+    await db.delete(s.settings).where(and(eq(s.settings.clanId, clanId), eq(s.settings.key, 'discord_webhook_url')));
+  }
+});
+
 test('once the race is over nothing is hidden', async () => {
   await setRules(null);
   await db.update(s.events).set({ forceEndedAt: new Date().toISOString() }).where(eq(s.events.id, eventId));

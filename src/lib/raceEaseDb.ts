@@ -271,8 +271,9 @@ export async function spendLifeline(
   const after = await teamEaseView(event, teamId);
   const before = new Set(tile.live.map((o) => o.id));
   const opened = (after?.tiles.get(tileId)?.live ?? []).filter((o) => !before.has(o.id)).map((o) => ({ id: o.id, label: o.label }));
-  // What the team already did on the easier option counts from when the tile opened: settle it now.
-  void settleEasedTiles(event.id, [teamId]).catch(() => {});
+  // What the team already did on the easier option counts from when the tile opened: settle it now,
+  // before answering, so the board the spender sees next already shows a tile this finished.
+  await settleEasedTiles(event.id, [teamId]).catch(() => 0);
   // The team's plugins refetch (a new tile to watch), and Discord hears that a lifeline went.
   void announceLifeline(event, teamId, tileId, rule ? Math.max(0, rule.count - mine.length) : 0, rule?.count ?? 0).catch(() => {});
   return { ok: true, opened };
@@ -298,7 +299,9 @@ async function announceLifeline(event: EaseEvent, teamId: number, tileId: number
   if (!full || !team) return;
   const ctx = await loadEaseContext(event);
   const step = ctx?.graph.byId.get(tileId)?.step;
-  const where = step != null && ctx && !standingsHidden(full) ? ` on ${stepTitle(ctx.graph, step).toLowerCase()}` : '';
+  // "on step 3", "at the start", "at the finish" (lib/raceRoutes stepTitle's own names for a step).
+  const named = step != null && ctx && !standingsHidden(full) ? stepTitle(ctx.graph, step) : '';
+  const where = named.startsWith('Step') ? ` on ${named.toLowerCase()}` : named === 'Start' ? ' at the start' : named === 'Finish' ? ' at the finish' : '';
   await sendEventBingoWebhook(
     full.clanId,
     full.id,
