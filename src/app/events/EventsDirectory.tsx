@@ -55,6 +55,14 @@ export default async function EventsDirectory({ filters }: { filters: DirectoryF
             Bingos, races and ladders you can join, from clans and streamers on Anvil. Pick one, open it,
             and press Join.
           </p>
+          <p className="mt-1.5 max-w-[60ch] text-[12.5px] text-text-dim">
+            Only upcoming and live events whose host chose to advertise them are listed here. A clan&rsquo;s
+            other events are on its own page, which you can reach from the{' '}
+            <ClanLink href="/clans" className="text-gold hover:text-gold-light">
+              Clan Hall
+            </ClanLink>
+            .
+          </p>
         </div>
         <ClanLink
           href="/host"

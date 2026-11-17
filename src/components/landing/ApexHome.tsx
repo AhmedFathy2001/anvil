@@ -1,9 +1,14 @@
+import { streakNudge } from '@/lib/streakNudge';
+import { countRunning, runningLabel, runningParts, type RunningCount } from '@/lib/runningCount';
+import GuidedFlow from '@/components/GuidedFlow';
+import type { FlowView } from '@/lib/guidedFlow';
 import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
 import type { FoundSeat } from '@/lib/foundYou';
+import type { ShowcaseClan } from '@/lib/landingClansRules';
 import DiscoverToggle from '@/components/home/DiscoverToggle';
 import { clanPathOf } from '@/lib/clanScopedPaths';
 import {
@@ -44,7 +49,13 @@ export default function ApexHome({
   displayName,
   found = [],
   flair = null,
+  recruiting = [],
+  guide = null,
 }: {
+  /** Clans taking members, offered to somebody in none. */
+  recruiting?: ShowcaseClan[];
+  /** The "Getting started" guide strip (lib/guidedFlowFacts), or null once there is nothing left in it. */
+  guide?: FlowView | null;
   view: ApexHomeView;
   signals: ApexSignals;
   displayName: string;
@@ -66,6 +77,9 @@ export default function ApexHome({
   // The arena was only taken out of the list to avoid showing it twice. It is still running, so the
   // summary line and the quiet note must count it, or the page says "nothing running" right above it.
   const runningTotal = running + (signals.arena ? 1 : 0);
+  // By kind, for the summary line (lib/runningCount). The arena is a weekly competition.
+  const listed = countRunning(live.flatMap((c) => c.live));
+  const runningCount = { events: listed.events, competitions: listed.competitions + (signals.arena ? 1 : 0) };
   const quiet =
     runningTotal === 0 && needsYou.length === 0 && view.openSignups.length === 0 && view.clans.length > 0;
 
@@ -87,14 +101,18 @@ export default function ApexHome({
               {summary(
                 view.clans.filter((c) => c.clanKind !== 'creator').length,
                 view.clans.filter((c) => c.clanKind === 'creator').length,
-                runningTotal,
+                runningCount,
                 view.openSignups.length,
               )}
             </p>
+            {streakNudge(signals.streak) && <p className="mt-1 text-[13px] text-text-muted">{streakNudge(signals.streak)}</p>}
           </div>
           <StreakBadge streak={signals.streak} />
         </div>
       </header>
+
+      {/* Getting started, one step at a time. It replaced the "Setup 2 of 4" bar the clanless card had. */}
+      {guide && <GuidedFlow view={guide} className="mb-10" />}
 
       {/* Identity comes before activity. A clan-sync record can be waiting even when this person
           already owns another character/clan, so this must not live only in the empty-home branch. */}
@@ -121,7 +139,17 @@ export default function ApexHome({
         // looking at. So the personal half of this page renders either way, and the clan doors sit
         // under it as an invitation rather than as the entire page.
         <div className="flex flex-col gap-10">
-          <Empty hasCharacters={view.characters.length > 0} />
+          <Empty hasCharacters={view.characters.length > 0} recruiting={recruiting} guided={!!guide} />
+
+          {/* The open boards computed for this person were never drawn here, so somebody in no clan
+              saw nothing running anywhere. */}
+          {/* #open-events: where the guide strip's "Show open events" button lands. */}
+          {view.discover && view.discover.length > 0 && (
+            <div id="open-events" className="scroll-mt-24 rounded-2xl">
+              <Discover discover={view.discover} title="Running now in public clans" />
+            </div>
+          )}
+          {view.discover === null && <DiscoverToggle show variant="offer" />}
 
           {view.characters.length > 0 && (
             <div>
@@ -170,7 +198,7 @@ export default function ApexHome({
           {signals.standing && <Standing standing={signals.standing} flair={flair} />}
 
           {live.length > 0 && (
-            <Section title="Happening now" note={`${running} running`}>
+            <Section title={signals.arena ? 'Also happening now' : 'Happening now'} note={`${runningParts(listed)}${signals.arena ? ' more' : ''} running`}>
               <div className="flex flex-col gap-2.5">
                 {live.flatMap((c) =>
                   c.live.map((l) => (
@@ -223,41 +251,8 @@ export default function ApexHome({
             </Section>
           )}
 
-          {/* Somewhere new to play. Public boards from clans that list themselves, in clans this
-              person is not in — below everything that is already theirs, and one click to hide. */}
-          {view.discover && view.discover.length > 0 && (
-            <Section
-              title="Open to everyone"
-              note={`${view.discover.length}`}
-              action={<DiscoverToggle show={false} variant="hide" />}
-            >
-              <div className="flex flex-col gap-2.5">
-                {view.discover.map((d) => (
-                  <ClanLink
-                    key={d.eventId}
-                    href={clanPathOf({ slug: d.clanSlug, kind: d.clanKind }, `/events/${d.eventId}`)}
-                    className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
-                  >
-                    <ClanCrest slug={d.clanSlug} name={d.clanName} logoUrl={d.iconUrl} size={26} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-medium">{d.name}</span>
-                      <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">
-                        {d.clanName} ·{' '}
-                        {d.live ? 'running now' : closes(null, d.startDate)}
-                      </span>
-                    </span>
-                    <span className="shrink-0 rounded-md border border-card-border px-2.5 py-1 text-[12.5px] text-text-muted">
-                      {d.takingEntries ? 'Take a look' : d.live ? 'Watch' : 'View'}
-                    </span>
-                  </ClanLink>
-                ))}
-              </div>
-            </Section>
-          )}
-          {view.discover === null && <DiscoverToggle show variant="offer" />}
-
           {needsYou.length > 0 && (
-            <Section title="Waiting on you" note={`${needsYou.length}`}>
+            <Section title="Clans you run, with nothing on" note={`${needsYou.length}`}>
               <div className="flex flex-col gap-2.5">
                 {needsYou.map((c) => (
                   <ClanLink
@@ -269,15 +264,20 @@ export default function ApexHome({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{c.name}</span>
                       <span className="mt-0.5 block text-[12.5px] text-text-muted">
-                        Nothing running — start something
+                        No event or competition is running
                       </span>
                     </span>
-                    <span className="shrink-0 text-[13px] text-gold">Open →</span>
+                    <span className="shrink-0 text-[13px] text-gold">Plan one →</span>
                   </ClanLink>
                 ))}
               </div>
             </Section>
           )}
+
+          {/* Somewhere new to play. Public boards from clans that list themselves, in clans this
+              person is not in — below everything that is already theirs, and one click to hide. */}
+          {view.discover && view.discover.length > 0 && <Discover discover={view.discover} title="Open to everyone" />}
+          {view.discover === null && <DiscoverToggle show variant="offer" />}
 
           {quiet && (
             <div className="rounded-xl border border-card-border bg-card-bg px-5 py-6 text-[14.5px] text-text-muted">
@@ -373,6 +373,36 @@ function Section({
   );
 }
 
+type DiscoverEvent = NonNullable<ApexHomeView['discover']>[number];
+
+/** Public boards from clans that list themselves, with one click to hide the whole section. */
+function Discover({ discover, title }: { discover: DiscoverEvent[]; title: string }) {
+  return (
+    <Section title={title} note={`${discover.length}`} action={<DiscoverToggle show={false} variant="hide" />}>
+      <div className="flex flex-col gap-2.5">
+        {discover.map((d) => (
+          <ClanLink
+            key={d.eventId}
+            href={clanPathOf({ slug: d.clanSlug, kind: d.clanKind }, `/events/${d.eventId}`)}
+            className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
+          >
+            <ClanCrest slug={d.clanSlug} name={d.clanName} logoUrl={d.iconUrl} size={26} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-medium">{d.name}</span>
+              <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">
+                {d.clanName} · {d.live ? 'running now' : closes(null, d.startDate)}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-md border border-card-border px-2.5 py-1 text-[12.5px] text-text-muted">
+              {d.takingEntries ? 'Take a look' : d.live ? 'Watch' : 'View'}
+            </span>
+          </ClanLink>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 /**
  * The clan doors, for somebody in none.
  *
@@ -380,19 +410,30 @@ function Section({
  * readers want opposite things. With characters linked the page above is already useful and a clan
  * is an addition; with none, connecting one IS the next step and a clan can wait.
  */
-function Empty({ hasCharacters }: { hasCharacters: boolean }) {
+function Empty({
+  hasCharacters,
+  recruiting,
+  guided = false,
+}: {
+  hasCharacters: boolean;
+  recruiting: ShowcaseClan[];
+  /** The "Getting started" strip is on the page and already says the next step: this card then only lists the other doors. */
+  guided?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-card-border bg-card-bg p-7 sm:p-8">
       <h2 className="display text-xl font-semibold">
-        {hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
+        {guided ? 'Or start something yourself' : hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
       </h2>
-      <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-text-muted">
-        {hasCharacters
-          ? 'Your characters are tracked either way — the week above is yours, clan or no clan. Join one that’s recruiting, or start your own; a clan takes an evening to set up.'
-          : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
-      </p>
+      {!guided && (
+        <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-text-muted">
+          {hasCharacters
+            ? 'Your characters are tracked either way — the week above is yours, clan or no clan. Join one that’s recruiting, or start your own; a clan takes an evening to set up.'
+            : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
+        </p>
+      )}
       <div className="mt-5 flex flex-wrap gap-3">
-        {!hasCharacters && (
+        {!hasCharacters && !guided && (
           <ClanLink
             href="/settings/characters#link-account"
             className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
@@ -400,16 +441,17 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
             Connect my RuneScape account
           </ClanLink>
         )}
-        <ClanLink
-          href="/clans"
-          className={`rounded-lg px-4 py-2.5 text-sm transition-colors ${
-            hasCharacters
-              ? 'bg-gold font-semibold text-brown-dark hover:bg-gold-light'
-              : 'border border-card-border hover:border-gold-dark'
-          }`}
-        >
-          Enter the Clan Hall
-        </ClanLink>
+        {/* Not beside the strip: its open step is already "Find your clan" with this same button. */}
+        {!guided && (
+          <ClanLink
+            href="/clans"
+            className={`rounded-lg px-4 py-2.5 text-sm transition-colors ${
+              hasCharacters ? 'bg-gold font-semibold text-brown-dark hover:bg-gold-light' : 'border border-card-border hover:border-gold-dark'
+            }`}
+          >
+            Find a clan
+          </ClanLink>
+        )}
         <ClanLink
           href="/clans/new"
           className="rounded-lg border border-card-border px-4 py-2.5 text-sm transition-colors hover:border-gold-dark"
@@ -423,6 +465,29 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
           Host an event
         </ClanLink>
       </div>
+      {recruiting.length > 0 && (
+        <div className="mt-6">
+          <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.15em] text-text-muted">
+            Clans taking members
+          </div>
+          <ul className="m-0 grid list-none gap-2.5 p-0 sm:grid-cols-3">
+            {recruiting.map((c) => (
+              <li key={c.slug}>
+                <ClanLink
+                  href={`/c/${c.slug}`}
+                  className="flex h-full items-center gap-2.5 rounded-xl border border-card-border bg-brown-dark/30 px-3 py-2.5 transition-colors hover:border-gold-dark"
+                >
+                  <ClanCrest slug={c.slug} name={c.name} logoUrl={c.logoUrl ?? null} size={28} rounded="rounded-lg" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-semibold">{c.name}</span>
+                    <span className="block text-[11.5px] text-gold">Recruiting · {c.members} members</span>
+                  </span>
+                </ClanLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {/* The same two doors the setup flow's clan step offers, so this is not a third option — it is
           the option for somebody who would rather be walked through the whole thing than decide what
           to press. Quiet, because most people will just pick one of the buttons above. */}
@@ -465,7 +530,7 @@ function closes(deadline: string | null, startDate: string | null): string {
 }
 
 /** "2 clans and 1 space" — creator spaces are counted as spaces, never as clans (lib/creatorSpaces). */
-function summary(clans: number, spaces: number, running: number, signups: number): string {
+function summary(clans: number, spaces: number, running: RunningCount, signups: number): string {
   if (clans + spaces === 0) return 'Nothing here yet.';
   const c = [
     clans > 0 ? `${clans} clan${clans === 1 ? '' : 's'}` : null,
@@ -474,7 +539,7 @@ function summary(clans: number, spaces: number, running: number, signups: number
     .filter(Boolean)
     .join(' and ');
   const bits: string[] = [];
-  if (running > 0) bits.push(`${running} thing${running === 1 ? '' : 's'} running`);
+  if (runningParts(running)) bits.push(runningLabel(running));
   if (signups > 0) bits.push(`${signups} taking entries`);
   if (bits.length === 0) return `${c}, and nothing running in any of them.`;
   return `${c}. ${bits.join(', ')}.`;

@@ -7,6 +7,8 @@ import { clans, retiredClanSlugs } from '@/db/schema';
 import { apexDomain, normalizeHost, slugFromHost } from '@/lib/apexHost';
 import { clanBasePath, type AddressKind } from '@/lib/clanScopedPaths';
 import { provenClan } from '@/lib/requestHeaderProof';
+import { runningPlanTrial } from '@/lib/planTrials';
+import { effectiveMemberCap, effectivePlanId } from '@/lib/planTrialRules';
 
 // Which clan is this request for?
 //
@@ -34,7 +36,14 @@ export interface ClanContext {
   name: string;
   inGameName: string | null;
   status: string;
+  /**
+   * The plan IN FORCE: what the clan pays for, or its running Anvil trial's tier when that is higher
+   * (lib/planTrials). Every capability and limit check reads this. `paidPlan` is `clans.plan` itself,
+   * for the pages that say what is being paid for.
+   */
   plan: string;
+  paidPlan: string;
+  /** The member cap in force (the trial tier's while one runs). */
   memberCap: number | null;
   customDomain: string | null;
   /** The clan's own image, or null for the generated crest (components/ClanCrest). */
@@ -67,7 +76,10 @@ export {
 } from '@/lib/apexHost';
 
 /** One place that turns a clans row into the context, so the two lookups cannot drift. */
-function toContext(row: typeof clans.$inferSelect): ClanContext {
+async function toContext(row: typeof clans.$inferSelect): Promise<ClanContext> {
+  const kind = row.kind ?? 'clan';
+  // Anvil's own plan trial is laid over the stored plan here, at read time, and nowhere written.
+  const trial = await runningPlanTrial(row.id);
   return {
     id: row.id,
     slug: row.slug,
@@ -76,12 +88,13 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     logoUrl: row.logoUrl ?? null,
     accentColor: row.accentColor ?? null,
     status: row.status,
-    plan: row.plan,
-    memberCap: row.memberCap,
+    plan: effectivePlanId(kind, row.plan, trial),
+    paidPlan: row.plan,
+    memberCap: effectiveMemberCap(kind, row.plan, row.memberCap, trial),
     customDomain: row.customDomain,
     visibility: row.visibility,
     guestPolicy: row.guestPolicy,
-    kind: row.kind ?? 'clan',
+    kind,
     streaming: row.streaming === true,
     // A creator space has no subdomain: `<slug>.<apex>` is a CLAN's legacy address (clans and spaces
     // may share a slug), so a space without its own domain lives on the apex at /s/<slug>.

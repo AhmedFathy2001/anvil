@@ -11,6 +11,7 @@ import { valuesEqual } from '@/lib/unsavedChanges';
 import { useDialog } from '@/components/Confirm';
 import { atLeast } from '@/lib/clanRoles';
 import CofferPoolCard from './CofferPoolCard';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -94,11 +95,16 @@ function suggestAmounts(paidPlaces: number, basis: number): string[] {
 
 type SplitValues = { mode: 'share' | 'fixed'; paidPlaces: number; placePercents: string[]; placeAmounts: string[]; poolBasis: string };
 
+/** Payout rows drawn before "Show more"; past this many a name search appears. */
+const PAYOUT_CHUNK = 25;
+
 export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const { confirm } = useDialog();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [payoutSearch, setPayoutSearch] = useState('');
+  const [payoutLimit, setPayoutLimit] = useState(PAYOUT_CHUNK);
 
   // Prize-pool basis the per-placement rewards are calculated from (prefilled with the real pool),
   // how many places pay out, and the resulting editable gp reward per placement.
@@ -332,6 +338,10 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   if (!data) return <p className="text-red-400 text-sm">{err || 'Failed to load.'}</p>;
 
   const { payouts, pool, standings, announcedAt } = data;
+  const payoutNeedle = payoutSearch.trim().toLowerCase();
+  const shownPayouts = payoutNeedle
+    ? payouts.filter((p) => `${p.rsn} ${p.teamName ?? ''}`.toLowerCase().includes(payoutNeedle))
+    : payouts;
   const totalPending = payouts.filter((p) => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
   const totalPaid = payouts.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
   const paidCount = payouts.filter((p) => p.status === 'paid').length;
@@ -366,7 +376,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
       <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
           <div>
-            <span className="text-text-muted">Prize pool </span>
+            <span className="text-text-muted">Prize pool collected </span>
             <span className="font-bold text-gold">{pool.total.toLocaleString()} gp</span>
           </div>
           <div className="text-xs text-text-muted">
@@ -494,8 +504,9 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              {/* What the places add up to. Not the pool above: that is the gp collected so far. */}
               <span className="text-text-muted">
-                Total rewards: <span className="text-gold font-semibold">{rewardsTotal.toLocaleString()} gp</span>
+                Prizes set: <span className="text-gold font-semibold">{rewardsTotal.toLocaleString()} gp</span>
               </span>
               {mode === 'share' && (
                 <span className={sharesTotal > 100 ? 'text-red-400' : 'text-text-muted'}>
@@ -503,8 +514,15 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                   {sharesTotal > 100 ? ' — more than there is' : sharesTotal < 100 ? ' (the rest stays with the clan)' : ''}
                 </span>
               )}
-              {rewardsTotal !== pool.total && (
-                <span className="text-text-muted">(pool is {pool.total.toLocaleString()} gp)</span>
+              {rewardsTotal > pool.total && (
+                <span className="text-yellow-300">
+                  {(rewardsTotal - pool.total).toLocaleString()} gp more than the pool has collected ({pool.total.toLocaleString()} gp)
+                </span>
+              )}
+              {rewardsTotal < pool.total && (
+                <span className="text-text-muted">
+                  {(pool.total - rewardsTotal).toLocaleString()} gp of the pool ({pool.total.toLocaleString()} gp) is not given out
+                </span>
               )}
             </div>
 
@@ -558,12 +576,38 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
         </p>
       ) : (
         <div className="space-y-2">
-          {payouts.map((p) => (
+          {payouts.length > PAYOUT_CHUNK && (
+            <Input
+              value={payoutSearch}
+              onChange={(e) => setPayoutSearch(e.target.value)}
+              placeholder="Find a name or team…"
+              aria-label="Find a payout by name or team"
+              className="rounded-lg"
+            />
+          )}
+          {/* Grouped by what is left to do: the ones still owed first, each with its count. */}
+          {(
+            [
+              ['To pay', shownPayouts.filter((p) => p.status !== 'paid')],
+              ['Paid', shownPayouts.filter((p) => p.status === 'paid')],
+            ] as const
+          ).map(([label, group], gi, all) => {
+            // The "Show more" limit runs across both groups in order.
+            const before = all.slice(0, gi).reduce((n, [, g]) => n + g.length, 0);
+            const rows = group.slice(0, Math.max(0, payoutLimit - before));
+            if (group.length === 0) return null;
+            return (
+              <div key={label} className="space-y-2">
+                <h3 className="flex items-center gap-2 pt-1 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  {label}
+                  <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/80">{group.length}</span>
+                </h3>
+                {rows.map((p) => (
             <div
               key={p.id}
               className="border border-card-border rounded-xl p-4 bg-card-bg flex flex-wrap items-center gap-x-4 gap-y-3"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0 flex-1 max-sm:basis-full">
                 <span className="text-lg w-7 text-center shrink-0">{medal(p.place)}</span>
                 <div className="min-w-0">
                   <div className="font-medium truncate">{p.rsn}</div>
@@ -585,6 +629,11 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               )}
             </div>
           ))}
+              </div>
+            );
+          })}
+          {shownPayouts.length === 0 && <p className="text-sm text-text-muted">No payout matches that.</p>}
+          <ShowMoreButton total={shownPayouts.length} shown={payoutLimit} chunk={PAYOUT_CHUNK} onMore={() => setPayoutLimit((n) => n + PAYOUT_CHUNK)} />
         </div>
       )}
 
@@ -639,6 +688,24 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               {announcedAt
                 ? `Last announced ${new Date(announcedAt).toLocaleString()}. Auto-posts when every payout is paid.`
                 : `Auto-posts to the bingo channel once every payout is marked paid — or send it now (${paidCount} paid).`}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div
+                role="progressbar"
+                aria-label="Payouts paid"
+                aria-valuemin={0}
+                aria-valuemax={payouts.length}
+                aria-valuenow={paidCount}
+                className="h-1.5 w-40 overflow-hidden rounded-full bg-brown-dark"
+              >
+                <div
+                  className="h-full rounded-full bg-accent-green"
+                  style={{ width: `${payouts.length ? Math.round((paidCount / payouts.length) * 100) : 0}%` }}
+                />
+              </div>
+              <span className="text-xs text-text-muted">
+                {paidCount} of {payouts.length} paid
+              </span>
             </div>
           </div>
           <button

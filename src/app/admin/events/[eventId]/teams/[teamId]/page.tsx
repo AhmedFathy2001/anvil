@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { clientEvent, staffPlayer } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { requireEventForPage } from '@/lib/eventScope';
@@ -87,11 +88,11 @@ export default async function AdminTeamBoardPage({
         <TeamInvitePanel teamId={team.id} captainToggle={{ eventId: event.id, rules: event.rules ?? null }} />
       </div>
       <AdminTeamBoardClient
-        event={event}
+        event={clientEvent(event)}
         team={safeTeam}
         tiles={withSearchText(nestParts(eventTiles))}
         completions={teamCompletions}
-        players={eventPlayers}
+        players={eventPlayers.map(staffPlayer)}
         tierBands={tierBands}
       />
     </>

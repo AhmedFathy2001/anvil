@@ -60,7 +60,8 @@ import {
 } from '@/lib/startingStatsRules';
 import { log } from '@/lib/logger';
 import { parseStamp } from '@/lib/dbTime';
-import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot } from '@/lib/weekly';
+import { competitionStat } from '@/lib/weeklyMetric';
 
 /** Same window as the sweep's (lib/statsSweep STALE_OVERLAY_MS). */
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
@@ -495,6 +496,9 @@ async function hasStartLine(event: EventRow, participantId: number): Promise<boo
 
 /** One weekly participant, through the sweep's weekly apply. */
 async function captureWeeklyOne(comp: CompRow, row: WeeklyRow, owner: 'site' | 'forge'): Promise<boolean> {
+  // An item hunt with no stat beside its drops has no starting line to take (lib/weeklyMetric).
+  const stat = competitionStat(comp);
+  if (!stat) return true;
   const read = await readSeat(row.rsn, row.clanMemberId, null, owner, { competitionId: comp.id, participantId: row.id });
   // A miss stamps lastUpdated, exactly as the sweep does on one — which is also what lets the roster
   // say "couldn't read" after a restart (weeklyStartingStatsStatus).
@@ -508,21 +512,21 @@ async function captureWeeklyOne(comp: CompRow, row: WeeklyRow, owner: 'site' | '
     await stampMiss();
     return false;
   }
-  const type = comp.type as CompetitionType;
-  const m = readMetricFromSnapshot(read.snapshot, type, comp.metric);
+  const { type, metric } = stat;
+  const m = readMetricFromSnapshot(read.snapshot, type, metric);
   if (m.kind !== 'value') {
     await stampMiss();
     return false;
   }
   // Effective = max(hiscores, live): the first capture absorbs a session in progress.
-  const value = effectiveValue(m.value, read.overlay, comp.metric);
+  const value = effectiveValue(m.value, read.overlay, metric);
   const fresh = await db.query.weeklyParticipants.findFirst({ where: eq(weeklyParticipants.id, row.id) });
   if (!fresh) return false;
   if (fresh.baselineValue !== null) return true; // the sweep got there first
   const outcome = await applyWeeklyValue({
     participantId: fresh.id,
     type,
-    metric: comp.metric,
+    metric,
     value,
     baselineValue: fresh.baselineValue,
     currentValue: fresh.currentValue,

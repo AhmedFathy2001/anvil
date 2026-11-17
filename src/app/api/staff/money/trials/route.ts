@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { requireOwnerApi } from '@/lib/ownerAccess';
 import { TrialError, grantTrial, listTrials } from '@/lib/ownerTrials';
 
-// Owner only. GET the pipeline; POST { kind: 'supporter'|'boost', userId|clanId, tier, days, note? }.
+// Owner only. GET the pipeline; POST { kind: 'supporter'|'boost'|'plan', userId|clanId, tier, days, note? }.
+// 'plan' lends a clan or creator space a plan tier (lib/planTrials): no card, no Gumroad, clans.plan untouched.
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   const gate = await requireOwnerApi();
   if ('response' in gate) return gate.response;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!b || (b.kind !== 'supporter' && b.kind !== 'boost')) return NextResponse.json({ error: 'Pick supporter or boost.' }, { status: 400 });
+  if (!b || (b.kind !== 'supporter' && b.kind !== 'boost' && b.kind !== 'plan')) return NextResponse.json({ error: 'Pick supporter, boost or plan.' }, { status: 400 });
   try {
     const row = await grantTrial({
       kind: b.kind,

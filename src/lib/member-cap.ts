@@ -3,6 +3,7 @@ import { getSettingText, setSetting, deleteSetting } from '@/lib/settings';
 import { clanRoster, clans } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { statusFrom, type CapStatus } from '@/lib/memberCapRules';
+import { capInForce } from '@/lib/planTrials';
 
 // Re-exported so callers keep importing everything cap-related from one place.
 export {
@@ -21,8 +22,11 @@ export {
 // It bounds the *billable active roster*: members that are active, present (not soft-left), and not
 // guests.
 async function memberCap(clanId: number): Promise<number | null> {
-  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId) });
-  const cap = row?.memberCap;
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { id: true, kind: true, plan: true, memberCap: true } });
+  // The cap IN FORCE: the stored one, or the running Anvil trial's tier when that is higher
+  // (lib/planTrials). When the trial ends the stored cap is back at once, and a roster over it gets
+  // the same grace clock as one over a lapsed plan's cap: nobody is removed.
+  const cap = row ? await capInForce(row) : null;
   return typeof cap === 'number' && cap > 0 ? cap : null;
 }
 

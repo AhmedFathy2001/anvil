@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
 import { requireTeamManager } from '@/lib/teamStaff';
 import { currentClan } from '@/lib/clanContext';
-import { isClanMediaUrl } from '@/lib/storage';
+import { del, isClanMediaUrl } from '@/lib/storage';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
 
 /**
@@ -65,4 +65,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
   }
 
   return NextResponse.json({ payout: updated, announced });
+}
+
+/**
+ * Take back a "paid" mark on our own team's winnings (ticked the wrong row). Same guard and same
+ * policy as marking it paid. Once the winners have been announced it is final, so this refuses.
+ */
+export async function DELETE(_request: Request, { params }: { params: Promise<{ teamId: string; payoutId: string }> }) {
+  const { teamId, payoutId } = await params;
+  const tId = parseInt(teamId, 10);
+  const id = parseInt(payoutId, 10);
+  if (!Number.isFinite(tId) || !Number.isFinite(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+
+  const guard = await requireTeamManager(tId);
+  if ('response' in guard) return guard.response;
+  const { management } = guard;
+
+  const payout = await db.query.payouts.findFirst({ where: and(eq(payouts.id, id), eq(payouts.eventId, management.eventId)) });
+  if (!payout) return NextResponse.json({ error: 'Payout not found' }, { status: 404 });
+  if (payout.teamId !== tId) return NextResponse.json({ error: 'That payout is not your team’s' }, { status: 403 });
+
+  // clan-scope: global -- the event this managed team belongs to, by id; the cash policy lives on it.
+  const event = await db.query.events.findFirst({ where: eq(events.id, management.eventId) });
+  if (event?.cashPolicy !== 'each-settles') {
+    return NextResponse.json({ error: 'The host holds the pot for this event — they pay the winners.' }, { status: 403 });
+  }
+  if (event.payoutsAnnouncedAt) {
+    return NextResponse.json({ error: 'The winners were already announced, so this can’t be undone here. Ask the host.' }, { status: 409 });
+  }
+
+  if (payout.proofBlobUrl) del(payout.proofBlobUrl).catch(() => {});
+  const [updated] = await db
+    .update(payouts)
+    .set({ status: 'pending', paidByUserId: null, paidAt: null, proofBlobUrl: null })
+    .where(and(eq(payouts.id, id), eq(payouts.status, 'paid')))
+    .returning();
+  if (!updated) return NextResponse.json({ error: 'That payout is not marked paid.' }, { status: 409 });
+  return NextResponse.json({ payout: updated });
 }

@@ -386,7 +386,10 @@ export async function emitTeamProgress(args: {
   }
 }
 
-/** Old dedup keys and stale presence rows. Run from the daily sweep. */
+/**
+ * Old dedup keys and stale presence rows. Run from the daily sweep. The two days are also how long a
+ * plugin fact id is remembered (lib/pluginFacts/factIdStore): the plugin is promised at least 48 hours.
+ */
 export async function sweepChatFeed(): Promise<void> {
   await db.delete(feedItems).where(lt(feedItems.createdAt, new Date(Date.now() - 2 * 86_400_000)));
   await db.delete(guestPresence).where(lt(guestPresence.seenAt, new Date(Date.now() - GUEST_PRESENCE_TTL_MS)));

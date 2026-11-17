@@ -1,3 +1,4 @@
+import { placementOf } from '@/lib/teamPlacement';
 import { redirect } from 'next/navigation';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
@@ -6,9 +7,12 @@ import { isEventEditor, isEventTreasurer } from '@/lib/eventEditors';
 import EventTabNav from './EventTabNav';
 import EventTitle from './EventTitle';
 import EventLockBanner from './EventLockBanner';
-import EventLifecycleBar from './EventLifecycleBar';
+import EventGuide from './EventGuide';
 import { isEventOver, eventEditLocked } from '@/lib/eventLock';
-import { lifecycleSteps, eventStage } from '@/lib/eventStage';
+import { eventStage } from '@/lib/eventStage';
+import { runEventFlow } from '@/lib/guidedFlows/runEvent';
+import { flaggedProofCount } from '@/lib/flaggedProofs';
+import { eventAxes } from '@/lib/eventAxes';
 import { getStageCounts } from '@/lib/eventStageCounts';
 import { eventRailGroups } from '@/lib/eventRail';
 import { authoringModel } from '@/lib/tileAuthoring';
@@ -71,7 +75,36 @@ export default async function EventLayout({
   const stageCounts = await getStageCounts(id);
   // What this board calls its entries, so the lifecycle step and the tab agree with the page.
   const { NounPlural, noun, nounPlural } = authoringModel(event);
-  const steps = lifecycleSteps({ ...event, taskNounPlural: NounPlural }, stageCounts);
+  // The guide strip: the event's whole job as steps, with the next one open. Built from the same
+  // counts and the same next-step function as the rest of this workspace (lib/guidedFlows/runEvent).
+  // A friends event is a smaller job (one invite link, no sign-ups or prizes) and keeps its own card.
+  const showGuide = !isEditor && !isBoardTreasurer && !friendsToken;
+  const guideFacts = showGuide
+    ? {
+        eventId: id,
+        stage: eventStage(event),
+        noun: { one: noun, many: nounPlural },
+        startDate: event.startDate ?? null,
+        endDate: event.endDate ?? null,
+        tileCount: stageCounts.tileCount,
+        expectedTiles: stageCounts.expectedTiles,
+        teamCount: stageCounts.teamCount,
+        assignedPlayers: stageCounts.assignedPlayers,
+        signupCount: stageCounts.signupCount,
+        pendingSignups: stageCounts.pendingSignups,
+        flaggedProofs: await flaggedProofCount(id),
+        payoutCount: stageCounts.payoutCount,
+        unpaidPayouts: stageCounts.unpaidPayouts,
+        blockers: stageCounts.blockers,
+        individual: eventAxes(event).competitors === 'individuals',
+        placement: placementOf(event),
+        race: isTileRaceFormat(event.format),
+        usesSignups: event.signupsEnabled !== false,
+      }
+    : null;
+  const guide = guideFacts ? runEventFlow(guideFacts) : null;
+  // The strip as the Teams page draws it (a layout cannot know which tab is open; the client picks).
+  const teamsGuide = guideFacts ? runEventFlow(guideFacts, { page: 'teams' }) : null;
   const tileCount = { c: stageCounts.tileCount };
   const teamCount = { c: stageCounts.teamCount };
 
@@ -120,7 +153,7 @@ export default async function EventLayout({
       <div className="flex-1 min-w-0">
       <ClanLink
         href="/admin/events"
-        className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
+        className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4 max-sm:min-h-11 max-sm:mb-1"
       >
         &larr; All events
       </ClanLink>
@@ -184,22 +217,10 @@ export default async function EventLayout({
         </div>
       </header>
 
-      {/* The event's own rail (rendered by the admin shell) carries navigation now; this strip
-          answers the other question — where the event is in its life, and what moves it forward. */}
-      {!isEditor && !isBoardTreasurer && (
-        <EventLifecycleBar
-          steps={steps}
-          homeOnly
-          hrefFor={{
-            built: `/admin/events/${id}/settings`,
-            tiles: `/admin/events/${id}/tiles`,
-            teams: `/admin/events/${id}/teams`,
-            running: `/admin/events/${id}`,
-            results: `/admin/events/${id}/stats`,
-            payouts: `/admin/events/${id}/payouts`,
-          }}
-        />
-      )}
+      {/* The event's own rail carries navigation; this strip answers the other question: where the
+          event is in its life, and the one thing that moves it forward. On every tab, so the next
+          step is the same wherever the admin is working. */}
+      {guide && <EventGuide view={guide} teamsView={teamsGuide ?? guide} eventId={id} />}
       {isEditor && <EventTabNav eventId={id} tilesOnly taskNounPlural={NounPlural} />}
       {isBoardTreasurer && <EventTabNav eventId={id} moneyOnly taskNounPlural={NounPlural} />}
 

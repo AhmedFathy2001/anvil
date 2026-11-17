@@ -135,7 +135,8 @@ test('a tile opens in place: one Back, what counts, where it goes, who, proofs',
   const page = racePageUi(raceBoard([2]), opts(ctx([[5, 1, 3]]))) as Slot;
   const detail = page.panes!['t:5'];
   const s = texts(detail);
-  assert.equal(s.filter((x) => /back|all events/i.test(x)).length, 1);
+  // One way back, offered twice: at the head and again at the foot, under the proofs.
+  assert.deepEqual(s.filter((x) => /back|all events/i.test(x)), ['Back to the race', 'Back to the race']);
   assert.equal(s[0], 'Back to the race');
   assert.ok(s.includes('Step 2 · Road B'));
   assert.ok(s.includes('Up next'));

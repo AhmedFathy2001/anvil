@@ -130,7 +130,7 @@ export async function loadCalendar(
     });
   }
 
-  const WEEK_KIND: Record<string, HubKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
+  const WEEK_KIND: Record<string, HubKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff', hunt: 'hunt' };
   for (const w of weekRows) {
     items.push({
       key: `w${w.id}`,
@@ -149,6 +149,8 @@ export async function loadCalendar(
 }
 
 function weeklyMetricLabel(type: string, metric: string): string {
+  // An item hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
+  if (type === 'hunt') return metric;
   if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
   return bossMetricLabel(metric) || metric;

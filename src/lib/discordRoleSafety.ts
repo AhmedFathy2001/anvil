@@ -40,3 +40,339 @@ export function isSafeAutomatedRole(role: AssignableDiscordRole, guildId: string
     return false;
   }
 }
+
+// ── Name matches ──────────────────────────────────────────────────────────────────────────────
+//
+// A Discord nickname that reads the same as a roster name is a GUESS at who someone is. It is what
+// lets a clan hand out roles before anybody has signed in, and it is also something any server
+// member can type. These two rules decide when the guess is too weak to act on.
+
+/**
+ * The per-clan switch for name matching. OFF unless the clan turned it on: with it off, role sync
+ * gives roles only to people who signed in to Anvil with Discord (matched by Discord id), because a
+ * nickname is something anyone in the server can set to an unlinked member's in-game name.
+ */
+export const ROLE_MATCH_BY_NICKNAME_KEY = 'discord_role_match_by_nickname';
+
+/** Only an explicit 'true' / '1' turns it on; unset, blank or anything else is off. */
+export function nicknameMatchingOn(raw: string | null | undefined): boolean {
+  return raw === 'true' || raw === '1';
+}
+
+/**
+ * What put the Discord id that is STORED on a character there (accounts.discord_id_source).
+ *
+ *   login / signup / plugin  copied from a source the database can prove (a sign-in with Discord)
+ *   admin                    a clan admin linked the member by hand
+ *   name                     a nickname match
+ *   null                     unknown: stored before the source was recorded. It may be an old hand
+ *                            link or an old nickname match, and nothing can tell which.
+ */
+export type DiscordIdSource = 'admin' | 'name' | 'login' | 'signup' | 'plugin';
+
+const DISCORD_ID_SOURCES: readonly string[] = ['admin', 'name', 'login', 'signup', 'plugin'];
+
+export function isDiscordIdSource(value: unknown): value is DiscordIdSource {
+  return typeof value === 'string' && DISCORD_ID_SOURCES.includes(value);
+}
+
+/**
+ * The stored source as ONE clan may read it. A character is the same row for every clan that seats
+ * it, so a hand link counts as 'admin' only in the clan whose admin made it; read from any other
+ * clan it is unknown. Otherwise an admin of one clan could decide who earns roles in another's.
+ */
+export function storedSourceForClan(
+  source: string | null | undefined,
+  linkedClanId: number | null | undefined,
+  clanId: number,
+): DiscordIdSource | null {
+  if (!isDiscordIdSource(source)) return null;
+  if (source === 'admin' && linkedClanId !== clanId) return null;
+  return source;
+}
+
+/**
+ * Where a seat's Discord id can come from. The first three are PROVEN: somebody signed in to Anvil
+ * with that Discord account and the database ties their login to this seat. The last is the id
+ * stored on the character, with what is recorded about how it got there.
+ */
+export interface SeatDiscordSources {
+  /** The character's owner signed in with Discord (their users.discordId). */
+  ownerDiscordId: string | null;
+  /** A signed-in user signed up for an event as this seat. */
+  signupDiscordId: string | null;
+  /** A signed-in user's plugin reported playing this character. */
+  pluginDiscordId: string | null;
+  /** accounts.discordId: the id stored on the character. */
+  cachedDiscordId: string | null;
+  /** How the stored id got there, as this clan may read it (storedSourceForClan). Absent = unknown. */
+  cachedSource?: DiscordIdSource | null;
+}
+
+/** The ids a sign-in proves for a seat, strongest first, no repeats. Never the stored id on its own. */
+function provenDiscordIds(src: SeatDiscordSources): string[] {
+  const out: string[] = [];
+  for (const id of [src.ownerDiscordId, src.signupDiscordId, src.pluginDiscordId]) {
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Does the stored id stand as an admin's hand link? Only when this clan's admin made it, and the
+ * character's owner has not since signed in with a DIFFERENT Discord account: a person's own
+ * sign-in always beats what a clan said about them.
+ */
+export function adminLinkStands(src: SeatDiscordSources): boolean {
+  if (!src.cachedDiscordId || src.cachedSource !== 'admin') return false;
+  return !src.ownerDiscordId || src.ownerDiscordId === src.cachedDiscordId;
+}
+
+/**
+ * The Discord ids role sync may try for a seat, strongest first, no repeats.
+ *
+ * Nickname matching OFF: proven ids, then a hand link this clan's admin made. A stored id of any
+ * other source ('name', or unknown) is ignored (not deleted), including one that disagrees with the
+ * owner's own sign-in, so a past nickname match cannot keep earning roles after the clan said names
+ * are not enough.
+ * Nickname matching ON: as before, the stored id is tried last whatever its source.
+ */
+export function trustedDiscordIds(src: SeatDiscordSources, matchByNickname: boolean): string[] {
+  const out = provenDiscordIds(src);
+  if ((matchByNickname || adminLinkStands(src)) && src.cachedDiscordId && !out.includes(src.cachedDiscordId)) {
+    out.push(src.cachedDiscordId);
+  }
+  return out;
+}
+
+/** Is this Discord id one a sign-in proves for the seat? A stored-only id is not, hand link or not. */
+export function isProvenDiscordId(discordId: string | null | undefined, src: SeatDiscordSources): boolean {
+  return !!discordId && provenDiscordIds(src).includes(discordId);
+}
+
+/**
+ * May this Discord account ACT AS this seat? One rule for role sync and for slash commands
+ * (lib/discordContext resolveInvoker): the id is one role sync would try for the seat. With nickname
+ * matching off that is an id a sign-in proves (sign-in, sign-up, plugin report) or a hand link this
+ * clan's admin made; a stored id of any other source ('name', unknown, another clan's hand link) is
+ * not that person. With matching on the stored id counts whatever its source, as before.
+ */
+export function seatTrustsDiscordId(
+  discordId: string | null | undefined,
+  src: SeatDiscordSources,
+  matchByNickname: boolean,
+): boolean {
+  return !!discordId && trustedDiscordIds(src, matchByNickname).includes(discordId);
+}
+
+/** Which proven source gives this id for the seat (the strongest), or null when none does. */
+export function provenSourceOf(discordId: string | null | undefined, src: SeatDiscordSources): 'login' | 'signup' | 'plugin' | null {
+  if (!discordId) return null;
+  if (src.ownerDiscordId === discordId) return 'login';
+  if (src.signupDiscordId === discordId) return 'signup';
+  if (src.pluginDiscordId === discordId) return 'plugin';
+  return null;
+}
+
+/**
+ * How many seats role sync cannot reach with nickname matching off: nobody signed in with Discord
+ * for them and no admin of this clan linked them by hand. They get no roles then, even when an id
+ * of unknown source is stored on the character; with matching on they are the ones reached by that
+ * stored id or a nickname only.
+ */
+export function countSeatsNotLinked(seats: Iterable<SeatDiscordSources>): number {
+  let n = 0;
+  for (const s of seats) if (trustedDiscordIds(s, false).length === 0) n++;
+  return n;
+}
+
+/**
+ * How many seats carry a stored Discord id that earns nothing with nickname matching off: its
+ * source is unknown (stored before sources were recorded) or a nickname match, and no sign-in
+ * backs it. An admin confirms one by linking the member again; the member confirms it by signing in.
+ */
+export function countUnconfirmedStoredLinks(seats: Iterable<SeatDiscordSources>): number {
+  let n = 0;
+  for (const s of seats) if (s.cachedDiscordId && !trustedDiscordIds(s, false).includes(s.cachedDiscordId)) n++;
+  return n;
+}
+
+/**
+ * May an admin point this seat at this Discord account by hand? Null = yes, else why not.
+ *
+ * A hand link gives the Discord account the seat's rank roles, so it must not be a way to hand one
+ * person another's standing: an account a sign-in already ties to a DIFFERENT member of this clan
+ * is refused. That person claims the character themselves, the way anyone adds a second one.
+ */
+export function handLinkRefusal(f: {
+  /** The seat's character already belongs to a player. */
+  seatClaimed: boolean;
+  /** A sign-in proves the Discord account belongs to somebody who holds another live seat in this clan. */
+  provenForOtherSeat: boolean;
+}): string | null {
+  if (f.seatClaimed) return 'This character belongs to a player, so their Discord comes from their own login. Report it to Anvil if it is wrong.';
+  if (f.provenForOtherSeat) {
+    return 'That Discord account already belongs to a different member of this clan, who signed in with it. They can add this character themselves from their profile.';
+  }
+  return null;
+}
+
+/** The five columns every write of a character's stored Discord id sets together. */
+export interface StoredDiscordLink {
+  discordId: string | null;
+  discordIdSource: DiscordIdSource | null;
+  discordIdLinkedByUserId: number | null;
+  discordIdLinkedAt: string | null;
+  discordIdLinkedClanId: number | null;
+}
+
+/**
+ * What to write when a character's stored Discord id changes, so the id never changes without its
+ * source. No id = everything cleared. `by` (who, which clan, when) is kept only for a hand link;
+ * 'admin' without it is not a hand link anybody can stand behind, and is stored as unknown.
+ */
+export function storedDiscordLink(
+  discordId: string | null | undefined,
+  source: DiscordIdSource | null,
+  by?: { userId: number; clanId: number; at: string } | null,
+): StoredDiscordLink {
+  const id = discordId?.trim() || null;
+  const admin = !!id && source === 'admin' && !!by;
+  return {
+    discordId: id,
+    discordIdSource: !id ? null : source === 'admin' && !by ? null : source,
+    discordIdLinkedByUserId: admin ? by!.userId : null,
+    discordIdLinkedAt: admin ? by!.at : null,
+    discordIdLinkedClanId: admin ? by!.clanId : null,
+  };
+}
+
+/** Only an admin or the owner links by hand. A moderator does not. */
+export function mayHandLink(role: string | null | undefined): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+/**
+ * A Discord id sent with a roster add or edit, by who sent it. Only an admin or the owner may set,
+ * change or clear a character's stored Discord id: a moderator's value is dropped (`ignored`), so
+ * they can neither overwrite nor clear a link an admin made, and the rest of their request stands.
+ *   write    false = leave the stored id and its source exactly as they are
+ *   ignored  the request carried the field and it was not applied
+ */
+export function rosterDiscordIdWrite(
+  role: string | null | undefined,
+  sent: unknown,
+): { write: boolean; ignored: boolean } {
+  if (sent === undefined) return { write: false, ignored: false };
+  return mayHandLink(role) ? { write: true, ignored: false } : { write: false, ignored: true };
+}
+
+/** What a moderator is told when the Discord id they sent was not applied. */
+export const DISCORD_ID_ADMIN_ONLY = 'Only an admin or the owner can set or change a member’s Discord ID. It was left as it was.';
+
+// ── Taking roles back when a hand link is removed ─────────────────────────────────────────────────
+
+export interface UnlinkGuildRole {
+  id: string;
+  name: string;
+  position: number;
+  managed?: boolean;
+  permissions?: string;
+}
+
+export interface UnlinkRoleDecision {
+  /** Roles to take off the account. */
+  remove: { id: string; name: string }[];
+  /** Roles Anvil manages that the account holds but that are left alone, and why. Not errors. */
+  skipped: { id: string; name: string; reason: 'server-owner' | 'above-bot' }[];
+}
+
+/**
+ * Which roles to take off ONE Discord account when the hand link that earned them is removed.
+ *
+ * Only a role that is all of: held by the account, in the clan's managed set (the roles sync itself
+ * hands out, lib/discord-roles anvilManagedRoleIds), still in the server, and one Anvil may hand out
+ * at all (isSafeAutomatedRole: never @everyone, an integration's role, or one with moderation
+ * powers, none of which Anvil ever gave). Anything outside the managed set is never returned.
+ *
+ * The server owner, and a role at or above the bot's highest, cannot be changed by the bot: those
+ * are reported as skipped instead of being tried and failing.
+ */
+export function rolesToRemoveOnUnlink(input: {
+  guildId: string;
+  managedRoleIds: Iterable<string>;
+  heldRoleIds: readonly string[];
+  guildRoles: readonly UnlinkGuildRole[];
+  /** The bot's highest role position; it can only change roles strictly below this. */
+  botTopPosition: number;
+  /** The account is the server's owner. */
+  isGuildOwner: boolean;
+}): UnlinkRoleDecision {
+  const managed = new Set(input.managedRoleIds);
+  const byId = new Map(input.guildRoles.map((r) => [r.id, r]));
+  const out: UnlinkRoleDecision = { remove: [], skipped: [] };
+  for (const id of new Set(input.heldRoleIds)) {
+    if (!managed.has(id)) continue;
+    const role = byId.get(id);
+    if (!role || !isSafeAutomatedRole(role, input.guildId)) continue;
+    if (input.isGuildOwner) out.skipped.push({ id, name: role.name, reason: 'server-owner' });
+    else if (role.position >= input.botTopPosition) out.skipped.push({ id, name: role.name, reason: 'above-bot' });
+    else out.remove.push({ id, name: role.name });
+  }
+  return out;
+}
+
+/**
+ * One Discord account per name, or none.
+ *
+ * `entries` are (normalised name, Discord id) pairs in the order the guild listed them. The first
+ * account to carry a name used to win, so a second account renamed to match a member took that
+ * member's roles whenever it sorted first. Two different accounts under one name is exactly the case
+ * a name cannot settle, so the name then matches nobody and the real owner has to link instead.
+ */
+export function uniqueAliasIndex(entries: Iterable<readonly [string, string]>): Map<string, string> {
+  const index = new Map<string, string>();
+  const contested = new Set<string>();
+  for (const [name, id] of entries) {
+    if (!name || !id || contested.has(name)) continue;
+    const held = index.get(name);
+    if (held === undefined) index.set(name, id);
+    else if (held !== id) {
+      index.delete(name);
+      contested.add(name);
+    }
+  }
+  return index;
+}
+
+/**
+ * May a name match stand in for a link on this seat? False whenever something PROVEN says the
+ * matched Discord account is somebody else.
+ */
+export function nameMatchAllowed(m: {
+  /** The clan turned "match by Discord nickname" on (nicknameMatchingOn). Off = no name match at all. */
+  matchByNickname: boolean;
+  /** The Discord account whose name matched. */
+  matchedDiscordId: string;
+  /** The person who owns the seat's character, or null while nobody has claimed it. */
+  seatPlayerId: number | null;
+  /** The Discord account the seat's owner signed in with, when they have. */
+  seatOwnerDiscordId: string | null;
+  /** The person who signed in with the matched Discord account, or null when nobody has. */
+  matchedPlayerId: number | null;
+  /** That person already holds a different live seat in this clan. */
+  matchedHoldsOtherSeat: boolean;
+}): boolean {
+  // The clan has not opted in: roles go only to people who signed in to Anvil with Discord.
+  if (!m.matchByNickname) return false;
+  // The owner has a Discord account on record and this is not it.
+  if (m.seatOwnerDiscordId && m.seatOwnerDiscordId !== m.matchedDiscordId) return false;
+  if (m.matchedPlayerId != null) {
+    // The seat is claimed: only its own owner may be matched to it.
+    if (m.seatPlayerId != null) return m.matchedPlayerId === m.seatPlayerId;
+    // Unclaimed, and the match is someone this clan already knows as a different character. A name
+    // is not enough to add a second character's rank to them: they claim it like any other.
+    if (m.matchedHoldsOtherSeat) return false;
+  }
+  return true;
+}

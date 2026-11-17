@@ -1,4 +1,5 @@
 import { mayChangeStaffHide, maskRaceTilesForSession, staffHideBlocksSession } from '@/lib/raceHideAheadDb';
+import { clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -90,7 +91,7 @@ export default async function EventTilesPage({
       />
     )}
     <TilesClient
-      event={event}
+      event={clientEvent(event)}
       // Board cells, each combo carrying its parts (lib/combo) — the editor edits them together.
       tiles={withSearchText(nestParts(eventTiles))}
       tierBands={tierBands}

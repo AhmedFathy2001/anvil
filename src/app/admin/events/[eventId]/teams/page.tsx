@@ -1,7 +1,9 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { clientEvent, staffPlayer } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
-import { events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
+import { accounts, events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
+import { pathOf, type JoinPath } from '@/lib/characterState';
 import { nestParts } from '@/lib/combo';
 import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -31,6 +33,22 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
   ]);
   // Join in each player's frozen sign-up answers for the draft-setup pool.
   const eventPlayers = attachProfiles(rawPlayers, profiles);
+
+  // How each player's character came in (PathChip), keyed by the player row. Only claimed characters.
+  const accountIds = [...new Set(rawPlayers.map((p) => p.accountId).filter((v): v is number => v != null))];
+  const proofRows = accountIds.length
+    ? await db
+        .select({ id: accounts.id, claimedAt: accounts.claimedAt, verifiedAt: accounts.verifiedAt, provisional: accounts.provisional, verificationMethod: accounts.verificationMethod })
+        .from(accounts)
+        .where(inArray(accounts.id, accountIds))
+    : [];
+  const proofByAccount = new Map(proofRows.map((a) => [a.id, a]));
+  const paths: Record<number, JoinPath> = {};
+  for (const p of rawPlayers) {
+    const proof = p.accountId != null ? proofByAccount.get(p.accountId) : undefined;
+    const path = proof?.claimedAt ? pathOf(proof) : null;
+    if (path) paths[p.id] = path;
+  }
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
   const eventCompletions = tileIds.size
@@ -63,10 +81,11 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
   return (
     <>
       <TeamsDraftClient
-        event={event}
+        event={clientEvent(event)}
         tiles={nestParts(eventTiles)}
         teams={safeTeams}
-        players={eventPlayers}
+        players={eventPlayers.map(staffPlayer)}
+        paths={paths}
         completions={eventCompletions}
         startingStats={await startingStatsFor(event, rawPlayers)}
         editLocked={eventEditLocked(event)}

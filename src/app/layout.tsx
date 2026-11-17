@@ -48,6 +48,7 @@ import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 import { NavProgressProvider } from '@/components/NavProgress';
 import { DialogProvider } from '@/components/Confirm';
+import AccountDeletedNotice from '@/components/AccountDeletedNotice';
 import { UnsavedChangesProvider } from '@/components/UnsavedChanges';
 import { adminLanding } from '@/lib/adminAccess';
 
@@ -366,7 +367,11 @@ export default async function RootLayout({
               {/* Padding lives HERE, not on each page. Moving it onto the pages left every apex
                   surface I did not personally touch — guides, records, profile, /u, /p — jammed
                   against the rail with no margin at all. The landing bleeds out of it on purpose. */}
-              <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+              <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+                {/* Shown once, on the page someone lands on after deleting their account. */}
+                <AccountDeletedNotice />
+                {children}
+              </main>
               <SiteFooter />
             </div>
           </div>

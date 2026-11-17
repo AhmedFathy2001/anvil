@@ -12,45 +12,13 @@ import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { analyticsEvents, users } from '@/db/schema';
-import { boundProps, scrubPattern } from '@/lib/analyticsPattern';
+import type { ActionName } from '@/lib/analyticsActions';
+import { boundProps, panelViewOf, scrubPattern } from '@/lib/analyticsPattern';
 import { sessionUserIdForAnalytics } from '@/lib/auth';
 import { currentClan } from '@/lib/clanContext';
 import { log } from '@/lib/logger';
 
-/**
- * The actions worth counting. A closed list rather than free strings, so a typo is a type error
- * instead of a second, quietly empty row on the dashboard.
- */
-export type ActionName =
-  | 'clan.created'
-  | 'creator.created'
-  | 'event.created'
-  | 'event.cloned'
-  | 'event.started'
-  | 'tile.created'
-  | 'tiles.imported'
-  | 'draft.started'
-  | 'draft.pick'
-  | 'signup.submitted'
-  | 'submission.created'
-  | 'submission.removed'
-  | 'weekly.created'
-  | 'guide.created'
-  | 'guide.copied'
-  | 'auth.login'
-  | 'plugin.linked'
-  | 'profile.synced'
-  // A Join button pressed on a Discord card (props.src: which surface — api/discord/join).
-  | 'discord.join'
-  // Funnel steps recorded where the action happens (server routes/webhooks), for the owner funnels.
-  | 'discord.connected'
-  | 'roster.synced'
-  | 'supporter.viewed'
-  | 'supporter.checkout'
-  | 'supporter.purchased'
-  | 'clan.purchased'
-  | 'invite.opened'
-  | 'invite.joined';
+export type { ActionName };
 
 interface Who {
   clanId?: number | null;
@@ -210,8 +178,11 @@ export function trackPluginDay(clanId: number | null, accountId: number | null):
 export function trackPluginRoute(clanId: number | null, accountId: number | null, userId: number | null, url: string): void {
   try {
     if (!accountId) return;
-    const pattern = scrubPattern(new URL(url).pathname);
-    if (!pattern || !pattern.startsWith('/api/plugin/')) return;
+    const base = scrubPattern(new URL(url).pathname);
+    if (!base || !base.startsWith('/api/plugin/')) return;
+    // The panel is one path with many views; the view is what says which feature was used.
+    const view = panelViewOf(url);
+    const pattern = view ? `${base}?v=${view}` : base;
     const day = new Date().toISOString().slice(0, 10);
     if (day !== seenDay || seenToday.size > MAX_SEEN) {
       seenToday.clear();

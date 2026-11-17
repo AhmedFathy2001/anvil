@@ -11,7 +11,7 @@
 import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanStaff, platformNoticeReads, platformNotices, users } from '@/db/schema';
+import { clanStaff, platformNoticeReads, platformNotices, userNotices, users } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 import { sharedBotToken } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
@@ -53,8 +53,37 @@ export interface NoticeView {
   level: NoticeLevel;
   createdAt: string;
   read: boolean;
-  /** A What's new date (lib/whatsNew), not a notice: its id is -YYYYMMDD and it links to /whats-new. */
-  kind?: 'whatsNew';
+  /**
+   * `whatsNew`: a What's new date (lib/whatsNew), not a notice: its id is -YYYYMMDD and it links to /whats-new.
+   * `personal`: one of this login's own notices (user_notices: a claim on their character, what a
+   * clan's staff decided about them). Its id is below PERSONAL_BASE and it links to where those live.
+   */
+  kind?: 'whatsNew' | 'personal';
+}
+
+/** Personal notices ride the same list under ids no notice or What's new date can have. */
+const PERSONAL_BASE = -1_000_000_000;
+const isPersonalId = (id: number) => id < PERSONAL_BASE;
+
+/** This login's unread personal notices, as bell rows. Read state stays on user_notices. */
+async function personalNoticesFor(userId: number): Promise<NoticeView[]> {
+  const rows = await db
+    .select()
+    .from(userNotices)
+    .where(and(eq(userNotices.userId, userId), isNull(userNotices.readAt)))
+    .orderBy(desc(userNotices.id))
+    .limit(10);
+  return rows.map((r) => ({
+    id: PERSONAL_BASE - r.id,
+    title: r.title,
+    body: r.body,
+    linkUrl: '/settings/characters#claims',
+    linkLabel: 'Open',
+    level: 'info' as const,
+    createdAt: r.createdAt,
+    read: false,
+    kind: 'personal' as const,
+  }));
 }
 
 async function readerFacts(userId: number): Promise<ReaderFacts> {
@@ -109,7 +138,12 @@ function view(n: NoticeRow, read: boolean): NoticeView {
 
 /** The inbox: unread important ones first, then newest. */
 export async function inboxFor(userId: number): Promise<{ notices: NoticeView[]; unread: number }> {
-  const [rows, fresh] = await Promise.all([forReader(userId), whatsNewNoticesFor(userId).catch(() => [])]);
+  const [rows, whatsNew, personal] = await Promise.all([
+    forReader(userId),
+    whatsNewNoticesFor(userId).catch(() => []),
+    personalNoticesFor(userId).catch(() => []),
+  ]);
+  const fresh = [...personal, ...whatsNew];
   const notices = [...fresh, ...rows.map(({ n, r }) => view(n, !!r?.readAt))];
   if (fresh.length) notices.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   notices.sort((a, b) => Number(!b.read && b.level === 'important') - Number(!a.read && a.level === 'important'));
@@ -181,7 +215,14 @@ export async function markWhatsNewSeen(userId: number, entries: WhatsNewEntry[] 
 
 /** Mark read: the given ids that are really this person's, or all of them. A negative id is What's new. */
 export async function markRead(userId: number, ids: number[] | 'all'): Promise<void> {
-  if (ids === 'all' || ids.some((id) => id < 0)) await markWhatsNewSeen(userId);
+  if (ids === 'all' || ids.some((id) => id < 0 && !isPersonalId(id))) await markWhatsNewSeen(userId);
+  const personal = ids === 'all' ? null : ids.filter(isPersonalId).map((id) => PERSONAL_BASE - id);
+  if (personal == null || personal.length > 0) {
+    await db
+      .update(userNotices)
+      .set({ readAt: new Date().toISOString() })
+      .where(and(eq(userNotices.userId, userId), isNull(userNotices.readAt), ...(personal ? [inArray(userNotices.id, personal)] : [])));
+  }
   const mine = (await forReader(userId)).filter(({ r }) => !r?.readAt).map(({ n }) => n.id);
   await stamp(userId, ids === 'all' ? mine : mine.filter((id) => ids.includes(id)), 'readAt');
 }
@@ -226,7 +267,8 @@ export function siteHosts(): string[] {
   return [...new Set(['anvilosrs.com', apexDomain().replace(/^beta\./, '')].filter(Boolean))];
 }
 
-export async function createNotice(input: NoticeInput, actorUserId: number): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+/** `actorUserId` null: a notice the site itself sends (lib/trialReminders). */
+export async function createNotice(input: NoticeInput, actorUserId: number | null): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   const title = clip(str(input.title), TITLE_MAX);
   if (!title) return { ok: false, error: 'Give it a title.' };
   const body = str(input.body).trim().slice(0, BODY_MAX);

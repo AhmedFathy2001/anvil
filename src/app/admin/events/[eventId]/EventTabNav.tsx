@@ -1,5 +1,6 @@
 'use client';
 
+import ScrollStrip from '@/components/ScrollStrip';
 import { usePathname } from 'next/navigation';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
@@ -43,7 +44,7 @@ export default function EventTabNav({ eventId, tilesOnly = false, moneyOnly = fa
 
   return (
     <div className="relative -mx-1 mb-8">
-      <nav className="flex items-center gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden px-1">
+      <ScrollStrip className="flex items-center gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden px-1">
       {tabs.map((tab) => {
         const href = tab.slug ? `${base}/${tab.slug}` : base;
         // Overview is active only on the exact base path; other tabs match their
@@ -55,6 +56,7 @@ export default function EventTabNav({ eventId, tilesOnly = false, moneyOnly = fa
           <ClanLink
             key={tab.slug || 'overview'}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={`relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
               active
                 ? 'text-gold'
@@ -68,9 +70,8 @@ export default function EventTabNav({ eventId, tilesOnly = false, moneyOnly = fa
           </ClanLink>
         );
       })}
-      </nav>
-      {/* Fade the right edge on small screens to signal the tab strip scrolls horizontally. */}
-      <div className="pointer-events-none absolute right-0 top-0 bottom-px w-10 bg-gradient-to-l from-background to-transparent sm:hidden" />
+      </ScrollStrip>
+      
     </div>
   );
 }

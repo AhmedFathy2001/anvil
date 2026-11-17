@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
+import { finishCompetition } from '@/lib/weeklyFinish';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
@@ -7,10 +8,8 @@ import { eq, asc, and, or, isNull, lt } from 'drizzle-orm';
 import {
   enrollAllPlayers,
   probeRsnForAccount,
-  computeLeaderboard,
-  getEffectiveParticipants,
 } from '@/lib/weekly';
-import { announceCompetitionResults, announceCompetitionStart, announceHalfwayIfDue } from '@/lib/competitionTeamsPosts';
+import { announceCompetitionStart, announceHalfwayIfDue } from '@/lib/competitionTeamsPosts';
 import { log } from '@/lib/logger';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { rollWeeklySeries } from '@/lib/weeklyRepeat';
@@ -21,24 +20,6 @@ const CRON_SECRET = process.env.CRON_SECRET;
 // loop needs. Bumped to the Pro cap; Hobby clips to 60 s automatically.
 export const maxDuration = 300;
 
-// Final, deduped standings for a competition (gains floored at 0), for the results announcement.
-async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: string; gained: number }[]> {
-  // THE SAME "who still counts" EVERY OTHER SURFACE USES. This built its own query and forgot the
-  // one thing that query is for: somebody who left the clan mid-competition was still in the
-  // results post. The site standings, the plugin leaderboard and /sotw had all dropped them, so the
-  // announcement named a member the clan no longer has — and contradicted every other reading of
-  // the same competition.
-  const participants = await getEffectiveParticipants(competitionId);
-  // Dedupe by normalized RSN (rename/re-enroll can leave two rows), keeping the most progress.
-  const byRsn = new Map<string, (typeof participants)[number]>();
-  for (const p of participants) {
-    const key = (p.rsn ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-    const existing = byRsn.get(key);
-    if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) byRsn.set(key, p);
-  }
-  return computeLeaderboard([...byRsn.values()]).map((e) => ({ rsn: e.rsn, gained: Math.max(0, e.gained) }));
-}
-
 // Weekly Discord posts are best-effort: a webhook failure must never break the cron sweep.
 // Team / clan-vs-clan competitions carry their group standings, and clan vs clan posts to every
 // racing clan (lib/competitionTeamsPosts).
@@ -47,15 +28,6 @@ async function announceWeeklyStart(comp: typeof weeklyCompetitions.$inferSelect)
     await announceCompetitionStart(comp);
   } catch (err) {
     log.warn('weekly-cron.notify-start-fail', {}, err);
-  }
-}
-
-async function announceWeeklyResults(comp: typeof weeklyCompetitions.$inferSelect) {
-  try {
-    const standings = await buildWeeklyStandings(comp.id);
-    await announceCompetitionResults(comp, standings);
-  } catch (err) {
-    log.warn('weekly-cron.notify-results-fail', {}, err);
   }
 }
 
@@ -88,27 +60,24 @@ export async function GET(request: Request) {
 
   for (const comp of allComps) {
     if (comp.status === 'upcoming' && comp.startDate <= now) {
-      const newStatus = comp.endDate <= now ? 'completed' : 'active';
-      await db.update(weeklyCompetitions)
-        .set({ status: newStatus })
-        .where(eq(weeklyCompetitions.id, comp.id));
-      comp.status = newStatus;
-      // The status flip happens exactly once, so these announcements fire exactly once.
-      if (newStatus === 'active') {
-        await announceWeeklyStart(comp);
-      } else {
-        await announceWeeklyResults(comp);
-        await settleWeeklyPrizes(comp.id);
+      if (comp.endDate <= now) {
+        // Finished before it was ever marked active: results and prizes through the one finish
+        // (lib/weeklyFinish), which claims it so nothing else can post it too.
+        await finishCompetition(comp.id);
+        comp.status = 'completed';
+        continue;
       }
-    } else if (comp.status === 'active' && comp.endDate <= now) {
       await db.update(weeklyCompetitions)
-        .set({ status: 'completed' })
+        .set({ status: 'active' })
         .where(eq(weeklyCompetitions.id, comp.id));
+      comp.status = 'active';
+      // The status flip happens exactly once, so the announcement fires exactly once.
+      await announceWeeklyStart(comp);
+    } else if (comp.status === 'active' && comp.endDate <= now) {
+      // Results, then prizes, exactly once: the same finish an item hunt's N-drop ending and the
+      // "End now and post results" button go through (lib/weeklyFinish).
+      await finishCompetition(comp.id);
       comp.status = 'completed';
-      await announceWeeklyResults(comp);
-      // After the results post, so the reserved prize is a consequence of a standing everybody has
-      // already been shown rather than a number that appears first and is explained later.
-      await settleWeeklyPrizes(comp.id);
     }
   }
 

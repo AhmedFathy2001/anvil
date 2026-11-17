@@ -125,7 +125,9 @@ export default function EventHero({
       router.refresh();
     }
   }, [pastGo, previewStart, realStart, router]);
-  const phase = state?.phase ?? 'none';
+  // Started with no end date is RUNNING (lib/eventStage: only force-end finishes it), not a draft.
+  const openEnded = state?.phase === 'none' && realStart !== null && now !== null && realStart <= now;
+  const phase: EventPhase = openEnded ? 'active' : (state?.phase ?? 'none');
   const status = STATUS[phase];
   const hasPrize = prizePool > 0;
   const prizes = placementPrizes.filter((p) => p > 0);
@@ -148,7 +150,7 @@ export default function EventHero({
   }
 
   return (
-    <div className="relative mb-6 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg">
+    <div className="relative mb-6 max-sm:mb-3 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg">
       {/* Forge heat — a soft gold glow rising from the base, behind the content. */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_115%,rgba(212,175,55,0.14),transparent_70%)]" />
 
@@ -165,10 +167,10 @@ export default function EventHero({
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card-bg/80 via-transparent to-transparent" />
         </div>
       ) : (
-        <div className="h-16 w-full bg-gradient-to-r from-gold/20 via-gold/5 to-transparent sm:h-20" />
+        <div className="h-11 w-full bg-gradient-to-r from-gold/20 via-gold/5 to-transparent sm:h-20" />
       )}
 
-      <div className="relative px-6 pb-6 sm:px-8 sm:pb-8">
+      <div className="relative px-4 pb-4 sm:px-8 sm:pb-8">
         <div className="-mt-8 mb-3 sm:-mt-10">
           <ClanCrest
             name={hostName || name}
@@ -201,7 +203,7 @@ export default function EventHero({
         </div>
 
         {/* The two focal points — reward and urgency. */}
-        <div className={`mt-6 grid gap-6 ${hasPrize ? 'sm:grid-cols-2 sm:divide-x sm:divide-card-border' : ''}`}>
+        <div className={`mt-3 grid gap-4 sm:mt-6 sm:gap-6 ${hasPrize ? 'sm:grid-cols-2 sm:divide-x sm:divide-card-border' : ''}`}>
           {hasPrize && (
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">Prize pool</div>
@@ -224,7 +226,7 @@ export default function EventHero({
                 </p>
               </div>
             ) : (
-              <CountdownBlock now={now} phase={phase} target={state?.target ?? null} />
+              <CountdownBlock now={now} phase={phase} target={openEnded ? null : (state?.target ?? null)} openEnded={openEnded} startedAt={realStart} />
             )}
           </div>
         </div>
@@ -253,7 +255,16 @@ export default function EventHero({
   );
 }
 
-function CountdownBlock({ now, phase, target }: { now: number | null; phase: EventPhase; target: number | null }) {
+function CountdownBlock({ now, phase, target, openEnded = false, startedAt = null }: { now: number | null; phase: EventPhase; target: number | null; openEnded?: boolean; startedAt?: number | null }) {
+  if (openEnded) {
+    return (
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">Running</div>
+        <div className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">No end date</div>
+        {startedAt !== null && <div className="mt-2 text-xs text-text-muted">Started {formatExactTime(startedAt)}</div>}
+      </div>
+    );
+  }
   // Ended states have no live countdown — just say so (with the finish time when we have it).
   if (phase === 'ended' || phase === 'force-ended') {
     return (
@@ -291,7 +302,7 @@ function CountdownBlock({ now, phase, target }: { now: number | null; phase: Eve
       <div className="mt-1.5 flex items-start gap-2 sm:gap-2.5">
         {segments.map((s) => (
           <div key={s.unit} className="flex flex-col items-center">
-            <span className="tabular-nums rounded-lg border border-gold/15 bg-black/25 px-2.5 py-1.5 text-2xl font-bold text-foreground min-w-[2.75rem] sm:text-4xl sm:min-w-[3.5rem]">
+            <span className="tabular-nums rounded-lg border border-gold/15 bg-black/25 px-2 py-1 text-xl font-bold text-foreground min-w-[2.5rem] sm:px-2.5 sm:py-1.5 sm:text-4xl sm:min-w-[3.5rem]">
               {String(s.value).padStart(2, '0')}
             </span>
             <span className="mt-1 text-[10px] uppercase tracking-wide text-text-muted">{s.unit}</span>

@@ -23,6 +23,7 @@ import { buildEventRules, buildRuleTable, diaryKeys, pvpKeys, statStep } from '@
 import { creditOutcome, planSubmissions, retryFacts, tileText, type Outcome } from '@/lib/pluginFacts/plan';
 import { appendBoardTiles } from '@/lib/pluginBoardTiles';
 import { parseFacts } from '@/lib/pluginFacts/parse';
+import { decideFactClaim, factIdOfKey, factKey, factTileKey, parseFactId, parseFactIds, settledIds, splitDuplicates } from '@/lib/pluginFacts/factIds';
 import { pluginTileCounts, withTileCounts } from '@/lib/pluginTileCounts';
 
 const board: FactBoard = { eventId: 1, teamId: 2, playerId: 3 };
@@ -734,4 +735,80 @@ test('planSubmissions pending tile: a gain proof reads "detected" and carries it
   assert.equal(out[0].body.note, '[Auto] Sharks gain(s) detected by RuneLite plugin');
   assert.equal(out[0].body.proofKey, 'key-key-key-key-key');
   assert.equal((out[0].body.proof as { detail: string }).detail, 'Sharks  ×20  (20/20)');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Fact ids (lib/pluginFacts/factIds): a re-sent fact is never credited twice
+
+test('parseFactId: 8 to 40 of [A-Za-z0-9_-], anything else is no id', () => {
+  assert.equal(parseFactId('4f3a-41c2-9b1e-0a1b2c3d4e5f'), '4f3a-41c2-9b1e-0a1b2c3d4e5f');
+  assert.equal(parseFactId('Ab_-0123'), 'Ab_-0123');
+  assert.equal(parseFactId('a'.repeat(40)), 'a'.repeat(40));
+  for (const bad of ['short77', 'a'.repeat(41), 'has space1', 'colon:12345', 'dot.123456', '', 12345678, null, undefined, {}]) {
+    assert.equal(parseFactId(bad), null, String(bad));
+  }
+  assert.deepEqual(parseFactIds(['abcdefgh', 'abcdefgh', 'no', 7, 'ijklmnop']), ['abcdefgh', 'ijklmnop']);
+  assert.deepEqual(parseFactIds('abcdefgh'), []);
+});
+
+test('parseFacts: keeps a well-formed id on every kind; a malformed id is dropped and the fact kept', () => {
+  const out = parseFacts([
+    { k: 'kill', n: { Zulrah: 1 }, id: '4f3a-41c2-9b1e-0a1b2c3d4e5f' },
+    { k: 'loot', src: 'Zulrah', kind: 'npc', items: [[4151, 1]], id: 'loot-id-1' },
+    { k: 'value', src: 'Chest', kind: 'event', gp: 5, id: 'value_id_1' },
+    { k: 'tile', t: 9, n: 1, id: 'tile-id-01' },
+    { k: 'kill', n: { Zulrah: 1 }, id: 'bad id!' },
+    { k: 'kill', n: { Zulrah: 1 }, id: 42 },
+    { k: 'nonsense', id: 'abcdefgh' },
+  ]);
+  assert.deepEqual(out.map((f) => f.id), ['4f3a-41c2-9b1e-0a1b2c3d4e5f', 'loot-id-1', 'value_id_1', 'tile-id-01', undefined, undefined]);
+  assert.ok(!('id' in out[4]), 'no id key at all, so the fact reads exactly as an older plugin\'s');
+});
+
+test('retryFacts: a fact sent back keeps its id unchanged', () => {
+  const facts = parseFacts([
+    { k: 'kill', n: { Zulrah: 1 }, id: 'kill-id-0001' },
+    { k: 'kill', n: { Vorkath: 1 }, id: 'kill-id-0002' },
+  ]);
+  const credits: Credit[] = [
+    { kind: 'kill', tileId: 1, label: 'a', amount: 1, have: 1, of: 5, fi: [0] },
+    { kind: 'kill', tileId: 2, label: 'b', amount: 1, have: 1, of: 5, fi: [1] },
+    { kind: 'kill', tileId: 3, label: 'c', amount: 1, have: 1, of: 5, fi: [1] },
+  ];
+  const out: Outcome[] = ['ok', 'ok', 'retry'];
+  const retry = retryFacts(facts, credits, (c) => out[credits.indexOf(c)]);
+  assert.deepEqual(retry, [{ k: 'kill', n: { Vorkath: 1 }, unv: undefined, inf: null, id: 'kill-id-0002', done: [2] }]);
+  // Only what is not sent back is remembered as answered.
+  assert.deepEqual(settledIds(facts, retry), ['kill-id-0001']);
+  assert.deepEqual(settledIds(facts, []), ['kill-id-0001', 'kill-id-0002']);
+});
+
+test('splitDuplicates: an answered id is set aside, so is a repeat inside one batch; no id always passes', () => {
+  const facts = parseFacts([
+    { k: 'kill', n: { Zulrah: 1 }, id: 'seen-before' },
+    { k: 'kill', n: { Zulrah: 1 }, id: 'brand-new-1' },
+    { k: 'kill', n: { Zulrah: 1 }, id: 'brand-new-1' },
+    { k: 'kill', n: { Zulrah: 1 } },
+    { k: 'kill', n: { Zulrah: 1 } },
+  ]);
+  const { fresh, duplicateIds } = splitDuplicates(facts, new Set(['seen-before']));
+  assert.deepEqual(fresh.map((f) => f.id), ['brand-new-1', undefined, undefined]);
+  assert.deepEqual(duplicateIds, ['seen-before', 'brand-new-1']);
+});
+
+test('decideFactClaim: none seen files, all seen is already in, some seen is sent back', () => {
+  assert.equal(decideFactClaim(0, 0), 'fresh');
+  assert.equal(decideFactClaim(2, 0), 'fresh');
+  assert.equal(decideFactClaim(1, 1), 'duplicate');
+  assert.equal(decideFactClaim(3, 3), 'duplicate');
+  assert.equal(decideFactClaim(3, 1), 'mixed');
+});
+
+test('fact keys: per person, per tile, and read back to their id', () => {
+  assert.equal(factKey(7, 'abcdefgh'), 'fact:7:abcdefgh');
+  assert.equal(factTileKey(7, 'abcdefgh', -12), 'fact:7:abcdefgh:-12');
+  assert.equal(factIdOfKey(7, 'fact:7:abcdefgh:55'), 'abcdefgh');
+  assert.equal(factIdOfKey(7, 'fact:7:abcdefgh'), 'abcdefgh');
+  assert.equal(factIdOfKey(7, 'fact:8:abcdefgh'), null, 'another person\'s key');
+  assert.equal(factIdOfKey(7, 'drop:abcdefgh'), null, 'a chat feed key');
 });

@@ -22,9 +22,8 @@ type Membership = 'all' | 'members' | 'guests';
 /** The way each column sorts on first click: names A→Z, everything else highest (or most senior) first. */
 const FIRST_DESC: Record<SortKey, boolean> = { name: false, rank: true, week: true, streak: true, ehp: true, ehb: true, xp: true };
 
-/** Rows are scrollable past this many — the page shouldn't grow a screen per twenty members. */
-const VISIBLE_ROWS = 12;
-const ROW_PX = 44;
+/** Rows drawn at a time. Search and sort still run over every member; "Show more" draws the next chunk. */
+const CHUNK = 40;
 
 function formatXp(xp: number | null): string {
   if (xp === null) return '—';
@@ -110,6 +109,7 @@ export default function MembersDirectory({
   initialSort?: SortKey;
 }) {
   const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(CHUNK);
   const [membership, setMembership] = useState<Membership>('all');
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: initialSort, desc: FIRST_DESC[initialSort] });
   // Click a column to sort by it; click it again to flip the direction.
@@ -175,6 +175,9 @@ export default function MembersDirectory({
           <button type="button" onClick={() => setMembership('all')} className={chip(membership === 'all')}>
             All {members.length}
           </button>
+          {/* With no guests, Members is the same list as All and Guests is an empty one: show neither. */}
+          {(guestCount > 0 || membership !== 'all') && (
+            <>
           <button type="button" onClick={() => setMembership('members')} className={chip(membership === 'members')}>
             Members {members.length - guestCount}
           </button>
@@ -186,6 +189,8 @@ export default function MembersDirectory({
           >
             Guests {guestCount}
           </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -208,19 +213,15 @@ export default function MembersDirectory({
             {members.length === 0 ? 'No members yet — a clan admin loads the list from the Anvil plugin.' : 'Nobody matches that.'}
           </p>
         ) : (
-          // Capped, not endless: a long roster scrolls inside its own frame so the page below stays
-          // reachable. Under the cap the container just fits the rows and never scrolls.
-          <div
-            className="overflow-y-auto"
-            style={{ maxHeight: shown.length > VISIBLE_ROWS ? VISIBLE_ROWS * ROW_PX : undefined }}
-          >
-            {shown.map((m, i) => {
+          // Drawn in chunks so a 170-member clan is not 170 rows of markup up front.
+          <div>
+            {shown.slice(0, limit).map((m, i) => {
               const mv = movement[m.id];
               return (
                 <ClanLink
                   key={m.id}
                   href={`/members/${encodeURIComponent(m.rsn)}`}
-                  className={`grid ${cols} gap-2 px-4 py-2.5 text-sm items-center hover:bg-brown-light transition-colors ${
+                  className={`grid ${cols} gap-2 px-4 py-2.5 max-sm:min-h-11 text-sm items-center hover:bg-brown-light transition-colors ${
                     i % 2 ? 'bg-card-bg' : ''
                   }`}
                 >
@@ -266,8 +267,18 @@ export default function MembersDirectory({
         )}
       </div>
 
+      {shown.length > limit && (
+        <button
+          type="button"
+          onClick={() => setLimit((l) => l + CHUNK)}
+          className="mt-3 w-full rounded-lg border border-card-border px-3 py-2 text-sm text-text-muted transition-colors hover:border-gold/50 hover:text-foreground"
+        >
+          Show {Math.min(CHUNK, shown.length - limit)} more{shown.length - limit > CHUNK ? ` (${shown.length - limit} left)` : ''}
+        </button>
+      )}
+
       <p className="mt-3 text-xs text-text-muted">
-        Showing {shown.length} of {members.length}. Stats come from the latest OSRS Hiscores check — a dash
+        Showing {Math.min(limit, shown.length)} of {members.length}. Stats come from the latest OSRS Hiscores check — a dash
         means we haven&rsquo;t seen that account yet. <span className="text-foreground/70">7d</span> is
         efficient hours gained this week; ▲▼ is places moved since last week.
       </p>

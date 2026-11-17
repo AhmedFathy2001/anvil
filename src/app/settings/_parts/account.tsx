@@ -37,9 +37,16 @@ export async function LoginGroups() {
       <SettingsGroup
         title="Plugin sign-ins"
         id="plugin-sign-ins"
-        note="Your main plugin token is under In game → Plugin connection. These are extra sign-ins made with “Sign in with Discord” from the panel."
+        note={`These are the sign-ins made with “Sign in with Discord” from the panel. Your main plugin token is separate and is counted on In game → Plugin connection, which shows ${links.length + (user?.pluginTokenHash ? 1 : 0)} active in total.`}
       >
-        {links.length === 0 && <SettingsRow label="No extra sign-ins" description="Only your plugin token is in use." />}
+        {user?.pluginTokenHash && (
+          <SettingsRow label="Main plugin token" description="Made on your profile and managed under In game → Plugin connection.">
+            <ClanLink href="/settings/in-game#plugin" className="rounded-lg border border-card-border bg-card-bg-hover px-3 py-1.5 text-[13px] hover:border-gold/40">
+              Manage
+            </ClanLink>
+          </SettingsRow>
+        )}
+        {links.length === 0 && <SettingsRow label="No extra sign-ins" description="Only your main plugin token is in use." />}
         {links.map((l, i) => (
           <SettingsRow
             key={l.id}

@@ -37,6 +37,7 @@ export default function PersonProfile({
   detectedCount = 0,
   suggestedRsn = '',
   unfinishedSetup = false,
+  setupHref = '/welcome',
   supporter = null,
   media = null,
   discordAvatar = null,
@@ -55,16 +56,19 @@ export default function PersonProfile({
   detectedCount?: number;
   /** Their first run is still outstanding — see lib/onboarding's `offer`. */
   unfinishedSetup?: boolean;
+  /** Where "Finish setting up" goes; carries the page they were heading for as `next`. */
+  setupHref?: string;
   /** A name arrived at from `?connect=` — see AddCharacterClient. */
   suggestedRsn?: string;
   /** Their Anvil Supporter subscription, for the name's flair. */
   supporter?: SupporterView | null;
 }) {
+  const clanCount = clans.filter((c) => c.clanKind !== 'creator').length;
   return (
     <div className="mx-auto max-w-6xl">
       {unfinishedSetup && (
         <ClanLink
-          href="/welcome"
+          href={setupHref}
           className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-sm transition-colors hover:border-gold/60"
         >
           <span className="font-medium text-gold">Finish setting up</span>
@@ -95,8 +99,9 @@ export default function PersonProfile({
             <SupporterName name={displayName} tier={supporter?.tier} style={supporter?.style} plain />
           </h1>
           <p className="text-sm text-text-muted">
-            {characters.length} character{characters.length === 1 ? '' : 's'} · {clans.filter((c) => c.seat).length} clan
-            {clans.filter((c) => c.seat).length === 1 ? '' : 's'}
+            {/* The clans listed under "Your clans" below: a seat, or running it (an owner is in their clan). */}
+            {characters.length} character{characters.length === 1 ? '' : 's'} · {clanCount} clan
+            {clanCount === 1 ? '' : 's'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -157,8 +162,8 @@ export default function PersonProfile({
                     <span className="mt-1 flex gap-2 text-xs text-text-muted">
                       {c.seat === 'member' && <span className="text-gold">Member</span>}
                       {c.seat === 'guest' && <span>{c.clanKind === 'creator' ? 'Player' : 'Guest'}</span>}
-                      {!c.seat && <span>Not on the member list</span>}
-                      {c.staff && <span className="capitalize text-gold/70">· {c.role || 'staff'}</span>}
+                      {!c.seat && !c.staff && <span>Not on the member list</span>}
+                      {c.staff && <span className="capitalize text-gold/70">{c.seat ? '· ' : ''}{c.role || 'staff'}</span>}
                     </span>
                     {c.seat && <span className="mt-2 block text-[12.5px] text-text-muted">Your board, team and this week →</span>}
                   </ClanLink>
@@ -200,7 +205,7 @@ export default function PersonProfile({
             </ul>
           )}
           {!supporter && characters.length > 0 && (
-            <ClanLink href="/settings/profile#plan" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
+            <ClanLink href="/settings/account#plan" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
               Wear your name in colour on every board — Anvil Supporter →
             </ClanLink>
           )}

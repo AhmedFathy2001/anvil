@@ -11,7 +11,7 @@
 // clan_staff) — never a Discord role — mirroring verifyFeeCollector exactly, because it is the same
 // job: this is the clan's money and rank alone has never conferred it.
 
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { normalizeRsn } from '@/lib/auth';
@@ -41,7 +41,7 @@ import { resolveClogPage, searchClogPages } from '@/lib/clogPageSearch';
 import { statSnapshotOf } from '@/lib/roster';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
-import { weeklyUnit } from '@/lib/weeklyStage';
+import { weeklyStatus, weeklyUnit } from '@/lib/weeklyStage';
 import { listMembers, getAccountProfile } from '@/lib/memberProfile';
 import { formatPersonalBest } from '@/lib/clogRead';
 import {
@@ -250,13 +250,15 @@ async function rankWeekly(competitionId: number) {
 
 async function weeklyResult(ctx: ClanCommandCtx, kind: 'skill' | 'boss'): Promise<ClanResult> {
   const { t, clan, identity } = ctx;
-  const comps = await db.query.weeklyCompetitions.findMany({
+  const candidates = await db.query.weeklyCompetitions.findMany({
     where: and(
       eq(weeklyCompetitions.clanId, clan.clanId),
-      eq(weeklyCompetitions.status, 'active'),
+      ne(weeklyCompetitions.status, 'completed'),
       eq(weeklyCompetitions.type, kind),
     ),
   });
+  const nowMs = Date.now();
+  const comps = candidates.filter((c) => weeklyStatus(c, nowMs) === 'active');
   if (comps.length === 0) {
     return { text: fmt(kind === 'skill' ? t.weekly.sotwEmpty : t.weekly.botwEmpty, { clan: clan.name }) };
   }
@@ -547,6 +549,14 @@ async function statsResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   // Clan leaderboards — no person involved.
   if (sub === 'collectors') return clanCollectorsResult(ctx);
   if (sub === 'luckboard') return clanLuckResult(ctx);
+  // Asking about themselves, with a Discord id stored for them here that nothing proves
+  // (lib/discordContext InvokerIdentity.unconfirmedLink): they are not answered as that member.
+  // Say how to link instead. Naming a `player:` still works; that is a public roster read.
+  const namesSomeone = ['player', 'member'].some((k) => typeof ctx.options[k] === 'string' && (ctx.options[k] as string).trim());
+  if (!namesSomeone && ctx.identity?.unconfirmedLink) {
+    const { t, clan } = ctx;
+    return { text: clan.origin ? fmt(t.apply.noAccountUrl, { url: clan.origin }) : t.apply.noAccountNoUrl };
+  }
   if (sub === 'luck') return memberLuckResult(ctx); // resolves its own target + account
 
   const target = await resolveTarget(ctx);

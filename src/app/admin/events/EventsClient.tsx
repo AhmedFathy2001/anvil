@@ -1,5 +1,7 @@
 'use client';
 
+import { WEEKLY_BADGE } from '@/lib/weeklyStage';
+import ActionMenu from '@/components/ActionMenu';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
@@ -9,6 +11,7 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import type { CoHostedBoardLink } from '@/lib/coHost';
 import PostRulesButton from '@/components/PostRulesButton';
 import ClanLink from '@/components/ClanLink';
+import { eventPace } from '@/lib/eventPace';
 import { useDialog } from '@/components/Confirm';
 import type {
   AttentionItem,
@@ -37,7 +40,7 @@ export interface WeeklyRow {
   kind: 'weekly';
   id: number;
   title: string;
-  type: 'skill' | 'boss' | 'efficiency';
+  type: 'skill' | 'boss' | 'efficiency' | 'hunt';
   metric: string;
   status: string;
   startDate: string;
@@ -181,7 +184,7 @@ export default function EventsClient({
           <SectionHead color="bg-blue-400" title="Co-hosted with other clans">
             <span className="text-xs text-text-muted/60 font-normal">your sign-ups, team and Discord for each</span>
           </SectionHead>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {cohosted.map((b) => (
               <div key={b.eventId} className="border border-card-border rounded-xl bg-card-bg px-4 py-3 hover:border-gold/40 transition-colors">
                 <ClanLink
@@ -239,7 +242,7 @@ export default function EventsClient({
             <RunningWeeklyHero comp={hero} />
           )}
           {alsoRunning.length > 0 && (
-            <div className="mt-2.5 grid gap-2">
+            <div className="mt-2.5 grid grid-cols-1 gap-2">
               {alsoRunning.map((item) =>
                 item.kind === 'event' ? (
                   <AlsoRunningRow
@@ -250,6 +253,11 @@ export default function EventsClient({
                       item.teamCount
                     } team${item.teamCount === 1 ? '' : 's'}`}
                     endDate={item.endDate}
+                    pace={paceOf(
+                      item,
+                      summaries[item.id]?.tilesCleared ?? 0,
+                      summaries[item.id]?.tilesTotal || eventTileCount(item.format, item.scoringMode, item.boardSize),
+                    )}
                   />
                 ) : item.kind === 'clan' ? (
                   <AlsoRunningRow
@@ -264,7 +272,7 @@ export default function EventsClient({
                     key={`w${item.id}`}
                     href={`/admin/events/weekly/${item.id}`}
                     title={item.title}
-                    detail={`${item.type === 'boss' ? 'BOTW' : item.type === 'efficiency' ? 'Efficiency' : 'SOTW'} · ${
+                    detail={`${WEEKLY_BADGE[item.type] ?? 'SOTW'} · ${
                       item.participantCount
                     } players`}
                     endDate={item.endDate}
@@ -283,7 +291,7 @@ export default function EventsClient({
               {attention.length} item{attention.length === 1 ? '' : 's'}
             </span>
           </SectionHead>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {attention.map((item, i) => (
               <AttentionCard key={`${item.kind}-${i}`} item={item} />
             ))}
@@ -305,7 +313,7 @@ export default function EventsClient({
             )}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {upcoming.map((item) =>
               item.kind === 'event' ? (
                 <SetupCard
@@ -382,6 +390,8 @@ function RunningEventHero({
   const cleared = summary?.tilesCleared ?? 0;
   const pct = tilesTotal > 0 ? Math.min(100, Math.round((cleared / tilesTotal) * 100)) : 0;
   const elapsed = timeProgress(event.startDate, event.endDate);
+  // The two journeys below, compared: null (no label) without an end date or without tiles.
+  const pace = paceOf(event, cleared, tilesTotal);
 
   return (
     <div className="border border-gold/30 rounded-xl bg-card-bg overflow-hidden grid lg:grid-cols-[1.35fr_1fr]">
@@ -417,6 +427,14 @@ function RunningEventHero({
               </>
             )}
           </span>
+          {pace && (
+            <span
+              title={pace.title}
+              className={`ml-auto text-xs font-semibold ${pace.label === 'behind pace' ? 'text-amber-300' : pace.label === 'ahead' ? 'text-accent-green-light' : 'text-text-muted'}`}
+            >
+              {pace.label}
+            </span>
+          )}
         </div>
         {/* Two different journeys, stacked: how much of the WINDOW has gone (gold) against how much
             of the BOARD is done (green). A board 20% cleared on day 12 is the thing you want to see. */}
@@ -552,7 +570,7 @@ function RunningEventHero({
 
 function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
   const elapsed = timeProgress(comp.startDate, comp.endDate);
-  const badge = comp.type === 'boss' ? 'BOTW' : comp.type === 'efficiency' ? 'Efficiency' : 'SOTW';
+  const badge = WEEKLY_BADGE[comp.type] ?? 'SOTW';
   return (
     <div className="border border-purple-400/30 rounded-xl bg-card-bg p-5 bg-gradient-to-br from-purple-400/[0.06] to-transparent">
       <div className="flex items-center gap-2 flex-wrap text-xs text-text-muted mb-1.5">
@@ -599,11 +617,14 @@ function AlsoRunningRow({
   title,
   detail,
   endDate,
+  pace,
 }: {
   href: string;
   title: string;
   detail: string;
   endDate: string | null;
+  /** A running board's pace against its clock (lib/eventPace); absent for a week or a clan event. */
+  pace?: ReturnType<typeof eventPace>;
 }) {
   return (
     <ClanLink
@@ -613,8 +634,16 @@ function AlsoRunningRow({
       <span className="w-1.5 h-1.5 rounded-full bg-accent-green flex-shrink-0" />
       <span className="text-sm font-medium truncate">{title}</span>
       <span className="text-xs text-text-muted truncate hidden sm:block">{detail}</span>
+      {pace && (
+        <span
+          title={pace.title}
+          className={`ml-auto text-xs font-semibold flex-shrink-0 ${pace.label === 'behind pace' ? 'text-amber-300' : pace.label === 'ahead' ? 'text-accent-green-light' : 'text-text-muted'}`}
+        >
+          {pace.label}
+        </span>
+      )}
       {endDate && (
-        <span className="text-xs text-text-muted ml-auto flex-shrink-0">{timeProgress(null, endDate).remainingLabel} left</span>
+        <span className={`text-xs text-text-muted flex-shrink-0 ${pace ? '' : 'ml-auto'}`}>{timeProgress(null, endDate).remainingLabel} left</span>
       )}
     </ClanLink>
   );
@@ -733,7 +762,7 @@ function SetupCard({
   return (
     <div className="group relative border border-card-border rounded-xl bg-card-bg hover:border-gold/40 transition-colors">
       <ClanLink href={canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`} className="block p-4">
-        <div className="flex items-start justify-between gap-2 pr-7">
+        <div className={`flex items-start justify-between gap-2 ${canManage ? 'pr-[4.5rem]' : ''}`}>
           <h3 className="font-semibold group-hover:text-gold transition-colors">{event.name}</h3>
           <span
             className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${
@@ -788,7 +817,13 @@ function SetupCard({
       </div>
 
       {canManage && (
-        <DeleteButton label={event.name} deleting={deleting} onDelete={onDelete} />
+        // Under "More", like every other row: a bare bin on the card was one stray tap from a confirm.
+        <div className="absolute top-2 right-2">
+          <ActionMenu
+            label="More"
+            items={[{ label: deleting ? 'Deleting…' : 'Delete event', variant: 'danger', disabled: deleting, onClick: onDelete }]}
+          />
+        </div>
       )}
     </div>
   );
@@ -797,7 +832,7 @@ function SetupCard({
 // Read-only mirror of a weekly (SOTW/BOTW) competition. Clicking deep-links to the
 // dedicated Competitions surface — this list is for visibility, not management.
 function WeeklyCard({ comp }: { comp: WeeklyRow }) {
-  const badge = comp.type === 'boss' ? 'BOTW' : comp.type === 'efficiency' ? 'Efficiency' : 'SOTW';
+  const badge = WEEKLY_BADGE[comp.type] ?? 'SOTW';
   return (
     <ClanLink
       href={`/admin/events/weekly/${comp.id}`}
@@ -856,35 +891,6 @@ function ClanEventCard({ ev }: { ev: ClanRow }) {
   );
 }
 
-function DeleteButton({ label, deleting, onDelete }: { label: string; deleting: boolean; onDelete: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onDelete();
-      }}
-      disabled={deleting}
-      aria-label={`Delete event ${label}`}
-      title="Delete event"
-      className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-    >
-      {deleting ? (
-        <span className="text-[10px]">…</span>
-      ) : (
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-          <path d="M10 11v6" />
-          <path d="M14 11v6" />
-          <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
 /* -------------------------------------------------------------------------------------------- */
 /* Finished                                                                                      */
 /* -------------------------------------------------------------------------------------------- */
@@ -917,7 +923,7 @@ function PastTable({
 }) {
   return (
     <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto overflow-y-hidden">
-      <table className="w-full text-sm">
+      <table className="stack-phone w-full text-sm">
         <thead>
           <tr className="text-[10px] uppercase tracking-wider text-text-muted/70">
             <th className="text-left font-medium px-4 py-2.5">Event</th>
@@ -980,12 +986,12 @@ function PastEventRow({
         </ClanLink>
         {event.forceEndedAt && <span className="ml-2 text-[10px] text-red-400">force-ended</span>}
       </td>
-      <td className="px-3 py-2.5 hidden sm:table-cell">
+      <td data-label="Format" className="stack-half px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-gold/10 text-gold/80 px-2 py-0.5 rounded-full">
           {eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
         </span>
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+      <td data-label="Ran" className="stack-half px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
         {event.startDate && event.endDate ? (
           <>
             <LocalTime date={event.startDate} format="date" /> — <LocalTime date={event.endDate} format="date" />
@@ -994,7 +1000,7 @@ function PastEventRow({
           '—'
         )}
       </td>
-      <td className="px-3 py-2.5 text-xs">
+      <td data-label="Winner" className="px-3 py-2.5 text-xs">
         {result?.winnerTeam ? (
           <span className="text-gold">
             🥇 {result.winnerTeam}
@@ -1006,10 +1012,10 @@ function PastEventRow({
           <span className="text-text-muted/70">no result recorded</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
+      <td data-label="Players" className="stack-half px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
         {result?.players ?? 0}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right tabular-nums hidden lg:table-cell">
+      <td data-label="Payout" className="stack-half px-3 py-2.5 text-xs text-right tabular-nums hidden lg:table-cell">
         {result && result.payoutTotal > 0 ? (
           <span className={result.payoutsUnpaid > 0 ? 'text-amber-300' : 'text-text-muted'}>
             {formatGp(result.payoutTotal)}
@@ -1019,7 +1025,7 @@ function PastEventRow({
           <span className="text-text-muted/50">—</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+      <td className="stack-actions px-3 py-2.5 text-right whitespace-nowrap">
         {canManage && (
           // NOT hover-only. These were `opacity-0 group-hover:opacity-100`, which on a phone or a
           // tablet means invisible — there is no hover, and OSRS staff run events from Discord on
@@ -1042,15 +1048,10 @@ function PastEventRow({
             >
               Prizes
             </ClanLink>
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting}
-              aria-label={`Delete event ${event.name}`}
-              className="px-2 py-1 text-xs rounded-md border border-card-border text-text-muted hover:text-red-400 hover:border-red-500/40 transition-colors disabled:opacity-50"
-            >
-              {deleting ? '…' : 'Delete'}
-            </button>
+            <ActionMenu
+              label="More"
+              items={[{ label: deleting ? 'Deleting…' : 'Delete event', variant: 'danger', disabled: deleting, onClick: onDelete }]}
+            />
           </span>
         )}
       </td>
@@ -1065,7 +1066,7 @@ function PastWeeklyRow({
   comp: WeeklyRow;
   result?: { winner: string | null; gained: number | null; players: number };
 }) {
-  const badge = comp.type === 'boss' ? 'BOTW' : comp.type === 'efficiency' ? 'Efficiency' : 'SOTW';
+  const badge = WEEKLY_BADGE[comp.type] ?? 'SOTW';
   return (
     <tr className="border-t border-card-border/70 group hover:bg-white/[0.02]">
       <td className="px-4 py-2.5">
@@ -1073,13 +1074,13 @@ function PastWeeklyRow({
           {comp.title}
         </ClanLink>
       </td>
-      <td className="px-3 py-2.5 hidden sm:table-cell">
+      <td data-label="Format" className="stack-half px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-purple-400/10 text-purple-300/90 px-2 py-0.5 rounded-full">{badge}</span>
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+      <td data-label="Ran" className="stack-half px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
         <LocalTime date={comp.startDate} format="date" /> — <LocalTime date={comp.endDate} format="date" />
       </td>
-      <td className="px-3 py-2.5 text-xs">
+      <td data-label="Winner" className="px-3 py-2.5 text-xs">
         {result?.winner ? (
           <span className="text-gold">
             🥇 {result.winner}
@@ -1091,10 +1092,10 @@ function PastWeeklyRow({
           <span className="text-text-muted/70">no result recorded</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
+      <td data-label="Players" className="stack-half px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
         {result?.players ?? comp.participantCount}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right text-text-muted/50 hidden lg:table-cell">—</td>
+      <td className="px-3 py-2.5 text-xs text-right text-text-muted/50 hidden lg:table-cell max-sm:!hidden">—</td>
       <td className="px-3 py-2.5" />
     </tr>
   );
@@ -1108,13 +1109,13 @@ function PastClanRow({ ev }: { ev: ClanRow }) {
           {ev.title}
         </ClanLink>
       </td>
-      <td className="px-3 py-2.5 hidden sm:table-cell">
+      <td data-label="Format" className="stack-half px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-sky-400/10 text-sky-300/90 px-2 py-0.5 rounded-full">Clan event</span>
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+      <td data-label="Ran" className="stack-half px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
         <LocalTime date={ev.startDate} format="date" />
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted/70">—</td>
+      <td className="px-3 py-2.5 text-xs text-text-muted/70 max-sm:!hidden">—</td>
       <td className="px-3 py-2.5 hidden sm:table-cell" />
       <td className="px-3 py-2.5 hidden lg:table-cell" />
       <td className="px-3 py-2.5" />
@@ -1186,6 +1187,17 @@ function BackfillFacts() {
 /* Time                                                                                          */
 /* -------------------------------------------------------------------------------------------- */
 
+/** The running board's pace (lib/eventPace) against the clock now. */
+function paceOf(event: { startDate: string | null; endDate: string | null }, cleared: number, total: number) {
+  return eventPace({
+    start: event.startDate ? Date.parse(event.startDate) : null,
+    end: event.endDate ? Date.parse(event.endDate) : null,
+    now: Date.now(),
+    cleared,
+    total,
+  });
+}
+
 /**
  * How far through its window an event is.
  *
@@ -1203,7 +1215,9 @@ function timeProgress(startDate: string | null, endDate: string | null) {
   }
 
   const remaining = Math.max(0, end - now);
-  const pct = start && end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : 0;
+  // Rounded here, once: the raw float printed differently on the server and in the browser
+  // ("43.58302628968254%" vs "43.583%"), a hydration mismatch on the bar's width.
+  const pct = start && end > start ? Math.round(Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) * 10) / 10 : 0;
   const totalDays = start ? Math.max(1, Math.round((end - start) / 86_400_000)) : null;
 
   return {

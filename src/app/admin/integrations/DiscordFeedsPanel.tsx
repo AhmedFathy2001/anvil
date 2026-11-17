@@ -640,7 +640,7 @@ export default function DiscordFeedsPanel({
                   type="button"
                   aria-expanded={openSub === subId}
                   onClick={() => setOpenSub(openSub === subId ? null : subId)}
-                  className="min-h-9 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
+                  className="min-h-9 max-sm:min-h-10 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
                 >
                   {isEvents ? 'Events' : 'Filters'} {openSub === subId ? '▴' : '▾'}
                 </button>
@@ -699,7 +699,7 @@ export default function DiscordFeedsPanel({
                   type="button"
                   aria-expanded={open === m.id}
                   onClick={() => setOpen(open === m.id ? null : m.id)}
-                  className="min-h-9 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
+                  className="min-h-9 max-sm:min-h-10 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
                 >
                   Posts {posting}/{mine.length}
                   {m.dropFloor != null || m.dropMinValue != null || m.levels != null || m.kindDefaults != null ? ' · own filters' : ''} {open === m.id ? '▴' : '▾'}
@@ -818,7 +818,7 @@ export default function DiscordFeedsPanel({
                     type="button"
                     aria-expanded={open === f.id}
                     onClick={() => setOpen(open === f.id ? null : f.id)}
-                    className="min-h-9 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
+                    className="min-h-9 max-sm:min-h-10 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
                   >
                     Filters {open === f.id ? '▴' : '▾'}
                   </button>

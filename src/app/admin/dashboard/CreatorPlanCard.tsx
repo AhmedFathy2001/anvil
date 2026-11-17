@@ -2,7 +2,15 @@ import ClanLink from '@/components/ClanLink';
 import { ensureClanCheckoutRef } from '@/lib/billing';
 import { creatorPlanCard, liveEventLimit } from '@/lib/creatorPlans';
 import { creatorSeatMeter, liveEventCount } from '@/lib/creatorPlansDb';
-import { CREATOR_PLANS, creatorCheckoutUrlWithRef, creatorPlanOf } from '@/lib/creatorCatalog';
+import { CREATOR_PLANS, creatorPlanOf } from '@/lib/creatorCatalog';
+import { buyWording, chargeText, creatorBuy } from '@/lib/buyOffer';
+import { clanTrialUsed } from '@/lib/planTrials';
+import { SECOND_MEMBERSHIP_WARNING } from '@/lib/supporterDuplicates';
+import { db } from '@/db';
+import { clans } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import BuyButtons from '@/components/BuyButtons';
+import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import { usd, withBilling, yearlyPriceUsd, type BillingInterval } from '@/lib/billingInterval';
 
 /**
@@ -18,11 +26,15 @@ import { usd, withBilling, yearlyPriceUsd, type BillingInterval } from '@/lib/bi
 export default async function CreatorPlanCard({
   clanId,
   clanPlan,
+  paidPlan,
   canBuy,
   billing = 'monthly',
 }: {
   clanId: number;
+  /** The plan in force (a running trial from Anvil counts): what the meters and limits read. */
   clanPlan: string;
+  /** clans.plan: what the space pays for. Defaults to the plan in force. */
+  paidPlan?: string;
   canBuy: boolean;
   /** Which price leads (?billing= from /pricing). Both are offered when the yearly checkout exists. */
   billing?: BillingInterval;
@@ -30,19 +42,25 @@ export default async function CreatorPlanCard({
   const [meter, live] = await Promise.all([creatorSeatMeter(clanId), liveEventCount(clanId)]);
   const card = creatorPlanCard({ clanPlan, meter });
   const plan = creatorPlanOf(clanPlan);
-  const paying = plan.id !== 'creator_free';
-  const next = card.next ? CREATOR_PLANS[card.next.id] : null;
+  const paid = creatorPlanOf(paidPlan ?? clanPlan);
+  const paying = paid.id !== 'creator_free';
+  const onTrial = paid.id !== plan.id;
+  // What to buy next is counted from what they PAY for: during a trial that is the tier they would keep.
+  const paidCard = onTrial ? creatorPlanCard({ clanPlan: paid.id, meter }) : card;
+  const next = paidCard.next ? CREATOR_PLANS[paidCard.next.id] : null;
   const ref = canBuy && next && !paying ? await ensureClanCheckoutRef(clanId) : null;
-  const checkout = next && ref ? creatorCheckoutUrlWithRef(next, ref) : null;
-  // Yearly (lib/billingInterval): ten months' price for a year. Only offered once its checkout is set.
-  const checkoutYearly = next && ref ? creatorCheckoutUrlWithRef(next, ref, 'yearly') : null;
+  // ONE TRIAL (lib/buyOffer): a space that has had its trial only ever gets the pay-now checkout.
+  const row = ref ? await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { id: true, trialEndsAt: true, gumroadSubscriptionId: true } }) : null;
+  const trialUsed = row ? await clanTrialUsed(row) : true;
   const yearly = next ? yearlyPriceUsd(next.priceUsd) : null;
-  const buttons = [
-    checkout && { href: checkout, label: `Upgrade to ${next!.name}`, interval: 'monthly' as const },
-    checkoutYearly && { href: checkoutYearly, label: `${next!.name} yearly (${usd(yearly ?? 0)})`, interval: 'yearly' as const },
-  ].filter((b): b is { href: string; label: string; interval: BillingInterval } => !!b);
-  // The interval asked for leads; the other sits beside it as the quieter button.
-  buttons.sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0));
+  // Monthly, and yearly once its checkout is set (a year costs ten months). The interval asked for leads.
+  const offers = next && ref
+    ? (['monthly', 'yearly'] as const)
+        .map((interval) => ({ interval, buttons: creatorBuy(next, ref, interval, trialUsed) }))
+        .filter((o) => o.buttons.kind !== 'none' && (o.interval === 'monthly' || creatorBuy(next, ref, 'yearly', false).kind !== 'none'))
+        .sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0))
+    : [];
+  const checkoutYearly = offers.some((o) => o.interval === 'yearly');
   const cap = card.playersCap;
   const players = meter?.peak ?? 0;
   const fmt = (n: number) => n.toLocaleString('en-US');
@@ -52,13 +70,14 @@ export default async function CreatorPlanCard({
   return (
     <section id="plan" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">Your plan: {card.planName}</h2>
+        <h2 className="text-lg font-semibold">Your plan: {onTrial ? `${card.planName} (trial from Anvil; you pay for ${paid.name})` : card.planName}</h2>
         {paying && (
           <ClanLink href="/portal" className="text-[13px] text-gold hover:text-gold-light">
             Manage billing
           </ClanLink>
         )}
       </div>
+      {paying && <p className="mt-1 text-[12.5px] text-text-muted">Moving to another tier: {SECOND_MEMBERSHIP_WARNING}</p>}
 
       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
@@ -110,39 +129,34 @@ export default async function CreatorPlanCard({
         <p className="mt-3 text-[13.5px] leading-relaxed text-text-muted">
           {card.enforced
             ? `You're over your plan's players at once: new players can't join events running at the same time. ${next ? `Upgrade to ${next.name} for ${fmt(next.playersPerEvent ?? 0)} players at once.` : 'Get in touch about a Partner plan.'}`
-            : `That's more than ${card.planName} allows. Everyone still gets in while Anvil is growing; the limit starts later, with notice.`}
+            : `That's more than ${card.planName} allows. ${next ? `${next.name} gives you room.` : 'The next tier gives you room.'}`}
         </p>
       )}
 
-      {next && card.next && (
+      {next && paidCard.next && (
         <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.05] p-4">
           <p className="text-[15px] font-semibold">
             {next.name}: ${next.priceUsd} a month
             {checkoutYearly && yearly != null && (
-              <span className="font-normal text-text-muted"> or {usd(yearly)} a year (two months free)</span>
+              <span className="font-normal text-text-muted"> or {usd(yearly)} a year (12 months for the price of 10)</span>
             )}
           </p>
+          <EarlyBirdBadge className="mt-1.5" />
           <ul className="mt-1.5 grid gap-1 text-[13.5px] text-text-muted">
             <li>Up to {fmt(next.playersPerEvent ?? 0)} players at once across your events</li>
-            {card.next.perks.map((p) => (
+            {paidCard.next.perks.map((p) => (
               <li key={p}>{p}</li>
             ))}
           </ul>
           <div className="mt-3 flex flex-wrap items-center gap-4">
-            {buttons.map((b, i) => (
-              <a
-                key={b.interval}
-                // eslint-disable-next-line clan-scope/clan-prefix -- external Gumroad checkout, never a clan path
-                href={b.href}
-                className={
-                  i === 0
-                    ? 'rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light'
-                    : 'rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition-colors hover:border-gold'
-                }
-              >
-                {b.label}
-              </a>
-            ))}
+            {offers.map((o) => {
+              const wording = buyWording(o.buttons, {
+                tierName: next.name,
+                charge: chargeText(next.priceUsd ?? 0, o.interval),
+                verb: o.interval === 'yearly' ? `Subscribe to ${next.name}, yearly` : `Subscribe to ${next.name}`,
+              });
+              return wording ? <BuyButtons key={o.interval} wording={wording} caption={offers.length > 1 ? (o.interval === 'yearly' ? 'Yearly' : 'Monthly') : null} className="w-full" /> : null;
+            })}
             <ClanLink href={withBilling('/pricing#creators', billing)} className="text-[13px] text-gold hover:text-gold-light">
               Compare plans
             </ClanLink>

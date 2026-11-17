@@ -1,5 +1,6 @@
 'use client';
 
+import { characterState, mayJoinWith } from '@/lib/characterState';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BOSSES, SKILLS, SKILL_LABELS, SKILL_ALIASES } from '@/lib/constants';
@@ -12,6 +13,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
+import NameCharacterInline from '@/components/NameCharacterInline';
 import EnterEvent from '@/app/events/[eventId]/EnterEvent';
 import Checkbox, { CheckboxBox } from '@/components/Checkbox';
 import Radio from '@/components/Radio';
@@ -59,6 +61,8 @@ interface FeeRow {
 interface Props {
   /** Which optional sections this board asks for — see lib/eventRules `signupFields`. */
   fields?: SignupFields;
+  /** Ids of the person's accounts the plugin has already reported from, so the form does not tell them to run it. */
+  pluginSeenIds?: number[];
   /** The board's own questions, asked after the built-in sections. */
   questions?: SurveyQuestionView[];
   eventId: number;
@@ -112,6 +116,8 @@ interface Props {
    * rather than letting someone submit believing they're entering the draft pool.
    */
   invite?: { token: string; teamName: string } | null;
+  /** The clan hosting the event, for naming a character inline (null for a creator space's event). */
+  host?: { slug: string; name: string; path: string; viewerIsStaff: boolean } | null;
   /** A creator space's event (lib/creatorSpaces): no clan, no member list — just "join". */
   creator?: boolean;
 }
@@ -245,14 +251,16 @@ export default function SignupForm({
   placement = null,
   seatedTeam = null,
   fields = DEFAULT_SIGNUP_FIELDS,
+  pluginSeenIds = [],
   questions = [],
   creator = false,
+  host = null,
 }: Props) {
   const router = useRouter();
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
   const { confirm } = useDialog();
   const verifiedAccounts = useMemo(
-    () => myAccounts.filter((a) => a.verifiedAt),
+    () => myAccounts.filter((a) => mayJoinWith(a)),
     [myAccounts],
   );
 
@@ -272,6 +280,11 @@ export default function SignupForm({
 
   const initialProfile = (existingSignup ?? { profile: prefillProfile }).profile;
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set(initialSelected));
+  // Seated as a guest a moment ago (the page refreshed under this form): the character that just became
+  // available must be the one picked, or the form says "Pick the RSN" about its only option.
+  useEffect(() => {
+    setSelectedIds((prev) => (prev.size > 0 || initialSelected.length === 0 ? prev : new Set(initialSelected)));
+  }, [initialSelected]);
 
   // Toggle an account. At maxAccounts=1 it behaves like a radio (replace); above that it's a capped
   // multi-select (a checked account always toggles off; an unchecked one adds only while under the cap).
@@ -353,6 +366,25 @@ export default function SignupForm({
     setBosses(new Set([...bosses, ...filteredBosses.map((b) => b.key)]));
   const selectAllSkills = () =>
     setSkills(new Set([...skills, ...filteredSkills]));
+
+  // The optional block is folded until asked for.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const requiredQuestions = questions.filter((q) => q.required);
+  const optionalQuestions = questions.filter((q) => !q.required);
+  const hasOptional =
+    !!(fields.availability || fields.timezone || fields.bosses || fields.skills || fields.notes) || optionalQuestions.length > 0;
+  const answeredCount =
+    bosses.size + skills.size + (notes.trim() ? 1 : 0) + (timezone ? 1 : 0) + optionalQuestions.filter((q) => answers[String(q.id)] !== undefined).length;
+  function changeAnswer(id: number, value: AnswerValue | undefined) {
+    setAnswers((prev) => {
+      const next = { ...prev };
+      // An emptied answer is removed rather than stored as "" — an absent key and a blank
+      // string would otherwise be two ways to say the same nothing.
+      if (value === undefined) delete next[String(id)];
+      else next[String(id)] = value;
+      return next;
+    });
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -436,7 +468,7 @@ export default function SignupForm({
             One quick XP check: we pick one of your skills, you gain 1,000 XP in it within 30 minutes, and the
             sign-up form appears right here.
           </p>
-          <LinkAccountClient manualReview={false} initialRsn={myAccounts[0].rsn} />
+          <LinkAccountClient initialRsn={myAccounts[0].rsn} />
         </div>
       );
     }
@@ -444,6 +476,10 @@ export default function SignupForm({
     // join button (EnterEvent, creator mode) is the whole answer.
     if (hasAnyCharacter && creator) {
       return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} creator />;
+    }
+    // Invited to a team: the join card says everything (who, what, one press). No member-list talk.
+    if (hasAnyCharacter && invite) {
+      return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} />;
     }
     if (hasAnyCharacter) {
       return (
@@ -463,15 +499,41 @@ export default function SignupForm({
     }
     return (
       <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
-        <h2 className="font-semibold">Which character is yours?</h2>
+        {invite && (
+          <p className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm font-medium text-gold">
+            You&apos;re invited to join <strong>{invite.teamName}</strong>. One thing first:
+          </p>
+        )}
+        <h2 className="font-semibold">{host?.viewerIsStaff ? 'Add your own character' : 'Which character is yours?'}</h2>
         <p className="text-sm text-text-muted">
-          Link your RuneScape character once and the sign-up form appears right here.
+          {host?.viewerIsStaff
+            ? 'You run this event, and you can play in it too. Name your character here and the sign-up form appears.'
+            : 'Name your RuneScape character once and the sign-up form appears right here.'}
         </p>
-        <AddCharacterClient first />
+        {host ? (
+          // The same box as the clan page's apply step: the name, then how to confirm it. A name on
+          // the clan's in-game member list is told the plugin recognises it. The clan's own staff are
+          // not offered "ask staff": they would be asking themselves.
+          <NameCharacterInline
+            slug={host.slug}
+            clanName={host.name}
+            clanPath={host.path}
+            returnPath={host.path}
+            mode="event"
+            signedIn
+            applyLabel="Continue"
+            ways={host.viewerIsStaff ? ['plugin', 'xp'] : undefined}
+            inviteToken={invite?.token ?? null}
+          />
+        ) : (
+          <AddCharacterClient first />
+        )}
       </div>
     );
   }
 
+  // A character still waiting on staff to vouch: the entry is held (pending, no team) until they do.
+  const heldSelected = myAccounts.some((a) => (selectedIds.has(a.id) || selectedIds.size === 0) && characterState(a) === 'awaiting-manual');
   const isWithdrawn = existingSignup?.status === 'withdrawn';
   const isLocked = !windowOpen && !isWithdrawn;
 
@@ -483,8 +545,9 @@ export default function SignupForm({
             You&apos;re joining <strong>{invite.teamName}</strong> by invite.
           </p>
           <p className="text-text-muted text-xs mt-1">
-            Fill this in as normal — you go straight onto that team when you submit, with no waiting
-            on a host to approve you.
+            {heldSelected
+              ? 'Submit as normal. Your place on that team is held until this clan’s staff confirm your character, then you go straight onto it with no host approval. Signing in to the Anvil plugin on that character confirms it at once.'
+              : 'Fill this in as normal — you go straight onto that team when you submit, with no waiting on a host to approve you.'}
           </p>
         </div>
       )}
@@ -564,7 +627,11 @@ export default function SignupForm({
       {existingSignup && !isWithdrawn && (
         <div className="border border-accent-green/30 bg-accent-green/10 rounded-xl p-4 text-sm">
           <p className="font-medium text-accent-green-light">
-            {existingSignup.status === 'approved' ? 'You’re in.' : 'Sign-up received — the hosts still need to approve it.'}
+            {existingSignup.status === 'approved'
+              ? 'You’re in.'
+              : heldSelected
+                ? 'Sign-up received. It is held until this clan’s staff confirm your character is yours; signing in to the Anvil plugin on it confirms it at once.'
+                : 'Sign-up received — the hosts still need to approve it.'}
           </p>
           {/* What happens next, so "signed up" isn't the end of the trail. */}
           <ul className="text-text-muted text-xs mt-2 space-y-1 list-disc pl-4">
@@ -576,12 +643,14 @@ export default function SignupForm({
             ) : (
               <li>The hosts will set a start time and post the teams on the event page.</li>
             )}
-            <li>
-              Run the Anvil plugin in RuneLite so your drops and levels count by themselves.{' '}
-              <ClanLink href="/guide/plugin" className="text-gold hover:underline">
-                How to set it up
-              </ClanLink>
-            </li>
+            {!myAccounts.some((a) => pluginSeenIds.includes(a.id) && (selectedIds.has(a.id) || selectedIds.size === 0)) && (
+              <li>
+                Run the Anvil plugin in RuneLite so your drops and levels count by themselves.{' '}
+                <ClanLink href="/guide/plugin" className="text-gold hover:underline">
+                  How to set it up
+                </ClanLink>
+              </li>
+            )}
             <li>
               {windowOpen ? 'You can change your answers until the deadline.' : 'Sign-ups are closed — your answers are locked in.'}
             </li>
@@ -703,6 +772,11 @@ export default function SignupForm({
                     primary
                   </span>
                 )}
+                {characterState(acct) === 'awaiting-manual' && (
+                  <span className="text-[11px] text-amber-300">
+                    waiting for staff to confirm it. You can still sign up
+                  </span>
+                )}
               </label>
             );
           })}
@@ -712,6 +786,33 @@ export default function SignupForm({
         )}
       </fieldset>
 
+      {/* The board's own questions that must be answered stay in view. */}
+      <SignupQuestions
+        questions={requiredQuestions}
+        answers={answers}
+        disabled={isLocked}
+        onChange={changeAnswer}
+      />
+
+      {/* EVERYTHING OPTIONAL IS FOLDED. About a hundred checkboxes sat between the person and the one
+          button they came for; none of them is needed to be in. They stay one tap away, and anything
+          already answered is counted on the button so it is never hidden without a trace. */}
+      {hasOptional && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((v) => !v)}
+            aria-expanded={detailsOpen}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-left text-sm font-semibold transition-colors hover:border-gold/40"
+          >
+            <span>
+              Add details (optional)
+              {answeredCount > 0 && <span className="ml-2 font-normal text-text-muted">{answeredCount} filled in</span>}
+            </span>
+            <span aria-hidden className="text-text-muted">{detailsOpen ? '−' : '+'}</span>
+          </button>
+          {detailsOpen && (
+            <div className="mt-6 space-y-6">
       {/* Activity. Two different answers shared one box — hours and a timezone — so each is asked
           for on its own now and the box disappears when the board wants neither. */}
       {(fields.availability || fields.timezone) && (
@@ -891,22 +992,17 @@ export default function SignupForm({
       </fieldset>
       )}
 
-      {/* The board's own questions, after the sections everyone gets. */}
+
       <SignupQuestions
-        questions={questions}
+        questions={optionalQuestions}
         answers={answers}
         disabled={isLocked}
-        onChange={(id, value) =>
-          setAnswers((prev) => {
-            const next = { ...prev };
-            // An emptied answer is removed rather than stored as "" — an absent key and a blank
-            // string would otherwise be two ways to say the same nothing.
-            if (value === undefined) delete next[String(id)];
-            else next[String(id)] = value;
-            return next;
-          })
-        }
+        onChange={changeAnswer}
       />
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg p-3">

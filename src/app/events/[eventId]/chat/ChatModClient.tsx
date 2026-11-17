@@ -138,6 +138,13 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
   }
 
   async function remove(line: Line) {
+    const ok = await dialog.confirm({
+      title: 'Delete this message?',
+      body: `${line.rsn}: “${line.body}” is removed for everyone, in game too.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await act({ action: 'delete', id: line.id }, 'Message removed');
   }
 

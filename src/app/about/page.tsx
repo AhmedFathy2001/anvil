@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 
 import { isApexHost } from '@/lib/clanContext';
 import { EVENT_MODES } from '@/lib/eventModes';
+import { countWord } from '@/lib/landingClansRules';
 import { TILE_KIND_COUNT } from '@/components/landing/TileKinds';
 import { DISCORD_LOCALES } from '@/lib/discordI18n';
 import AnvilMark from '@/components/AnvilMark';
@@ -92,7 +93,7 @@ export default async function AboutPage() {
         </Section>
 
         <Section title="What you can do">
-          Run eight event formats, including Tile race with branching roads, Showdown and Lucky draw.
+          Run {countWord(formats)} event formats, including Tile race with branching roads, Showdown and Lucky draw.
           Spring missions mid-event, co-host with other clans, and run clan-versus-clan competitions.
           Check tile balance from real drop rates and kill speeds, see who is spooned or dry, and
           review flagged proof. Every setup guide comes in 16 languages.

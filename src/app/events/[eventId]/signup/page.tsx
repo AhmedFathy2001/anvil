@@ -1,4 +1,6 @@
 import { db } from '@/db';
+import { inviteSignupWindow } from '@/lib/teamInvites';
+import { isEventOver } from '@/lib/eventLock';
 import { accountCap } from '@/lib/accountCap';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import { signupSeatsFor } from '@/lib/eventSeats';
@@ -21,7 +23,9 @@ import { toQuestionView } from '@/lib/survey';
 import { isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { teamLoads } from '@/lib/teamPlacementDb';
 import { resolveClanById } from '@/lib/clanContext';
-import { streamedEvent } from '@/lib/creatorSpaces';
+import { clanKindOf, streamedEvent } from '@/lib/creatorSpaces';
+import { clanBasePath } from '@/lib/clanScopedPaths';
+import { staffOfClan } from '@/lib/eventAccess';
 import { friendsHostOfEvent } from '@/lib/friendEvents';
 
 export const dynamic = 'force-dynamic';
@@ -60,6 +64,7 @@ export default async function EventSignupPage({
   // posts — this only decides whether to SAY where they're heading, so a stale link can't promise
   // a seat it no longer has.
   let invite: { token: string; teamName: string } | null = null;
+  let lateInvite = false;
   if (isWellFormedToken(inviteToken)) {
     const row = await db.query.teamInvites.findFirst({ where: eq(teamInvites.token, inviteToken!) });
     const window = signupWindowState({
@@ -69,7 +74,10 @@ export default async function EventSignupPage({
       signupsEnabled: event.signupsEnabled,
       hostKind: friendsKind,
     });
-    if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: window.open }).ok && row) {
+    // The invite is the host's consent, so a running event still takes a late joiner (lib/teamInvites).
+    const effective = inviteSignupWindow(window, isEventOver(event));
+    if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: effective.open }).ok && row) {
+      lateInvite = !window.open && effective.open;
       const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) });
       if (team) invite = { token: row.token, teamName: team.name };
     }
@@ -80,9 +88,8 @@ export default async function EventSignupPage({
   // Without the clanId filter, someone with the same character seated in two clans (a member of one,
   // a guest of another) saw that character listed once per seat: "Playing as … Denoverse, Denoverse".
   // On a co-hosted event an accepted co-host's seats count too (lib/eventSeats), one per character.
-  const myAccounts = session.playerId == null
-    ? []
-    : (await signupSeatsFor(event, session.playerId)).map((a) => ({
+  const seatRows = session.playerId == null ? [] : await signupSeatsFor(event, session.playerId);
+  const myAccounts = seatRows.map((a) => ({
         id: a.id,
         rsn: a.rsn,
         isPrimary: a.isPrimary,
@@ -90,6 +97,20 @@ export default async function EventSignupPage({
         verificationMethod: a.verificationMethod,
         provisional: a.provisional,
       }));
+
+  // Characters the plugin has already reported from (accounts.live_stats_at), so the form skips the
+  // "run the plugin" line for them.
+  const pluginSeenIds = seatRows.length
+    ? await (async () => {
+        // clan-scope: global -- the subject is a PERSON's own characters, by id.
+        const seen = new Set(
+          (await db.select({ id: accounts.id, at: accounts.liveStatsAt }).from(accounts).where(inArray(accounts.id, seatRows.map((r) => r.accountId))))
+            .filter((r) => r.at != null)
+            .map((r) => r.id),
+        );
+        return seatRows.filter((r) => seen.has(r.accountId)).map((r) => r.id);
+      })()
+    : [];
 
   const maxAccounts = accountCap(event.maxAccountsPerPerson);
   // Only asked when there is no seat here: "link a character" vs "not on this clan's list yet".
@@ -158,13 +179,15 @@ export default async function EventSignupPage({
         paymentDeadline: event.paymentDeadline,
         hostKind: friendsKind,
       })
-    : signupWindowState({
-        signupOpensAt: event.signupOpensAt,
-        signupDeadline: event.signupDeadline,
-        startDate: event.startDate,
-        signupsEnabled: event.signupsEnabled,
-        hostKind: friendsKind,
-      });
+    : lateInvite
+      ? { open: true as const, reason: null }
+      : signupWindowState({
+          signupOpensAt: event.signupOpensAt,
+          signupDeadline: event.signupDeadline,
+          startDate: event.startDate,
+          signupsEnabled: event.signupsEnabled,
+          hostKind: friendsKind,
+        });
 
   // Headcount for the page stays "approved"; the pot counts only fees actually in.
   const [approvedCount, paid, cofferFunded] = await Promise.all([countApprovedSignups(id), countPaidEntries(id), eventPoolGp(id)]);
@@ -239,7 +262,18 @@ export default async function EventSignupPage({
 
   // A creator space's event: no member list to be missing from, so no "guest" wording either.
   // A streamed event (a creator space's, or a Streaming clan's open to viewers) gets the viewer's join flow.
-  const creatorEvent = streamedEvent(await resolveClanById(event.clanId), event);
+  const hostClan = await resolveClanById(event.clanId);
+  const creatorEvent = streamedEvent(hostClan, event);
+  // For naming a character inline on this page (an in-game clan's event only).
+  const inlineHost =
+    hostClan && clanKindOf(hostClan.kind) === 'clan' && !creatorEvent
+      ? {
+          slug: hostClan.slug,
+          name: hostClan.name,
+          path: clanBasePath(hostClan),
+          viewerIsStaff: session.playerId != null && (await staffOfClan(event.clanId, session.playerId)),
+        }
+      : null;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -274,6 +308,7 @@ export default async function EventSignupPage({
       <SignupForm
         eventId={event.id}
         fields={eventRules.signupFields}
+        pluginSeenIds={pluginSeenIds}
         questions={signupQuestions}
         teamChoice={
           // Team-choice events (rules.teamChoice): the host built the teams, applicants name the one
@@ -319,6 +354,7 @@ export default async function EventSignupPage({
         fee={fee ?? null}
         invite={invite}
         prefillClanMemberId={prefillClanMemberId}
+        host={inlineHost}
         prefillProfile={prefillProfile}
         windowOpen={window.open}
         windowReason={window.reason}

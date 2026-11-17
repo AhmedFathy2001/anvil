@@ -1,3 +1,4 @@
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { and, asc, eq, gt, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -127,14 +128,23 @@ export async function apexHomeView(
         ),
       ),
     db
-      .select({ clanId: weeklyCompetitions.clanId, id: weeklyCompetitions.id, name: weeklyCompetitions.title })
+      .select({
+        clanId: weeklyCompetitions.clanId,
+        id: weeklyCompetitions.id,
+        name: weeklyCompetitions.title,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+        status: weeklyCompetitions.status,
+      })
       .from(weeklyCompetitions)
       .where(
         and(
           inArray(weeklyCompetitions.clanId, ids),
-          eq(weeklyCompetitions.status, 'active'),
+          ne(weeklyCompetitions.status, 'completed'),
         ),
-      ),
+      )
+      // The recorded status lags the clock; the dates decide what is live (lib/weeklyStage).
+      .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active')),
     openSignups(playerId, ids),
     characterList(playerId),
   ]);
@@ -447,9 +457,15 @@ export async function clansWithSomethingLive(clanIds: number[]): Promise<Set<num
         ),
       ),
     db
-      .selectDistinct({ clanId: weeklyCompetitions.clanId })
+      .select({
+        clanId: weeklyCompetitions.clanId,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+        status: weeklyCompetitions.status,
+      })
       .from(weeklyCompetitions)
-      .where(and(inArray(weeklyCompetitions.clanId, clanIds), eq(weeklyCompetitions.status, 'active'))),
+      .where(and(inArray(weeklyCompetitions.clanId, clanIds), ne(weeklyCompetitions.status, 'completed')))
+      .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active')),
   ]);
 
   return new Set([...ev, ...wk].map((r) => r.clanId));

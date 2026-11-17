@@ -1,4 +1,5 @@
 import SaveAsPresetButton from '@/components/SaveAsPresetButton';
+import { clientEvent } from '@/lib/clientRows';
 import { getBoard } from '@/lib/libraryBoards';
 import BoardLibraryPanel from '../BoardLibraryPanel';
 import SettingsClient from '../SettingsClient';
@@ -29,7 +30,7 @@ export default async function MoreSettingsPage({ params }: { params: Promise<{ e
           />
         </div>
       )}
-      <SettingsClient event={event} tiles={tiles} section="more" />
+      <SettingsClient event={clientEvent(event)} tiles={tiles} section="more" />
     </>
   );
 }

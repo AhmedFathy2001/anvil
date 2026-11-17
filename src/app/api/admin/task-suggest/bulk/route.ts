@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { suggestBulk } from '@/lib/taskSuggest';
 
@@ -9,7 +9,7 @@ import { suggestBulk } from '@/lib/taskSuggest';
 const MAX_LINES = 200;
 
 export async function POST(request: Request) {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
   const body = (await request.json().catch(() => null)) as { lines?: unknown } | null;

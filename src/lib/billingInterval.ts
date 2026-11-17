@@ -47,12 +47,48 @@ export function priceLine(monthlyUsd: number, interval: BillingInterval): string
   return `${usd(yearlyPriceUsd(monthlyUsd) ?? 0)}/yr · ${usd(yearlyPerMonthUsd(monthlyUsd))}/mo`;
 }
 
-/** The checkout env a tier uses at an interval. */
+/**
+ * Which Gumroad product a checkout opens. Each tier has two: the ORIGINAL, which starts with Gumroad's
+ * own free trial when the owner has one switched on there (TRIAL_DAYS > 0), and a PAY-NOW copy with no
+ * trial, charged at once ("Skip trial, pay now", and "Subscribe" for anyone who has had a trial).
+ * The pay-now envs are the original's name with `_NOW` on the end: GUMROAD_URL_SILVER_NOW,
+ * GUMROAD_PRODUCT_SILVER_NOW, GUMROAD_URL_SILVER_YEARLY_NOW, … Unset = that button is not shown.
+ */
+export type CheckoutMode = 'trial' | 'now';
+
+/** The pay-now env beside an original one (`X` → `X_NOW`). */
+export function nowEnv(env: string | undefined): string | undefined {
+  return env ? `${env}_NOW` : undefined;
+}
+
+/** The checkout env a tier uses at an interval, for the original product or its pay-now copy. */
 export function urlEnvFor(
   tier: { gumroadUrlEnv?: string; gumroadUrlYearlyEnv?: string },
   interval: BillingInterval,
+  mode: CheckoutMode = 'trial',
 ): string | undefined {
-  return interval === 'yearly' ? tier.gumroadUrlYearlyEnv : tier.gumroadUrlEnv;
+  const env = interval === 'yearly' ? tier.gumroadUrlYearlyEnv : tier.gumroadUrlEnv;
+  return mode === 'now' ? nowEnv(env) : env;
+}
+
+/** Does this product id belong to the tier: its original or pay-now product, monthly or yearly? */
+export function tierHasProduct(
+  tier: { gumroadProductEnv?: string; gumroadProductYearlyEnv?: string },
+  productId: string,
+): boolean {
+  return [tier.gumroadProductEnv, tier.gumroadProductYearlyEnv, nowEnv(tier.gumroadProductEnv), nowEnv(tier.gumroadProductYearlyEnv)].some(
+    (env) => !!env && process.env[env] === productId,
+  );
+}
+
+/** Is this the id of the tier's yearly-only product (original or pay-now)? */
+export function tierHasYearlyProduct(tier: { gumroadProductYearlyEnv?: string }, productId: string): boolean {
+  return [tier.gumroadProductYearlyEnv, nowEnv(tier.gumroadProductYearlyEnv)].some((env) => !!env && process.env[env] === productId);
+}
+
+/** Is this the id of the tier's pay-now product (no Gumroad trial), monthly or yearly? */
+export function tierHasNowProduct(tier: { gumroadProductEnv?: string; gumroadProductYearlyEnv?: string }, productId: string): boolean {
+  return [nowEnv(tier.gumroadProductEnv), nowEnv(tier.gumroadProductYearlyEnv)].some((env) => !!env && process.env[env] === productId);
 }
 
 /** Appends `ref` (the webhook's correlation key) to a checkout URL. */

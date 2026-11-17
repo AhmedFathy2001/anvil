@@ -95,6 +95,14 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
         }
       >
         {c.verified ? METHOD_LABEL[c.verificationMethod ?? ''] ?? 'Verified' : 'Not verified yet'} ·{' '}
+        {!c.verified && !c.provisional && (
+          <>
+            <ClanLink href="/guide/plugin#connect" className="text-gold hover:text-gold-light">
+              Verify by signing in to the plugin on this character
+            </ClanLink>
+            {' · '}
+          </>
+        )}
         <ClanLink href={`/p/${encodeURIComponent(c.rsn)}`} className="text-gold hover:text-gold-light">
           View public page →
         </ClanLink>
@@ -104,7 +112,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             {/* The full character page as its home clan sees it (falls back to any seat). */}
             <ClanLink
               href={clanPathOf({ slug: fullProfileSeat.clanSlug, kind: fullProfileSeat.clanKind }, `/members/${encodeURIComponent(c.rsn)}`)}
-              className="text-gold hover:text-gold-light"
+              className="text-gold hover:text-gold-light max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
             >
               View full profile →
             </ClanLink>

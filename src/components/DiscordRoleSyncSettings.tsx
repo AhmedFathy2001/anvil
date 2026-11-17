@@ -5,18 +5,28 @@ import DiscordLinkMember from './DiscordLinkMember';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { nicknameMatchingOn, ROLE_MATCH_BY_NICKNAME_KEY } from '@/lib/discordRoleSafety';
 import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
 // explicitly disabled (null/'' = on). Mirrors loadRoleSyncConfig() in lib/discord-roles.ts.
-export default function DiscordRoleSyncSettings() {
+export default function DiscordRoleSyncSettings({
+  notLinked = 0,
+  unconfirmedLinks = 0,
+}: {
+  notLinked?: number;
+  /** Members whose stored Discord link has no recorded source, so it earns no roles with matching off. */
+  unconfirmedLinks?: number;
+}) {
   const [roleSync, setRoleSync] = useState(false);
   const [nicknameSync, setNicknameSync] = useState(false);
   const [nicknameOverwrite, setNicknameOverwrite] = useState(false);
   const [autoMatch, setAutoMatch] = useState(true);
+  // Off unless the clan turns it on (lib/discordRoleSafety ROLE_MATCH_BY_NICKNAME_KEY).
+  const [nicknameMatch, setNicknameMatch] = useState(false);
 
-  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true });
+  const [original, setOriginal] = useState({ roleSync: false, nicknameSync: false, nicknameOverwrite: false, autoMatch: true, nicknameMatch: false });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -30,6 +40,52 @@ export default function DiscordRoleSyncSettings() {
     reports: Array<{ memberId: number; rsn: string; ok: boolean; reason?: string; resolved?: boolean; added?: number; removed?: number; nickSet?: string }>;
   } | null>(null);
 
+  // Links this clan's admins made by hand (the "link…" control beside a skipped member), so one can
+  // be removed. Character names and dates only.
+  const [handLinks, setHandLinks] = useState<{ memberId: number; rsn: string; linkedAt: string | null }[]>([]);
+  const [removingLink, setRemovingLink] = useState<number | null>(null);
+  // "Saved" is a result, not a resting state: it shows after a save, never on first load.
+  const [justSaved, setJustSaved] = useState(false);
+  // Removing a link asks first, in place: the row opens with the roles choice, ticked by default.
+  const [confirmingLink, setConfirmingLink] = useState<number | null>(null);
+  const [alsoRemoveRoles, setAlsoRemoveRoles] = useState(true);
+
+  async function loadHandLinks() {
+    try {
+      const res = await clanFetch('/api/admin/discord/link-member');
+      if (res.ok) setHandLinks((await res.json()).links ?? []);
+    } catch {
+      // The list is a convenience; the settings above work without it.
+    }
+  }
+
+  async function removeHandLink(memberId: number) {
+    setConfirmingLink(null);
+    setRemovingLink(memberId);
+    setMessage(null);
+    try {
+      const res = await clanFetch('/api/admin/discord/link-member', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clanMemberId: memberId, removeRoles: alsoRemoveRoles }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setHandLinks((links) => links.filter((l) => l.memberId !== memberId));
+        // The link is gone either way. Roles that could not be taken back are the part to act on.
+        const roles = data.roles as { status?: string; failed?: unknown[] } | null | undefined;
+        const rolesLeft = roles?.status === 'refused' || (roles?.failed?.length ?? 0) > 0;
+        setMessage({ type: rolesLeft ? 'error' : 'success', text: data.message || 'Link removed.' });
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Could not remove the link' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Could not remove the link' });
+    } finally {
+      setRemovingLink(null);
+    }
+  }
+
   // Force a full re-sync of every member's Discord roles + nicknames now (empty body = sweep).
   async function runSync() {
     setSyncing(true);
@@ -42,8 +98,11 @@ export default function DiscordRoleSyncSettings() {
         body: '{}',
       });
       const data = await res.json();
-      if (res.ok) setSyncResult(data);
-      else setMessage({ type: 'error', text: data.error || 'Sync failed' });
+      if (res.ok) {
+        setSyncResult(data);
+        // A link made from the last result's "link…" control shows up in the list below.
+        void loadHandLinks();
+      } else setMessage({ type: 'error', text: data.error || 'Sync failed' });
     } catch {
       setMessage({ type: 'error', text: 'Sync failed' });
     } finally {
@@ -60,17 +119,20 @@ export default function DiscordRoleSyncSettings() {
           nicknameSync: data.discord_nickname_sync_enabled === 'true',
           nicknameOverwrite: data.discord_nickname_overwrite === 'true',
           autoMatch: data.discord_auto_match_rank_by_name !== 'false',
+          nicknameMatch: nicknameMatchingOn(data[ROLE_MATCH_BY_NICKNAME_KEY]),
         };
         setRoleSync(next.roleSync);
         setNicknameSync(next.nicknameSync);
         setNicknameOverwrite(next.nicknameOverwrite);
         setAutoMatch(next.autoMatch);
+        setNicknameMatch(next.nicknameMatch);
         setOriginal(next);
       } catch (error) {
         console.error('Failed to load settings:', error);
       } finally {
         setLoading(false);
       }
+      await loadHandLinks();
     })();
   }, []);
 
@@ -87,11 +149,13 @@ export default function DiscordRoleSyncSettings() {
           discord_nickname_overwrite: nicknameOverwrite ? 'true' : '',
           // On = clear the override (defaults to on); Off = explicit 'false'.
           discord_auto_match_rank_by_name: autoMatch ? '' : 'false',
+          [ROLE_MATCH_BY_NICKNAME_KEY]: nicknameMatch ? 'true' : '',
         }),
       });
       if (res.ok) {
         invalidateSettings();
-        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch });
+        setOriginal({ roleSync, nicknameSync, nicknameOverwrite, autoMatch, nicknameMatch });
+        setJustSaved(true);
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
         const data = await res.json();
@@ -108,7 +172,8 @@ export default function DiscordRoleSyncSettings() {
     roleSync !== original.roleSync ||
     nicknameSync !== original.nicknameSync ||
     nicknameOverwrite !== original.nicknameOverwrite ||
-    autoMatch !== original.autoMatch;
+    autoMatch !== original.autoMatch ||
+    nicknameMatch !== original.nicknameMatch;
   useUnsavedChanges(hasChanges);
 
   if (loading) {
@@ -126,6 +191,43 @@ export default function DiscordRoleSyncSettings() {
         label="Enable Discord role sync"
         description="Gives members who have signed in to Anvil the Discord role that matches their in-game clan rank, plus any default roles. Needs the Anvil bot in your server (Connection, above). Nickname sync below also needs this on."
       />
+
+      <Checkbox
+        checked={nicknameMatch}
+        onChange={setNicknameMatch}
+        disabled={!roleSync}
+        label="Also match members by Discord nickname"
+        description={
+          <>
+            Off: only people who signed in to Anvil with Discord, or whom an admin linked by hand, get roles; a
+            Discord account that was matched by name before no longer counts. On: a member who has not signed in
+            also gets their roles when someone in your server has a nickname or username that matches their
+            in-game name. Anyone in your server can set their nickname to such a member&apos;s name and receive
+            that member&apos;s roles, without signing in to Anvil. Members who signed in are never affected.
+            {nicknameMatch && notLinked > 0 && (
+              <>
+                {' '}
+                {notLinked} current {notLinked === 1 ? 'member has' : 'members have'} not signed in with Discord and
+                can only be matched this way.
+              </>
+            )}
+          </>
+        }
+      />
+      {original.roleSync && !original.nicknameMatch && notLinked > 0 && (
+        <p className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-300">
+          {notLinked} {notLinked === 1 ? 'member has' : 'members have'} not linked Discord and will not get roles
+          until they sign in, an admin links them by hand, or you turn this on.
+          {unconfirmedLinks > 0 && (
+            <>
+              {' '}
+              {unconfirmedLinks} of them {unconfirmedLinks === 1 ? 'has' : 'have'} a Discord link saved before Anvil
+              recorded who made it, so it does not count. To confirm one, sync below and use &quot;link…&quot; beside
+              their name, or ask them to sign in with Discord.
+            </>
+          )}
+        </p>
+      )}
 
       <Checkbox
         checked={nicknameSync}
@@ -179,12 +281,12 @@ export default function DiscordRoleSyncSettings() {
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
-        {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
+        {justSaved && !hasChanges && !saving && <span className="text-xs text-green-400">Saved</span>}
         <UnsavedIndicator dirty={hasChanges} />
       </div>
 
       {/* Force a full re-sync now — applies roles + nicknames to everyone and reports who was
-          skipped and why (e.g. no Discord id linkable). Needs role sync enabled + saved. */}
+          skipped and why (e.g. has not signed in with Discord). Needs role sync enabled + saved. */}
       <div className="border-t border-card-border pt-4">
         <button
           onClick={runSync}
@@ -275,7 +377,7 @@ export default function DiscordRoleSyncSettings() {
                     .map((r) => (
                       <li key={r.rsn} className="text-xs text-text-muted">
                         <span className="text-foreground/80">{r.rsn}</span> — {r.reason ?? 'unknown'}
-                        <DiscordLinkMember memberId={r.memberId} />
+                        <DiscordLinkMember memberId={r.memberId} replacesHandLink={handLinks.some((l) => l.memberId === r.memberId)} />
                       </li>
                     ))}
                 </ul>
@@ -284,6 +386,69 @@ export default function DiscordRoleSyncSettings() {
           </div>
         )}
       </div>
+
+      {handLinks.length > 0 && (
+        <details className="border-t border-card-border pt-4">
+          <summary className="cursor-pointer text-sm text-text-muted hover:text-foreground">
+            Linked by hand ({handLinks.length})
+          </summary>
+          <p className="mt-1.5 text-xs text-text-muted">
+            Members an admin pointed at a Discord account. They get roles like anyone who signed in. If the member
+            signs in with a different Discord account, their own sign-in is used instead.
+          </p>
+          <ul className="mt-2 max-h-64 divide-y divide-card-border overflow-y-auto">
+            {handLinks.map((l) => (
+              <li key={l.memberId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5 text-xs text-text-muted">
+                <span className="min-w-0">
+                  <span className="text-sm text-foreground/90">{l.rsn}</span>
+                  {l.linkedAt && <> · linked {l.linkedAt.slice(0, 10)}</>}
+                </span>
+                {confirmingLink !== l.memberId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlsoRemoveRoles(true);
+                      setConfirmingLink(l.memberId);
+                    }}
+                    disabled={removingLink === l.memberId}
+                    className="shrink-0 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:border-red-400/70 hover:bg-red-500/10 disabled:opacity-50 max-sm:min-h-11"
+                  >
+                    {removingLink === l.memberId ? 'Removing…' : 'Remove link'}
+                  </button>
+                )}
+                {confirmingLink === l.memberId && (
+                  <div className="w-full space-y-2 rounded-lg border border-red-400/30 bg-red-500/5 p-3">
+                    <p className="text-sm text-foreground/90">Remove the Discord link for {l.rsn}?</p>
+                    <p>Anvil stops giving this member roles through the link.</p>
+                    <Checkbox
+                      checked={alsoRemoveRoles}
+                      onChange={setAlsoRemoveRoles}
+                      label="Also remove the roles Anvil gave them"
+                      description="Takes off only the roles Anvil manages for your clan (rank, member, guest and event roles). Other roles, their nickname and their place in the server are not touched. Unticked, the roles stay until you remove them in Discord."
+                    />
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingLink(null)}
+                        className="rounded-lg border border-card-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:text-foreground max-sm:min-h-11"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeHandLink(l.memberId)}
+                        className="rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition-colors hover:border-red-400/70 hover:bg-red-500/10 max-sm:min-h-11"
+                      >
+                        Remove link
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

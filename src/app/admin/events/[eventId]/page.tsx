@@ -1,4 +1,5 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -8,6 +9,8 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import OverviewClient from './OverviewClient';
 import EventArchiveCard from './EventArchiveCard';
+import EmptyRosterNotice from './EmptyRosterNotice';
+import OwnCharacterNudge from './OwnCharacterNudge';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventStage } from '@/lib/eventStage';
@@ -93,8 +96,10 @@ export default async function EventOverviewPage({
           </ul>
         </div>
       )}
+      {stage === 'build' && <OwnCharacterNudge eventId={id} />}
+      {stage === 'build' && <EmptyRosterNotice clanId={event.clanId} eventId={id} entry={event.entry} />}
       <OverviewClient
-        event={event}
+        event={clientEvent(event)}
         tiles={withSearchText(nestParts(eventTiles))}
         teams={eventTeams}
         completions={eventCompletions}
@@ -105,7 +110,7 @@ export default async function EventOverviewPage({
         tierBands={tierBands}
         surveyOn={(await getClanFeatures(event.clanId)).on('survey')}
         // Once it's over: the zip, and when its proof images leave storage (lib/eventMediaRetention).
-        archive={stage === 'wrap' ? <EventArchiveCard event={event} now={renderedAt} /> : null}
+        archive={stage === 'wrap' ? <EventArchiveCard event={clientEvent(event)} now={renderedAt} /> : null}
       />
     </>
   );

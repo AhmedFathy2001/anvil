@@ -42,6 +42,14 @@ test('desktop widths stay horizontal; a one-step board never turns', () => {
   assert.equal(layoutFor(700, 10, 2).vertical, true);
 });
 
+test('a wide box a little short of the map shrinks to show all of it instead of cutting off the finish', () => {
+  // The member's race team page at 1440px: an 844px box, a six-step race with two roads (1038px).
+  const l = layoutFor(844, 6, 2);
+  assert.equal(l.vertical, false);
+  assert.ok(!l.vertical && l.scale < MIN_SCALE && l.scale >= 0.75, JSON.stringify(l));
+  assert.ok(!l.vertical && naturalWidth(6, 2) * l.scale <= 844 - 8, 'the whole map fits the box');
+});
+
 test('canTurn off only shrinks (the old behaviour)', () => {
   assert.equal(layoutFor(600, 10, 1, false).vertical, false);
 });

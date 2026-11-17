@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
+import { useDialog } from '@/components/Confirm';
 import Combobox from '@/components/Combobox';
 import { clanFetch } from '@/lib/clanFetch';
 import type { H2hCharacter, H2hPrefs, H2hView } from '@/lib/h2h';
@@ -20,6 +22,7 @@ import {
   type H2hKind,
   type H2hRecord,
 } from '@/lib/h2hRules';
+import { DELETED_ACCOUNT, type BlockedPerson } from '@/lib/h2hBlocked';
 import { CheckboxBox } from '@/components/Checkbox';
 import Select from '@/components/Select';
 
@@ -28,7 +31,7 @@ interface Data {
   record: H2hRecord & { lastWin: { rsn: string; label: string; kind: H2hKind } | null };
   cap: number | null;
   open: number;
-  prefs: H2hPrefs;
+  prefs: H2hPrefs & { people: BlockedPerson[] };
   characters: H2hCharacter[];
 }
 
@@ -224,6 +227,16 @@ type Act = (id: number, body: Record<string, unknown>) => Promise<void>;
 
 function Invite({ c, now, busy, act }: { c: H2hView; now: number; busy: boolean; act: Act }) {
   const [pub, setPub] = useState(false);
+  const { confirm } = useDialog();
+  const declineAndBlock = async () => {
+    const ok = await confirm({
+      title: `Decline and block ${c.them.rsn}?`,
+      body: `This declines the challenge and turns away any new challenges from ${c.them.rsn}. You can unblock from the settings at the bottom of this page.`,
+      confirmLabel: 'Decline and block',
+      tone: 'danger',
+    });
+    if (ok) await act(c.id, { action: 'decline', block: true });
+  };
   return (
     <div className="rounded-xl border border-gold/40 bg-card-bg px-4 py-3">
       <div className="font-semibold">{c.them.rsn} challenged you</div>
@@ -236,7 +249,7 @@ function Invite({ c, now, busy, act }: { c: H2hView; now: number; busy: boolean;
         <button type="button" disabled={busy} onClick={() => act(c.id, { action: 'decline' })} className="rounded-lg border border-card-border px-3 py-1.5 text-sm hover:border-gold/40 disabled:opacity-50">
           Decline
         </button>
-        <button type="button" disabled={busy} onClick={() => act(c.id, { action: 'decline', block: true })} className="text-xs text-text-dim hover:text-gold disabled:opacity-50" title={`Decline, and refuse any more challenges from ${c.them.rsn}`}>
+        <button type="button" disabled={busy} onClick={declineAndBlock} className="text-xs text-text-dim hover:text-gold disabled:opacity-50" title={`Decline, and refuse any more challenges from ${c.them.rsn}`}>
           Decline and block
         </button>
         <label className="ml-auto flex items-center gap-2 text-xs text-text-dim">
@@ -300,6 +313,7 @@ function Bar({ label, value, top, unit, lead }: { label: string; value: number; 
 }
 
 function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOpponent: string; onSent: () => Promise<void> }) {
+  const linkHere = useLinkCharacterHere();
   const [opponent, setOpponent] = useState(presetOpponent);
   const [check, setCheck] = useState<{ ok: boolean; rsn?: string; error?: string } | null>(null);
   const [accountId, setAccountId] = useState<number>(data.characters[0]?.accountId ?? 0);
@@ -366,7 +380,11 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
     return (
       <Section title="New challenge">
         <p className="rounded-xl border border-dashed border-card-border px-4 py-3 text-sm text-text-muted">
-          Verify one of your characters first (connect the Anvil plugin and log in to it), so Anvil can track you.
+          Verify one of your characters first, so Anvil can track you. Connect the Anvil plugin and log in to it, or
+          use the quick XP check.{' '}
+          <ClanLink href={linkHere('challenge')} className="font-medium text-gold hover:text-gold-light">
+            Link a character
+          </ClanLink>
         </p>
       </Section>
     );
@@ -555,7 +573,7 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
   );
 }
 
-function Settings({ prefs, onChange }: { prefs: H2hPrefs; onChange: () => Promise<void> }) {
+function Settings({ prefs, onChange }: { prefs: H2hPrefs & { people: BlockedPerson[] }; onChange: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   async function put(body: Record<string, unknown>) {
     setBusy(true);
@@ -576,6 +594,18 @@ function Settings({ prefs, onChange }: { prefs: H2hPrefs; onChange: () => Promis
             Unblock all
           </button>
         </div>
+      )}
+      {prefs.people.length > 0 && (
+        <ul className="mt-2 divide-y divide-card-border rounded-lg border border-card-border">
+          {prefs.people.map((p) => (
+            <li key={p.playerId} className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className={p.name === DELETED_ACCOUNT ? 'text-text-dim' : ''}>{p.name}</span>
+              <button type="button" disabled={busy} onClick={() => put({ unblock: p.playerId })} className="text-xs text-gold hover:underline disabled:opacity-50">
+                Unblock
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

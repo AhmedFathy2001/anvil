@@ -1,4 +1,6 @@
 import { foundViaLabel } from '@/lib/noticeRules';
+import { scrubErrorText } from '@/lib/errorFingerprint';
+import { operatorEmail } from '@/lib/staffSight';
 import { notFound } from 'next/navigation';
 
 import { clanDetail, platformActions } from '@/lib/platformView';
@@ -15,6 +17,7 @@ import ClanBoostGift from './ClanBoostGift';
 import StaffTransferNow from './StaffTransferNow';
 import OwnershipTransfersClient from '../../ownership/OwnershipTransfersClient';
 import { idParam } from '@/lib/routeIds';
+import ClanTrialFacts from './ClanTrialFacts';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +51,11 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   // The query already took a clan filter; nothing had ever passed it one.
   const actions = await platformActions(20, { clanId: clan.id });
   const canWrite = hasPlatformRole(actor.role, 'staff');
+  // The billing columns the trial facts need, read straight from the row (lib/planTrials).
+  const trialRow = await db.query.clans.findFirst({
+    where: eq(clans.id, clan.id),
+    columns: { id: true, kind: true, plan: true, inGameName: true, trialEndsAt: true, gumroadSubscriptionId: true, gumroadRef: true },
+  });
   // clan-scope: this clan -- its own row, by id.
   const own = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true, foundVia: true, foundViaNote: true } });
   const hidden = !!own?.platformHidden;
@@ -105,7 +113,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
             value={billing.label}
             tone={billing.attention ? (billing.state === 'lapsed' ? 'bad' : 'warn') : 'plain'}
           />
-          <Fact label="Contact" value={clan.contactEmail ?? '—'} />
+          <Fact label="Contact" value={operatorEmail(actor.role, clan.contactEmail) ?? '—'} />
           <Fact label="Trial ends" value={stamp(clan.trialEndsAt)} />
           <Fact
             label={clan.cancelAtPeriodEnd ? 'Access ends' : 'Renews'}
@@ -210,7 +218,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
                 </div>
                 <div className="mt-0.5 truncate text-xs text-text-muted">
                   {e.path ? `${e.path} — ` : ''}
-                  {e.message}
+                  {scrubErrorText(e.message)}
                 </div>
               </li>
             ))}
@@ -222,6 +230,10 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
           </p>
         </Section>
       )}
+
+      <Section title="Plan trial and other memberships">
+        <ClanTrialFacts clan={trialRow ?? { id: clan.id, kind: 'clan', plan: 'free', inGameName: null, trialEndsAt: null, gumroadSubscriptionId: null, gumroadRef: null }} canGrant={hasPlatformRole(actor.role, 'root')} />
+      </Section>
 
       {canWrite && (
         <Section title="Gifted clan boost">

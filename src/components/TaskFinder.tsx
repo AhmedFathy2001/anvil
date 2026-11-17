@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import type { TaskSuggestion } from '@/lib/taskSuggest';
+import { useUnsavedChanges } from '@/components/UnsavedChanges';
 
 /**
  * "What's the task?" — type it the way you'd say it and pick a tile that's already set up to track.
@@ -15,6 +16,9 @@ export default function TaskFinder({ onPick, picked }: { onPick: (s: TaskSuggest
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const seq = useRef(0);
+  // Words typed here are work too: closing the editor with them in the box asks first, like any
+  // other unsaved field. Picking a suggestion empties the box and hands over to the editor's own check.
+  useUnsavedChanges(q.trim() !== '');
 
   useEffect(() => {
     const query = q.trim();

@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { cofferEntries, clanRoster, type CofferEntry } from '@/db/schema';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { foldBalance, type CofferBalance } from '@/lib/cofferMath';
+import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { foldBalance, foldMoneyOut, type CofferBalance, type CofferMoneyOut } from '@/lib/cofferMath';
 import { announceCofferMovement } from '@/lib/cofferFeed';
 
 /**
@@ -666,12 +666,18 @@ export interface CofferLedgerRow extends CofferEntry {
   memberName: string | null;
 }
 
-/** The ledger, newest first. `kinds`/`statuses` narrow it for the queue views. */
+/**
+ * The ledger, newest first. `kinds`/`statuses` narrow it for the queue views.
+ *
+ * `all` drops the limit. For the queues only (rows still waiting on a person): a queue cut at the
+ * newest N rows loses its OLDEST entries first, which are the ones that have waited longest.
+ */
 export async function listCofferEntries(args: {
   clanId: number;
   kinds?: string[];
   statuses?: string[];
   limit?: number;
+  all?: boolean;
 }): Promise<CofferLedgerRow[]> {
   const where = [eq(cofferEntries.clanId, args.clanId)];
   if (args.kinds?.length) where.push(inArray(cofferEntries.kind, args.kinds));
@@ -679,14 +685,35 @@ export async function listCofferEntries(args: {
   // clan-scope: global -- the ledger rows are already this clan's (filtered below); the roster join
   // only puts a name on a seat one of them names, and a seat can only belong to the clan that owns
   // the row pointing at it.
-  const rows = await db
+  const query = db
     .select({ entry: cofferEntries, memberName: clanRoster.rsn })
     .from(cofferEntries)
     .leftJoin(clanRoster, eq(cofferEntries.clanMemberId, clanRoster.id))
     .where(and(...where))
-    .orderBy(desc(cofferEntries.id))
-    .limit(Math.min(500, Math.max(1, args.limit ?? 100)));
+    .orderBy(desc(cofferEntries.id));
+  const rows = await (args.all ? query : query.limit(Math.min(500, Math.max(1, args.limit ?? 100))));
   return rows.map((r) => ({ ...r.entry, memberName: r.memberName ?? null }));
+}
+
+/** Still owed and paid out, summed in the database over every row (lib/cofferMath foldMoneyOut). */
+export async function getCofferMoneyOut(clanId: number): Promise<CofferMoneyOut> {
+  // clan-scope: takes the clan id its caller already settled.
+  const rows = await db
+    .select({
+      kind: cofferEntries.kind,
+      status: cofferEntries.status,
+      total: sql<number>`coalesce(sum(abs(${cofferEntries.amount})), 0)`,
+      count: sql<number>`count(*)`,
+    })
+    .from(cofferEntries)
+    .where(
+      and(
+        eq(cofferEntries.clanId, clanId),
+        or(inArray(cofferEntries.kind, ['award', 'pool']), and(eq(cofferEntries.kind, 'adjustment'), lt(cofferEntries.amount, 0))),
+      ),
+    )
+    .groupBy(cofferEntries.kind, cofferEntries.status);
+  return foldMoneyOut(rows.map((r) => ({ kind: r.kind, status: r.status, total: Number(r.total), count: Number(r.count) })));
 }
 
 /** Who has put the most in. Approved donations only — a pending claim is not a contribution yet. */

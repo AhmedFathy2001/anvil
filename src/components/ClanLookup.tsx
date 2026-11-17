@@ -5,6 +5,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import MotionImg from '@/components/MotionImg';
 import type { ClanFocus } from '@/lib/clanHome';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -87,6 +88,9 @@ const FOCUS_LABEL: Record<ClanFocus, string> = {
  * members — so the clan list, its counts and its filters are clans only, and listed creator spaces
  * get their own "Creators" section below (featured ones first), matched by the same search box.
  */
+/** Below this many clans the filter and sort rows are left out. */
+const FILTER_MIN_CLANS = 6;
+
 export default function ClanLookup({ clans: everything }: { clans: LookupClan[] }) {
   const clans = useMemo(() => everything.filter((c) => !isCreatorSpace(c)), [everything]);
   const creators = useMemo(() => everything.filter((c) => isCreatorSpace(c)), [everything]);
@@ -193,6 +197,15 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
             Find yours below and open its page — that is where you ask to join, or join their events as
             a guest.
           </p>
+          <p className="mt-2 text-[12.5px] text-text-dim">
+            Can&rsquo;t find your clan? It may not be on Anvil yet. Ask its leader to start it, and send
+            them this:{' '}
+            <CopyLinkButton
+              path="/clans/new"
+              label="Copy the link"
+              className="rounded-md border border-card-border px-2 py-0.5 text-[12px] text-gold transition-colors hover:border-gold-dark"
+            />
+          </p>
         </div>
         <ClanLink
           href="/clans/new"
@@ -225,24 +238,30 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
           placeholder="Search clans…"
           className="min-w-0 flex-1 rounded-lg border border-card-border bg-card-bg px-3.5 py-2 text-[14px] outline-none transition-colors placeholder:text-text-dim focus:border-gold/45"
         />
-        <Chips
-          value={filter}
-          onChange={setFilter}
-          options={[
-            ['any', 'All clans'],
-            ['open', 'Taking members'],
-            ['challenge', 'Open to challenges'],
-          ]}
-        />
-        <Chips
-          value={sort}
-          onChange={setSort}
-          options={[
-            ['active', 'Most active'],
-            ['size', 'Biggest'],
-            ['name', 'A–Z'],
-          ]}
-        />
+        {/* Filters and sorting only earn their place once there is a list to narrow: a row of six
+            buttons above two clans is weight, not help. Search stays. */}
+        {clans.length >= FILTER_MIN_CLANS && (
+          <>
+            <Chips
+              value={filter}
+              onChange={setFilter}
+              options={[
+                ['any', 'All clans'],
+                ['open', 'Taking members'],
+                ['challenge', 'Open to challenges'],
+              ]}
+            />
+            <Chips
+              value={sort}
+              onChange={setSort}
+              options={[
+                ['active', 'Most active'],
+                ['size', 'Biggest'],
+                ['name', 'A–Z'],
+              ]}
+            />
+          </>
+        )}
       </div>
 
       {spotlight.length > 0 && (
@@ -289,7 +308,7 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
 
       {grid.length === 0 && featured.length === 0 && spotlight.length === 0 ? (
         <p className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted">
-          {query ? `Nothing matching “${query}”.` : clans.length > 0 ? 'No clan fits that filter yet.' : 'No clans are listed yet.'}
+          {query ? `Nothing matching “${query}”. Not on Anvil yet? Ask your clan’s leader to start it.` : clans.length > 0 ? 'No clan fits that filter yet.' : 'No clans are listed yet.'}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -503,7 +522,8 @@ function Card({ clan }: { clan: LookupClan }) {
               <span className="text-text-dim">member{clan.members === 1 ? '' : 's'}</span>
             </span>
           </div>
-          {clan.members > 0 && (
+          {/* Nothing at 0%: a bare "0%" sat right above the Recruiting tag and read as "0% recruiting". */}
+          {clan.members > 0 && played > 0 && (
             <div className="mt-2 flex items-center gap-2">
               <span className="block h-1 flex-1 overflow-hidden rounded-sm bg-brown-light">
                 <span
@@ -512,7 +532,7 @@ function Card({ clan }: { clan: LookupClan }) {
                 />
               </span>
               <span className="font-mono text-[10.5px] tabular-nums text-text-dim">
-                {played}%{clan.xpThisWeek > 0 && <> · {compact(clan.xpThisWeek)} xp</>}
+                {played}% played{clan.xpThisWeek > 0 && <> · {compact(clan.xpThisWeek)} xp</>}
               </span>
             </div>
           )}

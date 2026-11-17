@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { accounts, clanMemberships, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
+import { competitionStat } from '@/lib/weeklyMetric';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { log } from '@/lib/logger';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
@@ -55,11 +56,14 @@ export async function POST(
   let markedUnranked = 0;
   const errors: string[] = [];
   const unrankedMemberIds = new Set<number>();
-  const compType = comp[0].type as CompetitionType;
+  // An item hunt refreshes the stat it shows beside its drops; one with none has nothing to read.
+  const stat = competitionStat(comp[0]);
+  if (!stat) return NextResponse.json({ updated: 0, total: 0, markedUnranked: 0, errors: [] });
+  const compType: CompetitionType = stat.type;
 
   for (const p of participants) {
     try {
-      const result = await fetchParticipantStat(p.rsn, compType, comp[0].metric);
+      const result = await fetchParticipantStat(p.rsn, compType, stat.metric);
       const nowIso = new Date().toISOString();
       if (result.kind === 'value') {
         // Same negative-gains guard as the scheduled cron — refuse to overwrite a higher
@@ -90,7 +94,7 @@ export async function POST(
         if (baseForGain !== null) {
           const spike = checkRateSpike({
             type: compType,
-            metric: comp[0].metric,
+            metric: stat.metric,
             gained: result.value - baseForGain,
             sinceIso: comp[0].startDate,
             toIso: nowIso,

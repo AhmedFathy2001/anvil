@@ -9,6 +9,9 @@ import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
 import { withHostEventRoom } from '@/lib/friendEvents';
+import { chooseAutoTeam } from '@/lib/teamPlacement';
+import { teamLoads } from '@/lib/teamPlacementDb';
+import { sql } from 'drizzle-orm';
 
 export interface MemberInput {
   clanMemberId: number;
@@ -526,6 +529,68 @@ export async function placeUnassignedPlayers(
 // value to satisfy any lingering constraint — nothing reads it.
 function placeholderCaptainPassword(): string {
   return crypto.randomBytes(16).toString('hex');
+}
+
+/**
+ * An auto-balance board: seat everyone waiting in the pool exactly as a sign-up is seated (lib/
+ * teamPlacement chooseAutoTeam) — the team with the fewest players, teams made up to the host's
+ * count. For people who entered before the placement placed them. One person's accounts share a
+ * team. Runs under the same event lock as a sign-up's placement (lib/teamPlacementDb). Idempotent.
+ */
+export async function placePoolAuto(
+  eventId: number,
+  teamCount: number | null,
+  slotMode: SlotMode = 'per-person',
+): Promise<{ placed: number; teamsCreated: number }> {
+  const pool = await db
+    .select()
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), isNull(eventParticipants.teamId)))
+    .orderBy(eventParticipants.id);
+  if (pool.length === 0) return { placed: 0, teamsCreated: 0 };
+  const asAccount = (p: Participant) => ({ clanMemberId: p.clanMemberId, rsn: p.name, playerId: p.id });
+  const groups =
+    slotMode === 'per-person'
+      ? await groupAccountsByPerson(pool.map(asAccount))
+      : pool.map((p) => ({ personKey: personKeyOf(p.clanMemberId, null, p.id), teamName: p.name, accounts: [asAccount(p)] }));
+  const personTeam = slotMode === 'per-person' ? await existingTeamByPerson(eventId) : new Map<string, number>();
+  const pickedAt = new Date().toISOString();
+  const placedIds: number[] = [];
+  let teamsCreated = 0;
+
+  await db.transaction(async (tx) => {
+    // clan-scope: global -- a row lock on one event the caller already resolved by id; it reads nothing.
+    await tx.execute(sql`select id from events where id = ${eventId} for update`);
+    const loads = await teamLoads(eventId, tx);
+    for (const g of groups) {
+      let teamId = personTeam.get(g.personKey);
+      if (teamId == null) {
+        const choice = chooseAutoTeam(loads, teamCount);
+        if (choice.kind === 'existing') teamId = choice.teamId;
+        else {
+          const [made] = await tx.insert(teams).values({ eventId, name: choice.name, color: choice.color }).returning({ id: teams.id });
+          teamId = made.id;
+          loads.push({ id: made.id, name: choice.name, color: choice.color, size: 0 });
+          teamsCreated++;
+        }
+        personTeam.set(g.personKey, teamId);
+      }
+      for (const a of g.accounts) {
+        if (a.playerId == null) continue;
+        const moved = await tx
+          .update(eventParticipants)
+          .set({ teamId, pickedAt })
+          .where(and(eq(eventParticipants.id, a.playerId), isNull(eventParticipants.teamId)))
+          .returning({ id: eventParticipants.id });
+        if (moved.length === 0) continue;
+        placedIds.push(a.playerId);
+        const load = loads.find((t) => t.id === teamId);
+        if (load) load.size++;
+      }
+    }
+  });
+  if (placedIds.length > 0) captureStartingStatsSoon(eventId, placedIds);
+  return { placed: placedIds.length, teamsCreated };
 }
 
 async function insertTeam(eventId: number, name: string, color: string): Promise<number> {

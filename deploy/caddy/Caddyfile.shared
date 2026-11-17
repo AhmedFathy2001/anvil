@@ -6,13 +6,8 @@
 # clan — and a Caddy change, or at least a working on-demand path, for every new one — now needs
 # nothing when a clan is created.
 #
-# BEFORE CUTTING OVER, the Site must actually serve what the apex serves today, or these URLs 404:
-#   /                marketing landing        (still in Anvil.Admin)
-#   /pricing         plans                    (still in Anvil.Admin)
-#   /portal          customer billing         (still in Anvil.Admin)
-#   /legal/*         privacy, terms, refunds  (still in Anvil.Admin)
-# The Gumroad webhook (/api/webhooks/gumroad) and the TLS gate (/api/tls-check) HAVE moved, so
-# billing notifications and certificate issuance survive the switch.
+# The Site serves everything the apex serves: the landing page, /pricing, /portal and /legal/*.
+# The Gumroad webhook (/api/webhooks/gumroad) and the TLS gate (/api/tls-check) live in the Site too.
 #
 # Roll back by restoring the previous Caddyfile: the per-clan containers are not deleted by this,
 # and `caddy reload` is not a deploy.

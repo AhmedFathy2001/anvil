@@ -8,6 +8,9 @@
 // with Node type-stripping, like lib/eventRules. Callers fetch the
 // counts (see eventLifecycle.getEventStartReadiness) and pass them in.
 
+// 'awaiting-signups' replaces 'no-teams' on a board whose Team placement makes the teams FROM sign-ups
+// (auto-balance, solo): before the first sign-up there are no teams by design, so the host is told
+// to get sign-ups rather than to build teams. It still holds the start, like 'no-teams'.
 // 'no-end-date' is a WARNING, not a state check: an event with no end date runs until someone ends
 // it, which is a legitimate setup (a rolling monthly ladder) but usually a mistake on a bingo. It is
 // never produced by computeStartReadiness — only the admin start-now door raises it, so it prompts
@@ -22,6 +25,7 @@
 export type StartBlockerCode =
   | 'draft-in-progress'
   | 'no-teams'
+  | 'awaiting-signups'
   | 'no-assigned-players'
   | 'no-end-date'
   | 'empty-teams'
@@ -34,6 +38,13 @@ export interface StartReadinessCounts {
   assignedPlayerCount: number;
   /** All enrolled players, assigned or not. */
   totalPlayerCount: number;
+  /** The board's Team placement (lib/teamPlacement). 'auto' and 'solo' make teams from sign-ups. */
+  placement?: string | null;
+}
+
+/** Teams come into being as people sign up, so "no teams yet" is expected until the first one does. */
+export function teamsFormFromSignups(placement: string | null | undefined): boolean {
+  return placement === 'auto' || placement === 'solo';
 }
 
 export interface StartReadiness {
@@ -71,7 +82,9 @@ export function areEventRostersFinal(
 export function computeStartReadiness(counts: StartReadinessCounts): StartReadiness {
   const blockers: StartBlockerCode[] = [];
   if (isDraftInProgress(counts.draftStatus)) blockers.push('draft-in-progress');
-  if (counts.teamCount === 0) blockers.push('no-teams');
+  if (counts.teamCount === 0) {
+    blockers.push(teamsFormFromSignups(counts.placement) && counts.totalPlayerCount === 0 ? 'awaiting-signups' : 'no-teams');
+  }
   else if (counts.assignedPlayerCount === 0) blockers.push('no-assigned-players');
   return {
     ready: blockers.length === 0,
@@ -87,6 +100,8 @@ export function startBlockerLabel(code: StartBlockerCode): string {
       return 'the draft is still in progress — complete it (or reset it) first';
     case 'no-teams':
       return 'no teams have been created yet';
+    case 'awaiting-signups':
+      return 'nobody has signed up yet, and the teams are made from sign-ups — share the sign-up link first';
     case 'no-assigned-players':
       return 'no players have been assigned to a team yet';
     case 'no-end-date':

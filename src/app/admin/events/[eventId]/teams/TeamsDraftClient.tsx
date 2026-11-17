@@ -2,6 +2,8 @@
 
 import Checkbox from '@/components/Checkbox';
 import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
+import PathChip from '@/components/PathChip';
+import type { JoinPath } from '@/lib/characterState';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
@@ -34,7 +36,9 @@ import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
+import TeamPlacementCard from './TeamPlacementCard';
 import { PLACEMENT_META, placementOf } from '@/lib/teamPlacement';
+import { TEAMS_CHANGED } from '../EventGuide';
 
 interface DraftState {
   status: string;
@@ -47,11 +51,14 @@ interface DraftState {
   pickInRound: number;
   totalPicked: number;
   poolRemaining: number;
+  balanceMode?: string;
   /** Late joiners' starting-stats line, by player id (lib/startingStats). Absent = nothing to say. */
   startingStats?: Record<number, StartingStatsStatus>;
 }
 
 interface Props {
+  /** How each player's character came in, by player id (PathChip): plugin, XP check, awaiting a vouch, vouched. */
+  paths?: Record<number, JoinPath>;
   event: Event;
   tiles: Tile[];
   teams: Team[];
@@ -69,7 +76,7 @@ interface Props {
 // player on their own solo team; 'one_team' = whole clan on one shared roster.
 type TeamFormat = 'draft' | 'preassigned' | 'individual' | 'one_team';
 
-export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, startingStats: initialStartingStats, editLocked = false }: Props) {
+export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, startingStats: initialStartingStats, editLocked = false, paths = {} }: Props) {
   const router = useRouter();
   // What this event actually IS — a ladder and a race aren't bingos, and the start copy says so.
   const noun = eventNoun(event.format);
@@ -141,11 +148,16 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     // A ladder event is individual-primary by design — default a fresh one to one-team-each (the
     // admin can still switch to real teams). Other formats ask on the first screen.
     if (eventAxes(event).competitors === 'individuals') return 'individual';
-    return null; // fresh event — ask
+    // The host already chose "Host drafts" when they made the event: don't ask again. "Change"
+    // below still offers building rosters directly, a solo board or one shared team.
+    if (placement === 'draft' && event.teamFormation !== 'per_clan') return 'draft';
+    return null; // clan-v-clan boards and the like — ask
   })();
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);
   const formatStorageKey = `draft-format-${event.id}`;
   const automaticFormat = format === 'individual' || format === 'one_team';
+  // Auto-balance: Anvil makes the teams as people sign up, so "set up teams" is not the host's job.
+  const autoBoard = placement === 'auto' && format === 'preassigned';
   const nonDraft = format === 'preassigned' || automaticFormat;
 
   useEventStream(event.id, {
@@ -208,6 +220,25 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     return 2;
   });
   const stepStorageKey = `draft-step-${event.id}`;
+  // Each team's roster folds. With more than six teams they start folded (a 13-team board was a
+  // wall of rows); what the admin opens or closes is kept for this tab, like the step above.
+  const foldStorageKey = `teams-fold-${event.id}`;
+  const [teamFold, setTeamFold] = useState<Record<number, boolean>>({});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(foldStorageKey) ?? '{}');
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after mount: sessionStorage is not there on the server
+      if (saved && typeof saved === 'object') setTeamFold(saved);
+    } catch {}
+  }, [foldStorageKey]);
+  const toggleTeamFold = (teamId: number, open: boolean) =>
+    setTeamFold((prev) => {
+      const next = { ...prev, [teamId]: open };
+      try {
+        window.sessionStorage.setItem(foldStorageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   // All step navigation goes through here: it stamps ?step= into browser history, so
   // the browser Back button steps backward through the wizard instead of leaving the page.
   const goToStep = useCallback((n: number, mode: 'push' | 'replace' = 'push') => {
@@ -287,6 +318,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     const res = await clanFetch(`/api/events/${event.id}/draft`);
     if (res.ok) setDraft(await res.json());
   }, [event.id]);
+
+  // The guide strip's "Team everyone up" changed the rosters from outside this component.
+  useEffect(() => {
+    const reload = () => void fetchDraft();
+    window.addEventListener(TEAMS_CHANGED, reload);
+    return () => window.removeEventListener(TEAMS_CHANGED, reload);
+  }, [fetchDraft]);
 
   useEffect(() => {
     if (draft.status !== 'active' && draft.status !== 'paused') return;
@@ -724,14 +762,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const [placeNotice, setPlaceNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   async function placePool() {
     if (mutationsBlocked()) return;
-    if (format !== 'individual' && format !== 'one_team') return;
+    if (format !== 'individual' && format !== 'one_team' && !autoBoard) return;
     setPlacing(true);
     setPlaceNotice(null);
     try {
       const res = await clanFetch(`/api/admin/events/${event.id}/place-pool`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placement: format }),
+        // An auto-balance board seats them the way it seats a sign-up: fewest players first.
+        body: JSON.stringify({ placement: autoBoard ? 'as-set' : format }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -781,23 +820,28 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const phases = format === 'preassigned'
     ? [
         { label: 'Set up teams', done: teamsDone },
-        { label: 'Fill player pool', done: poolDone },
-        { label: 'Rosters & start', done: allPlaced && eventStarted },
+        // On an auto-balance board a player counts once they are on a team, not while they wait.
+        { label: 'Add players', done: autoBoard ? allPlaced : poolDone },
+        { label: 'Check rosters & start', done: allPlaced && eventStarted },
       ]
     : automaticFormat
       ? [
-        { label: 'Enroll & team up', done: allPlaced },
-        { label: 'Rosters & start', done: allPlaced && eventStarted },
+        { label: 'Add players & team up', done: allPlaced },
+        { label: 'Check rosters & start', done: allPlaced && eventStarted },
       ]
       : [
         { label: 'Set up teams', done: teamsDone },
-        { label: 'Fill player pool', done: poolDone },
+        { label: 'Add players', done: poolDone },
         { label: 'Set draft order', done: orderDone },
         { label: 'Run draft', done: draftDone },
       ];
   const stepForPhase = format === 'preassigned' ? [0, 1, 3] : automaticFormat ? [1, 3] : [0, 1, 2, 3];
   const nextHint = format === 'preassigned'
-    ? !teamsDone
+    ? autoBoard && unplacedCount > 0
+      ? `${unplacedCount} player${unplacedCount === 1 ? ' is' : 's are'} signed up and not on a team yet: team them up below.`
+      : autoBoard && !teamsDone
+      ? 'Nothing to build yet: Anvil makes the teams as people sign up. Share the sign-up link.'
+      : !teamsDone
       ? 'Create the team or teams players will join.'
       : !poolDone
         ? 'Add everyone who’s playing; sign-ups can place them directly onto an existing team.'
@@ -821,7 +865,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         : !teamsDone
           ? 'Start by adding at least 2 teams below.'
           : !poolDone
-            ? 'Fill the player pool — sign-ups add players automatically, or add clan members manually.'
+            ? 'Add players — sign-ups add them automatically, or add clan members by hand.'
             : !orderDone
               ? 'Set the draft order — every team must be in it — then start the draft.'
               : activeStep === 3
@@ -831,7 +875,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // The one-click team-up, shared by the enroll step and the rosters step. It used to live only on
   // the enroll step, so anyone who reached "Rosters & start" with teamless players (a restored
   // ?step=3, the step pill, late sign-ups) was told to use a button that wasn't on their screen.
-  const teamUpAction = automaticFormat && draft.status === 'none' && (
+  const teamUpAction = (automaticFormat || autoBoard) && draft.status === 'none' && (
     <>
       <button
         onClick={placePool}
@@ -879,15 +923,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     // live — a blanket disabled <fieldset> used to kill those too.
     <div className="space-y-12 min-w-0">
       {placement !== 'draft' && event.draftStatus === 'none' && (
-        <p className="!mt-0 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 text-sm text-text-muted">
+        <div className="!mt-0 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 text-sm text-text-muted">
           <span className="font-medium text-foreground">Team placement: {PLACEMENT_META[placement].label}.</span>{' '}
           {placement === 'solo'
             ? 'Every player who signs up gets their own entry, so there is nothing to draft. The list below has one per player.'
             : placement === 'auto'
               ? `Players join the team with the fewest players when they sign up${event.teamCount ? `, across ${event.teamCount} teams` : ''}. You can still move people by hand.`
               : 'Players choose one of your teams when they sign up. Create the teams here first.'}{' '}
-          Change it on the Sign-ups tab.
-        </p>
+          <TeamPlacementCard event={event} disabled={editLocked} />
+        </div>
       )}
       {/* Format-first: nothing else renders until the admin picks how teams work. Non-draft picks
           skip team creation and the draft entirely — enrolment teams everyone up in one click. */}
@@ -895,11 +939,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         <div className="!mt-0">
           <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            How should teams work?
+            Team placement
           </h2>
           <p className="text-xs text-text-muted mb-2">
-            Pick a format first — it decides the rest of the setup. You can change your mind any time
-            before a draft starts.
+            Pick how players end up on teams first — it decides the rest of the setup. You can change
+            your mind any time before a draft starts.
           </p>
           <p className="mb-4 flex flex-wrap gap-x-4">
             <GuideLink href="/guide/captain#draft">How a draft runs</GuideLink>
@@ -911,7 +955,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               onClick={() => chooseFormat('draft')}
               className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
             >
-              <div className="text-sm font-bold mb-1">Draft into teams</div>
+              <div className="text-sm font-bold mb-1">Host drafts</div>
               <p className="text-xs text-text-muted leading-relaxed">
                 The classic team bingo: create teams, fill a player pool, then captains take turns
                 picking. Best for balanced competitive boards.
@@ -922,7 +966,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               onClick={() => chooseFormat('preassigned')}
               className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
             >
-              <div className="text-sm font-bold mb-1">Build rosters directly</div>
+              <div className="text-sm font-bold mb-1">Host builds the rosters</div>
               <p className="text-xs text-text-muted leading-relaxed">
                 Create the teams and place people straight onto them. Best for clan-v-clan or any
                 event whose sides are already decided — no draft order or picking round.
@@ -933,7 +977,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               onClick={() => chooseFormat('individual')}
               className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
             >
-              <div className="text-sm font-bold mb-1">One team each</div>
+              <div className="text-sm font-bold mb-1">Solo: one team each</div>
               <p className="text-xs text-text-muted leading-relaxed">
                 Every player races on their own — a solo leaderboard. No team setup, no draft: enroll
                 players and each gets their own team automatically.
@@ -1007,15 +1051,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         <p className="text-sm text-text-muted mt-3">
           <span className="text-foreground/80 font-medium">Next:</span> {nextHint}
         </p>
+        {/* When the host's team placement already says how teams work, the note above says it:
+            this line is only for the choices placement can't express. */}
+        {(placement === 'draft' || event.draftStatus !== 'none') && (
         <p className="text-xs text-text-muted mt-2">
-          Format:{' '}
+          Team placement:{' '}
           <span className="text-foreground/80">
             {format === 'draft'
-              ? 'Draft into teams'
+              ? 'Host drafts'
               : format === 'preassigned'
-                ? 'Pre-assigned teams'
+                ? 'Host builds the rosters'
                 : format === 'individual'
-                  ? 'One team each'
+                  ? 'Solo: one team each'
                   : 'One shared team'}
           </span>
           {draft.status === 'none' && (
@@ -1027,6 +1074,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             </>
           )}
         </p>
+        )}
       </div>
 
       {/* Plain-language model — open by default until the first team exists, then out of the way.
@@ -1147,8 +1195,21 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             })}
           </div>
         ) : (
-          <div className="text-center py-8 border border-dashed border-card-border rounded-xl mb-6">
-            <p className="text-text-muted">No teams yet. Add one below.</p>
+          <div className="text-center py-8 px-4 border border-dashed border-card-border rounded-xl mb-6">
+            {autoBoard ? (
+              unplacedCount > 0 ? (
+                <div className="mx-auto max-w-md space-y-3">
+                  <p className="text-text-muted">
+                    No teams yet. {unplacedCount} player{unplacedCount === 1 ? ' is' : 's are'} waiting: team them up and each one joins the team with the fewest players.
+                  </p>
+                  {teamUpAction}
+                </div>
+              ) : (
+                <p className="text-text-muted">No teams yet. Anvil makes them as people sign up, so there is nothing to build here. You can still add one yourself below.</p>
+              )
+            ) : (
+              <p className="text-text-muted">No teams yet. Add one below.</p>
+            )}
           </div>
         )}
 
@@ -1216,6 +1277,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         {format === 'draft' && (activeStep === 2 || activeStep === 3) && (draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">
             <DraftStatus
+            snake={draft.balanceMode !== 'dynamic-order'}
               status={draft.status}
               currentTeamId={draft.currentTeamId}
               round={draft.round}
@@ -1411,6 +1473,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         >
                           {player.name}
                         </button>
+                        <PathChip path={paths[player.id]} />
                         {player.discord && player.discord !== player.name && (
                           <span className="text-xs text-text-muted truncate">({player.discord})</span>
                         )}
@@ -1441,7 +1504,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             stay live. */}
                         <fieldset disabled={editLocked} className="contents">
                         <button
-                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
+                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord ?? null, timezone: player.timezone ?? null })}
                           className="text-[10px] text-gold hover:text-gold-light transition-colors border border-gold/20 px-1.5 py-0.5 rounded disabled:opacity-50"
                           title="Edit player details"
                         >
@@ -1569,7 +1632,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Team Rosters
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
           </div>
         )}
@@ -1582,7 +1645,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             teams.length < 2
               ? 'Add at least two teams on the first step.'
               : waiting === 0
-                ? 'Nobody is waiting to be picked. Add players on the “Fill player pool” step.'
+                ? 'Nobody is waiting to be picked. Add players on the “Add players” step.'
                 : !orderDone
                   ? 'Set the draft order on the previous step.'
                   : null;
@@ -1629,7 +1692,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   : draftTeams.length === 0
                     ? automaticFormat && unplacedCount > 0
                       ? 'No teams yet — team the pool up below.'
-                      : 'No teams yet — go back to Enroll & team up to add players and team them up.'
+                      : 'No teams yet — go back to Add players & team up to add players and team them up.'
                     : `Start the ${noun}, adjust rosters, or send the roster to Discord below.`}
               </p>
             </div>
@@ -1646,9 +1709,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 </h3>
                 <p className="text-xs text-text-muted">
                   {unplacedCount === 0
-                    ? 'Nobody is enrolled yet — go back to Enroll & team up and add the players first.'
+                    ? 'Nobody is enrolled yet — go back to Add players & team up and add the players first.'
                     : automaticFormat
-                      ? `Team them up before starting — they won’t score until they’re on a team.${format === 'individual' ? ' Account settings for alts are on the Enroll & team up step.' : ''}`
+                      ? `Team them up before starting — they won’t score until they’re on a team.${format === 'individual' ? ' Account settings for alts are on the Add players & team up step.' : ''}`
                       : draftTeams.length === 0
                         ? 'Create a team on Set up teams, then assign them under Manage rosters below.'
                         : 'Assign each one under Manage rosters below — they won’t score until they’re on a team.'}
@@ -1768,6 +1831,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         <div key={p.id} className="flex items-center gap-2 border border-card-border rounded-lg p-2 bg-card-bg">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <span className="text-sm font-medium truncate">{p.name}</span>
+                            <PathChip path={paths[p.id]} />
                             <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                           </div>
                           {/* An ACTION menu: it assigns and returns to empty, so the value is always
@@ -1818,9 +1882,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   // longer playing, so they shouldn't inflate the headcount.
                   const activeCount = roster.filter((p) => !p.frozenAt).length;
                   const subbedOutCount = roster.length - activeCount;
+                  const teamOpen = teamFold[team.id] ?? draftTeams.length <= 6;
                   return (
                     <div key={team.id} className="border border-card-border rounded-lg p-3 bg-card-bg">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className={`flex items-center gap-2 ${teamOpen ? 'mb-2' : ''}`}>
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
                         <ClanLink
                           href={`/admin/events/${event.id}/teams/${team.id}`}
@@ -1840,7 +1905,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           {activeCount} player{activeCount !== 1 ? 's' : ''}
                           {subbedOutCount > 0 && <span className="text-amber-300/70"> · {subbedOutCount} subbed out</span>}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleTeamFold(team.id, !teamOpen)}
+                          aria-expanded={teamOpen}
+                          aria-label={`${teamOpen ? 'Hide' : 'Show'} ${team.name}'s players`}
+                          className="shrink-0 rounded border border-card-border px-2 py-1 text-xs text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                        >
+                          {teamOpen ? 'Hide ▾' : 'Show ▸'}
+                        </button>
                       </div>
+                      {teamOpen && (
+                      <>
                       <StartingStatsSummary
                         ids={unreadIds(roster.map((p) => p.id), draft.startingStats, startingStatsPoll.lapsed)}
                         onRetry={editLocked ? undefined : (id) => retryStartingStats(event.id, id)}
@@ -1858,10 +1934,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             const busy = busyPlayerId === p.id;
                             const frozen = !!p.frozenAt;
                             return (
-                              <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
+                              <div key={p.id} className="flex items-center justify-between gap-2 text-sm max-sm:flex-col max-sm:items-stretch max-sm:gap-1 max-sm:border-t max-sm:border-card-border/50 max-sm:pt-2 max-sm:first:border-t-0 max-sm:first:pt-0">
                                 <span className="min-w-0 flex flex-col">
                                   <span className="truncate flex items-center gap-1.5 min-w-0">
                                     <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
+                                    <PathChip path={paths[p.id]} />
                                     <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                                     {frozen && (
                                       <span
@@ -1880,7 +1957,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                 </span>
                                 {/* All-mutating action cluster — disabled on a locked event; the
                                     player name beside it stays selectable. */}
-                                <fieldset disabled={editLocked} className="flex items-center gap-1 shrink-0 border-0 p-0 m-0 min-w-0">
+                                <fieldset disabled={editLocked} className="flex items-center gap-1 max-sm:gap-2 max-sm:flex-wrap shrink-0 border-0 p-0 m-0 min-w-0">
                                   {removeChoiceId === p.id ? (
                                     <>
                                       <span className="text-[10px] text-text-muted mr-0.5">Remove:</span>
@@ -1888,7 +1965,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setRemoveChoiceId(null); removeFromTeam(p.id); }}
                                         disabled={busy}
                                         title="Move back to the pool, keeping their contributions intact"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         To pool
                                       </button>
@@ -1896,7 +1973,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => resetPlayer(p.id, p.name, false, false, true)}
                                         disabled={busy}
                                         title="Delete this player from the event entirely — strips their share from team tiles, voids their submissions, and removes them from all headcounts. For mistaken enrollments or subs who shouldn't linger."
-                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         From event
                                       </button>
@@ -1904,7 +1981,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => setRemoveChoiceId(null)}
                                         disabled={busy}
                                         title="Cancel"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         ✕
                                       </button>
@@ -1916,7 +1993,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setSubChoiceId(null); toggleFrozen(p.id, true); }}
                                         disabled={busy}
                                         title="Bench this player but KEEP their points — their frozen contribution still counts toward team tiles."
-                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         {busy ? '…' : 'Keep pts'}
                                       </button>
@@ -1924,7 +2001,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => resetPlayer(p.id, p.name, false, true)}
                                         disabled={busy}
                                         title="Bench this player AND clear their points (reopens their solo tiles, voids submissions, strips their team-tile share). They still show as subbed out."
-                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         Clear pts
                                       </button>
@@ -1932,7 +2009,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => setSubChoiceId(null)}
                                         disabled={busy}
                                         title="Cancel"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         ✕
                                       </button>
@@ -1943,7 +2020,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setRemoveChoiceId(null); if (frozen) toggleFrozen(p.id, false); else setSubChoiceId(p.id); }}
                                         disabled={busy}
                                         title={frozen ? 'Resume live tracking for this player' : 'Sub this player out — choose whether to keep or clear their points'}
-                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-amber-300/90 hover:text-amber-200 border border-amber-300/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         {busy ? '…' : frozen ? 'Sub in' : 'Sub out'}
                                       </button>
@@ -1951,7 +2028,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => resetPlayer(p.id, p.name, false)}
                                         disabled={busy}
                                         title="Reset this player’s own progress (reopens their solo tiles, voids their submissions, strips their team-tile share) but keep them active. The team keeps its completed tiles."
-                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         Clear progress
                                       </button>
@@ -1959,7 +2036,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         onClick={() => { setSubChoiceId(null); setRemoveChoiceId(p.id); }}
                                         disabled={removingPlayerId === p.id || busy}
                                         title="Remove this player — choose whether they go back to the pool or leave the event entirely"
-                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                                        className="text-xs text-text-muted hover:text-foreground border border-card-border px-1.5 py-0.5 max-sm:min-h-10 max-sm:px-3 rounded transition-colors disabled:opacity-50"
                                       >
                                         {removingPlayerId === p.id ? '…' : 'Remove'}
                                       </button>
@@ -2031,6 +2108,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         </button>
                       )}
                       </fieldset>
+                      </>
+                      )}
                     </div>
                   );
                 })}
@@ -2056,6 +2135,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                     <div key={player.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-sm font-medium truncate">{player.name}</span>
+                        <PathChip path={paths[player.id]} />
                         {player.discord && player.discord !== player.name && (
                           <span className="text-[10px] text-text-muted truncate">({player.discord})</span>
                         )}
@@ -2072,7 +2152,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                       {/* RSN / baseline edits — disabled on a locked event. */}
                       <fieldset disabled={editLocked} className="flex items-center gap-2 border-0 p-0 m-0 min-w-0">
                         <button
-                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
+                          onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord ?? null, timezone: player.timezone ?? null })}
                           className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
                           Edit name
@@ -2107,7 +2187,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Draft results
               </h3>
-              <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
             )}
           </div>

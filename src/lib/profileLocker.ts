@@ -16,7 +16,8 @@ import {
   weeklyCompetitions,
   weeklyParticipants,
 } from '@/db/schema';
-import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, ne, or } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { normalizeRsn } from '@/lib/auth';
 import { doorStates } from '@/lib/guestAdmission';
 import { rosterClanSeat } from '@/lib/seatScope';
@@ -557,9 +558,11 @@ export async function buildLocker(
 
   // ── Live weeklies: where this person sits, and what would move them up ────────────────────────
   // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
-  const activeComps = await db.query.weeklyCompetitions.findMany({
-    where: eq(weeklyCompetitions.status, 'active'),
+  const notFinished = await db.query.weeklyCompetitions.findMany({
+    where: ne(weeklyCompetitions.status, 'completed'),
   });
+  const lockerNow = Date.now();
+  const activeComps = notFinished.filter((c) => weeklyStatus(c, lockerNow) === 'active');
   const liveWeeklies: LockerLiveWeekly[] = [];
   if (activeComps.length > 0) {
     const partRows = await db

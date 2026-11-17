@@ -1,6 +1,10 @@
+import { runningParts, runningTotal } from '@/lib/runningCount';
+import { linkCharacterHref } from '@/lib/clanScopedPaths';
+import { enteredWord, scoredOfEntered } from '@/lib/weeklyCountWords';
 import MotionImg from '@/components/MotionImg';
 
-import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
+import CompetitionRow, { CompetitionRowList } from '@/components/events/CompetitionRow';
+import { boardRow, countRows, rowWhen, sectionRows, weeklyRow, youreInNote, type BoardViewer, type WeeklyViewer } from '@/lib/competitionRows';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
@@ -44,10 +48,12 @@ const dateShort = (iso: string) =>
 const WEEK_KIND: Record<string, HubKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
 
 function unitFor(w: HomeWeekly): string {
+  if (w.hunt) return 'drops';
   return w.type === 'skill' ? 'XP' : w.type === 'boss' ? 'KC' : 'h';
 }
 
 function weeklyValue(w: HomeWeekly, value: number): string {
+  if (w.hunt) return `${value.toLocaleString()} ${value === 1 ? 'drop' : 'drops'}`;
   if (w.type === 'efficiency') return `${(value / 1000).toFixed(1)}h`;
   return `${short(value)} ${unitFor(w)}`;
 }
@@ -58,18 +64,20 @@ function weeklyValue(w: HomeWeekly, value: number): string {
 export function Hero({ view, boostLevel = 0, boostNameStyle }: { view: HomeView; boostLevel?: number; boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null }) {
   const boost = boostPerks(boostLevel);
   const { clanWeek, live } = view;
+  const liveCount = { events: view.liveEventCount, competitions: view.weeklies.filter((w) => w.status === 'active').length };
   const stats = [
     { k: 'Members', v: view.memberCount.toLocaleString(), sub: 'in the clan right now' },
     {
-      k: 'Live events',
-      v: String(view.liveEventCount),
-      sub: view.liveEventCount > 0 ? 'running now' : 'nothing running',
-      cls: view.liveEventCount > 0 ? 'text-gold-light' : '',
+      // Events AND weekly competitions, the same way every count on the site says it (lib/runningCount).
+      k: 'Live now',
+      v: String(runningTotal(liveCount)),
+      sub: runningTotal(liveCount) > 0 ? runningParts(liveCount) : 'nothing running',
+      cls: runningTotal(liveCount) > 0 ? 'text-gold-light' : '',
     },
     {
       k: 'This week',
       v: live.weekly ? live.weekly.metricLabel : 'Between weeks',
-      sub: live.weekly ? `${live.weekly.entrants} scoring` : live.next ? `next one starts ${dateShort(live.next.startDate)}` : 'nothing scheduled',
+      sub: live.weekly ? enteredWord(live.weekly.entrants) : live.next ? `next one starts ${dateShort(live.next.startDate)}` : 'nothing scheduled',
       small: true,
     },
     {
@@ -163,10 +171,13 @@ export function YouStrip({
   you,
   signedIn,
   discordInvite,
+  returnTo,
 }: {
   you: HomeYou | null;
   signedIn: boolean;
   discordInvite: string | null;
+  /** The clan's own address (`/c/<slug>`), so signing in brings the person back here. */
+  returnTo?: string;
 }) {
   if (!you) {
     // Signed in, but nothing of theirs on this roster. Membership is granted — by the in-game roster
@@ -176,13 +187,13 @@ export function YouStrip({
       ? {
           title: "You're signed in, but not on this clan's roster",
           sub: 'Link a RuneScape account, or ask a mod to add you as a guest',
-          href: '/profile',
-          cta: 'Your profile',
+          href: linkCharacterHref('', returnTo, 'clan'),
+          cta: 'Link an account',
         }
       : {
           title: 'Sign in to see your week',
           sub: 'Your rank in everything running, and your own gains',
-          href: '/login',
+          href: returnTo ? `/login?return=${encodeURIComponent(returnTo)}` : '/login',
           cta: 'Sign in with Discord',
         };
     return (
@@ -275,6 +286,7 @@ export function YouStrip({
 
       <ClanLink
         href="/profile"
+        title="Your characters, teams and settings"
         className="justify-self-start whitespace-nowrap rounded-lg border border-gold/35 bg-gold/15 px-4 py-2 text-xs font-bold text-gold-light transition-colors hover:bg-gold/25 lg:justify-self-end"
       >
         Your profile →
@@ -299,7 +311,7 @@ export function LiveNow({ view }: { view: HomeView }) {
       {/* Two columns only when there are two things. A fixed pair of tracks left a single live
           event sitting in half a row with the other half blank, which reads as something failing to
           load rather than as a clan with one thing on. */}
-      <div className={`mb-9 grid gap-3.5 ${weekly && event ? 'lg:grid-cols-2' : ''}`}>
+      <div className={`mb-9 grid grid-cols-1 gap-3.5 ${weekly && event ? 'lg:grid-cols-2' : ''}`}>
         {weekly && <WeeklyLiveCard w={weekly} />}
         {event && <EventLiveCard e={event} />}
         {!anythingLive && next && <NextUpCard w={next} members={view.memberCount} />}
@@ -399,7 +411,7 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
           </span>
           <h3 className="mt-1.5 truncate text-xl font-extrabold">{w.title}</h3>
           <p className="mt-0.5 text-[12.5px] text-text-muted">
-            {w.scoring} scoring of {w.entrants} · ends {dateShort(w.endDate)}
+            {scoredOfEntered(w.scoring, w.entrants)} · ends {dateShort(w.endDate)}
           </p>
         </div>
       </div>
@@ -568,10 +580,22 @@ function JustFinishedCard({ w }: { w: HomeWeekly }) {
  * starting next month was buried in it. A finished competition is a RESULT: a name, a winner and a
  * date. It doesn't need a card, and eight of them shouldn't outweigh the thing you can still enter.
  *
- * So: anything live or scheduled keeps a full card, and everything finished collapses into one
+ * So: anything live or scheduled keeps a full row, and everything finished collapses into one
  * dense list underneath — the same information in a fifth of the height, and read at a glance.
  */
-export function Competitions({ view }: { view: HomeView }) {
+export function Competitions({
+  view,
+  now,
+  myBoards,
+  myWeeks,
+}: {
+  view: HomeView;
+  now: number;
+  /** Where the viewer stands in the weeks they are in (lib/viewerWeeklyStandings), by week id. */
+  myWeeks?: ReadonlyMap<number, WeeklyViewer>;
+  /** The viewer's part in the listed board events (lib/viewerEvents), by event id. */
+  myBoards?: ReadonlyMap<number, BoardViewer>;
+}) {
   // Whatever "Happening now" is already showing full-size, so the page doesn't print the live BOTW
   // twice in a row — which it did, and which was half of why the middle read as a wall.
   const featured = new Set<string>();
@@ -587,19 +611,40 @@ export function Competitions({ view }: { view: HomeView }) {
   const liveWeeklies = view.weeklies.filter((w) => w.status !== 'completed' && !featured.has(`w${w.id}`));
   const liveEvents = view.events.filter((e) => e.status !== 'past' && !featured.has(`e${e.id}`));
 
-  // Cards, live before scheduled, so the row reads in the order things happen.
-  const cards: { key: string; state: 'live' | 'upcoming'; node: React.ReactNode }[] = [
-    ...liveEvents.map((e) => ({
-      key: `e${e.id}`,
-      state: (e.status === 'live' ? 'live' : 'upcoming') as 'live' | 'upcoming',
-      node: <EventCompetitionCard key={`e${e.id}`} e={e} />,
-    })),
-    ...liveWeeklies.map((w) => ({
-      key: `w${w.id}`,
-      state: (w.status === 'active' ? 'live' : 'upcoming') as 'live' | 'upcoming',
-      node: <WeeklyCompetitionCard key={`w${w.id}`} w={w} />,
-    })),
-  ].sort((a, b) => (a.state === b.state ? 0 : a.state === 'live' ? -1 : 1));
+  // The same rows, in the same order, as the events page (lib/competitionRows): what the viewer
+  // is in first, then the rest that is running, then what is scheduled.
+  const mineKeys = new Set([
+    ...liveEvents.filter((e) => myBoards?.has(e.id)).map((e) => `e${e.id}`),
+    ...liveWeeklies.filter((w) => w.mine).map((w) => `w${w.id}`),
+  ]);
+  const sections = sectionRows(
+    [
+      ...liveEvents.map((e) => boardRow(e, myBoards?.get(e.id))),
+      ...liveWeeklies.map((w) =>
+        weeklyRow({
+          id: w.id,
+          kind: w.hunt ? 'hunt' : WEEK_KIND[w.type] ?? 'sotw',
+          name: w.title,
+          metricLabel: w.metricLabel,
+          iconUrl: w.iconUrl,
+          state: w.status === 'active' ? 'live' : 'upcoming',
+          startDate: w.startDate,
+          endDate: w.endDate,
+          entrants: w.entrants,
+          unit: unitFor(w),
+          top: w.top,
+        }, myWeeks?.get(w.id)),
+      ),
+    ],
+    mineKeys,
+  );
+  const cards = [...sections.running, ...sections.upNext];
+  // What the viewer is in that "Happening now" already shows: counted in the heading, not listed twice.
+  const featuredMine = {
+    events: view.live.event && featured.has(`e${view.live.event.id}`) && myBoards?.has(view.live.event.id) ? 1 : 0,
+    competitions: view.weeklies.filter((w) => w.mine && w.status !== 'completed' && featured.has(`w${w.id}`)).length,
+  };
+  const anyOpen = sections.mine.length + cards.length > 0;
 
   const finished: FinishedRow[] = [
     ...view.weeklies
@@ -607,7 +652,7 @@ export function Competitions({ view }: { view: HomeView }) {
       .map((w) => ({
         key: `w${w.id}`,
         href: `/weekly/${w.id}`,
-        kind: WEEK_KIND[w.type] ?? 'sotw',
+        kind: w.hunt ? 'hunt' : WEEK_KIND[w.type] ?? 'sotw',
         name: w.title,
         sub: `${w.metricLabel} · ${w.entrants} entered`,
         winner: w.top ? { name: w.top.rsn, text: weeklyValue(w, w.top.value) } : null,
@@ -629,21 +674,41 @@ export function Competitions({ view }: { view: HomeView }) {
     .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''))
     .slice(0, FINISHED_ROWS);
 
-  if (cards.length === 0 && finished.length === 0) return null;
+  if (!anyOpen && finished.length === 0) return null;
+  const all = { href: '/events', label: 'All competitions →' };
 
   return (
     <>
+      {sections.mine.length > 0 && (
+        <>
+          <SectionHead title="You’re in" note={youreInNote(countRows(sections.mine), featuredMine)} more={all} />
+          <div className="mb-9">
+            <CompetitionRowList count={sections.mine.length}>
+              {sections.mine.map((r) => (
+                <li key={r.key}>
+                  <CompetitionRow row={r} when={rowWhen(r, now)} mine />
+                </li>
+              ))}
+            </CompetitionRowList>
+          </div>
+        </>
+      )}
+
       {cards.length > 0 && (
         <>
           <SectionHead
             title="On now and coming up"
             note="everything you can still enter"
-            more={{ href: '/events', label: 'All competitions →' }}
+            more={sections.mine.length > 0 ? undefined : all}
           />
-          {/* auto-FIT, not auto-fill: fill keeps the empty tracks, so one upcoming event rendered as
-              a 268px card marooned in a 1200px row. fit collapses them and the card takes the width. */}
-          <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(268px,1fr))]">
-            {cards.map((c) => c.node)}
+          <div className="mb-9">
+            <CompetitionRowList count={cards.length}>
+              {cards.map((r) => (
+                <li key={r.key}>
+                  <CompetitionRow row={r} when={rowWhen(r, now)} />
+                </li>
+              ))}
+            </CompetitionRowList>
           </div>
         </>
       )}
@@ -653,7 +718,7 @@ export function Competitions({ view }: { view: HomeView }) {
           <SectionHead
             title="Recently finished"
             note="who won, and when"
-            more={cards.length > 0 ? undefined : { href: '/events', label: 'All competitions →' }}
+            more={anyOpen ? undefined : all}
           />
           <div className="mb-9 overflow-hidden rounded-xl border border-card-border bg-card-bg">
             {finished.map((r) => (
@@ -703,53 +768,6 @@ function FinishedLine({ row }: { row: FinishedRow }) {
         {row.endedAt ? dateShort(row.endedAt) : ''}
       </span>
     </ClanLink>
-  );
-}
-
-function WeeklyCompetitionCard({ w }: { w: HomeWeekly }) {
-  const kind = WEEK_KIND[w.type] ?? 'sotw';
-  return (
-    <CompetitionCard
-      kind={kind}
-      href={`/weekly/${w.id}`}
-      name={w.title}
-      shape={`${w.metricLabel} · ${unitFor(w)}`}
-      state={w.status === 'active' ? 'live' : 'upcoming'}
-      startDate={w.startDate}
-      endDate={w.endDate}
-      entrants={`${w.entrants} entered`}
-      top={w.top ? { name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn, text: weeklyValue(w, w.top.value) } : null}
-      glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(kind).accent} />}
-      iconUrl={w.iconUrl}
-    />
-  );
-}
-
-function EventCompetitionCard({ e }: { e: HomeEvent }) {
-  return (
-    <CompetitionCard
-      kind={e.mode}
-      href={`/events/${e.id}`}
-      name={e.name}
-      shape={e.shape}
-      state={e.status}
-      startDate={e.startDate}
-      endDate={e.endDate}
-      entrants={e.chips[0] ?? 'no teams yet'}
-      top={
-        e.top
-          ? {
-              name: e.top.name,
-              text: `${e.top.score.toLocaleString()} ${e.top.unit}`,
-              color: e.top.color,
-              pct: e.top.total > 0 ? (e.top.score / e.top.total) * 100 : 0,
-            }
-          : null
-      }
-      chips={e.chips.slice(1)}
-      glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
-      pictureUrl={e.iconUrl}
-    />
   );
 }
 
@@ -901,7 +919,7 @@ function SectionHead({
       </h2>
       {note && <span className="text-xs text-text-muted">{note}</span>}
       {more && (
-        <ClanLink href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold">
+        <ClanLink href={more.href} className="ml-auto text-xs text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
           {more.label}
         </ClanLink>
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { scoredOfEntered } from '@/lib/weeklyCountWords';
 import { shortValue } from './format';
 import type { CompetitionType } from '@/lib/competitionInsights';
 import type { Scene } from '@/lib/scenes';
@@ -93,7 +94,7 @@ export default function CompetitionHero({
               </span>
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">{range}</span>
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">
-                {scoring} of {entered} scoring
+                {scoredOfEntered(scoring, entered)}
               </span>
             </div>
           </div>

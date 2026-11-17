@@ -22,6 +22,7 @@ import {
 import { raceTileState } from '@/lib/tileState';
 import type { TeamScore } from '@/lib/boardScoring';
 import { clanFetch } from '@/lib/clanFetch';
+import { forgetTileData, loadTileData, racePickUrl } from '@/lib/tileData';
 import type { TileRaceBoardProps } from '@/components/TileRaceBoard';
 import Select from '@/components/Select';
 import SoloStandings from '@/components/SoloStandings';
@@ -48,8 +49,7 @@ export function useRacePick(eventId: number | undefined, teamId: number | null, 
   useEffect(() => {
     if (teamId == null || eventId == null) return;
     let gone = false;
-    clanFetch(`/api/events/${eventId}/race-pick?teamId=${teamId}`)
-      .then((r) => (r.ok ? r.json() : null))
+    loadTileData<{ mode: RaceRoadMode; picks?: Record<string, number>; canPick?: boolean }>(racePickUrl(eventId, teamId))
       .then((d) => {
         if (!gone && d) setPickInfo({ mode: d.mode, picks: new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])), canPick: !!d.canPick });
       })
@@ -66,6 +66,7 @@ export function useRacePick(eventId: number | undefined, teamId: number | null, 
       const res = await clanFetch(`/api/events/${eventId}/race-pick`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamId, tileId }) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) return setPickError(d.error || 'Could not pick that road.');
+      forgetTileData(racePickUrl(eventId, teamId));
       const step = graph.byId.get(tileId)!.step;
       setPickInfo((p) => (p ? { ...p, picks: new Map(p.picks).set(step, tileId) } : p));
     } finally {
@@ -75,7 +76,7 @@ export function useRacePick(eventId: number | undefined, teamId: number | null, 
   return { pickInfo, pickError, picking, pick };
 }
 
-export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full', raceFit = false, raceLens }: TileRaceBoardProps) {
+export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, onTileIntent, dropProgress, statProgress, expanded, matchedTileIds, claimedBy, raceLayout = 'full', raceFit = false, raceLens }: TileRaceBoardProps) {
   // 'track': the event page's Race track card — strip, map, legend, tiles. Up next and the standings
   // are page sections there (components/board/RaceEventSections). 'full': everything in one card.
   const full = raceLayout !== 'track';
@@ -144,7 +145,9 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
         teams={mapTeams}
         viewerTeamId={viewer}
         onTileClick={onTileClick}
+        onTileIntent={onTileIntent}
         progress={progress}
+        claimedBy={claimedBy}
         matched={matchedTileIds ?? null}
         stepLabel={(s) => stepTitle(graph, s)}
         lockedIds={shown ? new Set(shown.pickFrom) : undefined}

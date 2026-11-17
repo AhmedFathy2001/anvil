@@ -7,6 +7,7 @@
 // as "our media" let anyone host an image on their own Blob store and have it pass. If old rows ever
 // turn out to point at a Blob store of ours, LEGACY_BLOB_HOST (that one exact host) keeps them valid.
 
+import http from 'node:http';
 import https from 'node:https';
 import { AwsClient } from 'aws4fetch';
 import { requireSecret } from './env';
@@ -93,7 +94,7 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
   const ct = contentType ?? contentTypeFromKey(key);
   const bytes = body instanceof File ? Buffer.from(await body.arrayBuffer()) : Buffer.from(body);
 
-  // Sign with aws4fetch, then send the PUT over node:https — NOT global fetch. Next.js's patched
+  // Sign with aws4fetch, then send the PUT over node:http(s) — NOT global fetch. Next.js's patched
   // fetch doesn't reliably emit Content-Length for a binary body, so R2 rejects it with 411
   // MissingContentLength (plain-Node undici does emit it, which is why the migrate/CDN scripts
   // worked but the app route didn't). node:https lets us set Content-Length explicitly and is
@@ -110,8 +111,10 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
 
   const u = new URL(target);
   await new Promise<void>((resolve, reject) => {
-    const req = https.request(
-      { hostname: u.hostname, port: 443, path: `${u.pathname}${u.search}`, method: 'PUT', headers },
+    // The endpoint's own scheme and port: R2 is https on 443, a local MinIO is http on its own port.
+    const plain = u.protocol === 'http:';
+    const req = (plain ? http : https).request(
+      { hostname: u.hostname, port: u.port ? Number(u.port) : plain ? 80 : 443, path: `${u.pathname}${u.search}`, method: 'PUT', headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (c) => chunks.push(c));
@@ -204,6 +207,8 @@ export async function put(key: string, body: StorageBody, contentType?: string):
  * Is this URL one we serve media from? Used to reject arbitrary/phishy image hosts on submission.
  * Accepts the configured S3/R2 public base, and LEGACY_BLOB_HOST (one exact host, unset by default)
  * should old rows ever need a former store kept valid. Never a whole provider's domain.
+ * Only S3_PUBLIC_BASE_URL counts: a local store must set it too (the endpoint/bucket default that
+ * uploads fall back to is NOT accepted here).
  */
 export function isManagedMediaUrl(raw: string): boolean {
   let u: URL;
@@ -212,13 +217,15 @@ export function isManagedMediaUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  if (u.protocol !== 'https:') return false;
   const legacy = process.env.LEGACY_BLOB_HOST?.trim().toLowerCase();
-  if (legacy && u.hostname === legacy) return true;
+  if (u.protocol === 'https:' && legacy && u.hostname === legacy) return true;
   const base = process.env.S3_PUBLIC_BASE_URL;
   if (base) {
     try {
-      if (u.host === new URL(base).host) return true;
+      const b = new URL(base);
+      // https always; plain http only when the configured media base is itself http (a local
+      // MinIO at http://127.0.0.1:9000/<bucket>). An https base never accepts an http link.
+      if (u.host === b.host && (u.protocol === 'https:' || u.protocol === b.protocol)) return true;
     } catch {
       /* ignore a malformed base */
     }

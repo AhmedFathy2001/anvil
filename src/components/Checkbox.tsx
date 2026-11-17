@@ -25,14 +25,22 @@ export function CheckboxBox({ tone = 'gold', className, ...rest }: BoxProps) {
         type="checkbox"
         {...rest}
         className={cn(
-          'peer m-0 h-full w-full cursor-[inherit] appearance-none rounded-[4px] border border-text-dim/70 bg-brown-dark transition-colors',
-          'hover:border-gold/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40',
-          'disabled:cursor-not-allowed',
+          // The input itself is invisible and is the tap area: the box's own 16px on desktop, 40px
+          // (12px out on every side) on phones. The box that is drawn is the span after it.
+          'peer absolute left-0 top-0 m-0 h-full w-full cursor-[inherit] appearance-none opacity-0 disabled:cursor-not-allowed',
+          'max-sm:-left-3 max-sm:-top-3 max-sm:h-[calc(100%+1.5rem)] max-sm:w-[calc(100%+1.5rem)]',
+        )}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 rounded-[4px] border border-text-dim/70 bg-brown-dark transition-colors',
+          'peer-hover:border-gold/60 peer-focus-visible:ring-2 peer-focus-visible:ring-gold/40',
           tone === 'amber'
-            ? 'checked:border-amber-400 checked:bg-amber-400 indeterminate:border-amber-400 indeterminate:bg-amber-400'
+            ? 'peer-checked:border-amber-400 peer-checked:bg-amber-400 peer-indeterminate:border-amber-400 peer-indeterminate:bg-amber-400'
             : tone === 'indigo'
-              ? 'checked:border-indigo-400 checked:bg-indigo-400 indeterminate:border-indigo-400 indeterminate:bg-indigo-400'
-              : 'checked:border-gold checked:bg-gold indeterminate:border-gold indeterminate:bg-gold',
+              ? 'peer-checked:border-indigo-400 peer-checked:bg-indigo-400 peer-indeterminate:border-indigo-400 peer-indeterminate:bg-indigo-400'
+              : 'peer-checked:border-gold peer-checked:bg-gold peer-indeterminate:border-gold peer-indeterminate:bg-gold',
         )}
       />
       <svg

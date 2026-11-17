@@ -460,3 +460,60 @@ test('removing one of two tiles on a step keeps the step', async () => {
   assert.deepEqual(both.find((e) => e.id === 1), { id: 1, step: 0, next: [4] });
   assert.equal(both.find((e) => e.id === 4)?.step, 1);
 });
+
+// ── Proof filed by hand ──────────────────────────────────────────────────────────────────────────
+
+import { raceProofBlock } from '../src/lib/raceRoutes.ts';
+
+test('a person may file proof only on a tile that is open (or done) for their team', () => {
+  const g = raceGraph(branch);
+  // Nothing done: the starts are open, everything else is locked ahead.
+  const fresh = teamRoute(g, []);
+  assert.equal(raceProofBlock(g, fresh, 10), null);
+  assert.match(raceProofBlock(g, fresh, 20)!, /locked for your team/);
+  assert.match(raceProofBlock(g, fresh, 40)!, /locked for your team/);
+  // 10, 20 and 30 done: 40 is open, 31 and 41 are closed roads, the done ones still take proof.
+  const mid = teamRoute(g, [10, 20, 30]);
+  assert.equal(raceProofBlock(g, mid, 40), null);
+  assert.equal(raceProofBlock(g, mid, 30), null);
+  assert.match(raceProofBlock(g, mid, 31)!, /closed for your team/);
+  assert.match(raceProofBlock(g, mid, 41)!, /closed for your team/);
+});
+
+test('banked early finishes open a tile further along the road to proof, never a closed road', () => {
+  const g = raceGraph(branch);
+  const fresh = teamRoute(g, []);
+  assert.equal(raceProofBlock(g, fresh, 20, { bank: true }), null);
+  const mid = teamRoute(g, [10, 20, 30]);
+  assert.match(raceProofBlock(g, mid, 31, { bank: true })!, /closed for your team/);
+});
+
+test('a fork the team has not picked at takes no proof; a mission is not the race to refuse', () => {
+  const g = raceGraph(branch);
+  const atFork = teamRoute(g, [10, 20], new Map());
+  assert.match(raceProofBlock(g, atFork, 30)!, /pick its road/);
+  assert.match(raceProofBlock(g, atFork, 30, { bank: true })!, /pick its road/);
+  assert.equal(raceProofBlock(g, atFork, 99), null);
+});
+
+// ── The dialog's label and the proof form ask about the same team ────────────────────────────────
+
+import { raceDetailTeam } from '../src/lib/raceRoutes.ts';
+
+test('a viewer with no lens team is judged as their own team: label and proof rule agree', () => {
+  // Two roads joining at 40 (step 3): 10 -> 20|21 -> 40, with 20 done and an uncredited-weight row counting.
+  const g = raceGraph([
+    { id: 10, position: 0, raceStep: 0, raceNext: [20, 21] },
+    { id: 20, position: 1, raceStep: 1, raceNext: [40] },
+    { id: 21, position: 2, raceStep: 1, raceNext: [40] },
+    { id: 40, position: 3, raceStep: 2, raceNext: [] },
+  ]);
+  assert.equal(raceDetailTeam(null, 15), 15);
+  assert.equal(raceDetailTeam(16, 15), 16);
+  assert.equal(raceDetailTeam(undefined, undefined), null);
+  const route = teamRoute(g, [10, 20]);
+  assert.equal(raceProofBlock(g, route, 40), null);
+  assert.equal(raceTileInfo(g, route, 40, String)!.state, 'open');
+  // With no team the banner can only say locked, which is why the two must name one team.
+  assert.equal(raceTileInfo(g, null, 40, String)!.state, null);
+});

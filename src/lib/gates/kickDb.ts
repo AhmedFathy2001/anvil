@@ -41,6 +41,7 @@ import { decryptSecret, encryptSecret } from '@/lib/secretBox';
 // Circular (entryGatesDb imports this module) but only used inside functions, never at load.
 import { gateCache } from '@/lib/entryGatesDb';
 import { log } from '@/lib/logger';
+import { withPlanInForce } from '@/lib/planTrials';
 
 /** Swappable for tests, so no test ever reaches Kick. */
 let fetchImpl: FetchLike = (input, init) => fetch(input, init);
@@ -468,7 +469,7 @@ export async function applyKickEvent(ev: KickEvent, opts: { code: string | null;
     // One channel answers for one space: a channel two spaces both claim is answered by neither.
     if (channels.length !== 1 || !channels[0].chatJoin) return { kind: 'ignored' };
     // clan-scope: this clan -- the one space that connected this channel.
-    const clan = await db.query.clans.findFirst({ where: eq(clans.id, channels[0].clanId), columns: { kind: true, status: true, plan: true, streaming: true } });
+    const clan = await withPlanInForce(channels[0].clanId, await db.query.clans.findFirst({ where: eq(clans.id, channels[0].clanId), columns: { kind: true, status: true, plan: true, streaming: true } }));
     // A creator space, or a clan with Streaming on (lib/creatorSpaces streamsEvents).
     if (!clan || !streamsEvents(clan) || clan.status !== 'active') return { kind: 'ignored' };
     // The plan (lib/creatorPlans): `!join` is Silver+ once FREEMIUM_ENFORCED is on — the same rule

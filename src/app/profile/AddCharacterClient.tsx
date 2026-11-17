@@ -36,6 +36,7 @@ function useTouchFirst(): boolean {
 export default function AddCharacterClient({
   first = false,
   suggestedRsn = '',
+  checkRunning = false,
   linkedCount = 0,
   detectedCount = 0,
 }: {
@@ -48,12 +49,16 @@ export default function AddCharacterClient({
    * be somewhere else before anything happens.
    */
   suggestedRsn?: string;
+  /** An XP check of theirs is running (lib/xpCheckRead). */
+  checkRunning?: boolean;
   /** Server-rendered baselines keep a ping between paint and the first poll from disappearing. */
   linkedCount?: number;
   detectedCount?: number;
 }) {
   const router = useRouter();
-  const [showManual, setShowManual] = useState(Boolean(suggestedRsn));
+  // Open straight on "link by name" when there is a name to start from, or a check already running
+  // (`checkRunning`): the page's banner links here to see it, and it used to land on a closed panel.
+  const [showManual, setShowManual] = useState(Boolean(suggestedRsn) || checkRunning);
   const touchFirst = useTouchFirst();
   const [showPlugin, setShowPlugin] = useState(false);
   const [heard, setHeard] = useState(false);
@@ -124,7 +129,7 @@ export default function AddCharacterClient({
     };
   }, [heard, router]);
 
-  const byName = <LinkAccountClient manualReview={false} initialRsn={suggestedRsn} />;
+  const byName = <LinkAccountClient initialRsn={suggestedRsn} />;
 
   if (touchFirst && !suggestedRsn) {
     return (
@@ -199,8 +204,8 @@ export default function AddCharacterClient({
         ) : (
           <div>
             <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
-              No plugin — prove it is yours by training. We snapshot the hiscores, pick a skill, and verify the
-              XP you gain in it.
+              No plugin? Prove it is yours by training: we snapshot the hiscores, pick a skill, and verify the
+              XP you gain in it. Cannot do that? Open your clan&apos;s page and ask its staff to vouch for you there.
             </p>
             {byName}
           </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { teams } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -26,11 +26,15 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  const event = await eventForRequest(request, eId);
+  // A read of a team's picks: only for someone who may see the event at all.
+  const event = await readableEventForRequest(request, eId);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const mode = parseEventRules(event.rules).raceRoad;
+  const rules = parseEventRules(event.rules);
+  const mode = rules.raceRoad;
+  // `bank`: early finishes are banked (rules.raceBank), so a tile further along the road takes proof.
+  const bank = rules.raceBank;
   const teamId = Number(new URL(request.url).searchParams.get('teamId'));
-  if (mode !== 'choose' || !Number.isInteger(teamId)) return NextResponse.json({ mode, picks: {}, canPick: false });
+  if (mode !== 'choose' || !Number.isInteger(teamId)) return NextResponse.json({ mode, bank, picks: {}, canPick: false });
   const team = await db.query.teams.findFirst({ where: and(eq(teams.id, teamId), eq(teams.eventId, eId)) });
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   const picks = (await loadRacePicks(event, teamId)) ?? new Map<number, number>();
@@ -41,7 +45,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     const membership = await resolveTeamMembership(eId, teamId);
     canPick = await mayPickRoad(teamId, user.userId, membership?.playerId != null);
   }
-  return NextResponse.json({ mode, picks: Object.fromEntries(picks), canPick });
+  return NextResponse.json({ mode, bank, picks: Object.fromEntries(picks), canPick });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {

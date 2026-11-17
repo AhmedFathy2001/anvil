@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { answerOffers, taskOffers } from '@/lib/libraryTasks';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // Anvil updated a task this clan had changed: take Anvil's version (and follow again) or keep theirs.
 
 export async function GET() {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
   return NextResponse.json({ offers: await taskOffers(clan.id) });
@@ -16,7 +16,7 @@ export async function GET() {
 
 // POST { rowIds: number[], answer: 'take' | 'keep' }
 export async function POST(request: Request) {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!editor.canEditTiles || editor.editorScope !== 'all') {
     return NextResponse.json({ error: 'Only your clan’s tile authors can change the library.' }, { status: 403 });

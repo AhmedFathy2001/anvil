@@ -162,7 +162,17 @@ function DialogBox({ pending, onSettle }: { pending: Pending; onSettle: (v: bool
 
   // Escape and the backdrop both mean "no" — the same answer the native dialogs gave.
   const cancel = useCallback(() => onSettle(pending.kind === 'confirm' ? false : null), [onSettle, pending.kind]);
-  const ref = useModalA11y<HTMLDivElement>({ onClose: cancel });
+  // Typed an answer, then Escape or a click outside: ask before throwing it away, like every other
+  // dialog with a field (useGuardedClose). Asked in place, since this IS the dialog that would ask.
+  // A second Escape keeps editing. The Cancel button is a deliberate "no" and closes at once.
+  const typed = isAsk && value.trim() !== (askReq?.initial ?? '').trim();
+  const [discardAsk, setDiscardAsk] = useState(false);
+  const dismiss = useCallback(() => {
+    if (discardAsk) return setDiscardAsk(false);
+    if (typed) return setDiscardAsk(true);
+    cancel();
+  }, [cancel, discardAsk, typed]);
+  const ref = useModalA11y<HTMLDivElement>({ onClose: dismiss });
 
   const blocked = !!(askReq?.required && !value.trim());
   const tone: Tone = pending.req.tone ?? (pending.kind === 'confirm' ? 'danger' : 'gold');
@@ -174,7 +184,7 @@ function DialogBox({ pending, onSettle }: { pending: Pending; onSettle: (v: bool
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70" onClick={cancel} aria-hidden />
+      <div className="absolute inset-0 bg-black/70" onClick={dismiss} aria-hidden />
       <div
         ref={ref}
         role="dialog"
@@ -222,6 +232,20 @@ function DialogBox({ pending, onSettle }: { pending: Pending; onSettle: (v: bool
                 className="w-full rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-sm outline-none focus:border-gold/50"
               />
             )}
+          </div>
+        )}
+
+        {discardAsk && (
+          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-sm">
+            <span>Discard what you typed?</span>
+            <span className="flex gap-2">
+              <button type="button" onClick={() => setDiscardAsk(false)} className="px-2.5 py-1 rounded-md border border-card-border text-text-muted hover:text-foreground transition-colors">
+                Keep editing
+              </button>
+              <button type="button" onClick={cancel} className="px-2.5 py-1 rounded-md border border-gold/50 text-gold hover:bg-gold/15 transition-colors">
+                Discard
+              </button>
+            </span>
           </div>
         )}
 

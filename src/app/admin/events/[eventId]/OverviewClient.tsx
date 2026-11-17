@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_AUTO_TEAM_COUNT, placementOf } from '@/lib/teamPlacement';
 import { tileWithPartIds } from '@/lib/combo';
 import type { Event, Tile, Team, Completion, Submission } from '@/lib/types';
 import { useState, useCallback, useMemo, useEffect } from 'react';
@@ -15,17 +16,16 @@ import FinalHourButton from '@/components/FinalHourButton';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode, eventNoun, isLadderFormat, isTileRaceFormat } from '@/lib/utils';
 import { isBranchingRoute, raceGraph } from '@/lib/raceRoutes';
-import { eventAxes, supportsMissions, taskNoun } from '@/lib/eventAxes';
-import { nextStep } from '@/lib/eventNextStep';
-import { NextStepPanel, ProofsToCheck, useStartNow } from './EventNextStep';
+import { eventAxes, supportsMissions } from '@/lib/eventAxes';
+import { ProofsToCheck } from './EventNextStep';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { type EventStage, type StageCounts } from '@/lib/eventStage';
+import { eventStage, setupFacts, type EventStage, type StageCounts } from '@/lib/eventStage';
 import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
 import { parseEventRules } from '@/lib/eventRules';
 import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { scoreTeams } from '@/lib/boardScoring';
 import { useDialog } from '@/components/Confirm';
@@ -80,7 +80,6 @@ export default function OverviewClient({
   recorded = [],
   awards = [],
   tierBands = DEFAULT_TIER_BANDS,
-  surveyOn = false,
   archive,
 }: Props) {
   const router = useRouter();
@@ -179,7 +178,7 @@ export default function OverviewClient({
         .filter((c) => c.tileId === selectedTileId)
         .map((c) => {
           const t = teams.find((tm) => tm.id === c.teamId);
-          return { teamId: c.teamId, teamName: t?.name ?? 'Team', color: t?.color ?? '#888' };
+          return { teamId: c.teamId, teamName: t?.name ?? 'Team', color: t?.color ?? '#888', completedAt: c.completedAt };
         })
     : [];
 
@@ -191,44 +190,10 @@ export default function OverviewClient({
     setSubmissions((list) => list.filter((s) => s.id !== submissionId));
   }
 
-  // The one thing this event wants from its admin now (lib/eventNextStep) — the forge panel.
-  const axes = eventAxes(currentEvent);
-  const one = taskNoun(axes);
-  const flaggedProofs = submissions.filter((s) => s.flaggedReason).length;
-  const step = nextStep({
-    stage,
-    noun: { one, many: `${one}s` },
-    startDate: currentEvent.startDate ?? null,
-    endDate: currentEvent.endDate ?? null,
-    tileCount: counts.tileCount,
-    expectedTiles: counts.expectedTiles,
-    teamCount: counts.teamCount,
-    assignedPlayers: counts.assignedPlayers,
-    signupCount: counts.signupCount,
-    pendingSignups: counts.pendingSignups,
-    flaggedProofs,
-    payoutCount: counts.payoutCount,
-    unpaidPayouts: counts.unpaidPayouts,
-    blockers: counts.blockers,
-    individual: axes.competitors === 'individuals',
-    race: isTileRaceFormat(currentEvent.format),
-    surveyMissing: surveyOn && !counts.hasSurvey,
-  });
-  const starter = useStartNow(event.id, (e) => {
-    setCurrentEvent(e);
-    router.refresh();
-  });
-
+  // "What do I do next" is the guide strip above every tab of this event (./EventGuide, drawn by the
+  // layout). It replaced the Next step panel that used to open this page.
   return (
     <div className="space-y-8">
-      <NextStepPanel
-        step={step}
-        eventId={event.id}
-        onStart={() => void starter.start()}
-        starting={starter.starting}
-        error={starter.error}
-      />
-
       {stage === 'build' && (
         <BuildHome
           event={currentEvent}
@@ -282,7 +247,11 @@ export default function OverviewClient({
           submissions={submissions}
           tiles={localTiles}
           teamNameById={teamNameById}
-          onChange={() => void fetchSubmissions()}
+          onChange={() => {
+            void fetchSubmissions();
+            // The guide strip counts flagged proofs on the server: let it catch up.
+            router.refresh();
+          }}
           allHref={`/admin/events/${event.id}/proofs`}
         />
       )}
@@ -361,6 +330,7 @@ export default function OverviewClient({
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={false}
           canManage={true}
           canToggle={false}
@@ -406,7 +376,8 @@ function BuildHome({
     const widest = Math.max(1, ...g.steps.map((s) => s.length));
     return `${g.steps.length} steps${widest > 1 ? `, up to ${widest} side by side` : ''}`;
   }, [race, tiles]);
-  const tilesDone = counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles;
+  // The same three facts the guide strip ticks its steps from (lib/eventStage setupFacts).
+  const { tilesDone, teamsDone, datesDone } = setupFacts(counts, { startDate: event.startDate ?? null });
   const blocked = counts.blockers.length > 0;
 
   const checks: CheckRow[] = [
@@ -419,7 +390,7 @@ function BuildHome({
           ? 'Click a tile on the race map and type its task, or paste a list.'
           : 'Paste a list, draw from the library, or generate from the collection log.',
       href: race ? `${base}/tiles?view=map` : `${base}/tiles`,
-      action: tilesDone ? 'Review' : 'Write tiles',
+      action: tilesDone ? 'Open the board' : 'Write tiles',
       blocking: false,
     },
     // A race's roads: optional (a straight road is a fine race), but say where they're laid out.
@@ -458,7 +429,7 @@ function BuildHome({
                 detail:
                   'Neither the plugin nor the hiscores counts them; a captain marks them done. Fine for screenshot tasks. Otherwise open the tile and pick the task.',
                 href: `${base}/tiles`,
-                action: 'Review',
+                action: 'Find them',
                 blocking: false,
               };
             }
@@ -467,27 +438,42 @@ function BuildHome({
               title: 'Every tile counts by itself',
               detail: 'The plugin or the hiscores credits each one.',
               href: `${base}/tiles`,
-              action: 'Review',
+              action: 'Check tiles',
               blocking: false,
             };
           })(),
         ]
       : []),
+    (() => {
+      const placement = placementOf(event);
+      const fromSignups = counts.teamCount === 0 && (placement === 'auto' || placement === 'solo');
+      const teamWord = (n: number) => (n === 1 ? 'team' : 'teams');
+      const playerWord = (n: number) => (n === 1 ? 'player' : 'players');
+      return {
+        done: teamsDone,
+        title: fromSignups
+          ? 'Teams form as people sign up'
+          : counts.teamCount === 0
+            ? 'No teams yet'
+            : counts.assignedPlayers === 0
+              ? `${counts.teamCount} ${teamWord(counts.teamCount)}, nobody on one yet`
+              : `${counts.teamCount} ${teamWord(counts.teamCount)}, ${counts.assignedPlayers} ${playerWord(counts.assignedPlayers)} placed`,
+        detail: blocked
+          ? capitalise(counts.blockers[0])
+          : fromSignups
+            ? placement === 'solo'
+              ? 'Each person who signs up gets a team of their own.'
+              : `The first sign-ups are spread across ${event.teamCount ?? DEFAULT_AUTO_TEAM_COUNT} teams.`
+            : placement === 'draft'
+              ? 'Draft them, or assign straight from the roster.'
+              : 'People are placed when they sign up. You can still move anyone by hand.',
+        href: `${base}/teams`,
+        action: counts.teamCount === 0 && !fromSignups ? 'Set up teams' : event.draftStatus && event.draftStatus !== 'none' ? 'Open the draft' : 'Open teams',
+        blocking: blocked,
+      } satisfies CheckRow;
+    })(),
     {
-      done: counts.teamCount > 0 && counts.assignedPlayers > 0,
-      title:
-        counts.teamCount === 0
-          ? 'No teams yet'
-          : counts.assignedPlayers === 0
-            ? `${counts.teamCount} teams, nobody assigned`
-            : `${counts.teamCount} teams · ${counts.assignedPlayers} players`,
-      detail: blocked ? capitalise(counts.blockers[0]) : 'Draft them, or assign straight from the roster.',
-      href: `${base}/teams`,
-      action: counts.teamCount === 0 ? 'Set up teams' : 'Open draft',
-      blocking: blocked,
-    },
-    {
-      done: !!event.startDate && !!event.endDate,
+      done: datesDone,
       title: event.startDate
         ? `Runs from ${new Date(event.startDate).toLocaleDateString()}`
         : 'No dates set',
@@ -506,9 +492,10 @@ function BuildHome({
         counts.pendingSignups > 0
           ? `${counts.pendingSignups} sign-up${counts.pendingSignups === 1 ? '' : 's'} waiting`
           : `${counts.signupCount} signed up`,
-      detail: counts.pendingSignups > 0 ? 'Review and approve before the draft.' : 'Nobody is waiting on a decision.',
+      detail: counts.pendingSignups > 0 ? 'Approve them so they can be put on a team.' : 'Nobody is waiting on a decision.',
       href: `${base}/signups`,
-      action: 'Open sign-ups',
+      // Sign-ups are open from the moment the event exists: this goes to the list, it switches nothing on.
+      action: 'Review sign-ups',
       blocking: false,
     },
     {
@@ -542,27 +529,37 @@ function BuildHome({
   return (
     <section className="border border-gold/30 rounded-xl bg-card-bg overflow-hidden">
       <div className="p-5 bg-gradient-to-br from-gold/[0.07] to-transparent">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2.5">
-            <span className="molten-bar" />
-            Before this can start
-          </h2>
-          {blocked ? (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30">
-              {counts.blockers.length} blocking
+        {/* The guide strip above names the one next step; this is everything else, folded to a count
+            unless something is blocking the start. */}
+        <details open={blocked} className="group">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+            <h2 className="text-lg font-semibold flex items-center gap-2.5">
+              <span className="molten-bar" />
+              What is left before the start
+              <span className="text-sm font-normal text-text-muted">
+                {checks.filter((c) => c.done).length} of {checks.length} done
+              </span>
+            </h2>
+            <span className="flex items-center gap-2">
+              {blocked ? (
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30">
+                  {counts.blockers.length} blocking
+                </span>
+              ) : (
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/30">
+                  Ready to go
+                </span>
+              )}
+              <span aria-hidden className="text-text-muted text-sm transition-transform group-open:rotate-90">▸</span>
             </span>
-          ) : (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-accent-green/15 text-accent-green-light border border-accent-green/30">
-              Ready to go
-            </span>
-          )}
-        </div>
+          </summary>
 
-        <div className="space-y-2">
-          {checks.map((c) => (
-            <CheckRowView key={c.title} row={c} />
-          ))}
-        </div>
+          <div className="mt-4 space-y-2">
+            {checks.map((c) => (
+              <CheckRowView key={c.title} row={c} />
+            ))}
+          </div>
+        </details>
 
         {/* The "starting soon" heads-up tells every clan to get ready — not something to offer on a
             board with nothing on it or nobody to play it. */}
@@ -829,6 +826,27 @@ function WrapHome({
     : standings.slice(0, 3).map((s) => ({ id: s.team.id, name: s.team.name, score: s.score }));
   const fromRecord = recorded.length > 0;
 
+  const router = useRouter();
+  const [cloning, setCloning] = useState(false);
+  async function runAgain() {
+    const ok = await confirm({
+      title: `Run "${event.name}" again?`,
+      body: 'A new event is created with the same settings, tiles and survey questions, and no teams, players or dates. You are taken straight to the copy.',
+      confirmLabel: 'Create the copy',
+      tone: 'gold',
+    });
+    if (!ok) return;
+    setCloning(true);
+    try {
+      const res = await clanFetch(`/api/events/${event.id}/clone`, { method: 'POST' });
+      if (!res.ok) return;
+      const { id } = await res.json();
+      router.push(clanUrl(`/admin/events/${id}`));
+    } finally {
+      setCloning(false);
+    }
+  }
+
   async function resume() {
     const ok = await confirm({
       title: 'Resume this event?',
@@ -888,42 +906,6 @@ function WrapHome({
         </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <NextStep
-          href={`${base}/payouts`}
-          title={counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} prizes owed` : counts.payoutCount > 0 ? 'All paid' : 'Set the prizes'}
-          detail={
-            counts.unpaidPayouts > 0
-              ? 'Mark each winner paid, with a screenshot.'
-              : counts.payoutCount > 0
-                ? 'Nothing outstanding.'
-                : 'Prizes are generated from the split when an event ends.'
-          }
-          tone={counts.unpaidPayouts > 0 ? 'attn' : counts.payoutCount > 0 ? 'done' : undefined}
-        />
-        <NextStep
-          href={`${base}/survey`}
-          title={counts.surveyResponses > 0 ? `${counts.surveyResponses} survey replies` : counts.hasSurvey ? 'Survey is out' : 'No survey'}
-          detail={
-            counts.surveyResponses > 0
-              ? 'Read what people said before planning the next one.'
-              : counts.hasSurvey
-                ? 'Nudge people in the recap post — replies roughly double.'
-                : 'Ask a few questions while the event is fresh.'
-          }
-          tone={counts.surveyResponses > 0 ? 'done' : undefined}
-        />
-        <NextStep
-          href={`${base}/stats`}
-          title="The story"
-          detail={
-            awards.length > 0
-              ? `${awards.length} award${awards.length === 1 ? '' : 's'} worked out — plus the per-member breakdown.`
-              : 'The per-member breakdown behind the result.'
-          }
-        />
-      </div>
-
       {awards.length > 0 && (
         <section className="border border-card-border rounded-xl bg-card-bg p-5">
           <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
@@ -949,24 +931,85 @@ function WrapHome({
         </section>
       )}
 
-      <section className="border border-card-border rounded-xl bg-card-bg p-5">
-        <h2 className="text-lg font-bold flex items-center gap-2 mb-3">
-          <span className="w-1 h-5 bg-text-muted rounded-full" />
-          Run it again
+      {/* Everything left to do with a finished event, in one place. */}
+      <section className="border border-gold/30 rounded-xl bg-card-bg p-5">
+        <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
+          <span className="w-1 h-5 bg-gold rounded-full" />
+          Wrapping up
         </h2>
-        <div className="flex flex-wrap gap-2 items-center">
-          <QuietLink href={`${base}/settings/more#clone`}>Clone or save as a template</QuietLink>
-          {event.forceEndedAt && (
-            <button
-              type="button"
-              onClick={resume}
-              disabled={resuming}
-              className="px-2.5 py-1 text-xs rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
-            >
-              {resuming ? 'Resuming…' : 'Resume the event'}
-            </button>
-          )}
-        </div>
+        <p className="text-sm text-text-muted mb-3">Everything left to do with this event, top to bottom.</p>
+        <ul className="divide-y divide-card-border/60">
+          <WrapRow
+            title="Pay the prizes"
+            detail={
+              counts.unpaidPayouts > 0
+                ? `${counts.unpaidPayouts} ${counts.unpaidPayouts === 1 ? 'prize is' : 'prizes are'} still owed. Mark each winner paid, with a screenshot.`
+                : counts.payoutCount > 0
+                  ? 'All paid. Nothing outstanding.'
+                  : 'No prizes set yet. Set who gets what, then mark each one paid.'
+            }
+            tone={counts.unpaidPayouts > 0 ? 'attn' : counts.payoutCount > 0 ? 'done' : undefined}
+            action={<QuietLink href={`${base}/payouts`}>{counts.unpaidPayouts > 0 ? 'Pay prizes' : counts.payoutCount > 0 ? 'See prizes' : 'Set prizes'}</QuietLink>}
+          />
+          <WrapRow
+            title="Send the recap"
+            detail="The page that tells the story of the event. Share its link in your Discord."
+            action={<QuietLink href={`/events/${event.id}/recap`}>Open the recap</QuietLink>}
+          />
+          <WrapRow
+            title="Ask for feedback"
+            detail={
+              counts.surveyResponses > 0
+                ? `${counts.surveyResponses} ${counts.surveyResponses === 1 ? 'reply' : 'replies'} so far. Read them before planning the next one.`
+                : counts.hasSurvey
+                  ? 'The survey is out. Mention it in the recap post: replies roughly double.'
+                  : 'No survey yet. Ask a few questions while the event is fresh.'
+            }
+            tone={counts.surveyResponses > 0 ? 'done' : undefined}
+            action={<QuietLink href={`${base}/survey`}>{counts.hasSurvey ? 'Open the survey' : 'Write a survey'}</QuietLink>}
+          />
+          <WrapRow
+            title="The story"
+            detail={
+              awards.length > 0
+                ? `${awards.length} award${awards.length === 1 ? '' : 's'} worked out, plus the per-member breakdown.`
+                : 'The per-member breakdown behind the result.'
+            }
+            action={<QuietLink href={`${base}/stats`}>See the stats</QuietLink>}
+          />
+          <WrapRow
+            title="Run it again"
+            detail="Makes a copy with the same settings and tiles, and no teams, players or dates."
+            action={
+              <span className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={runAgain}
+                  disabled={cloning}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-gold/40 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+                >
+                  {cloning ? 'Copying…' : 'Run it again'}
+                </button>
+                <QuietLink href={`${base}/settings/more#clone`}>Save as a template</QuietLink>
+                {event.forceEndedAt && (
+                  <button
+                    type="button"
+                    onClick={resume}
+                    disabled={resuming}
+                    className="px-2.5 py-1 text-xs rounded-lg border border-accent-green/30 text-accent-green-light bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-50"
+                  >
+                    {resuming ? 'Resuming…' : 'Resume the event'}
+                  </button>
+                )}
+              </span>
+            }
+          />
+          <WrapRow
+            title="Archive it"
+            detail="Proof screenshots are deleted 90 days after the end. Download the archive to keep them."
+            action={<a href="#archive" className="px-2.5 py-1 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors">Go to the archive</a>}
+          />
+        </ul>
       </section>
     </div>
   );
@@ -1037,31 +1080,25 @@ function Meter({ label, value, total }: { label: string; value: number; total: n
   );
 }
 
-function NextStep({
-  href,
+function WrapRow({
   title,
   detail,
+  action,
   tone,
 }: {
-  href: string;
   title: string;
   detail: string;
+  action: React.ReactNode;
   tone?: 'attn' | 'done';
 }) {
   return (
-    <ClanLink
-      href={href}
-      className={`block p-4 rounded-xl border transition-colors ${
-        tone === 'attn'
-          ? 'border-amber-400/40 bg-amber-400/10 hover:border-amber-400/60'
-          : 'border-card-border bg-card-bg hover:border-gold/40'
-      }`}
-    >
-      <div className={`text-sm font-semibold ${tone === 'attn' ? 'text-amber-300' : tone === 'done' ? 'text-accent-green-light' : ''}`}>
-        {title}
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+      <div className="min-w-0 flex-1 basis-60">
+        <div className={`text-sm font-semibold ${tone === 'attn' ? 'text-amber-300' : tone === 'done' ? 'text-accent-green-light' : ''}`}>{title}</div>
+        <p className="text-xs text-text-muted mt-0.5">{detail}</p>
       </div>
-      <p className="text-xs text-text-muted mt-1">{detail}</p>
-    </ClanLink>
+      <div className="shrink-0">{action}</div>
+    </li>
   );
 }
 

@@ -1,8 +1,9 @@
+import { parseStamp } from '@/lib/dbTime';
 import { notifyBoardPeople } from '@/lib/pushNotify';
 import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
 import { NextResponse } from 'next/server';
-import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
-import { eventForRequest } from '@/lib/eventScope';
+import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount, placementOf } from '@/lib/teamPlacement';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { postEventRules } from '@/lib/eventRulesPost';
@@ -41,8 +42,8 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  if (!(await readableEventForRequest(request, id))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const event = await db.query.events.findFirst({
@@ -299,7 +300,7 @@ export async function PATCH(
     // monthly is meant to run until it's ended.
     if (body.force !== true) {
       const [readiness, emptyTeams, [blank]] = await Promise.all([
-        getEventStartReadiness(event.id, event.draftStatus),
+        getEventStartReadiness(event.id, event.draftStatus, placementOf(event)),
         emptyTeamCount(event.id),
         db
           .select({ n: count() })
@@ -663,9 +664,9 @@ export async function PATCH(
   const finalTilesRevealAt = 'tilesRevealAt' in body
     ? (body.tilesRevealAt as string | null)
     : existing.tilesRevealAt;
-  if (finalStart && finalEnd && finalEnd <= finalStart) {
+  if (finalStart && finalEnd && (parseStamp(finalEnd) ?? 0) <= (parseStamp(finalStart) ?? 0)) {
     return NextResponse.json(
-      { error: 'endDate must be after startDate' },
+      { error: 'The end has to come after the start.' },
       { status: 400 },
     );
   }

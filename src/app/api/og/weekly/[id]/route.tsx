@@ -1,9 +1,12 @@
+import { huntIconFor } from '@/lib/itemHunt';
+import { competitionBoard } from '@/lib/itemHuntDb';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { resolveClanById } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { ANONYMOUS_VIEWER, competitionReadableBy } from '@/lib/competitionTeamsDb';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { momentsForCompetition } from '@/lib/momentsStore';
 import { siteCard, weeklyCard } from '@/lib/ogCard';
@@ -12,7 +15,8 @@ import { WEEKLY_KIND_LABEL as KIND_LABEL, WEEKLY_VERB as VERB, timeLeft, weeklyG
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { idOrNull } from '@/lib/routeIds';
 import { competitionImageUrl, itemIconUrl } from '@/lib/tileIcons';
-import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { getEffectiveParticipants } from '@/lib/weekly';
+import { weeklyStatus } from '@/lib/weeklyStage';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,19 +42,20 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
   if (!comp) return siteCard();
   const clan = await resolveClanById(comp.clanId);
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
+  // Clan vs clan: the card names players from every racing clan, so every one of them has to be
+  // readable by a stranger — a private partner's members stay off it.
+  if (!(await competitionReadableBy(comp, ANONYMOUS_VIEWER))) return siteCard();
 
   const kind = weeklyKind(comp.type);
   const label = weeklyMetricLabel(kind, comp.metric) || comp.title;
-  const stage = (['upcoming', 'active', 'completed'].includes(comp.status) ? comp.status : 'active') as
-    | 'upcoming'
-    | 'active'
-    | 'completed';
+  const stage = weeklyStatus(comp);
 
   const [participants, clanName] = await Promise.all([getEffectiveParticipants(comp.id), getClanDisplayName(clan.id, clan.name)]);
-  const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
+  const board = (await competitionBoard(comp, participants)).filter((e) => e.gained > 0);
   const name = clanName || clan.name;
 
-  const art = await remoteSprite(competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);
+  // An item hunt draws the item or pet it hunts.
+  const art = await remoteSprite(kind === 'hunt' ? huntIconFor(comp.hunt) : competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);
 
   // The clan's own title only when it says something the metric doesn't ("Double XP week").
   const subtitle = comp.title && !comp.title.toLowerCase().includes(label.toLowerCase()) ? comp.title : null;

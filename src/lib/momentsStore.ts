@@ -6,7 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
@@ -652,6 +652,25 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
     .where(eq(moments.weeklyCompetitionId, competitionId))
     .orderBy(desc(moments.occurredAt))
     .limit(limit);
+}
+
+/**
+ * A competition's DROPS (pets, uniques, hauls), ordered for lib/bestDrops: pets, then rarest, then
+ * dearest. Not the newest N: the best one of the week may be its oldest. Bounded by `cap`, and
+ * indexed on the competition (moments_weekly_idx), so it is never a table read.
+ */
+export async function bestDropMoments(competitionId: number, cap = 300): Promise<MomentRow[]> {
+  return db
+    .select(MOMENT_COLUMNS)
+    .from(moments)
+    .where(and(eq(moments.weeklyCompetitionId, competitionId), inArray(moments.kind, ['pet', 'unique', 'loot'])))
+    .orderBy(
+      sql`case when ${moments.kind} = 'pet' then 0 else 1 end`,
+      sql`${moments.rarityDenominator} desc nulls last`,
+      sql`${moments.valueGp} desc nulls last`,
+      asc(moments.occurredAt),
+    )
+    .limit(cap);
 }
 
 /**

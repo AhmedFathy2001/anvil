@@ -13,7 +13,7 @@ import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { errorEvents } from '@/db/schema';
 import { APP_VERSION } from '@/lib/serverInfo';
-import { fingerprintOf, normalizePath, trimStack, truncateMessage } from '@/lib/errorFingerprint';
+import { fingerprintOf, normalizePath, scrubErrorText, trimStack, truncateMessage } from '@/lib/errorFingerprint';
 import { log } from '@/lib/logger';
 
 export interface CapturedError {
@@ -69,21 +69,25 @@ function writeKey(fingerprint: string, clanId: number | null | undefined): strin
  */
 export async function recordError(err: CapturedError): Promise<void> {
   const name = err.name || 'Error';
-  const message = truncateMessage(err.message || 'Unknown error');
+  // Bound parameter values and constraint-detail values never reach the log, the row or the digest
+  // (lib/errorFingerprint scrubErrorText). The stack's own first lines repeat the message, so it is
+  // scrubbed the same way; its frames are untouched.
+  const message = truncateMessage(scrubErrorText(err.message) || 'Unknown error');
+  const stack = err.stack ? scrubErrorText(err.stack) : err.stack;
   const path = normalizePath(err.path);
 
   try {
     log.error('app.error', { path, method: err.method, source: err.source, clanId: err.clanId }, {
       name,
       message,
-      stack: err.stack,
+      stack,
     });
   } catch {
     /* logging must not be the thing that throws */
   }
 
   try {
-    const fingerprint = fingerprintOf({ name, message, stack: err.stack, path: err.path });
+    const fingerprint = fingerprintOf({ name, message, stack, path: err.path });
     const key = writeKey(fingerprint, err.clanId);
     const now = Date.now();
     const seen = pending.get(key);
@@ -106,7 +110,7 @@ export async function recordError(err: CapturedError): Promise<void> {
         clanId: err.clanId ?? null,
         name,
         message,
-        stack: trimStack(err.stack),
+        stack: trimStack(stack),
         path,
         method: err.method ?? null,
         source: err.source ?? null,
@@ -121,7 +125,7 @@ export async function recordError(err: CapturedError): Promise<void> {
           // The newest occurrence wins for the mutable detail: a fix that changed the release should
           // show the release it is still happening on, not the one it started on.
           release: APP_VERSION,
-          stack: trimStack(err.stack),
+          stack: trimStack(stack),
           message,
           // COMING BACK UN-RESOLVES IT. Someone ticked this off; it happened again; that is new
           // information and the digest should say so rather than staying quiet because of a tick.

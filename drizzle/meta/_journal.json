@@ -1410,9 +1410,51 @@
       "breakpoints": true
     },
     {
+      "idx": 264,
+      "version": "7",
+      "when": 1794716688274,
+      "tag": "0264_guest_posts_off_by_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1794720288274,
+      "tag": "0265_discord_id_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1794723888274,
+      "tag": "0266_banned_discord_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1794727488274,
+      "tag": "0267_billing_trials_gifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1794731088274,
+      "tag": "0268_extra_membership_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1794900000000,
+      "tag": "0269_item_hunt",
+      "breakpoints": true
+    },
+    {
       "idx": 270,
       "version": "7",
-      "when": 1794879996520,
+      "when": 1794900060000,
       "tag": "0270_race_easier_options",
       "breakpoints": true
     }

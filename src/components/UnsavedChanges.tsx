@@ -147,3 +147,32 @@ export function useLeaveGuard(): (action: () => void, everything?: boolean) => v
   const ctx = useContext(Ctx);
   return ctx ? ctx.guard : (action) => action();
 }
+
+/**
+ * The one way a dialog closes (Escape, the x, a click outside, Cancel): straight away when nothing
+ * was typed, otherwise after asking. Hand the returned function to useModalA11y, the backdrop and
+ * every close button so they all behave the same.
+ */
+export function useGuardedClose(dirty: boolean, onClose: () => void): () => void {
+  const { confirm } = useDialog();
+  const asking = useRef(false);
+  const latest = useRef({ dirty, onClose });
+  useEffect(() => {
+    latest.current = { dirty, onClose };
+  });
+  return useCallback(() => {
+    if (!latest.current.dirty) return latest.current.onClose();
+    if (asking.current) return;
+    asking.current = true;
+    void confirm({
+      title: 'Discard what you typed?',
+      body: 'Closing this now throws away your changes.',
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      tone: 'gold',
+    }).then((discard) => {
+      asking.current = false;
+      if (discard) latest.current.onClose();
+    });
+  }, [confirm]);
+}

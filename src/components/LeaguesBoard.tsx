@@ -188,7 +188,10 @@ export default function LeaguesBoard({
 
         const prog = dropProgress?.get(tile.id);
         const stat = statProgress?.get(tile.id);
-        const pct = prog
+        // The row's own progress line. A done row needs none, and neither does a one-off ("0/1").
+        const pct = done || (prog && prog.required <= 1 && !stat)
+          ? null
+          : prog
           ? Math.min(100, Math.round((prog.current / Math.max(1, prog.required)) * 100))
           : stat
             ? Math.min(100, Math.round((stat.current / Math.max(1, stat.goal)) * 100))

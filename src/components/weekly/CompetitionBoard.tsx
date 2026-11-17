@@ -47,7 +47,7 @@ export function YouStrip({
   const share = !scored ? 0 : behind ? entry.gained / Math.max(1, entry.gained + behind.amount) : 1;
 
   return (
-    <div className="sticky top-[var(--nav-height)] z-10 mb-6 grid grid-cols-2 items-center gap-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg/95 to-card-bg/95 p-3.5 backdrop-blur sm:grid-cols-[auto_auto_minmax(180px,1fr)_auto] sm:gap-6">
+    <div className="z-10 mb-6 sm:sticky sm:top-[var(--nav-height)] grid grid-cols-2 items-center gap-5 rounded-xl border border-accent-green/25 bg-gradient-to-r from-accent-green/15 via-card-bg/95 to-card-bg/95 p-3.5 backdrop-blur sm:grid-cols-[auto_auto_minmax(180px,1fr)_auto] sm:gap-6">
       <div className="font-mono text-3xl font-bold leading-none tabular-nums">
         <span className="text-base text-text-muted">#</span>
         {rank}
@@ -227,8 +227,10 @@ export function Board({
       ) : (
         <div className="overflow-hidden rounded-xl border border-card-border">
           <div
-            className="overflow-y-auto"
-            style={{ maxHeight: entries.length > VISIBLE_ROWS ? VISIBLE_ROWS * ROW_PX : undefined }}
+            // The capped, scrolling list is for wide screens. On a phone a scroll box inside the page
+            // traps the thumb, so the whole list is laid out and the page does the scrolling.
+            className="sm:overflow-y-auto sm:max-h-[var(--list-max)]"
+            style={{ '--list-max': entries.length > VISIBLE_ROWS ? `${VISIBLE_ROWS * ROW_PX}px` : 'none' } as React.CSSProperties}
           >
           {entries.map((e, i) => (
             <div
@@ -304,9 +306,9 @@ export function SidePanels({
           milestone is still true tomorrow. */}
       {highlights.length > 0 && (
         <div className="mt-5 rounded-xl border border-card-border bg-card-bg p-4">
-          <h3 className="text-sm font-bold">Moments</h3>
+          <h3 className="text-sm font-bold">Latest</h3>
           <p className="mt-0.5 text-xs text-text-muted">
-            pets, uniques and deaths from this competition&apos;s own content — reported by the plugin, never scored
+            the newest pets, uniques and deaths from this competition&apos;s own content — reported by the plugin, never scored
           </p>
           <div className="mt-2.5">
             {highlights.map((h) => (

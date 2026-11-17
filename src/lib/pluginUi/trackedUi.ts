@@ -25,7 +25,8 @@ export function trackedCard(rows: PinRow[], eventId: number, then: Action): Node
     const x = text('✕', SOFT, { chip: '#3a3a3a', font: 'small', w: 18, align: 'c', tip: 'Untrack this tile', on: { a: 'pin', event: p.eventId, tile: p.tileId, on: false, then } });
     const name = col([text(clip(p.label, 22), 'text', { tip: p.label }), ...(p.board ? [text(clip(p.board, 30), FAINT, { font: 'small' })] : [])], { gap: 1 });
     // No blank under the name: progress gets a thin bar
-    const body = p.goal && p.goal > 1 && !p.done ? col([name, { t: 'bar', pct: Math.round((Math.min(p.cur ?? 0, p.goal) * 100) / p.goal), color: 'progress', h: 4, bg: 'panel' }], { gap: 3 }) : name;
+    const left = p.goal && p.goal > 1 && !p.done ? Math.max(0, p.goal - (p.cur ?? 0)) : 0;
+    const body = p.goal && p.goal > 1 && !p.done ? col([name, { t: 'bar', pct: Math.round((Math.min(p.cur ?? 0, p.goal) * 100) / p.goal), color: 'progress', h: 4, bg: 'panel' }, ...(left > 0 ? [text(`${count(left)} to go`, FAINT, { font: 'small' })] : [])], { gap: 3 }) : name;
     // Nothing to show under the name: one tight line, name and ✕, no extra column.
     if (body === name && !prog && !p.board) return row(undefined, text(clip(p.label, 26), 'text', { tip: p.label }), x, { gap: 6, pad: 6, bg: 'raised' });
     return row(undefined, body, row(prog, undefined, x, { gap: 6 }), { gap: 6, pad: 6, bg: 'raised' });

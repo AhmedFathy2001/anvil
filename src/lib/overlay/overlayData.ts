@@ -32,6 +32,7 @@ import {
   type OverlayOptions,
   type OverlayPayload,
 } from './overlayView';
+import { withPlanInForce } from '@/lib/planTrials';
 
 // The stream overlay's reads (rules: lib/overlay/overlayView). Two halves:
 //
@@ -194,7 +195,7 @@ export function overlayMark(clanId: number): Promise<boolean> {
 export async function readOverlayMark(clanId: number): Promise<boolean> {
   // clan-scope: this clan -- the overlay's own host, from the event the key opened.
   const [host, hide] = await Promise.all([
-    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, plan: true, streaming: true } }),
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, plan: true, streaming: true } }).then((row) => withPlanInForce(clanId, row)),
     db.query.settings.findFirst({ where: and(eq(settings.clanId, clanId), eq(settings.key, OVERLAY_HIDE_MARK_SETTING)) }),
   ]);
   if (!streamsEvents(host)) return false;

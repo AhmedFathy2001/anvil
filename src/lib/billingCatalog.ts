@@ -9,6 +9,7 @@
 // Pure: no database import.
 
 import { PLANS, PLAN_IDS, isPlanId, isYearlyClanProduct, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
+import { tierHasNowProduct } from '@/lib/billingInterval';
 import {
   CREATOR_FREE_ID,
   CREATOR_PLANS,
@@ -127,4 +128,14 @@ export function gumroadPurchase(ev: { productId: string | null; tier: string | n
 export function withYearlyRecurrence<T extends { productId: string | null; recurrence: string | null }>(ev: T): T {
   if (ev.recurrence || !(isYearlyClanProduct(ev.productId) || isYearlyCreatorProduct(ev.productId))) return ev;
   return { ...ev, recurrence: 'yearly' };
+}
+
+/**
+ * Is this notification for a PAY-NOW copy of a clan or creator product (the `_NOW` ids, lib/billingInterval)?
+ * Those have no Gumroad trial by construction. Falls back to the permalink ending "-now" (bronze-now,
+ * creator-gold-now …) when the ids are not configured.
+ */
+export function isNowPlanProduct(ev: { productId: string | null; productPermalink?: string | null }): boolean {
+  if (ev.productId && [...Object.values(PLANS), ...Object.values(CREATOR_PLANS)].some((t) => tierHasNowProduct(t, ev.productId as string))) return true;
+  return !!ev.productPermalink && /-now$/.test(ev.productPermalink);
 }

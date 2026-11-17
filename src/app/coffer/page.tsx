@@ -1,4 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import { viewerIsClanInsider } from '@/lib/clanInsider';
+import { cofferName, donorBoard } from '@/lib/cofferView';
 import { requireFeature } from '@/lib/clanFeatures';
 
 import { clanRoster } from '@/db/schema';
@@ -26,9 +28,11 @@ export default async function CofferPage() {
   await requireFeature(clan.id, 'coffer', '/');
   const user = await verifyUser();
 
+  // Amounts are public; names are for people inside the clan (lib/cofferView).
+  const insider = await viewerIsClanInsider(clan.id);
   const [balance, donors, recent] = await Promise.all([
     getCofferBalance(clan.id),
-    topDonors(clan.id, 8),
+    topDonors(clan.id, 8).then((rows) => donorBoard(rows, insider)),
     listCofferEntries({ clanId: clan.id, statuses: ['approved', 'reserved', 'paid', 'unfunded'], limit: 20 }),
   ]);
 
@@ -83,12 +87,12 @@ export default async function CofferPage() {
             ) : (
               donors.map((d, i) => (
                 <div
-                  key={d.rsn}
+                  key={d.rsn ?? `donor-${i}`}
                   className="flex items-center justify-between px-3 py-2 border-b border-card-border/60 last:border-b-0"
                 >
                   <span className="text-sm">
                     <span className="text-text-muted mr-2">{i + 1}.</span>
-                    {d.rsn}
+                    {d.rsn ?? 'A member'}
                   </span>
                   <span className="text-sm text-gold">{formatGp(d.total)}</span>
                 </div>
@@ -119,9 +123,9 @@ export default async function CofferPage() {
                     {e.kind === 'pool'
                       ? 'prize money for an event'
                       : e.kind === 'withdrawal'
-                        ? `moved to a bank by ${e.memberName ?? e.rsn ?? 'the clan'} (not spent)`
+                        ? `moved to a bank by ${cofferName(e.memberName ?? e.rsn, insider) ?? 'the clan'} (not spent)`
                       : `${e.kind === 'award' ? 'won by' : e.kind === 'donation' ? 'from' : '·'} ${
-                          e.memberName ?? e.rsn ?? 'the clan'
+                          cofferName(e.memberName ?? e.rsn, insider) ?? 'the clan'
                         }`}
                   </span>
                   {e.status === 'unfunded' && (

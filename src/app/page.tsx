@@ -1,3 +1,8 @@
+import { landingClans, recruitingClans } from '@/lib/landingClans';
+import { memberStartGuide, personStartGuide } from '@/lib/guidedFlowFacts';
+import GuidedFlow from '@/components/GuidedFlow';
+import { clansOfPerson } from '@/lib/myClans';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
@@ -5,7 +10,7 @@ import { isFriendsHost } from '@/lib/friendEventRules';
 import { currentClan, isApexHost } from '@/lib/clanContext';
 import { clanRankFor } from '@/lib/clanLeaderboard';
 import { JsonLd, clanLd, faqLd, softwareLd, websiteLd } from '@/lib/jsonLd';
-import { ANVIL_DEFINITION, GENERAL_FAQ } from '@/lib/answers';
+import { ANVIL_DEFINITION, LANDING_FAQ } from '@/lib/answers';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { ordinal } from '@/lib/utils';
 import ApexLanding from '@/components/landing/ApexLanding';
@@ -23,6 +28,8 @@ import { publicClanActivity, publicClanHomeView } from '@/lib/clanHome';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
+import { viewerEventEntries, type ViewerEventEntry } from '@/lib/viewerEvents';
+import { viewerWeeklyStandings } from '@/lib/viewerWeeklyStandings';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { clanHallView, hallConfig } from '@/lib/clanHall';
 import ClanHall from '@/components/ClanHall';
@@ -152,8 +159,8 @@ async function ApexRoot() {
         <JsonLd data={websiteLd()} />
         <JsonLd data={softwareLd({ description: ANVIL_DEFINITION })} />
         {/* Matches the FAQ ApexLanding renders, item for item. */}
-        <JsonLd data={faqLd(GENERAL_FAQ)} />
-        <ApexLanding stats={await platformStats()} />
+        <JsonLd data={faqLd(LANDING_FAQ)} />
+        <ApexLanding stats={await platformStats()} clans={await landingClans()} />
       </>
     );
   }
@@ -170,8 +177,17 @@ async function ApexRoot() {
     // Their Supporter look, once: every character name the signed-in home draws is their own.
     supporterForUser(session.userId),
   ]);
+  // The clanless home also offers somewhere to go. Only read for people in no clan.
+  const clanless = view.clans.length === 0;
+  const recruiting = clanless ? await recruitingClans() : [];
+  // The "Getting started" guide strip (lib/guidedFlows/memberStart): for somebody in no clan, the
+  // clanless one; otherwise the member one, pointed at their first clan's events and team page.
+  // The same choice /profile makes (lib/guidedFlowFacts personStartGuide), so the two never disagree.
+  const guide = await personStartGuide(session.userId, session.playerId, view.clans, view.discover?.length ?? 0);
   return (
     <ApexHome
+      recruiting={recruiting}
+      guide={guide}
       view={view}
       signals={signals}
       displayName={userRow?.displayName ?? 'there'}
@@ -268,6 +284,15 @@ export default async function HomePage() {
       boostPromise,
     ]);
     if (publicView) {
+      // A signed-in visitor still gets the getting-started strip here: arriving straight from a first
+      // sign-in (lib/firstLogin) skips the /welcome chooser, so setup is offered on the page they came
+      // for, never forced before it.
+      const arrivalGuide =
+        session?.userId != null
+          ? await clansOfPerson(session.playerId ?? null, session.userId)
+              .then((mine) => personStartGuide(session.userId, session.playerId ?? null, mine, null))
+              .catch(() => null)
+          : null;
       return (
         <>
           {/* Structured data on the PUBLIC branch only, which is the branch a crawler ever reaches —
@@ -285,6 +310,7 @@ export default async function HomePage() {
             })}
           />
           <PublicClanHome
+            guide={arrivalGuide ? <GuidedFlow view={arrivalGuide} className="mt-4" /> : null}
             view={publicView}
             signedIn={!!session?.userId}
             canReport={showReportButton({ signedIn: !!session?.userId, staffOfTarget: staffHere })}
@@ -309,17 +335,35 @@ export default async function HomePage() {
     boostPromise,
     session?.userId ? boostViewerFor(clan.id, session.userId, session.playerId ?? null).catch(() => null) : Promise.resolve(null),
   ]);
+  // The board events on the page the viewer has a team in (or is signed up to), so the list below
+  // puts theirs first and names their team, as the Events page does (lib/viewerEvents: three queries).
+  const openEvents = view.events.filter((e) => e.status !== 'past');
+  const myBoards = session
+    ? await viewerEventEntries(
+        { userId: session.userId, playerId: session.playerId ?? null },
+        openEvents.map((e) => e.id),
+        openEvents.filter((e) => e.status === 'upcoming').map((e) => e.id),
+      )
+    : new Map<number, ViewerEventEntry>();
+  // Where they stand in the weeks they are in (two queries, none when they are in none).
+  const myWeeks = await viewerWeeklyStandings(
+    { playerId: session?.playerId ?? null },
+    session ? view.weeklies.filter((w) => w.mine && w.status !== 'completed').map((w) => w.id) : [],
+  );
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
+  // The "Getting started" guide strip, until a first proof of theirs has landed.
+  const guide = session?.userId ? await memberStartGuide(session.userId, session.playerId ?? null, { insider: true }) : null;
 
   return (
     <div>
       <Hero view={view} boostLevel={boost?.level ?? 0} boostNameStyle={boost?.nameStyle} />
       {hall && <ClanHall initial={hall} src="home" />}
-      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
+      {guide && <GuidedFlow view={guide} className="mt-6" />}
+      <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
-      <Competitions view={view} />
+      <Competitions view={view} now={new Date().getTime()} myBoards={myBoards} myWeeks={myWeeks} />
       <ClanWeek view={view} />
       {boost && (
         <ClanBoostPanel
@@ -337,7 +381,7 @@ export default async function HomePage() {
       <section className="mt-9 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
         <QuickLink href="/events" emoji="🏆" label="Competitions" />
         {myTeams > 0 && <QuickLink href="/team" emoji="🎯" label={myTeams > 1 ? 'My Teams' : 'My Team'} />}
-        <QuickLink href="/profile" emoji="👤" label="My Profile" />
+        <QuickLink href="/profile" emoji="👤" label="Your profile" hint="Your characters, teams and settings" />
         {view.discordInvite && <QuickLink href={view.discordInvite} emoji="💬" label="Discord" external />}
       </section>
     </div>
@@ -349,7 +393,9 @@ function QuickLink({
   emoji,
   label,
   external,
+  hint,
 }: {
+  hint?: string;
   href: string;
   emoji: string;
   label: string;
@@ -366,11 +412,11 @@ function QuickLink({
     </>
   );
   return external ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+    <a href={href} target="_blank" rel="noopener noreferrer" title={hint} className={className}>
       {body}
     </a>
   ) : (
-    <ClanLink href={href} className={className}>
+    <ClanLink href={href} title={hint} className={className}>
       {body}
     </ClanLink>
   );

@@ -2,7 +2,6 @@
 
 import { clanBasePath } from '@/lib/clanScopedPaths';
 import { useEffect, useState } from 'react';
-import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
@@ -43,8 +42,9 @@ export default function NewClanClient({
   const [done, setDone] = useState<string | null>(created);
   const [foundVia, setFoundVia] = useState('');
   const [foundViaNote, setFoundViaNote] = useState('');
-  const [joinAnvil, setJoinAnvil] = useState(true);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  // What the create call said about the automatic trial (absent when coming back via ?created=).
+  const [trial, setTrial] = useState<{ granted: true; tierName: string; endsAt: number } | { granted: false; reason: string } | null>(null);
 
   // Suggest the slug from the display name — or the in-game name when no display name is given, since
   // that is now the required field — until they edit the slug themselves, then leave it alone.
@@ -103,17 +103,9 @@ export default function NewClanClient({
         return;
       }
       const made = j.clan?.slug ?? slug;
-      // "Join the Anvil Discord": one Discord consent screen, then back to the finished screen here.
-      // Not when a trial checkout is waiting — that link would be lost on the round trip, so the
-      // finished screen offers the join as a button instead.
-      if (joinAnvil && !j.checkoutUrl) {
-        const back = `/clans/new?created=${encodeURIComponent(made)}`;
-        // A full navigation on purpose: it's an API route that redirects to Discord, not a page.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-        window.location.href = `/api/auth/discord/start?anvil=1&return=${encodeURIComponent(back)}`;
-        return;
-      }
+      // Joining the Anvil Discord is opt-in: a button on the finished screen, never a redirect before it.
       setCheckoutUrl(j.checkoutUrl ?? null);
+      setTrial(j.trial ?? null);
       setDone(made);
     } finally {
       setBusy(false);
@@ -133,11 +125,29 @@ export default function NewClanClient({
           Nothing to wait for — it is already serving, at{' '}
           <code className="text-gold">{apex}{home}</code>. You are its owner.
         </p>
+        {trial?.granted && (
+          <p className="mt-2 text-sm text-gray-300">
+            <span className="font-semibold text-gold">
+              {trial.tierName} trial until {new Date(trial.endsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            , no card needed. After that the clan is on Free unless you subscribe; nothing is deleted.
+          </p>
+        )}
+        {trial && !trial.granted && trial.reason !== 'off' && (
+          <p className="mt-2 text-sm text-gray-300">
+            This clan starts on Free:{' '}
+            {trial.reason === 'owner-deleted-trialed'
+              ? 'the free trial was used on a clan you deleted, so it does not start again.'
+              : 'a clan with this in-game name already used the free trial, so it does not start again.'}{' '}
+            You can subscribe from the clan&rsquo;s plan page whenever you need more room.
+          </p>
+        )}
         {checkoutUrl && trialPlan && (
           <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.06] p-4">
             <p className="text-sm text-gray-200">
-              One step for the {trialPlan.name} trial: start it on Gumroad. Nothing is charged for{' '}
-              {trialPlan.trialDays} days, and the clan moves to {trialPlan.name} as soon as Gumroad confirms.
+              {trialPlan.trialDays > 0
+                ? `One step for the ${trialPlan.name} free trial: start it on Gumroad. Gumroad takes your card details now and charges nothing for ${trialPlan.trialDays} days; the clan moves to ${trialPlan.name} as soon as Gumroad confirms.`
+                : `One step for ${trialPlan.name}: subscribe on Gumroad. You are charged today, and the clan moves to ${trialPlan.name} as soon as Gumroad confirms.`}
             </p>
             <a
               href={checkoutUrl}
@@ -145,7 +155,7 @@ export default function NewClanClient({
               rel="noopener noreferrer"
               className="mt-3 inline-block rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
             >
-              Start {trialPlan.trialDays}-day {trialPlan.name} trial
+              {trialPlan.trialDays > 0 ? `Start ${trialPlan.trialDays}-day ${trialPlan.name} free trial` : `Subscribe to ${trialPlan.name}`}
             </a>
             <p className="mt-2 text-[12.5px] text-text-dim">
               Skipped it? It&rsquo;s on <ClanLink href="/portal" className="underline">Billing</ClanLink> whenever you want it.
@@ -153,8 +163,9 @@ export default function NewClanClient({
           </div>
         )}
         <p className="mt-4 text-sm text-gray-300">
-          A few things left: name it in Discord, point it at a channel, load your members, make a board,
-          fill it. The checklist on your dashboard walks them and knows which you have done.
+          Make your first event now: it is ready to go, with the name and tiles filled in. Loading your
+          members with the plugin and the Discord setup wait on your dashboard checklist, for whenever
+          you want them.
         </p>
         <PersonalNote
           contactId={contactId}
@@ -170,10 +181,16 @@ export default function NewClanClient({
               navigation instead of a client route that would leave the app holding the apex's
               context while showing a clan's page. */}
           <ClanLink
-            href={`${home}/admin/setup`}
+            href={`${home}/admin/events/first`}
             className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
-            Set it up
+            Create your first event
+          </ClanLink>
+          <ClanLink
+            href={`${home}/admin/setup`}
+            className="rounded-xl border border-card-border px-4 py-2.5 text-sm text-text-muted transition-colors hover:border-gold/45"
+          >
+            Plugin and roster setup
           </ClanLink>
           <ClanLink
             href={home}
@@ -220,7 +237,13 @@ export default function NewClanClient({
           }`}
         />
         {nameBad ? (
-          <p className="mt-1 text-xs text-red-400">{nameCheck?.message}</p>
+          <p className="mt-1 text-xs text-red-400">
+            {nameCheck?.message}{' '}
+            <ClanLink href="/clans" className="font-medium text-gold hover:text-gold-light">
+              Find it in the Clan Hall
+            </ClanLink>{' '}
+            to apply, or ask its leader to add you.
+          </p>
         ) : (
           <p className="mt-1 text-xs text-gray-500">
             Exactly as it appears in OSRS. Roster sync uses it to match your clan and refuses a roster
@@ -292,13 +315,6 @@ export default function NewClanClient({
         )}
         <p className="mt-1 text-xs text-gray-500">Helps me know what&rsquo;s working. Only Anvil staff see it.</p>
       </div>
-
-      <Checkbox
-        checked={joinAnvil}
-        onChange={setJoinAnvil}
-        label="Join the Anvil Discord"
-        description="Where help, updates and other clan admins are. Discord asks you once to allow it."
-      />
 
       {error && <p className="text-sm text-red-300">{error}</p>}
 

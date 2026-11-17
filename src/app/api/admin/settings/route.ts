@@ -82,6 +82,8 @@ const EXPOSED_KEYS = [
   // no client locale for (Arabic), or when a mixed-locale server wants one voice.
   'discord_language',
   'discord_nickname_overwrite',
+  // Role sync may also match unlinked members by Discord nickname. Off unless the clan turns it on.
+  'discord_role_match_by_nickname',
   // Discord team channels (bot-driven, see lib/discord-teams.ts): per-team roles +
   // locked voice/text channels, plus the two shared role IDs every event reuses.
   'discord_team_sync_enabled',

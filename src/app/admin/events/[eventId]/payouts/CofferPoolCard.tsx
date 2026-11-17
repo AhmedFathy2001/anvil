@@ -137,7 +137,16 @@ export default function CofferPoolCard({
           <button
             type="button"
             disabled={saving}
-            onClick={() => save(parseGpInput(input) ?? 0)}
+            onClick={() => {
+              // An amount that can't be read must never be saved as 0: that hands the pool back.
+              // Only "Take it back" does that.
+              const amount = parseGpInput(input);
+              if (amount == null) {
+                setMsg({ type: 'error', text: 'Enter an amount like 500m or 2.5b.' });
+                return;
+              }
+              void save(amount);
+            }}
             className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gold/90 text-brown-dark hover:bg-gold transition-colors disabled:opacity-50"
           >
             {saving ? 'Saving…' : state.funded > 0 ? 'Update' : 'Set aside'}

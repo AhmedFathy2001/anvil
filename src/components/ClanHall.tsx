@@ -101,6 +101,7 @@ export default function ClanHall({ initial, src }: { initial: View; /** Which su
   const prefix = useClanPrefixValue();
   const [view, setView] = useState<View>(initial);
   const [filter, setFilter] = useState<'all' | 'game' | 'team'>('all');
+  const [showAll, setShowAll] = useState(false);
   const [updatedAt, setUpdatedAt] = useState(() => Date.now());
   const active = usePageActive();
 
@@ -136,7 +137,7 @@ export default function ClanHall({ initial, src }: { initial: View; /** Which su
     : [];
   // "Everyone" counts past Discord's 100-person list: the widget's own total, plus those only in game.
   const total = people && filter === 'all' ? counts.discord + people.filter((p) => !p.status).length : shown.length;
-  const hiddenCount = Math.max(0, total - ROSTER_ROWS);
+  const hiddenCount = showAll ? 0 : Math.max(0, total - ROSTER_ROWS);
 
   const funnel = (
     <div className="flex flex-col gap-3.5">
@@ -262,7 +263,7 @@ export default function ClanHall({ initial, src }: { initial: View; /** Which su
               </p>
             ) : (
               <ul className="flex flex-col">
-                {shown.slice(0, ROSTER_ROWS).map((p, i) => (
+                {shown.slice(0, showAll ? undefined : ROSTER_ROWS).map((p, i) => (
                   <li
                     key={`${p.name}-${i}`}
                     className={`grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 border-b border-card-border-soft py-2 last:border-b-0 ${p.rsn ? '' : 'opacity-60'}`}
@@ -292,9 +293,13 @@ export default function ClanHall({ initial, src }: { initial: View; /** Which su
               </ul>
             )}
             {hiddenCount > 0 && (
-              <p className="mt-2.5 text-[12.5px] text-text-muted">
-                + {hiddenCount} more {filter === 'game' ? 'in game' : filter === 'team' ? 'on your team' : 'around'}
-              </p>
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className="mt-2.5 text-[12.5px] text-gold underline-offset-4 hover:text-gold-light hover:underline"
+              >
+                Show {hiddenCount} more {filter === 'game' ? 'in game' : filter === 'team' ? 'on your team' : 'around'}
+              </button>
             )}
           </div>
         )}

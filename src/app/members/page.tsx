@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { hiddenNamesForViewer } from '@/lib/clanInsider';
+import { withoutHiddenKeys, withoutHiddenNames, withoutHiddenRows } from '@/lib/rosterVisibility';
 import { clanStreaks } from '@/lib/activityStreaks';
 import RecordsBoard from '@/components/records/RecordsBoard';
 import { getClanRecordHolders } from '@/lib/records';
@@ -52,12 +54,16 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const initialSort = requestedSort === 'xp' ? 'xp' as const : requestedSort === 'streak' ? 'streak' as const : 'week' as const;
   // A creator space has no roster (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS): its home instead.
   await creatorPublicAway('/members', clan);
-  const members = await listMembers(clan.id);
+  // A visitor from outside the clan is shown only the characters whose owner left "Show publicly"
+  // on (lib/rosterVisibility). Counts and clan totals below still come from the whole roster.
+  const hidden = await hiddenNamesForViewer(clan.id);
+  const allMembers = await listMembers(clan.id);
+  const members = withoutHiddenRows(allMembers, hidden);
   // Guests are listed but not counted, unless this clan says otherwise — see getClanAnalytics.
   const countGuests = (await getSetting(clan.id, 'members_count_guests')) === '1';
   // Rank sorts by seniority, not alphabetically.
   const rankCounts = new Map<string, number>();
-  for (const m of members) if (m.rank && !m.isGuest) rankCounts.set(m.rank, (rankCounts.get(m.rank) ?? 0) + 1);
+  for (const m of allMembers) if (m.rank && !m.isGuest) rankCounts.set(m.rank, (rankCounts.get(m.rank) ?? 0) + 1);
   // The game's own order where the plugin has reported rank numbers (custom titles included); the
   // ladder for anything it hasn't.
   const rankOrder = rankOrderWithNumbers(
@@ -71,28 +77,27 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
   const [analytics, rosterLog, activities, movement, luck, moments, supporterLooks, boosters, streaks] = await Promise.all([
-    getClanAnalytics(members, { countGuests }),
-    getRosterLog(clan.id, 20),
-    getClanActivityAnalytics(clan.id, { countGuests }),
+    getClanAnalytics(allMembers, { countGuests }).then((a) => withoutHiddenNames(a, hidden)),
+    getRosterLog(clan.id, 20).then((rows) => withoutHiddenRows(rows, hidden)),
+    getClanActivityAnalytics(clan.id, { countGuests }).then((a) => withoutHiddenNames(a, hidden)),
     getRosterMovement(members),
-    getLuckBoards(clan.id),
+    getLuckBoards(clan.id).then((b) => withoutHiddenNames(b, hidden)),
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
     // Tuesday's pet are the same news to someone reading this page.
     // Back-to-back repeats are one line with a count (lib/feedRuns), cut to 30 after.
-    momentsForClan(clan.id, 90).then((rows) => collapseMomentRuns(rows).slice(0, 30)),
+    momentsForClan(clan.id, 90).then((rows) => collapseMomentRuns(withoutHiddenRows(rows, hidden)).slice(0, 30)),
     // Supporter flair on each character's name: one query for the whole roster (the podium's names
     // are roster names, so the same record covers them).
     supporterLooksByName(members.map((m) => m.rsn)),
     // The Booster mark: who boosts THIS clan, by the character the boost rides on. A stranger sees it
     // only where the clan shows strangers its members' names (the Clan Hall's switch), like the wall.
-    boosterMarksFor(clan.id),
+    boosterMarksFor(clan.id).then((marks) => withoutHiddenKeys(marks, hidden)),
     // Weekly activity streaks (lib/activityStreaks): decoration, so a failed read is no column values.
     clanStreaks(clan.id)
-      .then((h) => Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks > 0).map(([rsn, s]) => [rsn, s.weeks])))
+      .then((h) => withoutHiddenKeys(Object.fromEntries([...h.byRsn].filter(([, s]) => s.weeks > 0).map(([rsn, s]) => [rsn, s.weeks])), hidden))
       .catch(() => ({}) as Record<string, number>),
   ]);
-  const recordHolders = (await Promise.all(RECORD_PERIODS.map((p) => getClanRecordHolders(clan.id, p))))
-    .flat()
+  const recordHolders = withoutHiddenRows((await Promise.all(RECORD_PERIODS.map((p) => getClanRecordHolders(clan.id, p)))).flat(), hidden)
     .map((h) => ({ ...h, href: `/members/${encodeURIComponent(h.rsn)}` }));
   // GZ / Sad / Sit under each: counts for anyone, who gave them (and a press) for a clanmate.
   const session = await verifyUser();

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { pathOf } from '@/lib/characterState';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
@@ -9,6 +10,8 @@ import { normalizeRsn } from '@/lib/auth';
 import { latestClanReportByAccount } from '@/lib/characterReports';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { rosterClanSeat } from '@/lib/seatScope';
+import { staffEnteredDiscordLink } from '@/lib/discordLink';
+import { DISCORD_ID_ADMIN_ONLY, rosterDiscordIdWrite } from '@/lib/discordRoleSafety';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
@@ -98,6 +101,8 @@ export async function GET(request: Request) {
         userRole: r.playerId != null ? userRole.get(r.playerId) ?? null : null,
         effectiveDiscordId: did,
         anvilReport: reports.get(r.accountId) ?? null,
+        // How the character came in (lib/characterState pathChip): only for one somebody has claimed.
+        path: r.claimedAt ? pathOf(r) : null,
       };
     }),
   );
@@ -128,6 +133,11 @@ export async function POST(request: Request) {
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
 
   const clan = await requireClan();
+  // A character's Discord id is an admin's or the owner's to set (lib/discordRoleSafety
+  // rosterDiscordIdWrite). From a moderator the field is dropped and the rest of the add goes
+  // ahead; the response says so.
+  const discordWrite = rosterDiscordIdWrite(user.role, body.discordId ?? undefined);
+  const discordIgnored = discordWrite.ignored ? { discordIdIgnored: DISCORD_ID_ADMIN_ONLY } : {};
   const rsnNormalized = normalizeRsn(rsn);
   // Scoped to this clan: the same RSN is legitimately on other clans' rosters, and an unscoped lookup
   // would 409 "already in roster" against a member of a clan this admin has nothing to do with.
@@ -139,9 +149,15 @@ export async function POST(request: Request) {
   if (existing && existing.leftAt) {
     // The character itself is only this clan's to touch while nobody has claimed it.
     if (existing.claimedAt == null) {
+      // A Discord id typed here is stored with its source (lib/discordLink); none typed leaves
+      // whatever is stored, and its source, alone.
+      const link =
+        discordWrite.write
+          ? await staffEnteredDiscordLink({ clanId: clan.id, seatId: existing.id, claimed: false, discordId: body.discordId, actor: user })
+          : {};
       await db
         .update(accounts)
-        .set({ rsn, discordId: body.discordId ?? existing.discordId })
+        .set({ rsn, ...link })
         .where(eq(accounts.id, existing.accountId));
     }
     await db
@@ -153,12 +169,13 @@ export async function POST(request: Request) {
         notes: body.notes ?? existing.notes,
       })
       .where(eq(clanMemberships.id, existing.id));
-    return NextResponse.json({ id: existing.id, reactivated: true });
+    return NextResponse.json({ id: existing.id, reactivated: true, ...discordIgnored });
   }
 
   const account = await findOrCreateAccount({ rsn, rsnNormalized });
-  if (body.discordId && !account.claimedAt) {
-    await db.update(accounts).set({ discordId: body.discordId }).where(eq(accounts.id, account.id));
+  if (discordWrite.write && body.discordId && !account.claimedAt) {
+    const link = await staffEnteredDiscordLink({ clanId: clan.id, seatId: null, claimed: false, discordId: body.discordId, actor: user });
+    await db.update(accounts).set(link).where(eq(accounts.id, account.id));
   }
   // An admin saying so is one of the three ways membership is granted, so this may seat a member.
   const seatId = await findOrCreateSeat(clan.id, account.id, {
@@ -174,5 +191,5 @@ export async function POST(request: Request) {
     .select()
     .from(clanRoster)
     .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.id, seatId)));
-  return NextResponse.json(seat);
+  return NextResponse.json({ ...seat, ...discordIgnored });
 }

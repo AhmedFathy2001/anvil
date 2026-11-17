@@ -49,6 +49,86 @@ export const MEMBER_ONBOARDING: FunnelDef = {
   ],
 };
 
+/**
+ * The creation flows, counted per clan from the action rows each step writes where it is served
+ * (lib/analytics). Step keys ARE the action names, so the read can hand them straight over. These
+ * exist to measure a before and an after: how many clans start, how far each gets, and where it ends.
+ */
+export const NEW_EVENT_FLOW: FunnelDef = {
+  key: 'new-event',
+  title: 'New event',
+  actor: 'clans that opened the format picker',
+  steps: [
+    { key: 'flow.event.picker', label: 'Picker opened', hint: 'saw the "What are you running?" screen' },
+    { key: 'flow.event.form', label: 'Form opened', hint: 'chose a format and reached the form' },
+    { key: 'event.created', label: 'Event created', hint: 'the event row exists' },
+    { key: 'tile.created', label: 'First tile added', hint: 'a tile was added by hand' },
+    { key: 'event.started', label: 'Event started', hint: 'the event began' },
+  ],
+};
+
+/**
+ * New owner -> first running event, per clan. Unlike NEW_EVENT_FLOW this is read from what the clan
+ * HAS (lib/analyticsRead firstEventFlow), not from what was tracked: every step leaves a record, and
+ * those go back to the day each clan was made, so the funnel is true for clans older than the
+ * tracking. A tracked action only stands in for a record that is gone (firstEventReached).
+ *
+ * "Setup opened" and "Quick event screen" used to gate this funnel. They are page views with no
+ * record behind them, so as gates they emptied every later step for any clan made before they
+ * shipped. They are still tracked (flow.setup.opened, flow.first.opened) and listed under actions.
+ */
+export const FIRST_EVENT_FLOW: FunnelDef = {
+  key: 'first-event',
+  title: 'First event',
+  actor: 'clans created in the window',
+  steps: [
+    { key: 'created', label: 'Clan created', hint: 'the clan exists' },
+    { key: 'verified', label: 'Verified in game', hint: 'its in-game name was proven by an owner-rank character' },
+    { key: 'plugin', label: 'Plugin connected', hint: 'the plugin has reported for someone who runs the clan' },
+    { key: 'members', label: 'Members present', hint: 'more than one member on the roster' },
+    { key: 'event', label: 'First event created', hint: 'at least one event exists' },
+    { key: 'tile', label: 'First tile', hint: 'an event of theirs has a tile they wrote' },
+    { key: 'started', label: 'First event started', hint: 'an event reached its start time' },
+  ],
+};
+
+/** What the tables say about one clan. `created` is not here: a clan that is being asked about exists. */
+export interface FirstEventRecords {
+  verified: boolean;
+  plugin: boolean;
+  members: boolean;
+  event: boolean;
+  tile: boolean;
+  started: boolean;
+}
+
+/**
+ * The tracked action that may stand in for a step whose record is missing: an event that was created
+ * and later deleted leaves no row, but its `event.created` action is still there. Steps with no
+ * entry (verified, plugin) have no clan-level action, so only the record answers for them.
+ */
+export const FIRST_EVENT_TRACKED: Partial<Record<keyof FirstEventRecords, string>> = {
+  members: 'roster.synced',
+  event: 'event.created',
+  tile: 'tile.created',
+  started: 'event.started',
+};
+
+/**
+ * The steps of FIRST_EVENT_FLOW one clan has reached, for computeFunnel. The record decides; the
+ * tracked action is consulted only where the record says no.
+ */
+export function firstEventReached(records: FirstEventRecords, tracked: Iterable<string> = []): string[] {
+  const seen = new Set(tracked);
+  const out = ['created'];
+  for (const step of FIRST_EVENT_FLOW.steps.slice(1)) {
+    const key = step.key as keyof FirstEventRecords;
+    const action = FIRST_EVENT_TRACKED[key];
+    if (records[key] || (action != null && seen.has(action))) out.push(key);
+  }
+  return out;
+}
+
 export interface FunnelRow {
   key: string;
   label: string;

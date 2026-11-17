@@ -2,22 +2,24 @@
 //
 // Stored in the clan's `settings` rows rather than new columns, keyed by competition:
 //   weekly_repeat:<id>       {"rotation":[…]|null}   this competition repeats
-//   weekly_repeat_next:<id>  "<successor id>"         its successor exists (makes the roll idempotent)
+//   weekly_repeat_next:<id>  "<successor id>"         its successor exists (makes the roll idempotent);
+//                            "claim:<ms>" while a roll is making it (lib/weeklyRepeatPlan)
 // Turning repeat off on the current competition stops the series: the successor is made from the
 // latest one, and only when it still says repeat.
 
-import { and, eq, like } from 'drizzle-orm';
+import { parseHunt, serializeHunt } from '@/lib/itemHunt';
+import { and, eq, isNull, like } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { settings, weeklyCompetitions } from '@/db/schema';
-import { getSetting, setSetting } from '@/lib/settings';
+import { getSetting, invalidateSettings, setSetting } from '@/lib/settings';
 import { setWeeklyPool } from '@/lib/coffer';
 import { enrollAllPlayers } from '@/lib/weekly';
 import { announceCompetitionStart } from '@/lib/competitionTeamsPosts';
 import { competitionMode } from '@/lib/competitionTeams';
 import { autoBalanceTeams, carryOverTeamSetup } from '@/lib/competitionTeamsDb';
 import { parseWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
-import { defaultWeeklyTitle, nextMetric, nextWindow, parseRepeat, type RepeatConfig } from '@/lib/weeklyRepeatPlan';
+import { defaultWeeklyTitle, nextMetric, nextWindow, parseRepeat, successorClaim, successorMarkerState, type RepeatConfig } from '@/lib/weeklyRepeatPlan';
 import { log } from '@/lib/logger';
 
 const repeatKey = (id: number) => `weekly_repeat:${id}`;
@@ -47,37 +49,77 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
     const cfg = parseRepeat(row.value);
     const id = Number(row.key.slice('weekly_repeat:'.length));
     if (!cfg || !Number.isInteger(id)) continue;
-    if (await getSetting(row.clanId, nextKey(id))) continue;
+    const marker = await getSetting(row.clanId, nextKey(id));
+    const markerState = successorMarkerState(marker, now);
+    if (markerState === 'taken') continue;
 
     const prev = await db.query.weeklyCompetitions.findFirst({
       where: and(eq(weeklyCompetitions.id, id), eq(weeklyCompetitions.clanId, row.clanId)),
     });
     if (!prev || prev.status !== 'completed') continue;
 
+    // CLAIM THE SUCCESSOR SLOT FIRST, in the database, so two overlapping cron ticks cannot both
+    // make one (and hold the prize pool twice). The marker used to be written after the insert,
+    // which left exactly that gap. Insert-if-absent, or a compare-and-swap over a claim a dead run
+    // left behind: either way only one caller gets a row back.
+    const claim = successorClaim(now);
+    const mine = and(eq(settings.clanId, prev.clanId), eq(settings.key, nextKey(prev.id)));
+    const claimed =
+      markerState === 'stale' && marker
+        ? await db.update(settings).set({ value: claim }).where(and(mine, eq(settings.value, marker))).returning({ key: settings.key })
+        : await db
+            .insert(settings)
+            .values({ clanId: prev.clanId, key: nextKey(prev.id), value: claim })
+            // A row left holding null is still nobody's: take it. Anything else is someone's claim.
+            .onConflictDoUpdate({ target: [settings.clanId, settings.key], set: { value: claim }, setWhere: isNull(settings.value) })
+            .returning({ key: settings.key });
+    invalidateSettings(prev.clanId);
+    if (claimed.length === 0) continue;
+
     try {
       const metric = nextMetric(prev.metric, cfg);
-      const win = nextWindow(prev, now);
+      // An item hunt that ended on its first drop repeats from the end it was planned to have.
+      const hunt = prev.type === 'hunt' ? parseHunt(prev.hunt) : null;
+      const win = nextWindow({ startDate: prev.startDate, endDate: hunt?.plannedEnd ?? prev.endDate }, now);
       const nowIso = new Date(now).toISOString();
       const status = win.startDate <= nowIso ? 'active' : 'upcoming';
-      const [comp] = await db
-        .insert(weeklyCompetitions)
-        .values({
-          clanId: prev.clanId,
-          type: prev.type,
-          metric,
-          title: defaultWeeklyTitle(prev.type, metric),
-          startDate: win.startDate,
-          endDate: win.endDate,
-          createdById: prev.createdById,
-          status,
-          includeGuests: prev.includeGuests,
-          prizes: prev.prizes,
-          mode: prev.mode,
-          teamLateJoin: prev.teamLateJoin,
+      // The competition and the marker naming it land together or not at all, so a claim that is
+      // still a claim always means "no successor yet" and is safe to take over.
+      const comp = await db
+        .transaction(async (tx) => {
+          const [made] = await tx
+            .insert(weeklyCompetitions)
+            .values({
+              clanId: prev.clanId,
+              type: prev.type,
+              metric,
+              // A hunt keeps its name and its rules: there is no metric to rotate through.
+              title: prev.type === 'hunt' ? prev.title : defaultWeeklyTitle(prev.type, metric),
+              hunt: hunt ? serializeHunt({ ...hunt, plannedEnd: null }) : null,
+              startDate: win.startDate,
+              endDate: win.endDate,
+              createdById: prev.createdById,
+              status,
+              includeGuests: prev.includeGuests,
+              prizes: prev.prizes,
+              mode: prev.mode,
+              teamLateJoin: prev.teamLateJoin,
+            })
+            .returning();
+          const kept = await tx
+            .update(settings)
+            .set({ value: String(made.id) })
+            .where(and(mine, eq(settings.value, claim)))
+            .returning({ key: settings.key });
+          if (kept.length === 0) throw new Error('weekly repeat: successor claim was lost');
+          return made;
         })
-        .returning();
-      // Claim the successor slot first, so a crash below can never make a second one.
-      await setSetting(prev.clanId, nextKey(prev.id), String(comp.id));
+        .catch(async (err) => {
+          // Nothing was made: give the slot back so the next tick can try again.
+          await db.delete(settings).where(and(mine, eq(settings.value, claim))).catch(() => {});
+          throw err;
+        })
+        .finally(() => invalidateSettings(prev.clanId));
       await setWeeklyRepeat(prev.clanId, comp.id, cfg);
 
       // The same prize ladder, held again — or recorded as a promise when the coffer can't cover it,

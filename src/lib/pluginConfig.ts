@@ -2,6 +2,9 @@ import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
+import { weeklyStatus } from '@/lib/weeklyStage';
+import { competitionStat } from '@/lib/weeklyMetric';
+import { huntLine, parseHunt, petGroupOf } from '@/lib/itemHunt';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -52,6 +55,14 @@ export interface ScheduleBingo {
   gate?: string;
 }
 
+/** The id behind an item hunt's picture: its first item, or a pet from its group. */
+function huntIconItem(w: { type: string; hunt?: string | null }): { iconItem?: number } {
+  if (w.type !== 'hunt') return {};
+  const config = parseHunt(w.hunt);
+  const id = config?.target === 'pets' ? petGroupOf(config.petGroup)?.items[0]?.id : config?.items[0]?.id;
+  return id ? { iconItem: id } : {};
+}
+
 export interface ScheduleWeekly {
   id: number;
   title: string;
@@ -66,6 +77,8 @@ export interface ScheduleWeekly {
   mode?: string;
   /** Set when another clan hosts this clan-vs-clan competition and this clan races in it. */
   hostedBy?: string;
+  /** An item hunt (type 'hunt'): the id of the item or pet it hunts, for its picture. */
+  iconItem?: number;
 }
 
 export interface PluginSchedule {
@@ -264,14 +277,16 @@ export async function buildSchedule(
       : [],
   );
   const weeklies: ScheduleWeekly[] = allWeeklies
-    .filter((w) => w.endDate > nowIso && w.status !== 'completed')
+    .filter((w) => weeklyStatus(w) !== 'completed')
     .map((w) => ({
       id: w.id,
       title: w.title,
       type: w.type,
       metric: w.metric,
-      metricLabel: weeklyMetricLabel(w.type, w.metric),
-      status: w.status,
+      // An item hunt reads "Uncut onyx from Zulrah · most by the end" (lib/itemHunt).
+      metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
+      ...huntIconItem(w),
+      status: weeklyStatus(w),
       startDate: w.startDate,
       endDate: w.endDate,
       mode: w.mode,
@@ -448,9 +463,13 @@ export interface ActiveWeekly {
 // competition the planner happened to reach first ACROSS THE PLATFORM — so a member of a clan with
 // no weekly running would be handed another clan's, and pointed at enrolling in it.
 export async function getActiveWeekly(clanId: number): Promise<ActiveWeekly | null> {
-  const active = await db.query.weeklyCompetitions.findFirst({
+  // Feeds plugin enrolment and tracking, so the SAFE intersection: recorded 'active' (the cron has
+  // activated it and taken baselines) AND still inside its dates. Never promotes an un-activated week.
+  const rows = await db.query.weeklyCompetitions.findMany({
     where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
+  const nowMs = Date.now();
+  const active = rows.find((w) => weeklyStatus(w, nowMs) === 'active');
   if (!active) return null;
   return {
     id: active.id,
@@ -469,6 +488,8 @@ export interface ActiveWeeklyMetric {
   metric: string;
   startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
   endDate?: string;
+  /** Set on an item hunt: its targets in words. `type` and `metric` are then the stat it shows beside its drops. */
+  hunt?: string;
 }
 
 // EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
@@ -482,16 +503,17 @@ export interface ActiveWeeklyMetric {
 // metrics for whatever every other clan was competing on — which is both a leak of what those clans
 // are running and a pile of work nobody asked for.
 export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeeklyMetric[]> {
-  const rows = await db.query.weeklyCompetitions.findMany({
+  const all = await db.query.weeklyCompetitions.findMany({
     where: and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'active')),
   });
-  return rows.map((c) => ({
-    id: c.id,
-    type: c.type as 'skill' | 'boss' | 'efficiency',
-    metric: c.metric,
-    startDate: c.startDate,
-    endDate: c.endDate,
-  }));
+  const nowMs = Date.now();
+  const rows = all.filter((w) => weeklyStatus(w, nowMs) === 'active');
+  // An item hunt reads as the stat it shows beside its drops (kills at the source, or XP), so the
+  // plugin pushes that live too; a hunt with no stat has nothing to push and is left out.
+  return rows.flatMap((c) => {
+    const stat = competitionStat(c);
+    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}) }] : [];
+  });
 }
 
 export interface PluginWebhooks {

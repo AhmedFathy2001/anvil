@@ -19,6 +19,7 @@
 
 import { atLeast } from '@/lib/clanRoles';
 import { parseStamp } from '@/lib/dbTime';
+import { START_WAITING_WORDS, startIsHeld } from '@/lib/eventStage';
 import { gatesApply, gatesSummary, parseGates } from '@/lib/entryGates';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { featuredListing } from '@/lib/creatorPlans';
@@ -49,6 +50,9 @@ export interface DirectoryRow {
   startDate: string | null;
   endDate: string | null;
   forceEndedAt: string | null;
+  /** The lifecycle cron is holding the start (lib/eventLifecycle): the start date keeps sliding. */
+  startHoldNotified?: number | null;
+  startNotified?: number | null;
   signupOpensAt: string | null;
   signupDeadline: string | null;
   format: string | null;
@@ -92,6 +96,8 @@ export interface DirectoryEvent {
   startMs: number | null;
   endMs: number | null;
   live: boolean;
+  /** The start time came but the start is waiting on teams (the date is not a real promise). */
+  startHeld?: boolean;
   /** Undated and taking players now: "starts when the host starts it" (streamed events only). */
   open: boolean;
   players: number;
@@ -188,6 +194,7 @@ export function toDirectoryEvent(row: DirectoryRow, now: number = Date.now()): D
     startMs,
     endMs,
     live,
+    startHeld: startIsHeld(row, live),
     open,
     players: row.players,
     join,
@@ -322,14 +329,18 @@ export function spanWords(ms: number): string {
   return `${d} days`;
 }
 
+/** One wording for a start that is waiting on teams — the hero, the lists and the cards all say this. */
+export { START_WAITING_WORDS };
+
 /** What an undated streamed event says instead of a start time. */
 export const OPEN_NOW_WORDS = 'Open now · starts when the host starts it';
 
 /** "Starts in 2 days" / "Live now · ends in 5h" / "Live now" / OPEN_NOW_WORDS. */
 export function whenWords(
-  e: Pick<DirectoryEvent, 'live' | 'startMs' | 'endMs'> & { open?: boolean },
+  e: Pick<DirectoryEvent, 'live' | 'startMs' | 'endMs'> & { open?: boolean; startHeld?: boolean },
   now: number = Date.now(),
 ): string {
+  if (!e.live && e.startHeld) return START_WAITING_WORDS;
   if (!e.live && (e.open || e.startMs == null)) return OPEN_NOW_WORDS;
   if (!e.live) return `Starts in ${spanWords((e.startMs ?? now) - now)}`;
   return e.endMs != null ? `Live now · ends in ${spanWords(e.endMs - now)}` : 'Live now';

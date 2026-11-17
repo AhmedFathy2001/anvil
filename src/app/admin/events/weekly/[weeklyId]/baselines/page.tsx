@@ -1,3 +1,4 @@
+import { competitionStat } from '@/lib/weeklyMetric';
 import { notFound } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
 import { getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
@@ -19,5 +20,5 @@ export default async function WeeklyBaselinesPage({ params }: { params: Promise<
   const standings = await getWeeklyStandings(id);
   const startingStats = weeklyStartingStatsFor(comp, standings.map((s) => ({ id: s.participantId, baselineValue: s.baselineValue, lastUpdated: s.lastUpdated })));
 
-  return <WeeklyRosterClient competitionId={id} type={comp.type} standings={standings} startingStats={startingStats} mode="baselines" />;
+  return <WeeklyRosterClient competitionId={id} type={competitionStat(comp)?.type ?? 'boss'} standings={standings} startingStats={startingStats} mode="baselines" />;
 }

@@ -314,7 +314,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '내 서버에도 게시하고 싶나요?',
-          body: '프로필 → **Announcements & webhooks** → _Your own webhooks_로 가세요.',
+          body: '[Settings → Posts & alerts](/settings/posts#webhooks) → _Your webhooks_로 가세요.',
         },
       ],
     },
@@ -329,7 +329,7 @@ const ko: PartialGuideDict = {
     facts: [
       {
         strong: '무료',
-        rest: '카드 없음, 체험 기간 없음',
+        rest: '카드 없이 시작',
       },
       {
         strong: '즉시 공개',
@@ -345,7 +345,7 @@ const ko: PartialGuideDict = {
       title: '시작하기 전에',
       body: [
         'Discord 계정이 필요하고, 목록은 그게 전부입니다. 먼저 `{apex}`에서 로그인하세요. 클랜에는 소유자가 있어야 하고, 로그인이 바로 그게 당신이라는 걸 사이트에 알려주는 방법입니다. 플랫폼 페이지의 **클랜 만들기**에서 시작하거나 `{apex}/clans/new`로 바로 가세요.',
-        '비용은 들지 않습니다. 고를 요금제도, 입력할 카드도, 만료되면서 보드까지 가져가는 체험 기간도 없습니다 — 클랜은 무료로 시작해 그대로 쓸 수 있습니다.',
+        '시작하는 데는 비용이 들지 않습니다. 고를 요금제도, 입력할 카드도 없습니다. 새 클랜에는 Anvil 최상위 요금제의 무료 체험이 주어집니다. 체험이 끝나면 클랜은 무료 요금제로 내려가며, 보드와 명단, 기록은 그대로 유지됩니다.',
         '큰 클랜은 나중에 관리의 **Plan and billing**에서 요금제를 올릴 수 있습니다. Anvil에서 결제하는 모든 것 — 클랜, 크리에이터 스페이스, 당신의 Supporter 멤버십 — 은 [결제 페이지](/portal)에 있습니다.',
       ],
       note: {
@@ -396,7 +396,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '멤버 불러오기',
-          body: '플러그인을 설치하고 Discord로 로그인한 뒤, 게임 안에서 클랜 창을 열고 그 제목 표시줄에 있는 **Anvil** 버튼을 누르세요. 멤버 목록이 들어오기 전까지는 아무도 이벤트에 신청할 수 없습니다.',
+          body: '플러그인을 설치하고 Discord로 로그인한 뒤, 게임 안에서 클랜 창을 열고 그 제목 표시줄에 있는 **Anvil** 버튼을 누르세요. 멤버는 이 목록에서 옵니다. 목록이 들어오기 전까지는 사람들이 게스트로 이벤트에 신청할 수 있습니다.',
         },
         {
           term: '보드 만들기',
@@ -419,7 +419,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '가입을 요청합니다',
-          body: '로그인하거나 플러그인으로 플레이하는 것만으로는 누구에게도 자리가 생기지 않습니다. 명단에 오르기 전에 우리 게임 내 클랜에서 플레이하는 사람을 플러그인이 보면, 그 사람 대신 가입 요청을 넣습니다. 그 밖의 사람은 클랜 페이지의 **Apply**로 요청할 수 있습니다. 스태프는 둘 다 **Roster** 탭 맨 위에서 답하고, **Who can join**이 그 사람들이 승인을 기다릴지, 바로 들어올지, 아예 요청할 수 없을지를 정합니다. 이미 명단에 있는 캐릭터를 플레이하는 사람은 대신 **Needs review**에서 확인됩니다. 자세한 내용은 [우리 사람들]({peopleGuide})에 있습니다.',
+          body: '멤버는 게임 내 멤버 목록에서만 들어옵니다. 명단에 오르기 전에 우리 게임 내 클랜에서 플레이하는 사람을 플러그인이 보면, 그 사람 대신 가입 요청을 넣고, 스태프가 그 요청에 **Roster** 탭 맨 위에서 답합니다. 그 밖의 사람은 자기 RSN을 적어 클랜 페이지의 **Apply**를 누를 수 있습니다. 플러그인이나 XP 확인으로 캐릭터를 확인한 사람은 바로 게스트가 되고, 스태프에게 보증을 요청한 사람은 **Who can join**을 따릅니다: 게스트 승인이 필요한 클랜이라면 가입 요청이 되고, 스태프가 수락하기 전까지는 자리가 없습니다. 게스트를 자유롭게 받는 클랜이라면 게스트로 추가됩니다. 어느 쪽이든 보증하기 전까지 **Needs review**에 머뭅니다. **Who can join**을 closed로 바꾸면 이 모든 것이 멈춥니다. 이미 명단에 있는 캐릭터를 플레이하는 사람은 대신 **Needs review**에서 확인됩니다. 자세한 내용은 [우리 사람들]({peopleGuide})에 있습니다.',
         },
         {
           term: '수동으로',
@@ -602,7 +602,7 @@ const ko: PartialGuideDict = {
     roles: {
       title: '역할과 별명',
       body: [
-        '두 동기화는 **Admin → Discord → Roles & nicknames**에서 켜기 전까지 꺼져 있고, 둘 다 명단을 기준으로 움직입니다. **Enable Discord role sync**를 켜고, **Auto-match in-game rank → Discord role by name**은 켠 채로 두고, 필요하면 공통 **Member roles**와 **Guest roles**를 선택한 뒤 저장하고 **Sync roles & nicknames now**를 누르세요. 각 사람은 Discord 계정도 연결해야 합니다. 동기화 보고서에 확인하지 못한 사람의 이름이 나옵니다.',
+        '두 동기화는 **Admin → Discord → Roles & nicknames**에서 켜기 전까지 꺼져 있고, 둘 다 명단을 기준으로 움직입니다. **Enable Discord role sync**를 켜고, **Auto-match in-game rank → Discord role by name**은 켠 채로 두고, 공통 **Member roles**와 **Guest roles** 중 원하는 것을 선택한 뒤 저장하고 **Sync roles & nicknames now**를 누르세요. 역할은 Discord로 Anvil에 로그인한 사람에게 지급됩니다. 아직 로그인하지 않은 멤버는, 각 클랜에서 기본으로 꺼져 있는 **Also match members by Discord nickname**까지 켜야 역할을 받습니다. 동기화 보고서에 확인하지 못한 사람의 이름이 나옵니다.',
       ],
       ways: [
         {
@@ -698,7 +698,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '봇의 역할이 충분히 위에 있습니까?',
-          body: '역할과 별명 동기화에만 해당합니다 — 위 참고. 조용히 실패하는 게 바로 이겁니다.',
+          body: '역할 또는 별명 동기화를 하려면, 봇을 관리하는 모든 역할보다 위에 두고, 각 사람이 Discord로 로그인했는지 확인하세요(또는 클랜에서 **Also match members by Discord nickname**을 켜세요). 등급 역할 이름은 위에 나열된 그대로 맞추세요. 먼저 저장한 다음 **Sync roles & nicknames now**를 실행하세요. 건너뛴 목록에 아직 연결이 필요한 사람이 나옵니다.',
         },
       ],
       note: {
@@ -816,24 +816,24 @@ const ko: PartialGuideDict = {
         '브라우저가 저절로 열리지 않으면 패널이 주소와 코드를 표시하니 직접 여시면 됩니다. 코드는 10분 뒤 만료됩니다 —— 버튼을 한 번 더 누르면 됩니다.',
       manualHeading: '대안: 토큰을 직접 붙여넣기',
       manualIntro:
-        '플러그인에서 로그인이 되지 않으면, 아래의 토큰을 복사한 뒤(또는 [Profile → plugin token](/profile#plugin-token)에서 — 거기서 교체도 할 수 있습니다) Anvil 패널의 로그인 버튼 아래에 있는 **Paste a token instead**를 눌러 거기에 붙여넣으세요.',
+        '플러그인에서 로그인이 되지 않으면, [Settings → In game → Plugin connection](/settings/in-game#plugin)에서 토큰을 만드세요(한 번만 만들어지며, 거기서 모든 토큰을 해지할 수 있습니다). 그런 다음 Anvil 패널의 로그인 버튼 아래에 있는 **Paste a token instead**를 누르고 거기에 붙여넣으세요.',
       tokenFigure: {
-        caption: 'Profile → RuneLite plugin',
-        alt: '프로필 페이지의 RuneLite plugin 카드. 토큰 입력란과 Reveal·Copy·Rotate 버튼이 네모로 표시되어 있음',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'Settings → In game 아래의 Plugin connection 카드. 토큰 입력란과 Reveal, Copy token, Revoke all 버튼이 네모로 표시되어 있음',
         legend: [
           {
             label: '당신의 토큰',
-            body: 'Reveal을 누르기 전까지는 가려져 있습니다. 이 스크린샷에서는 일부러 가렸습니다. 본인 것을 Discord에 절대 올리지 마세요.',
+            body: '**Make a token**을 누를 때 한 번만 만들어지며, **Reveal**을 누르기 전까지는 가려져 있습니다. 이 스크린샷에서는 일부러 가렸습니다. 본인으로 로그인하는 토큰이므로 비밀번호처럼 다루고 Discord에 절대 올리지 마세요.',
           },
           {
-            label: 'Copy / Rotate',
-            body: '복사한 다음 Anvil 패널에서 **Paste a token instead**를 사용하세요. Rotate는 새 토큰을 발급하고 기존 것을 무효화합니다 —— 유출이 의심되면 언제든 쓰세요.',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token**은 토큰을 드러내지 않고도 복사합니다. 복사한 다음 Anvil 패널에서 **Paste a token instead**를 사용하세요. 토큰을 새로 만들어도 기존 토큰은 취소되지 않습니다. 취소하려면 **Revoke all**을 누르세요. 토큰이 유출되었을지 의심되면 바로 누르세요.',
           },
         ],
       },
       goodToKnow: {
         tag: '평소에는 사이드 패널 사용',
-        body: ['**Anvil 사이드 패널이 기본 작업 공간입니다**. 여기에서 로그인과 로그아웃을 하고, 클랜과 진행 중인 이벤트를 확인하고, 칸을 둘러보고 신청하고, 진행 상황을 추적하고, 시작 스크린샷을 찍고, 동기화와 지원 도구를 실행하세요. 아래의 **Configuration → Anvil**은 환경 설정을 바꿀 때만 사용하며, 토큰은 없습니다. 이 컴퓨터에서 로그아웃하려면 패널 상단의 이름 옆에 있는 **⋯** 메뉴를 여세요. 한 번 로그인하면 신청한 모든 이벤트에 적용되며 빙고마다 다시 할 필요가 없습니다.'],
+        body: ['**Anvil 사이드 패널이 기본 작업 공간입니다**: 거기에서 로그인과 로그아웃을 하고, 클랜과 라이브 이벤트를 확인하고, 칸을 둘러보고 신청하고, 진행 상황을 따라가고, 시작 스크린샷을 찍고, 동기화를 실행하고, 지원 도구를 엽니다. 아래에 보이는 **Configuration → Anvil**은 환경 설정용일 뿐이며 토큰은 없습니다. 이 컴퓨터에서 로그아웃하려면 패널 상단의 이름 옆 **⋯** 메뉴를 여세요. 그러면 사이트에서도 이 컴퓨터의 로그인이 끝나고, 다른 컴퓨터의 로그인은 유지됩니다. 토큰이 유출되었을 수 있다면 Settings → In game → Plugin connection에서 **Revoke all**을 사용하세요. 한 번 로그인하면 신청한 모든 이벤트에 적용되며, 빙고마다 다시 할 필요가 없습니다.'],
       },
     },
 
@@ -841,27 +841,31 @@ const ko: PartialGuideDict = {
       title: '계정 연결하기',
       body: [
         '토큰을 설정하면 플레이한 계정이 프로필에 자동으로 표시됩니다. 새 계정은 바로 연결할 수 있지만, 이미 클랜 명단에 있는 계정은 먼저 한 번의 소유권 확인이 필요합니다. 공개된 RuneScape 이름만으로는 소유자를 증명할 수 없기 때문입니다.',
-        '첫 연결에는 [빠른 XP 확인](/profile#link-account)을 사용하거나 클랜 관리자에게 [감지된 계정](/profile#detected-accounts)에서 승인해 달라고 요청하세요. 확인 후에는 안정적인 계정 지문이 이름 변경을 따라가며 계정을 자동으로 인식합니다.',
+        '처음 연결할 때는 [빠른 XP 확인](/settings/characters#link-account)을 사용하거나, [We noticed you playing](/settings/characters#detected)에서 시작해 클랜 관리자에게 승인을 요청하세요. 확인이 끝나면 플러그인이 안정적인 계정 지문을 저장하고, 이후 이름이 바뀌어도 따라가며 로그인할 때마다 자동으로 인식합니다.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: '프로필 페이지의 RuneScape Accounts 카드. 플러그인으로 확인된 계정들이 나열되어 있음',
+        caption: 'Settings → Characters',
+        alt: 'Settings 아래의 Characters 페이지. 연결된 캐릭터 목록과 We noticed you playing 카드가 네모로 표시되어 있음',
         legend: [
           {
-            label: '연결된 계정들',
-            body: '“Verified via plugin” 표시가 있는 계정은 연결되어 이후 자동으로 인식됩니다. 기존 클랜 명단 계정은 먼저 일회성 XP 확인이나 관리자 승인이 필요할 수 있습니다.',
+            label: 'Your linked characters',
+            body: '여기 나열된 계정은 연결되어 있으며 자동으로 인식됩니다.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: '플러그인이 플레이를 감지했지만 아직 연결되지 않은 캐릭터입니다. **Verify ownership**를 눌러 연결하거나(새 계정은 바로 연결되고, 이미 클랜 명단에 있는 계정은 일회성 XP 확인이나 관리자 확인이 먼저 필요합니다), **Not mine**을 눌러 숨기세요.',
           },
         ],
       },
       noPluginHeading: '플러그인을 돌릴 수 없다면?',
       noPluginIntro:
-        '모바일이나 공식 클라이언트에서는 대신 [Profile → account linking](/profile#link-account)을 사용하세요:',
+        '모바일이나 공식 클라이언트에서는 대신 [Settings → Characters → Link a character](/settings/characters#link-account)을 사용하세요:',
       noPluginOptions: [
         '**Verify by XP** —— RSN을 입력하면 사이트가 스킬 하나를 무작위로 고릅니다. 30분 안에 그 스킬에서 1,000 경험치를 올리면 됩니다.',
-        '**Manual review** —— Hiscores를 숨겼거나 갓 만든 부계정인 경우: RSN과 메모를 제출하면 관리자가 승인합니다.',
+        '**Manual review** —— Hiscores를 숨겼거나 갓 만든 부계정인 경우: 클랜 페이지에서 그 클랜의 스태프에게 당신의 RSN을 보증해 달라고 요청하세요. 그 클랜이 게스트를 먼저 승인하는 곳이라면, 스태프가 가입 요청을 수락한 뒤에 그 클랜의 이벤트에 신청할 수 있습니다. 신청은 스태프가 캐릭터를 확인할 때까지 보류됩니다.',
       ],
       signupNote:
-        '이벤트 신청에는 확인된 계정이 최소 하나 필요하니, 신청 전에 미리 해 두세요.',
+        '캐릭터 이름을 적자마자 이벤트에 신청할 수 있습니다. 플러그인이나 통과한 XP 확인이 있으면 바로 들어갑니다. 스태프에게 보증을 요청했다면, 클랜이 당신을 게스트로 수락한 뒤에 신청할 수 있습니다. 신청은 스태프가 캐릭터를 확인할 때까지 보류됩니다.',
     },
 
     working: {
@@ -973,74 +977,76 @@ const ko: PartialGuideDict = {
     notifications: {
       title: 'Discord 알림',
       intro:
-        '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널인지는 관리자가 여기서 정합니다 —— 당신은 _무엇을_ 올릴지만 고릅니다. 다음 플러그인 업데이트부터 이 선택들은 웹사이트의 **Settings → Discord posts & screenshots** 로 옮겨지고, 어느 컴퓨터에서든 그대로 따라옵니다. 같은 페이지의 **Screenshot privacy** 에서는 플러그인이 찍는 모든 스크린샷에서 숨길 채팅(개인 메시지, 공개 채팅, 클랜 채팅)을 고를 수 있습니다. 플러그인에는 **Notifications** 아래 스위치 두 개가 남습니다: **Share clan posts** 는 메인 게임 게시물을 한꺼번에 멈추고, **Share seasonal activity** 는 Leagues, Deadman 등 시즌 월드에서 같은 일을 합니다.',
+        '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널에 올릴지는 관리자가 여기서 정하고, 당신은 _무엇을_ 올릴지만 고릅니다. 이 선택들은 웹사이트의 **Settings → Posts & alerts → What your plugin posts**에서 관리하며, 어느 컴퓨터에서든 그대로 따라옵니다. 플러그인에는 이제 이 항목의 설정이 없습니다. 같은 페이지의 **Screenshot privacy**에서는 플러그인이 찍는 모든 스크린샷에서 숨길 채팅(개인 메시지, 공개 채팅, 클랜 채팅)을 고를 수 있습니다. 플러그인에는 **Notifications** 아래 스위치 두 개가 남습니다. **Share clan posts**는 메인 게임 게시물을 한꺼번에 멈추고, **Share seasonal activity**는 Leagues, Deadman 등 시즌 월드에서 같은 일을 합니다.',
       examplesFigure: {
         caption: '게시물은 이렇게 보입니다',
         alt: 'Anvil이 올린 Discord 게시물 두 개. 점수와 다음 해금까지의 진행도가 표시된 Grandmaster 전투 과제, 그리고 메시지가 담긴 사망 알림. 둘 다 그 순간의 스크린샷이 붙어 있음',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Deaths and kills와 Drops and pets 알림 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Posts & alerts 설정 페이지의 What your plugin posts 아래 Drops & pets와 Deaths & PvP 그룹. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
         legend: [
           {
-            label: 'Notify on death',
-            body: '사망 순간의 스크린샷과 함께 클랜 사망 채널에 게시됩니다.',
+            label: 'Rare drops',
+            body: '드롭 게시물의 전체 스위치입니다. 기본값은 켜짐입니다.',
           },
           {
-            label: 'Death message',
-            body: '직접 작성하는 문구입니다. `{name}`은 RSN으로 바뀝니다.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: '드롭은 이 금액 이상의 가치(GE 또는 high alch 중 더 높은 값)가 있거나, 1-in-N보다 희귀하면 게시됩니다. Anvil 기본값은 1,000,000 gp와 1/1,000이며, 이보다 느슨하게 설정할 수는 없습니다. 0으로 설정하면 끌 수 있습니다. 클랜은 멤버용 기본값을 정할 수 있습니다. 직접 숫자를 입력하기 전까지는 각 칸 아래에 **Using your clan’s default**라고 표시되며, **Reset to clan default**(클랜이 없으면 **Reset to Anvil default**)를 누르면 다시 클랜 기본값을 따릅니다. 클랜은 클랜 자체 채널의 게시물에만 적용되는 희귀도 하한도 정할 수 있습니다.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: '대상의 HP가 0이 되는 틱의 스크린샷입니다. 기본값은 꺼짐이며, 여기서는 켜져 있습니다.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: '드롭 게시의 전체 스위치입니다.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              '드롭은 이 금액 이상의 가치(GE 또는 high alch 중 더 높은 값)가 있거나 1-in-N보다 희귀하면 게시됩니다. Anvil은 1m과 1/1,000에서 시작합니다. 클랜은 멤버용 기본값을 설정할 수 있으며, 직접 숫자를 정하기 전까지는 클랜 값을 따릅니다. **Reset to clan default**(클랜이 없으면 **Reset to Anvil default**)를 누르면 다시 클랜 값을 따릅니다. 클랜은 클랜 채널 게시물에만 적용되는 엄격한 희귀도 하한도 설정할 수 있습니다. 그곳에서는 자신의 숫자를 그보다 느슨하게 설정할 수 없으며, 가치 상한은 바뀌지 않습니다. 두 숫자 모두 0으로 설정하면 끌 수 있습니다.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              '기본적으로 드롭은 가치 **or** 희귀도를 충족하면 게시됩니다. **Require both**를 켜면 가치 **and** 희귀도를 모두 충족해야 합니다. 클랜은 멤버용으로 이 기본값을 선택할 수 있습니다. 직접 선택하기 전까지는 클랜을 따르며, 클랜이 없으면 둘 중 하나입니다. 개인 webhook마다 자체 최소 가치, 희귀도, either/both를 설정할 수도 있으며, 비워 둔 항목은 개인 설정을 따릅니다.',
+            label: 'Require both (and)',
+            body: '기본적으로 드롭은 가치 **또는** 희귀도를 충족하면 게시됩니다. **Require both (and)**를 켜면 가치 **그리고** 희귀도를 모두 충족해야 합니다. 클랜은 멤버용으로 이 기본값을 정할 수 있습니다. 직접 선택하기 전까지 칸 아래에는 **Using your clan’s choice**라고 표시되며, 클랜이 없으면 둘 중 하나로 동작합니다. 개인 webhook마다 자체 최소 가치, 희귀도, either/both를 정할 수도 있고, 비워 둔 항목은 개인 설정을 따릅니다.',
           },
           {
             label: 'Loot key value',
-            body: '루트 키는 전체 내용물의 합계가 이 숫자를 넘으면 한 번, 단일 알림으로 게시됩니다.',
+            body: '루트 키는 내용물 전체가 이 숫자를 넘으면 한 번, 단일 알림으로 게시됩니다. 기본값은 1,000,000 gp이며, 0이면 끕니다.',
           },
           {
-            label: 'Notify on pets',
-            body: '펫은 희귀 드롭 채널에 게시됩니다.',
+            label: 'Pets',
+            body: '펫은 클랜 드롭 채널에 게시됩니다. 기본값은 켜짐입니다.',
+          },
+          {
+            label: 'Deaths',
+            body: '사망한 순간의 스크린샷과 함께 클랜 사망 채널에 게시됩니다. 기본값은 켜짐입니다.',
+          },
+          {
+            label: 'Death message',
+            body: '직접 작성하는 문구입니다. `{name}`은 RSN으로 바뀝니다. 기본값은 `{name} just died!`입니다.',
+          },
+          {
+            label: 'PvP kills',
+            body: '대상의 HP가 0이 되는 틱의 스크린샷을 클랜 PvP 채널에 게시합니다. 기본값은 꺼짐입니다.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Combat achievements 알림 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Posts & alerts 설정 페이지의 What your plugin posts 아래 Achievements 그룹. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
         legend: [
           {
-            label: 'CA post tier',
-            body: '올라가는 가장 낮은 과제 등급. 등급 달성도 함께 올라갑니다. 기본값은 Master이고, Grandmaster는 가장 희귀한 것만, **Off**는 아무것도 올리지 않습니다. 빙고 CA 칸은 어느 쪽이든 집계됩니다.',
+            label: 'Collection log slots',
+            body: '새로 채워지는 컬렉션 로그 슬롯마다 클랜 achievements 채널에 게시됩니다. 기본값은 켜짐입니다.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: '새 컬렉션 로그 슬롯이 채워질 때마다.',
+            label: 'Level milestones',
+            body: '클랜이 알리기로 정한 레벨업입니다. 기본값은 99 달성, 1800부터 총 레벨 100 단위마다, 그리고 만렙입니다. 규칙은 클랜 관리자가 정하며, Announcements 설정에서 더 적게 올리거나 개인 webhook용 규칙을 따로 정할 수 있습니다.',
           },
           {
-            label: 'Notify on level milestones',
-            body: '클랜이 알리기로 정한 레벨업 —— 기본값은 99 달성, 1800부터 총 레벨 100 단위, 그리고 만렙. 규칙은 클랜 관리자가 정하지만, 프로필의 Announcements에서 더 적게 올리도록 바꾸거나 개인 웹훅용 규칙을 직접 정할 수 있습니다.',
+            label: 'Diary completions',
+            body: 'achievement diary 등급을 스크린샷과 함께 게시합니다. 기본값은 켜짐입니다.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'achievement diary 등급. 스크린샷 포함.',
+            label: 'Diary tier',
+            body: '게시되는 가장 낮은 diary 등급입니다. 처음에는 **Clan default**로 시작하며, 클랜이 따로 정하지 않았다면 모든 등급이 게시됩니다. 더 엄격한 등급은 고를 수 있지만, 클랜보다 느슨하게는 고를 수 없습니다.',
           },
           {
-            label: 'Quest post tier',
-            body: '고른 난이도 이상의 퀘스트. All(모든 퀘스트)부터 Grandmaster까지 고를 수 있고, **Off**는 아무것도 올리지 않습니다. 기본값은 Master입니다. 빙고 퀘스트 칸은 어느 쪽이든 집계됩니다.',
+            label: 'Combat task tier',
+            body: '게시되는 가장 낮은 과제 등급입니다. 등급 달성도 함께 게시됩니다. 처음에는 **Clan default**(클랜이 다른 등급을 정하지 않았다면 Master)로 시작합니다. Grandmaster는 가장 희귀한 것만 게시하고, **Off**는 아무것도 게시하지 않습니다. 클랜보다 느슨하게는 설정할 수 없습니다. 빙고 CA 칸은 어느 쪽이든 집계됩니다.',
+          },
+          {
+            label: 'Quest tier',
+            body: '고른 난이도 이상의 퀘스트를 게시합니다. All(모든 퀘스트)부터 Grandmaster까지 고를 수 있고, **Off**는 아무것도 게시하지 않습니다. 처음에는 **Clan default**(클랜이 다르게 정하지 않았다면 Master)로 시작합니다. 빙고 퀘스트 칸은 어느 쪽이든 집계됩니다.',
           },
         ],
       },
@@ -1053,7 +1059,7 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: '토큰이 틀렸거나 교체되었습니다. Anvil 패널 상단의 **⋯** 메뉴를 열고 **Sign out**을 누른 뒤 다시 **Sign in with Discord**를 누르세요 —— 또는 [Profile → RuneLite plugin](/profile#plugin-token)의 새 토큰으로 **Paste a token instead**를 사용하세요.',
+          body: '토큰이 틀렸거나 교체되었습니다. Anvil 패널 상단의 **⋯** 메뉴를 열고 **Sign out**을 누른 뒤 **Sign in with Discord**를 다시 누르세요. 또는 [Settings → In game → Plugin connection](/settings/in-game#plugin)에서 새 토큰을 받아 **Paste a token instead**를 사용하세요.',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1061,7 +1067,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: '그 계정은 아직 연결되지 않았습니다. [Profile → 감지된 계정](/profile#detected-accounts)을 열어 추가하거나 소유권 확인을 시작하세요.',
+          body: '그 계정은 아직 연결되지 않았습니다. [Settings → Characters → We noticed you playing](/settings/characters#detected)을 열어 추가하거나 소유권 확인을 시작하세요.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1141,7 +1147,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '채팅 색상',
-          body: '**Chat messages** 아래의 **[Anvil] tag colour**와 **Message colour**. 고르기 전에는 불투명한 채팅창에서도 잘 보이도록 진한 금색과 검정으로 표시됩니다. 채팅에서 서포터의 이름에 마우스를 올리면 _Anvil Patron_ 같은 등급이 보입니다.',
+          body: 'Settings → In game → Chat colours(웹사이트)에 있는 **[Anvil] tag colour**와 **Message colour**. 고르기 전에는 불투명한 채팅창에서도 읽히도록 진한 금색과 검정으로 표시됩니다. 채팅에서 Supporter의 이름에 마우스를 올리면 _Anvil Patron_ 같은 등급이 보입니다.',
         },
       ],
     },
@@ -1220,7 +1226,7 @@ const ko: PartialGuideDict = {
     setup: {
       title: '클랜 이름을 정하고 Discord를 연결하기',
       intro:
-        '**Settings → Finish setup**은 짧은 마법사이고(끝날 때까지 메뉴에 남아 있습니다), 대시보드도 끝날 때까지 5단계 체크리스트로 남깁니다: 클랜 이름 정하기, Discord 연결, 멤버 불러오기, 이벤트 생성, 칸 추가. 상태는 실제 데이터로 계산되므로, 진짜로 끝났을 때만 체크가 붙습니다.',
+        '**Settings → Finish setup**은 짧은 마법사입니다(끝내거나 건너뛸 때까지 메뉴에 남아 있습니다). 대시보드도 끝날 때까지 5단계 체크리스트를 유지합니다: 클랜 이름 정하기, Discord 연결, 멤버 불러오기, 이벤트 만들기, 칸 추가하기. 상태는 실제 데이터로 계산되므로, 단계는 정말로 끝났을 때만 체크됩니다.',
       discord:
         'Discord에는 두 갈래가 있고 함께 쓸 수 있습니다: Anvil에 **봇**을 주면 웹훅 생성, 역할과 별명 동기화, 비공개 팀 채널 생성까지 할 수 있습니다. **웹훅 주소** 하나만 주면 공지를 올리는 것 외엔 아무것도 못 합니다. 2분 만에 돌리고 싶다면 웹훅으로 시작하고, 자동화가 필요해지면 봇을 더하세요.',
       permsNote: {
@@ -1302,7 +1308,7 @@ const ko: PartialGuideDict = {
     tiles: {
       title: '보드 채우기',
       body: [
-        '이벤트의 **Board & tiles** 페이지가 보드를 빙고로 만드는 곳입니다. 각 칸은 한 _종류_의 과제이고, 그 종류가 플러그인이 무엇을 지켜볼지를 정합니다: 드롭, 보스 처치 수, 스킬 경험치, NPC 처치, 시간 내 완료, achievement diary, Combat Achievement, collection log 해금, PvP 처치, 아이템 획득, 혹은 무사망 클리어. 사람이 스크린샷을 보고 승인하는 수동 칸도 언제나 선택지입니다.',
+        '이벤트의 **Tiles** 탭에서 보드가 빙고가 됩니다. 각 칸은 한 _종류_의 과제이며, 그 종류가 플러그인이 무엇을 감시할지 정합니다: 드롭, 보스 처치 수, 스킬 경험치, NPC 처치, 시간 내 완료, achievement diary, Combat Achievement, collection log 해금, PvP 처치, 아이템 획득, 무사망 클리어 중 하나입니다. 수동 칸(사람이 스크린샷으로 확인하는 칸)도 언제나 선택할 수 있습니다.',
         '보드 전체를 채울 때는 한꺼번에 작성하세요: 시트를 내보내고, 표 계산 프로그램에서 채우고, 다시 가져오면 됩니다. CSV와 .xlsx 모두 왕복이 되고, 행이 위치에 대응하므로 25칸 격자 전체를 한 번의 붙여넣기로 다시 쓸 수 있습니다.',
       ],
       rows: [
@@ -1368,7 +1374,7 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '확인 대기 중인 제출',
-          body: '수동 칸과 플러그인이 표시해 둔 모든 것. 증빙을 앞에 두고 승인하거나 반려하세요.',
+          body: '수동 칸과 플러그인이 표시한 모든 것. 증빙을 앞에 두고 **Looks fine**을 누르거나, 이유와 함께 **Remove…**를 누르세요.',
         },
         {
           term: '통계',
@@ -1464,7 +1470,7 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: '초대가 아닌 것',
-        body: '로그인도 아니고, 확인 절차를 우회하는 지름길도 아닙니다. 여는 사람은 여전히 Discord로 로그인하고, 여전히 확인된 RSN이 필요합니다. 다른 어떤 신청과도 똑같습니다. 링크가 정하는 것은 그 신청이 _어느 팀에_ 들어가는지, 그리고 누구의 승인도 필요 없다는 점뿐입니다.',
+        body: '로그인도 아니고, 확인 절차를 우회하는 지름길도 아닙니다. 여는 사람은 여전히 Discord로 로그인하고, 여전히 RSN을 적어야 합니다. 다른 어떤 신청과도 똑같습니다. 링크가 정하는 것은 그 신청이 _어느 팀에_ 들어가는지, 그리고 누구의 승인도 필요 없다는 점뿐입니다. 스태프의 보증을 기다리는 캐릭터는 스태프가 확인하면 그 팀에 들어갑니다.',
       },
     },
 
@@ -1484,11 +1490,11 @@ const ko: PartialGuideDict = {
     staff: {
       title: '그쪽 관리자에게 자리 주기',
       body: [
-        '팀 페이지의 **Team staff** 패널이, 방문 클랜의 관리자가 당신 사이트에서 아무 권한도 받지 않은 채 일을 시작하는 방법입니다. **Add someone**을 누르고, 그 사람을 검색하고, “Ironforge’s mod” 같은 메모를 붙여(다음 관리자가 왜 그 사람이 있는지 알 수 있도록) **Give a seat**을 누르세요.',
+        '팀 페이지의 **Team staff** 패널은 방문 클랜의 관리자가 당신 사이트에서 아무 권한도 받지 않고 일할 수 있게 해 줍니다. **Add someone**을 누르고, 그 사람을 검색하고, “Ironforge’s mod” 같은 메모를 붙여 다음 관리자가 왜 그 사람이 있는지 알 수 있게 한 뒤 **Add to team staff**를 누르세요.',
       ],
       figure: {
         caption: '이벤트 → Teams & draft → 해당 팀 → Team staff',
-        alt: '자리 하나가 부여된 Team staff 패널과, 추가용 검색창이 열려 있는 모습',
+        alt: '자리 하나가 부여된 Team staff 패널. Add someone 버튼, 자리와 메모, Remove 버튼이 네모로 표시되어 있음',
         legend: [
           {
             label: 'Add someone',
@@ -1548,7 +1554,7 @@ const ko: PartialGuideDict = {
         ],
       },
       shape:
-        '링크는 이렇게 생겼습니다: `{origin}/events/{eventId}/join/{token}` —— 한 줄이라 Discord 메시지에 안심하고 붙여 넣을 수 있습니다.',
+        '링크는 `{origin}/c/{clan}/events/{eventId}/join/{token}` 형태이며 한 줄이라 Discord 메시지에 안심하고 붙여 넣을 수 있습니다.',
       note: {
         tag: '합리적인 기본값',
         body: '관리자 한 명과 인원을 합의한 클랜 대항전이라면 두 칸 모두 `0`으로 두고 그쪽에 맡기세요. 자리 수와 만료를 꺼내 드는 건, 링크가 당신이 통제하지 못하는 곳으로 갈 때뿐입니다.',
@@ -1599,7 +1605,7 @@ const ko: PartialGuideDict = {
           },
           {
             label: '신청서의 나머지',
-            body: '그대로입니다. 확인된 RSN은 여전히 필요하고, 신청 질문도 그대로 나오며, 참가비도 그대로 적용됩니다.',
+            body: '그대로입니다. RSN은 여전히 필요하고, 신청 질문도 그대로 나오며, 참가비도 그대로 적용됩니다.',
           },
         ],
       },
@@ -1765,7 +1771,7 @@ const ko: PartialGuideDict = {
         '25칸 격자를 클릭으로 만드는 건 괜찮습니다. 과제 200개짜리 Point Hunt 보드를 클릭으로 만드는 건 아니고, 그걸 나중에 검수하는 건 더더욱 아닙니다. Tiles 탭에는 바로 그것을 위한 왕복 경로가 있습니다.',
       ],
       steps: [
-        '이벤트의 **Board & tiles** 페이지에서 **Download spreadsheet**. 현재 보드 상태의 .xlsx가 나오고, 드롭다운·아이템 목록·열 설명이 각각 별도 시트에 들어 있습니다.',
+        '이벤트의 **Tiles** 탭 → **Add tiles** → **Download spreadsheet**. 현재 보드의 .xlsx 파일을 받을 수 있으며, 드롭다운, 아이템 목록, 열 설명이 각각 별도 시트에 들어 있습니다.',
         '편집합니다. 칸 하나에 한 행씩, 행 순서가 곧 칸 순서입니다.',
         '같은 탭에서 **Upload CSV / Excel**. 읽히는 것은 **Tiles** 시트뿐입니다.',
       ],
@@ -1897,7 +1903,7 @@ const ko: PartialGuideDict = {
       title: '타일 레이스 트랙',
       intro: '타일 레이스 보드에서는 그리드 대신 트랙을 만듭니다. 타일은 번호가 매겨진 단계에 놓이고, 팀은 그 단계를 따라 이동합니다.',
       body: [
-        '**Tiles**를 열고 **Route** 섹션을 사용하세요. 템플릿을 고르고(기본값은 **Diamond**), 타일을 단계에 추가한 뒤 **Save route**를 누르세요. 연결하는 모든 타일은 다음 단계에 있어야 합니다.',
+        '**Tiles**를 열고 **Route** 섹션을 사용하세요. 템플릿을 고르고(기본값은 **Diamond**), 칸을 단계에 추가한 뒤 **Save roads**를 누르세요. 연결하는 모든 칸은 다음 단계에 있어야 합니다.',
         '길은 나뉘었다가 합쳐질 수 있지만 결승선은 하나입니다. 갈림길에서는 타일 완료 시 길이 정해질지, 아니면 캡틴이 골라서 확정할지 선택합니다. 전체 선택지와 플레이어가 보는 내용은 [Formats, and how tiles open]({formatsGuide})에 있습니다.',
       ],
     },
@@ -2145,7 +2151,7 @@ const ko: PartialGuideDict = {
         '이벤트의 **Tiles** 페이지를 열고 **Route**를 찾으세요.',
         '**Route template**을 고르고 **Apply template**을 누르세요. 기본값은 **Diamond**로, 시작점 하나, 길 두 개, 결승선 하나입니다. **Two roads**, **Braid**, **Straight line**, **Free**(링크 없음)도 있습니다.',
         '**How a team’s road is set at a fork**를 고르세요: 달성 순서, 또는 선택 후 확정.',
-        '**+ Step before**, **Move step earlier/later**, **Remove step**으로 단계를 추가하거나 옮긴 뒤 **Save route**를 누르세요.',
+        '**+ Empty step before**, **Move step earlier/later**, **Remove step**으로 단계를 추가하거나 옮긴 다음 **Save roads**를 누르세요.',
         '이벤트가 이미 진행 중이면 Anvil이 새 경로에서 잘려 나가는 완료를 어떻게 할지 묻습니다: **Keep**(유지) 또는 **Roll back**(되돌리기).',
       ],
       outro:
@@ -2276,16 +2282,16 @@ const ko: PartialGuideDict = {
       ],
       rows: [
         {
-          term: '보유',
+          term: 'Confirmed total',
           body: '승인된 기부와 조정. 클랜이 받은 것에서 손실 처리한 것을 뺀 값.',
         },
         {
-          term: '묶임',
+          term: 'Promised',
           body: '어떤 상금이 걸어둔 gp — 이겼지만 아직 보내지 않은 몫과, 보드를 위해 떼어둔 풀. 아직 누군가의 은행에 있어도 임자는 정해져 있습니다.',
         },
         {
-          term: '약속 가능',
-          body: '보유에서 묶임을 뺀 값. 새 상금이 대조되는 유일한 숫자입니다. 그러지 않으면 회계 담당이 자는 사이 같은 5천만을 두 명의 우승자에게 약속하게 됩니다.',
+          term: 'Available',
+          body: '보유 금액에서 약속된 금액을 뺀 값. 새 상금을 대조하는 유일한 숫자입니다. 그렇지 않으면 회계 담당자가 자는 사이 같은 50m을 두 명의 우승자에게 약속하는 일이 생길 수 있습니다.',
         },
       ],
       note: {
@@ -2438,12 +2444,12 @@ const ko: PartialGuideDict = {
       ],
       rows: [
         {
-          term: '그럴듯하면 승인하세요',
-          body: '은행을 감사하는 게 아닙니다. 그림에 그것이 찍혀 있고, 계정이 명단에 있고, 시각이 이벤트 기간 안이라면 승인하고 다음으로 넘어가세요.',
+          term: '그럴듯하면 Looks fine을 누르세요',
+          body: '은행을 감사하는 게 아닙니다. 그림에 그것이 찍혀 있고, 계정이 명단에 있고, 시각이 이벤트 기간 안이라면 **Looks fine**을 누르고 다음으로 넘어가세요.',
         },
         {
-          term: '반려할 때는 이유를 적으세요',
-          body: '설명 없는 반려는 한 시간 안에 당신에게 DM으로 돌아옵니다. 무엇이 부족했는지 적어 두면 두 번째 시도가 제대로 옵니다.',
+          term: '이유를 적어 반려하세요',
+          body: '**Remove**를 누르면 이유를 묻고, 팀이 그 이유를 봅니다. 무엇이 부족했는지 적어 두어야 두 번째 시도가 제대로 됩니다.',
         },
         {
           term: '표시된 제출은 질문이지 고발이 아닙니다',
@@ -2455,7 +2461,7 @@ const ko: PartialGuideDict = {
     verify: {
       title: '계정 확인하기',
       intro:
-        '확인된 계정이 하나도 없으면 어떤 이벤트에도 신청할 수 없으므로, 이 대기열은 사람들을 곧장 플레이에서 막아 세웁니다. 매일 비울 값어치가 있는 것이 바로 이것입니다.',
+        '사람들은 바로 신청할 수 있습니다. 다만 당신에게 보증을 요청한 사람은 당신에게 달려 있습니다: 게스트 승인이 필요한 클랜이라면 가입 요청을 수락한 뒤, 여기서 보증할 때까지 보류됩니다. 신청은 완료됐지만 아직 팀은 없는 상태입니다. 그래서 이 대기열은 사람들이 플레이하지 못하도록 곧장 막아 세웁니다. 매일 비울 값어치가 있는 것이 바로 이것입니다.',
       rows: [
         {
           term: '플러그인으로 확인됨',
@@ -2463,11 +2469,11 @@ const ko: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: '플러그인이 없는 플레이어용. 사이트가 스킬 하나를 무작위로 고르고, 30분 안에 그 스킬에서 1,000 경험치를 올리면 됩니다. 스스로 판정되므로 당신은 실패한 것만 보게 됩니다.',
+          body: '플러그인이 없는 플레이어용입니다. 사이트가 스킬 하나를 무작위로 고르고, 그 스킬에서 30분 안에 1,000 경험치를 얻으면 됩니다. 확인은 스스로 이루어지며, 통과하면 그 사람을 게스트로 클랜에 자동 추가하고 **Needs review**에 표시해 둡니다. 경험치는 누가 훈련했는지가 아니라 누군가 훈련했다는 것만 보여 주므로, 편할 때 확인하고 틀렸다면 거기서 제거하세요. 실패한 확인이 더 자세히 봐야 할 대상입니다.',
         },
         {
           term: '수동 검토',
-          body: 'Hiscores를 숨겼거나, 거기 올라가기엔 너무 새로운 부계정. 누군가 RSN과 메모를 보내오면 당신이 판단합니다. 메모로 부족하면 로그인 화면 스크린샷을 요청하세요.',
+          body: 'Hiscores를 숨겼거나, 거기 올라가기엔 너무 새로운 부계정. 누군가 RSN의 보증을 요청하면 당신이 판단합니다. 게스트 승인이 필요한 클랜이라면 그 사람은 먼저 가입 요청을 보내고, 당신이 수락하기 전까지는 자리가 없습니다. 게스트를 자유롭게 받는 클랜이라면 그 사람은 바로 게스트로 추가됩니다. 게스트가 되면 신청할 수 있지만, 당신이 승인하기 전까지 신청은 보류되고 어떤 팀에도 들어가지 않습니다. 승인하면 등록이 완료되고, **Not our member**를 누르면 철회됩니다. 확실하지 않다면 로그인 화면 스크린샷을 요청하세요.',
         },
       ],
       note: {
@@ -2479,7 +2485,7 @@ const ko: PartialGuideDict = {
     roster: {
       title: '멤버 명단을 정직하게 유지하기',
       body: [
-        '멤버 명단의 출처는 단 하나입니다: 관리자가 클랜 창 제목 표시줄의 **Anvil** 버튼(또는 플러그인 사이드 패널의 **Sync roster**)으로 게임 내 클랜 목록에서 동기화를 돌립니다. 그 밖의 모든 것 —— 확인, 연결, 신청 —— 이 거기에 매달려 있습니다.',
+        '명단은 한 곳에서 나옵니다. 관리자가 게임 내 클랜 목록에서 동기화를 실행하는데, 클랜 창 제목 표시줄의 **Anvil** 버튼(또는 플러그인 사이드 패널의 **Sync clan roster**)을 사용합니다. 그 밖의 모든 것(확인, 연결, 신청)은 여기에 매달려 있습니다.',
         '그래서 유지 보수는 작지만 실재합니다: 모집이 끝날 때마다 admin에게 동기화를 부탁하고(게임에서 들어온 게스트가 멤버가 됩니다), **Roster** 탭 맨 위의 가입 요청에 답하고, 사람들이 불평하기를 기다리지 말고 **Needs review**를 처리하세요. [우리 사람들]({peopleGuide})을 보세요.',
       ],
       note: {
@@ -2982,8 +2988,8 @@ const ko: PartialGuideDict = {
         { term: 'Partner', body: '플레이어 수 제한 없음. Anvil과 직접 설정해요 — 문의해 주세요.' },
       ],
       note: {
-        tag: '지금은',
-        body: 'Anvil이 자라는 동안에는 플랜 숫자를 넘어도 모두 들어올 수 있어요. 한도는 안내를 드린 뒤 나중에 시작됩니다. 플랜 카드에서 얼마나 가까운지 볼 수 있어요.',
+        tag: '플랜 카드',
+        body: '플랜 카드에서 플랜 숫자에 얼마나 가까운지, 어떤 플랜이 여유를 주는지 볼 수 있어요.',
       },
     },
 
@@ -3239,7 +3245,7 @@ const ko: PartialGuideDict = {
     roster: {
       title: '명단은 어디서 오나',
       body: [
-        '명단은 게임 내 클랜 명단을 사이트로 옮겨 온 것입니다. admin이 Anvil 플러그인을 켠 RuneLite에서 보냅니다: 클랜 창 제목 표시줄의 **Anvil** 버튼을 누르거나, 플러그인 사이드 패널의 **Sync roster**를 누르세요. 명단에 있는 모두가 게임 내 등급을 그대로 달고 **멤버**로 들어옵니다. 보낼 수 있는 사람은 사이트에서 Admin 역할을 가진 사람뿐이고, 다른 사람에게는 게임 안에서 그렇게 안내됩니다.',
+        '명단은 게임 내 클랜 명단을 사이트로 복사한 것입니다. 관리자가 Anvil 플러그인을 켠 RuneLite에서 보냅니다: 클랜 창 제목 표시줄의 **Anvil** 버튼을 누르거나, 플러그인 사이드 패널의 **Sync clan roster**를 누르세요. 명단의 모든 사람은 게임 내 등급과 함께 **멤버**로 들어옵니다. 사이트에서 Admin 역할을 가진 사람만 보낼 수 있으며, 다른 사람이 시도하면 게임 안에서 그렇다고 알려 줍니다.',
         '동기화는 그것만으로 누군가를 멤버로 만드는 유일한 수단입니다. 게임에서 클랜을 나간 사람은 다음 동기화에서 떠난 것으로 표시되고, 다시 들어온 사람은 그다음 동기화에서 돌아옵니다. 어느 쪽이든 기록은 남습니다.',
         '그 밖의 자리는 모두 **게스트** 자리입니다: 게임 내 클랜에는 없지만 이벤트에 참가하는 사람이죠. 게스트도 기록되고 이벤트에 참가할 수 있습니다. 멤버는 아니며, 요금제 인원에도 포함되지 않습니다.',
       ],
@@ -3610,7 +3616,7 @@ const ko: PartialGuideDict = {
       { strong: '아무것도 지워지지 않음', rest: '그만둬도' },
     ],
     footnote:
-      '여기 나오는 모든 것은 웹사이트의 **Settings** → **Supporter**, **Profile look**, **Clan boosts**에서 설정합니다. 부스트에 대한 자세한 내용은 [클랜 부스트하기]({boostsGuide})를, RuneLite에서 색이 어디에 보이는지는 [사이드 패널, 탭별로 보기]({panelGuide})를 보세요.',
+      '여기 나오는 모든 것은 웹사이트의 **Settings**에서 설정합니다: **Account** → **Your plan & billing**, 그리고 **Profile & look**의 **Name colours**와 **Clan boosts**. 부스트 자세한 내용은 [클랜 부스트하기]({boostsGuide})를, RuneLite에서 색이 어디에 보이는지는 [사이드 패널, 탭별로 보기]({panelGuide})를 보세요.',
 
     tiers: {
       title: '세 가지 등급',
@@ -3631,7 +3637,7 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: '초대로 받는 기간',
-        body: 'Settings → Supporter에 초대 링크가 있습니다. 내가 초대한 친구가 결제하면 무료 개월을 받습니다. 보상은 그 친구의 첫 결제 2주 뒤에 들어옵니다. 이렇게 얻은 기간에는 클랜 부스트를 뺀 그 등급의 모든 혜택이 붙습니다.',
+        body: 'Settings → Account → Your plan & billing 아래에 초대 링크가 있습니다. 초대한 친구가 결제하면 무료 개월을 받으며, 보상은 그 친구의 첫 결제 2주 뒤에 들어옵니다. 이렇게 얻은 기간에는 클랜 부스트를 뺀 그 등급의 모든 혜택이 붙습니다.',
       },
     },
 
@@ -3660,7 +3666,7 @@ const ko: PartialGuideDict = {
     names: {
       title: '이름 색',
       intro:
-        '**Settings** → **Supporter**의 **Your name’s look**에서 정합니다. 미리 보기에서 어두운 배경과 밝은 배경 위의 내 이름을 볼 수 있습니다.',
+        '**Settings** → **Profile & look** → **Name colours**에서 설정합니다. 미리 보기에서 어두운 배경과 밝은 배경 위의 내 이름을 볼 수 있습니다.',
       rows: [
         {
           term: 'Supporter',
@@ -3710,13 +3716,13 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: '내 것으로 확인된 캐릭터에서만',
-        body: '색은 사이트에서도 게임 안에서도 플러그인이 내 것으로 확인한 캐릭터에만 보입니다. 다른 사람의 게임 채팅에서 내 이름에 색이 보이지 않게 하려면 Settings → Supporter에서 **Show my colours on my characters’ names in game chat**의 체크를 해제하세요.',
+        body: '색은 사이트에서도 게임 안에서도 플러그인이 내 것으로 확인한 캐릭터에만 보입니다. 다른 사람의 게임 채팅에서 내 이름에 색이 보이지 않게 하려면 Settings → Account → Your plan & billing에서 **Show my colours on my characters’ names in game chat**의 체크를 해제하세요.',
       },
     },
 
     profile: {
       title: '아바타, 배너, 진열장',
-      intro: '셋 다 **Settings** → **Profile look**에 있습니다.',
+      intro: '셋 다 **Settings** → **Profile & look**에 있습니다.',
       rows: [
         {
           term: '아바타와 배너',
@@ -3765,7 +3771,7 @@ const ko: PartialGuideDict = {
         '결제합니다. Gumroad가 Anvil에 알리는 즉시 혜택이 켜지고, Supporter 페이지에 내 등급이 **Your tier**로 표시됩니다.',
       ],
       outro:
-        '등급을 바꾸려면 Settings → Supporter의 **Change tier**를 쓰세요. 해지하거나 카드를 바꾸려면 같은 곳의 **Manage on Gumroad**를 쓰세요. 해지한 멤버십도 결제한 기간이 끝날 때까지 모든 혜택을 유지합니다.',
+        '등급을 바꾸려면 Settings → Account → Your plan & billing의 **Change tier**를 쓰세요. 해지하거나 카드를 바꾸려면 같은 곳의 **Manage on Gumroad**를 쓰세요. 해지한 멤버십도 결제한 기간이 끝날 때까지 모든 혜택을 유지합니다.',
       note: {
         tag: '항상 /supporter에서 시작하세요',
         body: '**Choose** 버튼에는 어느 계정이 결제했는지 Anvil에 알려 주는 코드가 들어 있습니다. Anvil은 결제를 이메일로 맞추지 않으므로, 그 버튼 없이 Gumroad에서 바로 사면 결제가 어느 계정에도 연결되지 않습니다. 그렇게 됐다면 Anvil Discord에 물어보세요. 스태프가 직접 내 계정에 붙여 줄 수 있습니다.',
@@ -3796,7 +3802,7 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: 'Anvil 스태프가 주는 임시 업그레이드',
-        body: '스태프는 감사 표시 등으로 누군가에게 한동안 더 높은 등급을 줄 수 있습니다. 이것은 결제한 것 위에 얹힐 뿐 구독을 바꾸지 않습니다. Settings → Supporter에 **A gift from Anvil**과 끝나는 날이 표시되고, 그 뒤에는 결제한 등급으로 돌아갑니다. 선물은 스태프가 포함시킨 경우에만 클랜 부스트 칸을 줍니다.',
+        body: '스태프는 감사 표시 등으로 누군가에게 한동안 더 높은 등급을 줄 수 있습니다. 이것은 결제한 등급 위에 얹힐 뿐 구독은 바꾸지 않습니다. Settings → Account → Your plan & billing에 **A gift from Anvil**과 끝나는 날짜가 표시되며, 그 뒤에는 결제한 등급으로 돌아갑니다. 스태프는 이미 가진 등급의 기간도 늘려줄 수 있습니다. 그 등급에 결제하고 있다면 추가된 기간은 현재 멤버십이 끝나는 시점부터 시작되고 청구 금액은 바뀌지 않습니다. 선물에 클랜 부스트 칸이 포함되는 것은 스태프가 그렇게 넣은 경우뿐입니다.',
       },
     },
   },
@@ -3856,7 +3862,7 @@ const ko: PartialGuideDict = {
         {
           term: '이벤트',
           body:
-            '라이브 및 예정된 모든 보드, Skill 또는 Boss of the Week, 클랜 이벤트와 현재 순위를 보여 줍니다. 그다음 **Your other boards**, **Also live**, **Your clan**이 나옵니다.',
+            '라이브와 예정된 모든 보드, Skill 또는 Boss of the Week, 클랜 이벤트를 내 순위와 함께 보여 줍니다. 그다음 **Running**, **Coming up**, **Also live**, **Your clan**이 나옵니다.',
         },
         {
           term: '보드',
@@ -3869,7 +3875,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '클랜 이벤트',
-          body: '이벤트에 따라 **I’m going**, **Sign me up**, **Answer the survey**가 표시됩니다.',
+          body: '이벤트에 따라 **I’m going**, **Register**(호스트가 질문이 있으면 **Register on Anvil**), 또는 **Answer the survey**를 누르세요.',
         },
       ],
     },
@@ -3895,7 +3901,7 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: '게임 내 채팅 피드와는 다릅니다',
-        body: 'Feed 탭은 플러그인 설정과 상관없이 동작합니다. **Show feed in game chat**(8단계)은 피드를 채팅창에도 찍어 주는 별도의 설정입니다.',
+        body: 'Feed 탭은 플러그인 설정과 상관없이 동작합니다. **Anvil messages in chat**(8단계)은 채팅창에도 출력하도록 하는 별도의 설정입니다.',
       },
     },
 
@@ -3938,7 +3944,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '보내기',
-          body: '상자에 입력하고 Enter를 누르세요. 줄은 최대 200자이며, 링크는 호스트와 모드만 게시할 수 있습니다.',
+          body: '입력창에 입력하고 Enter를 누르세요. 한 줄은 최대 80자이며(더 길면 거부됩니다), 링크는 호스트와 모드만 올릴 수 있습니다.',
         },
         {
           term: '전송 간격',
@@ -4007,27 +4013,19 @@ const ko: PartialGuideDict = {
     settings: {
       title: '보이는 것을 바꾸는 설정',
       intro:
-        'RuneLite의 Anvil 설정 중 **Chat messages** 아래에 있습니다. 처음에는 모두 켜져 있습니다.',
+        'RuneLite의 Anvil 설정에서 **General** 아래에 있습니다. 처음에는 모두 켜져 있습니다.',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: '피드를 일어나는 대로 채팅창에도 찍어 줍니다: 주최자가 켜 둔 보드와 내가 게스트로 있는 클랜의 큰 드롭, 펫, 업적, 우리 팀원의 타일 진행, 그리고 다른 팀이 완료한 타일.',
         },
         {
           term: 'Supporter names in chat',
-          body: '공개, 클랜, 친구, 개인 채팅과 친구 목록, 채널 멤버 목록에서 Supporter의 색(과 Patron의 별)을 보여 줍니다. 이름 목록은 Anvil에서 내려받고, 내가 누구를 보는지에 대해서는 아무것도 보내지 않습니다.',
+          body: '공개, 클랜, 친구, 개인 채팅과 친구 목록, 채널 멤버 목록에서 Supporter의 색(그리고 Patron의 별)을 보여 줍니다. 이름 목록은 Anvil에서 내려받으며, 당신이 누구를 보는지에 대한 정보는 아무것도 보내지 않습니다. **Animated**(Patron의 그라데이션이 미끄러지듯 움직임), **Still colours**, **Off** 중에서 고르세요.',
         },
         {
-          term: 'Animated names',
-          body: '패널, Feed, 이벤트 채팅에서 Patron의 그라데이션이 흐르게 합니다. 끄면 멈춰 있습니다. 다음 플러그인 업데이트에서는 부스트된 클랜 이름과 패널의 움직이는 배너에도 적용됩니다.',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: '우클릭할 때 Supporter의 이름에 그 사람의 색을 입힙니다. PvP 월드와 황야에서는 절대 적용되지 않습니다.',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: '켜면 Player Indicators 같은 다른 플러그인이 정한 이름 색을 Supporter의 색이 대신합니다. 끄면 그런 이름은 그대로 둡니다.',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: '우클릭할 때 Supporter의 이름에 그 사람의 색을 입히고, 친구 목록과 채널 멤버 목록에도 적용하며, 부스트된 클랜의 이름도 클랜 패널에서 색이 입혀집니다. PvP 월드와 황야에서는 절대 적용되지 않습니다.',
         },
       ],
     },
@@ -4046,7 +4044,7 @@ const ko: PartialGuideDict = {
       { strong: '일주일에 한 번', rest: '부스트를 옮길 수 있음' },
     ],
     footnote:
-      '멤버는 **Settings** → **Clan boosts**에서 부스트를 놓습니다. 클랜 스태프는 Admin → **Clan settings** → **Boosts**에서 레벨과 그 옵션을 봅니다. 등급 자체는 [Anvil Supporter: 등급과 혜택]({supporterGuide})을 보세요.',
+      '멤버는 **Settings** → **Profile & look** → **Clan boosts**에서 부스트를 놓습니다. 클랜 스태프는 Admin → **Clan settings** → **Boosts**에서 레벨과 그 옵션을 봅니다. 등급 자체는 [Anvil Supporter: 등급과 혜택]({supporterGuide})을 보세요.',
 
     what: {
       title: '누가 부스트를 가지나',
@@ -4060,7 +4058,7 @@ const ko: PartialGuideDict = {
         },
       ],
       outro:
-        '부스트는 캐릭터가 아니라 나에게 속합니다: 세 클랜에 캐릭터가 셋 있어도 부스트 한 묶음을 함께 씁니다. **Settings** → **Clan boosts**는 내가 Supporter이거나 아직 놓아 둔 부스트가 있을 때만 설정에 나타납니다.',
+        '부스트는 캐릭터가 아니라 당신에게 속합니다: 세 클랜에 있는 캐릭터 셋이 같은 부스트 묶음을 함께 씁니다. **Settings** → **Profile & look** → **Clan boosts**는 항상 보이지만, Champion 또는 Patron 멤버십만 슬롯을 줍니다. 그것이 없으면 규칙과 Supporter로 가는 링크를 볼 수 있습니다.',
     },
 
     place: {
@@ -4069,7 +4067,7 @@ const ko: PartialGuideDict = {
       steps: [
         '**Settings** → **Clan boosts**를 엽니다. **Your boosts**에 놓아 둔 부스트와 빈 **Free slot**이 나열됩니다.',
         '**Clans you can boost**에서 클랜 옆의 **Boost**를 누릅니다. 클랜 자체 페이지의 Boosters 섹션에서 **Boost this clan**을 눌러도 됩니다.',
-        '옮기려면 그 줄의 **Move to…**로 다른 클랜을 고릅니다. **Remove**는 부스트를 뺍니다.',
+        '옮기려면 그 줄의 **Move**를 누르고 **Move to…**에서 다른 클랜을 고르세요. **Remove**는 부스트를 뺍니다.',
       ],
       rows: [
         {
@@ -4168,7 +4166,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: 'Recruitment post in the Anvil Discord',
-          body: '레벨 3. 달력상 한 달에 한 번, 20자에서 500자. 직접 쓰고 **Post it**을 누르면 클랜 페이지 링크와 함께 게시됩니다. 멘션은 제거되고 아무도 알림을 받지 않습니다. 다음 달까지는 수정하거나 다시 보낼 수 없습니다.',
+          body: '레벨 3. 달력상 한 달에 한 번, 20자에서 500자 사이로 직접 쓰고, **Post to the Anvil Discord**를 누른 다음 **Post it**을 눌러 확인하면 클랜 페이지 링크와 함께 게시됩니다. 멘션은 제거되며 아무도 알림을 받지 않습니다. 다음 달까지는 수정하거나 다시 보낼 수 없습니다.',
         },
         {
           term: 'Boosters',
@@ -4317,7 +4315,7 @@ const ko: PartialGuideDict = {
       title: '설정 찾기',
       body: [
         '첫 페이지인 **Overview & search**에는 검색 상자가 있습니다. 원하는 것을 내 말로 입력하세요. 예: _private messages_, _rare drop value_, _death message_, _name colour_ 또는 _plugin token_. 맞는 스위치로 바로 이동합니다.',
-        '왼쪽 메뉴는 두 그룹입니다. **Account**에는 아래 페이지들이 있습니다. **Characters**에는 연결한 캐릭터마다 한 페이지가 있고(메인 캐릭터에는 **main** 표시), 그다음 **Add character**가 있습니다. **Add character**의 숫자는 Anvil이 아직 연결하지 않은 캐릭터로 플레이하는 것을 봤다는 뜻입니다.',
+        '왼쪽 메뉴에는 다섯 페이지가 있습니다: **Profile & look**, **Characters**, **In game**, **Posts & alerts**, **Account**. **Characters** 아래에는 연결한 캐릭터마다 페이지가 하나씩 있고(메인 캐릭터에는 **main** 표시), 그다음 **Add character**가 있습니다. **Add character**의 숫자는 Anvil이 아직 연결하지 않은 캐릭터로 플레이하는 것을 봤다는 뜻입니다.',
       ],
     },
     posts: {
@@ -4334,7 +4332,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '게시물이 가는 곳',
-          body: '**Keep my announcements out of clans I only guest in**, 그리고 클랜 채널의 **Level posts in clan channels**: **Clan rules**, **Only 99s & max** 또는 **Off**. **Per character**에는 캐릭터마다 목록이 있고, **Clans →** 링크로 한 클랜에 대해서만 게시를 끌 수 있습니다.',
+          body: '**Post my drops and levels in clans where I am a guest**(켜기 전까지 꺼져 있음)와 클랜 채널의 **Level posts in clan channels**: **Clan rules**, **Only 99s & max**, **Off** 중 하나. **Per character**에는 캐릭터마다 목록이 있고, **Clans →** 링크로 한 클랜에 대해서만 게시를 끌 수 있습니다.',
         },
         {
           term: '종류별 스크린샷',
@@ -4364,7 +4362,7 @@ const ko: PartialGuideDict = {
     },
     chat: {
       title: '게임 내 채팅 피드',
-      intro: '플러그인 설정 **Show feed in game chat**이 켜져 있을 때 채팅창에 출력되는 것.',
+      intro: '플러그인 설정 **Anvil messages in chat**이 켜져 있을 때 채팅창에 출력되는 내용.',
       rows: [
         {
           term: '출처',
@@ -4390,15 +4388,15 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '플러그인 연결',
-          body: '플러그인 토큰. 직접 붙여 넣어야 하는 드문 경우를 위한 것입니다. 보통은 사이드 패널의 **Sign in with Discord**가 이를 대신합니다.',
+          body: '**In game** 아래: 플러그인 토큰입니다. 직접 붙여넣어야 하는 드문 경우를 위한 것입니다. 한 번 만들어지며 **Reveal**을 누르기 전까지 가려져 있고, **Revoke all**은 모든 토큰을 취소합니다. 보통은 사이드 패널의 **Sign in with Discord**가 이를 대신합니다.',
         },
         {
           term: '로그인과 기기',
-          body: '플러그인이 로그인된 모든 컴퓨터가 만들어진 시각과 마지막 사용 시각과 함께 **RuneLite sign-in 1**, **2**… 순서로 나열됩니다. **Revoke**는 한 대를 로그아웃합니다. 예: 판매한 컴퓨터. **Enter a code**는 다른 컴퓨터를 연결합니다. **Sessions**는 모든 곳에서 웹사이트 로그아웃을 합니다.',
+          body: '**Account** 아래: 플러그인이 로그인된 모든 컴퓨터가 **RuneLite sign-in 1**, **2**… 순서로 만든 시각과 마지막 사용 시각과 함께 나열됩니다. **Revoke**는 한 대를 로그아웃합니다(예: 판매한 컴퓨터). **Enter a code**는 다른 컴퓨터를 연결합니다. **Sessions**는 모든 곳에서 웹사이트 로그아웃을 합니다.',
         },
         {
           term: '클랜 결제',
-          body: '클랜 소유자는 여기서 클랜 결제를 위해 **Open portal →**을 누를 수 있습니다.',
+          body: '**Account** 아래에서 클랜 소유자는 클랜 결제를 위해 여기서 **Open portal →**을 누를 수 있습니다.',
         },
       ],
     },
@@ -4433,11 +4431,11 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: 'Supporter와 이름 색상',
-          body: '내 등급, 혜택, 초대 링크: 친구를 데려오면 무료 개월 수를 얻습니다. 등급은 [Anvil Supporter]({supporterGuide})에서 설명합니다.',
+          body: '**Account** → **Your plan & billing** 아래: 내 등급, 혜택, 초대 링크. 친구를 데려오면 무료 개월을 얻습니다. 등급은 [Anvil Supporter]({supporterGuide})에서 설명합니다.',
         },
         {
           term: '프로필 모양',
-          body: '아바타와 배너(Champion부터 애니메이션), 원하면 캐릭터마다 다르게 설정할 수 있고, **Display case**: 등급에 따라 4, 8 또는 12개의 핀.',
+          body: '**Profile & look** 아래: 아바타와 배너(Champion부터 애니메이션), 원하면 캐릭터마다 다르게 설정할 수 있는 항목, 그리고 **Display case**: 등급에 따라 4, 8 또는 12개의 핀.',
         },
         {
           term: '스트리밍 계정',
@@ -4445,7 +4443,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '클랜 부스트',
-          body: '부스트할 수 있을 때만 보입니다: 내 슬롯, 배치 위치, 부스트할 수 있는 클랜. [클랜 부스트하기]({boostsGuide})를 보세요.',
+          body: '**Profile & look** 아래: 내 슬롯, 슬롯의 배치 위치, 부스트할 수 있는 클랜. Champion 또는 Patron 멤버십이 없으면 규칙을 보여 줍니다. [클랜 부스트하기]({boostsGuide})를 보세요.',
         },
       ],
     },
@@ -4535,7 +4533,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '시작선',
-          body: '모든 플레이어의 **Started at**, **Now**, **Gained**. 대회 전 사냥이 집계되었을 때 시작선을 직접 고치면 순위표가 따라갑니다. **Pull current stats**는 모두를 새로 고치고, **Reset baselines**는 지금 순위표 기준으로 모두를 다시 시작시켜 모든 증가를 지웁니다.',
+          body: '모든 플레이어의 **Started at**, **Now**, **Gained**. 대회 전 사냥이 집계되었다면 시작선을 직접 고칠 수 있고, 순위표가 따라갑니다. **Pull current stats**는 모두를 새로 고치고, **Reset every baseline**은 모두를 지금의 hiscores 기준으로 다시 시작시켜 모든 증가분을 지웁니다.',
         },
         {
           term: '참가자',
@@ -4768,7 +4766,7 @@ const ko: PartialGuideDict = {
     players: {
       title: '멤버가 보는 것',
       body: [
-        '이벤트 페이지에는 **When**, **Where**, **Host**, **Discord**, **Entry**, **Prizes**가 표시되며, 진행 중에는 **Live now**가 붙습니다. 멤버는 **I’m going** 또는 **Sign me up**을 누르고, 운영진이 하나씩 승인하는 경우에는 **Ask to sign up**을 누릅니다. 플러그인 사이드 패널의 **Clan** 탭에도 같은 버튼과 함께 있습니다.',
+        '이벤트 페이지에는 **When**, **Where**, **Host**, **Discord**, **Entry**, **Prizes**가 표시되며, 진행 중이면 **Live now**가 붙습니다. 멤버는 **I’m going** 또는 **Register**를 누르고, 운영진이 하나씩 승인하는 경우에는 **Ask to sign up**을 누릅니다. 플러그인 사이드 패널의 **Clan** 탭에도 같은 버튼과 함께 있습니다.',
         '클랜 멤버만 “갑니다”라고 하거나 참가 신청을 할 수 있습니다.',
       ],
     },
@@ -4930,7 +4928,7 @@ const ko: PartialGuideDict = {
       title: '참여할 이벤트 찾기',
       body: [
         '[Events](/events)는 Anvil 전역에서 진행 중이거나 곧 열릴 것을 보여 줍니다. **Live now**, **Open to join** 또는 **Starting this week**, 형식이나 **Solo**, **Anyone can join** 또는 **Ask or meet a rule**, **Clans** 또는 **Creators**로 필터링하세요. **Join**은 참가 신청 페이지로 데려갑니다.',
-        '호스트가 **Advertise on Anvil**을 켠 이벤트만 나옵니다. 멤버 전용과 초대 전용 이벤트는 절대 나오지 않습니다.',
+        '호스트가 **List on Anvil**을 켠 이벤트만 나옵니다. 멤버 전용과 초대 전용 이벤트는 절대 나오지 않습니다.',
       ],
     },
     ghost: {

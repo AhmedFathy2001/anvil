@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -148,5 +149,6 @@ export async function POST(
     .returning();
   if (!updated) return NextResponse.json({ error: 'That fee just changed — refresh and try again.' }, { status: 409 });
 
+  if (body.collectorUserId !== null) track('fee.paid', { clanId: event.clanId, userId: session.userId });
   return NextResponse.json({ fee: updated });
 }

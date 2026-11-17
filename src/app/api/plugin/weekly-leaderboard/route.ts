@@ -1,3 +1,5 @@
+import { competitionHighlights, huntPanelSubs } from '@/lib/competitionHighlights';
+import { huntStandings } from '@/lib/itemHuntDb';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { resolvePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
@@ -89,9 +91,13 @@ export async function GET(request: Request) {
   // Excludes anyone whose clan_member has left the CC (unless an admin set keepIfLeft) so the
   // headcount + standings reflect current members; one row per name (lib/rankMoves weeklyBoard).
   const [board, since] = await Promise.all([weeklyBoard(comp.id), comp.status === 'active' ? weeklyBaselineRanks(comp.id) : Promise.resolve(null)]);
+  // An item hunt: the dim line under each row ("412 kills, no drop"), and its drops as the highlights.
+  const hunt = comp.type === 'hunt' ? await huntStandings(comp) : null;
+  const huntSub = new Map((hunt ? huntPanelSubs(hunt) : []).map((s) => [weeklyRsnKey(s.rsn), s.sub]));
   const row = (e: (typeof board)[number], i: number) => ({
     rank: i + 1,
     rsn: e.rsn,
+    ...(huntSub.get(weeklyRsnKey(e.rsn)) ? { sub: huntSub.get(weeklyRsnKey(e.rsn)) } : {}),
     // Clamp to >= 0: a not-yet-fetched / unranked participant has currentValue null, which
     // computeLeaderboard treats as 0, yielding a spurious negative gain (0 - baseline). You
     // can't lose KC/XP, so floor it at 0.
@@ -120,6 +126,9 @@ export async function GET(request: Request) {
     total: board.length,
     entries,
     you,
+    // Best drops and the newest few, for under the standings (lib/pluginUi/highlightsUi). Read under
+    // the same two privacy checks as the standings above, and only for people still on this board.
+    highlights: await competitionHighlights(comp, hunt, new Set(board.map((e) => weeklyRsnKey(e.rsn)))),
     // Team / clan-vs-clan standings (null on a solo competition) — lib/pluginUi/teamStandingsUi.
     // `groups.you.line` is the ready-to-print "Your team: 2nd of 4 · +1.2M XP".
     groups: weeklyGroupsPayload(comp.type, await buildGroupStandings(comp, { rsn: searchParams.get('rsn') })),

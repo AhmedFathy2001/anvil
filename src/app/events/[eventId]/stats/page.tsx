@@ -1,4 +1,5 @@
 import { requireEventForParticipantPage } from '@/lib/eventScope';
+import { clientEvent } from '@/lib/clientRows';
 import EventApiHost from '@/components/EventApiHost';
 import ClanLink from '@/components/ClanLink';
 import EventPageHeader from '@/components/events/EventPageHeader';
@@ -67,7 +68,7 @@ export default async function EventStatsPage({
   const header = () => (
     <>
       <EventApiHost eventId={id} prefix={apiPrefix} />
-      <EventPageHeader event={event} apiPrefix={apiPrefix} active="stats" title="Event stats" curtained={!!curtain} />
+      <EventPageHeader event={clientEvent(event)} apiPrefix={apiPrefix} active="stats" title="Event stats" curtained={!!curtain} />
     </>
   );
   if (startMs == null || !started) {
@@ -124,7 +125,7 @@ export default async function EventStatsPage({
           chip(`/events/${id}/stats?day=${d}`, data.event.currentDay === d ? `Day ${d} · live` : `Day ${d}`, data.window.day === d),
         )}
       </nav>
-      <StatsDashboard data={data} />
+      <StatsDashboard data={data} viewerIds={mine} />
     </div>
   );
 }

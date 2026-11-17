@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -77,6 +78,7 @@ export async function POST(
   const max = summary[0]?.strength ?? 0;
   const min = summary[summary.length - 1]?.strength ?? 0;
 
+  track('team.balanced', { clanId: clan.id, props: { placed: assignments.length } });
   return NextResponse.json({
     placed: assignments.length,
     assignments: assignments.map((a) => ({ rsn: a.rsn, teamId: a.teamId, teamName: teamName.get(a.teamId) })),

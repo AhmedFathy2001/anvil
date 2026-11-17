@@ -12,6 +12,7 @@ import type { AnvilTask } from '@/lib/libraryTasks';
 import type { TaskOffer } from '@/lib/libraryTasks';
 import type { LibraryProposal } from '@/lib/libraryProposals';
 import { CheckboxBox } from '@/components/Checkbox';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 type Row = AnvilTask & { imported: boolean };
 
@@ -27,6 +28,9 @@ const STATUS_TEXT: Record<LibraryProposal['status'], string> = {
  * library (copies follow Anvil until you edit them), answer Anvil's updates to tasks you've edited,
  * and suggest new tasks or fixes for Anvil to review.
  */
+/** Tasks drawn before "Show more"; search, filters and "Import all" still cover every task. */
+const LIBRARY_CHUNK = 30;
+
 export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBands: TierBand[]; onImported: () => void }) {
   const { confirm } = useDialog();
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -34,6 +38,7 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
   const [offers, setOffers] = useState<TaskOffer[]>([]);
   const [mine, setMine] = useState<LibraryProposal[]>([]);
   const [q, setQ] = useState('');
+  const [limit, setLimit] = useState(LIBRARY_CHUNK);
   const [category, setCategory] = useState('');
   const [tier, setTier] = useState('');
   const [kind, setKind] = useState('');
@@ -100,6 +105,15 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
   }
 
   async function answer(rowIds: number[], a: 'take' | 'keep') {
+    if (a === 'take' && rowIds.length > 1) {
+      const ok = await confirm({
+        title: `Replace ${rowIds.length} of your edited tasks with Anvil’s?`,
+        body: 'Your changes to these tasks are overwritten and they follow Anvil again. This can’t be undone.',
+        confirmLabel: `Replace ${rowIds.length}`,
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       await clanFetch('/api/admin/library/offers', {
@@ -246,7 +260,7 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
         <p className="text-sm text-text-muted">Loading Anvil&apos;s library…</p>
       ) : (
         <ul className="divide-y divide-card-border/60 rounded-xl border border-card-border bg-card-bg">
-          {visible.map((t) => {
+          {visible.slice(0, limit).map((t) => {
             const tierKey = tileTierKey(t.points, tierBands);
             const tierLabel = tierBands.find((b) => b.key === tierKey)?.label;
             const badge = TILE_KIND_BADGES[kindOf(t)];
@@ -275,6 +289,7 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
           {visible.length === 0 && <li className="px-3 py-6 text-center text-sm text-text-muted">Nothing matches those filters.</li>}
         </ul>
       )}
+      <ShowMoreButton total={visible.length} shown={limit} chunk={LIBRARY_CHUNK} onMore={() => setLimit((n) => n + LIBRARY_CHUNK)} />
 
       {mine.length > 0 && (
         <div>

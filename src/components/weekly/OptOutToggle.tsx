@@ -50,12 +50,15 @@ export default function OptOutToggle({
 
   if (compact) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <span className={optedOut ? 'text-text-muted' : 'text-accent-green-light'}>{label}</span>
-        <span className="text-text-muted">·</span>
-        <button type="button" onClick={flip} disabled={busy} className="text-gold hover:underline disabled:opacity-50">
-          {action}
-        </button>
+      <span className="inline-flex flex-wrap items-center gap-x-1.5 text-xs">
+        {/* One unbreakable piece, so a narrow row never leaves the dot alone at the end of a line. */}
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span className={optedOut ? 'text-text-muted' : 'text-accent-green-light'}>{label}</span>
+          <span aria-hidden className="text-text-muted">·</span>
+          <button type="button" onClick={flip} disabled={busy} className="text-gold hover:underline disabled:opacity-50 max-sm:min-h-11 max-sm:px-2">
+            {action}
+          </button>
+        </span>
         {error && <span className="text-red-300">{error}</span>}
       </span>
     );

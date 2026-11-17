@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 import { Sprite, type SpriteName } from '@/components/ItemSlot';
 import { SettingsSearchTrigger } from './AdminSettingsSearch';
@@ -97,7 +98,10 @@ function isInsideAnEvent(pathname: string): boolean {
 export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref, guideLabel = 'Admin guide', search }: Props) {
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // The phone drawer is open only for the page it was opened on, so any navigation closes it.
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const mobileOpen = openFor === here;
+  const setMobileOpen = (v: boolean) => setOpenFor(v ? here : null);
   // Hubs opened by their chevron while you are elsewhere; inside a hub its pages always show.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = (href: string) =>
@@ -113,47 +117,12 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
   // own rail (two rails on desktop, two stacked "Menu" buttons on a phone).
   if (scope === 'clan' && isInsideAnEvent(here)) return null;
 
-  return (
-    <>
-      {/* Mobile toggle — kept in normal document flow (it used to be `position: fixed` and floated
-          over the page, covering each page's back-link / heading). As the first in-flow child it now
-          sits cleanly above the content on small screens. */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden mb-4 inline-flex items-center gap-2 px-3 py-2 text-sm border border-card-border bg-card-bg rounded-lg"
-        aria-label="Open admin menu"
-      >
-        ☰ Menu
-      </button>
-
-      {/* Backdrop on mobile */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          className="lg:hidden fixed inset-0 bg-black/60 z-40"
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed lg:static top-0 left-0 h-screen lg:h-auto z-50 lg:z-auto
-          w-72 lg:w-60 shrink-0 bg-card-bg border-r border-card-border
-          transition-transform duration-200
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 lg:bg-transparent lg:border-r-0
-          overflow-y-auto
-          lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overscroll-contain
-          [scrollbar-width:thin] [scrollbar-color:rgba(201,162,77,0.25)_transparent]
-        `}
-      >
-        {/* The rail scrolls on its own: sticky under the header and capped to the screen, so a long
-            rail no longer means scrolling the whole page to reach its foot. */}
+  const rail = (
         <div className="p-4 lg:p-0 lg:pr-3 lg:pb-4">
           {/* Mobile close */}
           <button
             onClick={() => setMobileOpen(false)}
-            className="lg:hidden mb-4 text-sm text-text-muted hover:text-foreground"
+            className="lg:hidden mb-2 inline-flex min-h-11 items-center text-sm text-text-muted hover:text-foreground"
           >
             ← Close
           </button>
@@ -189,6 +158,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
 
           {primary && (
             <ClanLink
+ prefetch={false}
               href={primary.href}
               onClick={() => setMobileOpen(false)}
               className="block text-center mb-5 px-4 py-2.5 rounded-lg border border-gold/35 bg-gold/10 text-gold font-semibold hover:bg-gold/15 transition-colors"
@@ -211,9 +181,10 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                     return (
                       <li key={item.href} className={kids.length ? 'relative' : undefined}>
                         <ClanLink
+ prefetch={false}
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
-                          className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                          className={`flex items-center justify-between gap-2 px-3 py-2 max-lg:min-h-11 text-sm rounded-lg transition-colors ${
                             active
                               ? 'bg-gradient-to-r from-gold/15 to-gold/[0.02] text-gold-light border border-transparent shadow-[inset_3px_0_0_var(--gold)]'
                               : item.quiet
@@ -263,10 +234,11 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                               return (
                                 <li key={kid.href}>
                                   <ClanLink
+ prefetch={false}
                                     href={kid.href}
                                     onClick={() => setMobileOpen(false)}
                                     aria-current={on ? 'page' : undefined}
-                                    className={`block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                                    className={`block rounded-md px-2.5 py-1.5 max-lg:flex max-lg:min-h-11 max-lg:items-center text-[13px] transition-colors ${
                                       on ? 'bg-gold/10 text-gold-light' : 'text-text-muted hover:bg-brown-light hover:text-foreground'
                                     }`}
                                   >
@@ -287,6 +259,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
 
           {guideHref && (
             <ClanLink
+ prefetch={false}
               href={guideHref}
               onClick={() => setMobileOpen(false)}
               className="mt-6 flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-tile-border text-sm text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
@@ -296,7 +269,55 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
             </ClanLink>
           )}
         </div>
+  );
+
+  return (
+    <>
+      {/* Mobile toggle — kept in normal document flow (it used to be `position: fixed` and floated
+          over the page, covering each page's back-link / heading). As the first in-flow child it now
+          sits cleanly above the content on small screens. */}
+      <button
+        data-admin-shell
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden mb-4 inline-flex items-center gap-2 px-3 py-2 text-sm border border-card-border bg-card-bg rounded-lg"
+        aria-label="Open admin menu"
+      >
+        ☰ Admin menu
+      </button>
+
+      {/* Desktop rail (always there), and on a phone the same rail as an overlay drawer. */}
+      <aside
+        className={DESKTOP_ASIDE}
+      >
+      {rail}
       </aside>
+      {mobileOpen && (
+        <MobileDrawer onClose={() => setMobileOpen(false)}>{rail}</MobileDrawer>
+      )}
     </>
+  );
+}
+
+const DESKTOP_ASIDE =
+  'hidden lg:block lg:static w-60 shrink-0 overflow-y-auto lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overscroll-contain [scrollbar-width:thin] [scrollbar-color:rgba(201,162,77,0.25)_transparent]';
+
+/** The admin menu on a phone: an overlay with Escape, focus trap and scroll lock; a tap outside closes it. */
+function MobileDrawer({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const ref = useModalA11y<HTMLDivElement>({ onClose });
+  return (
+    <div className="lg:hidden fixed inset-0 z-50" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" aria-hidden />
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Admin menu"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-0 left-0 h-full w-72 max-w-[85vw] overflow-y-auto overscroll-contain bg-card-bg border-r border-card-border shadow-2xl focus:outline-none [scrollbar-width:thin]"
+      >
+        {children}
+      </div>
+    </div>
   );
 }

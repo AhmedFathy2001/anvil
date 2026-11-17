@@ -111,3 +111,9 @@ test('a head-to-head counts only rows both sides have, and says who leads', () =
   assert.equal(headToHeadVerdict('A', 'B', [{ label: 'x', a: 1, b: 1, leader: 'tie', format: 'int' }]), 'Dead level on every number');
   assert.equal(headToHeadVerdict('A', 'B', [rows[3]]), null);
 });
+
+test('a held start says the same words as the events list, not a countdown', () => {
+  const held = { startDate: new Date(NOW + 60_000).toISOString(), endDate: null, forceEndedAt: null, startHoldNotified: 1, startNotified: 0 };
+  assert.equal(eventLinkDescription(held, [], NOW), 'Start is waiting on teams');
+  assert.equal(eventLinkDescription({ ...held, startNotified: 1 }, [], NOW), 'Starts in 1m');
+});

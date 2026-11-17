@@ -60,6 +60,8 @@ export default function DiscordSettings({
   clanHallOn,
   siteUrl,
   creator = false,
+  notLinkedForRoles = 0,
+  unconfirmedLinks = 0,
 }: {
   channels: BroadcastChannel[];
   botEnabled: boolean;
@@ -71,6 +73,10 @@ export default function DiscordSettings({
    * commands or Clan Hall card, and no clan-only feeds.
    */
   creator?: boolean;
+  /** Current members role sync cannot reach by Discord id (lib/discord-roles countRosterSeatsNotLinked). */
+  notLinkedForRoles?: number;
+  /** How many of them carry a stored Discord link of unknown source (lib/discord-roles rosterLinkCounts). */
+  unconfirmedLinks?: number;
 }) {
   // Bumped after quick setup rewrites the routing, so the by-hand fields remount and re-read it.
   const [panelKey, setPanelKey] = useState(0);
@@ -105,6 +111,28 @@ export default function DiscordSettings({
         />
       )}
 
+      {/* Nothing below the connect step does anything until a server is connected, and showing 43
+          switches that post nowhere read as a page that was already set up. One line says what is
+          coming; "Post without a bot" stays, as the way in for a server that cannot take the bot. */}
+      {!botEnabled && (
+        <>
+          <p className="rounded-xl border border-card-border bg-card-bg px-5 py-4 text-sm text-text-muted">
+            After you connect a server you choose which posts go to which channel, who gets pinged, how Discord roles and
+            nicknames follow the {creator ? 'space' : 'clan'}, and which commands are on.
+          </p>
+          <FoldSection
+            id="discord-by-hand"
+            sprite="clue"
+            title="Post without a bot"
+            summary="Can’t add the bot? Paste a channel’s link from Discord instead."
+          >
+            <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} creator={creator} />
+          </FoldSection>
+        </>
+      )}
+
+      {botEnabled && (
+      <>
       <h2 className="display text-lg font-semibold pt-6">More settings</h2>
 
       <FoldSection
@@ -278,7 +306,7 @@ export default function DiscordSettings({
               <Field title="Match Discord to the clan" aside={<GuideLink href="/guide/discord#roles">How role sync works</GuideLink>}>
                 Give linked members their rank and default roles, and optionally set nicknames to their in-game name.
               </Field>
-              <DiscordRoleSyncSettings />
+              <DiscordRoleSyncSettings notLinked={notLinkedForRoles} unconfirmedLinks={unconfirmedLinks} />
               <div>
                 <p className="font-medium mb-1">Roles the sync gives out</p>
                 <DiscordAssignedRoles />
@@ -329,6 +357,8 @@ export default function DiscordSettings({
       >
         <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} creator={creator} />
       </FoldSection>
+      </>
+      )}
     </div>
   );
 }

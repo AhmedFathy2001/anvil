@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
@@ -69,5 +70,6 @@ export async function POST(request: Request) {
     });
   }
   if (!report.ok) return NextResponse.json({ error: report.reason || 'Send failed' }, { status: 400 });
+  track('discord.posted', { clanId: clan.id });
   return NextResponse.json({ success: true, report });
 }

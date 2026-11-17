@@ -3,6 +3,8 @@
 import { cn, exactTitle, formatNumber } from '@/lib/utils';
 import ClaimAvatars from '@/components/ClaimAvatars';
 import type { ClaimMarker } from '@/lib/tileClaimsView';
+import { useTileHover } from '@/components/TileHoverCard';
+import { tileHoverView } from '@/lib/tileHover';
 
 interface TileCellProps {
   label: string;
@@ -38,9 +40,11 @@ interface TileCellProps {
   needed?: boolean;
   /** Teammates planning to go for it (team view only, lib/tileClaims). */
   claimedBy?: ClaimMarker[];
+  /** Steady hover or keyboard focus on the tile: warm the dialog's data. */
+  onIntent?: () => void;
 }
 
-export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly, inLine, needed, claimedBy }: TileCellProps) {
+export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly, inLine, needed, claimedBy, onIntent }: TileCellProps) {
   const anyCompleted = completedBy.length > 0;
   // In markers-only mode the tile never takes a team's "completed" fill — the dots carry that info.
   const isCompleted = anyCompleted && !markersOnly;
@@ -50,8 +54,25 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
   const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 
+  const hover = useTileHover(
+    tileHoverView({
+      label,
+      doneBy: completedBy.map((c) => ({ name: c.teamName })),
+      manualOnly,
+      progress,
+      stat: statProgress,
+      claimedBy,
+      points,
+      // No one team picked: the count is the furthest team's, so the card says whose it is.
+      overview: markersOnly,
+    }),
+    onIntent,
+  );
+
   return (
+    <>
     <button
+      {...hover.bind}
       onClick={onClick}
       disabled={!interactive && !onClick}
       className={cn(
@@ -85,13 +106,6 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
             }
           : undefined
       }
-      title={
-        anyCompleted
-          ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}`
-          : claimedBy && claimedBy.length > 0
-            ? `${label} — claimed by ${claimedBy.map((c) => (c.mine ? 'you' : c.name)).join(', ')}`
-            : label
-      }
     >
       {/* Point value badge (points-scoring events) — top-left so it clears the checkmark */}
       {points !== undefined && (
@@ -99,7 +113,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
           className={cn(
             'absolute top-1 left-1 rounded px-1 font-bold leading-none',
             'bg-purple-500/25 text-purple-200 border border-purple-400/30',
-            size <= 5 ? 'text-[8px] sm:text-[10px] py-0.5' : 'text-[7px] sm:text-[8px] py-px',
+            // 12px on phones, like every other label there; the small sizes are for wide screens.
+            size <= 5 ? 'text-[12px] sm:text-[10px] py-0.5' : 'text-[12px] sm:text-[8px] py-px',
           )}
           title={`${points} point${points !== 1 ? 's' : ''}`}
         >
@@ -131,7 +146,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
             />
           ))}
           {completedBy.length > 5 && (
-            <span className="text-[8px] text-text-muted pl-1.5 leading-none self-center">+{completedBy.length - 5}</span>
+            <span className="text-[12px] sm:text-[8px] text-text-muted pl-1.5 leading-none self-center">+{completedBy.length - 5}</span>
           )}
         </div>
       )}
@@ -157,7 +172,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {icon && (
         <div className={cn(
           'flex-shrink-0',
-          size <= 3 ? 'w-10 h-10 sm:w-14 sm:h-14' : size <= 5 ? 'w-7 h-7 sm:w-10 sm:h-10' : 'w-5 h-5 sm:w-7 sm:h-7',
+          size <= 3 ? 'w-10 h-10 sm:w-14 sm:h-14' : size <= 5 ? 'w-5 h-5 sm:w-10 sm:h-10' : 'w-5 h-5 sm:w-7 sm:h-7',
         )}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -175,19 +190,23 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {/* Label */}
       <span
         className={cn(
-          'leading-tight font-medium px-0.5',
+          // Phones: at most two lines, anywhere-wrapping; the full name is in the tile dialog on tap.
+          // A word too long for the tile breaks with a hyphen ("Void-waker"), not bare mid-word.
+          'leading-tight font-medium px-0.5 max-sm:line-clamp-2 max-sm:[overflow-wrap:anywhere] max-sm:[hyphens:auto]',
           icon ? 'mt-0.5' : '',
+          // Phones: the count under the name is 12px now; lift the name clear of it.
+          !isCompleted && ((isDrop && progress) || (statProgress && statProgress.goal > 0)) ? 'max-sm:mb-3.5' : '',
           expanded
             ? size <= 3
               ? 'text-sm sm:text-base'
               : size <= 5
                 ? 'text-xs sm:text-sm'
-                : 'text-[10px] sm:text-xs'
+                : 'text-[11px] sm:text-xs'
             : size <= 3
               ? 'text-[11px] sm:text-sm'
               : size <= 5
-                ? 'text-[9px] sm:text-xs'
-                : 'text-[7px] sm:text-[9px]',
+                ? 'text-xs sm:text-xs'
+                : 'text-[11px] sm:text-[10px]',
           isCompleted ? 'text-foreground' : 'text-text-muted',
         )}
       >
@@ -198,7 +217,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {isDrop && progress && !isCompleted && (
         <div className="absolute bottom-0 left-0 right-0">
           <div className="flex items-center justify-center mb-0.5">
-            <span className="text-[8px] sm:text-[10px] text-yellow-400 font-medium" title={progress.note}>
+            <span className="text-[12px] leading-none sm:text-[10px] sm:leading-normal text-yellow-400 font-medium" title={progress.note}>
               {progress.text ?? `${progress.current}/${progress.required}`}
             </span>
           </div>
@@ -218,7 +237,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {statProgress && statProgress.goal > 0 && !isCompleted && (
         <div className="absolute bottom-0 left-0 right-0">
           <div className="flex items-center justify-center mb-0.5">
-            <span className="text-[8px] sm:text-[10px] text-blue-400 font-medium" title={exactTitle(statProgress.current, statProgress.goal)}>
+            <span className="text-[12px] leading-none sm:text-[10px] sm:leading-normal text-blue-400 font-medium" title={exactTitle(statProgress.current, statProgress.goal)}>
               {formatNumber(statProgress.current)}/{formatNumber(statProgress.goal)}
             </span>
           </div>
@@ -235,5 +254,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       )}
 
     </button>
+    {hover.card}
+    </>
   );
 }

@@ -74,7 +74,8 @@ export default async function GhostClanPage({ params }: { params: Promise<{ key:
 
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-card-border bg-card-bg px-5 py-4">
         <span className="text-[13.5px] text-text-muted">
-          Run {page.name}? Bingos, weekly competitions and a roster that keeps itself up to date.
+          Are you in {page.name}? Ask its leader to bring it to Anvil. Run it yourself? Bingos, weekly
+          competitions and a roster that keeps itself up to date.
         </span>
         <ClanLink
           href="/clans/new"

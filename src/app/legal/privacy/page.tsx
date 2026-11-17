@@ -54,7 +54,9 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Technical:</strong> log data such as IP address, request metadata, and error
-          diagnostics, used to operate and secure the service.
+          diagnostics, used to operate and secure the service. Our web server keeps its access log,
+          which can include IP addresses, for about a week. Anvil&rsquo;s own database stores no IP
+          address.
         </li>
         <li>
           <strong>Fair-play checks:</strong> to help a clan&rsquo;s staff spot boosted or shared
@@ -178,8 +180,11 @@ export default function PrivacyPage() {
           enforced, and every request we make to Google, Twitch and Kick is made over HTTPS.
         </li>
         <li>
-          <strong>Encryption at rest:</strong> the only tokens we store (a host&rsquo;s connected channel)
-          are encrypted with AES-256-GCM before they are written to the database. The encryption key is
+          <strong>Encryption at rest:</strong> the access tokens we keep (a host&rsquo;s connected channel,
+          and the optional permission to add you to an event&rsquo;s Discord server) are encrypted with
+          AES-256-GCM before they are written to the database. Plugin sign-in tokens are stored only as
+          one-way hashes, so we cannot read them back. Your Discord sign-in token is used once and not
+          kept. The encryption key is
           kept separately from the database, so a copy of the database or its backups alone cannot be
           used to read them.
         </li>

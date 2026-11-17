@@ -36,6 +36,8 @@ export async function loadDirectoryEvents(now: number = Date.now()): Promise<Dir
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
+      startHoldNotified: events.startHoldNotified,
+      startNotified: events.startNotified,
       signupOpensAt: events.signupOpensAt,
       signupDeadline: events.signupDeadline,
       format: events.format,

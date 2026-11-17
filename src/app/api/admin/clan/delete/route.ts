@@ -1,3 +1,4 @@
+import { rememberTrialBeforeDelete } from '@/lib/planTrials';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
@@ -65,6 +66,9 @@ export async function POST(request: Request) {
     `[clan-delete] clan ${clan.id} (${clan.slug}) deleted by user ${session.userId}`,
   );
 
+  // Its trial rows go with it; the platform log keeps that this in-game name used one (lib/planTrials).
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { id: true, kind: true, inGameName: true, ingameNameVerifiedAt: true } });
+  if (row) await rememberTrialBeforeDelete(db, row);
   await db.delete(clans).where(eq(clans.id, clan.id));
 
   // The caller is standing on a host that no longer resolves, so it has to be told where to go.

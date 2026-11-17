@@ -48,7 +48,7 @@ import {
 import { parseEventRules } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
 import { accountIcon } from '@/lib/push/relay';
-import { eventStaffUserIds, notifyRows, teamUserIds, type RowsTarget } from '@/lib/panelRows';
+import { eventStaffUserIds, eventTeamChatStaffUserIds, notifyRows, teamUserIds, type RowsTarget } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { chatFeedId, chatLockFeeds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
 import type { Action, Color, FeedRow } from '@/lib/pluginUi/nodes';
@@ -472,13 +472,14 @@ export async function chatUnread(access: ChatAccess, userId: number, channels: C
 }
 
 /**
- * Who a channel's lines are pushed to: a team's channel to that team's players and the host's staff
- * by name (never the board's room, which also holds watchers); 'all' and 'announce' to the board.
+ * Who a channel's lines are pushed to: a team's channel to that team's players and the staff running
+ * THIS board, by name (never the board's room, which also holds watchers); 'all' and 'announce' to
+ * the board. Every other moderator of the host clan can still open the channel; it is not sent to them.
  */
 export async function channelTarget(eventId: number, channel: ChatChannel): Promise<RowsTarget> {
   const team = channelTeam(channel);
   if (team == null) return { e: eventId };
-  const [players, staff, narrowed] = await Promise.all([teamUserIds(team, eventId), eventStaffUserIds(eventId), ownTeamOnlyUserIds(eventId)]);
+  const [players, staff, narrowed] = await Promise.all([teamUserIds(team, eventId), eventTeamChatStaffUserIds(eventId), ownTeamOnlyUserIds(eventId)]);
   // Staff who chose "Only my team's chat" hear other teams' lines no more than a player does; their
   // own team's still reach them as one of its players.
   return { u: [...new Set([...players, ...staff.filter((u) => !narrowed.has(u))])] };

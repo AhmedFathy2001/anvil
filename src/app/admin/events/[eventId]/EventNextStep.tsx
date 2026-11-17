@@ -5,10 +5,8 @@
 import { useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
-import CopyLinkButton from '@/components/CopyLinkButton';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
-import type { NextStep } from '@/lib/eventNextStep';
 import type { Event, Submission, Tile } from '@/lib/types';
 import { CheckboxBox } from '@/components/Checkbox';
 
@@ -62,62 +60,6 @@ export function useStartNow(eventId: number, onEventChange: (e: Event) => void) 
   return { start, starting, error };
 }
 
-/**
- * The one forge panel on the event home: what this event wants from you now, in plain words, with
- * a single action. See lib/eventNextStep for how it is decided.
- */
-export function NextStepPanel({
-  step,
-  eventId,
-  onStart,
-  starting,
-  error,
-}: {
-  step: NextStep;
-  eventId: number;
-  onStart: () => void;
-  starting: boolean;
-  error: string;
-}) {
-  const a = step.action;
-  return (
-    <section className="forge-panel px-6 sm:px-7 py-6">
-      <div className="text-[13px] text-gold">Next step</div>
-      <h2 className="display text-[28px] sm:text-[30px] font-semibold leading-tight mt-1.5">{step.title}</h2>
-      <p className="text-[#cbbfa9] mt-2 max-w-[56ch] leading-relaxed">{step.body}</p>
-      {a.kind !== 'none' && (
-        <div className="mt-5">
-          {a.kind === 'start' ? (
-            <button type="button" onClick={onStart} disabled={starting} className="molten-btn">
-              {starting ? 'Starting…' : a.label}
-            </button>
-          ) : a.kind === 'copy' ? (
-            <CopyLinkButton path={`/events/${eventId}/${a.path}`} label={a.label} className="molten-btn" />
-          ) : a.tab.startsWith('#') ? (
-            <button
-              type="button"
-              className="molten-btn"
-              onClick={() => document.getElementById(a.tab.slice(1))?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              {a.label}
-            </button>
-          ) : (
-            <ClanLink href={`/admin/events/${eventId}/${a.tab}`} className="molten-btn">
-              {a.label}
-            </ClanLink>
-          )}
-          {step.alt && (
-            <ClanLink href={`/admin/events/${eventId}/${step.alt.tab}`} className="ml-4 text-sm text-gold hover:text-gold-light">
-              {step.alt.label} ›
-            </ClanLink>
-          )}
-        </div>
-      )}
-      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
-    </section>
-  );
-}
-
 export const FLAG_TEXT: Record<string, string> = {
   no_start_proof: 'Counted without a starting screenshot',
   clog_unverified_slots: 'A finished collection log page that leans on slots only a log sync shows (no unlock message) — check the screenshot',
@@ -152,7 +94,7 @@ export function ProofsToCheck({
   /** The board's "All proofs" feed. Unflagged proofs count on their own; this is where they're browsed. */
   allHref?: string;
 }) {
-  const { ask } = useDialog();
+  const { ask, notify } = useDialog();
   // Ids with a request in flight, and ids already handled. The ref is the guard (state lags a click
   // fired in the same frame); `handled` hides a row the moment its request succeeds, so it can't be
   // clicked again in the gap before onChange's refetch lands — that gap is how ten clicks sent ten.
@@ -189,7 +131,7 @@ export function ProofsToCheck({
     });
 
   /** Run one request per proof, one at a time (a removal recomputes the board), skipping any in flight. */
-  async function run(ids: number[], send: (id: number) => Promise<Response>) {
+  async function run(ids: number[], send: (id: number) => Promise<Response>, done: (n: number) => string) {
     const todo = ids.filter((id) => !inFlight.current.has(id));
     if (todo.length === 0) return;
     todo.forEach((id) => inFlight.current.add(id));
@@ -216,6 +158,8 @@ export function ProofsToCheck({
       setBusy(new Set(inFlight.current));
     }
     if (failed > 0) setError(`${failed} ${failed === 1 ? 'proof' : 'proofs'} couldn't be updated. Try again.`);
+    // The row leaves the list either way; say what happened to it.
+    if (todo.length > failed) notify(done(todo.length - failed));
     onChange();
   }
 
@@ -226,6 +170,7 @@ export function ProofsToCheck({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'clear-flag' }),
       }),
+      (n) => (n === 1 ? 'Marked as fine. It stays counted.' : `${n} proofs marked as fine. They stay counted.`),
     );
   }
 
@@ -249,6 +194,7 @@ export function ProofsToCheck({
       clanFetch(`/api/events/${eventId}/submissions?submissionId=${id}&reason=${encodeURIComponent(reason)}`, {
         method: 'DELETE',
       }),
+      (n) => (n === 1 ? 'Proof removed. The team was told why.' : `${n} proofs removed. The teams were told why.`),
     );
   }
 

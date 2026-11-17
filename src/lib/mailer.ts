@@ -2,8 +2,7 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import { AwsClient } from 'aws4fetch';
 import { log } from '@/lib/logger';
 
-// Outgoing email. The same two transports, and the same env names, as Anvil.Admin's lib/email —
-// so the box's existing SES credentials switch it on as they are:
+// Outgoing email. Two transports; the box's existing SES credentials switch it on as they are:
 //
 //   1. Amazon SES HTTPS API (port 443, never firewalled — preferred):
 //        SES_REGION (or AWS_REGION), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, MAIL_FROM

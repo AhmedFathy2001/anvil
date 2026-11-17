@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { readableEventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { completions, eventParticipants, tiles } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
@@ -19,8 +19,8 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  const scopedEvent = await eventForRequest(request, eId);
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  const scopedEvent = await readableEventForRequest(request, eId);
   if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

@@ -2,6 +2,8 @@ import { POST as submitRoute } from '@/app/api/events/[eventId]/submissions/rout
 import { boardFor, loadTrackedConfig } from '@/lib/pluginFacts/load';
 import { coalesce, matchFacts, type Credit } from '@/lib/pluginFacts/match';
 import { MAX_FACTS, parseFacts } from '@/lib/pluginFacts/parse';
+import { decideFactClaim, settledIds, splitDuplicates } from '@/lib/pluginFacts/factIds';
+import { factOwner, settledFactIds, settleFacts, tileFactIds } from '@/lib/pluginFacts/factIdStore';
 import { creditOutcome, planSubmissions, retryFacts, type Coop, type Outcome } from '@/lib/pluginFacts/plan';
 import { readBody, storeImage } from '@/lib/pluginFacts/request';
 import { named } from '@/lib/pluginFacts/rules';
@@ -37,6 +39,13 @@ const MAX_SUBMISSIONS = 40;
 // filed. The plugin uploads the picture to POST /api/plugin/facts/proof under that key; a credit
 // still waiting a minute after filing is reversed (lib/proofFinish sweepOverdueProofs). No stamp and
 // no Discord post until the picture lands. Without `proofPending` nothing changes.
+//
+// FACT IDS (lib/pluginFacts/factIds). A fact may carry `id`, made once by the plugin and sent again
+// unchanged, so a fact whose first send may or may not have landed can simply be sent again. One
+// already answered is set aside here before matching; one whose credit on a tile is already in is
+// answered by the submissions route as accepted and files nothing (the id is taken in the same
+// transaction as the credit). Either way it is never under `retry`, and `duplicates` counts them.
+// A fact sent back under `retry` keeps its `id` and is not remembered. No id: exactly as before.
 
 export async function POST(request: Request) {
   // Where a proof's seconds go (config build, image store, each filing), logged while we tune it.
@@ -47,10 +56,19 @@ export async function POST(request: Request) {
   if (!rl.ok) return Response.json({ error: 'Too many requests' }, { status: 429 });
 
   const { body, file } = await readBody(request);
-  const facts = parseFacts(body?.facts);
+  const sent = parseFacts(body?.facts);
   // Past the per-request cap: not looked at, sent back to try again.
   const overflow = Array.isArray(body?.facts) ? parseFacts((body.facts as unknown[]).slice(MAX_FACTS), Infinity) : [];
-  if (facts.length === 0) return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}) });
+  // Facts already answered for good are set aside: never matched, never filed, never sent back.
+  // Failing to read the store only skips this shortcut; the credit's own transaction still guards.
+  const sentIds = sent.flatMap((f) => f.id ?? []);
+  const owner = sentIds.length ? await factOwner(request) : null;
+  const settled = owner ? await settledFactIds(owner, sentIds).catch(() => new Set<string>()) : new Set<string>();
+  const { fresh: facts, duplicateIds } = splitDuplicates(sent, settled);
+  const duplicate = new Set(duplicateIds);
+  if (facts.length === 0) {
+    return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}), ...(duplicate.size ? { duplicates: duplicate.size } : {}) });
+  }
 
   mark('read');
   const loaded = await loadTrackedConfig(request);
@@ -88,8 +106,16 @@ export async function POST(request: Request) {
   let failing = false;
   // The tiles whose filed submission now waits for the picture (named in the reply).
   const waiting = new Set<string>();
+  // Fact ids: the (id, tile) pairs filed by this request, the credits answered as already in, and the
+  // tiles a sent-back fact is already in on (found only when its filing was turned away).
+  const filed = new Set<string>();
+  const replayed = new Set<Credit>();
+  const alreadyOn = new Map<string, Set<number>>();
   for (const [n, p] of plans.entries()) {
     let outcome: Outcome = 'retry';
+    // A pair rides the first filing for it only: a second ping, or a second item on the same tile,
+    // is the same fact's same credit and must not be turned away by its own id.
+    const factIds = [...new Set((p.credit.fi ?? []).flatMap((i) => facts[i].id ?? []))].filter((id) => !filed.has(`${id}:${p.credit.tileId}`));
     if (n < MAX_SUBMISSIONS && !failing) {
       try {
         const headers = new Headers(request.headers);
@@ -101,14 +127,31 @@ export async function POST(request: Request) {
         // Signed like middleware's own: lib/clanContext only reads a proven slug.
         if (p.board.clan && p.board.clan !== LAB_CLAN_SLUG) await setProvenClan(headers, p.board.clan);
         const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
-        const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
+        const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(factIds.length ? { ...p.body, factIds } : p.body) }), {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),
         });
-        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; awaitingProof?: boolean };
+        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; awaitingProof?: boolean; duplicate?: boolean; factsSeen?: string[] };
         // Only a row actually stored with the key waits (a replay outside the lab answers ok, files nothing).
         if (res.ok && pendingKey && json.awaitingProof) waiting.add(p.credit.label);
         outcome = res.ok ? 'ok' : res.status >= 500 || res.status === 429 ? 'retry' : 'refused';
-        if (outcome !== 'retry') results.push({ tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error });
+        if (res.ok && !json.duplicate) for (const id of factIds) filed.add(`${id}:${p.credit.tileId}`);
+        let again = res.ok && json.duplicate === true;
+        if (res.status === 409 && Array.isArray(json.factsSeen)) {
+          // Several facts folded into one credit, some already in: sent back, those marked done here.
+          outcome = 'retry';
+          for (const id of json.factsSeen) alreadyOn.set(id, (alreadyOn.get(id) ?? new Set()).add(p.credit.tileId));
+        } else if (outcome === 'refused' && owner && factIds.length) {
+          // Turned away by a rule the first send itself tripped ("Tile already complete"): if every
+          // one of its facts is in on this tile, this is that send again, not a refusal.
+          const seen = await tileFactIds(owner, factIds, p.credit.tileId).catch(() => new Set<string>());
+          again = decideFactClaim(factIds.length, seen.size) === 'duplicate';
+          if (again) outcome = 'ok';
+        }
+        if (again) {
+          replayed.add(p.credit);
+          for (const i of p.credit.fi ?? []) if (facts[i].id) duplicate.add(facts[i].id!);
+          results.push({ tileId: p.credit.tileId, ok: true, completed: false });
+        } else if (outcome !== 'retry') results.push({ tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error });
         // A refusal used to vanish: the plugin had already said the line. Leave a trace to debug it by.
         if (outcome === 'refused') console.warn('[plugin/facts] refused', { event: p.board.eventId, tile: p.credit.tileId, kind: p.credit.kind, status: res.status, error: json.error });
       } catch (e) {
@@ -124,9 +167,16 @@ export async function POST(request: Request) {
   }
   console.info('[plugin/facts] timing', { ms: Date.now() - t0, ...marks, facts: facts.length, filings: plans.length });
   const retry = [
-    ...retryFacts(facts, credits, (c) => (outcomes.has(c) ? creditOutcome(outcomes.get(c)!) : undefined)),
+    ...retryFacts(facts, credits, (c) => (outcomes.has(c) ? creditOutcome(outcomes.get(c)!) : undefined)).map((f) => {
+      const on = f.id ? alreadyOn.get(f.id) : undefined;
+      return on ? { ...f, done: [...new Set([...(f.done ?? []), ...on])] } : f;
+    }),
     ...overflow,
   ];
+  // Answered for good (credited, refused for good, or nothing to credit): remembered, so a later send
+  // is set aside up front. Never a fact that is being sent back. Best effort: each credit's own id is
+  // already stored with it, so losing this costs a replay some work, never a second credit.
+  if (owner) await settleFacts(owner, settledIds(facts, retry)).catch((e) => console.warn('[plugin/facts] ids not settled', (e as Error).message));
 
   const parts = new Set<number>();
   for (const [key, list] of Object.entries(cfg as unknown as Record<string, unknown>)) {
@@ -157,7 +207,8 @@ export async function POST(request: Request) {
       label: named(c),
       amount: c.amount,
       // A refused credit never counted: the count from before it, not the one it would have made.
-      have: byTile.get(c.tileId)?.ok === false && byTile.get(c.tileId)?.error !== 'Will retry' ? Math.max(0, c.have - c.amount) : c.have,
+      // Nor did one that was already in: the count the plugin was given already holds it.
+      have: replayed.has(c) || (byTile.get(c.tileId)?.ok === false && byTile.get(c.tileId)?.error !== 'Will retry') ? Math.max(0, c.have - c.amount) : c.have,
       of: c.of,
       ...(c.quiet ? { quiet: true } : {}),
       ...byTile.get(c.tileId),
@@ -166,6 +217,7 @@ export async function POST(request: Request) {
     })),
     notes,
     ...(retry.length ? { retry } : {}),
+    ...(duplicate.size ? { duplicates: duplicate.size } : {}),
     ...(waiting.size ? { proofKey: pendingKey, proofFor: [...waiting] } : {}),
   });
 }

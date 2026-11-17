@@ -1,5 +1,7 @@
 'use client';
 
+import ScrollStrip from '@/components/ScrollStrip';
+import Select from '@/components/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -52,9 +54,20 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
     router.push(clanUrl(href));
   }
 
+  const activeTab = tabs.find((t) => (t.slug ? pathname.startsWith(tabHref(eventId, t.key)) : pathname === tabHref(eventId, t.key)));
   return (
-    <div className="mb-6 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
-      <nav className="-mb-px flex max-w-full flex-none gap-1 overflow-x-auto overflow-y-hidden scroll-quiet" aria-label="Settings">
+    <>
+    {/* Phones: one compact picker, like /settings, instead of a strip whose last tabs sit off screen. */}
+    <Select
+      value={activeTab?.key ?? tabs[0]?.key ?? ''}
+      onChange={(key) => router.push(clanUrl(tabHref(eventId, key as TabInfo['key'])))}
+      options={tabs.map((t) => ({ value: t.key, label: t.label }))}
+      ariaLabel="Settings section"
+      searchable={false}
+      className="mb-3 sm:hidden [&>button]:min-h-11"
+    />
+    <div className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
+      <ScrollStrip className="-mb-px flex max-w-full flex-none gap-1 overflow-x-auto overflow-y-hidden scroll-quiet max-sm:hidden" aria-label="Settings">
         {tabs.map((t) => {
           const href = tabHref(eventId, t.key);
           const active = t.slug ? pathname.startsWith(href) : pathname === href;
@@ -63,14 +76,14 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
               key={t.key}
               href={href}
               aria-current={active ? 'page' : undefined}
-              className={`relative whitespace-nowrap px-3.5 py-2.5 text-sm font-medium transition-colors ${active ? 'text-gold' : 'text-text-muted hover:text-foreground'}`}
+              className={`relative whitespace-nowrap px-3.5 py-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center text-sm font-medium transition-colors ${active ? 'text-gold' : 'text-text-muted hover:text-foreground'}`}
             >
               {t.label}
               {active && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gold" aria-hidden />}
             </ClanLink>
           );
         })}
-      </nav>
+      </ScrollStrip>
 
       <div className="relative mb-2 ml-auto w-full sm:w-64">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden>
@@ -144,5 +157,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
         )}
       </div>
     </div>
+    {activeTab && <p className="mb-6 text-sm text-text-muted">{activeTab.blurb}</p>}
+    </>
   );
 }

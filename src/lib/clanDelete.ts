@@ -12,6 +12,7 @@
 //
 // Media in object storage is not touched here; it ages out with the retention sweep.
 
+import { rememberTrialBeforeDelete } from '@/lib/planTrials';
 import { eq, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -63,6 +64,8 @@ export async function deleteClan(clanId: number, actorUserId: number | null, rea
         .insert(retiredClanSlugs)
         .values({ slug: clan.slug, kind: clan.kind === 'creator' ? 'creator' : 'clan', clanId })
         .onConflictDoUpdate({ target: [retiredClanSlugs.kind, retiredClanSlugs.slug], set: { clanId } });
+      // Its trial rows go with it; the platform log keeps that this in-game name used one.
+      await rememberTrialBeforeDelete(tx, clan);
       await tx.delete(clans).where(eq(clans.id, clanId));
 
       await tx.insert(clanAuditLog).values({

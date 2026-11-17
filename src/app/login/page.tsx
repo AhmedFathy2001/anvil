@@ -3,6 +3,7 @@ import AnvilMark from '@/components/AnvilMark';
 import { verifyUser } from '@/lib/auth';
 import { isDiscordOAuthConfigured } from '@/lib/discord-oauth';
 import { safeReturnPath } from '@/lib/safe-redirect';
+import { loginReason } from '@/lib/loginReason';
 
 interface SearchParams {
   return?: string;
@@ -31,6 +32,7 @@ export default async function LoginPage({
     redirect(returnTo);
   }
 
+  const reason = await loginReason(returnTo);
   const oauthConfigured = isDiscordOAuthConfigured();
   const startHref = `/api/auth/discord/start?return=${encodeURIComponent(returnTo)}`;
 
@@ -82,10 +84,10 @@ export default async function LoginPage({
               <span className="h-px w-10 bg-gradient-to-r from-gold-dark to-transparent" />
             </div>
             <h1 className="display display-lg text-[clamp(2rem,5vw,2.75rem)] font-semibold leading-[1.05]">
-              Sign in to Anvil
+              {reason ?? 'Sign in to Anvil'}
             </h1>
             <p className="mt-4 max-w-[44ch] text-[15px] leading-relaxed text-text-muted">
-              Sign in with Discord to get started. No password, no separate account.
+              {reason ? 'One click with Discord, then you are straight back. ' : 'Sign in with Discord to get started. '}No password, no separate account.
             </p>
 
             {params.error && (
@@ -148,9 +150,15 @@ export default async function LoginPage({
               <svg className="mt-0.5 h-[18px] w-[18px] shrink-0 text-gold-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 3 4 6v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6l-8-3Z" /><path d="m9 12 2 2 4-4" />
               </svg>
-              <p className="text-xs leading-relaxed text-text-dim">
-                Discord handles your password. Anvil only receives the account details needed to identify you and match your clan access.
-              </p>
+              <div className="space-y-1.5 text-xs leading-relaxed text-text-dim">
+                <p>
+                  <strong className="font-semibold text-text-muted">What Anvil receives:</strong> your Discord username, avatar and email. Discord handles your password; Anvil never sees it.
+                </p>
+                <p>
+                  <strong className="font-semibold text-text-muted">What Anvil never stores:</strong> your Discord password, your messages, or an IP address in its database. (Our web server keeps an access log for about a week.){' '}
+                  <a href="/legal/privacy" className="text-gold hover:text-gold-light">Privacy</a>
+                </p>
+              </div>
             </div>
           </div>
         </div>

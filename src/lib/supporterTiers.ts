@@ -59,7 +59,15 @@ export const GIFT_RECURRENCE = 'gift';
 export const PAID_GIFT_RECURRENCE = 'gift-paid';
 const isGiftRecurrence = (r: string | null | undefined) => r === GIFT_RECURRENCE || r === PAID_GIFT_RECURRENCE;
 
-export type SupporterStatus = 'active' | 'cancelling' | 'granted' | 'ended' | 'refunded';
+/**
+ * 'held': a membership Gumroad started with a free trial for someone who has already had their trial;
+ * it grants nothing until its first real charge makes it 'active' (lib/supporterBilling).
+ * 'queued': staff "add time" waiting for their paid membership to stop (lib/supporterGifts).
+ * Neither is in force (rowInForce) and neither is paid time (paidRunStart).
+ */
+export const HELD_STATUS = 'held';
+export const QUEUED_STATUS = 'queued';
+export type SupporterStatus = 'active' | 'cancelling' | 'granted' | 'ended' | 'refunded' | 'held' | 'queued';
 
 /** The fields of a supporter_subscriptions row that decide what it is worth right now. */
 export interface SupporterRowLike {
@@ -212,7 +220,7 @@ export const TENURE_GRACE_MS = 30 * 86_400_000;
 
 /** Time the person paid for: not refunded, not a staff gift, not time earned through invites. */
 function isPaidRow(r: SupporterRowLike): boolean {
-  if (r.status === 'refunded' || r.status === 'granted') return false;
+  if (r.status === 'refunded' || r.status === 'granted' || r.status === HELD_STATUS || r.status === QUEUED_STATUS) return false;
   const rec = r.recurrence ?? '';
   return rec !== GIFT_RECURRENCE && !rec.startsWith('referral');
 }
@@ -316,4 +324,22 @@ export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | 
   const stops = own ?? ink.grad ?? [ink.color];
   // `v=2`: the badge now follows the whole gradient; a new URL so Discord and the CDN drop the one-colour copy.
   return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}${framed ? `?t=${tenure}&v=2` : ''}`;
+}
+
+/**
+ * Where a supporter is on the tenure ladder, in words and as a bar: "Journeyman · 4 months so far.
+ * 2 months to Artisan." `pct` is the way from this step to the next (100 at the top).
+ */
+export function tenureProgress(
+  months: number,
+  step: TenureStep,
+  next: TenureStep | null,
+): { line: string; pct: number } {
+  const plural = (n: number) => `${n} month${n === 1 ? '' : 's'}`;
+  const so = months > 0 ? `${step.name} · ${plural(months)} of support so far.` : `${step.name} · just started.`;
+  if (!next) return { line: `${so} That is the top step.`, pct: 100 };
+  const left = Math.max(1, next.months - months);
+  const span = Math.max(1, next.months - step.months);
+  const pct = Math.min(100, Math.max(0, Math.round(((months - step.months) / span) * 100)));
+  return { line: `${so} ${plural(left)} to ${next.name}.`, pct };
 }

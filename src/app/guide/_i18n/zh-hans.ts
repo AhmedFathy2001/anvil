@@ -312,7 +312,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '想让消息也发到你自己的服务器吗？',
-          body: '前往你的个人资料 → **Announcements & webhooks** → _Your own webhooks_。',
+          body: '前往 [Settings → Posts & alerts](/settings/posts#webhooks) → _Your webhooks_。',
         },
       ],
     },
@@ -327,7 +327,7 @@ const zhHans: PartialGuideDict = {
     facts: [
       {
         strong: '免费',
-        rest: '不用银行卡，没有试用期',
+        rest: '开始不需要银行卡',
       },
       {
         strong: '即时上线',
@@ -343,7 +343,7 @@ const zhHans: PartialGuideDict = {
       title: '开始之前',
       body: [
         '你需要一个 Discord 账号，清单到此为止。先在 `{apex}` 登录：氏族需要一个所有者，而登录就是网站确认那是你的方式。从平台页面的 **创建氏族** 开始，或者直接前往 `{apex}/clans/new`。',
-        '不花一分钱。没有套餐要选，没有卡要填，也没有到期后把你的板一起带走的试用——氏族免费开始，并且一直可用。',
+        '开始不花一分钱。没有套餐要选，也没有卡要填。新氏族会获得 Anvil 最高套餐的免费试用。试用结束后，氏族转为免费套餐，并保留它的板、名单和历史。',
         '大氏族以后可以在管理里的 **Plan and billing** 升级套餐。你在 Anvil 上付费的一切——氏族、创作者空间，或者你自己的 Supporter 会员——都在[你的账单页面](/portal)。',
       ],
       note: {
@@ -394,7 +394,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '把成员拉进来',
-          body: '安装插件，用 Discord 登录，然后在游戏里打开氏族窗口，按标题栏上的 **Anvil** 按钮。在你的成员名单进来之前，没有人能报名活动。',
+          body: '安装插件，用 Discord 登录，然后在游戏里打开氏族窗口，按标题栏上的 **Anvil** 按钮。这份名单就是你的成员来源。在它进来之前，人们仍可以以访客身份报名你的活动。',
         },
         {
           term: '做一块板',
@@ -417,7 +417,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '他们申请加入',
-          body: '登录或带着插件游玩，本身都不会给任何人席位。如果插件看到有人在你们的游戏内氏族里游玩、而名单上还没有他，它会替他提交一份加入申请；其他人可以在你们的氏族页面上用 **Apply** 申请。管理团队在 **Roster** 标签页顶部处理这两种申请，而 **Who can join** 决定他们是等一个「同意」、直接进入，还是根本不能申请。玩着一个已经在你们名单上的角色的人，则改在 **Needs review** 里确认。详情见[你的成员]({peopleGuide})。',
+          body: '成员只会来自你游戏内的成员名单。如果插件看到有人在你们的游戏内氏族里游玩、而名单上还没有他，它会替他提交一份加入申请，由管理团队在 **Roster** 标签页顶部处理。其他人可以带着游戏内名字，在你们的氏族页面上按 **Apply**：通过插件或 XP 校验确认角色的人会立即成为访客；请管理团队为其担保的人会遵循 **Who can join** 的设置：若你的访客需要审批，他们会先提交加入申请，在你接受之前不占任何位置；若访客可以自由加入，则会先作为访客加入。无论哪种情况，他们都会在 **Needs review** 中等待你担保。把 **Who can join** 设为关闭，会停止以上所有途径。玩着一个已经在你们名单上的角色的人，则改在 **Needs review** 里确认。详情见[你的成员]({peopleGuide})。',
         },
         {
           term: '手动添加',
@@ -600,7 +600,7 @@ const zhHans: PartialGuideDict = {
     roles: {
       title: '身份组与昵称',
       body: [
-        '两种同步默认关闭，需要在 **Admin → Discord → Roles & nicknames** 中启用，而且两者都以成员名单为依据。打开 **Enable Discord role sync**，保持 **Auto-match in-game rank → Discord role by name** 开启，按需选择通用的 **Member roles** 和 **Guest roles**，保存后按 **Sync roles & nicknames now**。每个人还必须关联一个 Discord 身份；同步报告会列出它无法识别的人。',
+        '两种同步默认关闭，需要在 **Admin → Discord → Roles & nicknames** 中启用，两者都以成员名单为依据。打开 **Enable Discord role sync**，保持 **Auto-match in-game rank → Discord role by name** 开启，按需选择通用的 **Member roles** 和 **Guest roles**，保存后按 **Sync roles & nicknames now**。身份组只发给用 Discord 登录过 Anvil 的人。未登录过的成员，只有在打开 **Also match members by Discord nickname**（每个氏族默认关闭）后才会获得身份组。同步报告会列出它无法识别的人。',
       ],
       ways: [
         {
@@ -696,7 +696,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '机器人的身份组够高吗？',
-          body: '只影响身份组和昵称同步——见上文。这一条是会悄无声息失败的那个。',
+          body: '对于身份组或昵称同步，请把机器人的身份组放在它所管理的所有身份组之上，确认每个人都已用 Discord 登录（或为你的氏族打开 **Also match members by Discord nickname**），并确保等级身份组名称与上文列出的完全一致。先保存，然后运行 **Sync roles & nicknames now**；它的跳过列表会告诉你谁还需要关联。',
         },
       ],
       note: {
@@ -813,24 +813,24 @@ const zhHans: PartialGuideDict = {
         '如果浏览器没有自动打开，面板会把网址和代码打印出来，你可以手动打开。代码十分钟后失效 —— 再按一次按钮即可。',
       manualHeading: '备用办法：手动粘贴令牌',
       manualIntro:
-        '如果从插件登录对你不起作用，就复制下面的令牌（或到 [Profile → plugin token](/profile#plugin-token) 复制，那里也可以轮换它），然后在 Anvil 面板中点击登录按钮下方的 **Paste a token instead**，粘贴到那里。',
+        '如果无法从插件登录，请在 [Settings → In game → Plugin connection](/settings/in-game#plugin) 下生成一个令牌（只生成一次，你可以在那里撤销全部令牌），然后点击 Anvil 面板中登录按钮下方的 **Paste a token instead**，将令牌粘贴到那里。',
       tokenFigure: {
-        caption: 'Profile → RuneLite plugin',
-        alt: '个人资料页上的 RuneLite plugin 卡片，令牌字段与 Reveal、Copy、Rotate 按钮被方框标出',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'Settings → In game 下的 Plugin connection 卡片，其中令牌字段以及 Reveal、Copy token 和 Revoke all 按钮被方框标出',
         legend: [
           {
             label: '你的令牌',
-            body: '按下 Reveal 之前一直隐藏。这张截图里是刻意打码的；绝不要把自己的发到 Discord。',
+            body: '只在你按下 **Make a token** 时生成一次，在按下 **Reveal** 之前一直隐藏。这张截图里是刻意打码的。它会以你的身份登录，所以请像对待密码一样对待它，绝不要把它发到 Discord。',
           },
           {
-            label: 'Copy / Rotate',
-            body: '复制它，然后在 Anvil 面板中使用 **Paste a token instead**。Rotate 会签发一个新的并作废旧的 —— 只要你怀疑令牌外泄就用它。',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token** 无需显示即可复制。复制后，在 Anvil 面板中使用 **Paste a token instead**。再生成一个令牌不会取消旧的；**Revoke all** 才会，所以如果你怀疑令牌外泄，请按它。',
           },
         ],
       },
       goodToKnow: {
         tag: '日常使用侧边栏',
-        body: ['**Anvil 侧边栏是你的主要工作区**：在这里登录和登出、查看氏族和进行中的活动、浏览并认领格子、跟踪进度、拍摄起始截图、运行同步并打开支持工具。下方的 **Configuration → Anvil** 仅用于调整偏好设置 —— 里面没有令牌。要让这台电脑登出，请打开面板顶部你名字旁边的 **⋯** 菜单。一次登录适用于你报名的所有活动 — 无需为每场宾果重新登录。'],
+        body: ['**Anvil 侧边栏是你的主要工作区**：你可以在那里登录和登出、查看你的氏族和进行中的活动、浏览并认领格子、跟踪进度、拍摄起始截图、运行同步并打开支持工具。下方所示的 **Configuration → Anvil** 仅用于偏好设置，里面没有令牌。要让这台电脑登出，请打开面板顶部你名字旁边的 **⋯** 菜单；这也会结束这台电脑在网站上的登录，你的其他电脑保持登录。如果令牌可能已泄露，请使用 **Settings → In game → Plugin connection** 下的 **Revoke all**。一次登录覆盖你报名的所有活动，你无需为每场宾果重新登录。'],
       },
     },
 
@@ -838,27 +838,31 @@ const zhHans: PartialGuideDict = {
       title: '关联你的账号',
       body: [
         '令牌设置完成后，你玩过的账号会自动显示在个人资料中。全新账号可以立即关联；已在公会名单中的账号需要先完成一次所有权验证，因为公开的 RuneScape 名称并不能证明账号属于谁。',
-        '首次关联时，请使用[快速 XP 验证](/profile#link-account)，或请公会管理员在[检测到的账号](/profile#detected-accounts)中批准。验证后，稳定的账号指纹会跟随改名，并自动识别该账号。',
+        '首次关联时，请使用[快速 XP 检查](/settings/characters#link-account)，或请公会管理员批准；可从 [We noticed you playing](/settings/characters#detected) 开始。验证完成后，插件会保存稳定的账号指纹，之后的改名会自动跟随，并在每次登录时自动识别该账号。',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: '个人资料页上的 RuneScape Accounts 卡片，列出通过插件验证的账号',
+        caption: 'Settings → Characters',
+        alt: '设置下的 Characters 页面，标出了已关联账号列表和 We noticed you playing 卡片',
         legend: [
           {
-            label: '你已关联的账号',
-            body: '标有 “Verified via plugin” 的账号已经关联，之后会被自动识别。已有公会名单的账号可能需要先进行一次 XP 验证或管理员批准。',
+            label: 'Your linked characters',
+            body: '这里列出的任何账号都已关联，并会被自动识别。',
+          },
+          {
+            label: 'We noticed you playing',
+            body: '插件检测到你玩过、但尚未关联的账号。点击 **Verify ownership** 即可关联（全新账号会立即关联；已在公会名单中的账号需要先进行一次性的 XP 或管理员检查），或点击 **Not mine** 将其忽略。',
           },
         ],
       },
       noPluginHeading: '没法运行插件？',
       noPluginIntro:
-        '在手机或官方客户端上，请改用 [Profile → account linking](/profile#link-account)：',
+        '在手机或官方客户端上，请改用 [Settings → Characters → Link a character](/settings/characters#link-account)：',
       noPluginOptions: [
         '**Verify by XP** —— 输入你的 RSN，网站随机挑一项技能，你需在 30 分钟内在该技能上获得 1,000 经验。',
-        '**Manual review** —— 适用于隐藏了 Hiscores 或全新的小号：提交你的 RSN 并附上说明，由管理员批准。',
+        '**Manual review** —— 适用于隐藏了 Hiscores 或全新的小号：在氏族页面上，请其管理团队为你的 RSN 担保。如果该氏族会先批准访客，你需在其管理团队接受你的申请后才能报名它的活动，报名会一直挂起，直到他们确认该角色。',
       ],
       signupNote:
-        '报名活动至少需要一个已验证账号，所以请在报名之前先把这件事办好。',
+        '填好你的角色名后，就可以报名活动了。通过插件或通过 XP 校验的，会立即生效。如果你请管理团队为你担保，你可以在氏族接受你成为访客后报名，你的报名会等他们确认角色后再确定。',
     },
 
     working: {
@@ -970,74 +974,76 @@ const zhHans: PartialGuideDict = {
     notifications: {
       title: 'Discord 通知',
       intro:
-        '无论是否有宾果在进行，这些都会发出，并且发到氏族的频道里。发到哪个频道由管理员在这里决定 —— 你只选择_发什么_。下一次插件更新后，这些选择会移到网站的 **Settings → Discord posts & screenshots**，在任何电脑上都一样。同一页面的 **Screenshot privacy** 可以选择在插件拍摄的每张截图中隐藏哪些聊天（私信、公共聊天、部落聊天）。插件在 **Notifications** 下保留两个开关：**Share clan posts** 一次性暂停所有主游戏的帖子，**Share seasonal activity** 在 Leagues、Deadman 等季节性世界做同样的事。',
+        '无论是否有宾果在进行，这些通知都会发出，并发布到公会的频道。发布到哪个频道由管理员在这里设定，你只需选择_发布什么_。这些选择保存在网站上，位于 **Settings → Posts & alerts → What your plugin posts** 下，并会跟随你到每台电脑；插件本身不再有这些设置。同一页面上的 **Screenshot privacy** 可以选择在插件拍摄的每张截图中隐藏哪些聊天（私信、公共聊天、公会聊天）。插件在 **Notifications** 下保留两个开关：**Share clan posts** 可一次性暂停所有主游戏的发布，**Share seasonal activity** 对 Leagues、Deadman 等季节性世界做同样的事。',
       examplesFigure: {
         caption: '一条帖子的样子',
         alt: 'Anvil 发出的两条 Discord 帖子：一条是 Grandmaster 战斗任务，附有积分和距下一次解锁的进度；一条是死亡记录及其消息，各自附有当时的截图',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Deaths and kills 与 Drops and pets 两个通知区块，每一项设置都被方框标出并编号',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Settings → Posts & alerts 页面上 What your plugin posts 下的 Drops & pets 与 Deaths & PvP 分组，每项设置都被方框标出并编号',
         legend: [
           {
-            label: 'Notify on death',
-            body: '在你死亡的那一刻，附带截图发送到团队死亡频道。',
+            label: 'Rare drops',
+            body: '掉落发布的总开关，默认开启。',
           },
           {
-            label: 'Death message',
-            body: '你自己的文字。`{name}` 会被替换为你的 RSN。',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: '掉落物的价值不低于此数（GE 或高价炼金，取较高者），或稀有度高于 1-in-N 时发布。Anvil 的默认值为 1,000,000 gp 和 1 in 1,000，两者都不能设得比这更宽松。将数值设为 0 即可关闭。你的公会可以为成员设置各自的默认值；在你自己输入数字之前，每个输入框下方会显示 **Using your clan’s default**，点击 **Reset to clan default**（若你没有公会，则为 **Reset to Anvil default**）即可恢复为跟随公会的设置。公会还可以设置硬性的稀有度下限，它只作用于该公会自己频道中的发布。',
           },
           {
-            label: 'Notify on PvP kill',
-            body: '目标生命值降至 0 的那一 tick 的截图。默认关闭；此处已开启。',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: '掉落帖子的总开关。',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              '掉落物价值不低于此数（GE 或高价炼金中较高者）或稀有度高于 1/N 时发布。Anvil 默认为 1m 和 1/1,000。你的团队可以为成员设置自己的默认值，在你自己设置数值之前，你会遵循团队的设置；**Reset to clan default**（若无团队则为 **Reset to Anvil default**）可恢复为遵循团队设置。团队还可以设置硬性稀有度下限，它只作用于该团队自己频道中的帖子。你的数值在那里不能比它更宽松，并且它从不改变价值限制。将任一数值设为 0 即可关闭。',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              '默认情况下，掉落满足价值**or**稀有度即发布。开启 **Require both** 后，必须同时满足价值**and**稀有度。你的团队可以为成员选择此默认值；在你自行选择之前，你会遵循它，若无团队则满足其中一项即可。你自己的每个 webhook 也可以设置各自的最低价值、稀有度以及 either/both（任一/两者）；留空的项遵循你的设置。',
+            label: 'Require both (and)',
+            body: '默认情况下，掉落满足价值**或**稀有度之一即发布。开启 **Require both (and)** 后，必须同时满足价值**和**稀有度。公会可以为成员选择此默认值；在你自行选择之前，输入框下方会显示 **Using your clan’s choice**，没有公会时则二者择一。你自己的每个 webhook 也可以设置各自的最低价值、稀有度以及 either/both；留空的项遵循你的设置。',
           },
           {
             label: 'Loot key value',
-            body: '当一把 loot key 的全部内容达到此数值时，它会作为一条通知发布一次。',
+            body: '当一个 loot key 的全部内容达到此数值时，会作为一条通知发布一次。默认为 1,000,000 gp；设为 0 即关闭。',
           },
           {
-            label: 'Notify on pets',
-            body: '宠物发布到稀有掉落频道。',
+            label: 'Pets',
+            body: '宠物发布到公会的掉落频道，默认开启。',
+          },
+          {
+            label: 'Deaths',
+            body: '发布到公会的死亡频道，附带你死亡那一刻的截图，默认开启。',
+          },
+          {
+            label: 'Death message',
+            body: '你自己的死亡文案。`{name}` 会被替换为你的 RSN，默认为 `{name} just died!`。',
+          },
+          {
+            label: 'PvP kills',
+            body: '目标生命值降至 0 那一 tick 的截图，发布到公会的 PvP 频道，默认关闭。',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Combat achievements 通知区块，每一项设置都被方框标出并编号',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Settings → Posts & alerts 页面上 What your plugin posts 下的 Achievements 分组，每项设置都被方框标出并编号',
         legend: [
           {
-            label: 'CA post tier',
-            body: '会播报的最低任务层级；完成整个层级时也会播报。默认是 Master；Grandmaster 只播报最稀有的，**Off** 则一条都不发。无论如何，宾果的 CA 格子都照常计数。',
+            label: 'Collection log slots',
+            body: '每个新的 collection-log 格位都会发布到公会的成就频道，默认开启。',
           },
           {
-            label: 'Notify on collection log slots',
-            body: '每个新解锁的 collection log 格位。',
+            label: 'Level milestones',
+            body: '公会选择播报的升级 —— 默认为 99 级、从 1800 总等级起每 100 总等级，以及满级。规则由公会管理员设定；你可以在 Announcements 设置中少发一些（或为你的个人 webhook 设定自己的规则）。',
           },
           {
-            label: 'Notify on level milestones',
-            body: '你的氏族选择播报的升级 —— 默认是 99 级、从 1800 起每 100 总等级，以及满级。规则由氏族管理员设定；你可以在个人资料的 Announcements 中少发一些（或为你的个人 webhook 设定自己的规则）。',
+            label: 'Diary completions',
+            body: '成就日记的各个层级，附带截图，默认开启。',
           },
           {
-            label: 'Notify on diary completions',
-            body: '成就日记的各个层级，附带截图。',
+            label: 'Diary tier',
+            body: '会发布的最低日记层级。默认为 **Clan default**，即除非公会另有选择，否则所有层级都会发布；你可以选择比公会更严格的层级，但不能更宽松。',
           },
           {
-            label: 'Quest post tier',
-            body: '你选定难度及以上的任务，从 All（所有任务）到 Grandmaster；**Off** 则一条都不发。默认是 Master。无论如何，宾果的任务格子都照常计数。',
+            label: 'Combat task tier',
+            body: '会发布的最低任务层级；完成整个层级时也会发布。默认为 **Clan default**（除非公会选择了其他层级，否则为 Master）；Grandmaster 只发布最稀有的，**Off** 则一条都不发，你的设置也不能比公会更宽松。宾果的 CA 格子无论如何都会计数。',
+          },
+          {
+            label: 'Quest tier',
+            body: '达到你所选难度及以上的任务会发布，从 All（所有任务）到 Grandmaster；**Off** 则一条都不发。默认为 **Clan default**（除非公会另有选择，否则为 Master）。宾果的任务格子无论如何都会计数。',
           },
         ],
       },
@@ -1050,7 +1056,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: '令牌不对或已被轮换。打开 Anvil 面板顶部的 **⋯** 菜单，点击 **Sign out**，然后再点 **Sign in with Discord** —— 或者用 [Profile → RuneLite plugin](/profile#plugin-token) 里的新令牌，通过 **Paste a token instead** 粘贴。',
+          body: '令牌不对或已被轮换。打开 Anvil 面板顶部的 **⋯** 菜单，按 **Sign out**，然后再次点击 **Sign in with Discord** —— 或者使用来自 [Settings → In game → Plugin connection](/settings/in-game#plugin) 的新令牌，通过 **Paste a token instead** 粘贴。',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1058,7 +1064,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: '该账号尚未关联。打开 [Profile → 检测到的账号](/profile#detected-accounts)以添加它或开始所有权验证。',
+          body: '该账号尚未关联。打开 [Settings → Characters → We noticed you playing](/settings/characters#detected) 以添加它或开始所有权验证。',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1138,7 +1144,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '聊天颜色',
-          body: '**Chat messages** 下的 **[Anvil] tag colour** 和 **Message colour**。在你选择之前，它们会在不透明的聊天框上显示为深金色和黑色，以保证可读性。将鼠标悬停在聊天中某个 Supporter 的名字上，即可看到其档位，例如 _Anvil Patron_。',
+          body: '在网站的 **Settings → In game → Chat colours** 下的 **[Anvil] tag colour** 和 **Message colour**。在你选择之前，它们会在不透明的聊天框上显示为深金色和黑色，以保证可读性。将鼠标悬停在聊天中某个 Supporter 的名字上，即可看到其档位，例如 _Anvil Patron_。',
         },
       ],
     },
@@ -1217,7 +1223,7 @@ const zhHans: PartialGuideDict = {
     setup: {
       title: '给氏族起名，接上 Discord',
       intro:
-        '**Settings → Finish setup** 是一个简短的向导（在你完成之前它会一直留在菜单里），仪表盘也会把这五项当成清单保留到它们完成为止：给氏族起名、接上 Discord、载入成员、创建活动、添加格子。状态是按真实数据算出来的，因此某一步只有真正完成时才会被勾掉。',
+        '**Settings → Finish setup** 是一个简短的向导（在你完成或跳过之前，它会一直留在菜单里），仪表盘也会把这五项当成清单保留到全部完成为止：给氏族起名、接上 Discord、载入成员、创建活动、添加格子。状态是根据真实数据计算的，因此某一步只有真正完成时才会被勾掉。',
       discord:
         'Discord 有两条路，而且可以叠加：给 Anvil 一个**机器人**，它就能创建 webhook、同步身份组和昵称、并为你搭建私密的队伍频道；只给它一个 **webhook 网址**，它就只能发公告、别的什么都做不了。想两分钟内跑起来就先用 webhook，等你需要自动化时再把机器人加上。',
       permsNote: {
@@ -1299,7 +1305,7 @@ const zhHans: PartialGuideDict = {
     tiles: {
       title: '把棋盘填满',
       body: [
-        '活动的 **Board & tiles** 页面，就是一块棋盘变成宾果的地方。每个格子是一_种_任务，而这个种类决定了插件盯着什么：一次掉落、一个 boss 击杀数、技能经验、一次 NPC 击杀、限时通关、成就日记、Combat Achievement、收藏日志解锁、PvP 击杀、物品获取，或一次零死亡的通关。手动格子 —— 由人依据截图核验的那种 —— 也始终是可选项。',
+        '活动的 **Tiles** 标签页是棋盘变成宾果的地方。每个格子是一_种_任务，而这个种类决定了插件盯着什么：一次掉落、一个 boss 击杀数、技能经验、一次 NPC 击杀、限时通关、成就日记、Combat Achievement、收藏日志解锁、PvP 击杀、物品获取，或一次零死亡的通关。手动格子 —— 由人依据截图核验的那种 —— 也始终是可选项。',
         '要填满整块棋盘，请批量编写：导出表格，在表格软件里填好，再导回来。CSV 与 .xlsx 都能双向往返，而且行与位置一一对应，所以你可以一次粘贴就把整块 25 格的网格重写一遍。',
       ],
       rows: [
@@ -1365,7 +1371,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '待核验的提交',
-          body: '手动格子，以及插件标记出来的一切。凭证就在眼前，通过或拒绝。',
+          body: '手动格子，以及插件标记出来的一切。凭证就在眼前时，按 **Looks fine**，或者按 **Remove…** 并填写理由。',
         },
         {
           term: '统计',
@@ -1461,7 +1467,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '邀请不是什么',
-        body: '它不是登录，也不是绕过验证的捷径。打开它的人照样要用 Discord 登录，照样需要一个已验证的 RSN，和其他任何报名完全一样。链接唯一决定的，是这份报名归到_哪支队伍_，以及它不需要任何人批准。',
+        body: '它不是登录，也不是绕过验证的捷径。打开它的人照样要用 Discord 登录，照样需要填写自己的 RSN，和其他任何报名完全一样。链接唯一决定的，是这份报名归到_哪支队伍_，以及它不需要任何人批准。仍在等待管理团队担保的角色，会在对方确认后加入队伍。',
       },
     },
 
@@ -1481,11 +1487,11 @@ const zhHans: PartialGuideDict = {
     staff: {
       title: '给他们的管理员一个席位',
       body: [
-        '队伍页面上的 **Team staff** 面板，就是来访氏族自己的管理员开始干活的方式 —— 而你不需要在自己的站点上授予他任何东西。按 **Add someone**，搜索到他，加一条像「Ironforge’s mod」这样的备注，好让下一位 admin 知道他为什么在这里，然后按 **Give a seat**。',
+        '队伍页面上的 **Team staff** 面板，就是来访氏族自己的管理员开始干活的方式 —— 而你不需要在自己的站点上授予他任何东西。按 **Add someone**，搜索到他，添加一条像「Ironforge’s mod」这样的备注，好让下一位 admin 知道他为什么在这里，然后按 **Add to team staff**。',
       ],
       figure: {
         caption: '活动 → Teams & draft → 该队伍 → Team staff',
-        alt: 'Team staff 面板，已授予一个席位，添加成员的搜索框处于打开状态',
+        alt: 'Team staff 面板，已授予一个席位，标出了 Add someone 按钮、该席位及其备注，以及 Remove 按钮',
         legend: [
           {
             label: 'Add someone',
@@ -1545,7 +1551,7 @@ const zhHans: PartialGuideDict = {
         ],
       },
       shape:
-        '链接长这样：`{origin}/events/{eventId}/join/{token}` —— 一行，可以放心粘进 Discord 消息。',
+        '链接形如 `{origin}/c/{clan}/events/{eventId}/join/{token}` —— 一行，可以放心粘贴到 Discord 消息中。',
       note: {
         tag: '合理的默认值',
         body: '如果这是一场氏族对抗赛，而且你已经和某位管理员谈好了阵容，那就把两个字段都留在 `0`，让他们自己安排。只有当链接要去一个你控制不了的地方时，才动用席位数和过期时间。',
@@ -1596,7 +1602,7 @@ const zhHans: PartialGuideDict = {
           },
           {
             label: '表单的其余部分',
-            body: '没有变化。仍然需要一个已验证的 RSN，报名问题照问，报名费也照收。',
+            body: '没有变化。仍然需要 RSN，报名问题照问，报名费也照收。',
           },
         ],
       },
@@ -1762,7 +1768,7 @@ const zhHans: PartialGuideDict = {
         '手点一块 25 格的网格没问题。手点一块 200 项任务的 Point Hunt 棋盘就不行了，事后校对更不行。Tiles 标签页里有一条正为此而设的往返通道。',
       ],
       steps: [
-        '在活动的 **Board & tiles** 页面点 **Download spreadsheet**。你会拿到一份反映棋盘当前状态的 .xlsx，下拉选项、物品清单和字段说明各占一个工作表。',
+        '在活动上依次打开 **Tiles** 标签页 → **Add tiles** → **Download spreadsheet**。你会得到一份反映棋盘当前状态的 .xlsx，下拉选项、物品清单和字段说明各占一个工作表。',
         '编辑它。一行一个格子；行的顺序就是格子的顺序。',
         '在同一个标签页点 **Upload CSV / Excel**。只有 **Tiles** 工作表会被读取。',
       ],
@@ -1894,7 +1900,7 @@ const zhHans: PartialGuideDict = {
       title: 'Tile 竞速赛道',
       intro: '在 tile 竞速面板上，你要搭建赛道而不是网格。Tile 位于编号的步骤上，队伍沿着它们前进。',
       body: [
-        '打开 **Tiles**，使用 **Route** 部分。选择一个模板（默认为 **Diamond**），将你的 tile 添加到各步骤上，然后按 **Save route**。你链接的每个 tile 都必须位于下一步上。',
+        '打开 **Tiles**，使用 **Route** 部分。选择一个模板（默认为 **Diamond**），把你的 tile 添加到各步骤上，然后按 **Save roads**。你链接的每个 tile 都必须位于下一步上。',
         '道路可以分叉和合并，但终点只有一个。在分叉处，你可以选择完成一个 tile 是否决定道路，还是由队长选择并锁定。完整的选项列表，以及玩家看到的内容，见 [Formats, and how tiles open]({formatsGuide})。',
       ],
     },
@@ -2140,7 +2146,7 @@ const zhHans: PartialGuideDict = {
         '打开活动的 **Tiles** 页面，找到 **Route**。',
         '选择 **Route template**，然后按 **Apply template**。**Diamond** 为默认：一个起点、两条道路、一个终点。**Two roads**、**Braid**、**Straight line** 和 **Free**（无链接）也可以选择。',
         '选择 **How a team’s road is set at a fork**：按成就，或选择并锁定。',
-        '使用 **+ Step before**、**Move step earlier/later** 和 **Remove step** 添加或移动步骤，然后按 **Save route**。',
+        '使用 **+ Empty step before**、**Move step earlier/later** 和 **Remove step** 添加或移动步骤，然后按 **Save roads**。',
         '如果活动已经开始，Anvil 会询问如何处理新路线切断的完成记录：**Keep**（保留）或 **Roll back**（回滚）。',
       ],
       outro:
@@ -2271,16 +2277,16 @@ const zhHans: PartialGuideDict = {
       ],
       rows: [
         {
-          term: '库存',
+          term: '库存（Confirmed total）',
           body: '已批准的捐款加调整。氏族收到的，减去已核销的。',
         },
         {
-          term: '已占用',
+          term: '已占用（Promised）',
           body: '被某个奖励认领的金币 — 已经赢下但尚未发出，加上为某块板子预留的奖池。即便还躺在某人的银行里，也已经名花有主。',
         },
         {
-          term: '可承诺',
-          body: '库存减去已占用。新奖励唯一会去核对的数字，因为另一种做法是趁财务睡觉时把同样的 5000 万许给两个赢家。',
+          term: '可承诺（Available）',
+          body: '库存（Confirmed total）减去已占用（Promised）。新奖励唯一会去核对的数字，因为另一种做法是趁财务睡觉时把同样的 5000 万许给两个赢家。',
         },
       ],
       note: {
@@ -2433,12 +2439,12 @@ const zhHans: PartialGuideDict = {
       ],
       rows: [
         {
-          term: '只要说得通就通过',
-          body: '你不是在审计银行。只要画面显示了那件事、账号在成员名单上、时间戳落在活动区间内，就通过，然后继续下一条。',
+          term: '只要说得通，就按 Looks fine',
+          body: '你不是在审计银行。只要画面显示了那件事、账号在成员名单上、时间戳落在活动区间内，就按 **Looks fine**，然后继续下一条。',
         },
         {
-          term: '拒绝时给个理由',
-          body: '不给解释的拒绝，一小时之内就会以私信的形式回到你这里。说清楚缺了什么，好让第二次提交是对的。',
+          term: 'Remove 时写明理由',
+          body: '**Remove** 会要求填写理由，团队会看到这条理由。说清楚缺了什么，好让第二次提交是对的。',
         },
         {
           term: '被标记的提交是个问题，不是指控',
@@ -2450,7 +2456,7 @@ const zhHans: PartialGuideDict = {
     verify: {
       title: '验证账号',
       intro:
-        '没有至少一个已验证账号就无法报名任何活动，所以这条队列会直接把人挡在游戏之外。它值得每天清空。',
+        '人们可以立即报名，但请你担保的人，会先等你接受其加入申请（若你的访客需要审批），之后在这里挂着等你担保：已报名，但不属于任何队伍。所以这条队列会直接让人无法游玩。它值得每天清空。',
       rows: [
         {
           term: '通过插件验证',
@@ -2458,11 +2464,11 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: '给没有插件的玩家用。网站随机挑一项技能，他们需要在三十分钟内在该技能上获得 1,000 经验。它会自我校验 —— 你只会看到没通过的那些。',
+          body: '给没有插件的玩家用。网站随机挑一项技能，他们需要在三十分钟内在该技能上获得 1,000 经验。它会自动校验，通过的人会以访客身份自动加入你的氏族，并在 **Needs review** 中标记出来，供你方便时核对（如有错误，可在那里将其移除），因为经验只能说明某人练过，无法说明是谁。未通过的校验才值得你仔细看。',
         },
         {
           term: '人工审核',
-          body: '隐藏了 Hiscores，或者小号太新还没出现在上面。有人提交一个 RSN 并附上说明，由你来判断。说明不够时，就要一张登录界面的截图。',
+          body: '隐藏了 Hiscores，或者小号太新还没出现在上面。有人请你为某个 RSN 担保，由你来判断。若你的访客需要审批，对方要先提交加入申请，在你接受之前没有位置；若访客可以自由加入，对方会立即以访客身份加入。之后对方可以报名，但在你批准之前，他们的报名会挂起，不属于任何队伍。批准后即完成其加入；**Not our member** 则会将其移除。如果你不确定，就请对方提供一张登录界面的截图。',
         },
       ],
       note: {
@@ -2474,7 +2480,7 @@ const zhHans: PartialGuideDict = {
     roster: {
       title: '让成员名单保持诚实',
       body: [
-        '成员名单只有一个来源：由管理员从游戏内的氏族列表跑一次同步，入口是氏族窗口标题栏上的 **Anvil** 按钮（或插件侧边栏的 **Sync roster**）。其他一切 —— 验证、关联、报名 —— 都挂在它上面。',
+        '成员名单只有一个来源：由管理员从游戏内的氏族列表运行一次同步，入口是氏族窗口标题栏上的 **Anvil** 按钮（或插件侧边栏的 **Sync clan roster**）。其他一切 —— 验证、关联、报名 —— 都挂在它上面。',
         '所以维护工作量很小但是实打实的：每轮招新之后请 admin 同步一次（这会把在游戏里加入的访客变成成员），处理 **Roster** 标签页顶部的加入申请，并主动处理 **Needs review**，而不是等人来抱怨。见[你的成员]({peopleGuide})。',
       ],
       note: {
@@ -2977,8 +2983,8 @@ const zhHans: PartialGuideDict = {
         { term: 'Partner', body: '玩家人数不设上限。直接与 Anvil 一起设置，请联系我们。' },
       ],
       note: {
-        tag: '目前',
-        body: 'Anvil 还在成长期，所以大家依然都能进，即使超过你方案的数字。限制会在之后开始，并会提前通知。你的方案卡片会显示你离上限还有多远。',
+        tag: '你的方案卡片',
+        body: '你的方案卡片会显示你离方案的数字还有多远，以及哪个方案能给你更多空间。',
       },
     },
 
@@ -3234,7 +3240,7 @@ const zhHans: PartialGuideDict = {
     roster: {
       title: '名单从哪里来',
       body: [
-        '成员名单就是你们的游戏内氏族名单，被复制到了站点上。由 admin 用 Anvil 插件从 RuneLite 发送：按氏族窗口标题栏里的 **Anvil** 按钮，或插件侧边栏里的 **Sync roster**。名单上的每个人都以**成员**身份进来，并带着各自的游戏内等级。只有在站点上拥有 Admin 角色的人才能发送，其他人会在游戏里收到提示。',
+        '成员名单就是你们的游戏内氏族名单，复制到了站点上。由 admin 用 Anvil 插件从 RuneLite 发送：按氏族窗口标题栏里的 **Anvil** 按钮，或插件侧边栏里的 **Sync clan roster**。名单上的每个人都以**成员**身份进入，并带着各自的游戏内等级。只有在站点上拥有 Admin 角色的人才能发送，其他人会在游戏里收到提示。',
         '同步是唯一能单凭自身让某人成为成员的东西。在游戏里离开氏族的人，会在下一次同步时被标为已离开；重新加入的人，会在再下一次同步时回来。无论哪种情况，他们的历史记录都会保留。',
         '其他所有席位都是**访客**席位：在你们的活动里参赛、但不在你们游戏内氏族里的人。访客会被记录，也能参加活动。他们不是成员，也不计入你们的套餐。',
       ],
@@ -3605,7 +3611,7 @@ const zhHans: PartialGuideDict = {
       { strong: '什么都不会删除', rest: '即使你停止付费' },
     ],
     footnote:
-      '这里的一切都在网站的 **Settings** → **Supporter**、**Profile look** 和 **Clan boosts** 里设置。助力的详情见[为氏族助力]({boostsGuide})。你的颜色在 RuneLite 里出现在哪里，见[侧边面板逐个标签页讲解]({panelGuide})。',
+      '这里的一切都在网站的 **Settings** 下设置：**Account** → **Your plan & billing**，以及 **Profile & look**（其中包括 **Name colours** 和 **Clan boosts**）。关于助力的详情，见[为氏族助力]({boostsGuide})。你的颜色在 RuneLite 里出现在哪里，见[侧边面板逐个标签页讲解]({panelGuide})。',
 
     tiers: {
       title: '三个档位',
@@ -3626,7 +3632,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '邀请换来的时长',
-        body: '在 Settings → Supporter 下有你的邀请链接。你邀请的朋友付费后，你会获得免费月份；奖励在对方首次付款两周后到账。用这种方式获得的时长，享有该档位除氏族助力之外的全部福利。',
+        body: '在 Settings → Account → Your plan & billing 下有你的邀请链接。你邀请的朋友付费后，你会获得免费月份；奖励在对方首次付款两周后到账。用这种方式获得的时长，享有该档位除氏族助力之外的全部福利。',
       },
     },
 
@@ -3655,7 +3661,7 @@ const zhHans: PartialGuideDict = {
     names: {
       title: '名字颜色',
       intro:
-        '在 **Settings** → **Supporter** 的 **Your name’s look** 里设置。预览会显示你的名字在深色背景和浅色背景上的样子。',
+        '在 **Settings** → **Profile & look** → **Name colours** 下设置。预览会显示你的名字在深色背景和浅色背景上的样子。',
       rows: [
         {
           term: 'Supporter',
@@ -3705,13 +3711,13 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '只在被证实属于你的角色上',
-        body: '无论在网站上还是游戏里，颜色只出现在插件已确认属于你的角色上。若不想在别人的游戏聊天里让你的名字带颜色，在 Settings → Supporter 下取消勾选 **Show my colours on my characters’ names in game chat**。',
+        body: '无论在网站上还是游戏里，颜色只出现在插件已确认属于你的角色上。若不想在别人的游戏聊天里让你的名字带颜色，请在 Settings → Account → Your plan & billing 下取消勾选 **Show my colours on my characters’ names in game chat**。',
       },
     },
 
     profile: {
       title: '头像、横幅和展示柜',
-      intro: '三者都在 **Settings** → **Profile look** 下。',
+      intro: '三者都在 **Settings** → **Profile & look** 下。',
       rows: [
         {
           term: '头像和横幅',
@@ -3760,7 +3766,7 @@ const zhHans: PartialGuideDict = {
         '付款。Gumroad 一通知 Anvil，你的福利就会开启，你的档位会以 **Your tier** 显示在 Supporter 页面上。',
       ],
       outro:
-        '要更换档位，用 Settings → Supporter 下的 **Change tier**。要取消或更新银行卡，用同一处的 **Manage on Gumroad**。已取消的会员在已付费周期结束前保留全部福利。',
+        '要更换档位，使用 Settings → Account → Your plan & billing 下的 **Change tier**。要取消或更新银行卡，在同一处使用 **Manage on Gumroad**。已取消的会员在已付费周期结束前保留全部福利。',
       note: {
         tag: '始终从 /supporter 开始',
         body: '**Choose** 按钮带着一个代码，告诉 Anvil 是哪个账号付的款。Anvil 从不按邮箱匹配付款，所以不经过那个按钮、直接在 Gumroad 上购买，付款就不会关联到任何账号。如果发生了这种情况，请到 Anvil Discord 里询问，工作人员可以手动把它关联到你的账号。',
@@ -3791,7 +3797,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: 'Anvil 工作人员给的临时升级',
-        body: '工作人员可以在一段时间内给某人更高的档位，比如作为感谢。它叠加在你付费的档位之上，从不改变你的订阅。Settings → Supporter 会显示 **A gift from Anvil** 以及它何时结束；之后你回到自己付费的档位。只有工作人员把氏族助力名额包含在内时，赠送才会带来助力名额。',
+        body: '工作人员可以在一段时间内给某人更高的档位，比如作为感谢。它叠加在你付费的档位之上，从不改变你的订阅。Settings → Account → Your plan & billing 会显示 **A gift from Anvil** 以及它何时结束；之后你就回到自己付费的档位。工作人员也可以为你已有的档位增加时长。如果你为该档位付费，增加的时长会在你的会员期满后开始，你的扣费不会改变。只有工作人员把氏族助力名额包含在内时，赠送才会带来助力名额。',
       },
     },
   },
@@ -3850,7 +3856,7 @@ const zhHans: PartialGuideDict = {
         {
           term: '活动',
           body:
-            '每个实时和即将开始的 board、Skill 或 Boss of the Week 以及团队活动，并显示你的位置。然后是 **Your other boards**、**Also live** 和 **Your clan**。',
+            '每个实时和即将开始的 board、Skill 或 Boss of the Week 以及氏族活动，并显示你所处的位置。然后是 **Running**、**Coming up**、**Also live** 和 **Your clan**。',
         },
         {
           term: '一个 board',
@@ -3863,7 +3869,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '团队活动',
-          body: '根据活动不同，显示 **I’m going**、**Sign me up** 或 **Answer the survey**。',
+          body: '根据活动不同，显示 **I’m going**、**Register**（主办方有问题时显示 **Register on Anvil**），或 **Answer the survey**。',
         },
       ],
     },
@@ -3889,7 +3895,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '和游戏内聊天动态不是一回事',
-        body: '无论插件设置如何，Feed 标签页都能用。**Show feed in game chat**（步骤 8）是另一个设置，它会把动态也打印到你的聊天框里。',
+        body: '无论插件设置如何，Feed 标签页都能用。**Anvil messages in chat**（步骤 8）是另一个设置，它会把动态也打印到你的聊天框里。',
       },
     },
 
@@ -3932,7 +3938,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '发送',
-          body: '在输入框中输入后按 Enter。每行最多 200 个字符，只有主办方和版主可以发送链接。',
+          body: '在输入框中输入后按 Enter。每行最多 80 个字符（超出的会被拒绝），只有主办方和版主可以发送链接。',
         },
         {
           term: '频率',
@@ -3999,27 +4005,19 @@ const zhHans: PartialGuideDict = {
     settings: {
       title: '改变你所见内容的设置',
       intro:
-        '在 RuneLite 的 Anvil 配置里，位于 **Chat messages** 下。一开始全部是开启的。',
+        '在 RuneLite 的 Anvil 配置里，位于 **General** 下。一开始全部是开启的。',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: '把动态也实时打印到你的聊天框：主办方开启了此功能的棋盘以及你作为访客所在的氏族里的大掉落、宠物和成就，你队友的格子进度，以及其他队伍完成的格子。',
         },
         {
           term: 'Supporter names in chat',
-          body: '在公共、氏族、好友和私聊中，以及你的好友列表和频道成员列表上，显示 Supporter 的颜色（和 Patron 的星标）。名字列表从 Anvil 下载；关于你看到了谁，不会发送任何信息。',
+          body: '在公共、氏族、好友和私聊中，以及你的好友列表和频道成员列表上，显示 Supporter 的颜色（和 Patron 的星标）。名字列表从 Anvil 下载；关于你看到了谁，不会发送任何信息。选择 **Animated**（Patron 的渐变会滑动）、**Still colours** 或 **Off**。',
         },
         {
-          term: 'Animated names',
-          body: '让 Patron 的渐变在面板、Feed 和活动聊天里流动。关闭则保持静止。在下一次插件更新中，它还会涵盖获得助力的氏族名字和面板里的动态横幅。',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: '你右键 Supporter 时，在他们的名字上显示他们的颜色；PvP 世界和荒野中绝不显示。',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: '开启时，Supporter 的颜色会替换其他插件（例如 Player Indicators）设置的名字颜色。关闭则不动那些名字。',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: '你右键 Supporter 时，在他们的名字上显示他们的颜色；在好友和频道成员列表上也会显示，被助力的氏族在氏族面板中的名字也会显示。PvP 世界和荒野中绝不显示。',
         },
       ],
     },
@@ -4038,7 +4036,7 @@ const zhHans: PartialGuideDict = {
       { strong: '每周一次', rest: '助力可以移动' },
     ],
     footnote:
-      '成员在 **Settings** → **Clan boosts** 下放置助力。氏族管理团队在 管理 → **Clan settings** → **Boosts** 下查看等级及其选项。档位本身见[Anvil Supporter：档位与福利]({supporterGuide})。',
+      '成员在 **Settings** → **Profile & look** → **Clan boosts** 下放置助力。氏族管理团队在 管理 → **Clan settings** → **Boosts** 下查看等级及其选项。档位本身见[Anvil Supporter：档位与福利]({supporterGuide})。',
 
     what: {
       title: '谁拥有助力',
@@ -4052,7 +4050,7 @@ const zhHans: PartialGuideDict = {
         },
       ],
       outro:
-        '助力属于你，而不属于某个角色：三个角色在三个氏族里，仍然共用一套助力。**Settings** → **Clan boosts** 只在你是 Supporter、或者仍有已放置的助力时才会出现在你的设置里。',
+        '助力属于你，而不属于某个角色：三个角色在三个氏族里，仍然共用一套助力。**Settings** → **Profile & look** → **Clan boosts** 始终会显示，但只有 Champion 或 Patron 会员才能获得名额；没有的话，你会看到规则以及 Supporter 的链接。',
     },
 
     place: {
@@ -4061,7 +4059,7 @@ const zhHans: PartialGuideDict = {
       steps: [
         '打开 **Settings** → **Clan boosts**。**Your boosts** 列出你已放置的助力和任何 **Free slot**。',
         '在 **Clans you can boost** 下，按氏族旁边的 **Boost**。你也可以在氏族自己页面的 Boosters 区域按 **Boost this clan**。',
-        '要移动一个助力，在它那一行用 **Move to…** 选择另一个氏族。**Remove** 会把它撤下。',
+        '要移动一个助力，在它那一行按 **Move**，然后在 **Move to…** 下选择另一个氏族。**Remove** 会把它撤下。',
       ],
       rows: [
         {
@@ -4160,7 +4158,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'Recruitment post in the Anvil Discord',
-          body: '3 级。每个自然月一次，20 到 500 个字符，由你撰写，在你按 **Post it** 时发布，并附上你氏族页面的链接。提及会被移除，不会 @ 任何人。到下个月之前，你不能编辑它，也不能再发一条。',
+          body: '3 级。每个自然月一次，20 到 500 个字符，由你撰写，在你按 **Post to the Anvil Discord**、再按 **Post it** 确认时发布，并附上你氏族页面的链接。提及会被移除，不会 @ 任何人。到下个月之前，你不能编辑它，也不能再发一条。',
         },
         {
           term: 'Boosters',
@@ -4309,7 +4307,7 @@ const zhHans: PartialGuideDict = {
       title: '查找设置',
       body: [
         '第一页 **Overview & search** 有一个搜索框。用你自己的话输入你想要的内容，例如 _private messages_、_rare drop value_、_death message_、_name colour_ 或 _plugin token_，它就会带你到正确的开关。',
-        '侧边的菜单分为两组。**Account** 下是以下各页。**Characters** 下每个你已关联的角色各有一页（你的主角色标记为 **main**），之后是 **Add character**。**Add character** 上的数字表示 Anvil 见过你游玩的、尚未关联的角色。',
+        '侧边的菜单有五个页面：**Profile & look**、**Characters**、**In game**、**Posts & alerts** 和 **Account**。**Characters** 下每个你已关联的角色各有一页（你的主角色标记为 **main**），之后是 **Add character**。**Add character** 上的数字表示 Anvil 见过你游玩的、尚未关联的角色。',
       ],
     },
     posts: {
@@ -4326,7 +4324,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '你的发布去向',
-          body: '**Keep my announcements out of clans I only guest in**，以及 **Level posts in clan channels**：**Clan rules**、**Only 99s & max** 或 **Off**。**Per character** 会列出每个角色，并附带 **Clans →** 链接，以便为某个氏族单独关闭发布。',
+          body: '**Post my drops and levels in clans where I am a guest**（默认关闭，直到你开启它），以及 **Level posts in clan channels**：**Clan rules**、**Only 99s & max** 或 **Off**。**Per character** 会列出每个角色，并附带 **Clans →** 链接，以便为某个氏族单独关闭发布。',
         },
         {
           term: '按类型设置截图',
@@ -4356,7 +4354,7 @@ const zhHans: PartialGuideDict = {
     },
     chat: {
       title: '游戏内聊天动态',
-      intro: '当插件设置 **Show feed in game chat** 开启时，插件会在你的聊天框中打印的内容。',
+      intro: '当插件设置 **Anvil messages in chat** 开启时，插件会在你的聊天框中打印的内容。',
       rows: [
         {
           term: '来源',
@@ -4382,15 +4380,15 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '插件连接',
-          body: '你的插件令牌，适用于你极少数需要手动粘贴的情况。通常侧边面板中的 **Sign in with Discord** 会替你完成此事。',
+          body: '在 **In game** 下：你的插件令牌，适用于你极少数需要手动粘贴的情况。它只生成一次，按下 **Reveal** 之前一直隐藏，**Revoke all** 会取消所有令牌。通常侧边面板中的 **Sign in with Discord** 会替你完成此事。',
         },
         {
           term: '登录与设备',
-          body: '插件已登录的每台电脑，显示为 **RuneLite sign-in 1**、**2**……并附上创建和最后使用的时间。**Revoke** 可将其中一台登出，例如你卖掉的电脑。**Enter a code** 可关联另一台电脑。**Sessions** 会将你从所有地方的网站上登出。',
+          body: '在 **Account** 下：插件已登录的每台电脑，显示为 **RuneLite sign-in 1**、**2**……并附上创建和最后使用的时间。**Revoke** 可将其中一台登出，例如你卖掉的电脑。**Enter a code** 可关联另一台电脑。**Sessions** 会将你从所有地方的网站上登出。',
         },
         {
           term: '氏族账单',
-          body: '氏族所有者可以在此处按 **Open portal →** 查看氏族账单。',
+          body: '在 **Account** 下，氏族所有者可以在此处按 **Open portal →** 查看氏族账单。',
         },
       ],
     },
@@ -4425,11 +4423,11 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: 'Supporter 与名字颜色',
-          body: '你的档位、特权和邀请链接：邀请朋友即可赚取免费月份。档位在 [Anvil Supporter]({supporterGuide}) 中说明。',
+          body: '在 **Account** → **Your plan & billing** 下：你的档位、特权和邀请链接：邀请朋友即可赚取免费月份。档位在 [Anvil Supporter]({supporterGuide}) 中说明。',
         },
         {
           term: '资料外观',
-          body: '头像和横幅（Champion 起可动态显示），如果你愿意，还可以为每个角色使用不同的外观，以及 **Display case**：按档位显示 4、8 或 12 个徽章。',
+          body: '在 **Profile & look** 下：头像和横幅（Champion 起可动态显示），如果你愿意，还可以为每个角色使用不同的外观，以及 **Display case**：按档位显示 4、8 或 12 个徽章。',
         },
         {
           term: '直播账号',
@@ -4437,7 +4435,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '氏族助力',
-          body: '只有当你可以助力时才会显示：你的名额、它们放在哪里，以及你可以助力的氏族。参见 [为氏族助力]({boostsGuide})。',
+          body: '在 **Profile & look** 下：你的名额、它们放在哪里，以及你可以助力的氏族。若没有 Champion 或 Patron 会员，这里只显示规则。参见 [为氏族助力]({boostsGuide})。',
         },
       ],
     },
@@ -4527,7 +4525,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '起跑线',
-          body: '每位玩家的 **Started at**、**Now** 和 **Gained**。当比赛前的练级被计入时，手动修正起跑线，排行榜会随之更新。**Pull current stats** 会刷新所有人；**Reset baselines** 会根据现在的 hiscores 让所有人重新开始，并清除所有增长。',
+          body: '每位玩家的 **Started at**、**Now** 和 **Gained**。当比赛前的练级被计入时，手动修正起始行，排行榜会随之更新。**Pull current stats** 会刷新所有人；**Reset every baseline** 会根据现在的 hiscores 让所有人重新开始，并清除所有增长。',
         },
         {
           term: '参与者',
@@ -4760,7 +4758,7 @@ const zhHans: PartialGuideDict = {
     players: {
       title: '成员会看到什么',
       body: [
-        '活动页面会显示 **When**、**Where**、**Host**、**Discord**、**Entry** 和 **Prizes**，活动进行中会显示 **Live now**。成员按 **I’m going** 或 **Sign me up**，或在工作人员逐一批准时按 **Ask to sign up**。它也会出现在插件侧边面板的 **Clan** 标签中，按钮相同。',
+        '活动页面会显示 **When**、**Where**、**Host**、**Discord**、**Entry** 和 **Prizes**，活动进行时会显示 **Live now**。成员按 **I’m going** 或 **Register**，或在工作人员逐一批准时按 **Ask to sign up**。它也会出现在插件侧边面板的 **Clan** 标签中，按钮相同。',
         '只有氏族成员可以表示自己会参加或报名。',
       ],
     },
@@ -4922,7 +4920,7 @@ const zhHans: PartialGuideDict = {
       title: '寻找可以参加的活动',
       body: [
         '[Events](/events) 列出 Anvil 上正在进行和即将到来的活动。可按 **Live now**、**Open to join** 或 **Starting this week** 筛选，按形式或 **Solo** 筛选，按 **Anyone can join** 或 **Ask or meet a rule** 筛选，并按 **Clans** 或 **Creators** 筛选。**Join** 会带你前往报名。',
-        '只有主办方开启 **Advertise on Anvil** 的活动才会出现。仅限成员和仅限邀请的活动永远不会出现。',
+        '只有主办方开启 **List on Anvil** 的活动才会出现。仅限成员和仅限邀请的活动永远不会出现。',
       ],
     },
     ghost: {

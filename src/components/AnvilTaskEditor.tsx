@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLeaveGuard } from '@/components/UnsavedChanges';
+import { useModalA11y } from '@/hooks/useModalA11y';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import { AuthoringApiContext } from '@/components/AuthoringApi';
 import Textarea from '@/components/Textarea';
@@ -47,6 +49,10 @@ export default function AnvilTaskEditor({
   const [initial, setInitial] = useState<TileConfig | null>(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // The tile editor inside registers its edits; closing (x, backdrop, Escape) asks first while dirty.
+  const leaveGuard = useLeaveGuard();
+  const requestClose = () => leaveGuard(onClose);
+  const dialogRef = useModalA11y<HTMLDivElement>({ onClose: requestClose });
 
   useEffect(() => {
     let alive = true;
@@ -80,15 +86,15 @@ export default function AnvilTaskEditor({
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[60] focus:outline-none flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={requestClose} />
       <div className="relative w-full max-w-xl border border-gold/30 bg-card-bg rounded-2xl shadow-2xl shadow-black/50">
         <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-card-border">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-1 h-5 bg-gold rounded-full shrink-0" />
             <h2 className="font-semibold truncate">{title}</h2>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light">
+          <button onClick={requestClose} aria-label="Close" className="text-text-muted hover:text-foreground rounded-md w-8 h-8 flex items-center justify-center hover:bg-brown-light">
             ×
           </button>
         </div>

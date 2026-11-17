@@ -1,4 +1,5 @@
 'use client';
+import { scoredOfEntered } from '@/lib/weeklyCountWords';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -277,7 +278,7 @@ export default function WeeklyHomeClient({
             {stage === 'wrap' ? 'Final leaderboard' : 'Leaderboard'}
           </h2>
           <span className="text-xs text-text-muted">
-            {weeklyMetricLabel(comp.type, comp.metric)} gained · {counts.moving} of {counts.participants} scoring
+            {weeklyMetricLabel(comp.type, comp.metric)} gained · {scoredOfEntered(counts.moving, counts.participants)}
           </span>
         </div>
 

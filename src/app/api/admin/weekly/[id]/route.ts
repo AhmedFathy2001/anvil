@@ -1,3 +1,4 @@
+import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
 import { parseCompetitionMode } from '@/lib/competitionTeams';
 import { setCompetitionMode } from '@/lib/competitionTeamsDb';
@@ -5,7 +6,7 @@ import { releaseWeeklyPool } from '@/lib/coffer';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
 import { db } from '@/db';
-import { playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { playerSnapshots, weeklyCompetitions, weeklyParticipants, huntDrops } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getWeeklyRepeat, setWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
@@ -65,6 +66,10 @@ export async function PUT(
   // Team competitions: mode (solo | teams | clans) and the teams-mode late-join switch.
   let modeChanged = false;
   if (body.mode !== undefined) {
+    // An item hunt is everyone for themselves; it has no teams or clan sides to switch to.
+    if (scoped.type === 'hunt' && body.mode !== 'solo') {
+      return NextResponse.json({ error: 'An item hunt has no teams. Everyone on the roster hunts for themselves.' }, { status: 400 });
+    }
     const mode = parseCompetitionMode(body.mode);
     if (!mode) return NextResponse.json({ error: 'Mode must be solo, teams or clans' }, { status: 400 });
     await setCompetitionMode(scoped, mode, typeof body.teamLateJoin === 'boolean' ? body.teamLateJoin : undefined);
@@ -88,6 +93,12 @@ export async function PUT(
         ? repeat.rotation.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0).slice(0, 52)
         : null;
     await setWeeklyRepeat(scoped.clanId, compId, repeat ? { rotation: rotation && rotation.length > 0 ? rotation : null } : null);
+  }
+
+  const finalStart = parseStamp(startDate !== undefined ? startDate : scoped.startDate);
+  const finalEnd = parseStamp(endDate !== undefined ? endDate : scoped.endDate);
+  if ((startDate !== undefined || endDate !== undefined) && finalStart !== null && finalEnd !== null && finalEnd <= finalStart) {
+    return NextResponse.json({ error: 'The end has to come after the start.' }, { status: 400 });
   }
 
   const updates: Record<string, unknown> = {};
@@ -147,6 +158,7 @@ export async function DELETE(
     // on the ledger forever with nothing left to release it.
     await releaseWeeklyPool(compId, user.userId > 0 ? user.userId : null);
     await db.delete(playerSnapshots).where(eq(playerSnapshots.weeklyCompetitionId, compId));
+    await db.delete(huntDrops).where(eq(huntDrops.competitionId, compId));
     await db.delete(weeklyParticipants).where(eq(weeklyParticipants.competitionId, compId));
     await db.delete(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
   } catch (err) {

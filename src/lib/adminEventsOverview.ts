@@ -13,9 +13,11 @@
 // lib/statStandings (reveal-policy aware) and only runs for events that are actually live —
 // typically one or two.
 
+import { huntStandings } from '@/lib/itemHuntDb';
 import { db } from '@/db';
 import { completions, eventSignups, events, payouts, playerEventFacts, eventParticipants, signupFees, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { getTeamStandings } from '@/lib/statStandings';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
 import { formatGp, SPARK_DAYS } from '@/lib/adminEventsFormat';
@@ -292,6 +294,9 @@ export async function getAttentionItems(opts: {
       .select({
         competitionId: weeklyParticipants.competitionId,
         title: weeklyCompetitions.title,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+        status: weeklyCompetitions.status,
         n: count(),
       })
       .from(weeklyParticipants)
@@ -302,11 +307,18 @@ export async function getAttentionItems(opts: {
       .where(
         and(
           eq(weeklyParticipants.flagged, 1),
-          eq(weeklyCompetitions.status, 'active'),
+          ne(weeklyCompetitions.status, 'completed'),
           eq(weeklyCompetitions.clanId, clanId),
         ),
       )
-      .groupBy(weeklyParticipants.competitionId, weeklyCompetitions.title),
+      .groupBy(
+        weeklyParticipants.competitionId,
+        weeklyCompetitions.title,
+        weeklyCompetitions.startDate,
+        weeklyCompetitions.endDate,
+        weeklyCompetitions.status,
+      )
+      .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active')),
   ]);
 
   const names = openIds.length || endedEventIds.length
@@ -414,7 +426,7 @@ export function setupAttentionItems(
  * fewer authored tiles than that is still being written.
  */
 export async function getSetupProgress(
-  upcoming: { id: number; expectedTiles: number; draftStatus: string; hasDates: boolean }[],
+  upcoming: { id: number; expectedTiles: number; draftStatus: string; hasDates: boolean; placement?: string | null }[],
 ): Promise<Map<number, SetupProgress>> {
   const out = new Map<number, SetupProgress>();
   if (upcoming.length === 0) return out;
@@ -445,6 +457,7 @@ export async function getSetupProgress(
       teamCount,
       assignedPlayerCount: assignedPlayers,
       totalPlayerCount: totalPlayers.find((r) => r.eventId === e.id)?.n ?? 0,
+      placement: e.placement,
     });
     const tilesDone = tilesAuthored >= e.expectedTiles && e.expectedTiles > 0;
     const stepsDone = [tilesDone, teamCount > 0, assignedPlayers > 0, e.hasDates, readiness.ready].filter(Boolean).length;
@@ -604,6 +617,20 @@ export async function getPastWeeklyResults(
       }
     }
     out.set(id, { winner: best > 0 ? winner : null, gained: best > 0 ? best : null, players: mine.length });
+  }
+
+  // An item hunt is won by drops, not by a gain: its winner is whoever its rule puts first, and the
+  // number beside them is their count (lib/itemHuntDb).
+  // clan-scope: global -- ids the caller took from a clan-scoped list.
+  const hunts = await db.select().from(weeklyCompetitions).where(and(inArray(weeklyCompetitions.id, competitionIds), eq(weeklyCompetitions.type, 'hunt')));
+  for (const hunt of hunts) {
+    const standings = await huntStandings(hunt);
+    const first = standings?.rows[0];
+    out.set(hunt.id, {
+      winner: first && first.count > 0 ? first.rsn : null,
+      gained: first && first.count > 0 ? first.count : null,
+      players: standings?.rows.length ?? out.get(hunt.id)?.players ?? 0,
+    });
   }
 
   return out;

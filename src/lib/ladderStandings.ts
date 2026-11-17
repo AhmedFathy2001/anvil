@@ -9,7 +9,7 @@ import {
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot } from '@/lib/statTracking';
-import { monthWindowUtc } from '@/lib/monthWindow';
+import { inWindow, monthWindowUtc } from '@/lib/monthWindow';
 
 // The month window moved to lib/monthWindow (no database, so a test and a client can read it);
 // re-exported here because every caller already knows this address.
@@ -106,7 +106,7 @@ export async function getLadderBoards(
     allTime: computeIndividualStandings({ ...baseInputs, completions: allCompletions }),
     monthly: computeIndividualStandings({
       ...baseInputs,
-      completions: allCompletions.filter((c) => c.completedAt >= start && c.completedAt < end),
+      completions: allCompletions.filter((c) => inWindow(c.completedAt, { start, end })),
     }),
   };
 }

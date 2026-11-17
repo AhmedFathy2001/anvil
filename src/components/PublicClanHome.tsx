@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react';
+import { discordStartHref } from '@/lib/discordStart';
+import SignInReceives from '@/components/SignInReceives';
 import MotionImg from '@/components/MotionImg';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
 import { SITE } from '@/lib/site';
+import { clanBasePath } from '@/lib/clanScopedPaths';
 import ApplyToClan from '@/components/ApplyToClan';
+import NameCharacterInline from '@/components/NameCharacterInline';
 import SceneBackdrop from '@/components/SceneBackdrop';
 import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
@@ -97,11 +101,14 @@ export default function PublicClanHome({
   activity = null,
   boost = null,
   boosters = null,
+  guide = null,
 }: {
   /** Its boost level in force and (Level 2+) recruiting line (lib/clanBoosts). */
   boost?: { level: number; recruitingLine: string | null; nameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null } | null;
   /** The boosters wall (components/ClanBoost ClanBoostPanel), when anyone boosts it. */
   boosters?: ReactNode;
+  /** The getting-started strip, for a signed-in visitor who has not finished getting started. */
+  guide?: ReactNode;
   view: View;
   signedIn: boolean;
   /** Show the Report flag: signed in and not this clan's staff (lib/platformReportRules showReportButton). */
@@ -194,6 +201,8 @@ export default function PublicClanHome({
         </div>
       </header>
 
+      {guide}
+
       {hall && <div className="mt-4">{hall}</div>}
 
       {/* One line on the two ways in, before either door: a guest seat and membership look alike
@@ -232,12 +241,12 @@ export default function PublicClanHome({
                 Apply on Discord
               </a>
             ) : !signedIn ? (
-              <ClanLink
-                href="/login"
-                className="shrink-0 rounded-lg bg-[var(--sa)] px-4 py-2 text-center text-[13px] font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
-              >
-                Sign in to apply
-              </ClanLink>
+              // The same box a signed-in person gets: the name is typed first, and Apply starts
+              // sign-in and comes back here with it kept.
+              <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[24rem]">
+                <NameCharacterInline slug={view.slug} clanName={view.name} clanPath={clanBasePath(view)} returnPath={clanBasePath(view)} mode="apply" signedIn={false} />
+                <SignInReceives />
+              </div>
             ) : (
               // Signed in, no Discord invite. This was `null`: the "Sign in to apply" above led here
               // and the button vanished, leaving a panel that said the clan was recruiting with no
@@ -274,12 +283,18 @@ export default function PublicClanHome({
               labels={{ open: 'Guest here', approval: 'Ask to guest' }}
             />
           ) : (
-            <ClanLink
-              href="/login"
-              className="shrink-0 rounded-lg border border-card-border px-4 py-2 text-center text-[13px] font-semibold transition-colors hover:border-[var(--sa)] hover:text-[var(--sa-text)]"
-            >
-              Sign in to ask
-            </ClanLink>
+            <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[24rem]">
+              <NameCharacterInline
+                slug={view.slug}
+                clanName={view.name}
+                clanPath={clanBasePath(view)}
+                returnPath={clanBasePath(view)}
+                mode="apply"
+                signedIn={false}
+                applyLabel={view.guestPolicy === 'open' ? 'Guest here' : 'Ask to guest'}
+              />
+              <SignInReceives />
+            </div>
           )}
         </div>
       )}

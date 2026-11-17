@@ -13,7 +13,7 @@ import { requirePlatformApi } from '@/lib/platformAccess';
  * `requirePlatformApi`, which no clan role can confer — /api/* is never covered by middleware, so
  * this route checks for itself rather than trusting the layout above the page.
  *
- * Elevation is gone. It POSTed a row to the separate Anvil.Admin control plane so the operator would
+ * Elevation is gone. It POSTed a row to a separate control plane (since retired) so the operator would
  * see it; the operator reads this table directly now, so the forwarding was a round trip to tell
  * another service something this database already held.
  */

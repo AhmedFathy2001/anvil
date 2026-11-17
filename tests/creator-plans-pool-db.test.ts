@@ -17,6 +17,11 @@ import { eq } from 'drizzle-orm';
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('creator-plans-pool');
+// These tests are about what each PAID tier allows, on spaces that hold no trial. A new space now starts
+// Anvil's own trial of the top tier (lib/planTrials; tests/billing-trials-db.test.ts covers it), which
+// would lift every Free space here to Gold, so automatic trials are switched off for this file.
+process.env.ANVIL_PLAN_TRIAL_DAYS = '0';
+
 
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let db: Awaited<ReturnType<typeof loadDb>>['db'];

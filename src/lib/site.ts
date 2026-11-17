@@ -3,7 +3,7 @@
 // (Gumroad) website checklist: a clear product, pricing, terms, privacy, and refunds. Fill in the
 // TODO fields before relying on them — a real business identity and a monitored contact are required.
 //
-// Adapted from Anvil.Admin when billing moved into the Site: the product is no longer per-clan managed
+// Written when billing moved into the Site: the product is no longer per-clan managed
 // HOSTING but one freemium PLATFORM (clans are spaces on it, free to start, paid tiers for more).
 
 export const SITE = {

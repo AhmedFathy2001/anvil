@@ -1,9 +1,9 @@
 import { isAssetPath } from '@/lib/assetUrls';
 import { NextResponse } from 'next/server';
-import { parseJsonArray } from '@/lib/tileKinds';
+import { parseJsonArray, tileKindLabel } from '@/lib/tileKinds';
 import { clogTileError, MAX_CLOG_TILE_ITEMS } from '@/lib/clogTiles';
 import { killSourceOf } from '@/lib/killSource';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
@@ -32,8 +32,8 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  if (!(await readableEventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   // Tiles hidden from members until an admin reveals them. Staff (admin/treasurer/
@@ -1066,7 +1066,7 @@ export async function POST(
     actorUserId: editor.userId,
   });
 
-  track('tile.created', { clanId: event.clanId, userId: editor.userId, props: { duplicate: !!source, mission: !!asMission } });
+  track('tile.created', { clanId: event.clanId, userId: editor.userId, props: { duplicate: !!source, mission: !!asMission, kind: tileKindLabel(created) } });
 
   return NextResponse.json(created, { status: 201 });
 }

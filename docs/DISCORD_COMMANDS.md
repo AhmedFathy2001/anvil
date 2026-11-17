@@ -134,13 +134,17 @@ clan. An HTTP endpoint is just another route in an app that already exists.
 
 ## How a command reaches the right clan
 
+> History: this section describes the per-clan-container design, where a separate control plane
+> forwarded shared-bot commands. That control plane is retired; on the single multi-clan deployment
+> the Site receives the interaction directly and resolves the clan from `guild_id`.
+
 The awkward part is that **a Discord application has exactly one interactions URL**, no matter how
 many servers its bot is in. Managed clans share one Anvil application, so every managed clan's
 commands arrive at the same URL and something has to tell them apart.
 
 ```
                     ┌──────────────────────────────────────────┐
-   /bingo board     │ Anvil.Admin  /api/discord/interactions    │
+   /bingo board     │ control plane /api/discord/interactions   │
   ───────────────►  │  1. verify Ed25519 (shared app key)      │
    (shared app)     │  2. guild_id → clans.discordGuildId      │
                     │  3. forward with clanDiscordSecret(slug) │
@@ -229,7 +233,7 @@ setup step, so it runs automatically and heals itself:
 | Every boot (`src/instrumentation.ts`) and when a BYO token is saved | `syncClanCommands` | **global** on the multi-clan platform (no single guild); **guild** only if a self-host pins `discord_guild_id` |
 | Daily cron (`/api/cron/discord-commands`) | `syncClanCommands` again | same — a self-heal |
 
-The site owns registration now — Anvil.Admin is retired, and there is one multi-clan deployment.
+The site owns registration — there is one multi-clan deployment and no separate control plane.
 There is a single function, `syncClanCommands`: it registers whatever `sharedBotToken()` resolves
 (the shared bot on the platform, `DISCORD_BOT_TOKEN`; a self-host's own token otherwise), globally
 unless a single guild is configured. Boot runs it; the daily cron (`deploy/cron/anvil-cron` →
@@ -276,15 +280,11 @@ links the long version and is the fallback when the ruleset outgrows a Discord e
 1. Add the subcommand to `COMMAND_DEFINITIONS` in `lib/discordCommandDefs.ts` (no DB imports — the
    registration script loads this module directly).
 2. Add a handler with the same name to `SUBCOMMANDS` in `lib/discordCommands.ts`.
-3. Mirror it in `SHARED_COMMANDS` in `Anvil.Admin/src/lib/discordCommandSync.ts` — the control plane
-   registers the shared app and can't import across the repo boundary. The test below fails if you
-   forget.
-4. Deploy. The boot reconcile registers it; no script to remember.
+3. Deploy. The boot reconcile registers it; no script to remember.
 
 `tests/discord-interactions.test.ts` asserts those two lists are **equal**, not that one contains
 the other: a command that autocompletes and then fails in front of a member is worse than one that
 never existed. It also checks the names and descriptions against the constraints Discord enforces at
-registration (a rejected PUT is a silent bot), and — when Anvil.Admin is checked out alongside —
-that the control plane's mirrored copy hasn't drifted from this one.
+registration (a rejected PUT is a silent bot).
 
 Run it with `npm run test:discord`.

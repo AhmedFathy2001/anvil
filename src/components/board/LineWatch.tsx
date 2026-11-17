@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+import { useDialog } from '@/components/Confirm';
 import { blackout, completedLines, lineProgress, nearlyLines, positionsOf } from '@/lib/bingoLines';
 
 /**
@@ -35,6 +37,11 @@ export function computeLineState(size: number, teams: LineWatchTeam[], existingP
   });
 }
 
+/** Teams whose finished-line count went up since `prev` (a team seen for the first time is not a rise). */
+export function risenTeams(prev: Map<number, number>, now: { id: number; name: string; count: number }[]): { id: number; name: string; count: number }[] {
+  return now.filter((t) => prev.has(t.id) && t.count > (prev.get(t.id) ?? 0));
+}
+
 export default function LineWatch({
   size,
   teams,
@@ -53,6 +60,25 @@ export default function LineWatch({
   lensTeamId: number | null;
 }) {
   const state = computeLineState(size, teams, existingPositions);
+  const dialog = useDialog();
+  const seen = useRef<Map<number, number> | null>(null);
+  const [pulse, setPulse] = useState<Set<number>>(new Set());
+  const counts = state.map((s) => ({ id: s.team.id, name: s.team.name, count: s.complete.length }));
+  const countKey = counts.map((c) => `${c.id}:${c.count}`).join(',');
+  useEffect(() => {
+    const now = countKey ? countKey.split(',').map((p) => p.split(':').map(Number)) : [];
+    const prev = seen.current;
+    seen.current = new Map(now.map(([id, n]) => [id, n]));
+    if (!prev) return;
+    const risen = risenTeams(prev, counts);
+    if (risen.length === 0) return;
+    for (const t of risen) dialog.notify(`${t.name} completed a line (${t.count} now)`);
+    setPulse(new Set(risen.map((t) => t.id)));
+    const timer = setTimeout(() => setPulse(new Set()), 4000);
+    return () => clearTimeout(timer);
+    // counts and dialog derive from countKey / are stable enough; the key is what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countKey]);
   const shown = lensTeamId === null ? state : state.filter((s) => s.team.id === lensTeamId);
   const totalLines = state.reduce((n, s) => n + s.complete.length, 0);
   const chases = shown
@@ -105,7 +131,7 @@ export default function LineWatch({
           <span key={s.team.id} className="inline-flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.team.color }} />
             <b className="font-semibold text-foreground">{s.team.name}</b>
-            {s.complete.length > 0 && <> {s.complete.length}🏁</>} {s.black.pct}% of the board
+            {s.complete.length > 0 && <span className={pulse.has(s.team.id) ? 'animate-pulse font-bold text-gold' : undefined}> {s.complete.length}🏁</span>} {s.black.pct}% of the board
           </span>
         ))}
       </div>

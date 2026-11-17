@@ -429,6 +429,7 @@ export const EFFICIENCY_LABELS: Record<string, string> = Object.fromEntries(
  */
 export function weeklyKindLabel(type: string): string {
   if (type === 'skill') return 'Skill of the Week';
+  if (type === 'hunt') return 'Item hunt';
   return type === 'efficiency' ? 'Efficiency of the Week' : 'Boss of the Week';
 }
 
@@ -469,6 +470,8 @@ export function bossMetricLabel(metric: string): string {
 
 export function weeklyMetricLabel(type: string, metric: string): string {
   if (!metric) return '';
+  // An item hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
+  if (type === 'hunt') return metric;
   if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
   return bossMetricLabel(metric) || metric;

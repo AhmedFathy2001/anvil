@@ -5,8 +5,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { put, clanMediaKey } from '@/lib/storage';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
-import sharp from 'sharp';
-import { isAnimatedPng } from '@/lib/imageAnimation';
+import { stripImageMetadata, UNREADABLE_IMAGE } from '@/lib/stripImageMetadata';
 import { fetchRemoteImage } from '@/lib/remoteImage';
 import { db } from '@/db';
 import { proofUploads } from '@/db/schema';
@@ -39,18 +38,6 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10MB (increased for high-res mobile photos
 // collapsing fullscreen captures; q80 WebP is visually lossless for screenshots at a fraction of PNG.
 const MAX_DIMENSION = 1600;
 const WEBP_QUALITY = 80;
-
-// Sharp decodes JPEG/PNG/WebP/GIF via the bundled libvips. HEIC needs a libheif build sharp doesn't
-// ship, so it passes through untouched rather than risk a broken proof. Everything the plugin sends is
-// PNG, the case we most want to shrink.
-//
-// ANIMATION SURVIVES. Clan logos and banners (and event icons/banners) may be animated, and a plain
-// `sharp(input)` reads only the first frame — so an animated WebP used to come out as a still, and
-// GIFs had to be skipped entirely. Multi-page input is now decoded with `animated: true` and
-// re-encoded as animated WebP (a GIF typically shrinks 3-5×). APNG is the exception: libvips reads
-// only its default frame, so an animated PNG keeps its original bytes.
-const RECOMPRESS_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const RECOMPRESS_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
 
 export async function POST(request: Request) {
   // Image uploads are the most expensive public write (decode + resize). Cap per IP.
@@ -114,37 +101,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'File too large. Max 10MB' }, { status: 400 });
   }
 
-  // Recompress JPEG/PNG/WebP/GIF (by MIME or extension); HEIC and mislabelled files keep raw bytes.
-  const canRecompress = RECOMPRESS_TYPES.has(file.type) || RECOMPRESS_EXTS.has(ext);
-
-  let body: Buffer | File = file;
-  let finalExt = ALLOWED_EXTENSIONS.includes(ext) ? ext : 'jpg';
-  let contentType: string | undefined;
-
-  if (canRecompress) {
-    try {
-      const input = Buffer.from(await file.arrayBuffer());
-      if (isAnimatedPng(input)) throw new Error('APNG keeps its own bytes');
-      const animated = ((await sharp(input).metadata()).pages ?? 1) > 1;
-      const out = await sharp(input, { animated })
-        .rotate() // honour EXIF orientation before metadata is stripped
-        .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: WEBP_QUALITY })
-        .toBuffer();
-      // Guard the rare case where re-encoding an already-tiny image grows it.
-      if (out.length < input.length) {
-        body = out;
-        finalExt = 'webp';
-        contentType = 'image/webp';
-      } else {
-        body = input;
-      }
-    } catch {
-      // Decode failed (corrupt/unsupported/too many frames) or an APNG — store the original so a
-      // submission never silently drops and an animation is never flattened.
-      body = file;
-    }
-  }
+  // Images the server can read are re-saved (which drops location, camera and text details); the
+  // re-encoded copy is always what is stored, even when it is a little larger. A proof the server
+  // cannot decode (HEIC without a decoder, an odd file) is stored as it came, so a submission never
+  // silently drops.
+  const clean = await stripImageMetadata(Buffer.from(await file.arrayBuffer()), {
+    maxDimension: MAX_DIMENSION,
+    quality: WEBP_QUALITY,
+    onUnreadable: 'keep',
+    keepExt: ext,
+  });
+  if (!clean) return NextResponse.json({ error: UNREADABLE_IMAGE }, { status: 400 });
+  const body: Buffer = clean.bytes;
+  const finalExt: string = clean.ext;
+  const contentType: string | undefined = clean.contentType;
 
   // Always hand storage an explicit, safe image content-type derived from the final extension.
   // Otherwise it falls back to the CLIENT-declared MIME (File.type), which an attacker can set to
@@ -158,7 +128,7 @@ export async function POST(request: Request) {
 
   const clan = await currentClan();
   const filename = clanMediaKey(clan, `submissions/${crypto.randomUUID()}.${finalExt}`);
-  const bytes = Buffer.isBuffer(body) ? body : Buffer.from(await body.arrayBuffer());
+  const bytes = body;
   const { url } = await put(filename, bytes, safeContentType);
 
   // Provenance: which door this picture came in by, and its fingerprint (schema proofUploads). A

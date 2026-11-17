@@ -20,7 +20,7 @@ export default function RunSoFar({
   if (totals.weeklies > 0) parts.push(`${totals.weeklies} week${totals.weeklies === 1 ? '' : 's'}`);
 
   return (
-    <section className="border border-card-border rounded-xl bg-card-bg p-5">
+    <section className="min-w-0 border border-card-border rounded-xl bg-card-bg p-5">
       <div className="flex items-center gap-2 mb-3">
         <span className="w-1 h-5 bg-gold rounded-full" />
         <h2 className="text-lg font-semibold">Your run so far</h2>
@@ -34,7 +34,9 @@ export default function RunSoFar({
         )}
       </div>
 
-      <div className="grid">
+      {/* grid-cols-1, not a bare grid: a bare grid's one column grows to its widest row, and these
+          rows hold one-line (truncate) text, so the list ran 100px past the card on a phone. */}
+      <div className="grid grid-cols-1">
         {rows.map((row) => (
           <ClanLink
             key={row.key}

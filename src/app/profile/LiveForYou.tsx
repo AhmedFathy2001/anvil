@@ -33,6 +33,14 @@ export default function LiveForYou({ events, weeklies, signups, connected }: Pro
           {connected
             ? 'Sign-ups, your team board and your weekly placing all land here when they open.'
             : 'Connect the plugin above — sign-ups, your team board and your weekly placing all land here.'}
+          <div className="mt-3">
+            <ClanLink
+              href="/events"
+              className="inline-block rounded-lg border border-gold/40 px-3.5 py-2 text-sm text-gold transition-colors hover:border-gold"
+            >
+              Browse events
+            </ClanLink>
+          </div>
         </div>
       ) : (
         <div className="space-y-2.5">

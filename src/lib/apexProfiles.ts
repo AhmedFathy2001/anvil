@@ -320,20 +320,23 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
         .select({ name: clans.name, clanId: clans.id })
         .from(clanMemberships)
         .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
+        .leftJoin(settings, showcaseJoinOn())
         .where(
           and(
             eq(clanMemberships.accountId, a.id),
             eq(clanMemberships.kind, 'member'),
             isNull(clanMemberships.leftAt),
-            eq(clans.status, 'active'),
+            // The same predicate the character page above uses (lib/clanListing): active, not hidden
+            // by the platform, PUBLIC, and listed. This asked about status and the showcase switch
+            // only, so a members-only clan was named on a person's public page.
+            listedClanWhere(),
           ),
         )
         .limit(1)
         .then((r) => r[0] ?? null);
-      const visible = seat && (await getPublicShowcase(seat.clanId));
       return {
         rsn: a.rsn,
-        clan: visible ? seat!.name : null,
+        clan: seat ? seat.name : null,
         overallXp: a.overallXp,
         xpThisWeek: weekBy.get(a.id) ?? 0,
       };

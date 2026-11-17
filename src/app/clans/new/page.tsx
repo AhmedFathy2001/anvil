@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { slugIn } from '@/lib/clanSlugLookup';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { apexDomain, isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
@@ -12,6 +12,7 @@ import { clanStaff, clans } from '@/db/schema';
 import { operatorDiscordId } from '@/lib/welcomeDm';
 import { and, eq } from 'drizzle-orm';
 import NewClanClient from './NewClanClient';
+import { autoTrialOfferFor } from '@/lib/planTrials';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,15 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
 
   const session = await verifyUser();
 
+  // Signed out: straight to the sign-in, which says why ("Sign in to create your clan") and lands
+  // back here. This used to render the form's place as a "Sign in with Discord first" card whose
+  // only button led to /login, which had its own button.
+  if (!session) {
+    const { plan } = await searchParams;
+    const back = plan ? `/clans/new?plan=${encodeURIComponent(plan)}` : '/clans/new';
+    redirect(`/login?return=${encodeURIComponent(back)}`); // clan-prefix: platform -- apex-only page
+  }
+
   // A paid tier picked on /pricing. Only honoured once caps are enforced and its checkout is configured —
   // before that every size is free and asking for a card would be for nothing.
   // ?billing=yearly (the /pricing switch) picks the yearly checkout when that tier has one configured.
@@ -33,8 +43,14 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
   const picked = planParam ? PLANS[planParam as keyof typeof PLANS] : undefined;
   const wanted = parseBillingInterval(billingParam);
   const billing: BillingInterval = picked && wanted === 'yearly' && checkoutUrl(picked, 'yearly') ? 'yearly' : 'monthly';
+  // Every new clan starts Anvil's own trial with no card (lib/planTrials), so while those are on the
+  // form never ends on a checkout: the clan subscribes later from its plan page, with the pay-now
+  // product. Only with automatic trials off does a picked tier go on to its checkout.
+  // Asked for THIS person: someone who deleted a clan that had used its trial starts the next one on Free.
+  const offer = await autoTrialOfferFor(session?.userId ?? null);
+  const autoDays = offer.days;
   const trialPlan =
-    freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
+    offer.reason === 'off' && freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
       ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS, billing }
       : null;
 
@@ -58,8 +74,20 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
       <p className="mt-1 text-sm text-gray-400">
         {trialPlan ? (
           <>
-            Make the clan first — it&rsquo;s live the moment you press the button. Then you&rsquo;ll start your{' '}
-            {TRIAL_DAYS}-day {trialPlan.name} trial on Gumroad.
+            Make the clan first — it&rsquo;s live the moment you press the button. Then you&rsquo;ll{' '}
+            {TRIAL_DAYS > 0 ? `start your ${TRIAL_DAYS}-day ${trialPlan.name} free trial on Gumroad.` : `subscribe to ${trialPlan.name} on Gumroad.`}
+          </>
+        ) : offer.reason === 'owner-deleted-trialed' ? (
+          <>
+            Live the moment you press the button, with no card. This clan starts on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}):
+            the free {PLANS.gold.name} trial was used on a clan you deleted, so it does not start again. You can subscribe from
+            the clan&rsquo;s plan page whenever you need more room.
+          </>
+        ) : autoDays > 0 ? (
+          <>
+            Live the moment you press the button, with no card. Your clan starts with {autoDays} days of {PLANS.gold.name} from
+            Anvil; after that it is on {PLANS.free.name} ({PLANS.free.capLabel.toLowerCase()}) unless you subscribe. Add members
+            with the RuneLite plugin&rsquo;s roster sync, or by hand.
           </>
         ) : (
           <>

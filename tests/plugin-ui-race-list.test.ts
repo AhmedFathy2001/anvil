@@ -108,6 +108,13 @@ test('the tracked card gives a pin with progress a thin bar under its name (no b
   assert.ok(texts(card).includes('0 / 2'));
 });
 
+test('a pinned tile with progress says how many are left', () => {
+  const card = trackedCard([{ tileId: 1, label: '50 Zulrah kills', eventId: 77, board: null, cur: 12, goal: 50, done: false }], 77, { a: 'load', v: 'home' })!;
+  assert.ok(texts(card).includes('38 to go'));
+  const done = trackedCard([{ tileId: 1, label: 'x', eventId: 77, board: null, cur: 50, goal: 50, done: true }], 77, { a: 'load', v: 'home' })!;
+  assert.ok(!texts(done).some((t) => t.endsWith('to go')));
+});
+
 test('a locked race step or a closed tile cannot be tracked, an open one can', () => {
   const base = { tileId: 5, complete: false } as never;
   const withState = (o: object) => ({ ...(base as object), ...o }) as never;

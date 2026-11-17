@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { useVisiblePoll } from '@/hooks/useVisiblePoll';
+import { picksUntilTeam } from '@/lib/draft';
 
 // What a player sees while the draft runs.
 //
@@ -23,6 +24,7 @@ interface DraftState {
   round: number;
   totalPicked: number;
   poolRemaining: number;
+  balanceMode?: string;
 }
 
 export default function DraftWatchClient({
@@ -69,6 +71,14 @@ export default function DraftWatchClient({
     [draft, teamId],
   );
 
+  // Snake order can be counted ahead; a dynamic-order draft picks the weakest team, so it cannot.
+  const until =
+    draft && draft.status === 'active' && draft.balanceMode !== 'dynamic-order'
+      ? picksUntilTeam(draft.teamOrder, draft.currentPickNumber, teamId, draft.poolRemaining)
+      : null;
+  const untilLine =
+    until == null ? null : until === 0 ? `${teamName} is picking now` : `${until} pick${until === 1 ? '' : 's'} until ${teamName}`;
+
   if (!draft) return <div className="text-center py-16 text-text-muted">Loading the draft…</div>;
 
   const drafted = me?.teamId != null;
@@ -96,6 +106,7 @@ export default function DraftWatchClient({
               <p className="text-sm text-text-muted mt-1">
                 You&rsquo;re on the roster. Your board opens here the moment the draft wraps up.
               </p>
+              {untilLine && <p className="text-sm text-gold mt-1">{untilLine}.</p>}
             </>
           ) : (
             <>
@@ -104,6 +115,7 @@ export default function DraftWatchClient({
                 {draft.totalPicked} of {draft.totalPicked + draft.poolRemaining} taken
                 {onTheClock ? ` · ${onTheClock.name} is picking now` : ''}.
               </p>
+              {untilLine && <p className="text-sm text-gold mt-1">{untilLine}.</p>}
             </>
           )}
         </section>
@@ -168,7 +180,7 @@ export default function DraftWatchClient({
                       : 'border-card-border bg-brown-dark/40'
                   }`}
                 >
-                  <span className="truncate">{p.name}</span>
+                  <span className="truncate" title={p.name}>{p.name}</span>
                   {p.pickNumber != null && (
                     <span className="ml-auto font-mono text-[11px] text-text-muted">pick {p.pickNumber + 1}</span>
                   )}

@@ -21,6 +21,10 @@ export const WIDE_BOX = 720;
 /** The smallest the horizontal map may shrink before it scrolls (wide box) or turns (narrow box). */
 export const MIN_SCALE = 0.85;
 
+/** A wide box that is only a little short of the whole map shrinks this far to show all of it,
+ *  rather than scrolling for the sake of the last tile (a six-step race in a ~850px column). */
+export const NEAR_FIT_SCALE = 0.75;
+
 export type RaceMapLayout =
   | { vertical: false; scale: number }
   /** `scrolls`: too many roads for the box even at the narrowest column — the columns scroll sideways. */
@@ -38,6 +42,8 @@ export function naturalWidth(steps: number, roads: number): number {
 export function layoutFor(width: number, steps: number, roads: number, canTurn = true): RaceMapLayout {
   if (width <= 0) return { vertical: false, scale: 1 };
   const room = (width - 8) / naturalWidth(steps, roads);
+  // A wide box nearly holding the map: fit all of it. Further off than that it stays readable and scrolls.
+  if (room < MIN_SCALE && room >= NEAR_FIT_SCALE && width >= WIDE_BOX) return { vertical: false, scale: room };
   if (room >= MIN_SCALE || !canTurn || steps <= 1 || width >= WIDE_BOX) return { vertical: false, scale: Math.min(1, Math.max(MIN_SCALE, room)) };
   const fill = (width - 8 - V_GUTTER) / Math.max(1, roads);
   const colW = Math.min(V_COL_MAX, Math.max(V_COL_MIN, Math.floor(fill)));

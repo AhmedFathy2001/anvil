@@ -11,6 +11,7 @@ import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { eventTileCount } from '@/lib/utils';
 import { writtenTile } from '@/lib/writtenTiles';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
+import { placementOf } from '@/lib/teamPlacement';
 import type { StageCounts } from '@/lib/eventStage';
 
 export const getEventRow = cache(async (eventId: number) =>
@@ -70,6 +71,7 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
     teamCount: teamRow.n,
     assignedPlayerCount: assignedRow.n,
     totalPlayerCount: totalPlayerRow.n,
+    placement: event ? placementOf(event) : null,
   });
 
   return {
@@ -84,5 +86,6 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
     surveyResponses: responseRow.n,
     hasSurvey: questionRow.n > 0,
     blockers: readiness.blockers.map(startBlockerLabel),
+    placement: event ? placementOf(event) : null,
   };
 });

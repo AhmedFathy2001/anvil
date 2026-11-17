@@ -1,3 +1,6 @@
+import { track } from '@/lib/analytics';
+import { viewerIsClanInsider } from '@/lib/clanInsider';
+import { cofferName, donorBoard } from '@/lib/cofferView';
 import { NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 
@@ -23,9 +26,12 @@ import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 export async function GET() {
   const clan = await requireClan();
+  // This read takes no session to answer, so the amounts are for anyone and the names are for
+  // people inside the clan (lib/cofferView).
+  const insider = await viewerIsClanInsider(clan.id);
   const [balance, donors, recent] = await Promise.all([
     getCofferBalance(clan.id),
-    topDonors(clan.id, 10),
+    topDonors(clan.id, 10).then((rows) => donorBoard(rows, insider)),
     listCofferEntries({ clanId: clan.id, statuses: ['approved', 'paid', 'reserved'], limit: 25 }),
   ]);
   return NextResponse.json({
@@ -36,7 +42,7 @@ export async function GET() {
       id: r.id,
       kind: r.kind,
       amount: r.amount,
-      rsn: r.memberName ?? r.rsn,
+      rsn: cofferName(r.memberName ?? r.rsn, insider),
       createdAt: r.createdAt,
     })),
   });
@@ -99,5 +105,6 @@ export async function POST(request: Request) {
     proofBlobUrl: proofUrl,
     note: typeof body?.note === 'string' ? body.note.slice(0, 500) : null,
   });
+  track('coffer.donated', { clanId: clan.id, userId: session.userId });
   return NextResponse.json({ entry: { id: entry.id, amount: entry.amount, status: entry.status } });
 }

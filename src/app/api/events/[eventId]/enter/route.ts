@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mayJoinWith } from '@/lib/characterState';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -11,7 +12,7 @@ import { freemiumEnforced } from '@/lib/entitlements';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
 import { guestPolicyOf } from '@/lib/guestAdmission';
-import { enterEvent } from '@/lib/eventEntry';
+import { enterEvent, inviteStanding } from '@/lib/eventEntry';
 import { entryGateInfo } from '@/lib/entryGatesDb';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
@@ -30,6 +31,11 @@ import { rateLimitByKey } from '@/lib/rate-limit';
  * seat, the ordinary sign-up flow takes over and knows nothing about any of this.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // Entering takes a seat: never from another site's page (the same guard as the site's other
+  // state-changing routes; the session cookie is SameSite=Lax besides).
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.json({ error: 'Not allowed from another site.' }, { status: 403 });
+  }
   const session = await verifyUser();
   if (!session?.playerId) return NextResponse.json({ error: 'Sign in first' }, { status: 401 });
 
@@ -50,6 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     playerId: session.playerId,
     accountId: Number(body?.accountId),
     actorUserId: session.userId,
+    inviteToken: typeof body?.inviteToken === 'string' ? body.inviteToken : null,
   });
 
   switch (result.outcome) {
@@ -69,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 }
 
 /** What entering would involve, so the page can say so before anyone presses anything. */
-export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const session = await verifyUser();
   const eventId = Number((await params).eventId);
   if (!Number.isInteger(eventId)) return NextResponse.json({ error: 'Bad event' }, { status: 400 });
@@ -85,6 +92,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // Asked already? The "waiting on the host" card used to live only in the browser, so a reload (or
   // coming back the next day) offered "Ask to join" again as if nothing had been sent.
   let pendingSince: string | null = null;
+  // Whose staff the request is with, told only to somebody who has one waiting there.
+  let hostName: string | null = null;
   // A closed clan refuses every entry; say so up front instead of after the press.
   let guestsClosed = false;
   // Whether they have any character at all. With none, linking one is the next step, and the sign-up
@@ -106,7 +115,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       const seatedIds = new Set(seated.map((r) => r.accountId));
 
       const mine = await db
-        .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
+        .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt, provisional: accounts.provisional, verificationMethod: accounts.verificationMethod })
         .from(accounts)
         .where(eq(accounts.playerId, session.playerId));
       // A streamed event (a creator space's, or a Streaming clan's open to viewers) asks per event, so
@@ -117,7 +126,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
         event,
       );
       options = mine
-        .filter((a) => a.verifiedAt != null && (streamed || !seatedIds.has(a.id)))
+        .filter((a) => mayJoinWith(a) && (streamed || !seatedIds.has(a.id)))
         .map((a) => ({ id: a.id, rsn: a.rsn }));
 
       const [policy, asked] = await Promise.all([
@@ -145,11 +154,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       }
       hasCharacter = mine.length > 0;
       pendingSince = asked?.requestedAt ?? null;
+      if (pendingSince) hostName = (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { name: true } }))?.name ?? null;
     }
   }
 
   // A creator-space event's "who can join", said up front (no Twitch or Discord call is made here).
   const gate = verdict.outcome === 'outsider' ? await entryGateInfo(eventId, session?.userId ?? null) : null;
 
-  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, full, gate });
+  // Arrived by a team's invite link: is it good for this event right now, and what would pressing
+  // Join do? Read-only; the entry re-checks all of it (lib/eventEntry inviteStanding). Only told to
+  // somebody signed in who may see the event.
+  const invite =
+    session?.playerId && verdict.outcome !== 'refused' ? await inviteStanding(eventId, new URL(request.url).searchParams.get('invite')) : null;
+
+  return NextResponse.json({ verdict, options, pendingSince, hostName, guestsClosed, hasCharacter, full, gate, invite });
 }

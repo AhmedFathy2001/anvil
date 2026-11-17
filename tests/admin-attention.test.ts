@@ -223,6 +223,13 @@ test('an open-ended gap is dated, never given a made-up length', () => {
   assert.doesNotMatch(gap.title, /33/);
 });
 
+test('an open-ended gap that has already begun says from today, not after yesterday', () => {
+  const q = attentionQueue(facts({ gap: { days: 42, startsInDays: 0, openEnded: true, startsOn: '14 November' } }));
+  const gap = q.find((i) => i.key === 'gap')!;
+  assert.equal(gap.title, 'Nothing is scheduled from today on');
+  assert.doesNotMatch(gap.title, /14 November/);
+});
+
 test('a gap with nothing waiting sends you to the schedule instead', () => {
   const q = attentionQueue(facts({ gap: { days: 10, startsInDays: 2, openEnded: false, startsOn: '17 August' } }));
   assert.equal(q.find((i) => i.key === 'gap')?.action, 'Open schedule');
@@ -560,4 +567,12 @@ test('a webhook staff blocked is a critical, unsnoozable card naming where it is
   assert.equal(item.snoozable, false);
   assert.match(item.title, /disabled by Anvil staff/);
   assert.match(item.detail, /discord_webhook_bingo/);
+});
+
+test('a running board that is short of tiles is not said to be "opening"', () => {
+  const q = attentionQueue(facts({ events: [board({ tileCount: 20, status: 'running', startDate: inDays(-3) })] }));
+  const tiles = q.find((i) => i.key === 'tiles-1');
+  assert.match(tiles!.title, /is running with 5 empty tiles/);
+  assert.doesNotMatch(tiles!.detail, /opens/);
+  assert.match(tiles!.detail, /20 of 25 drawn/);
 });

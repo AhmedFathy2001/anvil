@@ -293,7 +293,20 @@ export default function TileCreator(props: TileCreatorProps) {
   );
 }
 
-function ResultRow({ c, best = false, onPick }: { c: TaskCandidate; best?: boolean; onPick: (c: TaskCandidate) => void }) {
+// Two readings of one name (an item that DROPS vs the same item GAINED in the inventory) read as a
+// repeated row. When a title appears twice in a list, each row says which reading it is.
+const TWIN_SUFFIX: Record<string, string> = { drop: 'from a drop', gain: 'in the inventory' };
+function twinTitles(list: TaskCandidate[]): Set<string> {
+  const seen = new Set<string>();
+  const twins = new Set<string>();
+  for (const c of list) {
+    if (seen.has(c.title)) twins.add(c.title);
+    seen.add(c.title);
+  }
+  return twins;
+}
+
+function ResultRow({ c, best = false, twin = false, onPick }: { c: TaskCandidate; best?: boolean; twin?: boolean; onPick: (c: TaskCandidate) => void }) {
   return (
     <button
       type="button"
@@ -305,7 +318,10 @@ function ResultRow({ c, best = false, onPick }: { c: TaskCandidate; best?: boole
       <ThingIcon src={candidateIcon(c)} alt={c.title} size={best ? 32 : 24} className="mt-0.5" />
       <span className="flex-1 min-w-0">
       <span className="flex items-start justify-between gap-2">
-        <span className={`${best ? 'text-base' : 'text-sm'} font-semibold`}>{c.title}</span>
+        <span className={`${best ? 'text-base' : 'text-sm'} font-semibold`}>
+          {c.title}
+          {twin && <span className="font-normal text-text-muted"> ({TWIN_SUFFIX[c.source] ?? c.badge.toLowerCase()})</span>}
+        </span>
         <KindBadge>{c.badge}</KindBadge>
       </span>
       <span className={`mt-1 flex items-start gap-1.5 text-xs ${c.engine === 'screenshot' ? 'text-amber-200' : 'text-accent-green-light'}`}>
@@ -319,8 +335,10 @@ function ResultRow({ c, best = false, onPick }: { c: TaskCandidate; best?: boole
 
 function Results({ results, loading, query, onPick }: { results: TaskCandidate[]; loading: boolean; query: string; onPick: (c: TaskCandidate) => void }) {
   const [best, ...rest] = results;
-  const library = rest.filter((r) => r.source === 'library');
+  const library = rest.filter((r) => r.source === 'library' && !r.key.startsWith('anvil-'));
+  const starters = rest.filter((r) => r.source === 'library' && r.key.startsWith('anvil-'));
   const also = rest.filter((r) => r.source !== 'library').slice(0, 5);
+  const twins = twinTitles([...(best ? [best] : []), ...also, ...library, ...starters]);
   return (
     <div className="mt-5" aria-live="polite">
       {!best ? (
@@ -328,12 +346,12 @@ function Results({ results, loading, query, onPick }: { results: TaskCandidate[]
       ) : (
         <>
           <Eyebrow>Best match</Eyebrow>
-          <ResultRow c={best} best onPick={onPick} />
+          <ResultRow c={best} best twin={twins.has(best.title)} onPick={onPick} />
           {also.length > 0 && (
             <>
               <div className="mt-4"><Eyebrow>Also matches</Eyebrow></div>
               <div className="space-y-2">
-                {also.map((c) => <ResultRow key={c.key} c={c} onPick={onPick} />)}
+                {also.map((c) => <ResultRow key={c.key} c={c} twin={twins.has(c.title)} onPick={onPick} />)}
               </div>
             </>
           )}
@@ -341,7 +359,15 @@ function Results({ results, loading, query, onPick }: { results: TaskCandidate[]
             <>
               <div className="mt-4"><Eyebrow>From your task library</Eyebrow></div>
               <div className="space-y-2">
-                {library.map((c) => <ResultRow key={c.key} c={c} onPick={onPick} />)}
+                {library.map((c) => <ResultRow key={c.key} c={c} twin={twins.has(c.title)} onPick={onPick} />)}
+              </div>
+            </>
+          )}
+          {starters.length > 0 && (
+            <>
+              <div className="mt-4"><Eyebrow>Anvil starter tasks</Eyebrow></div>
+              <div className="space-y-2">
+                {starters.map((c) => <ResultRow key={c.key} c={c} twin={twins.has(c.title)} onPick={onPick} />)}
               </div>
             </>
           )}

@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SKILL_LABELS } from '@/lib/constants';
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
+import { continueFromLocation, rememberContinue, XP_CHECK_EVENT } from '@/lib/continueStore';
 
 interface AttemptState {
   attemptId: number;
@@ -41,14 +42,17 @@ function formatSkill(s: string | null | undefined): string {
  * disabled one.
  */
 export default function LinkAccountClient({
-  manualReview = true,
+  manualReview,
   initialRsn = '',
 }: {
+  /** Default: offered exactly when a clan is named in the address, because staff of THAT clan are who vouch. */
   manualReview?: boolean;
   /** Pre-filled name, for arriving from a suggestion rather than from memory. */
   initialRsn?: string;
 }) {
   const router = useRouter();
+  const inClan = useClanPrefixValue() !== '';
+  manualReview = manualReview ?? inClan;
 
   if (!manualReview) return <StatDeltaPath router={router} initialRsn={initialRsn} />;
 
@@ -60,7 +64,7 @@ export default function LinkAccountClient({
       <StatDeltaPath router={router} initialRsn={initialRsn} />
       <details className="mt-4">
         <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
-          Something else — not on the hiscores, or the XP check won&apos;t work?
+          No XP check for you? Not on the hiscores, or it won&apos;t work: ask this clan&apos;s staff to vouch for you
         </summary>
         <div className="mt-3">
           <ManualReviewPath router={router} />
@@ -71,11 +75,13 @@ export default function LinkAccountClient({
 }
 
 function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) {
+  // The clan whose page this is, by address (`/c/<slug>`): that clan's staff are who answer.
+  const clanPath = useClanPrefixValue();
   const [rsn, setRsn] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<boolean | 'request'>(false);
 
   async function submit() {
     setLoading(true);
@@ -84,13 +90,14 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       const res = await fetch('/api/auth/request-manual-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rsn: rsn.trim(), note: note.trim() }),
+        body: JSON.stringify({ rsn: rsn.trim(), note: note.trim(), clan: clanPath }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || 'Could not submit request');
       } else {
-        setSubmitted(true);
+        // 202: the clan's guest door asks its staff first. Say so rather than a bare "submitted".
+        setSubmitted(res.status === 202 ? 'request' : true);
         router.refresh();
       }
     } catch (e) {
@@ -105,8 +112,12 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       <div className="border border-orange-500/30 bg-orange-500/5 rounded-lg p-4">
         <div className="text-orange-300 font-semibold mb-1">Request submitted</div>
         <div className="text-sm text-foreground/80">
-          A moderator will review your claim. Until then it shows in your profile as{' '}
-          <span className="text-yellow-400">awaiting review</span>.
+          Your clan&apos;s staff will look at it, usually within a day or two, and you will see it here when they do. Until then it
+          shows in your profile as <span className="text-yellow-400">awaiting review</span>
+          {submitted === 'request'
+            ? '. This clan accepts its guests first, so you can sign up for its events as soon as its staff accept your request.'
+            : ', and you can already sign up for events with it.'}{' '}
+          You can add the plugin any time; it joins up with this same character.
         </div>
       </div>
     );
@@ -150,12 +161,25 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
   );
 }
 
+/**
+ * The XP check on its own, for a page that already took the name. `autoStart` begins it at once and is
+ * only ever true as the direct result of the person pressing the button that chose the XP check:
+ * never on a page load.
+ */
+export function XpCheckInline({ rsn, autoStart }: { rsn: string; autoStart: boolean }) {
+  const router = useRouter();
+  return <StatDeltaPath router={router} initialRsn={rsn} autoStart={autoStart} />;
+}
+
 function StatDeltaPath({
   router,
   initialRsn = '',
+  autoStart = false,
 }: {
   router: ReturnType<typeof useRouter>;
   initialRsn?: string;
+  /** Start the check for `initialRsn` on arrival, unless one is already running. */
+  autoStart?: boolean;
 }) {
   const [rsn, setRsn] = useState(initialRsn);
   const [loading, setLoading] = useState(false);
@@ -176,6 +200,38 @@ function StatDeltaPath({
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+  }, [attempt]);
+
+  // Come back to a check already running: the attempt (start, skill, expiry) is stored server-side,
+  // only the polling lives on the page. Pick it up and check once at once.
+  useEffect(() => {
+    let gone = false;
+    fetch('/api/auth/verify-stat-delta/pending')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { attempt?: { attemptId: number; rsn: string; expiresAt: string; minDelta: number; targetSkill: string } | null } | null) => {
+        const a = d?.attempt;
+        if (!gone && !a && autoStart && initialRsn.trim()) void start(initialRsn.trim());
+        if (gone || !a) return;
+        setAttempt((prev) => prev ?? { attemptId: a.attemptId, rsn: a.rsn, expiresAt: a.expiresAt, minDelta: a.minDelta, targetSkill: a.targetSkill });
+        // Picked up again with the way back in the address: keep it with this check.
+        const back = continueFromLocation();
+        if (back) rememberContinue(a.attemptId, back);
+        void doCheck(a.attemptId);
+      })
+      .catch(() => {});
+    return () => {
+      gone = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tell the page a check is on screen: a character that becomes ready after minutes of waiting
+  // must not pull the person away by itself (settings/characters/ContinueStrip).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(XP_CHECK_EVENT, { detail: attempt != null }));
+    return () => {
+      window.dispatchEvent(new CustomEvent(XP_CHECK_EVENT, { detail: false }));
+    };
   }, [attempt]);
 
   // Auto-poll /check every 30s while pending. Don't blast the Hiscores API.
@@ -204,6 +260,10 @@ function StatDeltaPath({
         if (data.code === 'claimed_by_other') setConflictRsn(name);
       } else {
         setCheck(null);
+        // Where they were heading, kept with this check: it can take up to 30 minutes and they may
+        // leave and come back (lib/continueStore). Nothing is stored when there was nowhere to go back to.
+        const back = continueFromLocation();
+        if (back) rememberContinue(data.attemptId, back);
         setAttempt({
           attemptId: data.attemptId,
           rsn: data.rsn,
@@ -219,14 +279,15 @@ function StatDeltaPath({
     }
   }
 
-  async function doCheck() {
-    if (!attempt || checkInFlight.current) return;
+  async function doCheck(idOverride?: number) {
+    const attemptId = idOverride ?? attempt?.attemptId;
+    if (attemptId == null || checkInFlight.current) return;
     checkInFlight.current = true;
     try {
       const res = await fetch('/api/auth/verify-stat-delta/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attemptId: attempt.attemptId }),
+        body: JSON.stringify({ attemptId }),
       });
       const data = (await res.json()) as CheckResult;
       setCheck(data);
@@ -258,7 +319,8 @@ function StatDeltaPath({
           When you press Start, we pick one of your skills at random and a{' '}
           <b className="text-foreground">30-minute timer starts</b>. Gain{' '}
           <b className="text-foreground">1,000 XP in that skill</b> before it runs out and the character is yours.
-          Be ready to log in first. Don&apos;t like the skill? You can re-roll it.
+          Be ready to log in first. Don&apos;t like the skill? You can re-roll it. You can leave this page and
+          come back: the check keeps running.
         </p>
         <button
           onClick={() => start()}
@@ -282,8 +344,9 @@ function StatDeltaPath({
       <div className="border border-green-500/30 bg-green-500/10 rounded-lg p-4">
         <div className="text-green-400 font-semibold mb-1">Verification succeeded</div>
         <div className="text-sm text-foreground/80">
-          Detected {check.delta?.toLocaleString()} XP in {check.skill}. Your account is linked and ready
-          to use — it&apos;s flagged for a moderator to look over, which changes nothing for you.
+          Detected {check.delta?.toLocaleString()} XP in {check.skill}. Your character is linked and ready
+          to use: you can sign up and play now. A moderator of your clan still confirms it, which changes
+          nothing for you; with no clan yet, nobody needs to. Adding the plugin later joins up with this same character.
         </div>
       </div>
     );
@@ -337,7 +400,7 @@ function StatDeltaPath({
       )}
       <div className="flex items-center gap-2">
         <button
-          onClick={doCheck}
+          onClick={() => doCheck()}
           disabled={expired}
           className="bg-gold hover:bg-gold-light text-brown-dark font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
         >
@@ -354,6 +417,10 @@ function StatDeltaPath({
           onClick={() => {
             setAttempt(null);
             setCheck(null);
+            // End it on the server too (it is stored there), then redraw the page's "check running" banner.
+            void fetch('/api/auth/verify-stat-delta/pending', { method: 'DELETE' })
+              .then(() => router.refresh())
+              .catch(() => {});
           }}
           className="text-sm text-text-muted hover:text-foreground underline-offset-2 hover:underline"
         >

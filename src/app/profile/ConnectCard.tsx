@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
+import { useLinkCharacterHere } from '@/components/useLinkCharacterHere';
 import NewPluginToken from '@/components/NewPluginToken';
 
 // The one job of a member's first visit: get the plugin talking to us.
@@ -47,6 +48,7 @@ export default function ConnectCard({
   onVerifyByXp,
 }: Props) {
   const router = useRouter();
+  const linkHere = useLinkCharacterHere();
   const [heard, setHeard] = useState(false);
   // Seeded from what the server just rendered, so a ping that lands between paint and the first
   // poll still counts as a change rather than becoming the baseline it's compared against.
@@ -209,7 +211,7 @@ export default function ConnectCard({
             Verify by XP
           </button>
         ) : (
-          <ClanLink href="/settings/characters#link-account" className="text-gold hover:text-gold-light">
+          <ClanLink href={linkHere('start')} className="text-gold hover:text-gold-light">
             Verify by XP
           </ClanLink>
         )}{' '}
@@ -233,7 +235,7 @@ export default function ConnectCard({
             <div>
               <div className="font-semibold text-foreground/85">On mobile, or not on the hiscores?</div>
               <p className="mt-0.5">
-                <ClanLink href="/settings/characters#link-account" className="text-gold hover:text-gold-light">
+                <ClanLink href={linkHere('start')} className="text-gold hover:text-gold-light">
                   Link by name
                 </ClanLink>{' '}
                 with the XP check, or ask for a manual check if your character is too low level to show on the

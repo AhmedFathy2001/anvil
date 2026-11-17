@@ -49,6 +49,21 @@ const MAJOR_OPTIONS = (major: string) => [
 ];
 
 /**
+ * The in-game page mounts this panel three times (feed, colours, boards). They share ONE read: the
+ * first mount starts it, the rest take the same promise. Dropped a second later so a revisit refetches.
+ */
+let sharedLoad: Promise<Prefs | null> | null = null;
+function loadChatFeed(): Promise<Prefs | null> {
+  if (!sharedLoad) {
+    sharedLoad = fetch('/api/profile/chat-feed').then((r) => (r.ok ? (r.json() as Promise<Prefs>) : null));
+    setTimeout(() => {
+      sharedLoad = null;
+    }, 1000);
+  }
+  return sharedLoad;
+}
+
+/**
  * "In-game chat feed" — what other players' drops and achievements show in YOUR RuneLite chat
  * (lib/chatFeed). The plugin's own switch turns the whole feed on or off; this picks what is in it.
  *
@@ -66,8 +81,7 @@ export default function ChatFeedPanel({ part = 'feed' }: { part?: 'feed' | 'colo
   const preview = useLookPreview();
 
   useEffect(() => {
-    fetch('/api/profile/chat-feed')
-      .then((r) => (r.ok ? r.json() : null))
+    loadChatFeed()
       .then((d) => d && setPrefs(d))
       .catch(() => setError('Could not load your chat feed settings.'));
   }, []);

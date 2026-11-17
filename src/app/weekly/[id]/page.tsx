@@ -2,6 +2,7 @@ import { accentStyle } from '@/lib/accentStyle';
 import { sceneForMetric } from '@/lib/scenes';
 import type { Metadata } from 'next';
 
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -22,11 +23,15 @@ import ClanLink from '@/components/ClanLink';
 import { idOrNull, idParam } from '@/lib/routeIds';
 import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
-import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { getEffectiveParticipants } from '@/lib/weekly';
+import { competitionBoard, myHuntSeats } from '@/lib/itemHuntDb';
 import { competitionMode } from '@/lib/competitionTeams';
-import { buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
+import { ANONYMOUS_VIEWER, buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
 import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
+import BestDrops from '@/components/weekly/BestDrops';
+import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
+import { loadHuntView } from '@/lib/itemHuntView';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,22 +69,32 @@ export async function generateMetadata({
   }
   const [competition] = await db
     .select({
+      id: weeklyCompetitions.id,
+      clanId: weeklyCompetitions.clanId,
+      mode: weeklyCompetitions.mode,
       title: weeklyCompetitions.title,
       type: weeklyCompetitions.type,
       status: weeklyCompetitions.status,
       startDate: weeklyCompetitions.startDate,
       endDate: weeklyCompetitions.endDate,
+      metric: weeklyCompetitions.metric,
+      hunt: weeklyCompetitions.hunt,
     })
     .from(weeklyCompetitions)
     .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
   if (!competition) return {};
+  // A clan vs clan board lists every racing clan's players. A preview goes to whoever the link is
+  // pasted to, so it names them only when a stranger could read every one of those clans.
+  if (!(await competitionReadableBy(competition, ANONYMOUS_VIEWER))) {
+    return clanSectionMetadata({ title: `${competition.title} — ${clanName}`, description: `A competition in ${clanName}.` });
+  }
 
   const participants = await getEffectiveParticipants(compId);
-  const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
+  const board = (await competitionBoard(competition, participants)).filter((e) => e.gained > 0);
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,
     // Who's winning, said the way the card shows it, so the line and the picture agree.
-    description: weeklyLinkDescription(competition, participants.length, board),
+    description: weeklyLinkDescription({ ...competition, status: weeklyStatus(competition) }, participants.length, board),
     image: `/api/og/weekly/${compId}`,
   });
 }
@@ -123,11 +138,36 @@ export default async function WeeklyLeaderboardPage({
     mode === 'clans'
       ? (await Promise.all((await racingClans(competition)).map((c) => viewerMemberIds(c.id, session)))).flat()
       : await viewerMemberIds(clan.id, session);
+  // An item hunt has its own page: a list of drops, not a week of gains (lib/itemHuntView).
+  if (competition.type === 'hunt') {
+    const hunt = await loadHuntView(competition, myMemberIds);
+    if (!hunt) notFound();
+    const running = hunt.status === 'active';
+    const [huntEntry, seats] = await Promise.all([
+      session?.playerId && hunt.status !== 'completed' ? entryStatus(compId, { playerId: session.playerId }) : null,
+      session?.playerId && running ? myHuntSeats(compId, session.playerId) : [],
+    ]);
+    return (
+      <div>
+        <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
+        <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
+          ← All competitions
+        </ClanLink>
+        <div className="contents" style={accentStyle(clan.accentColor)}>
+          <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
+        </div>
+        {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
+        {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
+        <HuntStandingsTable view={hunt} />
+      </div>
+    );
+  }
+
   const view = await buildCompetitionView(competition, myMemberIds);
   const groups = mode === 'solo' ? null : await buildGroupStandings(competition, { memberIds: myMemberIds });
   const myRsns = new Set(view.entries.filter((e) => e.isMe).map((e) => e.rsn.toLowerCase()));
   // "You're in · Opt out" — every competition, any clan's side. Opted-out players are off the board.
-  const entry = session?.playerId && competition.status !== 'completed' ? await entryStatus(compId, { playerId: session.playerId }) : null;
+  const entry = session?.playerId && weeklyStatus(competition) !== 'completed' ? await entryStatus(compId, { playerId: session.playerId }) : null;
 
   const leader = view.entries[0]?.gained > 0
     ? {
@@ -150,7 +190,7 @@ export default async function WeeklyLeaderboardPage({
     <div>
       <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
 
-      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold">
+      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
         ← All competitions
       </ClanLink>
 
@@ -161,7 +201,7 @@ export default async function WeeklyLeaderboardPage({
         type={view.type}
         metricLabel={view.metricLabel}
         unit={view.unit}
-        status={competition.status}
+        status={weeklyStatus(competition)}
         startDate={competition.startDate}
         endDate={competition.endDate}
         iconUrl={competitionIconUrl(competition.type, competition.metric)}
@@ -242,6 +282,7 @@ export default async function WeeklyLeaderboardPage({
             unit={view.unit}
             showDaily={showDaily}
           />
+          <BestDrops drops={view.bestDrops} />
           <SidePanels milestones={view.milestones} highlights={view.highlights} />
         </div>
       </div>

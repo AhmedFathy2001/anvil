@@ -1,5 +1,6 @@
 'use client';
 
+import DialogFrame from '@/components/DialogFrame';
 import { useEffect, useMemo, useState } from 'react';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { BOSSES } from '@/lib/constants';
@@ -358,17 +359,21 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={close}>
-          <div
-            className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl border border-card-border bg-card-bg p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <DialogFrame
+          dirty={tileLabel.trim() !== '' || excluded.size > 0 || points.trim() !== ''}
+          onClose={close}
+          ariaLabel="Generate from collection log"
+          overlayClassName="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+          panelClassName="w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl border border-card-border bg-card-bg p-5 shadow-2xl"
+        >
+          {(requestClose) => (
+          <>
             <div className="flex items-center justify-between gap-3 mb-1">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span className="w-1 h-5 bg-gold rounded-full" />
                 {activity ? `Collection log — ${activity}` : 'Generate from collection log'}
               </h3>
-              <button onClick={close} className="text-text-muted hover:text-foreground text-lg leading-none">×</button>
+              <button onClick={requestClose} aria-label="Close" className="text-text-muted hover:text-foreground text-lg leading-none">×</button>
             </div>
 
             {!activity && (
@@ -611,7 +616,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                       : `1 tile over ${keptCount} item${keptCount === 1 ? '' : 's'}`}
                   </span>
                   <div className="flex items-center gap-2">
-                    <button onClick={close} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors">Cancel</button>
+                    <button onClick={requestClose} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors">Cancel</button>
                     <button
                       onClick={create}
                       disabled={creating || keptCount === 0}
@@ -627,8 +632,9 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                 </div>
               </>
             )}
-          </div>
-        </div>
+          </>
+          )}
+        </DialogFrame>
       )}
     </>
   );
