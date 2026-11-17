@@ -609,7 +609,7 @@ export function RouteMapLegend({ withTeam }: { withTeam: boolean }) {
           <span className="flex items-center gap-1.5"><span className="rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You</span>Where your team is</span>
         </>
       )}
-      <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-2.5 rounded-full" style={{ backgroundColor: ROAD, outline: '1px solid #332a22' }} />Road — where roads meet you can switch lanes</span>
+      <span className="flex items-center gap-1.5"><span className="inline-block w-7 h-2.5 rounded-full" style={{ backgroundColor: '#4a3d33', outline: '1px solid #6b5a4a' }} />A road between tiles. Where roads meet, you can switch to another one.</span>
     </div>
   );
 }
