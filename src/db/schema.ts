@@ -1693,6 +1693,12 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
    * for its own side on weekly_competition_clans.entrants.
    */
   hostEntrants: text('host_entrants').notNull().default('all'),
+  /**
+   * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
+   * where each one counts from, the rule, and what the standings show beside the count. `metric`
+   * then holds the targets as words. Null on every other kind.
+   */
+  hunt: text('hunt'),
 });
 
 /** A team inside a teams-mode weekly competition. Members are weekly_participants.team_id. */
@@ -1790,6 +1796,57 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   index('weekly_participants_comp_id_idx').on(table.competitionId),
   index('weekly_participants_clan_member_id_idx').on(table.clanMemberId),
 ]);
+
+/**
+ * A drop in an item hunt (lib/itemHunt, lib/itemHuntDb): the hunt's whole scoreboard.
+ *
+ * Two ways in. A PLUGIN report (origin 'plugin') is counted at once; it is the same report the
+ * highlight feed reads, deduped by the client's own key plus the same-drop rule in lib/itemHunt.
+ * A MANUAL proof (origin 'manual') is a screenshot with the kill count or XP at the drop: asked for
+ * by the member ('pending' until staff decide) or added by staff (counted straight away).
+ *
+ * Keyed to the participant by name (rsn_normalized, as weekly_participants is) so a guest with no
+ * seat can hold one; clan_member_id rides along where there is a seat.
+ */
+export const huntDrops = pgTable('hunt_drops', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(),
+  rsnNormalized: text('rsn_normalized').notNull(),
+  /** Null only for a pet the plugin could not name. */
+  itemId: integer('item_id'),
+  itemName: text('item_name').notNull(),
+  quantity: integer('quantity').notNull().default(1),
+  source: text('source'),
+  /** Kill count at the drop, or XP in stat_skill at the drop. One of them, or neither. */
+  kc: integer('kc'),
+  xp: bigint('xp', { mode: 'number' }),
+  statSkill: text('stat_skill'),
+  /** Where that number came from: 'reported' (the plugin), 'site' (our own reading then), 'stated' (a manual proof). */
+  statBasis: text('stat_basis'),
+  /** Manual proofs: the site's own reading for this character when the proof was sent, for the reviewer. */
+  siteKc: integer('site_kc'),
+  siteXp: bigint('site_xp', { mode: 'number' }),
+  occurredAt: text('occurred_at').notNull(),
+  /** 'plugin' | 'manual' */
+  origin: text('origin').notNull(),
+  /** 'counted' | 'pending' | 'rejected' */
+  status: text('status').notNull().default('counted'),
+  dedupKey: text('dedup_key').notNull(),
+  screenshotUrl: text('screenshot_url'),
+  note: text('note'),
+  requestedByUserId: integer('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** The approver's name as shown then: "manual proof (approved by Olive)". */
+  decidedByName: text('decided_by_name'),
+  decidedAt: text('decided_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('hunt_drops_dedup_unique').on(table.competitionId, table.rsnNormalized, table.dedupKey),
+  index('hunt_drops_comp_idx').on(table.competitionId, table.status),
+]);
+export type HuntDropRow = typeof huntDrops.$inferSelect;
 
 /**
  * A clan's roster, reassembled: every seat with the account sitting in it.

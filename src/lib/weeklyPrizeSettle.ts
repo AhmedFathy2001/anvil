@@ -3,7 +3,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
-import { computeLeaderboard, countsTowardLeaderboard } from '@/lib/weekly';
+import { countsTowardLeaderboard } from '@/lib/weekly';
+import { competitionBoard } from '@/lib/itemHuntDb';
 import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
@@ -78,7 +79,8 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   // An event player's seat is never the clan's: no coffer prize for it.
   const eligible = rows.filter((r) => r.seatKind !== 'event' && (comp.includeGuests === 1 || r.seatKind !== 'guest'));
   const byRsn = new Map(eligible.map((r) => [r.rsn, r]));
-  const standings = computeLeaderboard(eligible).map((e) => ({
+  // competitionBoard: an item hunt places by its drops (lib/itemHuntDb), everything else by the gain.
+  const standings = (await competitionBoard(comp, eligible)).map((e) => ({
     rsn: e.rsn,
     gained: e.gained,
     clanMemberId: byRsn.get(e.rsn)?.clanMemberId ?? null,

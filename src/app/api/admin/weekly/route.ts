@@ -16,6 +16,7 @@ import { setWeeklyPool } from '@/lib/coffer';
 import { track } from '@/lib/analytics';
 import { setWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { huntFromInput, huntTargetsLabel, killsOfForItems, serializeHunt } from '@/lib/itemHunt';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -57,9 +58,26 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { type, metric, title, startDate, endDate, includeGuests, prizes, prizeHold, repeat } = body;
+  const { type, title, startDate, endDate, includeGuests, prizes, prizeHold, repeat } = body;
+  // An item hunt (lib/itemHunt) has rules instead of a hiscores metric: its targets, where each one
+  // counts from, and the rule. They are checked here and stored whole; `metric` becomes the targets
+  // in words, so everything that names a competition by type and metric names the hunt.
+  let huntJson: string | null = null;
+  let metric: string = body.metric;
+  if (type === 'hunt') {
+    const checked = huntFromInput(body.hunt);
+    if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+    const config = checked.config;
+    // Kills at the source come from the chosen sources when every one is a hiscores boss. With
+    // "any source" (or a pet hunt) the organiser may have picked a boss to show instead.
+    if (config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
+    if (config.killsOf) config.xpSkill = null;
+    huntJson = serializeHunt(config);
+    metric = huntTargetsLabel(config);
+  }
   // Team competitions (lib/competitionTeams): solo (default) | teams | clans.
-  const mode = body.mode === undefined ? 'solo' : parseCompetitionMode(body.mode);
+  // An item hunt is always everyone for themselves: no teams, no clan vs clan.
+  const mode = body.type === 'hunt' || body.mode === undefined ? 'solo' : parseCompetitionMode(body.mode);
   if (!mode) return NextResponse.json({ error: 'Mode must be solo, teams or clans' }, { status: 400 });
   const teamNames: { name: string; colour?: string }[] = Array.isArray(body.teams)
     ? body.teams
@@ -90,8 +108,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'The end has to come after the start.' }, { status: 400 });
   }
 
-  if (type !== 'skill' && type !== 'boss' && type !== 'efficiency') {
-    return NextResponse.json({ error: 'Type must be skill, boss or efficiency' }, { status: 400 });
+  if (type !== 'skill' && type !== 'boss' && type !== 'efficiency' && type !== 'hunt') {
+    return NextResponse.json({ error: 'Type must be skill, boss, efficiency or hunt' }, { status: 400 });
   }
   // Efficiency comps rank by a derived number, so the metric isn't a free-form hiscores key — only
   // the two our engine computes. A typo here would otherwise create a comp that never scores.
@@ -137,6 +155,7 @@ export async function POST(request: Request) {
     mode,
     teamLateJoin: body.teamLateJoin !== false,
     hostEntrants,
+    hunt: huntJson,
   }).returning();
 
   const comp = result[0];

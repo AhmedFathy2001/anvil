@@ -26,7 +26,7 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 // last push isn't clipped early.
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
-import { effectiveMetricValue } from '@/lib/weeklyMetric';
+import { competitionStat, effectiveMetricValue } from '@/lib/weeklyMetric';
 import { metricKeys } from '@/lib/constants';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
@@ -267,6 +267,10 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
   // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
   const activeComps = await db.query.weeklyCompetitions.findMany({ where: eq(weeklyCompetitions.status, 'active') });
   for (const comp of activeComps) {
+    // What this competition reads off the hiscores. An item hunt reads the stat it shows beside its
+    // drops, and one with none has nothing to sweep (lib/weeklyMetric competitionStat).
+    const stat = competitionStat(comp);
+    if (!stat) continue;
     // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
     const participants = await db
       .select({
@@ -291,7 +295,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
 
     for (const p of participants) {
       const entry = claim(ensureEntry(p.clanMemberId, p.rsn));
-      entry.weekly.push({ comp: { id: comp.id, type: comp.type as CompetitionType, metric: comp.metric, startDate: comp.startDate }, participant: p });
+      entry.weekly.push({ comp: { id: comp.id, type: stat.type, metric: stat.metric, startDate: comp.startDate }, participant: p });
       entry.staleKey = olderOf(entry.staleKey, p.lastUpdated);
     }
   }

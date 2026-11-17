@@ -1443,6 +1443,13 @@
       "when": 1794731088274,
       "tag": "0268_extra_membership_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1794900000000,
+      "tag": "0269_item_hunt",
+      "breakpoints": true
     }
   ]
 }

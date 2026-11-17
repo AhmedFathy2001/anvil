@@ -203,9 +203,9 @@ export async function loadClanCard(clan: {
       at: m.occurredAt,
     })),
     competitions: weekly.map((c) => ({
-      type: c.type,
+      type: c.hunt ? 'hunt' : c.type,
       metric: c.metric,
-      label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
+      label: c.hunt ? c.hunt : c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
       ...(c.endDate ? { endsAt: c.endDate } : {}),
     })),
   };

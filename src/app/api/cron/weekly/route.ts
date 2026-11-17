@@ -14,6 +14,7 @@ import { announceCompetitionResults, announceCompetitionStart, announceHalfwayIf
 import { log } from '@/lib/logger';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { rollWeeklySeries } from '@/lib/weeklyRepeat';
+import { competitionBoard } from '@/lib/itemHuntDb';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -22,7 +23,8 @@ const CRON_SECRET = process.env.CRON_SECRET;
 export const maxDuration = 300;
 
 // Final, deduped standings for a competition (gains floored at 0), for the results announcement.
-async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: string; gained: number }[]> {
+async function buildWeeklyStandings(comp: typeof weeklyCompetitions.$inferSelect): Promise<{ rsn: string; gained: number }[]> {
+  const competitionId = comp.id;
   // THE SAME "who still counts" EVERY OTHER SURFACE USES. This built its own query and forgot the
   // one thing that query is for: somebody who left the clan mid-competition was still in the
   // results post. The site standings, the plugin leaderboard and /sotw had all dropped them, so the
@@ -36,7 +38,8 @@ async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: strin
     const existing = byRsn.get(key);
     if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) byRsn.set(key, p);
   }
-  return computeLeaderboard([...byRsn.values()]).map((e) => ({ rsn: e.rsn, gained: Math.max(0, e.gained) }));
+  // An item hunt places by its drops, and `gained` is then the count (lib/itemHuntDb competitionBoard).
+  return (await competitionBoard(comp, [...byRsn.values()])).map((e) => ({ rsn: e.rsn, gained: Math.max(0, e.gained) }));
 }
 
 // Weekly Discord posts are best-effort: a webhook failure must never break the cron sweep.
@@ -52,7 +55,7 @@ async function announceWeeklyStart(comp: typeof weeklyCompetitions.$inferSelect)
 
 async function announceWeeklyResults(comp: typeof weeklyCompetitions.$inferSelect) {
   try {
-    const standings = await buildWeeklyStandings(comp.id);
+    const standings = await buildWeeklyStandings(comp);
     await announceCompetitionResults(comp, standings);
   } catch (err) {
     log.warn('weekly-cron.notify-results-fail', {}, err);

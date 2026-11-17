@@ -23,7 +23,8 @@ import ClanLink from '@/components/ClanLink';
 import { idOrNull, idParam } from '@/lib/routeIds';
 import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
-import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { getEffectiveParticipants } from '@/lib/weekly';
+import { competitionBoard } from '@/lib/itemHuntDb';
 import { competitionMode } from '@/lib/competitionTeams';
 import { ANONYMOUS_VIEWER, buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
 import OptOutToggle from '@/components/weekly/OptOutToggle';
@@ -73,6 +74,8 @@ export async function generateMetadata({
       status: weeklyCompetitions.status,
       startDate: weeklyCompetitions.startDate,
       endDate: weeklyCompetitions.endDate,
+      metric: weeklyCompetitions.metric,
+      hunt: weeklyCompetitions.hunt,
     })
     .from(weeklyCompetitions)
     .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
@@ -84,7 +87,7 @@ export async function generateMetadata({
   }
 
   const participants = await getEffectiveParticipants(compId);
-  const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
+  const board = (await competitionBoard(competition, participants)).filter((e) => e.gained > 0);
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,
     // Who's winning, said the way the card shows it, so the line and the picture agree.

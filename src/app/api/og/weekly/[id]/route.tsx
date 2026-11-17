@@ -1,3 +1,4 @@
+import { competitionBoard } from '@/lib/itemHuntDb';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -49,7 +50,7 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
   const stage = weeklyStatus(comp);
 
   const [participants, clanName] = await Promise.all([getEffectiveParticipants(comp.id), getClanDisplayName(clan.id, clan.name)]);
-  const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
+  const board = (await competitionBoard(comp, participants)).filter((e) => e.gained > 0);
   const name = clanName || clan.name;
 
   const art = await remoteSprite(competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);

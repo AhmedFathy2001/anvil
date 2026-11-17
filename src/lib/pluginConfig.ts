@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { weeklyStatus } from '@/lib/weeklyStage';
+import { competitionStat } from '@/lib/weeklyMetric';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -474,6 +475,8 @@ export interface ActiveWeeklyMetric {
   metric: string;
   startDate: string; // comp start — the elapsed-time anchor for the implausible-gain check
   endDate?: string;
+  /** Set on an item hunt: its targets in words. `type` and `metric` are then the stat it shows beside its drops. */
+  hunt?: string;
 }
 
 // EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
@@ -492,13 +495,12 @@ export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeek
   });
   const nowMs = Date.now();
   const rows = all.filter((w) => weeklyStatus(w, nowMs) === 'active');
-  return rows.map((c) => ({
-    id: c.id,
-    type: c.type as 'skill' | 'boss' | 'efficiency',
-    metric: c.metric,
-    startDate: c.startDate,
-    endDate: c.endDate,
-  }));
+  // An item hunt reads as the stat it shows beside its drops (kills at the source, or XP), so the
+  // plugin pushes that live too; a hunt with no stat has nothing to push and is left out.
+  return rows.flatMap((c) => {
+    const stat = competitionStat(c);
+    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}) }] : [];
+  });
 }
 
 export interface PluginWebhooks {

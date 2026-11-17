@@ -26,6 +26,8 @@ export function parseRepeat(raw: string | null | undefined): RepeatConfig | null
 
 /** 'SOTW: Agility' — what a competition calls itself when nobody renamed it. */
 export function defaultWeeklyTitle(type: string, metric: string): string {
+  // A hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
+  if (type === 'hunt') return `Item hunt: ${metric}`;
   const label =
     type === 'skill'
       ? SKILL_LABELS[metric] ?? metric

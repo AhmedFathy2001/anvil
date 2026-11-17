@@ -7,6 +7,7 @@
 // Turning repeat off on the current competition stops the series: the successor is made from the
 // latest one, and only when it still says repeat.
 
+import { parseHunt, serializeHunt } from '@/lib/itemHunt';
 import { and, eq, isNull, like } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -77,7 +78,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
 
     try {
       const metric = nextMetric(prev.metric, cfg);
-      const win = nextWindow(prev, now);
+      // An item hunt that ended on its first drop repeats from the end it was planned to have.
+      const hunt = prev.type === 'hunt' ? parseHunt(prev.hunt) : null;
+      const win = nextWindow({ startDate: prev.startDate, endDate: hunt?.plannedEnd ?? prev.endDate }, now);
       const nowIso = new Date(now).toISOString();
       const status = win.startDate <= nowIso ? 'active' : 'upcoming';
       // The competition and the marker naming it land together or not at all, so a claim that is
@@ -90,7 +93,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               clanId: prev.clanId,
               type: prev.type,
               metric,
-              title: defaultWeeklyTitle(prev.type, metric),
+              // A hunt keeps its name and its rules: there is no metric to rotate through.
+              title: prev.type === 'hunt' ? prev.title : defaultWeeklyTitle(prev.type, metric),
+              hunt: hunt ? serializeHunt({ ...hunt, plannedEnd: null }) : null,
               startDate: win.startDate,
               endDate: win.endDate,
               createdById: prev.createdById,

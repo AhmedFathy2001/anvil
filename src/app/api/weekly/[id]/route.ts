@@ -1,3 +1,4 @@
+import { competitionBoard } from '@/lib/itemHuntDb';
 import { NextResponse } from 'next/server';
 import { competitionForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -30,7 +31,7 @@ export async function GET(
   const participants = await db.select().from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, compId));
 
-  const leaderboard = computeLeaderboard(participants);
+  const leaderboard = await competitionBoard(comp[0], participants);
 
   return NextResponse.json({
     competition: {

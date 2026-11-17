@@ -19,6 +19,7 @@ import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
+import { huntReportItemIds } from '@/lib/itemHuntDb';
 import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
 import { modeAwareNotifyFlags, pluginModeThresholds } from '@/lib/worldModeStore';
 import { worldModeOf } from '@/lib/worldModeRequest';
@@ -192,7 +193,14 @@ export async function GET(request: Request) {
         trackedClog: [],
         // No board, so no event luck: only the character's head-to-head drop races (lib/h2h), which
         // the plugin then reports whatever they sell for. Capability 'luck-drops'.
-        luckItemIds: character && standing === 'yours' ? await h2hDropIdsFor(character) : [],
+        // The clan's running item hunts ride on the same list (lib/itemHuntDb): their targets are
+        // reported whatever they sell for, by a plugin that has never heard of a hunt.
+        luckItemIds: [
+          ...new Set([
+            ...(character && standing === 'yours' ? await h2hDropIdsFor(character) : []),
+            ...(await huntReportItemIds(clan.id).catch(() => [] as number[])),
+          ]),
+        ].sort((x, y) => x - y),
         noActiveEvent: true,
         rollTables: pluginRollTables,
         schedule,
@@ -256,7 +264,11 @@ export async function GET(request: Request) {
   // The character's head-to-head drop races ride on the board's luck list (lib/h2h): the plugin
   // reports a drop on that list as a moment whatever it sells for, which is what calls the race.
   {
-    const raceIds = await h2hDropItemIdsForAccount(auth.accountId).catch(() => [] as number[]);
+    const raceIds = [
+      ...(await h2hDropItemIdsForAccount(auth.accountId).catch(() => [] as number[])),
+      // ...and so do the targets of the clan's running item hunts (lib/itemHuntDb).
+      ...(await huntReportItemIds(clan.id).catch(() => [] as number[])),
+    ];
     if (raceIds.length) {
       const b = built.body as unknown as { luckItemIds?: number[] };
       b.luckItemIds = [...new Set([...(b.luckItemIds ?? []), ...raceIds])].sort((x, y) => x - y);

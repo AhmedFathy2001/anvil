@@ -9,6 +9,7 @@ import { competitionMode, groupStandingsFromRows, teamColour, type GroupDef } fr
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { computeLeaderboard, countsTowardLeaderboard } from '@/lib/weekly';
 import { viewerPlace } from '@/lib/weeklyPlace';
+import { competitionBoard } from '@/lib/itemHuntDb';
 
 /**
  * Where the viewer stands in each weekly competition they are entered in, for the events page's and
@@ -56,6 +57,10 @@ export async function viewerWeeklyStandings(
       seatKind: clanRoster.kind,
       mode: weeklyCompetitions.mode,
       hostClanId: weeklyCompetitions.clanId,
+      type: weeklyCompetitions.type,
+      hunt: weeklyCompetitions.hunt,
+      startDate: weeklyCompetitions.startDate,
+      endDate: weeklyCompetitions.endDate,
     })
     .from(weeklyParticipants)
     .innerJoin(weeklyCompetitions, eq(weeklyCompetitions.id, weeklyParticipants.competitionId))
@@ -152,7 +157,9 @@ export async function viewerWeeklyStandings(
     // lets this viewer in. Known readable (the caller asked), or every clan public; otherwise no place.
     if (mode === 'clans' && !opts.readable?.has(id) && groups.some((g) => clanVisibilityOf(g.visibility) !== 'public')) continue;
 
-    const place = viewerPlace(computeLeaderboard(list), new Set(mine.map((r) => r.rsn)));
+    // An item hunt places by its drops (lib/itemHuntDb), everything else by the gain.
+    const board = list[0].type === 'hunt' ? await competitionBoard({ id, type: 'hunt', hunt: list[0].hunt, startDate: list[0].startDate, endDate: list[0].endDate }, list) : computeLeaderboard(list);
+    const place = viewerPlace(board, new Set(mine.map((r) => r.rsn)));
     const personStanding: PersonStanding | null = place
       ? { rank: place.rank, total: place.total, scored: place.gained > 0, behind: place.behind?.amount ?? null, lead: place.lead }
       : null;
