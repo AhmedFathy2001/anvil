@@ -262,7 +262,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
         return;
       }
       if (!res.ok) return notify(data.error || 'Could not save the roads.', 'error');
-      if (asDraft) notify(`Saved as a draft. ${problems.length} thing${problems.length === 1 ? '' : 's'} left to fix before the race can start.`);
+      if (asDraft) notify(`Saved as a draft. ${problems.length} thing${problems.length === 1 ? '' : 's'} left to finish the road.`);
       const order: number[] = data.order ?? [];
       const update = new Map(shown.map((e) => [e.id, { raceStep: e.step, raceNext: e.next, position: order.indexOf(e.id) }]));
       onSaved(update);
@@ -650,8 +650,9 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
       {!locked && problems.length > 0 && (
         <div className="border border-red-500/30 rounded-xl bg-card-bg p-3 space-y-2">
           <p className="text-xs font-semibold text-red-400">
-            Fix {problems.length === 1 ? 'this' : `these ${problems.length}`} before {eventStarted ? 'saving' : 'the race can start'}
-            {eventStarted ? ':' : ' (you can save it as a draft meanwhile):'}
+            {eventStarted
+              ? `Fix ${problems.length === 1 ? 'this' : `these ${problems.length}`} before saving:`
+              : `${problems.length === 1 ? 'One thing' : `${problems.length} things`} left to finish the road. You can save it as a draft meanwhile; a tile left off the road is simply not in the race:`}
           </p>
           <ul className="space-y-1">
             {problems.slice(0, 12).map((p, i) => (
@@ -888,7 +889,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-gold align-middle" aria-hidden />
             <span className="text-text-muted">Unsaved road changes{removed.length ? ` (${removed.length} tile${removed.length === 1 ? '' : 's'} to delete)` : ''} · </span>
             {problems.length > 0 ? (
-              <span className="text-red-300">{problems.length} thing{problems.length === 1 ? '' : 's'} to fix {eventStarted ? 'first' : 'before it can start'}</span>
+              <span className="text-red-300">{problems.length} thing{problems.length === 1 ? '' : 's'} {eventStarted ? 'to fix first' : 'left to finish'}</span>
             ) : (
               <span className="text-green-400">playable: {playableLine}</span>
             )}
