@@ -12,6 +12,7 @@ import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { billingStatus, liveness } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
 
@@ -27,6 +28,9 @@ const STATUS_STYLE: Record<string, string> = {
  * Editing in the row rather than behind a detail page: there are four fields, and the operator is
  * nearly always comparing clans at the moment they change one.
  */
+/** Clans drawn before "Show more"; the filter box still looks through all of them. */
+const CLAN_CHUNK = 25;
+
 export default function ClansClient({
   clans,
   canWrite,
@@ -41,6 +45,7 @@ export default function ClansClient({
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const [limit, setLimit] = useState(CLAN_CHUNK);
   // Which clan's "act as" form is open. Null means none — this is never a default-on state.
   const [acting, setActing] = useState<number | null>(null);
   const [reason, setReason] = useState('');
@@ -269,7 +274,7 @@ export default function ClansClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-card-border">
-            {shown.map((c) => (
+            {shown.slice(0, limit).map((c) => (
               <tr key={c.id} className={busy === c.id ? 'opacity-50' : undefined}>
                 <td className="px-4 py-3">
                   {/* The NAME opens this clan's operator page — the question you arrive with is
@@ -442,7 +447,7 @@ export default function ClansClient({
                     number the price list does not have — so this overrides it, and empty means no cap
                     at all rather than a cap of nothing. Changing the plan resets it unless the same
                     request says otherwise, which is why this sends only the cap. */}
-                <td data-label="Seat cap" className="px-4 py-3">
+                <td data-label="Seat cap" className="stack-half px-4 py-3">
                   {canWrite ? (
                     <CapCell
                       cap={c.memberCap}
@@ -455,7 +460,7 @@ export default function ClansClient({
                   )}
                 </td>
                 {canWrite && (
-                  <td data-label="Access" className="px-4 py-3">
+                  <td data-label="Access" className="stack-half px-4 py-3">
                     {liveByClan.has(c.id) ? (
                       <button
                         onClick={() => handBack(liveByClan.get(c.id)!.id, c.id)}
@@ -517,6 +522,7 @@ export default function ClansClient({
         </table>
       </div>
 
+      <ShowMoreButton total={shown.length} shown={limit} chunk={CLAN_CHUNK} onMore={() => setLimit((n) => n + CLAN_CHUNK)} className="mt-3" />
       {shown.length === 0 && <p className="mt-4 text-sm text-gray-500">No clan matches that.</p>}
     </div>
   );

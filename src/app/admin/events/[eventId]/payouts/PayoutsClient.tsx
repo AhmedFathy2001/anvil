@@ -11,6 +11,7 @@ import { valuesEqual } from '@/lib/unsavedChanges';
 import { useDialog } from '@/components/Confirm';
 import { atLeast } from '@/lib/clanRoles';
 import CofferPoolCard from './CofferPoolCard';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -94,11 +95,16 @@ function suggestAmounts(paidPlaces: number, basis: number): string[] {
 
 type SplitValues = { mode: 'share' | 'fixed'; paidPlaces: number; placePercents: string[]; placeAmounts: string[]; poolBasis: string };
 
+/** Payout rows drawn before "Show more"; past this many a name search appears. */
+const PAYOUT_CHUNK = 25;
+
 export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const { confirm } = useDialog();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [payoutSearch, setPayoutSearch] = useState('');
+  const [payoutLimit, setPayoutLimit] = useState(PAYOUT_CHUNK);
 
   // Prize-pool basis the per-placement rewards are calculated from (prefilled with the real pool),
   // how many places pay out, and the resulting editable gp reward per placement.
@@ -332,6 +338,10 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   if (!data) return <p className="text-red-400 text-sm">{err || 'Failed to load.'}</p>;
 
   const { payouts, pool, standings, announcedAt } = data;
+  const payoutNeedle = payoutSearch.trim().toLowerCase();
+  const shownPayouts = payoutNeedle
+    ? payouts.filter((p) => `${p.rsn} ${p.teamName ?? ''}`.toLowerCase().includes(payoutNeedle))
+    : payouts;
   const totalPending = payouts.filter((p) => p.status !== 'paid').reduce((s, p) => s + p.amount, 0);
   const totalPaid = payouts.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
   const paidCount = payouts.filter((p) => p.status === 'paid').length;
@@ -566,7 +576,16 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
         </p>
       ) : (
         <div className="space-y-2">
-          {payouts.map((p) => (
+          {payouts.length > PAYOUT_CHUNK && (
+            <Input
+              value={payoutSearch}
+              onChange={(e) => setPayoutSearch(e.target.value)}
+              placeholder="Find a name or team…"
+              aria-label="Find a payout by name or team"
+              className="rounded-lg"
+            />
+          )}
+          {shownPayouts.slice(0, payoutLimit).map((p) => (
             <div
               key={p.id}
               className="border border-card-border rounded-xl p-4 bg-card-bg flex flex-wrap items-center gap-x-4 gap-y-3"
@@ -593,6 +612,8 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               )}
             </div>
           ))}
+          {shownPayouts.length === 0 && <p className="text-sm text-text-muted">No payout matches that.</p>}
+          <ShowMoreButton total={shownPayouts.length} shown={payoutLimit} chunk={PAYOUT_CHUNK} onMore={() => setPayoutLimit((n) => n + PAYOUT_CHUNK)} />
         </div>
       )}
 

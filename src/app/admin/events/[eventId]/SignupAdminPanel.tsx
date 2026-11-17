@@ -27,6 +27,7 @@ import type { SurveyQuestionView } from '@/lib/survey';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import { DEFAULT_AUTO_TEAM_COUNT, placementOf, type TeamPlacement } from '@/lib/teamPlacement';
 import TeamPlacementFields from '@/components/TeamPlacementFields';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -120,6 +121,9 @@ const BOSS_LABEL: Record<string, string> = Object.fromEntries(
   BOSSES.map((b) => [b.key, b.label]),
 );
 
+/** Sign-ups drawn before "Show more". */
+const SIGNUP_CHUNK = 25;
+
 export default function SignupAdminPanel({
   event,
   onEventUpdated,
@@ -171,6 +175,8 @@ export default function SignupAdminPanel({
   // { signup } = edit that sign-up's answers.
   const [answersModal, setAnswersModal] = useState<{ signup: SignupRow | null } | null>(null);
   const [search, setSearch] = useState('');
+  // The list is drawn 25 at a time; search and the filters still run over every sign-up.
+  const [signupLimit, setSignupLimit] = useState(SIGNUP_CHUNK);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [feeFilter, setFeeFilter] = useState<string>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
@@ -1004,7 +1010,7 @@ export default function SignupAdminPanel({
 
         {visibleSignups.length > 0 && (
           <div className="space-y-2">
-            {visibleSignups.map((s) => {
+            {visibleSignups.slice(0, signupLimit).map((s) => {
               const isExpanded = expanded.has(s.id);
               return (
                 <div
@@ -1381,6 +1387,7 @@ export default function SignupAdminPanel({
                 </div>
               );
             })}
+            <ShowMoreButton total={visibleSignups.length} shown={signupLimit} chunk={SIGNUP_CHUNK} onMore={() => setSignupLimit((n) => n + SIGNUP_CHUNK)} />
           </div>
         )}
       </div>

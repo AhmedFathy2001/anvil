@@ -10,6 +10,7 @@ import { useDialog } from '@/components/Confirm';
 import { doubleEntries, surplusSeats, type EntrantSeat } from '@/lib/weeklyEntrants';
 import StartingStatsLine, { StartingStatsSummary, postStartingStatsRetry, unreadIds, useStartingStatsPoll } from '@/components/StartingStatsLine';
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 /**
  * The two roster surfaces of a weekly, which are the same table read two ways.
@@ -18,6 +19,9 @@ import type { StartingStatsStatus } from '@/lib/startingStatsRules';
  * 'baselines' answers whether their numbers can be trusted — the starting line, the current value,
  * and the implausible-gain flags that mean the hiscores flushed a pre-competition grind.
  */
+/** Entrants drawn before "Show more"; the name search still looks through all of them. */
+const ROSTER_CHUNK = 50;
+
 export default function WeeklyRosterClient({
   competitionId,
   type,
@@ -53,6 +57,7 @@ export default function WeeklyRosterClient({
   const [names, setNames] = useState('');
   const [editing, setEditing] = useState<{ id: number; rsn: string; value: string } | null>(null);
   const [search, setSearch] = useState('');
+  const [limit, setLimit] = useState(ROSTER_CHUNK);
 
   const visible = search.trim()
     ? standings.filter((s) => s.rsn.toLowerCase().includes(search.trim().toLowerCase()))
@@ -405,7 +410,7 @@ export default function WeeklyRosterClient({
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => (
+              {visible.slice(0, limit).map((row) => (
                 <tr key={row.participantId} className="border-t border-card-border/70 hover:bg-white/[0.02]">
                   <td className="px-4 py-2">
                     <span className="flex items-center gap-2 min-w-0">
@@ -545,6 +550,7 @@ export default function WeeklyRosterClient({
             </tbody>
           </table>
         </div>
+        <ShowMoreButton total={visible.length} shown={limit} chunk={ROSTER_CHUNK} onMore={() => setLimit((n) => n + ROSTER_CHUNK)} className="rounded-none border-x-0 border-b-0" />
       </section>
     </div>
   );
