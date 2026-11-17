@@ -14,6 +14,7 @@
 // Pure: no `@/db`. The facts come in from lib/eventRulebook; the strings from the Discord dictionary
 // (English on the site). Lines are Discord-flavoured markdown, which the site's guide renderer reads.
 
+import { easeRuleLines } from '@/lib/raceEase';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { EMBED_COLOR, LIMIT, clamp, code, type DiscordEmbed } from '@/lib/discordEmbeds';
 import { fmt, plural, type DiscordDict } from '@/lib/discordI18n';
@@ -95,6 +96,8 @@ export function mechanicsLines(
   out.push(event.scoringMode === 'points' ? t.rules.scoringPoints : t.rules.scoringTiles);
 
   if (event.format === 'tilerace') out.push(t.rules.tileRace);
+  // Easier options (lib/raceEase). English for now: the two lines aren't in the Discord dictionaries yet.
+  if (event.format === 'tilerace') for (const line of easeRuleLines(rules.raceEase, rules.raceLifelines)) out.push(line);
 
   // Reveal policy is the single most-asked mechanic on a modern board — a player who can't see a
   // tile assumes something is broken rather than that the board is drip-feeding on purpose.

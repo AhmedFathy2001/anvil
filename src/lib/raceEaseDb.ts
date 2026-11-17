@@ -138,8 +138,10 @@ export function dropHiddenEase<T extends { id: number }>(ctx: EaseContext | null
       continue;
     }
     const kept = nested.filter((o) => visible.has(o.id));
-    const { easier: _easier, ...rest } = t as T & { easier?: unknown };
-    out.push((kept.length ? { ...rest, easier: kept } : rest) as T);
+    const copy = { ...t } as T & { easier?: unknown };
+    if (kept.length) copy.easier = kept;
+    else delete copy.easier;
+    out.push(copy);
   }
   return out;
 }

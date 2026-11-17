@@ -47,7 +47,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const event = await eventForRequest(request, eId);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const teamId = Number(new URL(request.url).searchParams.get('teamId'));
-  const empty = { tiles: {}, lifelines: null, canSpend: false };
+  const empty = { tiles: {}, lifelines: null, canSpend: false, now: Date.now() };
   if (event.format !== 'tilerace' || !Number.isInteger(teamId)) return NextResponse.json(empty);
   const team = await db.query.teams.findFirst({ where: and(eq(teams.id, teamId), eq(teams.eventId, eId)) });
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
@@ -57,7 +57,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const view = await teamEaseView(event, teamId);
   if (!view) return NextResponse.json(empty);
   return NextResponse.json(
-    { tiles: Object.fromEntries(view.tiles), lifelines: view.lifelines, canSpend: access.spend },
+    { tiles: Object.fromEntries(view.tiles), lifelines: view.lifelines, canSpend: access.spend, now: Date.now() },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );
 }

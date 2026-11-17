@@ -1,4 +1,4 @@
-import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
+import { STAFF_HIDE_ERROR, maskRaceTilesForSession, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 import { maskRaceTile } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
@@ -40,7 +40,10 @@ export async function GET(
   // A combo (lib/combo) comes with its parts, so the editor opens all of it from one fresh read.
   // A race tile's easier options (lib/raceEase) come with it too, first level first.
   const children = tile.parentTileId == null ? await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id)) : [];
-  const easier = children.filter((c) => c.easeLevel != null).sort((a, b) => (a.easeLevel as number) - (b.easeLevel as number) || a.id - b.id);
+  // Through the same gate as every other read: under "Also hide from event staff" a caller who
+  // doesn't see through gets only the ones live for some team.
+  const easeRows = children.filter((c) => c.easeLevel != null).sort((a, b) => (a.easeLevel as number) - (b.easeLevel as number) || a.id - b.id);
+  const easier = ev ? await maskRaceTilesForSession(ev, easeRows) : [];
   const extra = easier.length ? { easier } : {};
   if (tile.tileType === 'combo') {
     return NextResponse.json({ ...tile, parts: children.filter((c) => c.easeLevel == null), ...extra });

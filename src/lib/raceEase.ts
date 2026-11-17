@@ -231,12 +231,12 @@ export function easeRuleLines(ease: RaceEaseRule | null, lifelines: RaceLifeline
   const out: string[] = [];
   const hrs = (h: number) => (h === 1 ? 'hour' : h % 24 === 0 ? (h === 24 ? 'day' : `${h / 24} days`) : `${h} hours`);
   if (ease) {
-    out.push(`Tiles get easier over time: every ${hrs(ease.hours)} after the start, the next step gains an easier option. Either version finishes the tile.`);
+    out.push(`• **Easier over time** — every ${hrs(ease.hours)} after the start, the next step gains an easier option. Either version finishes the tile.`);
   }
   if (lifelines) {
     const n = lifelines.count;
     const wait = lifelines.afterHours > 0 ? ` once that tile has been open to you for ${lifelines.afterHours === 1 ? 'an hour' : `${lifelines.afterHours} hours`}` : '';
-    out.push(`Lifelines: ${n} per team for the whole race. Spend one on a tile you're stuck on${wait} to open its easier option. You only see what it is after spending.`);
+    out.push(`• **Lifelines** — ${n} per team for the whole race. Spend one on a tile you're stuck on${wait} to open its easier option. You only see what it is after spending.`);
   }
   return out;
 }
