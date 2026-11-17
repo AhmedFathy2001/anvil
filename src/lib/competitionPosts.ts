@@ -563,5 +563,5 @@ export function sampleCompetitionEmbed(type: 'daily' | 'halfway' | 'endingSoon',
   if (type === 'halfway') {
     return halfwayEmbed({ subject, board, history: [{ zezima: 4, 'iron mole': 1, 'dusty boots': 2, 'cabbage pult': 3 }, { zezima: 2 }], startMs, endMs, nowMs, bestDrops })!;
   }
-  return endingSoonEmbed({ subject, board });
+  return endingSoonEmbed({ subject, board, prev });
 }
