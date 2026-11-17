@@ -10,7 +10,7 @@ import { isMissionTile } from '@/lib/eventRules';
 import { assertEventEditable } from '@/lib/eventLock';
 import { eventForRequest } from '@/lib/eventScope';
 import { MAX_EASE_OPTIONS } from '@/lib/raceEase';
-import { bumpEaseContext } from '@/lib/raceEaseDb';
+import { easeChanged } from '@/lib/raceEaseDb';
 import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 import { logTileAudit, snapshotTile } from '@/lib/tile-audit';
 
@@ -62,7 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     .returning();
   // It carries its tile's reveal state, like any child row (lib/comboSql).
   await syncPartRevealState(eId);
-  bumpEaseContext(eId);
+  await easeChanged(eId);
   logTileAudit({ eventId: eId, action: 'created', tileId: created.id, tileLabel: created.label, newValue: snapshotTile(created), actorUserId: editor.userId });
   const fresh = await db.query.tiles.findFirst({ where: eq(tiles.id, created.id) });
   return NextResponse.json(fresh ?? created, { status: 201 });
