@@ -164,7 +164,8 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
       )}
 
       <div className="mt-5">
-        <PlanTrialPanel clan={clan} billing={billing} canBuy={isOwner} viewerIsStaff={viewerIsStaff} />
+        {/* A membership already waiting for its first payment: no second buy button beside it. */}
+        <PlanTrialPanel clan={clan} billing={billing} canBuy={isOwner && !held} viewerIsStaff={viewerIsStaff} />
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -203,7 +204,12 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                   <li key={f}>{f}</li>
                 ))}
               </ul>
-              {isOwner ? (
+              {isOwner && held ? (
+                <p className="text-[13px] text-text-muted">
+                  You already have a membership waiting for its first payment (see the notice above), so there is nothing to
+                  buy here.
+                </p>
+              ) : isOwner ? (
                 offers.map((o) => {
                   const wording = buyWording(o.buttons, {
                     tierName: fits.name,

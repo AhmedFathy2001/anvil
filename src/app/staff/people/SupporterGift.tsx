@@ -75,8 +75,10 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
       const res = await clanFetch(url + query, init);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? 'Failed');
+        // "Changes nothing" is already said by the preview line, with what to press next: the same
+        // sentence a second time in red read as a failure. Only shown when there is no preview to say it.
         if (data.needsConfirm) setConfirming(true);
+        if (!(data.needsConfirm && preview?.nothing)) setError(data.error ?? 'Failed');
       } else {
         setGifts(data.gifts);
         setStanding(data.standing ?? null);
