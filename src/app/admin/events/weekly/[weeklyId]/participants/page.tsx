@@ -3,6 +3,9 @@ import { notFound } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
 import { getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
 import WeeklyRosterClient from '../WeeklyRosterClient';
+import WeeklyFeesPanel from '../WeeklyFeesPanel';
+import { verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 import { weeklyStartingStatsFor } from '@/lib/startingStats';
 import { idParam } from '@/lib/routeIds';
 
@@ -20,5 +23,11 @@ export default async function WeeklyParticipantsPage({ params }: { params: Promi
   const standings = await getWeeklyStandings(id);
   const startingStats = weeklyStartingStatsFor(comp, standings.map((s) => ({ id: s.participantId, baselineValue: s.baselineValue, lastUpdated: s.lastUpdated })));
 
-  return <WeeklyRosterClient competitionId={id} type={competitionStat(comp)?.type ?? 'boss'} standings={standings} startingStats={startingStats} mode="participants" includeGuests={comp.includeGuests === 1} selectedOnly={comp.hostEntrants === 'selected'} />;
+  const session = await verifyUser();
+  return (
+    <>
+      <WeeklyFeesPanel competitionId={id} canCollect={atLeast(session?.role, 'treasurer')} canConfirm={atLeast(session?.role, 'admin')} />
+      <WeeklyRosterClient competitionId={id} type={competitionStat(comp)?.type ?? 'boss'} standings={standings} startingStats={startingStats} mode="participants" includeGuests={comp.includeGuests === 1} selectedOnly={comp.hostEntrants === 'selected'} />
+    </>
+  );
 }

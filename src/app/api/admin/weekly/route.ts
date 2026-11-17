@@ -1,3 +1,4 @@
+import { cleanEntryFee } from '@/lib/weeklySignups';
 import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
@@ -95,7 +96,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Only an owner or admin can invite other clans.' }, { status: 403 });
   }
   // Who from this clan races: everyone (default) or only the people an admin adds.
-  const hostEntrants = body.hostEntrants === 'selected' ? 'selected' : 'all';
+  // 'signup' is "selected people" who select themselves: members enter from the competition's page (lib/weeklySignups).
+  const selfSignup = body.hostEntrants === 'signup';
+  const hostEntrants = body.hostEntrants === 'selected' || selfSignup ? 'selected' : 'all';
+  const entryFee = selfSignup ? cleanEntryFee(body.entryFee) : null;
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -177,6 +181,8 @@ export async function POST(request: Request) {
     mode,
     teamLateJoin: body.teamLateJoin !== false,
     hostEntrants,
+    selfSignup,
+    entryFee,
     hunt: huntJson,
   }).returning();
 

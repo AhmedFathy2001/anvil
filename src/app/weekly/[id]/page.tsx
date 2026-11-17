@@ -31,6 +31,8 @@ import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
 import BestDrops from '@/components/weekly/BestDrops';
 import CompetitionPrizes from '@/components/weekly/CompetitionPrizes';
+import SelfEntry from '@/components/weekly/SelfEntry';
+import { myEntry, signupOpen } from '@/lib/weeklySignups';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
 import { loadHuntView } from '@/lib/itemHuntView';
 
@@ -139,6 +141,19 @@ export default async function WeeklyLeaderboardPage({
     mode === 'clans'
       ? (await Promise.all((await racingClans(competition)).map((c) => viewerMemberIds(c.id, session)))).flat()
       : await viewerMemberIds(clan.id, session);
+  // A competition that takes sign-ups (lib/weeklySignups): the Enter card, on the host clan's own page.
+  const takesSignups = signupOpen(competition) && competition.clanId === clan.id;
+  const mine = takesSignups ? await myEntry(competition, session?.playerId ?? null) : null;
+  const selfEntry = mine ? (
+    <SelfEntry
+      competitionId={compId}
+      entryFee={competition.entryFee}
+      started={weeklyStatus(competition) !== 'upcoming'}
+      seats={mine.seats}
+      entries={mine.entries}
+      signedIn={!!session?.playerId}
+    />
+  ) : null;
   // An item hunt has its own page: a list of drops, not a week of gains (lib/itemHuntView).
   if (competition.type === 'hunt') {
     const hunt = await loadHuntView(competition, myMemberIds);
@@ -158,6 +173,7 @@ export default async function WeeklyLeaderboardPage({
           <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
         </div>
         <CompetitionPrizes prizes={competition.prizes} hunt />
+        {selfEntry}
         {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
         {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
         <HuntStandingsTable view={hunt} />
@@ -220,6 +236,7 @@ export default async function WeeklyLeaderboardPage({
       />
       </div>
       <CompetitionPrizes prizes={competition.prizes} />
+      {selfEntry}
 
       {view.me && (
         <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />

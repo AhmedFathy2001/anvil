@@ -9,6 +9,7 @@ import { BOSSES, EFFICIENCY_METRICS, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS, metri
 import { MAX_WEEKLY_METRIC_KEYS, joinWeeklyMetricPicks, weeklyMetricPicks } from '@/lib/weeklyMetricInput';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
+import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import { localDayIso } from '@/lib/gapPrefill';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
@@ -264,8 +265,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   // Who from this clan races: the whole roster, entered automatically (the default), or only the
   // people the organiser adds on Participants afterwards. The same switch as the Format page; chosen
   // here it means the competition is never filled with the roster in the first place.
-  const [hostEntrants, setHostEntrants] = useState<'all' | 'selected'>('all');
-  const selectedOnly = hostEntrants === 'selected';
+  const [hostEntrants, setHostEntrants] = useState<'all' | 'selected' | 'signup'>('all');
+  // Neither sweeps the roster in: staff add people ('selected'), or members enter themselves ('signup').
+  const selectedOnly = hostEntrants !== 'all';
+  const signupEntry = hostEntrants === 'signup';
+  /** The entry fee as typed ("500k", "2m"); blank = free. Sign-up competitions only. */
+  const [entryFeeText, setEntryFeeText] = useState('');
+  const entryFeeGp = parseGpInput(entryFeeText);
   // Solo, teams or clan vs clan (lib/competitionTeams).
   const [weeklyMode, setWeeklyMode] = useState<WeeklyModeValue>(DEFAULT_WEEKLY_MODE);
   // "Repeat every week" (lib/weeklyRepeat): on by default — a weekly that has to be re-made by hand
@@ -287,7 +293,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
       decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
       multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
-      weeklyType, weeklyMetric, hunt, includeGuests, hostEntrants, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+      weeklyType, weeklyMetric, hunt, includeGuests, hostEntrants, entryFeeText, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
     },
     { guard: false },
   );
@@ -534,6 +540,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             // Selected people: nothing sweeps the roster in, so the guest switch has nothing to act on.
             includeGuests: selectedOnly ? false : includeGuests,
             hostEntrants,
+            ...(signupEntry && entryFeeGp ? { entryFee: entryFeeGp } : {}),
             // A hunt is everyone for themselves: no teams, no clan sides.
             mode: isHunt ? 'solo' : weeklyMode.mode,
             ...(!isHunt && weeklyMode.mode === 'teams'
@@ -1053,18 +1060,39 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 <label className="block text-sm font-medium text-foreground/70 mb-1.5">Who from your clan {isHunt ? 'hunts' : 'races'}</label>
                 <Select
                   value={hostEntrants}
-                  onChange={(v) => setHostEntrants(v === 'selected' ? 'selected' : 'all')}
+                  onChange={(v) => setHostEntrants(v === 'selected' || v === 'signup' ? v : 'all')}
                   ariaLabel={`Who from your clan ${isHunt ? 'hunts' : 'races'}`}
                   options={[
                     { value: 'all', label: 'All members — the roster is entered automatically' },
                     { value: 'selected', label: 'Selected people — only the ones you add on Participants' },
+                    { value: 'signup', label: 'People sign up — members enter themselves, with an optional entry fee' },
                   ]}
                 />
-                {selectedOnly && (
+                {selectedOnly && !signupEntry && (
                   <p className="mt-1.5 text-xs text-text-muted">
                     Nobody is entered when you create it. You add the people on the Participants page straight after.
                     {repeatWeekly ? ' Each new week starts with the same people.' : ''}
                   </p>
+                )}
+                {signupEntry && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-text-muted">
+                      Nobody is entered when you create it. Members press Enter on the competition&apos;s page, any time until it ends; someone who joins
+                      after the start counts from when they joined. You can still add people yourself on Participants.
+                      {repeatWeekly ? ' Each new week is entered afresh.' : ''}
+                    </p>
+                    <div className="max-w-xs">
+                      <label className="mb-1.5 block text-sm font-medium text-foreground/70">Entry fee (optional)</label>
+                      <Input value={entryFeeText} onChange={(e) => setEntryFeeText(e.target.value)} placeholder="Free — or 500k, 2m" aria-label="Entry fee in gp" />
+                      <p className="mt-1.5 text-xs text-text-muted">
+                        {entryFeeText.trim() && !entryFeeGp
+                          ? 'Write an amount like 500k or 2m, or leave it empty for a free competition.'
+                          : entryFeeGp
+                            ? `${formatGp(entryFeeGp)} gp each, paid in game to your staff, who mark it collected on the competition's Participants page.`
+                            : 'Free to enter.'}
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
               {!selectedOnly && (

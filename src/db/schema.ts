@@ -1715,6 +1715,10 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
    * for its own side on weekly_competition_clans.entrants.
    */
   hostEntrants: text('host_entrants').notNull().default('all'),
+  /** Members enter themselves from the competition's page (lib/weeklySignups); used with hostEntrants 'selected'. */
+  selfSignup: boolean('self_signup').notNull().default(false),
+  /** gp owed by each person who signs up; null = free. */
+  entryFee: integer('entry_fee'),
   /**
    * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
    * where each one counts from, the rule, and what the standings show beside the count. `metric`
@@ -1812,6 +1816,16 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   // The player opted out of THIS competition. The row stays (so the roster sweep doesn't put them
   // back) but they are off every board and headcount; opting back in clears it.
   optedOut: boolean('opted_out').notNull().default(false),
+  // A sign-up's entry fee (lib/weeklySignups), in an event fee's states (lib/feeRules):
+  // null status = no fee; else 'pending' | 'collected' | 'confirmed'.
+  enteredByUserId: integer('entered_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  feeAmount: integer('fee_amount'),
+  feeStatus: text('fee_status'),
+  feeCollectedByUserId: integer('fee_collected_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  feeCollectedAt: text('fee_collected_at'),
+  feeConfirmations: jsonb('fee_confirmations').$type<{ userId: number; at: string }[]>(),
+  feeConfirmedByUserId: integer('fee_confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  feeConfirmedAt: text('fee_confirmed_at'),
 }, (table) => [
   index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),
