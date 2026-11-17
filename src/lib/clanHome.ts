@@ -19,7 +19,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, clans, events } from '@/db/schema';
 import { listClanEvents } from '@/lib/clanEvents';
-import { loadHubView, weeklyValueText } from '@/lib/eventsHub';
+import { loadHubView, weeklyValueText, type HubKind } from '@/lib/eventsHub';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 
 export type ClanFocus = 'pvm' | 'skilling' | 'pvp' | 'social' | 'ironman';
@@ -159,6 +159,9 @@ export interface VisitorItem {
   when: string | null;
   /** Backdrop art for the card (lib/scenes), when it is about one skill or boss. */
   scene?: { url: string; kind: 'emblem' | 'figure' } | null;
+  /** What it was, as a picture (components/events/CompetitionBadge): a board's own picture or a
+      week's skill or boss sprite, with the format to fall back to. Set on finished items. */
+  badge?: { kind: HubKind; pictureUrl: string | null; iconUrl: string | null };
 }
 
 export interface PublicClanActivity {
@@ -246,6 +249,8 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
         line: `${i.entrants} ${i.entrantLabel}`,
         top: i.top ? { name: i.top.name, text: i.top.text } : null,
         when: i.endDate ?? i.startDate,
+        // The art the events list already draws for it, so a visitor is shown nothing new.
+        badge: { kind: i.kind, pictureUrl: i.group === 'boards' ? i.iconUrl : null, iconUrl: i.group === 'weeks' ? i.iconUrl : null },
       })),
     // This is the page a visitor from outside gets, so it names only characters whose owner left
     // "Show publicly" on (lib/rosterVisibility); the active count still covers everyone.

@@ -5,6 +5,7 @@ import MotionImg from '@/components/MotionImg';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
+import CompetitionBadge from '@/components/events/CompetitionBadge';
 import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
 import { SITE } from '@/lib/site';
 import { clanBasePath } from '@/lib/clanScopedPaths';
@@ -122,6 +123,9 @@ export default function PublicClanHome({
   const hasReqs = reqs.minTotal != null || reqs.minEhp != null || reqs.region != null || reqs.timezone != null;
   const level = boost?.level ?? 0;
   const perks = boostPerks(level);
+  const hasLive = !!activity && activity.live.length > 0;
+  /** Either door is offered (recruiting, or a guest seat), so the line explaining the two shows. */
+  const waysIn = view.recruiting || view.guestPolicy !== 'closed';
 
   return (
     <div className="mx-auto max-w-5xl" style={accentStyle(view.accent)}>
@@ -203,12 +207,43 @@ export default function PublicClanHome({
 
       {guide}
 
-      {hall && <div className="mt-4">{hall}</div>}
+      {/* What the clan is running comes first after its name: live events are the best reason to
+          stay on the page, so they sit above the ways in and above the Discord card. */}
+      {activity && hasLive && (
+        <section className="mt-10">
+          <h2 className="display mb-4 text-2xl font-semibold">Happening now</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {activity.live.map((item) => (
+              <ClanLink
+                key={item.key}
+                href={item.href}
+                className="group relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)] [&>span:not(:first-child)]:relative"
+                style={{ backgroundImage: 'linear-gradient(var(--sa-soft), transparent 75%)' }}
+              >
+                {item.scene ? <SceneBackdrop scene={item.scene} wide /> : <span aria-hidden className="hidden" />}
+                <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sa-text)]">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+                  Live · {item.kind}
+                </span>
+                <span className="display text-3xl font-semibold leading-tight">{item.name}</span>
+                {item.top && (
+                  <span className="text-[14px] text-text-muted">
+                    Leading: <span className="font-semibold text-foreground">{item.top.name}</span> · {item.top.text}
+                  </span>
+                )}
+                {item.line && <span className="text-[13px] text-text-dim">{item.line}</span>}
+                <span className="mt-2 text-sm font-medium text-[var(--sa-text)] group-hover:opacity-80">See the standings →</span>
+              </ClanLink>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* One line on the two ways in, before either door: a guest seat and membership look alike
-          from outside, and only one of them is something this page can give. */}
-      {(view.recruiting || view.guestPolicy !== 'closed') && (
-        <p className="mt-4 text-[13px] text-text-muted">
+          from outside, and only one of them is something this page can give. Under a live section
+          it starts a new group, so it takes a section's gap. */}
+      {waysIn && (
+        <p className={`${hasLive ? 'mt-10' : 'mt-4'} text-[13px] text-text-muted`}>
           Members come from the clan&rsquo;s in-game member list. Guests can play the clan&rsquo;s events.
         </p>
       )}
@@ -299,35 +334,9 @@ export default function PublicClanHome({
         </div>
       )}
 
-      {activity && activity.live.length > 0 && (
-        <section className="mt-10">
-          <h2 className="display mb-4 text-2xl font-semibold">Happening now</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {activity.live.map((item) => (
-              <ClanLink
-                key={item.key}
-                href={item.href}
-                className="group relative flex flex-col gap-2 overflow-hidden rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)] [&>span:not(:first-child)]:relative"
-                style={{ backgroundImage: 'linear-gradient(var(--sa-soft), transparent 75%)' }}
-              >
-                {item.scene ? <SceneBackdrop scene={item.scene} wide /> : <span aria-hidden className="hidden" />}
-                <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sa-text)]">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-                  Live · {item.kind}
-                </span>
-                <span className="display text-3xl font-semibold leading-tight">{item.name}</span>
-                {item.top && (
-                  <span className="text-[14px] text-text-muted">
-                    Leading: <span className="font-semibold text-foreground">{item.top.name}</span> · {item.top.text}
-                  </span>
-                )}
-                {item.line && <span className="text-[13px] text-text-dim">{item.line}</span>}
-                <span className="mt-2 text-sm font-medium text-[var(--sa-text)] group-hover:opacity-80">See the standings →</span>
-              </ClanLink>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* The live Discord card closes the top of the page: by here a stranger has read who the clan
+          is, what it is running and how to get in, and who is around right now is the last of those. */}
+      {hall && <div className={hasLive && !waysIn ? 'mt-10' : 'mt-4'}>{hall}</div>}
 
       {activity && activity.moments.length > 0 && <MomentsWall moments={activity.moments} />}
 
@@ -469,10 +478,17 @@ export default function PublicClanHome({
                   href={item.href}
                   className="flex h-full flex-col gap-2 rounded-2xl border border-card-border bg-card-bg p-5 transition-colors hover:border-[var(--sa)]"
                 >
-                  <span className="text-xs text-text-muted">
-                    {item.when ? shortDate(item.when) : 'Finished'} · {item.kind}
+                  {/* The badge says what it was at a glance (the skill, the boss, the board's own
+                      picture); it is decorative, the words beside it carry the same thing. */}
+                  <span className="flex items-start gap-3">
+                    {item.badge && <CompetitionBadge kind={item.badge.kind} pictureUrl={item.badge.pictureUrl} iconUrl={item.badge.iconUrl} />}
+                    <span className="flex min-w-0 flex-col gap-1">
+                      <span className="text-xs text-text-muted">
+                        {item.when ? shortDate(item.when) : 'Finished'} · {item.kind}
+                      </span>
+                      <span className="display break-words text-xl font-semibold leading-tight">{item.name}</span>
+                    </span>
                   </span>
-                  <span className="display text-xl font-semibold leading-tight">{item.name}</span>
                   <span className="mt-auto flex items-center gap-2 pt-1 text-sm">
                     {item.top ? (
                       <>
