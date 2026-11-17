@@ -2205,6 +2205,20 @@ export const weeklyDayRanks = pgTable('weekly_day_ranks', {
   uniqueIndex('weekly_day_ranks_comp_day_unique').on(table.competitionId, table.day),
 ]);
 
+// One row per weekly competition per Discord post slot (lib/competitionPostsRun): 'day:<n>' for a
+// daily recap, 'ending' for the "ending soon" post. The unique index is the latch that makes each go
+// out at most once. A daily row's `data` is JSON (lib/competitionPosts DaySlotData): each scorer's
+// gain and place at that moment, which the next recap diffs against.
+export const weeklyPostSlots = pgTable('weekly_post_slots', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  slot: text('slot').notNull(),
+  takenAt: text('taken_at').notNull(),
+  data: text('data'),
+}, (table) => [
+  uniqueIndex('weekly_post_slots_comp_slot_unique').on(table.competitionId, table.slot),
+]);
+
 // One row per event per HOUR (lib/eventHourly): each player's gains-so-far as five numbers plus each
 // team's score, so the stats page can draw progress through the day. Kept tiny on purpose — see
 // lib/eventDay HourSnapshotData. Hour 0 (the start) is all zeroes and never stored.

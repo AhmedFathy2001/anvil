@@ -23,6 +23,7 @@ import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { SKILLS, formatEfficiencyHours, metricKeys, weeklyKindLabel } from '@/lib/constants';
+import { fitEmbed } from '@/lib/competitionPosts';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
@@ -2311,6 +2312,31 @@ export async function notifyWeeklyHalfway(params: {
     color: EMBED_COLOR.gold,
     fields: [weeklyGroupField(type, groups, groups.mode === 'clans' ? 'Clan standings' : 'Team standings')],
   };
+  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
+}
+
+/**
+ * A competition's daily recap, halfway report or "ending soon" (lib/competitionPosts builds the
+ * embed). The same channel, switch and crest as the start and the results, and never a ping: a
+ * recap is something to read. Team and clan-vs-clan competitions lead with their group standings.
+ */
+export async function notifyWeeklyUpdate(params: {
+  clanId: number;
+  type: string;
+  metric: string;
+  hunt?: WeeklyHuntPost | null;
+  groups?: WeeklyGroupPost | null;
+  embed: DiscordEmbed;
+}): Promise<boolean> {
+  const { type, groups } = params;
+  const embed = fitEmbed({
+    ...params.embed,
+    ...weeklyThumbnail(type, params.metric, params.hunt),
+    fields: [
+      ...(groups && groups.groups.length ? [weeklyGroupField(type, groups, groups.mode === 'clans' ? 'Clan standings' : 'Team standings')] : []),
+      ...(params.embed.fields ?? []),
+    ],
+  });
   return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }
 

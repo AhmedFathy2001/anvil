@@ -9,7 +9,7 @@ import {
   enrollAllPlayers,
   probeRsnForAccount,
 } from '@/lib/weekly';
-import { announceCompetitionStart, announceHalfwayIfDue } from '@/lib/competitionTeamsPosts';
+import { announceCompetitionStart, announceDailyRecapIfDue, announceEndingSoonIfDue, announceHalfwayIfDue } from '@/lib/competitionTeamsPosts';
 import { log } from '@/lib/logger';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { rollWeeklySeries } from '@/lib/weeklyRepeat';
@@ -81,13 +81,22 @@ export async function GET(request: Request) {
     }
   }
 
-  // Halfway post for team / clan-vs-clan competitions (solo ones never had one). Once each.
+  // Mid-competition posts, each at most once per slot (lib/competitionTeamsPosts): the halfway post
+  // (team / clan-vs-clan standings as always, or the fuller report where a clan switched it on), then
+  // "ending soon" and the daily recap for the clans that switched those on. After the finish pass
+  // above, so a competition that just ended never also gets a recap on the same tick.
   for (const comp of allComps) {
     if (comp.status !== 'active') continue;
-    try {
-      await announceHalfwayIfDue(comp);
-    } catch (err) {
-      log.warn('weekly-cron.notify-halfway-fail', { competitionId: comp.id }, err);
+    for (const [what, post] of [
+      ['halfway', announceHalfwayIfDue],
+      ['ending-soon', announceEndingSoonIfDue],
+      ['daily', announceDailyRecapIfDue],
+    ] as const) {
+      try {
+        await post(comp);
+      } catch (err) {
+        log.warn(`weekly-cron.notify-${what}-fail`, { competitionId: comp.id }, err);
+      }
     }
   }
 
