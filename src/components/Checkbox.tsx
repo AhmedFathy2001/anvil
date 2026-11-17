@@ -128,6 +128,9 @@ export default function Checkbox({
         'flex gap-2.5 select-none',
         description ? 'items-start' : 'items-center',
         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+        // A box with no words beside it (a row's select box) is 16px: on phones the label pads out
+        // to a 40px tap area, and the matching negative margin keeps the layout where it was.
+        !label && !description && !trailing && 'max-sm:-m-3 max-sm:p-3',
         className,
       )}
     >

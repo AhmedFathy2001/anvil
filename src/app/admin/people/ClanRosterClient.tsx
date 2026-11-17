@@ -1250,13 +1250,13 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         {showMore && <div className="hidden sm:block mt-3">{showMore}</div>}
 
         {/* Mobile: one card per member (no sideways scroll). */}
-        <div className="sm:hidden space-y-3">
+        <div className="sm:hidden space-y-2">
           {rowsShown.map((m) => (
             <div
               key={m.id}
-              className={`border border-card-border rounded-xl bg-card-bg p-4 ${m.leftAt ? 'opacity-60' : ''}`}
+              className={`border border-card-border rounded-xl bg-card-bg px-4 py-3 ${m.leftAt ? 'opacity-60' : ''}`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap font-medium">
                     {isAdmin && (
@@ -1295,26 +1295,16 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                   )}
                 </div>
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Status</dt>
-                  <dd className="mt-0.5"><StatusBadge m={m} /></dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Rank</dt>
-                  <dd className="mt-0.5 truncate">{m.rank || '—'}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Source</dt>
-                  <dd className="mt-0.5">{SOURCE_LABEL[m.source] ?? m.source}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Last played</dt>
-                  <dd className="mt-0.5">
-                    <LastPlayed m={m} now={nowMs} />
-                  </dd>
-                </div>
-              </dl>
+              {/* One line of facts, not a labelled 2x2 grid: a 60-member roster was eleven screens long. */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+                <StatusBadge m={m} />
+                {m.rank && <span className="text-foreground/90">{m.rank}</span>}
+                <span>{SOURCE_LABEL[m.source] ?? m.source}</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="sr-only">Last played</span>
+                  <LastPlayed m={m} now={nowMs} />
+                </span>
+              </div>
             </div>
           ))}
           {filtered.length === 0 && (
