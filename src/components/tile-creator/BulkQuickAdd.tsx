@@ -282,7 +282,7 @@ export default function BulkQuickAdd({
               </div>
 
               {rows.length === 0 ? (
-                <p className="text-sm text-text-muted">Paste your list on the left. Each line shows up here with how it will count.</p>
+                <p className="text-sm text-text-muted">Paste your list in the box. Each line shows up here with how it will count.</p>
               ) : (
                 <div role="table" aria-label="Tiles to add" className="text-sm">
                   <div role="row" className={`hidden md:grid ${pointsMode ? 'grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem]' : 'grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)]'} gap-2 px-2 pb-1.5 text-[11px] uppercase tracking-wide text-text-muted border-b border-card-border`}>

@@ -1018,7 +1018,9 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
 
       {/* Bulk actions — admin-only (the endpoint is too). Appears as soon as anything is ticked. */}
       {isAdmin && (selectedCount > 0 || bulkNotice) && (
-        <div className="border border-gold/30 rounded-xl bg-gold/5 px-4 py-3 mb-4">
+        // Sticks under the site header while anything is ticked, so the action is still in reach
+        // after scrolling down a long roster to tick more rows (same bar as the tile list's).
+        <div className={`border border-gold/30 rounded-xl px-4 py-3 mb-4 ${selectedCount > 0 ? 'sticky top-[4.5rem] z-20 bg-[#221c15] shadow-[0_8px_20px_rgba(0,0,0,.35)]' : 'bg-gold/5'}`}>
           {selectedCount > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-gold">
