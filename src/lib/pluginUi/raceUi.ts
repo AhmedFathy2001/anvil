@@ -99,7 +99,7 @@ function mainPage(x: Ctx): Node[] {
       text(x.o.title, 'brand', { font: 'bold' }),
     ]),
     whereCard(x),
-    ...(x.o.ctx.ease?.lifelines ? [muted(`Lifelines: ${x.o.ctx.ease.lifelines.left} of ${x.o.ctx.ease.lifelines.total} left. Open a tile you’re stuck on to use one.`, { wrap: CARD_W })] : []),
+    ...(x.o.ctx.ease?.lifelines ? [muted(`Lifelines: ${x.o.ctx.ease.lifelines.left} of ${x.o.ctx.ease.lifelines.total} left. A lifeline opens a tile’s easier option. Open a tile you’re stuck on to use one.`, { wrap: CARD_W })] : []),
     ...(route.roadsOpen ? [muted(ROADS_OPEN_NOTE, { wrap: CARD_W })] : []),
     nextCard(x, route),
     ...(x.o.tracked ? [x.o.tracked] : []),
@@ -369,14 +369,23 @@ function easeSection(x: Ctx, id: number): Node | null {
   if (tile?.live.length) {
     rows.push(text(tile.live.length > 1 ? 'Easier options open' : 'Easier option open', GREEN, { font: 'bold' }));
     rows.push(text(`Finish the tile as written, or do ${tile.live.length > 1 ? 'one of these' : 'this'} instead. Either way the tile is done.`, SOFT, { wrap: CARD_W }));
-    for (const o of tile.live) rows.push(text(o.label, 'white', { wrap: CARD_W }));
+    // What each one takes (the board sends it with the tile) and the team's count on it so far.
+    const t = x.byId.get(id);
+    const sent: { tileId: number; what?: string }[] = (t && 'easier' in t && t.easier) || [];
+    for (const o of tile.live) {
+      const pr = x.o.ctx.progress?.get(o.id);
+      rows.push(text(`${o.label}${pr && pr.goal > 1 ? ` (${pr.current}/${pr.goal})` : ''}`, 'white', { wrap: CARD_W }));
+      const what = sent.find((e) => e.tileId === o.id)?.what;
+      if (what) rows.push(muted(what, { wrap: CARD_W }));
+    }
+    rows.push(muted('Nothing to press: it counts as you play, like the tile itself.', { wrap: CARD_W }));
   }
   const timed = nextTimedLine(ease, tile);
   if (timed) rows.push(muted(timed, { wrap: CARD_W }));
   const line = lifelineLine(ease, tile);
   if (line) rows.push(muted(line, { wrap: CARD_W }));
   if (lifelineSpendable(ease, tile) && !x.o.ctx.claimBlock) {
-    rows.push({ t: 'button', label: 'Use a lifeline', tip: 'Open this tile’s easier option for your team', on: pane(`life:${id}`) });
+    rows.push({ t: 'button', label: 'Use a lifeline', tip: 'A lifeline opens this tile’s easier option, so your team can finish it the easier way. Your team has a set number, and using one can’t be taken back. You’ll be asked to confirm.', on: pane(`life:${id}`) });
   }
   if (!rows.length) return null;
   return section(tile?.live.length ? rows : [title('Easier option'), ...rows]);

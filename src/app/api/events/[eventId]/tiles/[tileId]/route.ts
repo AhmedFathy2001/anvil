@@ -9,7 +9,7 @@ import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit, snapshotTile } from '@/lib/tile-audit';
 import { assertEventEditable } from '@/lib/eventLock';
 import { atLeast } from '@/lib/clanRoles';
-import { bumpEaseContext } from '@/lib/raceEaseDb';
+import { easeChanged } from '@/lib/raceEaseDb';
 
 // Fresh single-tile read for the editor: opening a tile re-fetches it (instead of trusting
 // the page-load list) so a save starts from the latest state — and carries the updatedAt
@@ -90,7 +90,7 @@ export async function DELETE(
         return NextResponse.json({ error: 'Removing an easier option on a live race is admin-only.' }, { status: 403 });
       }
       await db.delete(tiles).where(eq(tiles.id, tId));
-      bumpEaseContext(eId);
+      await easeChanged(eId);
       logTileAudit({ eventId: eId, action: 'deleted', tileId: tId, tileLabel: option.label, oldValue: snapshotTile(option), actorUserId: editor.userId });
       return NextResponse.json({ ok: true });
     }
