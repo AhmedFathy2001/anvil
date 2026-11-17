@@ -29,7 +29,7 @@ function Line({ line }: { line: CompetitionFeedLine }) {
         <span className="text-foreground/90">{line.text}</span>
         {line.detail && <span className="ml-1.5 text-[11.5px] text-text-muted">{line.detail}</span>}
       </span>
-      {line.at && <LocalTime date={line.at} format="time" className="shrink-0 font-mono text-[11px] text-text-muted" />}
+      {line.at && <LocalTime date={line.at} format="short" className="shrink-0 font-mono text-[11px] text-text-muted" />}
     </div>
   );
 }

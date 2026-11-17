@@ -85,3 +85,10 @@ test('newest day first, and the filters pick by kind or by owner', () => {
   assert.equal(all.filter((l) => feedLineMatches(l, 'standings')).length, all.length);
   assert.deepEqual(all.filter((l) => feedLineMatches(l, 'mine')).map((l) => l.key), ['day1']);
 });
+
+test('the first day anyone scores sets the order, whichever day that is', () => {
+  const late = entries.map((e) => ({ ...e, days: [0, 0, ...e.days.slice(0, 2)] }));
+  const f = feed({ entries: late, elapsed: 4 });
+  assert.deepEqual(linesOf(f, '2026-11-12').map((l) => l.tag), ['day']);
+  assert.deepEqual(linesOf(f, '2026-11-13').map((l) => `${l.rsn} ${l.text}`), ['Bob took 1st from Ann']);
+});

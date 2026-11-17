@@ -175,8 +175,10 @@ export function buildCompetitionFeed(input: {
       }
     }
 
-    // A watched place changing hands. The first day only sets the order, so it has no changes.
-    if (d > 0) {
+    // A watched place changing hands. The first day anyone scores only sets the order, so it has
+    // no changes: without this a week whose first gains land on day three would open with a line
+    // for every place at once.
+    if (before.size > 0) {
       const holderBefore = new Map([...before].map(([rsn, place]) => [place, rsn]));
       for (const [rsn, place] of [...after].sort((a, b) => a[1] - b[1])) {
         if (place > watched) break;
