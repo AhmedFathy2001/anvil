@@ -112,7 +112,6 @@ const BOSS_SOURCES = {
   araxxor: { main: [G('Killing Araxxor')] },
   artio: { main: [G('Killing Artio')] },
   barrows: { main: [G('Barrows')] },
-  bryophyta: { main: [G('Killing Bryophyta (free-to-play)')] },
   callisto: { main: [G('Killing Callisto')] },
   calvarion: { main: [G("Killing Calvar'ion")] },
   cerberus: { main: [G('Killing Cerberus')] },
@@ -171,6 +170,8 @@ const BOSS_SOURCES = {
  */
 const FALLBACK_KPH = {
   brutus: 20,
+  // The wiki's guide counts gathering each mossy key (about one kill an hour); kills are counted at the fight's own pace, like Obor.
+  bryophyta: 20,
   derangedArchaeologist: 40,
   hespori: 25,
   mimic: 4,
