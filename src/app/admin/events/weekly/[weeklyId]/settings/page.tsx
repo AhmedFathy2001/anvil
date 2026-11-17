@@ -11,6 +11,9 @@ import WeeklyRepeatToggle from '../WeeklyRepeatToggle';
 import { getWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
 import { idParam } from '@/lib/routeIds';
+import WeeklyPostsPanel from '../WeeklyPostsPanel';
+import { COMPETITION_POST_TYPES, clanCompetitionDefault } from '@/lib/competitionPosts';
+import { loadClanCompetitionPosts, loadCompetitionPostOverrides } from '@/lib/competitionPostsRun';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +37,8 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
   const hunt = comp.type === 'hunt' ? parseHunt(comp.hunt) : null;
   const session = await verifyUser();
   const repeat = await getWeeklyRepeat(clan.id, comp.id);
+  const [clanPosts, postOverrides] = await Promise.all([loadClanCompetitionPosts(clan.id), loadCompetitionPostOverrides(comp)]);
+  const clanPostDefaults = Object.fromEntries(COMPETITION_POST_TYPES.map((t) => [t.key, clanCompetitionDefault(t.key, clanPosts)]));
   // "SOTW: Agility" → "Agility", for the rotation sentence.
   const rotationLabels = (repeat?.rotation ?? []).map((m) => defaultWeeklyTitle(comp.type, m).split(': ').slice(1).join(': '));
 
@@ -41,6 +46,7 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
     <>
     {hunt && <HuntSettingsPanel competitionId={comp.id} initial={{ ends: hunt.ends, confirm: hunt.confirm }} finished={comp.status === 'completed'} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
+    {comp.status !== 'completed' && <WeeklyPostsPanel competitionId={comp.id} initial={postOverrides} clanDefaults={clanPostDefaults} />}
     <WeeklySettingsPanel
       comp={{
         id: comp.id,

@@ -10,6 +10,7 @@ import { playerSnapshots, weeklyCompetitions, weeklyParticipants, huntDrops } fr
 import { eq } from 'drizzle-orm';
 import { getWeeklyRepeat, setWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { saveCompetitionPostOverrides } from '@/lib/competitionPostsRun';
 
 export async function GET(
   request: Request,
@@ -95,6 +96,15 @@ export async function PUT(
     await setWeeklyRepeat(scoped.clanId, compId, repeat ? { rotation: rotation && rotation.length > 0 ? rotation : null } : null);
   }
 
+  // This competition's own Discord posts (lib/competitionPosts): 'on' | 'off' per post, absent = the
+  // clan's setting. Stored beside the repeat setting; nothing else about the competition changes.
+  let postsSaved = false;
+  if (body.posts !== undefined) {
+    if (!body.posts || typeof body.posts !== 'object') return NextResponse.json({ error: 'Nothing to save.' }, { status: 400 });
+    await saveCompetitionPostOverrides(scoped, body.posts);
+    postsSaved = true;
+  }
+
   const finalStart = parseStamp(startDate !== undefined ? startDate : scoped.startDate);
   const finalEnd = parseStamp(endDate !== undefined ? endDate : scoped.endDate);
   if ((startDate !== undefined || endDate !== undefined) && finalStart !== null && finalEnd !== null && finalEnd <= finalStart) {
@@ -118,6 +128,7 @@ export async function PUT(
   }
   if (Object.keys(updates).length === 0) {
     if (repeat !== undefined) return NextResponse.json({ ok: true, repeat: await getWeeklyRepeat(scoped.clanId, compId) });
+    if (postsSaved) return NextResponse.json({ ok: true });
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 

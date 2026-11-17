@@ -7,6 +7,7 @@
 
 import { proxyWikiUrl } from '@/lib/assetUrls';
 import { currentSupporterEmbed, newSupporterEmbed } from '@/lib/anvilDiscord';
+import { sampleCompetitionEmbed } from '@/lib/competitionPosts';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { modeEventEmbed } from '@/lib/modeLines';
 import { buildPluginEmbed } from '@/lib/pluginEmbeds';
@@ -17,7 +18,7 @@ import { markMode, resolveWorldMode } from '@/lib/worldModes';
 
 export interface DiscordSample {
   id: string;
-  group: 'In-game posts' | 'Game modes' | 'Supporters' | 'Releases';
+  group: 'In-game posts' | 'Game modes' | 'Supporters' | 'Releases' | 'Competitions';
   label: string;
   embed: () => Record<string, unknown>;
 }
@@ -160,6 +161,9 @@ export const DISCORD_SAMPLES: readonly DiscordSample[] = [
       return markMode(drop, mode.label, mode.icon ? absoluteAssetUrl(proxyWikiUrl(mode.icon)) : null)!;
     },
   },
+  { id: 'weekly.daily', group: 'Competitions', label: 'Competition daily recap', embed: () => ({ ...sampleCompetitionEmbed('daily') }) },
+  { id: 'weekly.halfway', group: 'Competitions', label: 'Competition halfway report', embed: () => ({ ...sampleCompetitionEmbed('halfway') }) },
+  { id: 'weekly.endingSoon', group: 'Competitions', label: 'Competition ending soon', embed: () => ({ ...sampleCompetitionEmbed('endingSoon') }) },
   { id: 'release', group: 'Releases', label: 'Release announcement', embed: () => releaseEmbed(parseReleaseNote(RELEASE), apexOrigin()) },
 ];
 

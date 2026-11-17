@@ -21,6 +21,7 @@ import { autoBalanceTeams, carryOverTeamSetup } from '@/lib/competitionTeamsDb';
 import { parseWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 import { defaultWeeklyTitle, nextMetric, nextWindow, parseRepeat, successorClaim, successorMarkerState, type RepeatConfig } from '@/lib/weeklyRepeatPlan';
 import { log } from '@/lib/logger';
+import { competitionPostsKey } from '@/lib/competitionPosts';
 
 const repeatKey = (id: number) => `weekly_repeat:${id}`;
 const nextKey = (id: number) => `weekly_repeat_next:${id}`;
@@ -121,6 +122,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
         })
         .finally(() => invalidateSettings(prev.clanId));
       await setWeeklyRepeat(prev.clanId, comp.id, cfg);
+      // The series keeps its own Discord post choices (lib/competitionPosts), week after week.
+      const posts = await getSetting(prev.clanId, competitionPostsKey(prev.id));
+      if (posts) await setSetting(prev.clanId, competitionPostsKey(comp.id), posts);
 
       // The same prize ladder, held again — or recorded as a promise when the coffer can't cover it,
       // exactly as creating it by hand does.

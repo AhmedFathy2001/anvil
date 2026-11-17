@@ -10,6 +10,7 @@ import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhooksPanel from './WebhooksPanel';
 import DiscordFeedsPanel from './DiscordFeedsPanel';
 import EventPostDefaultsPanel from './EventPostDefaultsPanel';
+import CompetitionPostsPanel from './CompetitionPostsPanel';
 import DiscordQuickSetup, { FeedRulesHint } from './DiscordQuickSetup';
 import { invalidateSettings } from '@/lib/settingsClient';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
@@ -178,6 +179,7 @@ export default function DiscordSettings({
           key={panelKey}
           creator={creator}
           filters={{
+            weekly: <CompetitionPostsPanel />,
             milestones: <ClanKindDefaults />,
             ca: (
               <TierSetting

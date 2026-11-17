@@ -820,7 +820,7 @@ export default function DiscordFeedsPanel({
                     onClick={() => setOpen(open === f.id ? null : f.id)}
                     className="min-h-9 max-sm:min-h-10 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
                   >
-                    Filters {open === f.id ? '▴' : '▾'}
+                    {f.filters === 'weekly' ? 'Posts' : 'Filters'} {open === f.id ? '▴' : '▾'}
                   </button>
                 )}
               </div>

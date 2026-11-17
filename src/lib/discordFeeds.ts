@@ -39,13 +39,13 @@ export interface DiscordFeed {
    */
   off: 'feeds' | 'cohost' | 'perPost';
   /** Where its filters live on the page, if anywhere. */
-  filters?: 'drops' | 'levels' | 'deaths' | 'milestones' | 'ca' | 'quests' | 'diaries';
+  filters?: 'drops' | 'levels' | 'deaths' | 'milestones' | 'ca' | 'quests' | 'diaries' | 'weekly';
 }
 
 export const DISCORD_FEEDS: readonly DiscordFeed[] = [
   { id: 'event', tab: 'clan', label: 'Event posts', help: 'Bingo, ladder and race posts from the board reveal to the recap. Switch single posts on or off under Event posts.', key: 'discord_webhook_bingo', fallback: [SITE_CATCH_ALL], off: 'perPost' },
   { id: 'cohost', tab: 'clan', label: 'Boards you co-host', help: 'Posts from other clans’ boards your members play on. Each board can show less from its co-hosted page.', key: 'discord_webhook_cohost', fallback: ['discord_webhook_bingo', SITE_CATCH_ALL], off: 'cohost' },
-  { id: 'weekly', tab: 'clan', label: 'Skill & boss of the week', help: 'The start and the results.', key: 'discord_webhook_weekly', fallback: [SITE_CATCH_ALL], off: 'feeds' },
+  { id: 'weekly', tab: 'clan', label: 'Skill & boss of the week', help: 'The start and the results. A daily recap, a halfway report and “ending soon” can be switched on under Posts.', key: 'discord_webhook_weekly', fallback: [SITE_CATCH_ALL], off: 'feeds', filters: 'weekly' },
   { id: 'clanEvents', tab: 'clan', label: 'Clan calendar events', help: 'The announcement, a reminder 15 minutes before, and "starting now".', key: 'discord_webhook_clan_events', fallback: [SITE_CATCH_ALL], off: 'feeds' },
   { id: 'rareDrops', tab: 'game', label: 'Rare drops', help: 'Valuable or rare loot.', key: 'webhook_rare_drops', fallback: [GAME_CATCH_ALL], off: 'feeds', filters: 'drops' },
   { id: 'pets', tab: 'game', label: 'Pets', help: 'Every pet, with where it really came from.', key: 'webhook_pets', fallback: [GAME_CATCH_ALL, 'webhook_rare_drops'], off: 'feeds' },
