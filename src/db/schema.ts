@@ -2201,6 +2201,8 @@ export const weeklyDayRanks = pgTable('weekly_day_ranks', {
   day: text('day').notNull(),
   takenAt: text('taken_at').notNull(),
   ranks: text('ranks').notNull(),
+  /** `{ rsnKey: gained }` at the same moment (lib/weeklyDaily); null on rows from before it was kept. */
+  gains: text('gains'),
 }, (table) => [
   uniqueIndex('weekly_day_ranks_comp_day_unique').on(table.competitionId, table.day),
 ]);

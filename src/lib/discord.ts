@@ -2291,16 +2291,88 @@ export function bestDropsField(lines: string[] | null | undefined) {
   return field('Best drops', top.map((l, i) => `${medals[i]} ${clamp(l, 300)}`).join('\n'), false);
 }
 
-/** Halfway through a team / clan-vs-clan competition: the standings so far. Solo comps don't post one. */
+const weeklyMedal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`);
+/** "+1,234,567 XP", "+12.5 hours", "3 drops": a weekly amount with its unit. */
+function weeklyAmount(type: string, n: number, hunt: boolean): string {
+  if (hunt) return dropsWord(n);
+  if (type === 'efficiency') return `+${formatEfficiencyHours(n)} hours`;
+  return `+${n.toLocaleString()} ${type === 'skill' ? 'XP' : 'KC'}`;
+}
+
+/**
+ * The day just finished in a running weekly (lib/weeklyDaily): who gained the most, the top of the
+ * board with each player's day and places moved, and the groups in a team or clan competition.
+ */
+export async function notifyWeeklyDaily(params: {
+  clanId: number;
+  type: string;
+  title: string;
+  metric: string;
+  endDate: string;
+  /** Which day of the competition just finished (1 = the first). */
+  dayNumber: number;
+  lines: { rsn: string; total: number; day: number; rank: number; moved: number | null }[];
+  best: { rsn: string; day: number } | null;
+  climber: { rsn: string; moved: number | null } | null;
+  groups?: WeeklyGroupPost | null;
+  hunt?: WeeklyHuntPost | null;
+}): Promise<boolean> {
+  const { type, title, metric, hunt } = params;
+  const isHunt = !!hunt;
+  const top = params.lines.filter((l) => l.total > 0).slice(0, 5);
+  const text = top
+    .map((l) => {
+      const move = l.moved ? (l.moved > 0 ? ` ▲${l.moved}` : ` ▼${-l.moved}`) : '';
+      const day = l.day > 0 ? ` · ${weeklyAmount(type, l.day, isHunt)} today` : '';
+      return `${weeklyMedal(l.rank - 1)} **${l.rsn}** — ${weeklyAmount(type, l.total, isHunt)}${day}${move}`;
+    })
+    .join('\n');
+  const said: string[] = [];
+  if (params.best) said.push(`**${params.best.rsn}** had the biggest day: ${weeklyAmount(type, params.best.day, isHunt)}.`);
+  if (params.climber?.moved && params.climber.rsn !== params.best?.rsn) said.push(`**${params.climber.rsn}** climbed ${params.climber.moved} ${params.climber.moved === 1 ? 'place' : 'places'}.`);
+  said.push(`Ends ${discordTime(params.endDate, 'R')}.`);
+  const embed: DiscordEmbed = {
+    author: { name: `${hunt ? hunt.kind : weeklyKind(type)} · day ${params.dayNumber}` },
+    ...weeklyThumbnail(type, metric, hunt),
+    title: clamp(`📅 ${title}`, LIMIT.title),
+    description: said.join(' '),
+    color: EMBED_COLOR.gold,
+    fields: [
+      ...(params.groups?.groups.length ? [weeklyGroupField(type, params.groups, params.groups.mode === 'clans' ? 'Clan standings' : 'Team standings')] : []),
+      ...(text ? [field(params.groups?.groups.length ? 'Top players' : 'Standings', text, false)] : []),
+    ],
+  };
+  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
+}
+
+/** Halfway through a competition: the standings so far (groups for teams and clan-vs-clan, players for solo). */
 export async function notifyWeeklyHalfway(params: {
   clanId: number;
   type: string;
   title: string;
   metric: string;
   endDate: string;
-  groups: WeeklyGroupPost;
+  groups: WeeklyGroupPost | null;
+  /** A solo competition's players so far, best first (teams/clans post their groups instead). */
+  standings?: { rsn: string; gained: number }[];
+  hunt?: WeeklyHuntPost | null;
 }): Promise<boolean> {
   const { type, title, metric, endDate, groups } = params;
+  if (!groups) {
+    const rows = (params.standings ?? []).filter((s) => s.gained > 0).slice(0, 10);
+    const top = rows[0];
+    const embed: DiscordEmbed = {
+      author: { name: `${params.hunt ? params.hunt.kind : weeklyKind(type)} · halfway` },
+      ...weeklyThumbnail(type, metric, params.hunt),
+      title: clamp(`⏳ ${title}`, LIMIT.title),
+      description: top
+        ? `Halfway there — **${top.rsn}** leads. Ends ${discordTime(endDate, 'R')}.`
+        : `Halfway there and nobody is on the board yet. Ends ${discordTime(endDate, 'R')}.`,
+      color: EMBED_COLOR.gold,
+      fields: rows.length ? [field('Standings so far', rows.map((s, i) => `${weeklyMedal(i)} **${s.rsn}** — ${weeklyAmount(type, s.gained, !!params.hunt)}`).join('\n'), false)] : [],
+    };
+    return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
+  }
   const leader = groups.groups[0];
   const embed: DiscordEmbed = {
     author: { name: `${weeklyKind(type)} · halfway` },

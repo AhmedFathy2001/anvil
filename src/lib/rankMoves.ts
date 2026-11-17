@@ -1,4 +1,7 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt } from 'drizzle-orm';
+
+import { announceCompetitionDay } from '@/lib/competitionTeamsPosts';
+import type { DayStart } from '@/lib/weeklyDaily';
 
 import { db } from '@/db';
 import { eventDaySnapshots, weeklyCompetitions, weeklyDayRanks } from '@/db/schema';
@@ -70,6 +73,22 @@ export async function weeklyBaselineRanks(competitionId: number, nowMs = Date.no
   }
 }
 
+/** The newest stored day before `day`: where the finished day began. Null on a competition's first day. */
+async function dayStartBefore(competitionId: number, day: string): Promise<DayStart | null> {
+  const [row] = await db
+    .select({ ranks: weeklyDayRanks.ranks, gains: weeklyDayRanks.gains })
+    .from(weeklyDayRanks)
+    .where(and(eq(weeklyDayRanks.competitionId, competitionId), lt(weeklyDayRanks.day, day)))
+    .orderBy(desc(weeklyDayRanks.day))
+    .limit(1);
+  if (!row) return null;
+  try {
+    return { ranks: JSON.parse(row.ranks), gains: row.gains ? JSON.parse(row.gains) : null };
+  } catch {
+    return { ranks: {}, gains: null };
+  }
+}
+
 /**
  * Once per UTC day per running weekly: write its ranks as they stand (the first tick after midnight).
  * One indexed read per tick for all of them, and one insert per competition per day. Never throws.
@@ -78,7 +97,7 @@ export async function runWeeklyDayRanks(nowMs = Date.now()): Promise<void> {
   try {
     const day = utcDay(nowMs);
     // clan-scope: global -- the lifecycle cron walks every clan's running weeklies.
-    const active = await db.select({ id: weeklyCompetitions.id }).from(weeklyCompetitions).where(eq(weeklyCompetitions.status, 'active'));
+    const active = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.status, 'active'));
     if (!active.length) return;
     const done = await db
       .select({ id: weeklyDayRanks.competitionId })
@@ -87,8 +106,16 @@ export async function runWeeklyDayRanks(nowMs = Date.now()): Promise<void> {
     const have = new Set(done.map((d) => d.id));
     for (const c of active) {
       if (have.has(c.id)) continue;
-      const ranks = weeklyRanks(await weeklyBoard(c.id));
-      await db.insert(weeklyDayRanks).values({ competitionId: c.id, day, takenAt: new Date(nowMs).toISOString(), ranks: JSON.stringify(ranks) }).onConflictDoNothing();
+      const board = await weeklyBoard(c.id);
+      const ranks = weeklyRanks(board);
+      const gains = Object.fromEntries(board.map((e) => [weeklyRsnKey(e.rsn), e.gained]));
+      const wrote = await db
+        .insert(weeklyDayRanks)
+        .values({ competitionId: c.id, day, takenAt: new Date(nowMs).toISOString(), ranks: JSON.stringify(ranks), gains: JSON.stringify(gains) })
+        .onConflictDoNothing()
+        .returning({ id: weeklyDayRanks.id });
+      // The row is this day's latch: whoever wrote it posts the day just finished (lib/weeklyDaily).
+      if (wrote.length) await announceCompetitionDay(c, board, await dayStartBefore(c.id, day), nowMs);
     }
   } catch (err) {
     log.warn('rank-moves.weekly-day-failed', { err: String(err) });
