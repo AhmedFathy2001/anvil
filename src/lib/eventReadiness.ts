@@ -29,7 +29,8 @@ export type StartBlockerCode =
   | 'no-assigned-players'
   | 'no-end-date'
   | 'empty-teams'
-  | 'blank-tiles';
+  | 'blank-tiles'
+  | 'race-road';
 
 export interface StartReadinessCounts {
   draftStatus: string;
@@ -40,6 +41,8 @@ export interface StartReadinessCounts {
   totalPlayerCount: number;
   /** The board's Team placement (lib/teamPlacement). 'auto' and 'solo' make teams from sign-ups. */
   placement?: string | null;
+  /** A tile race whose road map cannot be played yet (lib/raceRoutes validateRoute): how many things are wrong. */
+  raceRoadProblems?: number;
 }
 
 /** Teams come into being as people sign up, so "no teams yet" is expected until the first one does. */
@@ -86,6 +89,8 @@ export function computeStartReadiness(counts: StartReadinessCounts): StartReadin
     blockers.push(teamsFormFromSignups(counts.placement) && counts.totalPlayerCount === 0 ? 'awaiting-signups' : 'no-teams');
   }
   else if (counts.assignedPlayerCount === 0) blockers.push('no-assigned-players');
+  // A road saved unfinished (the map lets a draft be saved before the start) cannot be raced on.
+  if ((counts.raceRoadProblems ?? 0) > 0) blockers.push('race-road');
   return {
     ready: blockers.length === 0,
     blockers,
@@ -108,6 +113,8 @@ export function startBlockerLabel(code: StartBlockerCode): string {
       return 'there is no end date, so it will run until you end it manually';
     case 'empty-teams':
       return 'a team has no players on it, so it cannot score';
+    case 'race-road':
+      return 'the race’s road map is not finished — open Board & tiles, fix what the map lists in red, and save';
     case 'blank-tiles':
       return 'some tiles are still blank placeholders ("Tile 1", "Tile 2"…), so members would see empty squares';
   }

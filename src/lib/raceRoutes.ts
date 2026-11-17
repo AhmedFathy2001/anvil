@@ -461,6 +461,28 @@ export function routeEntries(tiles: RouteTileIn[]): RouteEntry[] {
   });
 }
 
+/**
+ * A route as one short string, for "has it changed since I opened it?" (the road editor sends the
+ * stamp it started from; the save route compares it with what is stored now). Order-independent.
+ */
+export function routeStamp(entries: RouteEntry[]): string {
+  return [...entries]
+    .sort((a, b) => a.id - b.id)
+    .map((e) => `${e.id}:${e.step ?? 'x'}:${[...e.next].sort((a, b) => a - b).join('.')}`)
+    .join('|');
+}
+
+/**
+ * What stops a road being RACED on, counting only the tiles that are on it: a tile nobody placed is
+ * simply not in the race, and a link to a tile that is gone is ignored at play time (raceGraph), so
+ * neither holds a start. Empty steps, dead ends and unreachable tiles do.
+ */
+export function roadBlockers(entries: RouteEntry[], labelOf?: (id: number) => string): RouteProblem[] {
+  const placed = entries.filter((e) => e.step != null);
+  const on = new Set(placed.map((e) => e.id));
+  return validateRoute(placed.map((e) => ({ ...e, next: e.next.filter((n) => on.has(n)) })), labelOf);
+}
+
 export type RouteTemplate = 'line' | 'lanes2' | 'braid3' | 'braid5' | 'diamond' | 'free';
 
 /** The templates, the default first: one start, lanes in between, one finish. */

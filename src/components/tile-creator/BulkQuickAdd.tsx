@@ -140,7 +140,11 @@ export default function BulkQuickAdd({
           ? 'The microphone is blocked for this site. Allow it in your browser’s address bar, then try again.'
           : e.error === 'audio-capture'
             ? 'No microphone was found.'
-            : 'Could not hear that. Try again, or type the list.',
+            : e.error === 'network'
+              ? 'Your browser could not reach its speech service. Speech works in Chrome; Edge and Brave often refuse it. Type the list, or try Chrome.'
+              : e.error === 'language-not-supported'
+                ? 'Your browser’s speech service does not have English. Type the list instead.'
+                : `Your browser stopped listening (${e.error || 'unknown reason'}). Try again, or type the list.`,
       );
     };
     rec.onend = () => {
