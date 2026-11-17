@@ -804,7 +804,7 @@ export async function POST(
   const writeParts = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], rowIndex: number, parent: { id: number; position: number }) => {
     const partRows = comboParts.get(rowIndex);
     if (!partRows) return;
-    await tx.delete(tiles).where(eq(tiles.parentTileId, parent.id));
+    await tx.delete(tiles).where(and(eq(tiles.parentTileId, parent.id), isNull(tiles.easeLevel)));
     for (const [k, part] of partRows.entries()) {
       const fields = tileFieldsFromRow(part, true, partDerived.get(rowIndex)![k]);
       const label = typeof fields.label === 'string' && fields.label ? fields.label : `Part ${k + 1}`;
@@ -827,7 +827,7 @@ export async function POST(
       await tx.update(tiles).set(updateSet).where(eq(tiles.id, targets[i].id));
       // A row that turns a combo into another kind takes its parts with it (pre-start only).
       if (!eventStarted && updateSet.tileType !== undefined && updateSet.tileType !== COMBO_TILE_TYPE) {
-        await tx.delete(tiles).where(eq(tiles.parentTileId, targets[i].id));
+        await tx.delete(tiles).where(and(eq(tiles.parentTileId, targets[i].id), isNull(tiles.easeLevel)));
       }
       await writeParts(tx, i, targets[i]);
       applied++;

@@ -29,7 +29,8 @@ import {
   type RouteTemplate,
 } from '@/lib/raceRoutes';
 import type { Tile } from '@/lib/types';
-import type { RaceHideAhead } from '@/lib/eventRules';
+import { RACE_EASE_HOURS_MAX, RACE_LIFELINES_MAX, type RaceEaseRule, type RaceHideAhead, type RaceLifelinesRule } from '@/lib/eventRules';
+import NumberInput from '@/components/NumberInput';
 
 interface Props {
   eventId: number;
@@ -41,6 +42,9 @@ interface Props {
   raceRoad: RaceRoadMode;
   /** "Hide tiles past the next step" (lib/raceHideAhead). */
   raceHideAhead?: RaceHideAhead;
+  /** Timed easing and lifelines (lib/raceEase): how a tile's easier option goes live. */
+  raceEase?: RaceEaseRule | null;
+  raceLifelines?: RaceLifelinesRule | null;
   /** "Hide progress until…" is on for this board (the two settings stack). */
   standingsHidden?: boolean;
   /** "Also hide from event staff" keeps this viewer out: the map is read-only for them. */
@@ -73,7 +77,7 @@ const goldBtn = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border 
  * Nothing about the roads is stored until Save, and Save refuses a route that can't be played.
  * Tiles themselves (new blank ones included) save at once, like anywhere else on the page.
  */
-export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, raceHideAhead = 'off', standingsHidden = false, staffHideLocked = false, canChangeStaffHide = false, onTileCreated, onSaved, onRaceBankChanged, onOpenTile, openTileId = null, panelBeside = false, onTilesDeleted }: Props) {
+export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, raceHideAhead = 'off', raceEase = null, raceLifelines = null, standingsHidden = false, staffHideLocked = false, canChangeStaffHide = false, onTileCreated, onSaved, onRaceBankChanged, onOpenTile, openTileId = null, panelBeside = false, onTilesDeleted }: Props) {
   const { confirm, notify } = useDialog();
   const board = useMemo(() => tiles.filter((t) => t.parentTileId == null && !t.mission).sort((a, b) => a.position - b.position), [tiles]);
   const stored = useMemo(() => routeEntries(board), [board]);
@@ -364,6 +368,33 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     onRaceBankChanged(bank);
   }
 
+  // Easier options (lib/raceEase): saved the moment they change, any time, like the hidden tiles.
+  const [ease, setEase] = useState<RaceEaseRule | null>(raceEase);
+  const [lifelines, setLifelines] = useState<RaceLifelinesRule | null>(raceLifelines);
+  const withEasier = board.filter((t) => (t.easier?.length ?? 0) > 0).length;
+  async function saveEase(next: RaceEaseRule | null) {
+    const prev = ease;
+    setEase(next);
+    const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceEase: next } }) });
+    if (!res.ok) {
+      setEase(prev);
+      const data = await res.json().catch(() => ({}));
+      return notify(data.error || 'Could not save that setting.', 'error');
+    }
+    onRaceBankChanged(bank);
+  }
+  async function saveLifelines(next: RaceLifelinesRule | null) {
+    const prev = lifelines;
+    setLifelines(next);
+    const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceLifelines: next } }) });
+    if (!res.ok) {
+      setLifelines(prev);
+      const data = await res.json().catch(() => ({}));
+      return notify(data.error || 'Could not save that setting.', 'error');
+    }
+    onRaceBankChanged(bank);
+  }
+
   async function toggleBank(on: boolean) {
     setBank(on);
     const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceBank: on } }) });
@@ -617,6 +648,107 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             label="Bank early finishes"
             description="Off: only tiles open on a team's road count. On: a valid finish on a tile the team hasn't reached yet is kept, and the tile completes the moment their road reaches it — it never skips ahead or opens anything early."
           />
+        </div>
+      </details>
+
+      {/* Easier options (lib/raceEase): how a tile's easier option goes live. */}
+      <details className="group border border-card-border rounded-xl bg-card-bg">
+        <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm">
+            <span className="font-semibold">Easier options</span>
+            <span className="text-text-muted">
+              {' · '}
+              {!ease && !lifelines
+                ? 'off'
+                : [ease ? `every ${ease.hours}h` : null, lifelines ? `${lifelines.count} ${lifelines.count === 1 ? 'lifeline' : 'lifelines'} per team` : null].filter(Boolean).join(' · ')}
+              {` · ${withEasier} ${withEasier === 1 ? 'tile has' : 'tiles have'} one`}
+            </span>
+          </span>
+          <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+        </summary>
+        <div className="px-4 pb-4 space-y-3">
+          <p className="text-xs text-text-muted">
+            Open a tile and add an easier option to it: the same task with a smaller number, or a different task. It stays hidden from players until one of the two switches below turns it on. From then on the tile reads “this, or the easier option”: finishing either one finishes the tile, so nothing a team already did is lost.
+          </p>
+          {(ease || lifelines) && withEasier === 0 && (
+            <p className="text-xs text-gold">No tile has an easier option yet, so these switches have nothing to open. Open a tile on the map and choose “Add an easier option”.</p>
+          )}
+          <Checkbox
+            checked={!!ease}
+            onChange={(on) => void saveEase(on ? { hours: 24 } : null)}
+            label="Get easier over time"
+            description="On the event clock, for everyone: after each interval the next step’s easier option opens. Step 1 after one interval, step 2 after two, and so on. A tile with a second easier option opens it one interval after its first."
+          />
+          {ease && (
+            <div className="pl-6 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-text-muted">Every</span>
+              <NumberInput
+                value={ease.hours}
+                min={1}
+                max={RACE_EASE_HOURS_MAX}
+                fallback={24}
+                aria-label="Hours between easing steps"
+                className="w-20"
+                onChange={(hours) => setEase({ hours })}
+                onBlur={() => void saveEase({ hours: Math.min(RACE_EASE_HOURS_MAX, Math.max(1, Math.round(ease.hours))) })}
+              />
+              <span className="text-text-muted">hours after the race starts</span>
+            </div>
+          )}
+          <Checkbox
+            checked={!!lifelines}
+            onChange={(on) => void saveLifelines(on ? { count: 3, afterHours: 12, opens: 'first' } : null)}
+            label="Lifelines"
+            description="Each team gets a few for the whole race. Spending one on a tile they’re stuck on opens that tile’s easier option for that team only. They see what it is only after spending. The captain or team staff spends it; any member on a team with neither."
+          />
+          {lifelines && (
+            <div className="pl-6 space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <NumberInput
+                  value={lifelines.count}
+                  min={1}
+                  max={RACE_LIFELINES_MAX}
+                  fallback={3}
+                  aria-label="Lifelines per team"
+                  className="w-20"
+                  onChange={(count) => setLifelines({ ...lifelines, count })}
+                  onBlur={() => void saveLifelines({ ...lifelines, count: Math.min(RACE_LIFELINES_MAX, Math.max(1, Math.round(lifelines.count))) })}
+                />
+                <span className="text-text-muted">per team, usable on a tile once it has been open to them for</span>
+                <NumberInput
+                  value={lifelines.afterHours}
+                  min={0}
+                  max={RACE_EASE_HOURS_MAX}
+                  fallback={0}
+                  aria-label="Hours a tile must be open before a lifeline works on it"
+                  className="w-20"
+                  onChange={(afterHours) => setLifelines({ ...lifelines, afterHours })}
+                  onBlur={() => void saveLifelines({ ...lifelines, afterHours: Math.min(RACE_EASE_HOURS_MAX, Math.max(0, Math.round(lifelines.afterHours))) })}
+                />
+                <span className="text-text-muted">hours (0 = straight away)</span>
+              </div>
+              <div role="radiogroup" aria-label="What a lifeline opens" className="grid gap-2 sm:grid-cols-2">
+                <Choice
+                  name="race-lifeline-opens"
+                  checked={lifelines.opens === 'first'}
+                  onSelect={() => void saveLifelines({ ...lifelines, opens: 'first' })}
+                  title="The first easier option"
+                  body="One lifeline opens one easier option. Fits tiles whose options are a ladder: 100 kills, then 50."
+                />
+                <Choice
+                  name="race-lifeline-opens"
+                  checked={lifelines.opens === 'all'}
+                  onSelect={() => void saveLifelines({ ...lifelines, opens: 'all' })}
+                  title="Every easier option on the tile"
+                  body="One lifeline opens all of them and the team does whichever it likes. Fits tiles whose options are different tasks."
+                />
+              </div>
+            </div>
+          )}
+          <ul className="space-y-1.5 text-xs text-text-muted list-disc pl-4">
+            <li>Kills and XP on an easier option count from when the tile opened for the team, so a team already past the easier number finishes the moment it opens.</li>
+            <li>Both switches can be on together, and both can be changed while the race is running.</li>
+          </ul>
         </div>
       </details>
 

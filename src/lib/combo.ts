@@ -52,7 +52,10 @@ export function isComboTile(t: { tileType?: string | null }): boolean {
   return t.tileType === COMBO_TILE_TYPE;
 }
 
-/** A combo's part — a real tile that is never a board cell of its own. */
+/**
+ * A child row — a real tile that is never a board cell of its own: a combo's part, or an easier
+ * option on a race tile (lib/raceEase, told apart by `easeLevel`).
+ */
 export function isPart(t: { parentTileId?: number | null }): boolean {
   return t.parentTileId != null;
 }
@@ -63,10 +66,11 @@ export function withoutParts<T extends { parentTileId?: number | null }>(tiles: 
 }
 
 /** Parent id → its parts, in position/id order. */
-export function partsByParent<T extends { id: number; parentTileId?: number | null }>(tiles: T[]): Map<number, T[]> {
+export function partsByParent<T extends { id: number; parentTileId?: number | null; easeLevel?: number | null }>(tiles: T[]): Map<number, T[]> {
   const out = new Map<number, T[]>();
   for (const t of tiles) {
-    if (t.parentTileId == null) continue;
+    // An easier option (lib/raceEase) hangs off a tile the same way but is not a combo's part.
+    if (t.parentTileId == null || t.easeLevel != null) continue;
     const list = out.get(t.parentTileId) ?? [];
     list.push(t);
     out.set(t.parentTileId, list);
@@ -80,9 +84,22 @@ export function partsByParent<T extends { id: number; parentTileId?: number | nu
  * board pages hand their client: the parts never become cells, but the combo's cell and detail can
  * show them.
  */
-export function nestParts<T extends { id: number; parentTileId?: number | null; tileType?: string | null }>(tiles: T[]): (T & { parts?: T[] })[] {
+export function nestParts<T extends { id: number; parentTileId?: number | null; tileType?: string | null; easeLevel?: number | null }>(
+  tiles: T[],
+): (T & { parts?: T[]; easier?: T[] })[] {
   const parts = partsByParent(tiles);
-  return withoutParts(tiles).map((t) => (isComboTile(t) ? { ...t, parts: parts.get(t.id) ?? [] } : t));
+  // A race tile's easier options (lib/raceEase) ride along the same way, first level first.
+  const easier = new Map<number, T[]>();
+  for (const t of tiles) {
+    if (t.parentTileId == null || t.easeLevel == null) continue;
+    easier.set(t.parentTileId, [...(easier.get(t.parentTileId) ?? []), t]);
+  }
+  for (const list of easier.values()) list.sort((a, b) => (a.easeLevel as number) - (b.easeLevel as number) || a.id - b.id);
+  return withoutParts(tiles).map((t) => {
+    const withParts = isComboTile(t) ? { ...t, parts: parts.get(t.id) ?? [] } : t;
+    const mine = easier.get(t.id);
+    return mine?.length ? { ...withParts, easier: mine } : withParts;
+  });
 }
 
 /** A tile's id plus, for a combo, its parts' — "this tile's proof" on a combo is its parts'. */

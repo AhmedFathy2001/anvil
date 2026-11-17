@@ -105,6 +105,17 @@ export async function evaluateCompletionGate(args: {
   if (tile.parentTileId != null) {
     const parent = await db.query.tiles.findFirst({ where: eq(tiles.id, tile.parentTileId) });
     if (!parent) return { allowed: false, reason: 'This part has no combo.', awardedPoints: null, bounty: false, rules: parseEventRules(event.rules) };
+    // An EASIER OPTION on a race tile (lib/raceEase): it credits only while it is live for the team
+    // (timed easing, or a lifeline the team spent) and its board tile is one the team may finish, so
+    // it runs that tile's gate in full, the route check included.
+    if (tile.easeLevel != null) {
+      const { easeOptionLiveForTeam } = await import('@/lib/raceEaseDb');
+      if (!(await easeOptionLiveForTeam(event, tile.id, teamId))) {
+        return { allowed: false, reason: 'This easier option isn’t open for your team yet.', awardedPoints: null, bounty: false, rules: parseEventRules(event.rules) };
+      }
+      const g = await evaluateCompletionGate({ event, tile: parent, teamId });
+      return { allowed: g.allowed, reason: g.reason, beforeStart: g.beforeStart, rules: g.rules, awardedPoints: null, bounty: false };
+    }
     const g = await evaluateCompletionGate({ event, tile: parent, teamId, forPart: true });
     return { allowed: g.allowed, reason: g.reason, beforeStart: g.beforeStart, rules: g.rules, awardedPoints: null, bounty: false };
   }

@@ -731,6 +731,9 @@ export const events = pgTable('events', {
   // master visibility gate only — staggered reveal policies and mission tiles still retain their
   // per-tile gates after the board is armed.
   tilesRevealAt: text('tiles_reveal_at'),
+  // Tile race timed easing (events.rules.raceEase, lib/raceEase): the last easing tick whose "this
+  // step just got easier" post went out, so the minute tick announces each one once. 0 = none yet.
+  raceEaseTick: integer('race_ease_tick').default(0).notNull(),
   // Multi-account enrollment (all of a person's picked accounts land on ONE team). Set at create.
   //   maxAccountsPerPerson — how many of their linked accounts a person may enter for THIS event.
   //     1 (default) = classic one-account-per-person; existing events keep exactly that behaviour.
@@ -1022,6 +1025,12 @@ export const tiles = pgTable('tiles', {
   // ids on step+1 it leads to. Both null on every tile = the classic straight line (position order).
   raceStep: integer('race_step'),
   raceNext: jsonb('race_next').$type<number[]>(),
+  // TILE RACE EASIER OPTIONS (lib/raceEase). Set only on a child row (`parentTileId` = the board tile
+  // it eases): 1 = the first easier option, 2 = the next one down… Such a row is an ordinary tile of
+  // any kind except a combo, hidden from a team and unable to credit until it is LIVE for that team
+  // (timed easing, or a lifeline the team spent). Finishing a live one finishes its board tile.
+  // NULL on every other tile, combo parts included: `parentTileId` + NULL here = a combo's part.
+  easeLevel: integer('ease_level'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
   index('tiles_parent_tile_id_idx').on(table.parentTileId),
@@ -1146,6 +1155,19 @@ export const raceBankedCredits = pgTable('race_banked_credits', {
   bankedAt: text('banked_at').notNull(),
 }, (table) => [
   uniqueIndex('race_banked_credits_team_tile_unique').on(table.teamId, table.tileId),
+]);
+
+// TILE RACE "Lifelines" (events.rules.raceLifelines, lib/raceEase): one row per lifeline a team spent,
+// on the board tile it spent it on. Turns that tile's easier option(s) on for that team. One per tile
+// per team; only an admin removes one (which gives the lifeline back).
+export const raceLifelines = pgTable('race_lifelines', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  usedByUserId: integer('used_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  usedAt: text('used_at').notNull(),
+}, (table) => [
+  uniqueIndex('race_lifelines_team_tile_unique').on(table.teamId, table.tileId),
 ]);
 
 // TILE RACE "Choose and lock in" (events.rules.raceRoad = 'choose', lib/raceRoutes): the tile a team

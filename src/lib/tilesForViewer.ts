@@ -1,6 +1,6 @@
 import { verifyAdminOrModerator, verifyTileEditorForEvent } from '@/lib/auth';
 import { hasRevealPolicy, isMissionTile, parseEventRules, visibleTiles } from '@/lib/eventRules';
-import { maskRaceTilesForSession, raceHideOn, type RaceHideEvent } from '@/lib/raceHideAheadDb';
+import { maskRaceTilesForSession, type RaceHideEvent } from '@/lib/raceHideAheadDb';
 
 type Tile = Parameters<typeof visibleTiles>[1][number] & { id: number; label?: string | null; parentTileId?: number | null };
 
@@ -19,7 +19,9 @@ export async function tilesForViewer<T extends Tile>(
   const shown = await revealedForViewer(event, all);
   // A tile race hiding the tiles past each team's next step (lib/raceHideAhead): those come back as
   // locked "?" cells, same id and place, nothing else.
-  if (event.clanId != null && event.format !== undefined && raceHideOn(event as RaceHideEvent)) {
+  // A race's easier options that aren't live for the caller (lib/raceEase) are dropped the same way,
+  // whether or not the race hides tiles ahead.
+  if (event.clanId != null && event.format === 'tilerace') {
     return maskRaceTilesForSession(event as RaceHideEvent, shown);
   }
   return shown;

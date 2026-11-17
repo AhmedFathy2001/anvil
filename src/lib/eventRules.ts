@@ -325,6 +325,21 @@ export interface EventRules {
    */
   raceHideAhead: RaceHideAhead;
   /**
+   * Tile race "Timed easing" (lib/raceEase). Null (default): off. `hours`: every that many hours after
+   * the event starts, the next step's easier options go live for everyone (step 1 after one interval,
+   * step 2 after two…), and a step already eased opens one more level where its tiles have one.
+   * Easier options are tiles the host wrote under a board tile (tiles.ease_level).
+   */
+  raceEase: RaceEaseRule | null;
+  /**
+   * Tile race "Lifelines" (lib/raceEase). Null (default): off. Each team gets `count` for the whole
+   * race; spending one on a tile it is playing turns that tile's easier option on for that team only.
+   * `afterHours`: a lifeline can be spent on a tile only once it has been open to the team that long
+   * (0 = straight away). `opens`: 'first' = the tile's first easier option, 'all' = every one.
+   * Stored per use in race_lifelines.
+   */
+  raceLifelines: RaceLifelinesRule | null;
+  /**
    * The board's short name in the game chatbox (lib/eventChatRules chatTagOf): "[<tag> · Team]" before
    * each event chat line. Null (default): derived from the event's name. At most CHAT_TAG_MAX chars.
    */
@@ -379,6 +394,36 @@ export function boardCountsWorld(rules: Pick<EventRules, 'worldModes' | 'mainGam
   return modeKey ? rules.worldModes.includes(modeKey) : !rules.mainGameOff;
 }
 
+export interface RaceEaseRule {
+  hours: number;
+}
+export interface RaceLifelinesRule {
+  count: number;
+  afterHours: number;
+  opens: 'first' | 'all';
+}
+export const RACE_EASE_HOURS_MAX = 24 * 14;
+export const RACE_LIFELINES_MAX = 20;
+
+function parseRaceEase(v: unknown): RaceEaseRule | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const h = (v as { hours?: unknown }).hours;
+  if (typeof h !== 'number' || !Number.isFinite(h) || h < 1) return null;
+  return { hours: Math.min(RACE_EASE_HOURS_MAX, Math.round(h)) };
+}
+
+function parseRaceLifelines(v: unknown): RaceLifelinesRule | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const o = v as { count?: unknown; afterHours?: unknown; opens?: unknown };
+  if (typeof o.count !== 'number' || !Number.isFinite(o.count) || o.count < 1) return null;
+  const after = typeof o.afterHours === 'number' && Number.isFinite(o.afterHours) && o.afterHours > 0 ? o.afterHours : 0;
+  return {
+    count: Math.min(RACE_LIFELINES_MAX, Math.round(o.count)),
+    afterHours: Math.min(RACE_EASE_HOURS_MAX, Math.round(after)),
+    opens: o.opens === 'all' ? 'all' : 'first',
+  };
+}
+
 export const DEFAULT_EVENT_RULES: EventRules = {
   worldModes: [],
   mainGameOff: false,
@@ -405,6 +450,8 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   raceBank: false,
   raceRoad: 'achieve',
   raceHideAhead: 'off',
+  raceEase: null,
+  raceLifelines: null,
   chatTag: null,
 };
 
@@ -655,6 +702,8 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     raceBank: obj.raceBank === true,
     raceRoad: obj.raceRoad === 'choose' || obj.raceRoad === 'open' ? obj.raceRoad : 'achieve',
     raceHideAhead: obj.raceHideAhead === 'players' || obj.raceHideAhead === 'staff' ? obj.raceHideAhead : 'off',
+    raceEase: parseRaceEase(obj.raceEase),
+    raceLifelines: parseRaceLifelines(obj.raceLifelines),
     chatTag: cleanChatTag(obj.chatTag),
   };
 }
@@ -807,6 +856,24 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.raceHideAhead !== undefined && o.raceHideAhead !== 'off' && o.raceHideAhead !== 'players' && o.raceHideAhead !== 'staff') {
     return { error: "rules.raceHideAhead must be 'off', 'players' or 'staff'" };
   }
+  if (o.raceEase !== undefined && o.raceEase !== null) {
+    const h = (o.raceEase as { hours?: unknown } | undefined)?.hours;
+    if (typeof h !== 'number' || !Number.isInteger(h) || h < 1 || h > RACE_EASE_HOURS_MAX) {
+      return { error: `rules.raceEase.hours must be a whole number of hours between 1 and ${RACE_EASE_HOURS_MAX}` };
+    }
+  }
+  if (o.raceLifelines !== undefined && o.raceLifelines !== null) {
+    const l = (o.raceLifelines ?? {}) as { count?: unknown; afterHours?: unknown; opens?: unknown };
+    if (typeof l.count !== 'number' || !Number.isInteger(l.count) || l.count < 1 || l.count > RACE_LIFELINES_MAX) {
+      return { error: `rules.raceLifelines.count must be a whole number between 1 and ${RACE_LIFELINES_MAX}` };
+    }
+    if (l.afterHours !== undefined && (typeof l.afterHours !== 'number' || !Number.isInteger(l.afterHours) || l.afterHours < 0 || l.afterHours > RACE_EASE_HOURS_MAX)) {
+      return { error: `rules.raceLifelines.afterHours must be a whole number of hours between 0 and ${RACE_EASE_HOURS_MAX}` };
+    }
+    if (l.opens !== undefined && l.opens !== 'first' && l.opens !== 'all') {
+      return { error: "rules.raceLifelines.opens must be 'first' or 'all'" };
+    }
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
@@ -868,6 +935,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     !canonical.raceBank &&
     canonical.raceRoad === 'achieve' &&
     canonical.raceHideAhead === 'off' &&
+    canonical.raceEase === null &&
+    canonical.raceLifelines === null &&
     canonical.chatTag == null &&
     // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
     // nothing loses nothing", and a board that has switched a sign-up section on or off has said

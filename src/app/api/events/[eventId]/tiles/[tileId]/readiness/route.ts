@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { tiles } from '@/db/schema';
@@ -38,7 +38,7 @@ export async function GET(
   if (await raceTileHiddenForSession(event, tile)) return NextResponse.json({ results: [] });
 
   const parts = tile.tileType === 'combo'
-    ? await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id))
+    ? await db.select().from(tiles).where(and(eq(tiles.parentTileId, tile.id), isNull(tiles.easeLevel))).orderBy(asc(tiles.id))
     : [];
   const results = await tileReadiness({ event, tile: { ...tile, parts }, personId: user.playerId });
   return NextResponse.json({ results }, { headers: { 'Cache-Control': 'private, no-store' } });

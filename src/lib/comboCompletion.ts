@@ -67,6 +67,16 @@ export async function afterPartCompletion(
 ): Promise<ComboSyncResult | null> {
   if (part.parentTileId == null) return null;
   try {
+    // An easier option on a race tile (lib/raceEase) isn't a combo's part: finishing a live one
+    // finishes its board tile. Removing one never un-finishes the tile (an admin undoes that by hand).
+    const ease = await db.query.tiles.findFirst({ where: eq(tiles.id, part.id), columns: { easeLevel: true } });
+    if (ease?.easeLevel != null) {
+      if (opts.change !== 'added') return null;
+      const { syncEasedTile } = await import('@/lib/raceEaseDb');
+      const eased = await syncEasedTile(part.id, teamId, { silent: opts.silent, held: opts.held, notifyClanId: opts.notifyClanId });
+      if (!eased) return null;
+      return { complete: true, done: 1, needed: 1, finisherPlayerId: null, parentComplete: true, inserted: eased.inserted };
+    }
     const res = await syncComboParent(part.parentTileId, teamId, {
       allowRevert: opts.change === 'removed',
       silent: opts.silent,
@@ -89,7 +99,8 @@ export async function afterPartCompletion(
  * far along each part is (its submissions and stat gains), per member too on a Solo combo.
  */
 export async function teamComboView(parent: TileRow, teamId: number) {
-  const parts = (await db.select().from(tiles).where(eq(tiles.parentTileId, parent.id))).sort((a, b) => a.id - b.id);
+  // Parts only: an easier option under a combo (lib/raceEase) is not one of its parts.
+  const parts = (await db.select().from(tiles).where(and(eq(tiles.parentTileId, parent.id), isNull(tiles.easeLevel)))).sort((a, b) => a.id - b.id);
   const partIds = parts.map((p) => p.id);
   const done = partIds.length
     ? await db
@@ -143,8 +154,8 @@ export async function afterPartProgress(
 ): Promise<void> {
   if (part.parentTileId == null) return;
   try {
-    const parent = await db.query.tiles.findFirst({ where: eq(tiles.id, part.parentTileId), columns: { comboRule: true } });
-    if (!parent || parseComboRule(parent.comboRule).mode !== 'mix') return;
+    const parent = await db.query.tiles.findFirst({ where: eq(tiles.id, part.parentTileId), columns: { comboRule: true, tileType: true } });
+    if (!parent || !isComboTile(parent) || parseComboRule(parent.comboRule).mode !== 'mix') return;
     await syncComboParent(part.parentTileId, teamId, { allowRevert: false, ...opts });
   } catch (error) {
     log.warn('combo.progress-sync-fail', { partId: part.id, teamId }, error);

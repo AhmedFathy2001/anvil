@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { clogTileSpec } from '@/lib/clogTiles';
 import { clogPagesProgress } from '@/lib/clogTileCredit';
 
@@ -51,7 +51,7 @@ export async function tileProgressView(
   if (isComboTile(tile)) {
     // A COMBO (lib/combo): each team's bar is its parts done against what the rule needs. Fed through
     // the count tracker as one credit per finished part (to whoever finished it), in team mode.
-    const parts = await db.select({ id: tilesTable.id }).from(tilesTable).where(eq(tilesTable.parentTileId, tile.id));
+    const parts = await db.select({ id: tilesTable.id }).from(tilesTable).where(and(eq(tilesTable.parentTileId, tile.id), isNull(tilesTable.easeLevel)));
     goal = comboNeeded(parseComboRule(tile.comboRule), parts.length);
     if (parseComboRule(tile.comboRule).mode === 'mix') {
       // A MIX: each team's combined share in percent (lib/comboProgress), the bar out of 100.

@@ -1408,6 +1408,13 @@
       "when": 1794712991870,
       "tag": "0263_notify_tier_inherit",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1794879996520,
+      "tag": "0270_race_easier_options",
+      "breakpoints": true
     }
   ]
 }
