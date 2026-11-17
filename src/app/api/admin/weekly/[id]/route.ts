@@ -151,6 +151,12 @@ export async function PUT(
     if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can set an entry fee.' }, { status: 403 });
     updates.entryFee = cleanEntryFee(body.entryFee);
   }
+  // Fees into the prizes: the clan's money again, so the same bar. It decides where fees settled
+  // FROM NOW go; ones already in the coffer stay there until they are undone.
+  if (typeof body.feesToPrizes === 'boolean' && body.feesToPrizes !== scoped.feesToPrizes) {
+    if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can add entry fees to the prizes.' }, { status: 403 });
+    updates.feesToPrizes = body.feesToPrizes;
+  }
 
   if (Object.keys(updates).length === 0 && modeChanged) {
     return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);
