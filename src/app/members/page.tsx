@@ -1,3 +1,4 @@
+import { getWeekLuck } from '@/lib/weekLuck';
 import type { Metadata } from 'next';
 import { hiddenNamesForViewer } from '@/lib/clanInsider';
 import { withoutHiddenKeys, withoutHiddenNames, withoutHiddenRows } from '@/lib/rosterVisibility';
@@ -81,7 +82,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     getRosterLog(clan.id, 20).then((rows) => withoutHiddenRows(rows, hidden)),
     getClanActivityAnalytics(clan.id, { countGuests }).then((a) => withoutHiddenNames(a, hidden)),
     getRosterMovement(members),
-    getLuckBoards(clan.id).then((b) => withoutHiddenNames(b, hidden)),
+    // All time, and the last seven days (lib/weekLuck) under the same hidden-name rule.
+    Promise.all([getLuckBoards(clan.id), getWeekLuck(clan.id).catch(() => null)]).then(([b, w]) => ({
+      ...withoutHiddenNames(b, hidden),
+      week: w ? { ...withoutHiddenNames({ dry: w.dry, spooned: w.spooned }, hidden), judged: w.judged, members: w.members } : null,
+    })),
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
     // Tuesday's pet are the same news to someone reading this page.
     // Back-to-back repeats are one line with a count (lib/feedRuns), cut to 30 after.
