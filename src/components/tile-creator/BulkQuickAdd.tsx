@@ -118,8 +118,10 @@ export default function BulkQuickAdd({
     const rec = new Ctor();
     rec.continuous = true;
     rec.interimResults = true;
-    // Game words are English whatever the browser's language is.
-    rec.lang = typeof navigator !== 'undefined' && /^en\b/i.test(navigator.language) ? navigator.language : 'en-US';
+    // Always en-US, never the browser's own English locale: game words are English, and a regional
+    // locale the speech service has no model for (en-EG, en-AE) fails as a "network" error instead
+    // of falling back, which read as "speech does not work in this browser".
+    rec.lang = 'en-US';
     rec.onresult = (e) => {
       let live = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -141,7 +143,7 @@ export default function BulkQuickAdd({
           : e.error === 'audio-capture'
             ? 'No microphone was found.'
             : e.error === 'network'
-              ? 'Your browser could not reach its speech service. Speech works in Chrome; Edge and Brave often refuse it. Type the list, or try Chrome.'
+              ? 'Your browser could not reach its speech service (it reported a network error). Check your connection and try again, or type the list.'
               : e.error === 'language-not-supported'
                 ? 'Your browser’s speech service does not have English. Type the list instead.'
                 : `Your browser stopped listening (${e.error || 'unknown reason'}). Try again, or type the list.`,
