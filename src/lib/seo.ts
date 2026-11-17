@@ -148,6 +148,19 @@ export function robotsDisallowRoots(): string[] {
 }
 
 /**
+ * The Disallow lines themselves.
+ *
+ * A robots.txt rule is a PREFIX: `Disallow: /p` also blocks `/pricing`, and the clan-prefixed form of it (whose star
+ * spans slashes) blocks `/c/a-clan/members/Pete`. So each root is written three ways that end where the
+ * path segment ends: the page itself (`$`), anything under it (`/`), and the page with a query (`?`).
+ */
+export function robotsDisallowRules(): string[] {
+  return robotsDisallowRoots().flatMap((root) =>
+    [root, `/c/*${root}`].flatMap((r) => [`${r}$`, `${r}/`, `${r}?`]),
+  );
+}
+
+/**
  * Is this whole deployment one that must never be indexed?
  *
  * Beta and preview are full copies of the product on their own apex, each declaring ITSELF canonical

@@ -25,6 +25,7 @@ import {
   isNoIndexDeployment,
   isNoIndexPath,
   robotsDisallowRoots,
+  robotsDisallowRules,
 } from '../src/lib/seo.ts';
 
 test('the apex origin comes from the env, so a self-hoster is not told they are anvilosrs.com', () => {
@@ -193,5 +194,27 @@ test('beta and preview never get indexed; production and self-hosters do', () =>
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
+  }
+});
+
+test('robots.txt rules stop at the path segment, so /p does not block /pricing', () => {
+  // The matching a crawler does: a rule is a prefix, `*` is any run of characters, `$` is the end.
+  const matches = (rule: string, path: string): boolean => {
+    const end = rule.endsWith('$');
+    const parts = (end ? rule.slice(0, -1) : rule).split('*');
+    let at = 0;
+    for (let i = 0; i < parts.length; i++) {
+      const found = i === 0 ? (path.startsWith(parts[0]) ? 0 : -1) : path.indexOf(parts[i], at);
+      if (found < 0) return false;
+      at = found + parts[i].length;
+    }
+    return !end || at === path.length;
+  };
+  const blocked = (path: string) => robotsDisallowRules().some((rule) => matches(rule, path));
+  for (const open of ['/pricing', '/c/a-clan/pricing', '/c/a-clan/members/Pete', '/c/a-clan/members/Teamvenom005', '/c/a-clan/members/Uther', '/players', '/clans']) {
+    assert.ok(!blocked(open), `${open} must stay crawlable`);
+  }
+  for (const shut of ['/p', '/p/Zezima', '/p/Zezima/wrapped', '/admin', '/admin?tab=x', '/c/a-clan/admin/events', '/c/a-clan/team', '/api/og/site']) {
+    assert.ok(blocked(shut), `${shut} must be disallowed`);
   }
 });

@@ -6,7 +6,7 @@ import {
   apexOrigin,
   isLegacyClanHost,
   isNoIndexDeployment,
-  robotsDisallowRoots,
+  robotsDisallowRules,
 } from '@/lib/seo';
 
 /**
@@ -16,7 +16,8 @@ import {
  *
  * EVERY RULE IS WRITTEN TWICE — bare, and under a clan prefix — because the same page is reachable
  * both ways and `Disallow: /admin` says nothing about `/c/theafkspot/admin`. `/c/*` is a wildcard
- * every major crawler honours.
+ * every major crawler honours. Each ends at the path segment (lib/seo robotsDisallowRules), so `/p`
+ * does not take `/pricing` with it.
  */
 // Read at request time, not baked at build. `apexOrigin()` comes from ANVIL_APEX_DOMAIN, and the
 // Docker image is built once and run by self-hosters on their own domain — a prerendered
@@ -38,7 +39,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     return { rules: [{ userAgent: '*', allow: '/' }], sitemap: absoluteUrl('/sitemap.xml'), host: apexOrigin() };
   }
 
-  const disallow = robotsDisallowRoots().flatMap((root) => [root, `/c/*${root}`]);
+  const disallow = robotsDisallowRules();
 
   return {
     rules: [{ userAgent: '*', allow: '/', disallow }],
