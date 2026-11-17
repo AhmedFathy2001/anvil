@@ -146,29 +146,6 @@ export const WEBHOOK_SECTIONS = [
     ],
   },
   {
-    id: 'competition-posts',
-    group: 'site',
-    title: 'Competition posts',
-    blurb:
-      'What a SOTW, BOTW, item hunt or efficiency competition posts while it runs. The start and the results always post; these two are the ones in between. They go to the SOTW / BOTW channel, or the main one. Board events have their own switches under Event posts.',
-    fields: [
-      {
-        kind: 'toggle',
-        key: 'weekly_post_daily',
-        label: 'Daily update for weekly competitions',
-        help: 'On by default. Once a day while a SOTW, BOTW, item hunt or efficiency competition runs: who had the biggest day, the top five with what each gained that day, and who climbed. A day when nobody gained anything posts nothing.',
-        defaultOn: true,
-      },
-      {
-        kind: 'toggle',
-        key: 'weekly_post_halfway',
-        label: 'Halfway standings for weekly competitions',
-        help: 'On by default. One post at the halfway point with the standings so far.',
-        defaultOn: true,
-      },
-    ],
-  },
-  {
     id: 'plugin-base',
     group: 'plugin',
     title: 'Plugin notifications',

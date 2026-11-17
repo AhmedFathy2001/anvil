@@ -15,7 +15,8 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { seatsFor } from '@/lib/clanEventSignups';
-import { recordAdjustment } from '@/lib/coffer';
+import { getWeeklyPool, recordAdjustment, setWeeklyPool } from '@/lib/coffer';
+import { parseWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import { decideConfirmation, settlesOnCollect } from '@/lib/feeRules';
 import { normalizeRsn } from '@/lib/auth';
@@ -133,6 +134,25 @@ async function syncFeeCoffer(comp: Competition, row: Participant, actorUserId: n
     // Taking back a fee that was credited is a correction of the books, not a spend.
     force: true,
   });
+  await syncPotHold(comp, actorUserId);
+}
+
+/**
+ * Keep the competition's hold on the coffer equal to what it will pay: the ladder plus the fee pot.
+ * The hold follows what was asked for the ladder: held stays held, "record it without holding" stays
+ * unheld. A competition with no ladder never asked, and its pot is that competition's own entry
+ * money, so it is held. Never touches a pool that has been paid.
+ */
+export async function syncPotHold(comp: Competition, actorUserId: number | null): Promise<void> {
+  if (!comp.feesToPrizes) return;
+  const existing = await getWeeklyPool(comp.id);
+  if (existing?.status === 'paid') return;
+  const amount = totalPrizeGp(parseWeeklyPrizes(comp.prizes)) + (await weeklyFeePotGp(comp.id));
+  const hold = existing ? existing.status === 'reserved' : true;
+  const args = { clanId: comp.clanId, competitionId: comp.id, amount, userId: actorUserId && actorUserId > 0 ? actorUserId : null };
+  const held = await setWeeklyPool({ ...args, hold });
+  // Not enough free gp to hold it (the coffer was spent elsewhere): record it unheld rather than lose track of it.
+  if (!held.ok && hold) await setWeeklyPool({ ...args, hold: false });
 }
 
 /** The entry fees of this competition that are in the coffer: the pot added to its prizes. */

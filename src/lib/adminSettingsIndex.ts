@@ -879,6 +879,14 @@ const PAGES: readonly SettingEntry[] = [
     section: 'Discord',
   },
   {
+    id: 'discord-competition-posts',
+    label: 'Competition posts (SOTW, BOTW, item hunts)',
+    description: 'The daily update and the halfway standings of a running competition.',
+    keywords: ['sotw', 'botw', 'weekly', 'competition', 'daily update', 'daily digest', 'halfway', 'item hunt', 'standings post'],
+    href: `${DISCORD}#discord-competition-posts`,
+    section: 'Discord',
+  },
+  {
     id: 'discord-player-role',
     label: 'The @Bingo player role',
     description: 'When players get the role (approval, draft or never) and whether it is taken back when an event ends.',

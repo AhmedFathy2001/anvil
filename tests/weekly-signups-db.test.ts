@@ -203,11 +203,16 @@ test('fees added to the prizes: a settled fee goes into the coffer once, an undo
   await W.moveWeeklyFee(c, b.value.id, 'collect', staff.Tess);
   assert.equal(await W.weeklyFeePotGp(c.id), 1_000_000);
   assert.equal((await C.getCofferBalance(clanId)).confirmed, before + 1_000_000);
+  // ...and held for this competition, so nothing else can promise it away.
+  const held = await C.getWeeklyPool(c.id);
+  assert.equal(held?.status, 'reserved');
+  assert.equal(Math.abs(held?.amount ?? 0), 1_000_000);
 
   const undone = await W.moveWeeklyFee(c, b.value.id, 'reset', staff.Ada);
   assert.ok(undone.ok && undone.value.feeInCoffer === false && undone.value.feeStatus === 'pending');
   assert.equal(await W.weeklyFeePotGp(c.id), 500_000);
   assert.equal((await C.getCofferBalance(clanId)).confirmed, before + 500_000);
+  assert.equal(Math.abs((await C.getWeeklyPool(c.id))?.amount ?? 0), 500_000, 'the hold follows the pot down');
   await W.moveWeeklyFee(c, b.value.id, 'reset', staff.Ada);
   assert.equal((await C.getCofferBalance(clanId)).confirmed, before + 500_000, 'undoing twice takes nothing more');
 
@@ -217,7 +222,7 @@ test('fees added to the prizes: a settled fee goes into the coffer once, an undo
   await db.update(s.weeklyCompetitions).set({ status: 'completed' }).where(eq(s.weeklyCompetitions.id, c.id));
   const r = await settle(c.id);
   assert.equal(r.settled, true);
-  const awards = (await db.select().from(s.cofferEntries).where(eq(s.cofferEntries.weeklyCompetitionId, c.id))).filter((e) => e.kind !== 'adjustment');
+  const awards = (await db.select().from(s.cofferEntries).where(eq(s.cofferEntries.weeklyCompetitionId, c.id))).filter((e) => e.kind !== 'adjustment' && e.kind !== 'pool');
   assert.equal(awards.length, 1);
   assert.equal(Math.abs(awards[0].amount), 500_000);
   assert.equal(awards[0].rsn, 'Alpha');
@@ -266,4 +271,31 @@ test('reminders go to each person who still owes, once per 12 hours, and to nobo
   const none = await comp({ entryFee: null });
   const quiet = await Rm.remindWeeklyFees({ clan, comp: none, actorUserId: staff.Tess, deps });
   assert.ok(!quiet.ok && quiet.status === 409);
+});
+
+test('the hold follows what was asked for the ladder: held grows with the pot, unheld stays unheld', async () => {
+  await setSetting(clanId, 'fee_confirmations_required', '0');
+  await C.recordAdjustment({ clanId, amount: 20_000_000, userId: null, note: 'seed' });
+  const ladder = JSON.stringify({ places: [{ gp: 2_000_000 }, { gp: 1_000_000 }], payZeroGain: false, splitTies: false });
+
+  const heldComp = await comp({ feesToPrizes: true, prizes: ladder });
+  await C.setWeeklyPool({ clanId, competitionId: heldComp.id, amount: 3_000_000, hold: true, userId: null });
+  const a = await W.enterCompetition(heldComp, who('Alpha'));
+  assert.ok(a.ok);
+  if (!a.ok) return;
+  await W.moveWeeklyFee(heldComp, a.value.id, 'collect', staff.Tess);
+  const pool = await C.getWeeklyPool(heldComp.id);
+  assert.equal(pool?.status, 'reserved');
+  assert.equal(Math.abs(pool?.amount ?? 0), 3_500_000);
+
+  const loose = await comp({ feesToPrizes: true, prizes: ladder });
+  await C.setWeeklyPool({ clanId, competitionId: loose.id, amount: 3_000_000, hold: false, userId: null });
+  const b = await W.enterCompetition(loose, who('Bravo'));
+  assert.ok(b.ok);
+  if (!b.ok) return;
+  await W.moveWeeklyFee(loose, b.value.id, 'collect', staff.Tess);
+  const planned = await C.getWeeklyPool(loose.id);
+  assert.equal(planned?.status, 'planned');
+  assert.equal(Math.abs(planned?.amount ?? 0), 3_500_000);
+  await setSetting(clanId, 'fee_confirmations_required', '1');
 });

@@ -1,3 +1,4 @@
+import { weeklyFeePotGp } from '@/lib/weeklySignups';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
@@ -78,7 +79,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   //
   // Holding is the default: a promise the pot can spend twice is the failure the ledger exists to
   // prevent. `hold: false` records it without locking the gp, for a clan funding it from elsewhere.
-  const total = totalPrizeGp(prizes);
+  // The hold covers what it will pay: the ladder, plus any entry fees already in the coffer for it (lib/weeklySignups).
+  const total = totalPrizeGp(prizes) + (comp.feesToPrizes ? await weeklyFeePotGp(compId) : 0);
   const hold = body.hold !== false;
   const pool = await setWeeklyPool({
     clanId: comp.clanId,
