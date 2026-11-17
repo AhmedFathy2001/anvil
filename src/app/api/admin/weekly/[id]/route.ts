@@ -143,8 +143,9 @@ export async function PUT(
   // owed by whoever signs up from now on; fees already recorded keep their amounts.
   if (typeof body.selfSignup === 'boolean') {
     updates.selfSignup = body.selfSignup;
+    // Switching them off leaves the fee as it was: the amount is a treasurer's to change, and with
+    // sign-ups off nobody new can owe it.
     if (body.selfSignup) updates.hostEntrants = 'selected';
-    else updates.entryFee = null;
   }
   if (body.entryFee !== undefined && (body.selfSignup === true || (body.selfSignup === undefined && scoped.selfSignup))) {
     if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can set an entry fee.' }, { status: 403 });
