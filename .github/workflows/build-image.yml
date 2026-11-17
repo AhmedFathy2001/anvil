@@ -174,6 +174,13 @@ jobs:
           else
             NOTES="$(git log --no-merges --format='- %s' "$BEFORE..$AFTER")"
           fi
+          # A big merge is hundreds of subjects: Discord refuses a post that long and the deploy then
+          # goes unannounced. Keep the first 15 and say how many more there were.
+          TOTAL="$(printf '%s\n' "$NOTES" | wc -l)"
+          if [ "$TOTAL" -gt 15 ]; then
+            NOTES="$(printf '%s\n' "$NOTES" | head -15)
+          - and $((TOTAL - 15)) more"
+          fi
           VERSION="$(git describe --tags --always)"
 
           install -m 700 -d ~/.ssh
