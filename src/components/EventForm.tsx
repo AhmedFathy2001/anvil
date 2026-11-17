@@ -272,6 +272,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   /** The entry fee as typed ("500k", "2m"); blank = free. Sign-up competitions only. */
   const [entryFeeText, setEntryFeeText] = useState('');
   const entryFeeGp = parseGpInput(entryFeeText);
+  /** Entry fees are added to the prizes (paid out on top of the ladder). */
+  const [feesToPrizes, setFeesToPrizes] = useState(true);
   // Solo, teams or clan vs clan (lib/competitionTeams).
   const [weeklyMode, setWeeklyMode] = useState<WeeklyModeValue>(DEFAULT_WEEKLY_MODE);
   // "Repeat every week" (lib/weeklyRepeat): on by default — a weekly that has to be re-made by hand
@@ -540,7 +542,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             // Selected people: nothing sweeps the roster in, so the guest switch has nothing to act on.
             includeGuests: selectedOnly ? false : includeGuests,
             hostEntrants,
-            ...(signupEntry && entryFeeGp ? { entryFee: entryFeeGp } : {}),
+            ...(signupEntry && entryFeeGp ? { entryFee: entryFeeGp, feesToPrizes } : {}),
             // A hunt is everyone for themselves: no teams, no clan sides.
             mode: isHunt ? 'solo' : weeklyMode.mode,
             ...(!isHunt && weeklyMode.mode === 'teams'
@@ -1092,6 +1094,15 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                             : 'Free to enter.'}
                       </p>
                     </div>
+                    {!!entryFeeGp && (
+                      <Checkbox
+                        checked={feesToPrizes}
+                        onChange={setFeesToPrizes}
+                        label="Add the entry fees to the prizes"
+                        description="Each fee your staff confirm goes into the clan coffer and is paid out on top of the prizes below, shared in the same proportions. With no prizes set, first place takes the fees."
+                        className="text-sm text-foreground/80"
+                      />
+                    )}
                   </div>
                 )}
               </div>

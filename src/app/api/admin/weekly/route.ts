@@ -187,6 +187,8 @@ export async function POST(request: Request) {
     hostEntrants,
     selfSignup,
     entryFee,
+    // Only with a fee, and the fee was a treasurer's to set above.
+    feesToPrizes: !!entryFee && body.feesToPrizes === true,
     hunt: huntJson,
   }).returning();
 

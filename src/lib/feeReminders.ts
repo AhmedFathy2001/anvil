@@ -82,7 +82,7 @@ export async function lastFeeReminder(
   return null;
 }
 
-async function sendDm(botToken: string, discordId: string, body: Record<string, unknown>): Promise<boolean> {
+export async function sendDm(botToken: string, discordId: string, body: Record<string, unknown>): Promise<boolean> {
   const dm = await discordRest(botToken, '/users/@me/channels', {
     method: 'POST',
     body: JSON.stringify({ recipient_id: discordId }),

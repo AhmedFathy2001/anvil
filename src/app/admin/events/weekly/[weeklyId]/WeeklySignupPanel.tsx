@@ -17,12 +17,14 @@ export default function WeeklySignupPanel({
   competitionId,
   selfSignup: initialOn,
   entryFee: initialFee,
+  feesToPrizes: initialPot,
   ended,
   canSetFee,
 }: {
   competitionId: number;
   selfSignup: boolean;
   entryFee: number | null;
+  feesToPrizes: boolean;
   ended: boolean;
   /** A treasurer or admin: the fee is the clan's money. */
   canSetFee: boolean;
@@ -32,9 +34,10 @@ export default function WeeklySignupPanel({
   const [feeText, setFeeText] = useState(initialFee ? formatGp(initialFee) : '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pot, setPot] = useState(initialPot);
   const fee = parseGpInput(feeText);
   const badFee = !!feeText.trim() && !fee;
-  const dirty = on !== initialOn || (on && (fee ?? null) !== (initialFee ?? null));
+  const dirty = on !== initialOn || (on && ((fee ?? null) !== (initialFee ?? null) || pot !== initialPot));
 
   async function save() {
     setSaving(true);
@@ -43,7 +46,7 @@ export default function WeeklySignupPanel({
       const res = await clanFetch(`/api/admin/weekly/${competitionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selfSignup: on, ...(on && canSetFee ? { entryFee: fee ?? null } : {}) }),
+        body: JSON.stringify({ selfSignup: on, ...(on && canSetFee ? { entryFee: fee ?? null, feesToPrizes: !!fee && pot } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -86,6 +89,18 @@ export default function WeeklySignupPanel({
                   ? `${formatGp(fee)} gp each, paid in game to your staff. A change applies to people who sign up from now on.`
                   : 'Free to enter.'}
           </p>
+          {!!fee && (
+            <div className="mt-3">
+              <Checkbox
+                checked={pot}
+                onChange={setPot}
+                disabled={ended || !canSetFee}
+                label="Add the entry fees to the prizes"
+                description="Each fee your staff confirm goes into the clan coffer and is paid out on top of the prizes, shared in the same proportions. With no prizes set, first place takes the fees."
+                className="text-sm text-foreground/90"
+              />
+            </div>
+          )}
         </div>
       )}
       <div className="mt-4 flex flex-wrap items-center gap-3">

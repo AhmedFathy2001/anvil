@@ -119,7 +119,8 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
         </div>
       )}
 
-      {view.me && started && (
+      {/* Your own row, pinned above the list: only when it would otherwise be below the first few, or it is the same row twice. */}
+      {view.me && started && view.rows.findIndex((r) => r.rsn === view.me?.rsn) >= 5 && (
         <div className="mb-3">
           <Row row={view.me} view={view} pinned />
         </div>

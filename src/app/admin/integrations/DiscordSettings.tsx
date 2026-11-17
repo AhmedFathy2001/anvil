@@ -5,6 +5,7 @@ import { CA_TIERS, DIARY_TIERS, QUEST_TIERS } from '@/lib/notifyPrefs';
 import { useState, type ReactNode } from 'react';
 
 import FoldSection from '@/components/FoldSection';
+import ToggleSetting from '@/components/ToggleSetting';
 import GuideLink from '@/components/GuideLink';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhooksPanel from './WebhooksPanel';
@@ -284,6 +285,30 @@ export default function DiscordSettings({
       >
         <EventPostDefaultsPanel />
       </FoldSection>
+
+      {/* SOTW / BOTW / item hunts: the posts between the start and the results (lib/weeklyDaily). A creator space has no weeklies. */}
+      {!creator && (
+        <FoldSection
+          id="discord-competition-posts"
+          sprite="casket"
+          title="Competition posts"
+          summary="SOTW, BOTW and item hunts: the daily update and the halfway standings."
+        >
+          <p className="mb-3 text-sm text-text-muted">
+            A competition always posts when it starts and when it ends. These two are the posts in between. They go to your SOTW / BOTW channel, or the main
+            one when you have not set that.
+          </p>
+          <div className="space-y-3">
+            <ToggleSetting
+              settingKey="weekly_post_daily"
+              label="Daily update"
+              helpText="Once a day while a competition runs: who had the biggest day, the top five with what each gained that day, and who climbed. A day when nobody gained anything posts nothing."
+              defaultOn
+            />
+            <ToggleSetting settingKey="weekly_post_halfway" label="Halfway standings" helpText="One post at the halfway point with the standings so far." defaultOn />
+          </div>
+        </FoldSection>
+      )}
 
       {/* A creator space has no roster to sync roles or nicknames from: it keeps the ping role only. */}
       <FoldSection

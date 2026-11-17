@@ -110,6 +110,7 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               // A sign-up competition stays one, at the same fee; each week is entered (and paid) afresh.
               selfSignup: prev.selfSignup,
               entryFee: prev.entryFee,
+              feesToPrizes: prev.feesToPrizes,
             })
             .returning();
           const kept = await tx

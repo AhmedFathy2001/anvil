@@ -81,6 +81,24 @@ export function serializeWeeklyPrizes(prizes: WeeklyPrizes): string | null {
   return cleaned.places.length > 0 ? JSON.stringify(cleaned) : null;
 }
 
+/**
+ * The ladder with a pot of entry fees added on top (a competition with "add entry fees to the
+ * prizes"). The pot is shared in the ladder's own proportions, so a 10m / 5m ladder stays 2 to 1;
+ * with no ladder the whole pot is first place's. Whole gp, the remainder to first. Nothing changes
+ * when the pot is empty.
+ */
+export function feePlaces(places: WeeklyPlace[], potGp: number): WeeklyPlace[] {
+  const pot = Math.max(0, Math.floor(potGp));
+  if (pot <= 0) return places;
+  const paying = places.filter((p) => p.gp > 0);
+  if (paying.length === 0) return [{ gp: pot }];
+  const total = paying.reduce((n, p) => n + p.gp, 0);
+  const shares = places.map((p) => (p.gp > 0 ? Math.floor((pot * p.gp) / total) : 0));
+  const first = places.findIndex((p) => p.gp > 0);
+  shares[first] += pot - shares.reduce((a, b) => a + b, 0);
+  return places.map((p, i) => ({ gp: p.gp + shares[i] }));
+}
+
 /** Total gp a ladder commits, which is what a host needs to see against the balance before saving. */
 export function totalPrizeGp(prizes: WeeklyPrizes): number {
   return prizes.places.reduce((sum, p) => sum + Math.max(0, p.gp), 0);

@@ -1,3 +1,4 @@
+import { weeklyFeePotGp } from '@/lib/weeklySignups';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -5,7 +6,7 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { competitionBoard, huntPrizeBoard } from '@/lib/itemHuntDb';
-import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
+import { parseWeeklyPrizes, winnersFor, feePlaces } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
 // Paying out a Skill or Boss of the Week.
@@ -44,7 +45,9 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   if (!comp || comp.status !== 'completed' || comp.prizesSettledAt) {
     return { settled: false, reserved: 0, unfunded: 0 };
   }
-  const prizes = parseWeeklyPrizes(comp.prizes);
+  // Entry fees that went into the coffer are paid out on top of the ladder (lib/weeklyPrizes feePlaces).
+  const ladder = parseWeeklyPrizes(comp.prizes);
+  const prizes = { ...ladder, places: feePlaces(ladder.places, comp.feesToPrizes ? await weeklyFeePotGp(competitionId) : 0) };
   if (prizes.places.length === 0) {
     // Nothing to pay. Release anything a ladder held before it was emptied, then stamp it so the
     // pass stops looking at this one every tick forever.

@@ -32,7 +32,7 @@ import GroupStandings from '@/components/weekly/GroupStandings';
 import BestDrops from '@/components/weekly/BestDrops';
 import CompetitionPrizes from '@/components/weekly/CompetitionPrizes';
 import SelfEntry from '@/components/weekly/SelfEntry';
-import { myEntry, signupOpen } from '@/lib/weeklySignups';
+import { myEntry, signupOpen, weeklyFeePotGp } from '@/lib/weeklySignups';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
 import { loadHuntView } from '@/lib/itemHuntView';
 
@@ -141,6 +141,8 @@ export default async function WeeklyLeaderboardPage({
     mode === 'clans'
       ? (await Promise.all((await racingClans(competition)).map((c) => viewerMemberIds(c.id, session)))).flat()
       : await viewerMemberIds(clan.id, session);
+  // Entry fees added to the prizes: what is in so far (lib/weeklySignups weeklyFeePotGp).
+  const feePot = competition.feesToPrizes ? { gp: await weeklyFeePotGp(compId), each: competition.entryFee } : null;
   // A competition that takes sign-ups (lib/weeklySignups): the Enter card, on the host clan's own page.
   const takesSignups = signupOpen(competition) && competition.clanId === clan.id;
   const mine = takesSignups ? await myEntry(competition, session?.playerId ?? null) : null;
@@ -172,7 +174,7 @@ export default async function WeeklyLeaderboardPage({
         <div className="contents" style={accentStyle(clan.accentColor)}>
           <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
         </div>
-        <CompetitionPrizes prizes={competition.prizes} hunt />
+        <CompetitionPrizes prizes={competition.prizes} hunt feePot={feePot} />
         {selfEntry}
         {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
         {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
@@ -235,7 +237,7 @@ export default async function WeeklyLeaderboardPage({
         totalDays={view.days.length}
       />
       </div>
-      <CompetitionPrizes prizes={competition.prizes} />
+      <CompetitionPrizes prizes={competition.prizes} feePot={feePot} />
       {selfEntry}
 
       {view.me && (
