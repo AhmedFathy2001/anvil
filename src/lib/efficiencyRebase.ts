@@ -33,6 +33,7 @@ export async function rebaseEfficiencyCompetitions(opts: { force?: boolean } = {
     .where(and(eq(weeklyCompetitions.type, 'efficiency'), inArray(weeklyCompetitions.status, ['upcoming', 'active'])));
   let moved = 0;
   for (const comp of comps) {
+    // clan-scope: global -- keyed by a competition id from the scan above; the seat join is that competition's own participants.
     const rows = await db
       .select({ id: weeklyParticipants.id, baseline: weeklyParticipants.baselineValue, payload: playerSnapshots.payload })
       .from(weeklyParticipants)
