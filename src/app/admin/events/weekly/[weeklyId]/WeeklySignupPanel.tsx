@@ -18,6 +18,7 @@ export default function WeeklySignupPanel({
   selfSignup: initialOn,
   entryFee: initialFee,
   feesToPrizes: initialPot,
+  feeGatesPrize: initialGate,
   ended,
   canSetFee,
 }: {
@@ -25,6 +26,7 @@ export default function WeeklySignupPanel({
   selfSignup: boolean;
   entryFee: number | null;
   feesToPrizes: boolean;
+  feeGatesPrize: boolean;
   ended: boolean;
   /** A treasurer or admin: the fee is the clan's money. */
   canSetFee: boolean;
@@ -35,9 +37,10 @@ export default function WeeklySignupPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pot, setPot] = useState(initialPot);
+  const [gate, setGate] = useState(initialGate);
   const fee = parseGpInput(feeText);
   const badFee = !!feeText.trim() && !fee;
-  const dirty = on !== initialOn || (on && ((fee ?? null) !== (initialFee ?? null) || pot !== initialPot));
+  const dirty = on !== initialOn || (on && ((fee ?? null) !== (initialFee ?? null) || pot !== initialPot || gate !== initialGate));
 
   async function save() {
     setSaving(true);
@@ -46,7 +49,7 @@ export default function WeeklySignupPanel({
       const res = await clanFetch(`/api/admin/weekly/${competitionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selfSignup: on, ...(on && canSetFee ? { entryFee: fee ?? null, feesToPrizes: !!fee && pot } : {}) }),
+        body: JSON.stringify({ selfSignup: on, ...(on && canSetFee ? { entryFee: fee ?? null, feesToPrizes: !!fee && pot, feeGatesPrize: gate } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -97,6 +100,18 @@ export default function WeeklySignupPanel({
                 disabled={ended || !canSetFee}
                 label="Add the entry fees to the prizes"
                 description="Each fee your staff confirm goes into the clan coffer and is paid out on top of the prizes, shared in the same proportions. With no prizes set, first place takes the fees."
+                className="text-sm text-foreground/90"
+              />
+            </div>
+          )}
+          {!!fee && (
+            <div className="mt-3">
+              <Checkbox
+                checked={gate}
+                onChange={setGate}
+                disabled={!canSetFee}
+                label="Hold the prizes while a winner still owes their fee"
+                description="If someone who placed has not paid when it ends, the prizes wait until your staff mark the fee paid, waive it, or remove them. Off, prizes are paid at the end whatever anyone owes."
                 className="text-sm text-foreground/90"
               />
             </div>

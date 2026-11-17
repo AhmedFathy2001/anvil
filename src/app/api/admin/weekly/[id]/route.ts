@@ -157,6 +157,11 @@ export async function PUT(
     if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can add entry fees to the prizes.' }, { status: 403 });
     updates.feesToPrizes = body.feesToPrizes;
   }
+  // Whether an unpaid winner holds the prizes: what the coffer pays and when, so a treasurer's too.
+  if (typeof body.feeGatesPrize === 'boolean' && body.feeGatesPrize !== scoped.feeGatesPrize) {
+    if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can change when prizes are paid.' }, { status: 403 });
+    updates.feeGatesPrize = body.feeGatesPrize;
+  }
 
   if (Object.keys(updates).length === 0 && modeChanged) {
     return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);

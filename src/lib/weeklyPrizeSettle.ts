@@ -68,6 +68,7 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
       baselineValue: weeklyParticipants.baselineValue,
       currentValue: weeklyParticipants.currentValue,
       seatKind: clanRoster.kind,
+      feeStatus: weeklyParticipants.feeStatus,
     })
     .from(weeklyParticipants)
     .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
@@ -103,6 +104,15 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
     gained: hunt ? (e.gained > 0 ? board.length - i : 0) : e.gained,
     clanMemberId: byRsn.get(e.rsn)?.clanMemberId ?? null,
   }));
+
+  // A WINNER WHO STILL OWES THEIR ENTRY FEE holds the prizes (the competition's own switch, on by
+  // default): nothing is reserved and nothing is stamped, so the pass comes back every tick and pays
+  // once staff have marked that fee paid, waived it, or taken the person out. Collecting is staff's
+  // job; this only stops the coffer paying someone before they have done it. The ladder's hold on
+  // the coffer stays in place meanwhile.
+  if (comp.feeGatesPrize && winnersFor(prizes, standings).some((w) => byRsn.get(w.rsn)?.feeStatus === 'pending')) {
+    return { settled: false, reserved: 0, unfunded: 0 };
+  }
 
   // LET THE HOLD GO FIRST. While it ran, this ladder's gp sat reserved against the coffer so nothing
   // else could promise it away. The awards below are that same money finding its owners, and they

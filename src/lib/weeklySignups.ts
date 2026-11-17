@@ -155,6 +155,21 @@ export async function syncPotHold(comp: Competition, actorUserId: number | null)
   if (!held.ok && hold) await setWeeklyPool({ ...args, hold: false });
 }
 
+/**
+ * Whether this competition's prizes are waiting on unpaid entry fees: it has ended, nothing has been
+ * paid out, the switch is on and somebody still owes. (Whether one of THEM placed is the settle's own
+ * question, lib/weeklyPrizeSettle; this is the notice for staff, who clear it by dealing with the fees.)
+ */
+export async function prizesWaitOnFees(comp: Competition): Promise<boolean> {
+  if (comp.status !== 'completed' || comp.prizesSettledAt || !comp.feeGatesPrize) return false;
+  const [owing] = await db
+    .select({ id: weeklyParticipants.id })
+    .from(weeklyParticipants)
+    .where(and(eq(weeklyParticipants.competitionId, comp.id), eq(weeklyParticipants.feeStatus, 'pending')))
+    .limit(1);
+  return !!owing;
+}
+
 /** The entry fees of this competition that are in the coffer: the pot added to its prizes. */
 export async function weeklyFeePotGp(competitionId: number): Promise<number> {
   const [r] = await db

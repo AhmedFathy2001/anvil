@@ -46,7 +46,7 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
     {competitionNotStarted(comp) && (
       <WeeklyTargetPanel competitionId={comp.id} type={comp.type} metric={comp.metric} hunt={hunt ? huntFormFromConfig(hunt) : null} />
     )}
-    <WeeklySignupPanel competitionId={comp.id} selfSignup={comp.selfSignup} entryFee={comp.entryFee} feesToPrizes={comp.feesToPrizes} ended={comp.status === 'completed'} canSetFee={atLeast(session?.role, 'treasurer')} />
+    <WeeklySignupPanel competitionId={comp.id} selfSignup={comp.selfSignup} entryFee={comp.entryFee} feesToPrizes={comp.feesToPrizes} feeGatesPrize={comp.feeGatesPrize} ended={comp.status === 'completed'} canSetFee={atLeast(session?.role, 'treasurer')} />
     {hunt && <HuntSettingsPanel competitionId={comp.id} initial={{ ends: hunt.ends, confirm: hunt.confirm }} finished={comp.status === 'completed'} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
     <WeeklySettingsPanel

@@ -189,6 +189,8 @@ export async function POST(request: Request) {
     entryFee,
     // Only with a fee, and the fee was a treasurer's to set above.
     feesToPrizes: !!entryFee && body.feesToPrizes === true,
+    // On unless it was switched off: a winner who still owes holds the prizes (lib/weeklyPrizeSettle).
+    feeGatesPrize: body.feeGatesPrize !== false,
     hunt: huntJson,
   }).returning();
 

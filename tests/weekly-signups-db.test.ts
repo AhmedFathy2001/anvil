@@ -299,3 +299,54 @@ test('the hold follows what was asked for the ladder: held grows with the pot, u
   assert.equal(Math.abs(planned?.amount ?? 0), 3_500_000);
   await setSetting(clanId, 'fee_confirmations_required', '1');
 });
+
+test('a winner who still owes holds the prizes until staff sort the fee; switched off, they are paid regardless', async () => {
+  await setSetting(clanId, 'fee_confirmations_required', '0');
+  await C.recordAdjustment({ clanId, amount: 20_000_000, userId: null, note: 'seed' });
+  const ladder = JSON.stringify({ places: [{ gp: 2_000_000 }], payZeroGain: false, splitTies: false });
+  const finish = async (id: number, a: number, b: number) => {
+    await db.update(s.weeklyParticipants).set({ baselineValue: 0, currentValue: 900 }).where(eq(s.weeklyParticipants.id, a));
+    await db.update(s.weeklyParticipants).set({ baselineValue: 0, currentValue: 100 }).where(eq(s.weeklyParticipants.id, b));
+    await db.update(s.weeklyCompetitions).set({ status: 'completed' }).where(eq(s.weeklyCompetitions.id, id));
+    return (await db.select().from(s.weeklyCompetitions).where(eq(s.weeklyCompetitions.id, id)))[0];
+  };
+  const awards = async (id: number) => (await db.select().from(s.cofferEntries).where(eq(s.cofferEntries.weeklyCompetitionId, id))).filter((e) => e.kind !== 'adjustment' && e.kind !== 'pool');
+
+  // Alpha wins and has not paid; Bravo paid and came second (no prize for second).
+  const c = await comp({ prizes: ladder, status: 'active', startDate: new Date(Date.now() - 24 * HOUR).toISOString() });
+  const a = await W.enterCompetition(c, who('Alpha'));
+  const b = await W.enterCompetition(c, who('Bravo'));
+  assert.ok(a.ok && b.ok);
+  if (!a.ok || !b.ok) return;
+  await W.moveWeeklyFee(c, b.value.id, 'collect', staff.Tess);
+  const ended = await finish(c.id, a.value.id, b.value.id);
+  assert.equal((await settle(c.id)).settled, false);
+  assert.equal((await awards(c.id)).length, 0);
+  assert.equal(await W.prizesWaitOnFees(ended), true);
+  // Staff mark it paid: the next pass pays.
+  await W.moveWeeklyFee(ended, a.value.id, 'collect', staff.Tess);
+  assert.equal((await settle(c.id)).settled, true);
+  assert.equal((await awards(c.id))[0]?.rsn, 'Alpha');
+
+  // Someone who owes but did not place holds nothing.
+  const d = await comp({ prizes: ladder, status: 'active', startDate: new Date(Date.now() - 24 * HOUR).toISOString() });
+  const da = await W.enterCompetition(d, who('Alpha'));
+  const dbv = await W.enterCompetition(d, who('Bravo'));
+  assert.ok(da.ok && dbv.ok);
+  if (!da.ok || !dbv.ok) return;
+  await W.moveWeeklyFee(d, da.value.id, 'collect', staff.Tess);
+  await finish(d.id, da.value.id, dbv.value.id);
+  assert.equal((await settle(d.id)).settled, true);
+
+  // Switched off: paid at the end whatever anyone owes.
+  const e = await comp({ prizes: ladder, feeGatesPrize: false, status: 'active', startDate: new Date(Date.now() - 24 * HOUR).toISOString() });
+  const ea = await W.enterCompetition(e, who('Alpha'));
+  const eb = await W.enterCompetition(e, who('Bravo'));
+  assert.ok(ea.ok && eb.ok);
+  if (!ea.ok || !eb.ok) return;
+  const endedOff = await finish(e.id, ea.value.id, eb.value.id);
+  assert.equal(await W.prizesWaitOnFees(endedOff), false);
+  assert.equal((await settle(e.id)).settled, true);
+  assert.equal((await awards(e.id))[0]?.rsn, 'Alpha');
+  await setSetting(clanId, 'fee_confirmations_required', '1');
+});

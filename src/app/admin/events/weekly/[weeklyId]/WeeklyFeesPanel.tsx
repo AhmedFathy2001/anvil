@@ -24,6 +24,7 @@ interface Sheet {
   required: number;
   feesToPrizes: boolean;
   potGp: number;
+  prizesWaiting?: boolean;
 }
 
 const STATUS: Record<string, { label: string; tone: string }> = {
@@ -113,6 +114,12 @@ export default function WeeklyFeesPanel({ competitionId, canCollect, canConfirm 
           <span className="text-xs text-text-dim">A Discord message to each person, at most once every 12 hours.</span>
           {reminded && <span className="text-sm text-accent-green-light">{reminded}</span>}
         </div>
+      )}
+      {sheet.prizesWaiting && (
+        <p className="mb-3 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-sm text-amber-200">
+          This competition has ended and its prizes are on hold: someone who placed still owes their entry fee. Mark it collected, choose “No fee for them”, or
+          remove them below, and the prizes pay out within a minute.
+        </p>
       )}
       {sheet.feesToPrizes && (
         <p className="mb-3 text-sm text-text-muted">
