@@ -32,6 +32,7 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import HoverHint from '@/components/HoverHint';
+import ScrollStrip from '@/components/ScrollStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -197,7 +198,7 @@ export default async function SupporterPage({ searchParams }: { searchParams: Pr
         ))}
       </div>
 
-      <div className="mt-10 overflow-x-auto overflow-y-hidden rounded-xl border border-card-border">
+      <ScrollStrip as="div" className="mt-10 overflow-x-auto overflow-y-hidden rounded-xl border border-card-border">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-card-bg">
             <tr>
@@ -233,7 +234,7 @@ export default async function SupporterPage({ searchParams }: { searchParams: Pr
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollStrip>
 
       {gifts && (
         <p className="mt-6 text-center text-[14px]">

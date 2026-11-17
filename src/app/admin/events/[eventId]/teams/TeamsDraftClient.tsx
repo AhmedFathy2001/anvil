@@ -220,6 +220,25 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     return 2;
   });
   const stepStorageKey = `draft-step-${event.id}`;
+  // Each team's roster folds. With more than six teams they start folded (a 13-team board was a
+  // wall of rows); what the admin opens or closes is kept for this tab, like the step above.
+  const foldStorageKey = `teams-fold-${event.id}`;
+  const [teamFold, setTeamFold] = useState<Record<number, boolean>>({});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(foldStorageKey) ?? '{}');
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after mount: sessionStorage is not there on the server
+      if (saved && typeof saved === 'object') setTeamFold(saved);
+    } catch {}
+  }, [foldStorageKey]);
+  const toggleTeamFold = (teamId: number, open: boolean) =>
+    setTeamFold((prev) => {
+      const next = { ...prev, [teamId]: open };
+      try {
+        window.sessionStorage.setItem(foldStorageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   // All step navigation goes through here: it stamps ?step= into browser history, so
   // the browser Back button steps backward through the wizard instead of leaving the page.
   const goToStep = useCallback((n: number, mode: 'push' | 'replace' = 'push') => {
@@ -1863,9 +1882,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   // longer playing, so they shouldn't inflate the headcount.
                   const activeCount = roster.filter((p) => !p.frozenAt).length;
                   const subbedOutCount = roster.length - activeCount;
+                  const teamOpen = teamFold[team.id] ?? draftTeams.length <= 6;
                   return (
                     <div key={team.id} className="border border-card-border rounded-lg p-3 bg-card-bg">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className={`flex items-center gap-2 ${teamOpen ? 'mb-2' : ''}`}>
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
                         <ClanLink
                           href={`/admin/events/${event.id}/teams/${team.id}`}
@@ -1885,7 +1905,18 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           {activeCount} player{activeCount !== 1 ? 's' : ''}
                           {subbedOutCount > 0 && <span className="text-amber-300/70"> · {subbedOutCount} subbed out</span>}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleTeamFold(team.id, !teamOpen)}
+                          aria-expanded={teamOpen}
+                          aria-label={`${teamOpen ? 'Hide' : 'Show'} ${team.name}'s players`}
+                          className="shrink-0 rounded border border-card-border px-2 py-1 text-xs text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                        >
+                          {teamOpen ? 'Hide ▾' : 'Show ▸'}
+                        </button>
                       </div>
+                      {teamOpen && (
+                      <>
                       <StartingStatsSummary
                         ids={unreadIds(roster.map((p) => p.id), draft.startingStats, startingStatsPoll.lapsed)}
                         onRetry={editLocked ? undefined : (id) => retryStartingStats(event.id, id)}
@@ -2077,6 +2108,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         </button>
                       )}
                       </fieldset>
+                      </>
+                      )}
                     </div>
                   );
                 })}

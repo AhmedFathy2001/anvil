@@ -236,8 +236,8 @@ function Chip({
       href={href}
       className={
         active
-          ? 'rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-gold'
-          : 'rounded-full border border-card-border px-2 py-0.5 text-text-muted transition-colors hover:border-gold/30 hover:text-foreground'
+          ? 'tap-pad rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-gold'
+          : 'tap-pad rounded-full border border-card-border px-2 py-0.5 text-text-muted transition-colors hover:border-gold/30 hover:text-foreground'
       }
     >
       {children}

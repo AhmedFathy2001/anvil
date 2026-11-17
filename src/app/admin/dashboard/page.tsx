@@ -529,7 +529,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             </span>
           </h2>
           {canManageEvents && (
-            <ClanLink href="/admin/events" className="text-xs text-gold hover:text-gold-light">
+            <ClanLink href="/admin/events" className="tap-pad text-xs text-gold hover:text-gold-light">
               Manage events →
             </ClanLink>
           )}
@@ -674,7 +674,7 @@ function NowBar({
                   </span>
                 </div>
                 {canOpenEvents ? (
-                  <ClanLink href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+                  <ClanLink href={it.href} className="tap-pad block mt-1.5 font-semibold hover:text-gold transition-colors">
                     {it.title}
                   </ClanLink>
                 ) : (
@@ -692,7 +692,7 @@ function NowBar({
         )}
         {/* The header counts everything running; say where the ones not drawn here are. */}
         {running.length > NOW_BAR_SHOWN && (
-          <ClanLink href="/admin/schedule" className="mt-3 block text-xs text-gold hover:underline">
+          <ClanLink href="/admin/schedule" className="tap-pad mt-3 block text-xs text-gold hover:underline">
             and {runningParts(countRunning(running.slice(NOW_BAR_SHOWN)))} more running: see the schedule →
           </ClanLink>
         )}
@@ -710,7 +710,7 @@ function NowBar({
         {nextUp ? (
           <>
             {canOpenEvents ? (
-              <ClanLink href={nextUp.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+              <ClanLink href={nextUp.href} className="tap-pad block mt-1.5 font-semibold hover:text-gold transition-colors">
                 {nextUp.title}
               </ClanLink>
             ) : (
@@ -955,7 +955,7 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
           Runway
           <span className="text-xs text-text-muted font-normal">next {weeks} weeks</span>
         </h2>
-        <ClanLink href="/admin/schedule" className="text-xs text-gold hover:text-gold-light">
+        <ClanLink href="/admin/schedule" className="tap-pad text-xs text-gold hover:text-gold-light">
           Full schedule →
         </ClanLink>
       </div>
@@ -967,7 +967,9 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
             <span
               key={i}
               className="absolute top-0 text-[9px] text-text-muted/70 tabular-nums whitespace-nowrap"
-              style={{ left: `${pct(daysBetween(from, t))}%` }}
+              // A label that starts in the last tenth is hung to the LEFT of its line: it used to run
+              // past the card's edge and get cut off on a phone.
+              style={{ left: `${pct(daysBetween(from, t))}%`, transform: pct(daysBetween(from, t)) > 88 ? 'translateX(-100%) translateX(-3px)' : undefined }}
             >
               {i === 0 ? 'today' : t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </span>
@@ -1052,18 +1054,18 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
                     href={l.item.href}
                     title={`${l.item.title} · ${l.item.headline}${l.item.endDate ? '' : ' · no end date'}`}
                     style={{ left: `${left}%`, width: `${width}%`, top: `${l.lane * RUNWAY_ROW}px` }}
-                    className={`absolute h-[24px] border flex items-center px-2 text-[10px] font-semibold overflow-hidden whitespace-nowrap hover:brightness-125 transition-[filter] ${tone} ${
+                    className={`tap-pad absolute h-[24px] border flex items-center px-2 text-[10px] font-semibold overflow-hidden max-sm:overflow-visible whitespace-nowrap hover:brightness-125 transition-[filter] ${tone} ${
                       clipped ? 'rounded-r-md border-l-0' : 'rounded-md'
                     }`}
                   >
-                    {inside && <span className="truncate">{l.item.title}</span>}
+                    {inside && <span className="truncate min-w-0">{l.item.title}</span>}
                   </ClanLink>
                   {/* A bar too narrow to hold its title gets it alongside, rather than as "Bo…". */}
                   {!inside && (
                     <ClanLink
                       href={l.item.href}
                       style={{ left: `calc(${left + width}% + 6px)`, top: `${l.lane * RUNWAY_ROW}px` }}
-                      className="absolute h-[24px] flex items-center text-[10px] text-text-muted hover:text-foreground whitespace-nowrap max-w-[45%] overflow-hidden"
+                      className="tap-pad absolute h-[24px] flex items-center text-[10px] text-text-muted hover:text-foreground whitespace-nowrap max-w-[45%] overflow-hidden max-sm:overflow-visible"
                     >
                       <span className="truncate">{l.item.title}</span>
                     </ClanLink>

@@ -496,6 +496,25 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
   }
 }
 
+/* A 40px tap area on phones with no change to what is drawn: for small controls in dense rows
+   (calendar chips, filter chips, inline text buttons). The invisible ::after is centred on the
+   control and belongs to it, so a tap there is a tap on the control. Not for elements that clip
+   their overflow. */
+@media (max-width: 639.98px) {
+  .tap-pad:not(.absolute):not(.fixed):not(.sticky) {
+    position: relative;
+  }
+  .tap-pad::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 2.5rem);
+    height: max(100%, 2.5rem);
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* ── Phone floors ───────────────────────────────────────────────────────────────────────────────
    Phones only (under Tailwind's `sm`, 640px); desktop is untouched.
    1. Text: the shared tiny sizes (9-11.5px, and their rem spellings) are raised to 12px. The unlayered rule beats the

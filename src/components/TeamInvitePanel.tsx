@@ -227,7 +227,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
               <button
                 type="button"
                 onClick={() => copy(i.url)}
-                className="text-[11px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 shrink-0"
+                className="tap-pad text-[11px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 shrink-0"
               >
                 {copied === i.url ? 'Copied' : 'Copy'}
               </button>
@@ -236,7 +236,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
                   type="button"
                   onClick={() => revoke(i.token)}
                   disabled={busy}
-                  className="text-[11px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-red-400 hover:border-red-400/40 shrink-0 disabled:opacity-50"
+                  className="tap-pad text-[11px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-red-400 hover:border-red-400/40 shrink-0 disabled:opacity-50"
                 >
                   Turn off
                 </button>

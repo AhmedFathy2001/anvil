@@ -113,7 +113,7 @@ export function SurfaceOverride({
         aria-checked={open}
         disabled={disabled}
         onClick={() => onToggle(!open)}
-        className="flex w-full items-center gap-2 text-left text-[12.5px] text-text-muted hover:text-foreground disabled:opacity-50"
+        className="flex w-full items-center gap-2 max-sm:min-h-10 text-left text-[12.5px] text-text-muted hover:text-foreground disabled:opacity-50"
       >
         <span aria-hidden className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${open ? 'bg-gold/70' : 'bg-card-border'}`}>
           <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${open ? 'left-3.5' : 'left-0.5'}`} />

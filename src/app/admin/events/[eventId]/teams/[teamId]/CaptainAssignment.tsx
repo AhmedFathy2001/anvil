@@ -91,7 +91,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId, captai
         </div>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="text-xs text-text-muted hover:text-foreground underline-offset-2 hover:underline"
+          className="tap-pad text-xs text-text-muted hover:text-foreground underline-offset-2 hover:underline"
         >
           {open ? 'Close' : current ? 'Change' : 'Assign'}
         </button>

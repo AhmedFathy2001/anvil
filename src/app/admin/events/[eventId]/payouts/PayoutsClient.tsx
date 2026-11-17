@@ -585,7 +585,24 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               className="rounded-lg"
             />
           )}
-          {shownPayouts.slice(0, payoutLimit).map((p) => (
+          {/* Grouped by what is left to do: the ones still owed first, each with its count. */}
+          {(
+            [
+              ['To pay', shownPayouts.filter((p) => p.status !== 'paid')],
+              ['Paid', shownPayouts.filter((p) => p.status === 'paid')],
+            ] as const
+          ).map(([label, group], gi, all) => {
+            // The "Show more" limit runs across both groups in order.
+            const before = all.slice(0, gi).reduce((n, [, g]) => n + g.length, 0);
+            const rows = group.slice(0, Math.max(0, payoutLimit - before));
+            if (group.length === 0) return null;
+            return (
+              <div key={label} className="space-y-2">
+                <h3 className="flex items-center gap-2 pt-1 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  {label}
+                  <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground/80">{group.length}</span>
+                </h3>
+                {rows.map((p) => (
             <div
               key={p.id}
               className="border border-card-border rounded-xl p-4 bg-card-bg flex flex-wrap items-center gap-x-4 gap-y-3"
@@ -612,6 +629,9 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               )}
             </div>
           ))}
+              </div>
+            );
+          })}
           {shownPayouts.length === 0 && <p className="text-sm text-text-muted">No payout matches that.</p>}
           <ShowMoreButton total={shownPayouts.length} shown={payoutLimit} chunk={PAYOUT_CHUNK} onMore={() => setPayoutLimit((n) => n + PAYOUT_CHUNK)} />
         </div>

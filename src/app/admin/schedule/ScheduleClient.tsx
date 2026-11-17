@@ -505,7 +505,7 @@ function MonthGrid({
                       <ClanLink
                         href={`/admin/events/new?start=${isoDay(day)}`}
                         aria-label={`Schedule something on ${shortDate(day)}`}
-                        className="absolute top-1 right-1.5 w-[18px] h-[18px] rounded border border-card-border text-text-muted/70 text-[11px] leading-none grid place-items-center opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-gold/40 hover:text-gold hover:bg-gold/10 transition-opacity"
+                        className="tap-pad absolute top-1 right-1.5 w-[18px] h-[18px] rounded border border-card-border text-text-muted/70 text-[11px] leading-none grid place-items-center opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-gold/40 hover:text-gold hover:bg-gold/10 transition-opacity"
                       >
                         +
                       </ClanLink>
@@ -537,7 +537,7 @@ function MonthGrid({
                           gridColumn: `${col} / span ${span}`,
                           gridRow: `${(laneRow.get(p.lane) ?? 0) + 1}`,
                         }}
-                        className={`pointer-events-auto h-[22px] flex items-center gap-1.5 px-2 text-[10px] font-semibold whitespace-nowrap overflow-hidden border transition-[filter] hover:brightness-125 ${toneFor(
+                        className={`tap-pad pointer-events-auto h-[22px] flex items-center gap-1.5 px-2 text-[10px] font-semibold whitespace-nowrap overflow-hidden max-sm:overflow-visible border transition-[filter] hover:brightness-125 ${toneFor(
                           p.item,
                         )} ${
                           cutLeft ? 'rounded-l-none border-l-dashed ml-0' : 'rounded-l-md ml-[3px]'
@@ -549,7 +549,7 @@ function MonthGrid({
                           }`}
                           aria-hidden
                         />
-                        <span className="truncate">{p.item.title}</span>
+                        <span className="truncate min-w-0">{p.item.title}</span>
                         {span >= 4 && (
                           <span className="ml-auto opacity-60 font-normal hidden sm:inline">
                             {p.item.headline}
@@ -562,7 +562,7 @@ function MonthGrid({
                   <button
                     onClick={() => onExpandWeek(wi)}
                     style={{ gridColumn: '1 / span 7', gridRow: `${shownLanes.length + 1}` }}
-                    className="pointer-events-auto text-left text-[10px] text-text-muted hover:text-gold pl-2"
+                    className="tap-pad pointer-events-auto text-left text-[10px] text-text-muted hover:text-gold pl-2"
                   >
                     +{hiddenCount} more
                   </button>

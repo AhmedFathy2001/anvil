@@ -41,6 +41,7 @@ import { SITE } from '@/lib/site';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import BillingSwitch from './BillingSwitch';
+import ScrollStrip from '@/components/ScrollStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -407,7 +408,7 @@ function CreatorPricing({
         events running at the same time, not everyone who ever joined. Events that overlap share the
         number; events on different dates get it each. Someone in two overlapping events counts twice.
       </p>
-      <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-card-border bg-card-bg">
+      <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden rounded-2xl border border-card-border bg-card-bg">
         <table className="w-full min-w-[640px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-card-border">
@@ -449,7 +450,7 @@ function CreatorPricing({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollStrip>
       <p className="mt-3 text-center text-[12.5px] text-text-dim">
         Each platform needs your channel connected. Follower, sub and member checks start at{' '}
         {CREATOR_PLANS[CREATOR_CAPABILITY_MIN_PLAN['stream-gates']].name}.{' '}
