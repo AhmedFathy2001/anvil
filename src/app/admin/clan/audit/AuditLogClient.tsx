@@ -446,7 +446,7 @@ export default function AuditLogClient({
             }}
             placeholder="Search name or note"
             aria-label="Search the log"
-            className="w-48"
+            className="w-48 max-sm:w-full"
           />
           <Select
             value={filter}
@@ -455,7 +455,7 @@ export default function AuditLogClient({
               setPage(1);
             }}
             ariaLabel="Filter by event type"
-            className="w-56 max-w-full"
+            className="w-56 max-w-full max-sm:w-full"
             options={[
               { value: 'all', label: 'All events' },
               ...Object.entries(EVENT_LABELS).map(([value, meta]) => ({ value, label: meta.label })),

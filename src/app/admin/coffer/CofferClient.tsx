@@ -253,7 +253,8 @@ export default function CofferClient({
           pendingDonations.map((e) => (
             <Row key={e.id}>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
+                {/* Phones: wraps, so the amount is never the part that gets cut off. */}
+                <p className="text-sm font-medium sm:truncate">
                   {e.kind === 'adjustment' ? (
                     <>
                       In-game coffer {e.amount >= 0 ? 'up' : 'down'}{' '}

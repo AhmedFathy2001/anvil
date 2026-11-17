@@ -2418,7 +2418,7 @@ function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', e
           {(onDuplicate || (canDelete && onDelete) || deleteNote) && (
             <div className="mt-8 pt-4 border-t border-card-border/60 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
               {onDuplicate && !creating && (
-                <button type="button" onClick={onDuplicate} className="min-h-9 text-text-muted hover:text-gold transition-colors">
+                <button type="button" onClick={onDuplicate} className="min-h-9 max-sm:min-h-10 text-text-muted hover:text-gold transition-colors">
                   Duplicate this {noun.toLowerCase()}
                 </button>
               )}
@@ -2447,7 +2447,7 @@ function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', e
                     </button>
                   </span>
                 ) : (
-                  <button type="button" onClick={() => setConfirmingDelete(true)} className="ml-auto min-h-9 px-3 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition-colors">
+                  <button type="button" onClick={() => setConfirmingDelete(true)} className="ml-auto min-h-9 max-sm:min-h-10 px-3 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition-colors">
                     Delete this {noun.toLowerCase()}
                   </button>
                 )

@@ -114,7 +114,7 @@ export default function LiveFixPanel({
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="mt-2 text-xs text-gold hover:underline"
+              className="mt-2 text-xs text-gold hover:underline max-sm:min-h-11"
             >
               {expanded ? 'Show fewer' : `Show all ${problems.length}`}
             </button>

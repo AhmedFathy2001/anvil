@@ -153,7 +153,7 @@ export default async function EventLayout({
       <div className="flex-1 min-w-0">
       <ClanLink
         href="/admin/events"
-        className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
+        className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4 max-sm:min-h-11 max-sm:mb-1"
       >
         &larr; All events
       </ClanLink>

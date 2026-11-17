@@ -38,7 +38,7 @@ export function Segmented<T extends string>({
               aria-checked={on}
               disabled={disabled}
               onClick={() => onChange(o.value)}
-              className={`min-h-9 rounded-lg px-3.5 text-[13px] transition-colors disabled:opacity-50 ${
+              className={`min-h-9 max-sm:min-h-10 rounded-lg px-3.5 text-[13px] transition-colors disabled:opacity-50 ${
                 on ? 'bg-card-bg-hover font-medium text-gold shadow-[inset_0_0_0_1px_var(--card-border)]' : 'text-text-muted hover:text-foreground'
               }`}
             >

@@ -161,7 +161,7 @@ export default function EventDiscordInventory({ eventId }: { eventId: number }) 
   const toCreate = eventServer ? 0 : missingCount(inv);
   const stored = storedCount(inv);
   const anyBusy = busy !== null;
-  const btn = 'min-h-9 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-50';
+  const btn = 'min-h-9 max-sm:min-h-10 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors disabled:opacity-50';
 
   const actions = canManage ? (
     <div className="flex flex-wrap gap-2">
@@ -297,13 +297,13 @@ function TeamInventory({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Find a team…"
             aria-label="Find a team"
-            className="min-h-9 flex-1 rounded-lg border border-card-border bg-brown-dark px-3 text-[13px] focus:border-gold focus:outline-none"
+            className="min-h-9 max-sm:min-h-10 flex-1 rounded-lg border border-card-border bg-brown-dark px-3 text-[13px] focus:border-gold focus:outline-none"
           />
           <button
             type="button"
             aria-pressed={onlyTrouble}
             onClick={() => setOnlyTrouble((v) => !v)}
-            className={`min-h-9 rounded-full border px-3 text-[12px] ${onlyTrouble ? 'border-gold/60 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
+            className={`min-h-9 max-sm:min-h-10 rounded-full border px-3 text-[12px] ${onlyTrouble ? 'border-gold/60 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
           >
             Only problems
           </button>

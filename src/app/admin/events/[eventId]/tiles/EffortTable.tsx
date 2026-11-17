@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BalanceCheck } from '@/lib/boardBalance';
 import { clanFetch } from '@/lib/clanFetch';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import ScrollStrip from '@/components/ScrollStrip';
 
 // The effort side of the balance panel — fetched from the server (drop-rate dataset lives
 // there) and refreshed, debounced, whenever the tile set changes. Shows estimated hours as
@@ -196,7 +197,7 @@ function SuggestionReviewDialog({
                 <span>Changed-tile total: <strong className="text-foreground">{currentTotal}</strong> → <strong className="text-gold">{proposedTotal}</strong> pts</span>
                 <span><strong className="text-foreground">{skipped}</strong> skipped</span>
               </div>
-              <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-card-border/70">
+              <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden rounded-lg border border-card-border/70">
                 <table className="w-full min-w-[520px] text-xs">
                   <thead className="bg-brown-dark/70 text-[10px] uppercase tracking-wide text-text-muted">
                     <tr>
@@ -226,7 +227,7 @@ function SuggestionReviewDialog({
                     })}
                   </tbody>
                 </table>
-              </div>
+              </ScrollStrip>
             </>
           ) : (
             <div className="rounded-lg border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm text-accent-green-light">
@@ -390,7 +391,7 @@ export default function EffortTable({
       {modelled.length === 0 ? (
         <p className="text-xs text-text-muted">No tiles could be effort-modelled yet.</p>
       ) : (
-        <div className="overflow-x-auto overflow-y-hidden">
+        <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-[10px] uppercase tracking-wide text-text-muted">
@@ -468,7 +469,7 @@ export default function EffortTable({
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollStrip>
       )}
       {report.unmodelledCount > 0 && (
         <p className="text-[10px] text-text-muted mt-2">
