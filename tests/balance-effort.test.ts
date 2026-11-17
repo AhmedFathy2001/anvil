@@ -451,7 +451,7 @@ test('group-boss drops are split across the group', () => {
 });
 
 test('a team-tracked XP goal fits a window the whole team feeds', () => {
-  const t = statTile({ label: '5M Slayer XP', trackedStat: 'slayer', statType: 'skill', statGoal: 5_000_000 });
+  const t = statTile({ label: '15M Slayer XP', trackedStat: 'slayer', statType: 'skill', statGoal: 15_000_000 });
   const two = analyzeEffort([t], { pointsMode: true, eventDays: 10 }).perTile[0];
   const eight = analyzeEffort([t], { pointsMode: true, eventDays: 10, teamSize: 8 }).perTile[0];
   assert.equal(two.pClass, 'unreachable', 'two campers can’t make it');
