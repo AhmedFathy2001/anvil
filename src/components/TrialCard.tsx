@@ -109,8 +109,8 @@ export default function TrialCard(p: TrialCardProps) {
       {p.href && (
         <p className="mt-2 text-[12.5px] leading-relaxed text-text-muted">
           {p.phase === 'running'
-            ? `You'll be charged ${p.chargeToday} today; your trial has ${left} left, which you will not get back. After that it is ${p.chargeToday} every ${p.every}.`
-            : `You'll be charged ${p.chargeToday} the day you subscribe, then every ${p.every}. No second free period.`}
+            ? `Paying now starts your paid ${p.every} today: you'll be charged ${p.chargeToday}, then ${p.chargeToday} every ${p.every}. Your trial runs until ${day} (${left} left); to use all of it, subscribe on the day. We'll remind you 3 days before.`
+            : `You'll be charged ${p.chargeToday} the day you subscribe, then every ${p.every}.`}
         </p>
       )}
       {!p.href && p.soon && (
