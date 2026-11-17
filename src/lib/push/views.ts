@@ -1,3 +1,4 @@
+import { easeHiddenFromOthers } from '@/lib/raceEaseDb';
 import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceTileHidden } from '@/lib/raceHideAhead';
 import { and, eq } from 'drizzle-orm';
@@ -84,5 +85,7 @@ async function tileView(event: typeof events.$inferSelect, tileId: number) {
     const veil = await loadRaceVeil(event);
     if (raceTileHidden(veil, veil?.everyone ?? null, tile)) return null;
   }
+  // Nor is an easier option only a lifeline opened (lib/raceEase): it is that team's alone.
+  if (tile.parentTileId != null && (await easeHiddenFromOthers(event, tile.id))) return null;
   return { t: 'tile', eventId: event.id, tileId, progress: await tileProgressView(event, tile, null) };
 }

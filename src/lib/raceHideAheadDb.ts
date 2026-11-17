@@ -24,6 +24,7 @@ import { raceGraph, teamRoute, type TeamRoute } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicksFor } from '@/lib/raceRoutePicks';
 import { isStandingsStaff, viewerTeamIds } from '@/lib/standingsAccess';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { dropHiddenEase, easeHiddenFromOthers, easeVisibleFor, loadEaseContext } from '@/lib/raceEaseDb';
 
 export interface RaceHideEvent {
   id: number;
@@ -144,11 +145,32 @@ export async function raceSeenForSession(event: RaceHideEvent): Promise<{ veil: 
   return { veil, seen: raceSeenFor(veil, await raceViewerForSession(event, veil.mode)) };
 }
 
+/**
+ * EASIER OPTIONS (lib/raceEase) ride every one of these gates, whether or not the race hides tiles
+ * ahead: an easier option that isn't live for the viewer is dropped from the list altogether. Staff
+ * see them all (unless "Also hide from event staff" is on, when they see what any team has live).
+ */
+async function dropEaseForSession<T extends { id: number }>(event: RaceHideEvent, list: T[]): Promise<T[]> {
+  const ctx = await loadEaseContext(event);
+  if (!ctx || ctx.over) return list;
+  const mode = raceHideMode(event);
+  const viewer = await raceViewerForSession(event, mode === 'off' ? 'players' : mode);
+  return dropHiddenEase(ctx, easeVisibleFor(ctx, viewer), list);
+}
+
+async function dropEaseForTeams<T extends { id: number }>(event: RaceHideEvent, teamIds: number[], list: T[]): Promise<T[]> {
+  const ctx = await loadEaseContext(event);
+  if (!ctx || ctx.over) return list;
+  return dropHiddenEase(ctx, easeVisibleFor(ctx, { teamIds }), list);
+}
+
 /** The tiles as this web request may read them: hidden ones masked (lib/raceHideAhead maskRaceTiles). */
 export async function maskRaceTilesForSession<T extends { id: number; label?: string | null; parentTileId?: number | null }>(
   event: RaceHideEvent,
   list: T[],
 ): Promise<T[]> {
+  if (event.format !== 'tilerace') return list;
+  list = await dropEaseForSession(event, list);
   if (!raceHideOn(event)) return list;
   const { veil, seen } = await raceSeenForSession(event);
   return maskRaceTiles(veil, seen, list);
@@ -160,6 +182,8 @@ export async function maskRaceTilesForTeams<T extends { id: number; label?: stri
   teamIds: number[],
   list: T[],
 ): Promise<T[]> {
+  if (event.format !== 'tilerace') return list;
+  list = await dropEaseForTeams(event, teamIds, list);
   if (!raceHideOn(event)) return list;
   const veil = await loadRaceVeil(event);
   return maskRaceTiles(veil, raceSeenFor(veil, { teamIds }), list);
@@ -180,6 +204,9 @@ export async function staffHideBlocksSession(event: RaceHideEvent): Promise<bool
 
 /** Is this one tile a locked "?" for the web caller (a single-tile read or edit)? */
 export async function raceTileHiddenForSession(event: RaceHideEvent, tile: { id: number; parentTileId?: number | null }): Promise<boolean> {
+  if (event.format !== 'tilerace') return false;
+  // An easier option that isn't live for this caller (lib/raceEase) is hidden like a "?".
+  if (tile.parentTileId != null && (await dropEaseForSession(event, [tile])).length === 0) return true;
   if (!raceHideOn(event)) return false;
   const { veil, seen } = await raceSeenForSession(event);
   return raceTileHidden(veil, seen, tile);
@@ -206,7 +233,10 @@ export async function raceTileHiddenFromOthers(eventId: number, tileId: number, 
     where: eq(events.id, eventId),
     columns: { id: true, clanId: true, format: true, rules: true, startDate: true, endDate: true, forceEndedAt: true },
   });
-  if (!event || !raceHideOn(event)) return false;
+  if (!event) return false;
+  // An easier option only a lifeline opened (lib/raceEase) is the spending team's alone.
+  if (await easeHiddenFromOthers(event, tileId)) return true;
+  if (!raceHideOn(event)) return false;
   const veil = await loadRaceVeil(event);
   if (!veil) return false;
   let cell = tileId;
@@ -223,7 +253,13 @@ export async function raceTileHiddenFromOthers(eventId: number, tileId: number, 
  * still sees as a locked "?" lose the name. Rows carry `tileId` and `label`; others pass through.
  */
 export async function publicRaceLabels<R extends { tileId: number; label: string }>(event: RaceHideEvent, rows: R[]): Promise<R[]> {
-  if (!raceHideOn(event) || !rows.length) return rows;
+  if (event.format !== 'tilerace' || !rows.length) return rows;
+  // An easier option the clock hasn't opened for everyone (lib/raceEase) keeps its name too.
+  const ease = await loadEaseContext(event);
+  if (ease && !ease.over) {
+    rows = rows.map((r) => (ease.optionIds.has(r.tileId) && !ease.timedLive.has(r.tileId) ? { ...r, label: HIDDEN_RACE_TILE_LABEL } : r));
+  }
+  if (!raceHideOn(event)) return rows;
   const veil = await loadRaceVeil(event);
   return rows.map((r) => (raceTileHidden(veil, veil?.everyone ?? null, { id: r.tileId }) ? { ...r, label: HIDDEN_RACE_TILE_LABEL } : r));
 }

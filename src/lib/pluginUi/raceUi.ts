@@ -1,3 +1,4 @@
+import { lifelineConfirmText, lifelineLine, lifelineSpendable, nextTimedLine, type TeamEasePayload } from '@/lib/raceEase';
 import { type Action, type Color, type Node, col, count, gap, icon, muted, row, text } from './nodes';
 import { CARD_W, FAINT, GOLD, GREEN, LATER, PROGRESS, SOFT, clip, compactStandings, more, section, stop, title } from './sections';
 
@@ -65,6 +66,13 @@ export function racePageUi(board: Board, o: RacePageOpts): Node | null {
   const ctx = { ...m, race, name, hidden, byId, board, o };
   const panes: Record<string, Node> = { main: col(mainPage(ctx), { gap: 10 }) };
   for (const id of m.graph.byId.keys()) if (byId.has(id)) panes[`t:${id}`] = col(tilePage(ctx, byId.get(id)!), { gap: 10 });
+  // A lifeline is final: its button opens a page that asks first (lib/raceEase).
+  const ease = o.ctx.ease;
+  if (ease && !o.ctx.claimBlock) {
+    for (const id of m.graph.byId.keys()) {
+      if (byId.has(id) && lifelineSpendable(ease, ease.tiles[String(id)])) panes[`life:${id}`] = col(lifelinePage(ctx, id, ease), { gap: 10 });
+    }
+  }
   return { t: 'slot', id: 'race', nav: true, open: 'main', panes, c: gap(0) };
 }
 
@@ -91,6 +99,7 @@ function mainPage(x: Ctx): Node[] {
       text(x.o.title, 'brand', { font: 'bold' }),
     ]),
     whereCard(x),
+    ...(x.o.ctx.ease?.lifelines ? [muted(`Lifelines: ${x.o.ctx.ease.lifelines.left} of ${x.o.ctx.ease.lifelines.total} left. Open a tile you’re stuck on to use one.`, { wrap: CARD_W })] : []),
     ...(route.roadsOpen ? [muted(ROADS_OPEN_NOTE, { wrap: CARD_W })] : []),
     nextCard(x, route),
     ...(x.o.tracked ? [x.o.tracked] : []),
@@ -350,6 +359,46 @@ export function raceWhoCards(g: RaceGraph, board: Board, standings: { teamId: nu
   return [namesCard(doneHead, doneBy, word(doneBy.length), `race-done:${id}`), namesCard('On it now', onIt, word(onIt.length), `race-on:${id}`)].filter((n): n is Node => !!n);
 }
 
+/** A race tile's easier options for the viewer's team: the same lines the site's tile details show. */
+function easeSection(x: Ctx, id: number): Node | null {
+  const ease = x.o.ctx.ease;
+  if (!ease) return null;
+  const tile = ease.tiles[String(id)];
+  if (!tile && !ease.lifelines) return null;
+  const rows: Node[] = [];
+  if (tile?.live.length) {
+    rows.push(text(tile.live.length > 1 ? 'Easier options open' : 'Easier option open', GREEN, { font: 'bold' }));
+    rows.push(text(`Finish the tile as written, or do ${tile.live.length > 1 ? 'one of these' : 'this'} instead. Either way the tile is done.`, SOFT, { wrap: CARD_W }));
+    for (const o of tile.live) rows.push(text(o.label, 'white', { wrap: CARD_W }));
+  }
+  const timed = nextTimedLine(ease, tile);
+  if (timed) rows.push(muted(timed, { wrap: CARD_W }));
+  const line = lifelineLine(ease, tile);
+  if (line) rows.push(muted(line, { wrap: CARD_W }));
+  if (lifelineSpendable(ease, tile) && !x.o.ctx.claimBlock) {
+    rows.push({ t: 'button', label: 'Use a lifeline', tip: 'Open this tile’s easier option for your team', on: pane(`life:${id}`) });
+  }
+  if (!rows.length) return null;
+  return section(tile?.live.length ? rows : [title('Easier option'), ...rows]);
+}
+
+/** "Use one of your team's lifelines here?": the lifeline's own page, since spending is final. */
+function lifelinePage(x: Ctx, id: number, ease: TeamEasePayload): Node[] {
+  const toTile = pane(`t:${id}`);
+  return [
+    row(undefined, text('Back to the tile', '#e6e6e6', { icon: icon({ glyph: 'chevron-left', w: 9, h: 9, color: '#e6e6e6' }) }), undefined, { bg: 'raised', pad: 8, on: toTile, tip: 'Back to the tile' }),
+    section([
+      title('Use a lifeline'),
+      text(x.name(id), 'white', { font: 'bold', wrap: CARD_W }),
+      text(lifelineConfirmText(ease.lifelines?.left ?? 0), SOFT, { wrap: CARD_W }),
+    ], { edge: GOLD }),
+    col([
+      { t: 'button', label: 'Use the lifeline', tip: 'Spend it: this can’t be taken back', on: { a: 'post', act: 'race-lifeline', args: { ...x.o.pick, tile: String(id) } } },
+      { t: 'button', label: 'Keep it', tip: 'Back to the tile without spending', on: toTile },
+    ], { gap: 5 }),
+  ];
+}
+
 function tilePage(x: Ctx, t: BoardTile): Node[] {
   const g = x.graph;
   const route = x.route!;
@@ -382,6 +431,10 @@ function tilePage(x: Ctx, t: BoardTile): Node[] {
     ...(what.length > 10 ? [muted(`+${what.length - 10} more on the site`)] : []),
     muted(['Worth 1 step', t.tier?.trim() ? `Tier: ${t.tier.trim()}` : null].filter(Boolean).join(' · ')),
   ]));
+
+  // Easier options (lib/raceEase): the ones open for the team, when the clock opens the next, the lifeline.
+  const easeCard = easeSection(x, id);
+  if (easeCard) out.push(easeCard);
 
   // Where it goes: the tile the team came from, the tile(s) it leads to, and where it may switch.
   out.push(whereItGoes(g, route, id, x.name, (pid) => pane(`t:${pid}`)));

@@ -66,6 +66,12 @@ const es: PartialDiscordDict = {
     scoringTiles: '• **Puntuación** — un punto por casilla; la puntuación de un equipo es cuántas ha completado.',
     tileRace:
       '• **Carrera de casillas** — el tablero es un recorrido ordenado. Avanzáis por él; vuestra casilla más lejana es vuestra posición.',
+    raceEase:
+      '• **Más fácil con el tiempo** — cada {hours} h desde el inicio, el siguiente paso recibe una opción más fácil. Cualquiera de las dos versiones completa la casilla.',
+    raceLifelines:
+      '• **Comodines** — {n} por equipo para toda la carrera. Gastad uno en una casilla en la que estéis atascados para abrir su opción más fácil. Solo veis cuál es después de gastarlo.',
+    raceLifelinesWait:
+      ' Un comodín funciona en una casilla cuando lleva {hours} h abierta para vosotros.',
     revealScheduled:
       '• **Aperturas** — las casillas se abren según un calendario fijado por el staff. Una casilla que aún no ves simplemente no se ha abierto.',
     revealIntervalOne: '• **Aperturas** — se sortea una casilla {order} cada {minutes} minutos.',

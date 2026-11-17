@@ -95,6 +95,12 @@ export function mechanicsLines(
   out.push(event.scoringMode === 'points' ? t.rules.scoringPoints : t.rules.scoringTiles);
 
   if (event.format === 'tilerace') out.push(t.rules.tileRace);
+  // Easier options (lib/raceEase): timed easing, and lifelines with their wait when there is one.
+  if (event.format === 'tilerace' && rules.raceEase) out.push(fmt(t.rules.raceEase, { hours: rules.raceEase.hours }));
+  if (event.format === 'tilerace' && rules.raceLifelines) {
+    const l = rules.raceLifelines;
+    out.push(fmt(t.rules.raceLifelines, { n: l.count }) + (l.afterHours > 0 ? fmt(t.rules.raceLifelinesWait, { hours: l.afterHours }) : ''));
+  }
 
   // Reveal policy is the single most-asked mechanic on a modern board — a player who can't see a
   // tile assumes something is broken rather than that the board is drip-feeding on purpose.

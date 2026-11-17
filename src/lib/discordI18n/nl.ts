@@ -66,6 +66,12 @@ const nl: PartialDiscordDict = {
     scoringTiles: '• **Punten** — één punt per vakje; de score van een team is hoeveel het er afmaakte.',
     tileRace:
       '• **Vakjesrace** — het bord is een vaste route. Jullie schuiven erlangs op; jullie verste vakje is jullie positie.',
+    raceEase:
+      '• **Makkelijker na verloop van tijd** — elke {hours} uur na de start krijgt de volgende stap een makkelijkere optie. Beide versies maken het vakje af.',
+    raceLifelines:
+      '• **Hulplijnen** — {n} per team voor de hele race. Zet er een in op een vakje waar jullie vastzitten om de makkelijkere optie te openen. Jullie zien pas wat het is na het inzetten.',
+    raceLifelinesWait:
+      ' Een hulplijn werkt op een vakje zodra het {hours} uur voor jullie open is.',
     revealScheduled:
       '• **Vrijgave** — vakjes gaan open volgens een schema van staff. Een vakje dat je nog niet ziet, is simpelweg nog niet open.',
     revealIntervalOne: '• **Vrijgave** — elke {minutes} minuten wordt {order} één vakje getrokken.',

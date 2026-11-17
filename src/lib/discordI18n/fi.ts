@@ -66,6 +66,12 @@ const fi: PartialDiscordDict = {
     scoringTiles: '• **Pisteytys** — piste per ruutu; joukkueen pisteet ovat se, montako se on suorittanut.',
     tileRace:
       '• **Ruutukisa** — taulu on järjestetty rata. Etenette sitä pitkin; kauimmainen ruutunne on sijoituksenne.',
+    raceEase:
+      '• **Helpottuu ajan myötä** — {hours} tunnin välein alusta lukien seuraava askel saa helpomman vaihtoehdon. Kumpi tahansa versio suorittaa ruudun.',
+    raceLifelines:
+      '• **Oljenkorret** — {n} per joukkue koko kisan ajaksi. Käyttäkää yksi ruutuun, johon olette jumissa, niin sen helpompi vaihtoehto aukeaa. Näette sen vasta käytön jälkeen.',
+    raceLifelinesWait:
+      ' Oljenkorsi toimii ruutuun, kun se on ollut teille auki {hours} tuntia.',
     revealScheduled:
       '• **Paljastukset** — ruudut avautuvat staffin asettaman aikataulun mukaan. Ruutu, jota et vielä näe, ei yksinkertaisesti ole auennut.',
     revealIntervalOne: '• **Paljastukset** — yksi ruutu arvotaan {order} {minutes} minuutin välein.',

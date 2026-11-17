@@ -22,6 +22,7 @@ import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, 
 import { syncPartRevealState } from '@/lib/comboSql';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { tilesForViewer } from '@/lib/tilesForViewer';
+import { afterEaseOptionSaved } from '@/lib/raceEaseDb';
 import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 
 export async function GET(
@@ -128,12 +129,17 @@ export async function PUT(
   // validated first (a dry run of the combo and each part) and only then written, so a bad part can't
   // leave a half-saved combo behind.
   const finalType = body.tileType !== undefined ? (body.tileType || 'standard') : tile.tileType;
-  const existingParts = await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id));
+  // Its combo parts only: an easier option under it (lib/raceEase) is saved on its own.
+  const existingParts = await db.select().from(tiles).where(and(eq(tiles.parentTileId, tile.id), isNull(tiles.easeLevel)));
   if (body.parts !== undefined || (finalType !== COMBO_TILE_TYPE && existingParts.length > 0)) {
     return saveCombo(ctx, tile, body, existingParts);
   }
   // A combo edited without its parts (points, description…) keeps the parts it has.
-  return applyTileUpdate(ctx, tile, body, finalType === COMBO_TILE_TYPE ? { partCount: existingParts.length } : {});
+  const res = await applyTileUpdate(ctx, tile, body, finalType === COMBO_TILE_TYPE ? { partCount: existingParts.length } : {});
+  // An easier option on a race tile (lib/raceEase): what it tracks may have changed under a race
+  // that is running, so its baseline and anything it now finishes are settled straight away.
+  if (res.ok && tile.easeLevel != null) await afterEaseOptionSaved(eId, tile);
+  return res;
 }
 
 interface TileUpdateCtx {
@@ -213,7 +219,7 @@ async function saveCombo(ctx: TileUpdateCtx, tile: TileRow, body: Record<string,
   if (finalType !== COMBO_TILE_TYPE) {
     if (frozen) return NextResponse.json({ error: 'A combo’s kind can’t change once the event has started.' }, { status: 400 });
     const res = await applyTileUpdate(ctx, tile, { ...body, parts: undefined, comboRule: null });
-    if (res.ok && existingParts.length > 0) await db.delete(tiles).where(eq(tiles.parentTileId, tile.id));
+    if (res.ok && existingParts.length > 0) await db.delete(tiles).where(inArray(tiles.id, existingParts.map((p) => p.id)));
     return res;
   }
   if (tile.parentTileId != null) {
@@ -1034,7 +1040,8 @@ export async function POST(
       : { eventId: eId, position: nextPosition, label, mission: asMission ? 1 : 0 };
     const [tile] = await tx.insert(tiles).values(values).returning();
     // Duplicating a combo copies its parts under the copy (lib/combo).
-    if (source && source.tileType === COMBO_TILE_TYPE) {
+    // So are a race tile's easier options (lib/raceEase): every child row follows the copy.
+    if (source) {
       const parts = await tx.select().from(tiles).where(eq(tiles.parentTileId, source.id));
       for (const part of parts) {
         const { id: _pid, revealedAt: _r, closedAt: _c, revealStats: _s, updatedAt: _u, ...partConfig } = part;

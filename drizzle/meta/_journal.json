@@ -1450,6 +1450,13 @@
       "when": 1794900000000,
       "tag": "0269_item_hunt",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1794900060000,
+      "tag": "0270_race_easier_options",
+      "breakpoints": true
     }
   ]
 }

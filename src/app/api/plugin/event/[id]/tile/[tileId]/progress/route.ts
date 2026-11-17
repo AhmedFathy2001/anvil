@@ -1,3 +1,4 @@
+import { easeVisibleFor, loadEaseContext } from '@/lib/raceEaseDb';
 import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceSeenFor, raceTileHidden } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
@@ -64,6 +65,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (raceHideOn(event)) {
     const veil = await loadRaceVeil(event);
     if (raceTileHidden(veil, raceSeenFor(veil, { teamIds: mine ? [mine.teamId] : [] }), tile)) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+  }
+
+  // An easier option (lib/raceEase) that isn't live for the viewer's team doesn't exist for them.
+  if (tile.parentTileId != null && tile.easeLevel != null) {
+    const ease = await loadEaseContext(event);
+    if (ease && !ease.over && !easeVisibleFor(ease, { teamIds: mine ? [mine.teamId] : [] })?.has(tile.id)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
   }

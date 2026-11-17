@@ -125,6 +125,10 @@ export interface Tile extends TileRevealState {
   capBy?: string | null;
   /** Combo tiles, where the loader attached them: the parts, in order. */
   parts?: Tile[];
+  /** An easier option on a race tile (lib/raceEase): 1 = the first, 2 = the next one down. */
+  easeLevel?: number | null;
+  /** A race tile's easier options, first level first (lib/combo nestParts). */
+  easier?: Tile[];
   mission?: number | null; // 1 = a mission tile (hidden until announced mid-event; see tiles.mission)
   rules?: string | null; // per-mission scoring JSON (see tiles.rules / MissionRules); null on normal tiles
   // Optimistic-concurrency stamp (see tiles PUT baseUpdatedAt). Null on legacy rows.

@@ -46,6 +46,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { downloadFromApi } from '@/lib/downloadFile';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
+import { MAX_EASE_OPTIONS } from '@/lib/raceEase';
 import RaceRouteEditor from './RaceRouteEditor';
 import GuideLink from '@/components/GuideLink';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
@@ -1076,7 +1077,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const renderInspector = (docked: boolean) => editingTile ? (
     <TileConfigDrawer
     docked={docked}
-    noun={model.Noun}
+    noun={editingTile.easeLevel != null ? 'Easier option for tile' : model.Noun}
     key={editingTile.id}
     tile={editingTile}
     // Its place in the order, with Move earlier / later, inside the editor itself. The same bar
@@ -1092,6 +1093,14 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           }
         : null
     }
+    raceEasier={
+      isTileRaceFormat(event.format)
+        ? {
+            onOpen: (id) => openTileGuarded(id),
+            onChanged: (parentId, easier) => setLocalTiles((prev) => prev.map((t) => (t.id === parentId ? { ...t, easier } : t))),
+          }
+        : null
+    }
     eventId={event.id}
     eventStarted={eventStarted}
     isAdmin={isAdmin}
@@ -1100,16 +1109,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     lockHolder={lockHolder}
     categorySuggestions={categories}
     teamPlay={teamPlay}
-    missionsAllowed={missionsAllowed}
-    missionsEnabled={missionsEnabled}
+    missionsAllowed={missionsAllowed && editingTile.easeLevel == null}
+    missionsEnabled={missionsEnabled && editingTile.easeLevel == null}
     cofferAvailable={cofferAvailable}
-    canDelete={canEditTileSet}
+    canDelete={canEditTileSet && editingTile.easeLevel == null}
     deleteNote={
-      !canEditTileSet && !eventStarted
+      !canEditTileSet && !eventStarted && editingTile.easeLevel == null
         ? 'A bingo grid has a fixed number of squares, so a square cannot be removed. Rewrite it instead, or change the board size in Settings.'
         : undefined
     }
-    canLab={canLab}
+    canLab={canLab && editingTile.easeLevel == null}
     revealEditor={
       showsReveal(editingTile) ? (
         <RevealAtEditor
@@ -1126,12 +1135,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     onCreated={handleCreatorSaved}
     onOpenBulk={canAddTiles ? () => leaveGuard(() => { setEditingTileId(null); setBulkOpen(true); }) : undefined}
     canAddAnother={(dynamicBoard && !eventStarted) || localTiles.filter((t) => isPlaceholderTile(t) && !t.mission).length > 1}
-    onDuplicate={canEditTileSet ? () => void duplicateTile(editingTile.id) : undefined}
+    onDuplicate={canEditTileSet && editingTile.easeLevel == null ? () => void duplicateTile(editingTile.id) : undefined}
     onDelete={() => handleDeleteTile(editingTile.id, true)}
     onSaved={(updated) => {
       setImportMsg(null);
       handleTileConfigSaved(editingTile.id, updated);
-      setEditingTileId(null);
+      // An easier option saves back to the tile it belongs to.
+      setEditingTileId(editingTile.easeLevel != null ? editingTile.parentTileId ?? null : null);
     }}
     onAutoSaved={(updated) => handleTileConfigSaved(editingTile.id, updated)}
         />
@@ -1427,6 +1437,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             raceBank={eventRules.raceBank}
             raceRoad={eventRules.raceRoad}
             raceHideAhead={eventRules.raceHideAhead}
+            raceEase={eventRules.raceEase}
+            raceLifelines={eventRules.raceLifelines}
             standingsHidden={eventRules.standings.visibility !== 'live'}
             staffHideLocked={staffHideLocked}
             canChangeStaffHide={canChangeStaffHide}
@@ -1444,7 +1456,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               router.refresh();
             }}
             onRaceBankChanged={() => router.refresh()}
-            openTileId={editingTileId}
+            openTileId={editingTile?.easeLevel != null ? editingTile.parentTileId ?? null : editingTileId}
             onOpenTile={(id) => openTileGuarded(id)}
             panelBeside={inspectorDocked}
             onTilesDeleted={(ids) => {
@@ -2272,9 +2284,12 @@ interface DrawerProps {
   canAddAnother?: boolean;
   /** Copy this tile, whole, and open the copy. */
   onDuplicate?: () => void;
+  /** A tile race: its tiles can carry easier options (lib/raceEase). Null on every other board. */
+  raceEasier?: { onOpen: (tileId: number) => void; onChanged: (parentId: number, easier: Tile[]) => void } | null;
 }
 
-function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, deleteNote, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
+function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, deleteNote, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate, raceEasier = null }: DrawerProps) {
+  const isEase = tile.easeLevel != null && tile.parentTileId != null;
   // A blank placeholder before the start is a NEW tile: it opens on the tile creator ("what should
   // players do?") instead of the full editor, which stays one tap away under "More options".
   const creating = !eventStarted && isPlaceholderTile(tile) && !tile.mission && !!onCreated;
@@ -2365,6 +2380,16 @@ function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', e
             </p>
           )}
           {revealEditor}
+          {isEase && raceEasier && (
+            <div className="mb-4 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2.5 text-xs text-text-muted">
+              <p>
+                <span className="font-semibold text-foreground">Easier option {tile.easeLevel}.</span> Hidden from players until timed easing or a lifeline turns it on. From then on, finishing this finishes the tile it belongs to.
+              </p>
+              <button type="button" onClick={() => raceEasier.onOpen(tile.parentTileId as number)} className="mt-1.5 text-gold hover:underline">
+                ← Back to the tile
+              </button>
+            </div>
+          )}
           {creating ? (
             <TileCreator
               tile={tile}
@@ -2404,6 +2429,7 @@ function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', e
             onAutoSaved={onAutoSaved}
             eventStarted={eventStarted}
             isAdmin={isAdmin}
+            unlockedLive={isEase}
             pointsMode={pointsMode}
             tierBands={tierBands}
             categorySuggestions={categorySuggestions}
@@ -2412,6 +2438,17 @@ function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', e
             missionsEnabled={missionsEnabled}
             cofferAvailable={cofferAvailable}
           />
+          )}
+
+          {raceEasier && !isEase && !creating && !tile.mission && (
+            <EaseOptionsSection
+              key={tile.id}
+              tile={tile}
+              eventId={eventId}
+              canChange={!eventStarted || !!isAdmin}
+              onOpen={raceEasier.onOpen}
+              onChanged={(easier) => raceEasier.onChanged(tile.id, easier)}
+            />
           )}
 
           {/* The quiet things, below the task: copy it, try it in the lab, delete it. */}
@@ -2480,5 +2517,112 @@ function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', e
       />
       {panel}
     </div>
+  );
+}
+
+/**
+ * A race tile's EASIER OPTIONS (lib/raceEase), under its own task: add one, open one to write it,
+ * remove one. Each is a tile of its own (any kind but a combo), saved the moment it changes.
+ */
+function EaseOptionsSection({
+  tile,
+  eventId,
+  canChange,
+  onOpen,
+  onChanged,
+}: {
+  tile: Tile;
+  eventId: number;
+  canChange: boolean;
+  onOpen: (tileId: number) => void;
+  onChanged: (easier: Tile[]) => void;
+}) {
+  const [easier, setEasier] = useState<Tile[]>(tile.easier ?? []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState<number | null>(null);
+
+  async function add() {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/tiles/${tile.id}/easier`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(data.error || 'Could not add an easier option.');
+      const next = [...easier, data as Tile];
+      setEasier(next);
+      onChanged(next);
+      onOpen((data as Tile).id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: number) {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/tiles/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(data.error || 'Could not remove that easier option.');
+      const next = easier.filter((t) => t.id !== id);
+      setEasier(next);
+      onChanged(next);
+      setConfirming(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-8 pt-4 border-t border-card-border/60">
+      <h4 className="text-sm font-semibold text-foreground">Easier options</h4>
+      <p className="mt-1 text-xs text-text-muted">
+        A second way to finish this tile that players only get later: the same task with a smaller number, or a different task. It stays hidden until timed easing or a lifeline turns it on (Map view, “Easier options”).
+      </p>
+      {easier.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {easier.map((o, i) => (
+            <li key={o.id} className="flex items-center gap-3 rounded-lg border border-card-border px-3 py-2">
+              <span className="shrink-0 text-xs text-text-muted">{i === 0 ? 'First' : i === 1 ? 'Then' : `Level ${i + 1}`}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground">{o.label}</span>
+              {confirming === o.id ? (
+                <>
+                  <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="text-xs text-text-muted hover:text-foreground">
+                    Cancel
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => void remove(o.id)} className="text-xs font-semibold text-red-300 hover:text-red-200">
+                    Remove it
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => onOpen(o.id)} className="text-xs text-gold hover:underline">
+                    Edit
+                  </button>
+                  {canChange && (
+                    <button type="button" onClick={() => setConfirming(o.id)} className="text-xs text-red-400/80 hover:text-red-300">
+                      Remove
+                    </button>
+                  )}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+      {canChange && easier.length < MAX_EASE_OPTIONS && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void add()}
+          className="mt-3 text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+        >
+          {easier.length === 0 ? 'Add an easier option' : 'Add one easier still'}
+        </button>
+      )}
+      {!canChange && <p className="mt-2 text-xs text-text-muted">Only an admin can add or remove one while the race is running.</p>}
+    </section>
   );
 }

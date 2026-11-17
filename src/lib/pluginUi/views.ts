@@ -1,4 +1,5 @@
 import type { PanelHighlights } from './highlightsUi';
+import { spendLifeline, teamEasePayload } from '@/lib/raceEaseDb';
 import { withoutPetDoubles } from '@/lib/momentDupes';
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
 import type { TenureGlyph } from '@/lib/supporterTiers';
@@ -401,6 +402,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     feedBack: { open: a.back || 'board', label: a.backLabel || 'Back' },
     feedTab: hasTabArgs(request),
     chatOn: await boardChatOn(scope.event.id).catch(() => true),
+    ease: board.readOnly ? null : await panelEase(scope.event, scope.teamId, scope.userId),
   };
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   // A tile race opened from the event list is its race page (lib/pluginUi/raceUi); its "View all
@@ -477,6 +479,36 @@ async function racePickAct(request: Request, a: Args): Promise<View> {
   return boardView(request, { ...a, tile: '' }, error);
 }
 
+/** "Use a lifeline" on a race tile (lib/raceEaseDb): the same people who pick a road may spend one. */
+async function raceLifelineAct(request: Request, a: Args): Promise<View> {
+  const event = positive(a.event);
+  const tileId = positive(a.tile);
+  const c = await pluginClaimCaller(request, event ?? undefined);
+  let error: string | null = c.ok ? null : c.error;
+  if (c.ok && tileId) {
+    // clan-scope: global -- the event id is the caller's own plugin-token board, already resolved by pluginClaimCaller.
+    const ev = await db.query.events.findFirst({ where: eq(events.id, c.auth.eventId) });
+    if (!ev) error = 'Event not found';
+    else if (!(await mayPickRoad(c.auth.teamId, c.userId, true))) error = 'Your team’s captain decides when to use a lifeline.';
+    else {
+      const r = await spendLifeline(ev, c.auth.teamId, tileId, c.userId);
+      if (!r.ok) error = r.error;
+    }
+  }
+  if (a.home && !error) return homeView(request, { open: a.home });
+  return boardView(request, { ...a, tile: '' }, error);
+}
+
+/** A race's easier options and lifelines for the panel's viewer (lib/raceEase). Best effort. */
+async function panelEase(event: { id: number; format: string | null; rules: string | null; startDate?: string | null; endDate?: string | null; forceEndedAt?: string | null }, teamId: number | null, userId: number | null): Promise<BoardContext['ease']> {
+  if (event.format !== 'tilerace' || teamId == null) return null;
+  try {
+    return await teamEasePayload(event, teamId, userId != null && (await mayPickRoad(teamId, userId, true)));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A tile race's page needs the whole board (every road, who's done what): gathered only when the race
  * is the page being opened. Best effort: without it the plain board page shows.
@@ -495,6 +527,7 @@ async function raceBoardFor(request: Request, a: Args, boardPath: string | null,
       pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
       progress,
       boardPath,
+      ease: await panelEase(scope.event, scope.teamId, scope.userId),
     };
     return { board, ctx };
   } catch {
@@ -1007,6 +1040,7 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (foreign) return message(foreign.error);
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
   if (act === 'race-pick') return racePickAct(request, args);
+  if (act === 'race-lifeline') return raceLifelineAct(request, args);
   if (act === 'proof-delete') return proofDeleteAct(request, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act === 'react') return reactAct(request, args);

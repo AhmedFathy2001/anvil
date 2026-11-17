@@ -66,6 +66,12 @@ const de: PartialDiscordDict = {
     scoringTiles: '• **Wertung** — ein Punkt pro Feld; die Teampunktzahl ist, wie viele geschafft wurden.',
     tileRace:
       '• **Feldrennen** — das Brett ist eine feste Strecke. Ihr rückt darauf vor; euer weitestes Feld ist eure Position.',
+    raceEase:
+      '• **Mit der Zeit leichter** — alle {hours} Stunden nach dem Start bekommt der nächste Schritt eine leichtere Option. Beide Varianten schließen das Feld ab.',
+    raceLifelines:
+      '• **Joker** — {n} pro Team für das ganze Rennen. Setzt einen auf ein Feld, an dem ihr festhängt, um dessen leichtere Option zu öffnen. Was sie ist, seht ihr erst nach dem Einsetzen.',
+    raceLifelinesWait:
+      ' Ein Joker wirkt auf ein Feld, sobald es {hours} Stunden für euch offen war.',
     revealScheduled:
       '• **Freischaltung** — Felder öffnen nach einem vom Staff gesetzten Plan. Ein Feld, das du noch nicht siehst, hat schlicht noch nicht geöffnet.',
     revealIntervalOne: '• **Freischaltung** — alle {minutes} Minuten wird {order} ein Feld gezogen.',

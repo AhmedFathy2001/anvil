@@ -63,6 +63,12 @@ const ko: PartialDiscordDict = {
     scoringPoints: '• **점수** —— 각 칸은 자기 점수를 가지며, 팀 점수는 완료한 칸들의 합입니다.',
     scoringTiles: '• **점수** —— 칸당 1점이고, 팀 점수는 완료한 칸의 개수입니다.',
     tileRace: '• **칸 레이스** —— 보드는 순서가 정해진 코스입니다. 그 위를 나아가며, 가장 멀리 간 칸이 여러분의 위치입니다.',
+    raceEase:
+      '• **시간이 지나면 쉬워짐** —— 시작 후 {hours}시간마다 다음 단계에 더 쉬운 선택지가 생깁니다. 어느 쪽을 끝내도 칸은 완료됩니다.',
+    raceLifelines:
+      '• **찬스** —— 레이스 전체에서 팀당 {n}개. 막힌 칸에 하나를 쓰면 그 칸의 더 쉬운 선택지가 열립니다. 무엇인지는 쓴 뒤에만 볼 수 있습니다.',
+    raceLifelinesWait:
+      ' 찬스는 칸이 여러분 팀에 열린 지 {hours}시간이 지나야 쓸 수 있습니다.',
     revealScheduled: '• **공개** —— 칸은 운영진이 정한 일정에 따라 열립니다. 아직 안 보이는 칸은 그저 아직 열리지 않은 것입니다.',
     revealIntervalOne: '• **공개** —— {minutes}분마다 {order} 1칸이 뽑힙니다.',
     revealIntervalMany: '• **공개** —— {minutes}분마다 {order} {n}칸이 뽑힙니다.',

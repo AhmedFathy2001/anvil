@@ -69,6 +69,12 @@ const pl: PartialDiscordDict = {
     scoringTiles: '• **Punktacja** — jeden punkt za pole; wynik drużyny to liczba ukończonych pól.',
     tileRace:
       '• **Wyścig po polach** — plansza to ustalona trasa. Posuwacie się po niej; najdalsze pole to wasza pozycja.',
+    raceEase:
+      '• **Łatwiej z czasem** — co {hours} godz. od startu kolejny krok dostaje łatwiejszą opcję. Każda z wersji zalicza pole.',
+    raceLifelines:
+      '• **Koła ratunkowe** — {n} na drużynę na cały wyścig. Użyjcie jednego na polu, na którym utknęliście, aby otworzyć jego łatwiejszą opcję. Zobaczycie ją dopiero po użyciu.',
+    raceLifelinesWait:
+      ' Koło ratunkowe działa na polu, gdy jest ono dla was otwarte od {hours} godz.',
     revealScheduled:
       '• **Odsłanianie** — pola otwierają się według harmonogramu ustawionego przez staff. Pola, którego jeszcze nie widzisz, po prostu jeszcze nie otwarto.',
     revealIntervalOne: '• **Odsłanianie** — co {minutes} min losowane jest {order} jedno pole.',

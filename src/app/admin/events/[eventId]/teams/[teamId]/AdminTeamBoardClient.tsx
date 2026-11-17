@@ -195,6 +195,9 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           onClose={() => setSelectedTileId(null)}
           eventId={event.id}
           teamId={team.id}
+          // A tile race: the tile's place on this team's route, its easier options and its lifeline
+          // (an admin can spend one for the team here, or give one back).
+          race={event.format === 'tilerace' ? { tiles, completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           dropProgress={dropProgress.get(selectedTile.id)}
           perItemProgress={perItemProgressMap.get(selectedTile.id)}
           statProgress={gains[selectedTile.id]}

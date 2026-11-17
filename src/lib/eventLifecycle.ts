@@ -11,6 +11,7 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
+import { processRaceEasing } from '@/lib/raceEaseTick';
 import { boardRevealIsDue } from '@/lib/eventBoardReveal';
 import { settleLadderMonths } from '@/lib/monthlyChampion';
 import { parseEventRules, isTileRevealed, visibleTiles } from '@/lib/eventRules';
@@ -448,6 +449,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // rotation. After the start loop above, so on the tick an event begins the "event started" post
   // lands before its first tile reveal. Never throws past its own catch.
   await processTileReveals().catch(() => {});
+  // Tile races with timed easing (lib/raceEase): open the next step's easier option on the interval.
+  await processRaceEasing().catch((err) => log.warn('event-lifecycle.race-ease-failed', { err: String(err) }));
 
   // A ladder's month ending — crown last month's winner, move the champion role. Rides the ordinary
   // tick rather than its own schedule because it is idempotent on a settled-month key: asking every

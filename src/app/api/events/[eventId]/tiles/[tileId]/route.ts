@@ -1,4 +1,4 @@
-import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
+import { STAFF_HIDE_ERROR, maskRaceTilesForSession, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
 import { maskRaceTile } from '@/lib/raceHideAhead';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
@@ -8,6 +8,8 @@ import { eq, and, gt, sql, asc, isNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit, snapshotTile } from '@/lib/tile-audit';
 import { assertEventEditable } from '@/lib/eventLock';
+import { atLeast } from '@/lib/clanRoles';
+import { bumpEaseContext } from '@/lib/raceEaseDb';
 
 // Fresh single-tile read for the editor: opening a tile re-fetches it (instead of trusting
 // the page-load list) so a save starts from the latest state — and carries the updatedAt
@@ -36,11 +38,17 @@ export async function GET(
   const ev = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
   if (ev && (await raceTileHiddenForSession(ev, tile))) return NextResponse.json(maskRaceTile(tile));
   // A combo (lib/combo) comes with its parts, so the editor opens all of it from one fresh read.
+  // A race tile's easier options (lib/raceEase) come with it too, first level first.
+  const children = tile.parentTileId == null ? await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id)) : [];
+  // Through the same gate as every other read: under "Also hide from event staff" a caller who
+  // doesn't see through gets only the ones live for some team.
+  const easeRows = children.filter((c) => c.easeLevel != null).sort((a, b) => (a.easeLevel as number) - (b.easeLevel as number) || a.id - b.id);
+  const easier = ev ? await maskRaceTilesForSession(ev, easeRows) : [];
+  const extra = easier.length ? { easier } : {};
   if (tile.tileType === 'combo') {
-    const parts = await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id));
-    return NextResponse.json({ ...tile, parts });
+    return NextResponse.json({ ...tile, parts: children.filter((c) => c.easeLevel == null), ...extra });
   }
-  return NextResponse.json(tile);
+  return NextResponse.json({ ...tile, ...extra });
 }
 
 // Remove a tile from a Leagues (bingo+points) or Tile-race board and close the position gap
@@ -69,6 +77,23 @@ export async function DELETE(
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  }
+
+  // An easier option on a race tile (lib/raceEase) is no board cell: it goes on its own, at any time
+  // (after the start that is an admin's call, like every other live change to what a tile asks).
+  {
+    const option = await db.query.tiles.findFirst({ where: and(eq(tiles.id, tId), eq(tiles.eventId, eId)) });
+    if (option && option.parentTileId != null && option.easeLevel != null) {
+      if (await raceTileHiddenForSession(event, option)) return NextResponse.json({ error: STAFF_HIDE_ERROR }, { status: 403 });
+      const started = !!event.startDate && new Date(event.startDate) <= new Date();
+      if (started && !atLeast(editor.role, 'admin')) {
+        return NextResponse.json({ error: 'Removing an easier option on a live race is admin-only.' }, { status: 403 });
+      }
+      await db.delete(tiles).where(eq(tiles.id, tId));
+      bumpEaseContext(eId);
+      logTileAudit({ eventId: eId, action: 'deleted', tileId: tId, tileLabel: option.label, oldValue: snapshotTile(option), actorUserId: editor.userId });
+      return NextResponse.json({ ok: true });
+    }
   }
 
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';

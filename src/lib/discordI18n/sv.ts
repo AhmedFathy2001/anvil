@@ -66,6 +66,12 @@ const sv: PartialDiscordDict = {
     scoringTiles: '• **Poäng** — ett poäng per ruta; ett lags poäng är hur många de klarat.',
     tileRace:
       '• **Rutrace** — brädan är en fastlagd bana. Ni avancerar längs den; er längsta ruta är er placering.',
+    raceEase:
+      '• **Lättare med tiden** — var {hours}:e timme efter start får nästa steg ett lättare alternativ. Båda versionerna klarar rutan.',
+    raceLifelines:
+      '• **Livlinor** — {n} per lag för hela racet. Använd en på en ruta ni sitter fast på för att öppna dess lättare alternativ. Ni ser vad det är först när den är använd.',
+    raceLifelinesWait:
+      ' En livlina fungerar på en ruta när den har varit öppen för er i {hours} timmar.',
     revealScheduled:
       '• **Avslöjanden** — rutor öppnas enligt ett schema som staff satt. En ruta du inte ser än har helt enkelt inte öppnats.',
     revealIntervalOne: '• **Avslöjanden** — en ruta dras {order} var {minutes}:e minut.',

@@ -1,3 +1,4 @@
+import { dropHiddenEase, easeVisibleFor, loadEaseContext } from '@/lib/raceEaseDb';
 import { raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
@@ -217,9 +218,13 @@ export async function buildEnrolledConfig(args: {
   // still-open ones are worth detecting for — a claimed bounty tile is done rotating. The
   // full-board rows stay server-side; completed-tile labels resolve off the revealed subset
   // (a completed tile is revealed by definition).
-  const fullEventTiles = tilesRevealed
+  const everyEventTile = tilesRevealed
     ? await db.query.tiles.findMany({ where: eq(tiles.eventId, eventId) })
     : [];
+  // A race's EASIER OPTIONS (lib/raceEase) reach the plugin only while they are live for this team:
+  // one the clock or a lifeline hasn't opened is dropped here, so nothing below can name or watch it.
+  const easeCtx = await loadEaseContext(event);
+  const fullEventTiles = easeCtx ? dropHiddenEase(easeCtx, easeVisibleFor(easeCtx, { teamIds: [teamId] }), everyEventTile) : everyEventTile;
   const rules = parseEventRules(event.rules);
   const worldModes = countedModes(rules);
   const revealMode = hasRevealPolicy(rules);
@@ -947,6 +952,9 @@ export async function buildEnrolledConfig(args: {
   const partsOfCombo = partsByParent(fullEventTiles);
   const partParent = new Map<number, number>();
   for (const [parentId, parts] of partsOfCombo) for (const p of parts) partParent.set(p.id, parentId);
+  // A live easier option (lib/raceEase) rides the lists the same way: tagged with its tile, and
+  // dropped once the team has finished that tile.
+  for (const t of fullEventTiles) if (t.parentTileId != null && t.easeLevel != null) partParent.set(t.id, t.parentTileId);
   const trackedCombos = allEventTiles
     .filter((t) => isComboTile(t) && t.parentTileId == null)
     .map((c) => {

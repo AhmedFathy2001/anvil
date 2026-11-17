@@ -117,6 +117,8 @@ export async function POST(
         perKillCap: t.perKillCap,
         // Combos (lib/combo): the rule rides the parent; parts are re-pointed at the new parent below.
         comboRule: t.comboRule,
+        // A race tile's easier option (lib/raceEase) stays one on the copy.
+        easeLevel: t.easeLevel,
         capBy: t.capBy,
         coopCredit: t.coopCredit,
         coopMinMembers: t.coopMinMembers,

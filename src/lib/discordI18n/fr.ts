@@ -66,6 +66,12 @@ const fr: PartialDiscordDict = {
     scoringTiles: '• **Score** — un point par case ; le score d’une équipe est le nombre de cases finies.',
     tileRace:
       '• **Course aux cases** — le plateau est un parcours ordonné. Vous avancez dessus ; votre case la plus lointaine est votre position.',
+    raceEase:
+      '• **Plus facile avec le temps** — toutes les {hours} h après le départ, l’étape suivante reçoit une option plus facile. L’une ou l’autre version termine la case.',
+    raceLifelines:
+      '• **Jokers** — {n} par équipe pour toute la course. Utilisez-en un sur une case où vous êtes bloqués pour ouvrir son option plus facile. Vous ne voyez ce qu’elle est qu’après l’avoir utilisé.',
+    raceLifelinesWait:
+      ' Un joker fonctionne sur une case une fois qu’elle vous est ouverte depuis {hours} h.',
     revealScheduled:
       '• **Ouvertures** — les cases s’ouvrent selon un calendrier fixé par le staff. Une case que tu ne vois pas encore n’est tout simplement pas ouverte.',
     revealIntervalOne: '• **Ouvertures** — une case est tirée {order} toutes les {minutes} minutes.',

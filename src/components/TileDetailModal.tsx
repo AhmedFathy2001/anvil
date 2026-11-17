@@ -3,6 +3,7 @@
 import { modeTag } from '@/lib/worldModes';
 import DropOdds from '@/components/DropOdds';
 import RaceTileDetail, { useRaceProofBlock, type RaceDetailContext } from '@/components/board/RaceTileDetail';
+import RaceEaseDetail from '@/components/board/RaceEaseDetail';
 import { TileStateBanner } from '@/components/board/TileState';
 import { missionTileState } from '@/lib/tileState';
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
@@ -862,6 +863,15 @@ export default function TileDetailModal({
 
         <div className="p-4 space-y-4">
           {race && <RaceTileDetail ctx={race} tileId={tile.id} />}
+          {/* A race tile's easier options and the lifeline button (lib/raceEase), for the viewer's team. */}
+          {race && !tile.mission && (
+            <RaceEaseDetail
+              eventId={eventId}
+              teamId={race.viewerTeamId ?? null}
+              tileId={tile.id}
+              optionDetails={(tile as { easier?: { id: number; description?: string | null }[] }).easier}
+            />
+          )}
           {tile.mission ? (() => {
             // Missions speak the shared tile-state language (lib/tileState): Locked / Live / Done / Closed / Expired.
             // completedBy is already cut to the viewer's own team behind hidden standings, so a taker is never named there.
