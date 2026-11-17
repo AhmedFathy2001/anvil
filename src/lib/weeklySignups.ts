@@ -15,6 +15,7 @@ import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { seatsFor } from '@/lib/clanEventSignups';
+import { recordAdjustment } from '@/lib/coffer';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import { decideConfirmation, settlesOnCollect } from '@/lib/feeRules';
 import { normalizeRsn } from '@/lib/auth';
@@ -108,6 +109,41 @@ export async function leaveCompetition(comp: Competition, who: { playerId: numbe
 
 export type WeeklyFeeAction = 'collect' | 'confirm' | 'reset' | 'waive';
 
+/**
+ * Keep the coffer in step with one entrant's fee, on a competition that adds its fees to the prizes:
+ * a SETTLED fee is in the coffer, anything else is not. The row's own flag is claimed first, so two
+ * moves at once can never credit (or take back) the same fee twice. The prize settle pays the pot
+ * out of the coffer (lib/weeklyPrizeSettle), which is why the money has to be there.
+ */
+async function syncFeeCoffer(comp: Competition, row: Participant, actorUserId: number): Promise<void> {
+  const shouldBeIn = comp.feesToPrizes && row.feeStatus === 'confirmed' && (row.feeAmount ?? 0) > 0;
+  if (shouldBeIn === row.feeInCoffer) return;
+  const claimed = await db
+    .update(weeklyParticipants)
+    .set({ feeInCoffer: shouldBeIn })
+    .where(and(eq(weeklyParticipants.id, row.id), eq(weeklyParticipants.feeInCoffer, !shouldBeIn)))
+    .returning({ id: weeklyParticipants.id });
+  if (!claimed.length) return;
+  const amount = row.feeAmount ?? 0;
+  await recordAdjustment({
+    clanId: comp.clanId,
+    amount: shouldBeIn ? amount : -amount,
+    userId: actorUserId > 0 ? actorUserId : null,
+    note: shouldBeIn ? `Entry fee: ${row.rsn}, ${comp.title}` : `Entry fee taken back out: ${row.rsn}, ${comp.title}`,
+    // Taking back a fee that was credited is a correction of the books, not a spend.
+    force: true,
+  });
+}
+
+/** The entry fees of this competition that are in the coffer: the pot added to its prizes. */
+export async function weeklyFeePotGp(competitionId: number): Promise<number> {
+  const [r] = await db
+    .select({ gp: sql<number>`coalesce(sum(${weeklyParticipants.feeAmount}), 0)::bigint` })
+    .from(weeklyParticipants)
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), eq(weeklyParticipants.feeInCoffer, true)));
+  return Number(r?.gp ?? 0);
+}
+
 function audit(comp: Competition, actorUserId: number, row: Participant, eventType: string, extra: Record<string, unknown> = {}) {
   db.insert(clanAuditLog)
     .values({
@@ -129,11 +165,16 @@ export async function moveWeeklyFee(comp: Competition, participantId: number, ac
   const [row] = await db.select().from(weeklyParticipants).where(and(eq(weeklyParticipants.id, participantId), eq(weeklyParticipants.competitionId, comp.id)));
   if (!row) return fail('That entrant is not in this competition.', 404);
   const now = new Date().toISOString();
-  const save = async (set: Partial<Participant>) => (await db.update(weeklyParticipants).set(set).where(eq(weeklyParticipants.id, row.id)).returning())[0];
+  const save = async (set: Partial<Participant>) => {
+    const [updated] = await db.update(weeklyParticipants).set(set).where(eq(weeklyParticipants.id, row.id)).returning();
+    // The amount being taken back out is the one that went in, so the row as it was carries it.
+    await syncFeeCoffer(comp, { ...updated, feeAmount: updated.feeAmount ?? row.feeAmount }, actorUserId);
+    return (await db.select().from(weeklyParticipants).where(eq(weeklyParticipants.id, row.id)))[0];
+  };
   const cleared = { feeCollectedByUserId: null, feeCollectedAt: null, feeConfirmations: null, feeConfirmedByUserId: null, feeConfirmedAt: null };
 
   if (action === 'waive') {
-    if (row.feeStatus === 'collected' || row.feeStatus === 'confirmed') return fail('This fee was already taken. Reset it first.', 409);
+    if (row.feeStatus === 'collected' || row.feeStatus === 'confirmed') return fail('This fee was already taken. Undo it first.', 409);
     const updated = await save({ feeAmount: null, feeStatus: null, ...cleared });
     audit(comp, actorUserId, row, 'weekly_fee_waived');
     return { ok: true, value: updated };

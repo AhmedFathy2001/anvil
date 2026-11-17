@@ -1471,6 +1471,13 @@
       "when": 1794900180000,
       "tag": "0272_weekly_signups",
       "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1794900240000,
+      "tag": "0273_weekly_fee_pot",
+      "breakpoints": true
     }
   ]
 }

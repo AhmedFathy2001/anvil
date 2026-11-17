@@ -1719,6 +1719,8 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   selfSignup: boolean('self_signup').notNull().default(false),
   /** gp owed by each person who signs up; null = free. */
   entryFee: integer('entry_fee'),
+  /** Settled entry fees go into the clan coffer and are paid out on top of the prize ladder (lib/weeklyPrizes feePlaces). */
+  feesToPrizes: boolean('fees_to_prizes').notNull().default(false),
   /**
    * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
    * where each one counts from, the rule, and what the standings show beside the count. `metric`
@@ -1826,6 +1828,8 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   feeConfirmations: jsonb('fee_confirmations').$type<{ userId: number; at: string }[]>(),
   feeConfirmedByUserId: integer('fee_confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   feeConfirmedAt: text('fee_confirmed_at'),
+  /** This fee has been credited to the clan coffer (competition.feesToPrizes), so an undo takes it back out. */
+  feeInCoffer: boolean('fee_in_coffer').notNull().default(false),
 }, (table) => [
   index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),
