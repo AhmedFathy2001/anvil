@@ -1,11 +1,12 @@
 // The reads behind lib/rosterVisibility: is this viewer inside the clan, and which of its seated
 // characters has the owner kept off public view?
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, not, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, users } from '@/db/schema';
+import { accounts, clanMemberships, players, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
+import { ownerNotBanned } from '@/lib/bannedPeople';
 import { clanGrant } from '@/lib/clanGrants';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { hiddenNameSet } from '@/lib/rosterVisibility';
@@ -25,13 +26,13 @@ export async function viewerIsClanInsider(clanId: number): Promise<boolean> {
   return !!row?.platformRole && row.platformRole !== 'none';
 }
 
-/** Every live-seated character of this clan whose "Show publicly" switch is off, as name keys. */
+/** Every live-seated character of this clan whose "Show publicly" switch is off, or whose owner is banned from the platform, as name keys. */
 export async function unsharedRosterNames(clanId: number): Promise<Set<string>> {
   const rows = await db
     .select({ rsn: accounts.rsn })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-    .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), clanSeat(), eq(accounts.shared, false)));
+    .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), clanSeat(), or(eq(accounts.shared, false), not(ownerNotBanned))));
   return hiddenNameSet(rows.map((r) => r.rsn));
 }
 
@@ -47,12 +48,17 @@ export async function hiddenNamesForViewer(clanId: number, insider?: boolean): P
 
 /**
  * Is this one character's page in this clan closed to the viewer? True when its owner switched
- * "Show publicly" off and the viewer is outside the clan. (Covers a departed seat too, which the
+ * "Show publicly" off, or was banned from the platform, and the viewer is outside the clan. (Covers a departed seat too, which the
  * roster list above does not carry.)
  */
 export async function characterHiddenFromViewer(clanId: number, accountId: number, insider?: boolean): Promise<boolean> {
-  // clan-scope: global -- one account's own switch, read by its id.
-  const row = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { shared: true } });
-  if (!row || row.shared) return false;
+  // clan-scope: global -- one account's own switch and its owner's platform ban, read by its id.
+  const [row] = await db
+    .select({ shared: accounts.shared, banned: players.banned })
+    .from(accounts)
+    .innerJoin(players, eq(players.id, accounts.playerId))
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+  if (!row || (row.shared && !row.banned)) return false;
   return !(insider ?? (await viewerIsClanInsider(clanId)));
 }

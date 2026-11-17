@@ -23,6 +23,7 @@ import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, memberDailyStats, settings } from '@/db/schema';
+import { ownerNotBanned } from '@/lib/bannedPeople';
 import { isClanListed, listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { slugIn } from '@/lib/clanSlugLookup';
 import { apexDomain } from '@/lib/clanContext';
@@ -246,6 +247,7 @@ export async function topPlayers(
     .where(
       and(
         eq(accounts.shared, true),
+        ownerNotBanned,
         since ? gte(memberDailyStats.day, since) : sql`true`,
         // Only a clan has members to rank; a same-slug space must not pull its namesake's rows in.
         clanSlug ? slugIn(clanSlug, 'clan') : sql`true`,
@@ -338,6 +340,7 @@ export async function standingFor(
     .where(
       and(
         eq(accounts.shared, true),
+        ownerNotBanned,
         inArray(accounts.id, accountIds),
         since ? gte(memberDailyStats.day, since) : sql`true`,
       ),
