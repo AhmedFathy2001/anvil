@@ -10,6 +10,7 @@
 // searches: the clan's own task library and the starter tasks (already fully configured), the item
 // catalogue, the collection-log pages, and which items a monster drops.
 
+import { readQuickLine } from '@/lib/quickAddLine';
 import { getItemMapping, isDroppableItem, itemsByName, type MappingItem } from '@/lib/osrsItems';
 import { listLibrary } from '@/lib/tileLibrary';
 import { listAnvilTasks } from '@/lib/libraryTasks';
@@ -94,6 +95,8 @@ export interface BulkLineResult {
   line: string;
   text: string;
   points: number | null;
+  /** The tile's own name when the line gave one ("… called Rumour mill", lib/quickAddLine). */
+  name: string | null;
   status: LineStatus;
   /** The tile this line becomes when it's ready, or the options when it isn't. */
   choices: TaskSuggestion[];
@@ -105,9 +108,9 @@ export interface BulkLineResult {
 export async function suggestBulk(clanId: number, lines: string[]): Promise<BulkLineResult[]> {
   const ctx = await contextFor(clanId);
   return lines.map((line) => {
-    const { text, points } = parseBulkLine(line);
+    const { text, points, name } = readQuickLine(line, parseBulkLine);
     const verdict = classifyMatches(matchTasks(text, ctx));
-    return { line, text, points, status: verdict.status, choices: verdict.choices, fallback: screenshotCandidate(text) };
+    return { line, text, points, name, status: verdict.status, choices: verdict.choices, fallback: screenshotCandidate(text) };
   });
 }
 

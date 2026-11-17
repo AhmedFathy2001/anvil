@@ -6,6 +6,7 @@ import { useModalA11y } from '@/hooks/useModalA11y';
 import { draftToCsvRow, howItCountsLine, type TileDraft } from '@/lib/tileCreatorConfig';
 import { comboRuleLead } from '@/lib/combo';
 import { findDuplicates, reconcileTypedAmount } from '@/lib/quickAdd';
+import { spokenToLines } from '@/lib/quickAddLine';
 import { useGuardedClose } from '@/components/UnsavedChanges';
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { BulkLineResult } from '@/lib/taskSuggest';
@@ -32,8 +33,27 @@ function settle(text: string, c: TaskCandidate): { chosen: TaskCandidate; note: 
   return { chosen: r.candidate, note: r.note };
 }
 
-function draftOf(c: TaskCandidate, points: number | null): TileDraft {
-  return { label: c.title, config: c.config, points, trackingMode: 'team', category: c.tileCategory ?? null };
+/** `name` is the line's own name for its tile (lib/quickAddLine); without one the task's title is the name. */
+function draftOf(c: TaskCandidate, points: number | null, name?: string | null): TileDraft {
+  return { label: name?.trim() || c.title, config: c.config, points, trackingMode: 'team', category: c.tileCategory ?? null };
+}
+
+// The browser's speech recognition, typed only as far as this dialog uses it (no DOM lib type for it).
+interface SpeechRec {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+function speechCtor(): (new () => SpeechRec) | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
 /**
@@ -75,6 +95,68 @@ export default function BulkQuickAdd({
   const [editing, setEditing] = useState<number | null>(null);
   const seq = useRef(0);
 
+  // Speaking the list (the browser's own speech recognition, where it has one). Each finished phrase
+  // is turned into list lines (lib/quickAddLine spokenToLines) and added under what is already there,
+  // so it goes through the same checking as a typed line and can be fixed by hand.
+  const [canSpeak, setCanSpeak] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [hearing, setHearing] = useState('');
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const recognition = useRef<SpeechRec | null>(null);
+  useEffect(() => {
+    setCanSpeak(!!speechCtor());
+    return () => recognition.current?.abort();
+  }, []);
+
+  function toggleSpeech() {
+    if (listening) {
+      recognition.current?.stop();
+      return;
+    }
+    const Ctor = speechCtor();
+    if (!Ctor) return;
+    const rec = new Ctor();
+    rec.continuous = true;
+    rec.interimResults = true;
+    // Game words are English whatever the browser's language is.
+    rec.lang = typeof navigator !== 'undefined' && /^en\b/i.test(navigator.language) ? navigator.language : 'en-US';
+    rec.onresult = (e) => {
+      let live = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const said = e.results[i][0]?.transcript ?? '';
+        if (!e.results[i].isFinal) {
+          live += said;
+          continue;
+        }
+        const added = spokenToLines(said);
+        if (added.length) setText((prev) => `${prev.replace(/\s+$/, '')}${prev.trim() ? '\n' : ''}${added.join('\n')}\n`);
+      }
+      setHearing(live);
+    };
+    rec.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      setSpeechError(
+        e.error === 'not-allowed' || e.error === 'service-not-allowed'
+          ? 'The microphone is blocked for this site. Allow it in your browser’s address bar, then try again.'
+          : e.error === 'audio-capture'
+            ? 'No microphone was found.'
+            : 'Could not hear that. Try again, or type the list.',
+      );
+    };
+    rec.onend = () => {
+      setListening(false);
+      setHearing('');
+    };
+    recognition.current = rec;
+    setSpeechError(null);
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setSpeechError('Could not start listening. Try again.');
+    }
+  }
+
   const defaultPoints = Math.max(1, bands.find((b) => b.key === defaultBand)?.min ?? 1);
   const lines = useMemo(() => text.split('\n').map((l) => l.trim()).filter(Boolean), [text]);
   const linesKey = lines.join('\n');
@@ -108,7 +190,7 @@ export default function BulkQuickAdd({
             const picked = r.status === 'ready' ? r.choices[0] : r.status === 'screenshot' ? r.fallback : null;
             if (!picked) return { ...r, chosen: null, draft: null };
             const { chosen, note } = settle(r.text, picked);
-            return { ...r, chosen, note, draft: draftOf(chosen, r.points) };
+            return { ...r, chosen, note, draft: draftOf(chosen, r.points, r.name) };
           }),
         );
       } catch {
@@ -148,7 +230,7 @@ export default function BulkQuickAdd({
       prev.map((r, j) => {
         if (j !== i) return r;
         const { chosen, note } = settle(r.text, c);
-        return { ...r, chosen, note, draft: draftOf(chosen, r.points), manual: true };
+        return { ...r, chosen, note, draft: draftOf(chosen, r.points, r.name), manual: true };
       }),
     );
   }
@@ -156,7 +238,7 @@ export default function BulkQuickAdd({
   async function addRows(which: 'settled' | 'all') {
     const list = rows
       .filter((r) => !r.skipped)
-      .map((r) => r.draft ?? (which === 'all' ? draftOf(r.choices[0] ?? r.fallback, r.points) : null))
+      .map((r) => r.draft ?? (which === 'all' ? draftOf(r.choices[0] ?? r.fallback, r.points, r.name) : null))
       .filter((d): d is TileDraft => !!d);
     if (list.length === 0) return;
     setAdding(true);
@@ -240,7 +322,22 @@ export default function BulkQuickAdd({
         ) : (
           <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] overflow-y-auto lg:overflow-hidden">
             <div className="p-4 sm:p-5 lg:border-r border-card-border lg:overflow-y-auto">
-              <label htmlFor="bulk-paste" className="block text-sm font-semibold mb-2">Your list</label>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label htmlFor="bulk-paste" className="block text-sm font-semibold">Your list</label>
+                {canSpeak && (
+                  <button
+                    type="button"
+                    onClick={toggleSpeech}
+                    aria-pressed={listening}
+                    className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      listening ? 'border-red-400/60 bg-red-500/10 text-red-300' : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'
+                    }`}
+                  >
+                    <span aria-hidden className={`h-2 w-2 rounded-full ${listening ? 'animate-pulse bg-red-400' : 'bg-text-muted'}`} />
+                    {listening ? 'Stop listening' : 'Speak the list'}
+                  </button>
+                )}
+              </div>
               <textarea
                 id="bulk-paste"
                 autoFocus
@@ -250,7 +347,14 @@ export default function BulkQuickAdd({
                 placeholder={'25 Hunter rumours\n150 herbiboars\n5 CoX or ToB, no Entry Mode – 30 pts'}
                 className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm leading-6 font-mono focus:border-gold focus:outline-none"
               />
+              {listening && (
+                <p className="mt-1.5 text-xs text-red-300" aria-live="polite">
+                  Listening… {hearing ? <span className="text-foreground/80">{hearing}</span> : `Say a tile, then “next”.${pointsMode ? ' Add “twenty points” for its points.' : ''} “Called …” names it.`}
+                </p>
+              )}
+              {speechError && <p className="mt-1.5 text-xs text-red-400">{speechError}</p>}
               {pointsMode && <p className="mt-1.5 text-xs text-text-muted">Tip: add “– 20 pts” to a line to set its points.</p>}
+              <p className="mt-1.5 text-xs text-text-muted">To name a tile yourself, end its line with “called Rumour mill”.</p>
             </div>
 
             <div className="p-4 sm:p-5 lg:overflow-y-auto min-w-0">

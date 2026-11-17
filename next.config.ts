@@ -15,7 +15,9 @@ const SECURITY_HEADERS = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+  // The microphone is allowed for the site's OWN pages only (never an embedded frame): the tile
+  // quick-add's "Speak the list" uses the browser's speech recognition. The browser still asks the person.
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=(), payment=()' },
   // Two years, every subdomain (every clan host is HTTPS behind Cloudflare). Not `preload`: that is
   // a one-way submission to the browsers' lists and wants deciding on its own.
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
