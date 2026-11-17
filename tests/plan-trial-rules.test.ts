@@ -251,8 +251,8 @@ test('the wording says what happens to the card before the button is pressed', (
   const sub = buyWording({ kind: 'subscribe', url: 'b' }, { tierName: 'Silver', charge })!;
   assert.deepEqual(sub.primary, { label: 'Subscribe to Silver', href: 'b' });
   assert.equal(sub.secondary, null);
-  assert.equal(sub.note, "You'll be charged $6.99 today, then every month. No free trial: cancel any time on Gumroad.");
-  assert.ok(!/free(?! trial)/i.test(sub.note.replace('No free trial', '')), 'never "free" for something that is charged');
+  assert.equal(sub.note, "You'll be charged $6.99 today, then every month. Cancel any time on Gumroad.");
+  assert.ok(!/free/i.test(sub.note), 'never "free" for something that is charged');
 
   const soon = buyWording({ kind: 'soon' }, { tierName: 'Gold', charge: chargeText(14.99) })!;
   assert.deepEqual(soon.primary, { label: 'Subscribing opens soon', href: null });
