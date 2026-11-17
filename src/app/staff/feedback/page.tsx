@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  * This lived in each clan's admin area, where it was somebody else's job on somebody else's screen:
  * the reports are about ANVIL, and on one site there is one product and one operator. A clan admin
  * could set a status and write private notes on a bug they cannot fix, then "elevate" it — a POST to
- * the separate Anvil.Admin control plane, forwarding a row to another service to tell it something
+ * a separate control plane (since retired), forwarding a row to another service to tell it something
  * this database already holds, now that the operator reads this same database here.
  *
  * So the triage moved and the forwarding went away. What did NOT move is the intake: members still

@@ -2776,8 +2776,8 @@ export const libraryProposals = pgTable('library_proposals', {
   index('library_proposals_proposer_idx').on(table.proposerUserId, table.status),
 ]);
 
-// User-submitted bug reports & feedback. Lives in EACH clan instance; the clan's admins triage it
-// here. An admin can ELEVATE a report to the central Anvil.Admin so the operator sees it across
+// User-submitted bug reports & feedback. Triage happens on /staff/feedback. The elevate columns are
+// from the retired control plane, where an admin could ELEVATE a report so the operator saw it across
 // clans — available on managed hosting only (elevation is disabled on self-hosted instances, which
 // have no ANVIL_ADMIN_FEEDBACK_URL configured).
 export const feedback = pgTable('feedback', {
