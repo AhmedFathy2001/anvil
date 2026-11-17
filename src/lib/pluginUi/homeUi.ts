@@ -560,9 +560,14 @@ function firstText(n: Node): string | null {
 function weeklyRow(d: HomeData, w: ScheduleWeekly): Node {
   const upcoming = w.status !== 'active';
   const s = d.weekly.get(w.id);
-  const lines: Node[] = [row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, upcoming ? clock(w.startDate, 'Starts in ', 'Starting…', d.now) : clock(w.endDate, 'Ends in ', 'Ended', d.now))];
+  const name = w.title || weeklyKind(w.type);
+  const when = () => (upcoming ? clock(w.startDate, 'Starts in ', 'Starting…', d.now) : clock(w.endDate, 'Ends in ', 'Ended', d.now));
+  // A title that already names the metric ("Pet hunt: Pet chaos elemental") does not get it again,
+  // clipped, on the line below: the picture and the clock take the line.
+  const named = name.toLowerCase().includes(w.metricLabel.toLowerCase());
+  const lines: Node[] = [named ? row(weeklyIcon(w), when(), undefined, { gap: 6 }) : row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, when())];
   if (!upcoming) lines.push(withMove(small(clip(yourWeeklyLine(w, s), 32), s?.you ? GOLD : FAINT), s?.you?.move));
-  return openRow(text(clip(w.title || weeklyKind(w.type), 24), '#e6e6e6'), undefined, lines, home(`weekly:${w.id}`), w.title || weeklyKind(w.type));
+  return openRow(text(name, '#e6e6e6', { wrap: 170 }), undefined, lines, home(`weekly:${w.id}`), name);
 }
 
 /** A bingo on the clan's schedule: your team on it opens the board, else its page. */
@@ -1138,6 +1143,14 @@ const tileTip = (t: PanelTile) => (t.description?.trim() && t.description.trim()
 
 // ---- A weekly, and a bingo on the schedule -----------------------------------------------------
 
+/** "21 Nov 20:00": a date and time in UTC, short enough for the panel. */
+const utcDayTime = (iso: string): string => {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return '?';
+  const day = t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return `${day} ${t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`;
+};
+
 function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const upcoming = w.status !== 'active';
   const s = d.weekly.get(w.id);
@@ -1146,7 +1159,13 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const parts: Node[] = [pageHead(home(), 'All events', weeklyKind(w.type), w.title || `${w.metricLabel} week`)];
   const you = s?.you;
   const top: Node[] = upcoming
-    ? [row(undefined, clock(w.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })), muted('No standings until it starts.')]
+    ? [
+        // Each on its own line: side by side the clock and the name clipped each other ("Starts in 4…").
+        clock(w.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }),
+        text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 }),
+        muted(`${utcDayTime(w.startDate)} to ${utcDayTime(w.endDate)} UTC`, { wrap: true }),
+        muted('Standings appear here when it starts.', { wrap: true }),
+      ]
     : [
         row(undefined, withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
