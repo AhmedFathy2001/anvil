@@ -22,6 +22,7 @@ let combo: typeof import('../src/lib/comboCompletion.ts');
 let tick: typeof import('../src/lib/raceEaseTick.ts');
 
 let eventId: number;
+let clanId: number;
 let red: number;
 let blue: number;
 const ids: Record<string, number> = {};
@@ -55,6 +56,7 @@ before(async () => {
   tick = await import('../src/lib/raceEaseTick.ts');
 
   const [clan] = await db.insert(s.clans).values({ slug: 'ease', name: 'Ease Test' }).returning();
+  clanId = clan.id;
   // Started 30 hours ago: with a 24-hour interval the race is on easing tick 1.
   const [ev] = await db
     .insert(s.events)
@@ -189,6 +191,35 @@ test('the minute tick announces each easing interval once', async () => {
   // Two intervals on: tile two's option opens (tile one's has no second level).
   assert.equal(await tick.processRaceEasing(Date.now() + 24 * H), 1);
   assert.equal((await event()).raceEaseTick, 2);
+});
+
+test('the plugin config watches an easier option only once it is live for that team, folded under its tile', async () => {
+  // Red is on tile three. Give it a drop-kind easier option and one lifeline.
+  const [opt] = await db
+    .insert(s.tiles)
+    .values({ eventId, position: 2, label: 'Easy three drop', tileType: 'drop', trackedItemIds: '[4151]', requiredAmount: 1, parentTileId: ids.three, easeLevel: 1, points: 0 })
+    .returning();
+  await setRules({ raceLifelines: { count: 2, afterHours: 0, opens: 'first' } });
+  const enrolled = await import('../src/lib/pluginConfigEnrolled.ts');
+  const clanCtx = await import('../src/lib/clanContext.ts');
+  const clan = (await clanCtx.resolveClanById(clanId))!;
+  const config = async (teamId: number) => {
+    const cfg = await enrolled.buildEnrolledConfig({ eventId, teamId, clan, viewer: null });
+    assert.ok(cfg.ok);
+    return cfg.body as unknown as { trackedDrops?: { tileId?: number; partOf?: number }[] };
+  };
+  assert.ok(!JSON.stringify(await config(red)).includes('Easy three drop'), 'locked: the plugin never hears its name');
+
+  assert.equal((await ease.spendLifeline(await event(), red, ids.three, null)).ok, true);
+  const mine = await config(red);
+  const row = (mine.trackedDrops ?? []).find((d) => d.tileId === opt.id);
+  assert.ok(row, 'live: it rides the tracked drops');
+  assert.equal(row!.partOf, ids.three, 'tagged with its tile, so the plugin folds it and stops when the tile is done');
+  assert.ok(!JSON.stringify(await config(blue)).includes('Easy three drop'), 'another team still never hears of it');
+
+  // The tile finished (either way): the option is no longer worth watching.
+  assert.equal(await finish(red, ids.three), true);
+  assert.ok(!((await config(red)).trackedDrops ?? []).some((d) => d.tileId === opt.id));
 });
 
 test('once the race is over nothing is hidden', async () => {
