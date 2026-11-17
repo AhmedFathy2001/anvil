@@ -11,10 +11,17 @@ import {
   type HuntConfig,
   type HuntDrop,
   bossKeyForSource,
+  BURST_LIMIT,
+  awaitingConfirmation,
   countedDrops,
+  dropFlag,
   dropOriginWords,
   dropStatWords,
-  endOnFirstAt,
+  endingDrop,
+  huntEndingWords,
+  huntEndsAt,
+  serverDropKey,
+  unconfirmedPrizeDrops,
   huntFromInput,
   huntStat,
   huntTargetsLabel,
@@ -37,7 +44,8 @@ const base = (over: Partial<HuntConfig> = {}): HuntConfig => ({
   items: [{ id: ONYX, name: 'Uncut onyx', sources: ['Zulrah'], count: 'drops' }],
   petGroup: null,
   rule: 'most',
-  endOnFirst: false,
+  ends: { kind: 'date' },
+  confirm: 'staff',
   killsOf: 'zulrah',
   xpSkill: null,
   ...over,
@@ -65,6 +73,8 @@ const drop = (rsn: string, hours: number, over: Partial<HuntDrop> = {}): HuntDro
   occurredAt: at(hours),
   origin: 'plugin',
   status: 'counted',
+  confirmed: false,
+  flagReason: null,
   approvedBy: null,
   screenshotUrl: null,
   note: null,
@@ -81,16 +91,29 @@ test('the form has to say where an item counts from', () => {
   assert.equal(noChoice.ok, false);
   const any = huntFromInput({ target: 'items', rule: 'most', items: [{ id: ONYX, name: 'Uncut onyx', sources: [], anySource: true }] });
   assert.equal(any.ok, true);
-  const picked = huntFromInput({ target: 'items', rule: 'first', endOnFirst: true, items: [{ id: ONYX, name: 'Uncut onyx', sources: ['Zulrah', 'zulrah ', 'Sol Heredit'] }] });
+  const picked = huntFromInput({ target: 'items', rule: 'first', ends: { kind: 'drops', n: 1 }, items: [{ id: ONYX, name: 'Uncut onyx', sources: ['Zulrah', 'zulrah ', 'Sol Heredit'] }] });
   assert.ok(picked.ok);
   assert.deepEqual(picked.config.items[0].sources, ['Zulrah', 'Sol Heredit']);
-  assert.equal(picked.config.endOnFirst, true);
+  assert.deepEqual(picked.config.ends, { kind: 'drops', n: 1, by: 'all' });
+  assert.equal(picked.config.confirm, 'staff');
 });
 
-test('"end when the first one lands" only exists under "first to get it"', () => {
-  const r = huntFromInput({ target: 'pets', petGroup: 'all', rule: 'most', endOnFirst: true });
-  assert.ok(r.ok);
-  assert.equal(r.config.endOnFirst, false);
+test('how it ends: the end date by default, or a number of drops; staff confirm unless the clan says otherwise', () => {
+  const plain = huntFromInput({ target: 'pets', petGroup: 'all', rule: 'most' });
+  assert.ok(plain.ok);
+  assert.deepEqual(plain.config.ends, { kind: 'date' });
+  assert.equal(plain.config.confirm, 'staff');
+  const n = huntFromInput({ target: 'pets', petGroup: 'all', rule: 'most', ends: { kind: 'drops', n: 5.7, by: 'player' }, confirm: 'auto' });
+  assert.ok(n.ok);
+  assert.deepEqual(n.config.ends, { kind: 'drops', n: 5, by: 'player' });
+  assert.equal(n.config.confirm, 'auto');
+  const zero = huntFromInput({ target: 'pets', petGroup: 'all', rule: 'first', ends: { kind: 'drops', n: 0 } });
+  assert.ok(zero.ok);
+  assert.deepEqual(zero.config.ends, { kind: 'drops', n: 1, by: 'all' });
+  assert.equal(huntEndingWords({ kind: 'date' }), 'at the end date');
+  assert.equal(huntEndingWords({ kind: 'drops', n: 1, by: 'all' }), 'when the first one lands');
+  assert.equal(huntEndingWords({ kind: 'drops', n: 3, by: 'all' }), 'after 3 drops');
+  assert.equal(huntEndingWords({ kind: 'drops', n: 5, by: 'player' }), 'when one player has 5');
 });
 
 test('a hunt needs a rule, a target and a known pet group', () => {
@@ -286,15 +309,120 @@ test('everyone without a drop follows, driest first', () => {
   assert.equal(rows[1].statGain, 412);
 });
 
-test('end when the first one lands: only the first drop counts', () => {
-  const cfg = base({ rule: 'first', endOnFirst: true });
-  const drops = [drop('later', 3), drop('winner', 1), drop('winner', 2)];
-  assert.equal(endOnFirstAt(cfg, drops, window), at(1));
-  const rows = rankHunt(cfg, entrants('later', 'winner'), drops, window);
-  assert.deepEqual(rows.map((r) => [r.rsn, r.count]), [['winner', 1], ['later', 0]]);
-  // Off by default: it keeps running and lists the finishers in order.
-  assert.equal(endOnFirstAt(base({ rule: 'first' }), drops, window), null);
-  assert.equal(endOnFirstAt(base({ rule: 'most', endOnFirst: true }), drops, window), null);
+// ── How it ends ──────────────────────────────────────────────────────────────────────────────
+
+const firstLands = (over: Partial<HuntConfig> = {}) => base({ rule: 'first', ends: { kind: 'drops', n: 1, by: 'all' }, ...over });
+
+test('at the end date: no drop ever ends it', () => {
+  const drops = [drop('a', 1, { confirmed: true }), drop('b', 2, { confirmed: true })];
+  assert.equal(huntEndsAt(base(), drops, window), null);
+  assert.deepEqual(awaitingConfirmation(base(), drops, window), []);
+});
+
+test('when the first one lands, staff confirming: a report alone never ends the hunt', () => {
+  const reported = [drop('later', 3), drop('winner', 1)];
+  assert.equal(huntEndsAt(firstLands(), reported, window), null);
+  assert.deepEqual(awaitingConfirmation(firstLands(), reported, window).map((d) => d.rsnKey), ['winner']);
+  // It keeps running and counting: both are in the standings, in order.
+  assert.deepEqual(rankHunt(firstLands(), entrants('later', 'winner'), reported, window).map((r) => [r.rsn, r.count]), [['winner', 1], ['later', 1]]);
+  // Staff confirm the first drop: that is what ends it, at the drop's own time.
+  const confirmed = [drop('later', 3), drop('winner', 1, { confirmed: true })];
+  assert.equal(huntEndsAt(firstLands(), confirmed, window), at(1));
+  assert.deepEqual(awaitingConfirmation(firstLands(), confirmed, window), []);
+  // Staff reject it instead: it leaves the standings and the next drop is the one waiting.
+  const rejected = [drop('later', 3), drop('winner', 1, { status: 'rejected' })];
+  assert.equal(huntEndsAt(firstLands(), rejected, window), null);
+  assert.deepEqual(awaitingConfirmation(firstLands(), rejected, window).map((d) => d.rsnKey), ['later']);
+});
+
+test('confirming a later drop does not end the hunt past an earlier one still open', () => {
+  const drops = [drop('early', 1), drop('late', 2, { confirmed: true })];
+  assert.equal(huntEndsAt(firstLands(), drops, window), null);
+});
+
+test('count plugin drops automatically: the deciding drop ends it by itself', () => {
+  const cfg = firstLands({ confirm: 'auto' });
+  assert.equal(huntEndsAt(cfg, [drop('later', 3), drop('winner', 1)], window), at(1));
+  assert.deepEqual(awaitingConfirmation(cfg, [drop('winner', 1)], window), []);
+  // A held report is not counted, so it cannot end the hunt even in this mode.
+  assert.equal(huntEndsAt(cfg, [drop('held', 1, { status: 'review', flagReason: 'x' })], window), null);
+  // Nor can a member's proof that staff have not approved.
+  assert.equal(huntEndsAt(cfg, [drop('asked', 1, { origin: 'manual', status: 'pending' })], window), null);
+});
+
+test('after N drops: N across everyone, at the Nth drop', () => {
+  const cfg = base({ ends: { kind: 'drops', n: 3, by: 'all' }, confirm: 'auto' });
+  assert.equal(huntEndsAt(cfg, [drop('a', 1), drop('b', 2)], window), null);
+  const three = [drop('a', 1), drop('b', 2), drop('a', 4), drop('c', 5)];
+  assert.equal(huntEndsAt(cfg, three, window), at(4));
+  assert.equal(endingDrop(cfg, three, window)?.deciding.length, 3);
+});
+
+test('after N drops by one player: first to N', () => {
+  const cfg = base({ ends: { kind: 'drops', n: 2, by: 'player' }, confirm: 'auto' });
+  const drops = [drop('a', 1), drop('b', 2), drop('c', 3), drop('b', 6), drop('a', 7)];
+  assert.equal(huntEndsAt(cfg, drops, window), at(6));
+});
+
+test('after N drops, staff confirming: every drop the result rests on has to be confirmed', () => {
+  const cfg = base({ ends: { kind: 'drops', n: 2, by: 'all' } });
+  const one = [drop('a', 1, { confirmed: true }), drop('b', 2)];
+  assert.equal(huntEndsAt(cfg, one, window), null);
+  assert.deepEqual(awaitingConfirmation(cfg, one, window).map((d) => d.rsnKey), ['b']);
+  assert.equal(huntEndsAt(cfg, [drop('a', 1, { confirmed: true }), drop('b', 2, { confirmed: true })], window), at(2));
+});
+
+test('quantity mode counts the stack toward N', () => {
+  const cfg = base({ items: [{ id: ONYX, name: 'Uncut onyx', sources: ['Zulrah'], count: 'quantity' }], ends: { kind: 'drops', n: 5, by: 'all' }, confirm: 'auto' });
+  assert.equal(huntEndsAt(cfg, [drop('a', 1, { quantity: 3 }), drop('b', 2, { quantity: 2 }), drop('c', 3)], window), at(2));
+});
+
+// ── Trust ────────────────────────────────────────────────────────────────────────────────────
+
+test('prizes wait for the winners\' drops to be confirmed, unless the clan chose automatic', () => {
+  const drops = [drop('first', 1, { confirmed: true }), drop('second', 2), drop('third', 3)];
+  const rows = rankHunt(base({ rule: 'first' }), entrants('first', 'second', 'third'), drops, window);
+  assert.deepEqual(unconfirmedPrizeDrops(base({ rule: 'first' }), rows, 1), []);
+  assert.deepEqual(unconfirmedPrizeDrops(base({ rule: 'first' }), rows, 2).map((d) => d.rsnKey), ['second']);
+  assert.deepEqual(unconfirmedPrizeDrops(base({ rule: 'first', confirm: 'auto' }), rows, 3), []);
+  // A place nobody won holds nothing up.
+  assert.deepEqual(unconfirmedPrizeDrops(base(), rankHunt(base(), entrants('nobody'), [], window), 3), []);
+});
+
+test('the stored key is built on the server from what happened, in ten-second buckets', () => {
+  const t = Date.parse('2026-11-10T12:00:03Z');
+  const a = serverDropKey({ kind: 'drop', itemId: ONYX, itemName: 'Uncut onyx', source: 'Zulrah' }, t);
+  assert.equal(a, `drop|${ONYX}|zulrah|${Math.floor(t / 10_000)}`);
+  // The same drop reported again a few seconds on is the same key; a different source or a later
+  // bucket is not. Nothing the client calls it is part of it.
+  assert.equal(serverDropKey({ kind: 'drop', itemId: ONYX, itemName: null, source: ' ZULRAH ' }, t + 4_000), a);
+  assert.notEqual(serverDropKey({ kind: 'drop', itemId: ONYX, itemName: null, source: 'Sol Heredit' }, t), a);
+  assert.notEqual(serverDropKey({ kind: 'drop', itemId: ONYX, itemName: null, source: 'Zulrah' }, t + 10_000), a);
+  assert.equal(serverDropKey({ kind: 'pet', itemId: null, itemName: null, source: null }, t), `pet|||${Math.floor(t / 10_000)}`);
+});
+
+test('a report that looks wrong is held for staff with the reason', () => {
+  const ok = { reportedKc: 512, singleBoss: true, baseline: 400, current: 510, recentSameItem: 0 };
+  assert.equal(dropFlag(ok), null);
+  // Below the site's own reading.
+  assert.match(dropFlag({ ...ok, reportedKc: 300 })!, /below the site's reading of 510/);
+  // Far above it. A normal hiscores lag is not "far".
+  assert.equal(dropFlag({ ...ok, reportedKc: 560 }), null);
+  assert.match(dropFlag({ ...ok, reportedKc: 5000 })!, /far above/);
+  // No kill at the source since the hunt started, and the report does not say otherwise.
+  assert.match(dropFlag({ ...ok, current: 400, reportedKc: null })!, /No kills at the source/);
+  assert.match(dropFlag({ ...ok, current: 400, reportedKc: 400 })!, /No kills at the source/);
+  // The plugin's own count is past the starting line: the hiscores just have not caught up.
+  assert.equal(dropFlag({ ...ok, current: 400, reportedKc: 401 }), null);
+  // Too many of one item in a short window.
+  assert.match(dropFlag({ ...ok, recentSameItem: BURST_LIMIT })!, /within 10 minutes/);
+  assert.equal(dropFlag({ ...ok, recentSameItem: BURST_LIMIT - 1 }), null);
+});
+
+test('kill-count checks only run against one boss with a starting line', () => {
+  // Several bosses summed, a non-boss source, or no reading yet: nothing to compare with.
+  assert.equal(dropFlag({ reportedKc: 3, singleBoss: false, baseline: 400, current: 400, recentSameItem: 0 }), null);
+  assert.equal(dropFlag({ reportedKc: 3, singleBoss: true, baseline: null, current: null, recentSameItem: 0 }), null);
 });
 
 test('quantity mode adds up the stack; the default counts each drop once', () => {
@@ -311,6 +439,7 @@ test('a staff-added drop counts like any other and says who approved it', () => 
   assert.deepEqual(rows.map((r) => r.rsn), ['noplugin', 'plugin']);
   assert.equal(dropOriginWords(added), 'manual proof (approved by Olive Owner)');
   assert.equal(dropOriginWords(drop('x', 1)), 'plugin');
+  assert.equal(dropOriginWords(drop('x', 1, { confirmed: true, approvedBy: 'Olive Owner' })), 'plugin (confirmed by Olive Owner)');
 });
 
 test('the number a drop landed at reads as kill count or XP, or not at all', () => {

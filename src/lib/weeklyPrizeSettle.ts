@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
 import { countsTowardLeaderboard } from '@/lib/weekly';
-import { competitionBoard } from '@/lib/itemHuntDb';
+import { competitionBoard, huntPrizeHolds } from '@/lib/itemHuntDb';
 import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
@@ -56,6 +56,14 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
     return { settled: true, reserved: 0, unfunded: 0 };
   }
 
+  // AN ITEM HUNT PAYS ONLY ON DROPS STAFF HAVE CONFIRMED. A plugin report is the client's word, so
+  // while any drop behind a prize-winning place is unconfirmed nothing is reserved and nothing is
+  // stamped: the pass comes back every tick, and settles the moment staff have confirmed (or turned
+  // down) those drops on the hunt's page. The ladder's hold stays in place meanwhile.
+  if (comp.type === 'hunt' && (await huntPrizeHolds(comp, prizes.places.length)).length > 0) {
+    return { settled: false, reserved: 0, unfunded: 0 };
+  }
+
   // The same rows the board is built from, so the payout cannot disagree with what people watched.
   // clan-scope: this clan -- narrowed to this competition's participants, which are its clan's.
   const rows = await db
@@ -80,9 +88,13 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   const eligible = rows.filter((r) => r.seatKind !== 'event' && (comp.includeGuests === 1 || r.seatKind !== 'guest'));
   const byRsn = new Map(eligible.map((r) => [r.rsn, r]));
   // competitionBoard: an item hunt places by its drops (lib/itemHuntDb), everything else by the gain.
-  const standings = (await competitionBoard(comp, eligible)).map((e) => ({
+  const board = await competitionBoard(comp, eligible);
+  const standings = board.map((e, i) => ({
     rsn: e.rsn,
-    gained: e.gained,
+    // A hunt's order is its rule's (first drop, or count then time), which the count alone cannot
+    // say: two finishers of a "first to get it" hunt both hold one drop and are not tied. So each
+    // placed hunter gets a strictly descending figure and "split ties" finds no tie to split.
+    gained: comp.type === 'hunt' ? (e.gained > 0 ? board.length - i : 0) : e.gained,
     clanMemberId: byRsn.get(e.rsn)?.clanMemberId ?? null,
   }));
 

@@ -19,6 +19,8 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import HuntFields, { DEFAULT_HUNT, huntPayload, huntUnchosen, type HuntFormValue } from '@/components/weekly/HuntFields';
+import { PET_GROUPS } from '@/lib/petGroups';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
 import { useDirtyForm, useUnsavedChanges } from '@/components/UnsavedChanges';
@@ -58,7 +60,7 @@ interface EventFormProps {
    */
   /** Empty stretch from the schedule's "Fill the gap" (validated days): the dates start filled in. */
   gapPrefill?: { start: string; end: string | null } | null;
-  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency'; placement?: 'solo' };
+  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo' };
 }
 
 /**
@@ -83,7 +85,20 @@ const WEEKLY_KINDS = [
   { type: 'skill' as const, label: 'Skill of the Week', chips: 'everyone · xp gained', defaultMetric: 'attack' },
   { type: 'boss' as const, label: 'Boss of the Week', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
   { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · Hours played / Hours bossed', defaultMetric: 'ehp' },
+  // Ranked by drops, not by a hiscores gain: its own fields (components/weekly/HuntFields).
+  { type: 'hunt' as const, label: 'Item hunt', chips: 'everyone · an item or a pet, first or most', defaultMetric: '' },
 ];
+type WeeklyType = (typeof WEEKLY_KINDS)[number]['type'];
+
+/** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Any pet". */
+function huntName(hunt: HuntFormValue): string {
+  if (hunt.target === 'pets') {
+    const group = PET_GROUPS.find((g) => g.key === hunt.petGroup);
+    return `Pet hunt: ${!group || group.key === 'all' ? 'Any pet' : group.label}`;
+  }
+  if (hunt.items.length === 0) return 'Item hunt';
+  return `Item hunt: ${hunt.items.slice(0, 2).map((i) => i.name).join(' + ')}${hunt.items.length > 2 ? ' + more' : ''}`;
+}
 
 /** One "this costs you" row in the panel. */
 function SpecRow({ label, value }: { label: string; value: string }) {
@@ -229,12 +244,17 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   }, [gapPrefill]);
   // A weekly competition is an event too — same page, same name field, same schedule. It just
   // stores itself in the competition tables, so picking one of these switches where we POST.
-  const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(
+  const [weeklyType, setWeeklyType] = useState<WeeklyType | null>(
     // In weekly-only mode the board half of the form is not rendered at all, so starting with no
     // kind chosen would leave a form with no format picker and no format.
     chosenWeekly ? chosenWeekly.type : weeklyOnly ? WEEKLY_KINDS[0].type : null,
   );
   const [weeklyMetric, setWeeklyMetric] = useState(chosenWeekly?.defaultMetric ?? 'attack');
+  // Item hunt: what is hunted, where each item counts from, the rule and how it ends.
+  const [hunt, setHunt] = useState<HuntFormValue>(DEFAULT_HUNT);
+  const isHunt = weeklyType === 'hunt';
+  /** The competition's default name, for the placeholder and for a name nobody typed. */
+  const weeklyName = (type: WeeklyType, metric: string, h: HuntFormValue = hunt) => (type === 'hunt' ? huntName(h) : defaultWeeklyTitle(type, metric));
   // Members only by default: guests are visitors on an event seat, and a clan's weekly is its own.
   const [includeGuests, setIncludeGuests] = useState(false);
   // Solo, teams or clan vs clan (lib/competitionTeams).
@@ -258,7 +278,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
       decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
       multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
-      weeklyType, weeklyMetric, includeGuests, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+      weeklyType, weeklyMetric, hunt, includeGuests, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
     },
     { guard: false },
   );
@@ -337,11 +357,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   }
 
   /** Choosing a weekly parks the board config; choosing a board format clears the weekly. */
-  function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
+  function pickWeekly(type: WeeklyType, metric: string) {
     setWeeklyType(type);
     setWeeklyMetric(metric);
     setRotation([]);
-    if (!nameTouched) setName(defaultWeeklyTitle(type, metric));
+    if (!nameTouched) setName(weeklyName(type, metric));
     setError('');
     setStartFrom('blank');
     setPresetCsv(null);
@@ -450,6 +470,17 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         setError('A weekly competition always needs an end — it scores the gains between its start and end. Pick a window on the right.');
         return;
       }
+      if (isHunt) {
+        if (hunt.target === 'items' && hunt.items.length === 0) {
+          setError('Pick at least one item to hunt.');
+          return;
+        }
+        const unchosen = huntUnchosen(hunt);
+        if (unchosen) {
+          setError(`Choose where ${unchosen.name} counts from: one or more sources, or any source.`);
+          return;
+        }
+      }
       setLoading(true);
       try {
         const res = await clanFetch('/api/admin/weekly', {
@@ -457,17 +488,20 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: weeklyType,
-            metric: weeklyMetric,
-            title: name.trim() || defaultWeeklyTitle(weeklyType, weeklyMetric),
+            // A hunt's metric is written by the server from its targets (lib/itemHunt).
+            metric: isHunt ? 'hunt' : weeklyMetric,
+            ...(isHunt ? { hunt: huntPayload(hunt) } : {}),
+            title: name.trim() || weeklyName(weeklyType, weeklyMetric),
             startDate,
             endDate,
             includeGuests,
-            mode: weeklyMode.mode,
-            ...(weeklyMode.mode === 'teams'
+            // A hunt is everyone for themselves: no teams, no clan sides.
+            mode: isHunt ? 'solo' : weeklyMode.mode,
+            ...(!isHunt && weeklyMode.mode === 'teams'
               ? { teams: weeklyMode.teams.map((n) => ({ name: n })), teamLateJoin: weeklyMode.teamLateJoin }
               : {}),
-            ...(weeklyMode.mode === 'clans' ? { inviteClans: weeklyMode.clans } : {}),
-            ...(repeatWeekly ? { repeat: { rotation: rotation.length > 0 ? [weeklyMetric, ...rotation] : null } } : {}),
+            ...(!isHunt && weeklyMode.mode === 'clans' ? { inviteClans: weeklyMode.clans } : {}),
+            ...(repeatWeekly ? { repeat: { rotation: !isHunt && rotation.length > 0 ? [weeklyMetric, ...rotation] : null } } : {}),
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -748,7 +782,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               }}
               required
               className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
-              placeholder={weeklyType ? defaultWeeklyTitle(weeklyType, weeklyMetric) : 'Summer Bingo 2026'}
+              placeholder={weeklyType ? weeklyName(weeklyType, weeklyMetric) : 'Summer Bingo 2026'}
             />
           </div>
 
@@ -885,7 +919,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 Whole clan · no sign-up
               </p>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {WEEKLY_KINDS.map((w) => {
                 const active = weeklyType === w.type;
                 return (
@@ -913,8 +947,17 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           )}
 
           {weeklyType && (
-            <Section title="Competition">
-              <div>
+            <Section title={isHunt ? 'Item hunt' : 'Competition'}>
+              {isHunt && (
+                <HuntFields
+                  value={hunt}
+                  onChange={(next) => {
+                    setHunt(next);
+                    if (!nameTouched) setName(huntName(next));
+                  }}
+                />
+              )}
+              {!isHunt && <div>
                 <label className="block text-sm font-medium text-foreground/70 mb-1.5">
                   {weeklyType === 'boss' ? 'Boss' : weeklyType === 'efficiency' ? 'Measure' : 'Skill'}
                 </label>
@@ -927,9 +970,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   ariaLabel="What the competition ranks by"
                   options={weeklyOptions}
                 />
-              </div>
-              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label="Guests race too" className="text-sm text-foreground/80" />
-              <WeeklyModeFields value={weeklyMode} onChange={setWeeklyMode} />
+              </div>}
+              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label={isHunt ? 'Guests hunt too' : 'Guests race too'} className="text-sm text-foreground/80" />
+              {!isHunt && <WeeklyModeFields value={weeklyMode} onChange={setWeeklyMode} />}
               <div className="rounded-lg border border-gold/25 bg-gold/[0.05] p-3 space-y-3">
                 <Checkbox
                   checked={repeatWeekly}
@@ -938,7 +981,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   description="A new one starts the moment this one ends, with the same length and prizes. Turn it off any time from the competition's Settings."
                   className="text-sm"
                 />
-                {repeatWeekly && (
+                {repeatWeekly && !isHunt && (
                   <div>
                     <p className="text-sm text-foreground/70 mb-1.5">
                       Then rotate through <span className="text-text-muted">(optional: leave empty to repeat the same one)</span>
@@ -973,7 +1016,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               </div>
               <p className="text-xs text-text-muted">
                 Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
-                no sign-up. Baselines come from the hiscores at the start time.
+                no sign-up. {isHunt ? 'Only drops between the start and the end count.' : 'Baselines come from the hiscores at the start time.'}
               </p>
             </Section>
           )}
@@ -1442,13 +1485,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 <p className="text-sm font-medium text-purple-300">
                   {WEEKLY_KINDS.find((w) => w.type === weeklyType)?.label}
                 </p>
-                <p className="text-xs text-text-muted mt-0.5">{defaultWeeklyTitle(weeklyType, weeklyMetric)}</p>
+                <p className="text-xs text-text-muted mt-0.5">{weeklyName(weeklyType, weeklyMetric)}</p>
 
                 <dl className="mt-3 border-t border-gold/15 pt-3 text-xs">
                   <SpecRow label="Tiles to author" value="none — it scores itself" />
                   <SpecRow
                     label="Scoring"
-                    value={weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
+                    value={isHunt ? (hunt.rule === 'first' ? 'first to get the drop' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
                   <SpecRow label="Who's in" value={includeGuests ? 'roster + guests' : 'full members only'} />
@@ -1457,7 +1500,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
 
                 <ol className="mt-3 border-t border-gold/15 pt-3 space-y-1.5">
                   {[
-                    'Nothing to author — baselines come from the hiscores when it starts',
+                    isHunt ? 'Nothing to author — drops are counted from the plugin once it starts' : 'Nothing to author — baselines come from the hiscores when it starts',
                     includeGuests
                       ? 'Everyone on the roster is entered, guests included'
                       : 'Every full member is entered; guests sit this one out',

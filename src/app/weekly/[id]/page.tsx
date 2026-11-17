@@ -24,11 +24,13 @@ import { idOrNull, idParam } from '@/lib/routeIds';
 import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { getEffectiveParticipants } from '@/lib/weekly';
-import { competitionBoard } from '@/lib/itemHuntDb';
+import { competitionBoard, myHuntSeats } from '@/lib/itemHuntDb';
 import { competitionMode } from '@/lib/competitionTeams';
 import { ANONYMOUS_VIEWER, buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
 import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
+import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
+import { loadHuntView } from '@/lib/itemHuntView';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +137,31 @@ export default async function WeeklyLeaderboardPage({
     mode === 'clans'
       ? (await Promise.all((await racingClans(competition)).map((c) => viewerMemberIds(c.id, session)))).flat()
       : await viewerMemberIds(clan.id, session);
+  // An item hunt has its own page: a list of drops, not a week of gains (lib/itemHuntView).
+  if (competition.type === 'hunt') {
+    const hunt = await loadHuntView(competition, myMemberIds);
+    if (!hunt) notFound();
+    const running = hunt.status === 'active';
+    const [huntEntry, seats] = await Promise.all([
+      session?.playerId && hunt.status !== 'completed' ? entryStatus(compId, { playerId: session.playerId }) : null,
+      session?.playerId && running ? myHuntSeats(compId, session.playerId) : [],
+    ]);
+    return (
+      <div>
+        <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
+        <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
+          ← All competitions
+        </ClanLink>
+        <div className="contents" style={accentStyle(clan.accentColor)}>
+          <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
+        </div>
+        {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
+        {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
+        <HuntStandingsTable view={hunt} />
+      </div>
+    );
+  }
+
   const view = await buildCompetitionView(competition, myMemberIds);
   const groups = mode === 'solo' ? null : await buildGroupStandings(competition, { memberIds: myMemberIds });
   const myRsns = new Set(view.entries.filter((e) => e.isMe).map((e) => e.rsn.toLowerCase()));

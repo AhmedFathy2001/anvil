@@ -19,6 +19,29 @@ import { sourceMatches } from '@/lib/pluginFacts/match';
 
 export type HuntRule = 'first' | 'most';
 export type HuntCountMode = 'drops' | 'quantity';
+export type HuntConfirm = 'staff' | 'auto';
+/**
+ * 'date': runs to its end date. 'drops': ends once `n` have landed, across everyone ('all') or by
+ * one player ('player', "first to N"). n = 1 across everyone is "when the first one lands".
+ */
+export type HuntEnding = { kind: 'date' } | { kind: 'drops'; n: number; by: 'all' | 'player' };
+
+export const MAX_ENDING_DROPS = 1000;
+
+/** The "How it ends" and "Who confirms drops" choices, from a form or a stored config. */
+export function huntSettingsFromInput(body: Record<string, unknown>): { ends: HuntEnding; confirm: HuntConfirm } {
+  const e = (body.ends && typeof body.ends === 'object' ? body.ends : {}) as Record<string, unknown>;
+  const n = typeof e.n === 'number' && Number.isFinite(e.n) ? Math.min(MAX_ENDING_DROPS, Math.max(1, Math.floor(e.n))) : 1;
+  const ends: HuntEnding = e.kind === 'drops' ? { kind: 'drops', n, by: e.by === 'player' ? 'player' : 'all' } : { kind: 'date' };
+  return { ends, confirm: body.confirm === 'auto' ? 'auto' : 'staff' };
+}
+
+/** "at the end date", "after 3 drops", "when one player has 5", "when the first one lands". */
+export function huntEndingWords(ends: HuntEnding): string {
+  if (ends.kind === 'date') return 'at the end date';
+  if (ends.by === 'player') return ends.n === 1 ? 'when the first one lands' : `when one player has ${ends.n.toLocaleString()}`;
+  return ends.n === 1 ? 'when the first one lands' : `after ${ends.n.toLocaleString()} drops`;
+}
 
 export interface HuntItem {
   id: number;
@@ -36,8 +59,14 @@ export interface HuntConfig {
   /** target 'pets': a lib/petGroups key; 'all' is "any pet". */
   petGroup: string | null;
   rule: HuntRule;
-  /** rule 'first' only: the hunt ends the moment the first drop lands. */
-  endOnFirst: boolean;
+  /** How it ends: at the end date, or as soon as enough drops have landed. Staff can always end it by hand. */
+  ends: HuntEnding;
+  /**
+   * Who confirms the drops that decide the result. 'staff' (default): a plugin report alone never
+   * ends the hunt or pays a prize. 'auto': the clan's own choice to count plugin reports as they
+   * arrive. Held reports (dropFlag) and manual proofs wait for staff in both.
+   */
+  confirm: HuntConfirm;
   /** Hiscores boss keys (comma-joined, lib/constants metricKeys) behind "kills at the source". */
   killsOf: string | null;
   /** Shown instead when there is no kill count to show: XP gained in this skill. */
@@ -135,7 +164,7 @@ export function huntFromInput(
       items,
       petGroup,
       rule,
-      endOnFirst: rule === 'first' && body.endOnFirst === true,
+      ...huntSettingsFromInput(body),
       killsOf,
       xpSkill,
       ...(opts.lenient && typeof body.plannedEnd === 'string' ? { plannedEnd: body.plannedEnd } : {}),
@@ -396,8 +425,15 @@ export interface HuntDrop {
   statBasis: string | null;
   occurredAt: string;
   origin: 'plugin' | 'manual';
-  /** 'counted' | 'pending' | 'rejected' */
+  /**
+   * 'counted' (in the standings), 'pending' (a member's proof waiting for staff), 'review' (a plugin
+   * report held for staff, see dropFlag) or 'rejected'.
+   */
   status: string;
+  /** Staff have looked at this drop and said yes. A manual proof that counts always is. */
+  confirmed: boolean;
+  /** Why a plugin report was held for staff, in words. */
+  flagReason: string | null;
   approvedBy: string | null;
   screenshotUrl: string | null;
   note: string | null;
@@ -441,18 +477,134 @@ export function countedDrops(drops: HuntDrop[], window: { startMs: number | null
     .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.id - b.id);
 }
 
-/** rule 'first' with "end when the first one lands": the moment the hunt is over, or null. */
-export function endOnFirstAt(config: HuntConfig, drops: HuntDrop[], window: { startMs: number | null; endMs: number | null }): string | null {
-  if (config.rule !== 'first' || !config.endOnFirst) return null;
-  return countedDrops(drops, window)[0]?.occurredAt ?? null;
+/**
+ * The drop that ends an "after N drops" hunt, with everything that had to land for it to do so.
+ *
+ * Walks the counted drops oldest first. Across everyone, the hunt is decided by the drop that
+ * brings the total to N; by one player, by the drop that brings any one player to N. `deciding`
+ * is every drop up to and including that one: the drops the result rests on.
+ */
+export function endingDrop(config: HuntConfig, drops: HuntDrop[], window: { startMs: number | null; endMs: number | null }): { at: string; deciding: HuntDrop[] } | null {
+  if (config.ends.kind !== 'drops') return null;
+  const counted = countedDrops(drops, window);
+  const per = new Map<string, number>();
+  let total = 0;
+  for (let i = 0; i < counted.length; i++) {
+    const d = counted[i];
+    const w = dropWeight(config, d);
+    total += w;
+    per.set(d.rsnKey, (per.get(d.rsnKey) ?? 0) + w);
+    const reached = config.ends.by === 'player' ? (per.get(d.rsnKey) ?? 0) >= config.ends.n : total >= config.ends.n;
+    if (reached) return { at: d.occurredAt, deciding: counted.slice(0, i + 1) };
+  }
+  return null;
+}
+
+/**
+ * The moment an "after N drops" hunt is over, or null while it is still running.
+ *
+ * With staff confirming (the default) a plugin report alone never ends a hunt: the report is the
+ * client's word. The hunt ends at the deciding drop only once STAFF have confirmed every drop the
+ * result rests on. With "count plugin drops automatically" the clan has chosen to take the reports
+ * as they come, and the deciding drop ends it by itself.
+ */
+export function huntEndsAt(config: HuntConfig, drops: HuntDrop[], window: { startMs: number | null; endMs: number | null }): string | null {
+  const end = endingDrop(config, drops, window);
+  if (!end) return null;
+  if (config.confirm === 'auto') return end.at;
+  return end.deciding.every((d) => d.confirmed) ? end.at : null;
+}
+
+/**
+ * "Enough drops reported: waiting for staff to confirm": the drops a staff-confirmed hunt is
+ * waiting on before it can end. Empty when it is not waiting. The hunt keeps running and counting.
+ */
+export function awaitingConfirmation(config: HuntConfig, drops: HuntDrop[], window: { startMs: number | null; endMs: number | null }): HuntDrop[] {
+  if (config.confirm === 'auto') return [];
+  const end = endingDrop(config, drops, window);
+  return end ? end.deciding.filter((d) => !d.confirmed) : [];
+}
+
+/**
+ * The drops staff still have to confirm before prizes can be paid: every unconfirmed drop behind a
+ * prize-winning place. Empty means the prize places rest only on drops staff have looked at.
+ */
+export function unconfirmedPrizeDrops(config: HuntConfig, rows: HuntRow[], prizePlaces: number): HuntDrop[] {
+  // The clan chose to count plugin reports as they arrive: nothing waits on staff.
+  if (config.confirm === 'auto') return [];
+  return rows
+    .slice(0, Math.max(0, prizePlaces))
+    .filter((r) => r.count > 0)
+    .flatMap((r) => r.drops.filter((d) => !d.confirmed));
+}
+
+/**
+ * The key one plugin report is stored under, built HERE from what happened (the kind of report, the
+ * item, the source, and the time in the ten-second buckets the plugin's own moment keys use), never
+ * taken from the client. Unique per character per hunt, so a retry or a replayed queue lands on the
+ * row it already made.
+ */
+export function serverDropKey(report: { kind: string; itemId: number | null; itemName: string | null; source: string | null }, atMs: number): string {
+  const item = report.itemId != null ? String(report.itemId) : norm(report.itemName ?? '');
+  return `${report.kind}|${item}|${norm(report.source ?? '')}|${Math.floor(atMs / 10_000)}`;
+}
+
+/** More plugin reports of one item than this inside BURST_WINDOW_MS is held for staff. */
+export const BURST_LIMIT = 4;
+export const BURST_WINDOW_MS = 10 * 60_000;
+
+/**
+ * Should a plugin report wait for staff before it counts? Returns the reason in words, or null.
+ *
+ * Every input is something the site already holds for the character. Nothing here drops a report:
+ * a held one goes to staff with this sentence, and counts once they confirm it.
+ *
+ *   - the reported kill count is below the site's own reading for that boss, or far above it;
+ *   - no kill at the source has been recorded since the hunt started, and the report does not say
+ *     otherwise (the site's reading has not moved and the reported kill count is not past the
+ *     starting line);
+ *   - more of the same item in a short window than is plausible.
+ *
+ * The kill-count checks only run when the hunt tracks ONE hiscores boss (`singleBoss`): a sum over
+ * several bosses says nothing about the count at any one of them.
+ */
+export function dropFlag(input: {
+  reportedKc: number | null;
+  /** The hunt shows kills for exactly one hiscores key, and this report came from that boss. */
+  singleBoss: boolean;
+  /** weekly_participants baseline / current for the tracked stat; null when not read yet. */
+  baseline: number | null;
+  current: number | null;
+  /** Counted or held plugin drops of this item by this character inside BURST_WINDOW_MS. */
+  recentSameItem: number;
+}): string | null {
+  if (input.recentSameItem >= BURST_LIMIT) {
+    return `${input.recentSameItem + 1} of this item reported within ${Math.round(BURST_WINDOW_MS / 60_000)} minutes`;
+  }
+  if (!input.singleBoss || input.baseline == null || input.current == null) return null;
+  const kc = input.reportedKc;
+  if (kc != null && kc < input.current) {
+    return `Reported at ${kc.toLocaleString()} kc, below the site's reading of ${input.current.toLocaleString()}`;
+  }
+  // The hiscores trail the game and the plugin's live count fills the gap, so "far" is generous:
+  // a hundred kills and a fifth again on top of what the site last read.
+  if (kc != null && kc > input.current + 100 + Math.floor(input.current * 0.2)) {
+    return `Reported at ${kc.toLocaleString()} kc, far above the site's reading of ${input.current.toLocaleString()}`;
+  }
+  if (input.current <= input.baseline && (kc == null || kc <= input.baseline)) {
+    return 'No kills at the source recorded since the hunt started';
+  }
+  return null;
 }
 
 /**
  * The standings.
  *
  *   most   count, highest first; a tie goes to whoever reached that count first.
- *   first  order of each player's first drop. With "end when the first one lands" only that drop
- *          counts: anything after it happened once the hunt was over.
+ *   first  order of each player's first drop.
+ *
+ * A hunt that ends after N drops has its end pulled back to the deciding drop (huntEndsAt), and the
+ * window then leaves out everything after it.
  *
  * Everyone without a drop follows, ordered by kills at the source (who is driest), then by name.
  */
@@ -462,11 +614,7 @@ export function rankHunt(
   drops: HuntDrop[],
   window: { startMs: number | null; endMs: number | null },
 ): HuntRow[] {
-  let counted = countedDrops(drops, window);
-  if (config.rule === 'first' && config.endOnFirst && counted.length > 0) {
-    const stop = Date.parse(counted[0].occurredAt);
-    counted = counted.filter((d) => Date.parse(d.occurredAt) <= stop).slice(0, 1);
-  }
+  const counted = countedDrops(drops, window);
   const byRsn = new Map<string, HuntDrop[]>();
   for (const d of counted) byRsn.set(d.rsnKey, [...(byRsn.get(d.rsnKey) ?? []), d]);
 
@@ -509,9 +657,9 @@ export function dropStatWords(drop: Pick<HuntDrop, 'kc' | 'xp' | 'statSkill'>): 
   return null;
 }
 
-/** "plugin" or "manual proof (approved by Olive)". */
-export function dropOriginWords(drop: Pick<HuntDrop, 'origin' | 'approvedBy'>): string {
-  if (drop.origin === 'plugin') return 'plugin';
+/** "plugin", "plugin (confirmed by Olive)" or "manual proof (approved by Olive)". */
+export function dropOriginWords(drop: Pick<HuntDrop, 'origin' | 'approvedBy'> & { confirmed?: boolean }): string {
+  if (drop.origin === 'plugin') return drop.confirmed && drop.approvedBy ? `plugin (confirmed by ${drop.approvedBy})` : 'plugin';
   return drop.approvedBy ? `manual proof (approved by ${drop.approvedBy})` : 'manual proof';
 }
 

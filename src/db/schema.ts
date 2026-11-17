@@ -1831,8 +1831,10 @@ export const huntDrops = pgTable('hunt_drops', {
   occurredAt: text('occurred_at').notNull(),
   /** 'plugin' | 'manual' */
   origin: text('origin').notNull(),
-  /** 'counted' | 'pending' | 'rejected' */
+  /** 'counted' | 'pending' (a member's proof) | 'review' (a plugin report held for staff) | 'rejected' */
   status: text('status').notNull().default('counted'),
+  /** Why a plugin report was held for staff (lib/itemHunt dropFlag), in words. */
+  flagReason: text('flag_reason'),
   dedupKey: text('dedup_key').notNull(),
   screenshotUrl: text('screenshot_url'),
   note: text('note'),

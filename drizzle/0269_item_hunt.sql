@@ -3,8 +3,10 @@
 --                              counts from, the rule, what the standings show beside the count.
 --                              Null on every other kind.
 --   hunt_drops                 one row per drop that counts, or is waiting for staff. A plugin report
---                              (origin 'plugin', counted at once) or a manual proof (origin 'manual':
+--                              (origin 'plugin': counted as it arrives, or held for staff with
+--                              flag_reason when it looks wrong) or a manual proof (origin 'manual':
 --                              a screenshot plus the stated kill count or XP, counted once approved).
+--                              decided_by_* is the staff member who confirmed or turned it down.
 -- Additive: one nullable column and one new table.
 ALTER TABLE "weekly_competitions" ADD COLUMN IF NOT EXISTS "hunt" text;
 --> statement-breakpoint
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS "hunt_drops" (
 	"dedup_key" text NOT NULL,
 	"screenshot_url" text,
 	"note" text,
+	"flag_reason" text,
 	"requested_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
 	"decided_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
 	"decided_by_name" text,
