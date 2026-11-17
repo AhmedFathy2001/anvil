@@ -11,8 +11,14 @@
 //                  (XP in band ÷ band rate). Past 99 the top band's rate continues. Hitpoints is the
 //                  exception: combat training already hands out a third of its XP as Hitpoints XP,
 //                  so only Hitpoints XP beyond that passive share counts, at a third of the melee
-//                  rate. Other cross-skill XP is not discounted.
-//   Hours bossed   Σ killcount ÷ kills per hour, for every boss with a rate.
+//                  rate. Slayer is the other exception: a Slayer task trains combat while it trains
+//                  Slayer, about 4 combat XP for every Slayer XP (Slayer XP is the monster's
+//                  hitpoints; combat XP is 4 per point of damage). So that much of an account's
+//                  Attack, Strength, Defence, Ranged and Magic XP is already paid for by its Slayer
+//                  hours and is not counted again; the rest counts at the usual rates.
+//   Hours bossed   Σ killcount ÷ kills per hour, for every boss with a rate. The skilling bosses
+//                  (Wintertodt, Tempoross, Zalcano) are left out: their time is already in the
+//                  Firemaking, Fishing, Mining and Runecraft hours their XP produces.
 //
 // Pure: no DB, deterministic for a snapshot and account type.
 
@@ -106,11 +112,28 @@ function hitpointsHours(table: RateTable, xp: Map<string, number>): number {
 
 const TRAINABLE = SKILLS.filter((s) => s !== 'overall');
 
+/** The skills a Slayer task trains alongside Slayer. */
+export const COMBAT_SKILLS = ['attack', 'strength', 'defence', 'ranged', 'magic'] as const;
+/** Combat XP earned per Slayer XP: Slayer XP is the monster's hitpoints, combat XP 4 per damage dealt. */
+export const COMBAT_XP_PER_SLAYER_XP = 4;
+/** Bosses whose kill count is skilling: counted in hours played through their XP, not in hours bossed. */
+export const SKILLING_BOSSES = new Set(['wintertodt', 'tempoross', 'zalcano']);
+
+/** The share of an account's combat XP its Slayer hours do NOT already explain (0 to 1). */
+export function combatShareBeyondSlayer(xp: Map<string, number>): number {
+  const combat = COMBAT_SKILLS.reduce((acc, s) => acc + (xp.get(s) ?? 0), 0);
+  if (!(combat > 0)) return 1;
+  const explained = (xp.get('slayer') ?? 0) * COMBAT_XP_PER_SLAYER_XP;
+  return Math.max(0, 1 - explained / combat);
+}
+
 export interface EfficiencyResult {
   /** Efficient hours played. */
   ehp: number;
   /** Efficient hours bossed. */
   ehb: number;
+  /** The part of `ehp` that is combat training (Attack, Strength, Defence, Ranged, Magic, Hitpoints). */
+  combat: number;
   ehpBySkill: Record<string, number>;
   ehbByBoss: Record<string, number>;
   /** Hours from here to 99 in every skill, and to 200m in every skill. */
@@ -137,11 +160,16 @@ export function killcountMap(snapshot: HiscoresSnapshot): Map<string, number> {
 
 function playedHours(table: RateTable, xp: Map<string, number>): Record<string, number> {
   const out: Record<string, number> = {};
+  const beyondSlayer = combatShareBeyondSlayer(xp);
   for (const s of TRAINABLE) {
-    out[s] = s === 'hitpoints' ? hitpointsHours(table, xp) : skillHours(table, s, xp.get(s) ?? 0);
+    const hours = s === 'hitpoints' ? hitpointsHours(table, xp) : skillHours(table, s, xp.get(s) ?? 0);
+    out[s] = (COMBAT_SKILLS as readonly string[]).includes(s) ? hours * beyondSlayer : hours;
   }
   return out;
 }
+
+const COMBAT_HOUR_SKILLS = new Set<string>([...COMBAT_SKILLS, 'hitpoints']);
+const combatHours = (bySkill: Record<string, number>) => Object.entries(bySkill).reduce((acc, [s, h]) => (COMBAT_HOUR_SKILLS.has(s) ? acc + h : acc), 0);
 
 const sum = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0);
 
@@ -152,6 +180,7 @@ export function computeEfficiency(snapshot: HiscoresSnapshot, table: RateTable =
   const ehbByBoss: Record<string, number> = {};
   const bossRates = RATES.bosses[table] ?? RATES.bosses.main;
   for (const [boss, kc] of killcountMap(snapshot)) {
+    if (SKILLING_BOSSES.has(boss)) continue;
     const rate = bossRates[boss]?.killsPerHour;
     if (rate && rate > 0) ehbByBoss[boss] = kc / rate;
   }
@@ -164,6 +193,7 @@ export function computeEfficiency(snapshot: HiscoresSnapshot, table: RateTable =
   return {
     ehp,
     ehb: sum(ehbByBoss),
+    combat: combatHours(ehpBySkill),
     ehpBySkill,
     ehbByBoss,
     ttm: Math.max(0, at(SKILL_EXP_AT_99)),
@@ -172,9 +202,29 @@ export function computeEfficiency(snapshot: HiscoresSnapshot, table: RateTable =
 }
 
 /** Just the two headline numbers (the old call shape; `ehp`/`ehb` are internal field names). */
-export function computeEhpEhb(snapshot: HiscoresSnapshot, table: RateTable = 'main'): { ehp: number; ehb: number } {
+export function computeEhpEhb(snapshot: HiscoresSnapshot, table: RateTable = 'main'): { ehp: number; ehb: number; combat: number } {
   // The hot-path version: no per-key breakdown, no time-to-goal sums.
-  const ehp = sum(playedHours(table, experienceMap(snapshot)));
+  const bySkill = playedHours(table, experienceMap(snapshot));
+  const ehp = sum(bySkill);
+  const bossRates = RATES.bosses[table] ?? RATES.bosses.main;
+  let ehb = 0;
+  for (const [boss, kc] of killcountMap(snapshot)) {
+    if (SKILLING_BOSSES.has(boss)) continue;
+    const rate = bossRates[boss]?.killsPerHour;
+    if (rate && rate > 0) ehb += kc / rate;
+  }
+  return { ehp, ehb, combat: combatHours(bySkill) };
+}
+
+/**
+ * The model as it stood before Slayer's combat XP stopped counting twice and the skilling bosses
+ * left hours bossed. Kept for one job: recognising a stored number that was written by it, so a
+ * running efficiency competition's baseline can be moved to today's model (lib/efficiencyRebase).
+ */
+export function legacyEhpEhb(snapshot: HiscoresSnapshot, table: RateTable = 'main'): { ehp: number; ehb: number } {
+  const xp = experienceMap(snapshot);
+  let ehp = 0;
+  for (const s of TRAINABLE) ehp += s === 'hitpoints' ? hitpointsHours(table, xp) : skillHours(table, s, xp.get(s) ?? 0);
   const bossRates = RATES.bosses[table] ?? RATES.bosses.main;
   let ehb = 0;
   for (const [boss, kc] of killcountMap(snapshot)) {
@@ -186,7 +236,8 @@ export function computeEhpEhb(snapshot: HiscoresSnapshot, table: RateTable = 'ma
 
 /** Same numbers, named for what they are. */
 export function computeEfficientHours(snapshot: HiscoresSnapshot, table: RateTable = 'main'): { ehp: number; ehb: number } {
-  return computeEhpEhb(snapshot, table);
+  const { ehp, ehb } = computeEhpEhb(snapshot, table);
+  return { ehp, ehb };
 }
 
 /** Kills per hour for a hiscores boss key, or null without a rate. */
