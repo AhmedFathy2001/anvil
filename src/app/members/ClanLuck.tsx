@@ -105,6 +105,9 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
 
   if (membersConsidered === 0) {
     return (
+      <div className="space-y-4">
+      {/* The week needs no synced log (it reads the plugin's drops), so it stays reachable from here. */}
+      {spans && <div className="flex justify-end">{spans}</div>}
       <div className="border border-dashed border-card-border rounded-xl p-8 text-center">
         <p className="text-sm text-text-muted">Nobody has synced a collection log yet.</p>
         <p className="text-xs text-text-muted/70 mt-2">
@@ -112,6 +115,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
           &ldquo;hasn&rsquo;t told us&rdquo;. In RuneLite, the Anvil tab has a{' '}
           <span className="text-gold">Sync profile</span> button.
         </p>
+      </div>
       </div>
     );
   }

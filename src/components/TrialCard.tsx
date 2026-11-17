@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-import { clanFetch } from '@/lib/clanFetch';
 
 /** A date as "14 Mar 2027" in the reader's own time zone (UTC on the server and until mounted). */
 function useLocalDay(ms: number): string {
@@ -51,30 +50,14 @@ export interface TrialCardProps {
  *
  * The button opens the tier's PAY-NOW checkout (no second free period): Gumroad charges at the moment
  * of purchase and then on its own recurring schedule. The site cannot make Gumroad start a membership
- * on a chosen future date, so paying early is said plainly, and "Remind me" is the way to pay on the day.
+ * on a chosen future date, so paying early is said plainly; everyone is reminded three days before the end (lib/trialReminders).
  */
 export default function TrialCard(p: TrialCardProps) {
   const day = useLocalDay(p.endsAt);
-  const [reminded, setReminded] = useState(p.remindRequested);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const over = p.phase === 'just-ended';
   const has = p.who === 'you' ? 'You have' : `Your ${p.who} has`;
   const label = over ? `Subscribe to get ${p.tierName} back` : p.phase === 'last-days' ? `Subscribe to keep ${p.tierName}` : `Keep ${p.tierName} after ${day}`;
   const left = `${p.daysLeft} day${p.daysLeft === 1 ? '' : 's'}`;
-
-  async function remind() {
-    if (!p.remindUrl) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await clanFetch(p.remindUrl, { method: 'POST' });
-      if (res.ok) setReminded(true);
-      else setError((await res.json().catch(() => ({}))).error ?? 'Could not save that. Try again.');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <section id="trial" className="scroll-mt-24 rounded-xl border border-gold/45 bg-gold/[0.05] p-5">
@@ -116,15 +99,11 @@ export default function TrialCard(p: TrialCardProps) {
             Subscribing opens soon
           </span>
         ) : null}
-        {p.phase === 'running' && p.remindUrl && !reminded && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void remind()}
-            className="rounded-lg border border-gold/40 px-4 py-2.5 text-sm text-gold transition-colors hover:border-gold disabled:opacity-50"
-          >
-            Remind me when the trial ends
-          </button>
+        {/* Everyone is reminded now (lib/trialReminders), so there is nothing to ask for. */}
+        {p.phase === 'running' && (
+          <span className="self-center text-sm text-text-muted">
+            We&rsquo;ll remind you 3 days before it ends: a notice here on Anvil, and a Discord message if you have said yes to those.
+          </span>
         )}
       </div>
       {p.href && (
@@ -140,12 +119,6 @@ export default function TrialCard(p: TrialCardProps) {
           charged in the meantime.
         </p>
       )}
-      {reminded && !over && (
-        <p className="mt-2 text-[12.5px] leading-relaxed text-accent-green-light">
-          We&rsquo;ll remind you on {day}: a notice here on Anvil, and a Discord message if you have said yes to those.
-        </p>
-      )}
-      {error && <p className="mt-2 text-[12.5px] text-red-300">{error}</p>}
       {p.staffNote && <p className="mt-2 text-[12px] text-text-dim">Staff: {p.staffNote}</p>}
       {p.children && <div className="mt-3">{p.children}</div>}
       {p.planHref && (

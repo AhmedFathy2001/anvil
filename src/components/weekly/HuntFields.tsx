@@ -211,12 +211,14 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
                 Clear
               </button>
             </div>
-            <div className="grid max-h-72 gap-x-4 gap-y-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Two columns at most: three left ~110px for a name, and "Pet general graardor" ran into its neighbour. */}
+            <div className="grid max-h-72 gap-x-4 gap-y-2 overflow-y-auto pr-1 sm:grid-cols-2">
               {group.items.map((p) => (
                 <Checkbox
                   key={p.id}
                   checked={hasPet(p.id)}
                   onChange={(on) => togglePet(p.id, on)}
+                  className="min-w-0"
                   labelClassName="flex min-w-0 items-center gap-1.5 text-sm"
                   label={
                     <>
