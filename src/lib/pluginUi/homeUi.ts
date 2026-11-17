@@ -1,3 +1,4 @@
+import { formatGp } from '@/lib/itemPrices';
 import type { ActivityEntry } from '@/lib/pluginActivity';
 import type { ClanEventView } from '@/lib/clanEvents';
 import { CHANNEL_SLOT_LABELS, channelList } from '@/lib/clanEventChannels';
@@ -1143,6 +1144,18 @@ const tileTip = (t: PanelTile) => (t.description?.trim() && t.description.trim()
 
 // ---- A weekly, and a bingo on the schedule -----------------------------------------------------
 
+const ORDINAL = ['1st', '2nd', '3rd'];
+/** The prize ladder: one line per paying place, with the pot when more than one place pays. */
+function weeklyPrizeCard(w: ScheduleWeekly): Node | null {
+  const gp = w.prizeGp ?? [];
+  if (!gp.length) return null;
+  const pot = gp.reduce((a, b) => a + b, 0);
+  return section([
+    row(title('Prizes'), undefined, gp.length > 1 ? muted(`${formatGp(pot)} in all`) : undefined),
+    ...gp.map((n, i) => row(text(ORDINAL[i] ?? `${i + 1}th`, i === 0 ? GOLD : SOFT), undefined, text(formatGp(n), i === 0 ? GOLD : 'white', { font: i === 0 ? 'bold' : 'regular' }))),
+  ]);
+}
+
 /** "21 Nov 20:00": a date and time in UTC, short enough for the panel. */
 const utcDayTime = (iso: string): string => {
   const t = new Date(iso);
@@ -1172,6 +1185,8 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
       ];
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
+  const prizes = weeklyPrizeCard(w);
+  if (prizes) parts.push(prizes);
   if (!upcoming) {
     if (!s || !s.top.length) parts.push(section([title('Standings'), muted(w.type === 'hunt' ? 'No one is entered yet.' : 'No one has scored yet.')]));
     else {
@@ -1290,3 +1305,7 @@ export function noticeCard(n: NonNullable<HomeData['notice']>, slug: string | nu
     text('Open in your Anvil inbox', 'brand', { font: 'small', on: { a: 'site', path: '/inbox' } }),
   ], n.important ? { edge: GOLD } : {});
 }
+
+/** For the tests: one weekly's page with nothing else loaded. */
+export const __weeklyPageForTest = (w: ScheduleWeekly, now: number): Node[] =>
+  weeklyPage({ cfg: {}, weekly: new Map(), clanPath: '/c/test', now } as unknown as HomeData, w);
