@@ -248,6 +248,17 @@ const FALLBACK_BANDS = {
   sailing: [[1, 10000], [40, 30000], [70, 50000], [90, 60000]],
 };
 
+/**
+ * Rates a guide STATES but in a table this script's reader can't take apart (several XP/h columns,
+ * one per rank). Read by hand from the named page and used when the automatic read finds nothing,
+ * for both account types where the ironman guide says training is the same. [fromLevel, xpPerHour].
+ * Sailing: the Barracuda Trials table (Marlin rank at its target time), "the fastest repeatable
+ * experience from level 30 onwards"; below 30 the page only says "around 10,000" for sea charting.
+ */
+const STATED_BANDS = {
+  sailing: { page: 'Sailing training', bands: [[30, 24519], [55, 88923], [72, 184369]], below: [1, 10000] },
+};
+
 const XP_MIN = 1000;
 const XP_MAX = 2_000_000;
 
@@ -471,6 +482,27 @@ async function main() {
         source: b.source,
         estimated: true,
       }));
+    }
+  }
+
+  // Hand-read stated rates stand in where the automatic read found no table (STATED_BANDS).
+  for (const [skill, stated] of Object.entries(STATED_BANDS)) {
+    for (const type of ['main', 'ironman']) {
+      if (!gaps[type].includes(skill)) continue;
+      skills[type][skill] = [
+        { fromLevel: stated.below[0], xpPerHour: stated.below[1], source: null, estimated: true },
+        ...stated.bands.map(([fromLevel, xpPerHour]) => ({ fromLevel, xpPerHour, source: stated.page, estimated: false })),
+      ];
+    }
+  }
+
+  // A main is never slower than an ironman. Where the main guide has no table we can read but the
+  // ironman guide states rates (Slayer), the main table takes the ironman's wiki figures rather than
+  // our slower placeholder: a stated number beats an invented one, and it can only be conservative.
+  for (const skill of gaps.main) {
+    const iron = skills.ironman[skill];
+    if (skills.main[skill].every((b) => b.estimated) && Array.isArray(iron) && iron.some((b) => b.estimated === false)) {
+      skills.main[skill] = iron.map((b) => ({ ...b }));
     }
   }
 

@@ -58,8 +58,9 @@ const MEDAL: `#${string}`[] = ['#ffb347', '#d98c5f', '#a8714a'];
 
 /** The game's picture for a competition: the boss, else the skill. */
 function compIcon(c: ClanCard['competitions'][number]): Node | undefined {
+  // Several skills added together draw as the first: the plugin looks a skill up by its one name.
   if (c.type === 'boss') return icon({ boss: c.metric, w: 18, h: 18, alt: 'B' });
-  if (c.type === 'skill') return icon({ skill: c.metric, w: 16, h: 16, alt: 'S' });
+  if (c.type === 'skill') return icon({ skill: c.metric.split(',')[0].trim(), w: 16, h: 16, alt: 'S' });
   return undefined;
 }
 

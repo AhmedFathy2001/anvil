@@ -86,7 +86,8 @@ export function metricGain(row: DailyRow, type: CompetitionType, metric: string)
   // A raid across its modes ("theatreOfBlood,theatreOfBloodHardMode") sums its keys.
   if (type === 'boss') return metric.split(',').reduce((sum, k) => sum + (row.deltas?.bosses?.[k.trim()] ?? 0), 0);
   if (metric === 'overall') return row.xpGained;
-  return row.deltas?.skills?.[metric] ?? 0;
+  // Several skills added together sum the same way.
+  return metric.split(',').reduce((sum, k) => sum + (row.deltas?.skills?.[k.trim()] ?? 0), 0);
 }
 
 /** Per-member day series over the competition's day range, in the given member order. */

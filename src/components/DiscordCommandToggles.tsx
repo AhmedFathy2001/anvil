@@ -4,19 +4,25 @@ import { useEffect, useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
 import { clanFetch } from '@/lib/clanFetch';
-import { TOGGLEABLE_COMMANDS } from '@/lib/discordCommandToggles';
+import GuideLink from '@/components/GuideLink';
+import { COMMAND_USES, TOGGLEABLE_COMMANDS } from '@/lib/discordCommandToggles';
 
 /** Admin → Discord → Commands: switch off the slash commands this server doesn't need. */
 export default function DiscordCommandToggles() {
   const [off, setOff] = useState<Set<string> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // What the server's admin set in Discord itself (lib/discordCommandPermissions); read-only here.
+  const [discord, setDiscord] = useState<{ all: string | null; byCommand: Record<string, string> } | null>(null);
 
   useEffect(() => {
     void (async () => {
       const res = await clanFetch('/api/admin/discord/commands');
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setOff(new Set(data.off ?? []));
+      if (res.ok) {
+        setOff(new Set(data.off ?? []));
+        setDiscord(data.discord ?? null);
+      }
       else setError(data.error ?? 'Could not load the commands.');
     })();
   }, []);
@@ -45,20 +51,57 @@ export default function DiscordCommandToggles() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-text-muted">
-        Turn off the ones your server doesn&apos;t need. Discord still lists them; asking one says your clan switched it off.
+        The quick way: untick a command and the bot stops answering it for your clan. Discord still lists it; asking it says your clan
+        switched it off.
+      </p>
+      <p className="text-sm text-text-muted">
+        For finer control, use Discord itself: <span className="text-foreground">Server Settings → Integrations → Anvil</span>. There you can
+        hide a command from the list completely, or allow it only for certain roles or in certain channels.
+      </p>
+      {discord?.all && (
+        <p className="text-sm text-amber-300">
+          Set in Discord for every Anvil command: <span className="text-foreground">{discord.all}</span>
+        </p>
+      )}
+      <p className="text-sm">
+        <GuideLink href="/guide/commands">How to use the commands</GuideLink>
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {TOGGLEABLE_COMMANDS.map((c) => (
-          <Checkbox
-            key={c.name}
-            checked={!off.has(c.name)}
-            disabled={busy !== null}
-            onChange={(on) => void toggle(c.name, on)}
-            label={<code className="text-gold">{c.label}</code>}
-            description={c.help}
-          />
+          <div key={c.name}>
+            <Checkbox
+              checked={!off.has(c.name)}
+              disabled={busy !== null}
+              onChange={(on) => void toggle(c.name, on)}
+              label={<code className="text-gold">{c.label}</code>}
+              description={c.help}
+            />
+            {discord?.byCommand[c.name] && (
+              <p className="ml-6 mt-1 text-xs text-amber-300">
+                In Discord: <span className="text-foreground/90">{discord.byCommand[c.name]}</span>
+              </p>
+            )}
+            {/* Everything this command can be asked: the eight names alone hide most of what is there. */}
+            <details className="group ml-6 mt-1">
+              <summary className="cursor-pointer list-none text-xs text-text-muted hover:text-foreground">
+                <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>▸</span>{' '}
+                {COMMAND_USES[c.name].length === 1 ? 'How to ask it' : `${COMMAND_USES[c.name].length} things to ask`}
+              </summary>
+              <ul className="mt-1.5 space-y-1.5">
+                {COMMAND_USES[c.name].map((u) => (
+                  <li key={u.form} className="text-xs">
+                    <code className="text-foreground/90">{u.form}</code>
+                    <span className="block text-text-muted">{u.help}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
         ))}
       </div>
+      <p className="text-xs text-text-muted">
+        <code>[square brackets]</code> are optional, <code>&lt;angle brackets&gt;</code> are needed. Discord fills both in as you type the command.
+      </p>
       {error && <p className="text-[13px] text-accent-red">{error}</p>}
     </div>
   );

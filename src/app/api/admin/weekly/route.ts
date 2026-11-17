@@ -17,6 +17,7 @@ import { track } from '@/lib/analytics';
 import { setWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { huntFromInput, huntTargetsLabel, killsOfForItems, serializeHunt } from '@/lib/itemHunt';
+import { checkWeeklyMetric } from '@/lib/weeklyMetricInput';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -69,7 +70,8 @@ export async function POST(request: Request) {
     if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
     const config = checked.config;
     // Kills at the source come from the chosen sources when every one is a hiscores boss. With
-    // "any source" (or a pet hunt) the organiser may have picked a boss to show instead.
+    // "any source" the organiser may have picked a boss to show instead. A pet hunt's come from the
+    // pets' own bosses, worked out in huntFromInput.
     if (config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
     if (config.killsOf) config.xpSkill = null;
     huntJson = serializeHunt(config);
@@ -117,6 +119,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Efficiency metric must be ehp or ehb' }, { status: 400 });
   }
 
+  // A skill or boss metric is one hiscores key or several added together. The form builds it, but it
+  // arrives as text: every key has to be a real one, and the list has a cap (lib/weeklyMetricInput).
+  if (type === 'skill' || type === 'boss') {
+    const checked = checkWeeklyMetric(type, metric);
+    if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+    metric = checked.metric;
+  }
+  // The same check for every step of a rotation, before anything is written: each step becomes a
+  // later week's metric, and a bad one would surface as a dead competition weeks from now.
+  let rotation: string[] | null = null;
+  if (repeat && typeof repeat === 'object' && Array.isArray(repeat.rotation)) {
+    rotation = [];
+    for (const step of repeat.rotation.slice(0, 52)) {
+      if (typeof step !== 'string' || step.length === 0) continue;
+      const checked = checkWeeklyMetric(type, step);
+      if (!checked.ok) return NextResponse.json({ error: `Rotation: ${checked.error}` }, { status: 400 });
+      rotation.push(checked.metric);
+    }
+  }
+
   // A ladder may ride along with the competition, so a host sets the prizes in the same breath as
   // the dates rather than creating the week and then going to find where prizes live. It is the one
   // field here a moderator may not set: the rest of this form schedules a competition, and this
@@ -162,9 +184,6 @@ export async function POST(request: Request) {
 
   // "Repeat every week": the cron starts the next one when this one ends (lib/weeklyRepeat).
   if (repeat && typeof repeat === 'object') {
-    const rotation = Array.isArray(repeat.rotation)
-      ? repeat.rotation.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0).slice(0, 52)
-      : null;
     await setWeeklyRepeat(clan.id, comp.id, { rotation: rotation && rotation.length > 0 ? rotation : null });
   }
 
@@ -202,7 +221,8 @@ export async function POST(request: Request) {
     for (const t of teamNames) await createTeam(comp.id, t.name, t.colour);
   }
 
-  // Auto-enroll all registered players
+  // Enter the roster — or, for a competition created as "Selected people", nobody from this clan:
+  // enrollAllPlayers reads the choice and leaves the host side to the Participants page.
   const enrolled = await enrollAllPlayers(comp.id);
 
   // ...and then split them evenly by current level/KC rather than by enrolment order.

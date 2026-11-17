@@ -3148,7 +3148,8 @@ export const integritySignals = pgTable('integrity_signals', {
  * on rules.sharingChecks (disclosed to players on the rules card and at sign-up). Never an address:
  * `netHash` is an HMAC keyed per event of the IPv4 address or IPv6 /64, so it can be compared within
  * one event and nowhere else. `country` is Cloudflare's two-letter guess. Purged 30 days after the
- * event ends (lib/footprintCheck). Feeds the shared-network and two-countries signals.
+ * event ends (lib/footprintCheck). Feeds the shared-network, two-countries and added-late signals
+ * (lib/sharingRules).
  */
 export const integrityNetwork = pgTable('integrity_network', {
   id: serial('id').primaryKey(),

@@ -721,22 +721,59 @@ test('a staff plan trial: one at a time, every past one on record, running / end
   assert.ok(again.id > t.id);
 });
 
-test('"Remind me when the trial ends" is recorded and answered once, with an inbox notice for the clan\'s admins', async () => {
+test('everyone on a trial is reminded once, three days before it ends, with an inbox notice for the clan\'s admins', async () => {
   const { db, schema: s } = await loadDb();
   const T = await import('../src/lib/planTrials.ts');
   const R = await import('../src/lib/trialReminders.ts');
   const clan = await clanRow({});
   await db.transaction((tx) => T.startAutoTrial(tx, clan));
-  assert.equal(await T.requestPlanTrialReminder(clan.id), true);
-  assert.equal((await R.sendTrialReminders()).sent, 0, 'not before the end date');
-  assert.equal((await R.sendTrialReminders(Date.now() + 31 * DAY)).sent, 1);
-  assert.equal((await R.sendTrialReminders(Date.now() + 32 * DAY)).sent, 0, 'once');
-  const [notice] = await db.select().from(s.platformNotices).where(eq(s.platformNotices.audience, `clan:${clan.id}`));
-  assert.match(notice.title, /your Gold trial has ended/);
+  const [trial] = await db.select().from(s.ownerTrials).where(eq(s.ownerTrials.clanId, clan.id));
+  const end = trial.endsAt.getTime();
+  const mine = async () => db.select().from(s.platformNotices).where(eq(s.platformNotices.audience, `clan:${clan.id}`));
+  // Nobody asked for it: it goes out anyway, but not before three days from the end.
+  await R.sendTrialReminders(end - 4 * DAY);
+  assert.equal((await mine()).length, 0, 'four days out: nothing yet');
+  await R.sendTrialReminders(end - 3 * DAY + 60_000);
+  const [notice] = await mine();
+  assert.ok(notice, 'inside three days: sent');
+  assert.match(notice.title, /your Gold trial ends in 3 days/);
+  assert.match(notice.body, /nothing is deleted/);
   assert.equal(notice.byDm, true, 'a Discord DM only for those who opted in (the notice\'s own DM path)');
-  const none = await clanRow({});
-  assert.equal(await T.requestPlanTrialReminder(none.id), false, 'no running trial, nothing to remind about');
+  await R.sendTrialReminders(end - DAY);
+  await R.sendTrialReminders(end + DAY);
+  assert.equal((await mine()).length, 1, 'once');
+
+  // A run that was missed says the trial has ended rather than "ends in".
+  const late = await clanRow({});
+  await db.transaction((tx) => T.startAutoTrial(tx, late));
+  const [lateTrial] = await db.select().from(s.ownerTrials).where(eq(s.ownerTrials.clanId, late.id));
+  await R.sendTrialReminders(lateTrial.endsAt.getTime() + DAY);
+  const [ended] = await db.select().from(s.platformNotices).where(eq(s.platformNotices.audience, `clan:${late.id}`));
+  assert.match(ended.title, /your Gold trial has ended/);
+
+  // A trial that became a paid plan, or was revoked, is left alone.
+  for (const patch of [{ convertedAt: new Date() }, { revokedAt: new Date() }]) {
+    const c = await clanRow({});
+    await db.transaction((tx) => T.startAutoTrial(tx, c));
+    await db.update(s.ownerTrials).set(patch).where(eq(s.ownerTrials.clanId, c.id));
+    const [row] = await db.select().from(s.ownerTrials).where(eq(s.ownerTrials.clanId, c.id));
+    await R.sendTrialReminders(row.endsAt.getTime() - DAY);
+    assert.equal((await db.select().from(s.platformNotices).where(eq(s.platformNotices.audience, `clan:${c.id}`))).length, 0);
+  }
 });
+
+test('the reminder is three days out, never in the first half of a short trial; the wording counts whole days', async () => {
+  const R = await import('../src/lib/trialReminders.ts');
+  const start = new Date('2026-12-01T00:00:00Z');
+  const at = (days: number) => new Date(start.getTime() + days * DAY);
+  assert.equal(R.trialReminderDueAt(start, at(30)), at(27).getTime());
+  assert.equal(R.trialReminderDueAt(start, at(7)), at(4).getTime());
+  assert.equal(R.trialReminderDueAt(start, at(3)), at(1.5).getTime(), 'a three-day trial: at its halfway point');
+  assert.equal(R.endsInWords(at(30), at(27).getTime()), 'in 3 days');
+  assert.equal(R.endsInWords(at(30), at(29).getTime() + 1000), 'tomorrow');
+  assert.equal(R.endsInWords(at(30), at(30).getTime()), 'today');
+});
+
 
 // ── Supporter: the same one-trial rule for a person ─────────────────────────────────────────────
 

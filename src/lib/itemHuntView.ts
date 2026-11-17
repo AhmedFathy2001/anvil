@@ -14,7 +14,7 @@ import {
   huntStat,
   huntStatLabel,
   manualStatKind,
-  petGroupOf,
+  huntPets,
 } from '@/lib/itemHunt';
 import { huntStandings, type HuntStandings } from '@/lib/itemHuntDb';
 import { weeklyStatus } from '@/lib/weeklyStage';
@@ -84,7 +84,7 @@ export interface HuntView {
 
 export function proofTargets(config: HuntConfig): HuntProofTarget[] {
   if (config.target === 'pets') {
-    return (petGroupOf(config.petGroup)?.items ?? []).map((p) => ({ itemId: p.id, name: p.name, sources: [], free: true }));
+    return huntPets(config).map((p) => ({ itemId: p.id, name: p.name, sources: [], free: true }));
   }
   return config.items.map((it) => ({
     itemId: it.id,

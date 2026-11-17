@@ -1,5 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import LocalTime from '@/components/LocalTime';
+import CompetitionBadge from '@/components/events/CompetitionBadge';
 import { hubKind } from '@/lib/hubKinds';
 import type { HubKind } from '@/lib/eventsHub';
 import type { CompetitionRowSummary, RowWhen } from '@/lib/competitionRows';
@@ -52,25 +53,7 @@ export default function CompetitionRow({
       {/* The kind's colour names the format; the words beside it say it too. */}
       <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: meta.accent, opacity: past ? 0.5 : 1 }} />
 
-      <span
-        aria-hidden
-        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border text-base"
-        style={{
-          background: `color-mix(in srgb, ${meta.accent} 16%, transparent)`,
-          borderColor: `color-mix(in srgb, ${meta.accent} 38%, transparent)`,
-        }}
-      >
-        {row.pictureUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={row.pictureUrl} alt="" className="h-full w-full rounded-[7px] object-cover" />
-        ) : row.iconUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={row.iconUrl} alt="" className="h-5 w-5 object-contain" />
-        ) : (
-          meta.emoji
-        )}
-      </span>
-
+      <CompetitionBadge kind={row.kind as HubKind} pictureUrl={row.pictureUrl} iconUrl={row.iconUrl} />
       <div className="min-w-0 flex-1 basis-[200px]">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-xs font-bold uppercase tracking-[0.08em]" style={{ color: meta.accent }}>

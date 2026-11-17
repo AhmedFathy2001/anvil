@@ -42,6 +42,10 @@ export interface HubItem {
   entrantLabel: string;
   /** Winner once finished, leader while it runs. */
   top: { name: string; text: string; color?: string } | null;
+  /** The card's `iconUrl`, kept so a finished line can draw what the live row drew: a board's own
+      picture (the event's icon, else its host clan's logo), a week's metric sprite (the skill, the
+      boss, the hunted item). */
+  iconUrl: string | null;
   /** Set when this clan CO-HOSTS the event (another clan is the host) — for a "co-hosted" hint.
       Null when this clan owns it. */
   hostSlug: string | null;
@@ -86,6 +90,7 @@ function boardItem(e: EventCard): HubItem {
     entrants: Number(e.chips[0]?.match(/^(\d+)/)?.[1] ?? 0),
     entrantLabel: e.chips[0]?.includes('player') ? 'players' : 'teams',
     top: e.top ? { name: e.top.name, text: `${e.top.score.toLocaleString()} ${e.top.unit}`, color: e.top.color } : null,
+    iconUrl: e.iconUrl,
     hostSlug: e.hostSlug,
   };
 }
@@ -104,6 +109,7 @@ function weekItem(w: WeeklyCard): HubItem {
     entrants: w.entrants,
     entrantLabel: 'entered',
     top: w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null,
+    iconUrl: w.iconUrl,
     // Clan vs clan hosted by another clan this one races in.
     hostSlug: w.hostSlug ?? null,
   };

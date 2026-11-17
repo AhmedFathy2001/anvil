@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, users } from '@/db/schema';
+import { accounts, detectedAccounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { onboardingNext } from '@/lib/firstLogin';
+import { runningXpCheck } from '@/lib/xpCheckRead';
 import WelcomeClient from './WelcomeClient';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,7 @@ export default async function WelcomePage({
   const session = await verifyUser();
   if (!session?.userId) redirect(`/login?return=${encodeURIComponent(next ? `/welcome?next=${encodeURIComponent(next)}` : '/welcome')}`);
 
-  const [state, user, myClans, characters] = await Promise.all([
+  const [state, user, myClans, characters, pending, xpCheck] = await Promise.all([
     onboardingState(session.userId, session.playerId),
     db.query.users.findFirst({
       where: eq(users.id, session.userId),
@@ -43,8 +44,25 @@ export default async function WelcomePage({
     session.playerId == null ? Promise.resolve([]) : clansOfPerson(session.playerId, session.userId),
     session.playerId == null
       ? Promise.resolve([])
-      : db.select({ rsn: accounts.rsn }).from(accounts).where(eq(accounts.playerId, session.playerId)),
+      : db
+          .select({ rsn: accounts.rsn, rsnNormalized: accounts.rsnNormalized, accountHash: accounts.accountHash })
+          .from(accounts)
+          .where(eq(accounts.playerId, session.playerId)),
+    // Characters the plugin saw but could not link by itself (a clan already lists them).
+    db.query.detectedAccounts.findMany({
+      where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),
+      columns: { rsnNormalized: true, accountHash: true },
+    }),
+    // An XP check left running: the fold it lives in has to open on it, or it looks lost.
+    runningXpCheck(session.userId),
   ]);
+  // Counted the way /api/profile/connection counts `suggestions`, because the plugin card compares
+  // the two: a different count here would read as "something changed" on the first poll.
+  const detectedCount = pending.filter(
+    (d) =>
+      !characters.some((a) => a.rsnNormalized === d.rsnNormalized) &&
+      !(d.accountHash && characters.some((a) => a.accountHash === d.accountHash)),
+  ).length;
 
   // Finished it already. Not a 404 — the page exists and is theirs — and not a silent re-run either:
   // send them where the flow would have ended. The bare path is the person page, which spans their
@@ -60,6 +78,8 @@ export default async function WelcomePage({
       // Clans only: a creator space is not a clan ("You're in 2 clans" must not count one).
       clans={myClans.filter((c) => !isCreatorSpace({ kind: c.clanKind })).map((c) => ({ slug: c.slug, name: c.name }))}
       characters={characters.map((a) => a.rsn)}
+      detectedCount={detectedCount}
+      xpCheckRunning={xpCheck != null}
       next={next}
     />
   );

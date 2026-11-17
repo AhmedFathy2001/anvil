@@ -112,6 +112,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         startDate: comp.startDate,
         endDate: comp.endDate,
         status: comp.status,
+        selectedOnly: comp.hostEntrants === 'selected',
       }}
       stage={weeklyStage(comp)}
       standings={standings}

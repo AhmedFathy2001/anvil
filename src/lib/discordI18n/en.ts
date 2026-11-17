@@ -119,7 +119,7 @@ export const en = {
     startProofSession:
       '-# Log out and back in first — hiscores only save on logout, so your shot must be within {minutes} minutes of a fresh login.',
     sharingChecks:
-      '• **Account-sharing checks** — staff see when two players connect from the same network, or one from two countries within hours. Addresses are never kept, only a code for this event, deleted 30 days after it.',
+      '• **Account-sharing checks** — staff see when accounts of different players connect from the same network, when one account connects from two countries within hours, and when an account added after the start connects from another country than its owner’s other accounts or its team. Your own accounts sharing your network is expected and not flagged. Addresses are never kept, only a code for this event, deleted 30 days after it.',
     teamChoice: '• **Teams** — you pick your team when you sign up; staff approve it.',
     captainInvites: '• **Teams** — captains hand out invite links for their own side.',
     entryFee: '• **Entry fee** — {amount} per entry.',

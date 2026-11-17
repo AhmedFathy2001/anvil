@@ -296,9 +296,11 @@ export interface EventRules {
   rulesAtStart: boolean;
   /**
    * Account-sharing checks (lib/integrityNetwork): note which network and country each player's
-   * plugin connects from, hashed per event, so staff can see one machine playing two accounts or one
-   * account played from two countries. OFF by default and disclosed to players wherever the rules
-   * are shown — a check people know about is half the deterrent.
+   * plugin connects from, hashed per event, so staff can see different people's accounts on one
+   * network, one account played from two countries, and an account added mid-contest that connects
+   * from somewhere its owner or team doesn't (lib/sharingRules; one person's own accounts sharing a
+   * network is not a flag). OFF by default and disclosed to players wherever the rules are shown — a
+   * check people know about is half the deterrent.
    */
   sharingChecks: boolean;
   /**

@@ -6,13 +6,17 @@ import { accountStatSnapshots, accounts, clanMemberships, eventParticipants, int
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { checkCreditIntegrity } from '@/lib/creditIntegrity';
 import { eventForRequest } from '@/lib/eventScope';
+import { sharingRoster } from '@/lib/integrityNetwork';
+import { sharedNetworkRelation, type AccountOwner } from '@/lib/sharingRules';
 
 /**
  * GET — which boss-kill credits on this board do not add up (lib/creditIntegrity): more kills than
  * the player's hiscores KC rose by, or more in an hour than the boss allows. A list for staff to look
  * at, never an automatic penalty. Also the per-player signals the footprint check raised
  * (lib/footprintCheck: first service kill, more hours than one person plays) that staff haven't
- * marked fine.
+ * marked fine. A shared-network signal says who owns the two characters as that stands NOW
+ * (`owners`), and is left out once both are one person's own confirmed accounts: that is expected,
+ * not a flag (lib/sharingRules).
  */
 export async function GET(
   request: Request,
@@ -31,11 +35,19 @@ export async function GET(
     .from(tiles)
     .where(and(eq(tiles.eventId, eId), eq(tiles.tileType, 'kill')));
   // clan-scope: this clan -- rows of the event eventForRequest settled above.
-  const signals = await db
+  const raised = await db
     .select({ id: integritySignals.id, kind: integritySignals.kind, detail: integritySignals.detail, playerId: integritySignals.participantId, rsn: eventParticipants.name })
     .from(integritySignals)
     .innerJoin(eventParticipants, eq(eventParticipants.id, integritySignals.participantId))
     .where(and(eq(integritySignals.eventId, eId), isNull(integritySignals.dismissedAt)));
+  // clan-scope: this clan -- the roster of the event eventForRequest settled above.
+  const roster = raised.some((s) => s.kind.startsWith('shared_network:')) ? await sharingRoster(eId) : [];
+  const owners = new Map<number, AccountOwner | null>(roster.map((p) => [p.id, p.owner]));
+  const signals = raised.flatMap((s) => {
+    const relation = sharedNetworkRelation(s.kind, s.playerId, owners);
+    if (relation === 'same') return [];
+    return [relation ? { ...s, owners: relation } : s];
+  });
   if (killTiles.length === 0) return NextResponse.json({ flags: [], signals });
 
   // The client that CLAIMED the kills (playerId, the uploader): the KC lives on that account, even
@@ -84,11 +96,24 @@ export async function PATCH(
   const signalId = Number(body?.signalId);
   if (!Number.isInteger(signalId)) return NextResponse.json({ error: 'signalId required' }, { status: 400 });
   // Only a signal on THIS event: the id came from the caller.
+  const dismissedAt = new Date().toISOString();
   const updated = await db
     .update(integritySignals)
-    .set({ dismissedAt: new Date().toISOString() })
+    .set({ dismissedAt })
     .where(and(eq(integritySignals.id, signalId), eq(integritySignals.eventId, eId)))
-    .returning({ id: integritySignals.id });
+    .returning({ id: integritySignals.id, kind: integritySignals.kind, participantId: integritySignals.participantId });
   if (updated.length === 0) return NextResponse.json({ error: 'Signal not found' }, { status: 404 });
+  // "Added late, far away" is shown in place of the plain added-late line: fine covers both.
+  if (updated[0].kind === 'late_account_far') {
+    await db
+      .update(integritySignals)
+      .set({ dismissedAt })
+      .where(and(
+        eq(integritySignals.eventId, eId),
+        eq(integritySignals.participantId, updated[0].participantId),
+        eq(integritySignals.kind, 'late_account'),
+        isNull(integritySignals.dismissedAt),
+      ));
+  }
   return NextResponse.json({ ok: true });
 }

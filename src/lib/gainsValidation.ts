@@ -99,6 +99,10 @@ export function getMaxRatePerHour(type: string, metric: string): number {
   if (type === 'boss') {
     return BOSS_MAX_KC_PER_HOUR[metric] ?? DEFAULT_BOSS_MAX_KC_PER_HOUR;
   }
+  // Several skills added together ("attack,strength"): one player trains one of them at a time, so
+  // the ceiling is the fastest of the set, not their sum. (A boss set keeps the default above.)
+  const skills = metric.split(',').map((s) => s.trim()).filter(Boolean);
+  if (skills.length > 1) return Math.max(...skills.map((s) => SKILL_MAX_XP_PER_HOUR[s] ?? 1_500_000));
   return SKILL_MAX_XP_PER_HOUR[metric] ?? 1_500_000;
 }
 

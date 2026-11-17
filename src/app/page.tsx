@@ -358,10 +358,16 @@ export default async function HomePage() {
   return (
     <div>
       <Hero view={view} boostLevel={boost?.level ?? 0} boostNameStyle={boost?.nameStyle} />
-      {hall && <ClanHall initial={hall} src="home" />}
-      {guide && <GuidedFlow view={guide} className="mt-6" />}
+      {guide && <GuidedFlow view={guide} className="mb-4" />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} returnTo={clanBasePath(clan)} />
       <LiveNow view={view} />
+      {/* Who is around on Discord comes after what is on: the events are why a member opened the
+          page, and presence is the secondary read. The wrapper gives it the sections' own gap. */}
+      {hall && (
+        <div className="mb-9">
+          <ClanHall initial={hall} src="home" />
+        </div>
+      )}
       <ClanEvents view={view} />
       <Competitions view={view} now={new Date().getTime()} myBoards={myBoards} myWeeks={myWeeks} />
       <ClanWeek view={view} />

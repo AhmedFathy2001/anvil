@@ -60,3 +60,23 @@ test('a finished repeating week starts the next one in its rotation, once', asyn
   await db.update(s.weeklyCompetitions).set({ status: 'completed' }).where(eq(s.weeklyCompetitions.id, w2.id));
   assert.equal(await roll.rollWeeklySeries(now + 7 * DAY), 0);
 });
+
+test('the next week keeps "selected people", and a boss set keeps its name', async () => {
+  const now = Date.now();
+  const [w1] = await db
+    .insert(s.weeklyCompetitions)
+    .values({
+      clanId, type: 'boss', metric: 'vorkath,zulrah', title: 'BOTW: Vorkath + Zulrah',
+      startDate: new Date(now - 8 * DAY).toISOString(), endDate: new Date(now - DAY).toISOString(),
+      status: 'completed', includeGuests: 0, hostEntrants: 'selected',
+    })
+    .returning();
+  await roll.setWeeklyRepeat(clanId, w1.id, { rotation: null });
+  assert.equal(await roll.rollWeeklySeries(now), 1);
+  const all = await db.select().from(s.weeklyCompetitions).where(eq(s.weeklyCompetitions.clanId, clanId));
+  const w2 = all.find((w) => w.id > w1.id)!;
+  assert.equal(w2.hostEntrants, 'selected', 'or the roster would be swept back in after one week');
+  assert.equal(w2.metric, 'vorkath,zulrah');
+  assert.equal(w2.title, 'BOTW: Vorkath + Zulrah');
+  await roll.setWeeklyRepeat(clanId, w2.id, null);
+});

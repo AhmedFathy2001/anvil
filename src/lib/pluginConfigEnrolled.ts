@@ -107,14 +107,14 @@ function generateCodeword(playerId: number, eventId: number): string {
 
 
 // The active weekly comps' metrics as plugin-pushable names: boss metrics expand to their KC-line
-// names, skill metrics are the lowercase skill name. Merged into trackedKcNames/trackedSkillNames so
+// names, skill metrics are the lowercase skill name (each one, when several are added together). Merged into trackedKcNames/trackedSkillNames so
 // the plugin pushes SOTW/BOTW live (debounced 15 s, same machinery as bingo tiles) even for a member
 // with no active bingo event.
 async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skills: string[] }> {
   const metrics = await getActiveWeeklyMetrics(clanId);
   return {
     kc: metrics.filter((m) => m.type === 'boss').flatMap((m) => metricKeys(m.metric).flatMap(kcNamesForKey)),
-    skills: metrics.filter((m) => m.type === 'skill').map((m) => m.metric),
+    skills: metrics.filter((m) => m.type === 'skill').flatMap((m) => metricKeys(m.metric)),
   };
 }
 

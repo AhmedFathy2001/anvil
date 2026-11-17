@@ -13,7 +13,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { TEAM_COLOURS, type CompetitionMode } from '@/lib/competitionTeams';
 
 interface Team { id: number; name: string; colour: string }
-interface Participant { id: number; rsn: string; teamId: number | null }
+interface Participant { id: number; rsn: string; teamId: number | null; /** Entered for this clan (not a clan it races against). */ host?: boolean }
 interface Invite { id: number; status: string; name: string; slug: string }
 interface Total { key: number; total: number; average: number; members: number; rank: number }
 
@@ -42,6 +42,8 @@ function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: st
 export default function WeeklyFormatClient(props: {
   competitionId: number;
   ended: boolean;
+  /** Before its start time: the only moment the entered list may be cleared in one go. */
+  notStarted: boolean;
   initialMode: CompetitionMode;
   initialLateJoin: boolean;
   initialHostEntrants: 'all' | 'selected';
@@ -51,12 +53,15 @@ export default function WeeklyFormatClient(props: {
   totals: Total[];
   canInvite: boolean;
 }) {
-  const { competitionId, ended } = props;
+  const { competitionId, ended, notStarted } = props;
   const router = useRouter();
   const dialog = useDialog();
   const [mode, setMode] = useState<CompetitionMode>(props.initialMode);
   const [lateJoin, setLateJoin] = useState(props.initialLateJoin);
   const [hostEntrants, setHostEntrants] = useState(props.initialHostEntrants);
+  // Switching to "Selected people" before the start, with people already entered, is two decisions:
+  // the switch, and what happens to that list. Nothing is saved until the second one is made.
+  const [askEntrants, setAskEntrants] = useState(false);
   const [teams, setTeams] = useState(props.initialTeams);
   const [participants, setParticipants] = useState(props.initialParticipants);
   const [invites, setInvites] = useState(props.initialInvites);
@@ -108,6 +113,19 @@ export default function WeeklyFormatClient(props: {
     }
   }
 
+  const hostCount = participants.filter((p) => p.host !== false).length;
+  const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+
+  async function saveHostEntrants(next: 'all' | 'selected', clear = false) {
+    const data = await call(base, { method: 'PUT', body: JSON.stringify({ hostEntrants: next, ...(clear ? { clearEntrants: true } : {}) }) });
+    if (!data) return;
+    setHostEntrants(next);
+    setAskEntrants(false);
+    if (clear) setParticipants((list) => list.filter((p) => p.host === false));
+    // Back to all members enters the roster on the server; show it.
+    router.refresh();
+  }
+
   const counts = useMemo(() => {
     const m = new Map<number | null, number>();
     for (const p of participants) m.set(p.teamId, (m.get(p.teamId) ?? 0) + 1);
@@ -135,10 +153,20 @@ export default function WeeklyFormatClient(props: {
         <div className="mt-3 max-w-md">
           <label className="mb-1.5 block text-sm font-medium text-foreground/70">Who from your clan races</label>
           <Select
-            value={hostEntrants}
-            onChange={async (v) => {
+            value={askEntrants ? 'selected' : hostEntrants}
+            onChange={(v) => {
               const next = v === 'selected' ? 'selected' : 'all';
-              if (await call(base, { method: 'PUT', body: JSON.stringify({ hostEntrants: next }) })) setHostEntrants(next);
+              if (next === hostEntrants) {
+                setAskEntrants(false);
+                return;
+              }
+              // Before the start, with the roster already entered: ask what happens to that list
+              // first. Nobody is removed, and nothing is saved, without an answer.
+              if (next === 'selected' && notStarted && hostCount > 0) {
+                setAskEntrants(true);
+                return;
+              }
+              void saveHostEntrants(next);
             }}
             ariaLabel="Who from your clan races"
             options={[
@@ -148,6 +176,34 @@ export default function WeeklyFormatClient(props: {
             disabled={busy || ended}
           />
         </div>
+        {askEntrants && (
+          <div role="group" aria-label="What happens to the people already entered" className="mt-3 max-w-xl rounded-lg border border-gold/30 bg-gold/[0.05] p-3">
+            <p className="text-sm font-medium text-foreground">
+              {people(hostCount)} from your clan {hostCount === 1 ? 'is' : 'are'} already entered. What should happen to them?
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Either way, nobody new is entered automatically from now on. You add and remove people on Participants.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" className={goldBtn} disabled={busy} onClick={() => saveHostEntrants('selected')}>
+                Keep these {hostCount} as the starting list
+              </button>
+              <button type="button" className={btn} disabled={busy} onClick={() => saveHostEntrants('selected', true)}>
+                Clear the list and pick from scratch
+              </button>
+              <button type="button" className={btn} disabled={busy} onClick={() => setAskEntrants(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {!askEntrants && hostEntrants === 'selected' && !ended && (
+          <p className="mt-2 max-w-xl text-xs text-text-muted">
+            {notStarted
+              ? `Only the people you add race. ${hostCount === 0 ? 'Nobody is entered yet' : `${people(hostCount)} entered so far`}: add or remove people on Participants.`
+              : `This competition has already started, so the ${people(hostCount)} entered so far stay in. Nobody new is entered automatically. To take someone out, remove them on Participants.`}
+          </p>
+        )}
         <p className="mt-2 text-xs text-text-muted">
           Every player can opt out of a competition themselves. Individual standings always show. Teams and clan vs clan add a ranking of totals on top, with an average per player
           so uneven sizes compare fairly.{' '}
@@ -300,7 +356,11 @@ export default function WeeklyFormatClient(props: {
               className="mb-3 w-full max-w-sm rounded-lg border border-card-border bg-brown-light px-3 py-1.5 text-sm text-foreground focus:border-gold focus:outline-none"
             />
             {participants.length === 0 ? (
-              <p className="text-sm text-text-muted">Nobody is entered yet — the roster is entered when the competition is created and on every sweep.</p>
+              <p className="text-sm text-text-muted">
+                {hostEntrants === 'selected'
+                  ? 'Nobody is entered yet. Add people on Participants.'
+                  : 'Nobody is entered yet — the roster is entered when the competition is created and on every sweep.'}
+              </p>
             ) : (
               <div className="max-h-[28rem] divide-y divide-card-border/50 overflow-y-auto rounded-lg border border-card-border/70">
                 {shown.map((p) => (

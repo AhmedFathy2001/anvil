@@ -1,3 +1,4 @@
+import { trialRefundCents, trialRefundOn } from '@/lib/trialRefund';
 import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import TrialCard from '@/components/TrialCard';
 import { ensureClanCheckoutRef } from '@/lib/billing';
@@ -83,6 +84,11 @@ export default async function PlanTrialPanel({
   const yearly = billing === 'yearly';
   const href = canBuy && buy.kind === 'subscribe' ? buy.url : null;
   const soon = canBuy && buy.kind === 'soon';
+  // Unused trial days come back as a partial refund of the first payment, when that is switched on.
+  const price = yearly ? (yearlyPriceUsd(monthly) ?? 0) : monthly;
+  const back = trialRefundOn() && href
+    ? trialRefundCents({ priceCents: Math.round(price * 100), recurrence: yearly ? 'yearly' : 'monthly', trialEndsAtMs: trial.endsAt, chargedAtMs: Date.now() }).cents
+    : 0;
 
   return (
     <TrialCard
@@ -97,6 +103,7 @@ export default async function PlanTrialPanel({
       soon={soon}
       chargeToday={usd(yearly ? (yearlyPriceUsd(monthly) ?? 0) : monthly)}
       every={yearly ? 'year' : 'month'}
+      refundBack={back > 0 ? usd(back / 100) : null}
       remindUrl={canBuy ? '/api/admin/plan-trial/remind' : null}
       remindRequested={trial.remindRequested}
       planHref={planHref}

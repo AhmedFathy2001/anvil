@@ -22,6 +22,7 @@ import {
   weeklyParticipants,
 } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
+import { parseStamp } from '@/lib/dbTime';
 import { atLeast } from '@/lib/clanRoles';
 import { canSeeClan } from '@/lib/clanAccess';
 import { blockClan, inviteGate, reinvitedAt } from '@/lib/clanBlocks';
@@ -161,6 +162,73 @@ export async function setCompetitionMode(comp: Competition, mode: CompetitionMod
       .delete(weeklyParticipants)
       .where(and(eq(weeklyParticipants.competitionId, comp.id), isNotNull(weeklyParticipants.clanId)));
   }
+}
+
+// ── who from the host clan races ────────────────────────────────────────────────────────────────
+
+/**
+ * Has this competition not begun? Upcoming by status AND by its own start time: the status is
+ * flipped by a cron tick, so for a minute or so after the start it still says 'upcoming' while
+ * baselines are about to be read.
+ */
+export function competitionNotStarted(comp: Pick<Competition, 'status' | 'startDate'>, now: number = Date.now()): boolean {
+  if (comp.status !== 'upcoming') return false;
+  const start = parseStamp(comp.startDate);
+  return start !== null && start > now;
+}
+
+/**
+ * Take the host clan's own entrants off a competition that has NOT started — the organiser switched
+ * it to "Selected people" and chose to pick from scratch rather than keep the roster that was swept
+ * in when it was created. Partner clans' rows (clan vs clan) are theirs and stay.
+ *
+ * Refused once the competition has started: by then a row carries a baseline and a standing, and
+ * removing people in bulk mid-race is a different decision (one at a time, on Participants).
+ * Returns how many were removed, or null when refused.
+ */
+export async function clearHostEntrants(comp: Pick<Competition, 'id' | 'status' | 'startDate'>, now: number = Date.now()): Promise<number | null> {
+  if (!competitionNotStarted(comp, now)) return null;
+  const removed = await db
+    .delete(weeklyParticipants)
+    // A host row is one with no clan of its own (db/schema weeklyParticipants.clanId).
+    .where(and(eq(weeklyParticipants.competitionId, comp.id), isNull(weeklyParticipants.clanId)))
+    .returning({ id: weeklyParticipants.id });
+  return removed.length;
+}
+
+/**
+ * A repeating "Selected people" competition's next week starts with the same people (lib/weeklyRepeat):
+ * the host's entrants of last week who still hold an active seat on the host's roster. Without it the
+ * next week would start empty, since nothing sweeps a selected host side in. Opt-outs are per
+ * competition and are not carried. A no-op for an "All members" competition.
+ */
+export async function carryOverSelectedEntrants(prev: Competition, next: Competition): Promise<number> {
+  if (prev.hostEntrants !== 'selected') return 0;
+  const seats = await db
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .from(weeklyParticipants)
+    .innerJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
+    .where(
+      and(
+        eq(weeklyParticipants.competitionId, prev.id),
+        isNull(weeklyParticipants.clanId),
+        // The host's own roster, by the same seat rules as the sweep (lib/weekly enrollAllPlayers).
+        eq(clanRoster.clanId, prev.clanId),
+        isNull(clanRoster.leftAt),
+        eq(clanRoster.status, 'active'),
+        rosterClanSeat(),
+      ),
+    );
+  let carried = 0;
+  for (const seat of seats) {
+    const ins = await db
+      .insert(weeklyParticipants)
+      .values({ competitionId: next.id, clanMemberId: seat.id, rsn: seat.rsn, rsnNormalized: normalizeRsn(seat.rsn) })
+      .onConflictDoNothing()
+      .returning({ id: weeklyParticipants.id });
+    carried += ins.length;
+  }
+  return carried;
 }
 
 // ── teams ───────────────────────────────────────────────────────────────────────────────────────

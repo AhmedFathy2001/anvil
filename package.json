@@ -1,6 +1,6 @@
 {
   "name": "anvil",
-  "version": "1.20.24",
+  "version": "1.20.25",
   "private": true,
   "scripts": {
     "test:proofattachments": "npx tsx --test tests/proof-attachments.test.ts",
@@ -206,6 +206,7 @@
     "test:apexprivacy": "npx tsx --test tests/apex-privacy.test.ts",
     "test:autolink": "npx tsx --test tests/plugin-autolink.test.ts tests/plugin-first-use.test.ts tests/plugin-account-optout.test.ts",
     "test:other-login": "npx tsx --test tests/other-login.test.ts",
+    "test:sharing-checks": "npx tsx --test tests/sharing-rules.test.ts tests/sharing-checks-db.test.ts",
     "test:audit1108": "npx tsx --test tests/security-audit-1108.test.ts",
     "test:rsnhint": "npx tsx --test tests/plugin-rsn-hint.test.ts",
     "test:discord-i18n": "node --experimental-strip-types --test tests/discord-i18n.test.ts",

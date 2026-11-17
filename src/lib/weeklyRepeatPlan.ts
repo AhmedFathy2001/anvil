@@ -5,7 +5,7 @@
 // across one or more whole weeks, the successor starts in the window that contains now, rather than
 // in the past where it would be born already finished.
 
-import { EFFICIENCY_METRICS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
+import { EFFICIENCY_METRICS, weeklyMetricParts } from '@/lib/constants';
 
 export interface RepeatConfig {
   /** The metrics to cycle through, in order. Null or empty = repeat the same one every time. */
@@ -24,16 +24,24 @@ export function parseRepeat(raw: string | null | undefined): RepeatConfig | null
   }
 }
 
-/** 'SOTW: Agility' — what a competition calls itself when nobody renamed it. */
+/** How many skills or bosses a default title names before it says "+ N more". */
+const TITLE_NAMES = 3;
+
+/**
+ * 'SOTW: Agility' — what a competition calls itself when nobody renamed it. Several added together
+ * read 'BOTW: Vorkath + Zulrah'; past three the rest are counted, not listed, so the name still
+ * fits a card and a Discord embed title.
+ */
 export function defaultWeeklyTitle(type: string, metric: string): string {
   // A hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
   if (type === 'hunt') return `Item hunt: ${metric}`;
+  const parts = type === 'skill' || type === 'boss' ? weeklyMetricParts(type, metric) : [];
   const label =
-    type === 'skill'
-      ? SKILL_LABELS[metric] ?? metric
-      : type === 'boss'
-        ? bossMetricLabel(metric) || metric
-        : EFFICIENCY_METRICS.find((m) => m.key === metric)?.label ?? metric.toUpperCase();
+    type === 'skill' || type === 'boss'
+      ? parts.length > TITLE_NAMES
+        ? `${parts.slice(0, TITLE_NAMES).join(' + ')} + ${parts.length - TITLE_NAMES} more`
+        : parts.join(' + ') || metric
+      : EFFICIENCY_METRICS.find((m) => m.key === metric)?.label ?? metric.toUpperCase();
   return `${type === 'boss' ? 'BOTW' : type === 'efficiency' ? 'Efficiency' : 'SOTW'}: ${label}`;
 }
 

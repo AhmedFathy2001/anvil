@@ -6,6 +6,7 @@
 // copy that drifts. The webhook still decides WHETHER a sale applies (match, catalogue, replay latch,
 // Gumroad's own word on the sale); this is only what applying it means.
 
+import { refundUnusedTrial } from '@/lib/trialRefund';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -211,6 +212,10 @@ export async function applyClanSale(
     })
     .where(eq(clans.id, clan.id));
   await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: ev.subscriptionId }, notes);
+  // Subscribed before its Anvil trial ran out: the unused days come back as a partial refund of this
+  // sale (lib/trialRefund; off unless ANVIL_TRIAL_REFUND=on, when it only records what it would give).
+  // Only for Gumroad's own notification: a purchase staff attach by hand is never refunded automatically.
+  if (notes === 'gumroad webhook') await refundUnusedTrial(clan.id, ev, chargedAt(ev.saleTimestamp), notes);
   // Credited to the clan's creator's first-touch source at read time (lib/analyticsAttribution).
   track('clan.purchased', { clanId: clan.id, userId: null, props: { plan: plan.id } });
   return { received: true, plan: plan.id };

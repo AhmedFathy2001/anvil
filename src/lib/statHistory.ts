@@ -84,7 +84,7 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
   const previousXp = Math.max(0, input.previous?.skills?.overall?.xp ?? 0);
   const xpGained = input.previous ? Math.max(0, overallXp - previousXp) : 0;
 
-  const { ehp, ehb } = computeEhpEhb(input.snapshot);
+  const { ehp, ehb, combat } = computeEhpEhb(input.snapshot);
   const ehpMilli = Math.round(ehp * EFFICIENCY_SCALE);
   const ehbMilli = Math.round(ehb * EFFICIENCY_SCALE);
 
@@ -94,6 +94,13 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
     const was = computeEhpEhb(input.previous);
     ehpMilliGained = Math.max(0, ehpMilli - Math.round(was.ehp * EFFICIENCY_SCALE));
     ehbMilliGained = Math.max(0, ehbMilli - Math.round(was.ehb * EFFICIENCY_SCALE));
+    // ONE STRETCH OF PLAY, COUNTED ONCE. A boss kill moves both numbers: the kill is hours bossed and
+    // the combat XP it gave is hours played. Every reader of these gains adds the two (the roster's
+    // 7d column, the week's leaders, streaks), so an hour at a boss showed as nearly two. The combat
+    // part of this window's hours-played gain is therefore counted only beyond the hours bossed in
+    // the same window. The absolute totals above are untouched; only the day's GAIN is netted.
+    const combatGained = Math.max(0, Math.round((combat - was.combat) * EFFICIENCY_SCALE));
+    ehpMilliGained = Math.max(0, ehpMilliGained - Math.min(combatGained, ehbMilliGained));
   }
 
   const nothingMoved = xpGained === 0 && ehbMilliGained === 0 && ehpMilliGained === 0;

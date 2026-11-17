@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
 import { hiscoresKeyLabel } from '@/lib/killSource';
+import { sharingSignalText, type OwnerRelation } from '@/lib/sharingRules';
 
 interface Flag {
   kind: 'hiscores' | 'rate';
@@ -23,6 +24,8 @@ interface Signal {
   detail: string | null;
   playerId: number;
   rsn: string;
+  /** Shared-network signals: who owns the two characters, as the site's records stand now. */
+  owners?: OwnerRelation;
 }
 
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
@@ -35,7 +38,7 @@ function signalText(s: Signal): { tag: string; text: string; weight: number } {
   let d: {
     key?: string; kc?: number; hours?: number; windowHours?: number; pbSeconds?: number; runSeconds?: number;
     offShare?: number; zones?: string[]; usual?: string | null; other?: string; sameTeam?: boolean; countries?: string[];
-    days?: number;
+    days?: number; lateHours?: number; sameNetworkAs?: string; against?: string;
   } = {};
   try {
     d = s.detail ? JSON.parse(s.detail) : {};
@@ -58,10 +61,11 @@ function signalText(s: Signal): { tag: string; text: string; weight: number } {
       return { weight: 2, tag: 'PB jump', text: `${hiscoresKeyLabel(d.key ?? '')} in ${mmss(d.runSeconds ?? 0)}; their best before the event was ${mmss(d.pbSeconds ?? 0)}.` };
     case 'two_countries':
       return { weight: 2, tag: 'two countries', text: `Their plugin connected from ${(d.countries ?? []).join(' and ')} within three hours.` };
+    // Account-sharing checks (lib/sharingRules): one person's own accounts on one network never get here.
     case 'shared_network':
-      return d.sameTeam
-        ? { weight: 1, tag: 'same network', text: `Same network as teammate ${d.other} — one machine playing two accounts, or one household.` }
-        : { weight: 2, tag: 'same network', text: `Same network as ${d.other}, on another team — one household, or one person on both sides.` };
+    case 'late_account':
+    case 'late_account_far':
+      return sharingSignalText(s.kind, d, s.owners) ?? { weight: 1, tag: 'check', text: s.kind };
     case 'timezone_change':
       return { weight: 1, tag: 'timezone', text: `Proof PC timezone ${(d.zones ?? []).join(', ')}${d.usual ? `; earlier proofs were ${d.usual}` : ''}.` };
     case 'schedule_shift':
@@ -108,7 +112,11 @@ export default function CreditIntegrityPanel({ eventId }: { eventId: number }) {
   }
 
   // Strongest first; a weak signal only next to another one for the same player.
-  const read = signals.map((s) => ({ s, ...signalText(s) }));
+  // "Added late, far away" already says added late: the plain line would only repeat it.
+  const far = new Set(signals.filter((s) => s.kind === 'late_account_far').map((s) => s.playerId));
+  const read = signals
+    .filter((s) => !(s.kind === 'late_account' && far.has(s.playerId)))
+    .map((s) => ({ s, ...signalText(s) }));
   const count = new Map<number, number>();
   for (const r of read) count.set(r.s.playerId, (count.get(r.s.playerId) ?? 0) + 1);
   const shown = read

@@ -98,7 +98,7 @@ export function buyWording(
       return {
         primary: { label: o.verb ?? `Subscribe to ${o.tierName}`, href: b.url },
         secondary: null,
-        note: `${today} No free trial: cancel any time on Gumroad.`,
+        note: `${today} Cancel any time on Gumroad.`,
       };
     case 'soon':
       return {

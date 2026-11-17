@@ -1018,27 +1018,21 @@
       "slayer": [
         {
           "fromLevel": 1,
-          "xpPerHour": 5000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 50,
-          "xpPerHour": 20000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 80,
-          "xpPerHour": 40000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
           "xpPerHour": 50000,
-          "source": null,
-          "estimated": true
+          "source": "Ironman Guide/Slayer",
+          "estimated": false
+        },
+        {
+          "fromLevel": 65,
+          "xpPerHour": 68000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false
+        },
+        {
+          "fromLevel": 93,
+          "xpPerHour": 70000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false
         }
       ],
       "farming": [
@@ -1225,22 +1219,22 @@
           "estimated": true
         },
         {
-          "fromLevel": 40,
-          "xpPerHour": 30000,
-          "source": null,
-          "estimated": true
+          "fromLevel": 30,
+          "xpPerHour": 24519,
+          "source": "Sailing training",
+          "estimated": false
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 50000,
-          "source": null,
-          "estimated": true
+          "fromLevel": 55,
+          "xpPerHour": 88923,
+          "source": "Sailing training",
+          "estimated": false
         },
         {
-          "fromLevel": 90,
-          "xpPerHour": 60000,
-          "source": null,
-          "estimated": true
+          "fromLevel": 72,
+          "xpPerHour": 184369,
+          "source": "Sailing training",
+          "estimated": false
         }
       ]
     },
@@ -2354,27 +2348,27 @@
       "sailing": [
         {
           "fromLevel": 1,
-          "xpPerHour": 8000,
+          "xpPerHour": 10000,
           "source": null,
           "estimated": true
         },
         {
-          "fromLevel": 40,
-          "xpPerHour": 24000,
-          "source": null,
-          "estimated": true
+          "fromLevel": 30,
+          "xpPerHour": 24519,
+          "source": "Sailing training",
+          "estimated": false
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 40000,
-          "source": null,
-          "estimated": true
+          "fromLevel": 55,
+          "xpPerHour": 88923,
+          "source": "Sailing training",
+          "estimated": false
         },
         {
-          "fromLevel": 90,
-          "xpPerHour": 48000,
-          "source": null,
-          "estimated": true
+          "fromLevel": 72,
+          "xpPerHour": 184369,
+          "source": "Sailing training",
+          "estimated": false
         }
       ]
     }

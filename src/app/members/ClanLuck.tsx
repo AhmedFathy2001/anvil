@@ -4,6 +4,7 @@ import { itemIconUrl } from '@/lib/tileIcons';
 import { formatCount, formatMultiple, formatOdds, formatRate } from '@/lib/clogLuck';
 import { formatSources, type LuckEntry } from '@/lib/clogProfile';
 import ClanLink from '@/components/ClanLink';
+import { useState } from 'react';
 
 // Who the game has been cruel to, and who it hasn't. Both boards read from synced collection logs
 // crossed with hiscores kill counts and the wiki's drop rates — so an entry is a claim we can show
@@ -14,6 +15,8 @@ interface Props {
   spooned: LuckEntry[];
   membersConsidered: number;
   itemsConsidered: number;
+  /** The last seven days, from kills gained and drops the plugin reported (lib/weekLuck). */
+  week?: { dry: LuckEntry[]; spooned: LuckEntry[]; judged: number; members: number } | null;
 }
 
 function Row({
@@ -58,9 +61,53 @@ function Row({
   );
 }
 
-export default function ClanLuck({ dry, spooned, membersConsidered, itemsConsidered }: Props) {
+export default function ClanLuck({ dry, spooned, membersConsidered, itemsConsidered, week = null }: Props) {
+  // All time is the board with something on it for every clan; the week is a tap away.
+  const [span, setSpan] = useState<'all' | 'week'>('all');
+  const spans = week ? (
+    <div role="radiogroup" aria-label="Luck over" className="inline-flex rounded-lg border border-card-border p-0.5 text-xs">
+      {([['week', 'This week'], ['all', 'All time']] as const).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="radio"
+          aria-checked={span === key}
+          onClick={() => setSpan(key)}
+          className={`min-h-8 rounded-md px-3 transition-colors ${span === key ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  if (week && span === 'week') {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="min-w-0 flex-1 text-xs text-text-muted">
+            The last seven days: drops the Anvil plugin reported, against the kills gained in the same days and the wiki&rsquo;s rate.{' '}
+            {week.judged} of {week.members} {week.members === 1 ? 'member' : 'members'} had the plugin running, and only they are judged: without it
+            we saw none of their drops. A week is a small sample, so someone is only called dry once they have done enough kills to expect a drop.
+          </p>
+          {spans}
+        </div>
+        <LuckColumns
+          dry={week.dry}
+          spooned={week.spooned}
+          kcLabel="KC this week"
+          emptyDry="Nobody has done enough kills without a drop this week to call it dry."
+          emptySpooned="No drop this week has beaten its odds by enough to call it. Yet."
+        />
+      </div>
+    );
+  }
+
   if (membersConsidered === 0) {
     return (
+      <div className="space-y-4">
+      {/* The week needs no synced log (it reads the plugin's drops), so it stays reachable from here. */}
+      {spans && <div className="flex justify-end">{spans}</div>}
       <div className="border border-dashed border-card-border rounded-xl p-8 text-center">
         <p className="text-sm text-text-muted">Nobody has synced a collection log yet.</p>
         <p className="text-xs text-text-muted/70 mt-2">
@@ -68,6 +115,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
           &ldquo;hasn&rsquo;t told us&rdquo;. In RuneLite, the Anvil tab has a{' '}
           <span className="text-gold">Sync profile</span> button.
         </p>
+      </div>
       </div>
     );
   }
@@ -80,6 +128,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
         and the wiki&rsquo;s rate say they should. Sitting near the rate is neither — only the tails
         appear here. Bosses only, since a clue item has no kill count to measure against.
       </p>
+      {spans && <div className="flex justify-end">{spans}</div>}
 
       <LuckColumns dry={dry} spooned={spooned} />
     </div>

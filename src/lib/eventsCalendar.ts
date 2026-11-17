@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { eventCohosts, events, weeklyCompetitions } from '@/db/schema';
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { modeKeyFor } from '@/lib/eventModes';
-import { EFFICIENCY_LABELS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
+import { EFFICIENCY_LABELS, bossMetricLabel, skillMetricLabel } from '@/lib/constants';
 import type { HubKind } from '@/lib/eventsHub';
 
 /**
@@ -151,7 +151,7 @@ export async function loadCalendar(
 function weeklyMetricLabel(type: string, metric: string): string {
   // An item hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
   if (type === 'hunt') return metric;
-  if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
+  if (type === 'skill') return skillMetricLabel(metric) || metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
   return bossMetricLabel(metric) || metric;
 }

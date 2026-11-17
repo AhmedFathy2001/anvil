@@ -1,3 +1,4 @@
+import { getWeekLuck } from '@/lib/weekLuck';
 import type { Metadata } from 'next';
 import { hiddenNamesForViewer } from '@/lib/clanInsider';
 import { withoutHiddenKeys, withoutHiddenNames, withoutHiddenRows } from '@/lib/rosterVisibility';
@@ -57,10 +58,15 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   // A visitor from outside the clan is shown only the characters whose owner left "Show publicly"
   // on (lib/rosterVisibility). Counts and clan totals below still come from the whole roster.
   const hidden = await hiddenNamesForViewer(clan.id);
-  const allMembers = await listMembers(clan.id);
+  // "Hide guests from the Members page" (members_hide_guests): the clan lists its members only.
+  // Dropped at the source, so the roster, its counts, the podium and the totals all agree, and no
+  // guest row reaches the page's payload for anyone.
+  const hideGuests = (await getSetting(clan.id, 'members_hide_guests')) === '1';
+  const allMembers = (await listMembers(clan.id)).filter((m) => !hideGuests || !m.isGuest);
   const members = withoutHiddenRows(allMembers, hidden);
   // Guests are listed but not counted, unless this clan says otherwise — see getClanAnalytics.
-  const countGuests = (await getSetting(clan.id, 'members_count_guests')) === '1';
+  // Hidden guests are never counted: a total that includes people the page won't show can't be checked.
+  const countGuests = !hideGuests && (await getSetting(clan.id, 'members_count_guests')) === '1';
   // Rank sorts by seniority, not alphabetically.
   const rankCounts = new Map<string, number>();
   for (const m of allMembers) if (m.rank && !m.isGuest) rankCounts.set(m.rank, (rankCounts.get(m.rank) ?? 0) + 1);
@@ -81,7 +87,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     getRosterLog(clan.id, 20).then((rows) => withoutHiddenRows(rows, hidden)),
     getClanActivityAnalytics(clan.id, { countGuests }).then((a) => withoutHiddenNames(a, hidden)),
     getRosterMovement(members),
-    getLuckBoards(clan.id).then((b) => withoutHiddenNames(b, hidden)),
+    // All time, and the last seven days (lib/weekLuck) under the same hidden-name rule.
+    Promise.all([getLuckBoards(clan.id), getWeekLuck(clan.id).catch(() => null)]).then(([b, w]) => ({
+      ...withoutHiddenNames(b, hidden),
+      week: w ? { ...withoutHiddenNames({ dry: w.dry, spooned: w.spooned }, hidden), judged: w.judged, members: w.members } : null,
+    })),
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
     // Tuesday's pet are the same news to someone reading this page.
     // Back-to-back repeats are one line with a count (lib/feedRuns), cut to 30 after.
