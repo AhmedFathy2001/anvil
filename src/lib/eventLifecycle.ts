@@ -1,3 +1,4 @@
+import { isBranchingRoute, roadBlockers, routeEntries } from '@/lib/raceRoutes';
 import { placementOf } from '@/lib/teamPlacement';
 import { notifyBoardPeople } from '@/lib/pushNotify';
 import { db } from '@/db';
@@ -167,7 +168,22 @@ export async function getEventStartReadiness(eventId: number, draftStatus: strin
     assignedPlayerCount: assignedCount.n,
     totalPlayerCount: totalCount.n,
     placement,
+    raceRoadProblems: await raceRoadProblemCount(eventId),
   });
+}
+
+/**
+ * What is wrong with a branching race's road, counting only the tiles that are ON it: a tile nobody
+ * placed is simply not in the race (as it always was), so it never holds a start by itself.
+ */
+async function raceRoadProblemCount(eventId: number): Promise<number> {
+  const rows = await db
+    .select({ id: tiles.id, position: tiles.position, raceStep: tiles.raceStep, raceNext: tiles.raceNext, parentTileId: tiles.parentTileId, mission: tiles.mission })
+    .from(tiles)
+    .where(eq(tiles.eventId, eventId));
+  const board = rows.filter((t) => t.parentTileId == null && !t.mission);
+  if (!isBranchingRoute(board)) return 0;
+  return roadBlockers(routeEntries(board)).length;
 }
 
 // Fires the one-time "event started" / "event ended" Discord posts for any event whose

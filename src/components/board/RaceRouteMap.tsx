@@ -116,6 +116,9 @@ const R_FINISH = 42;
 /** Rows stand further apart when team pennants stack over the waypoints. */
 const ROW_PENNANTS = 176;
 /** Road letter badges (ground, ink), A first — the panel's colours. */
+/** The roads leaving a hovered tile, and the ring on the tiles they reach: a cool colour, so it never reads as progress (gold). */
+const HOVER_ROAD = '#8fd3ff';
+
 export const ROAD_INK: [string, string][] = [
   ['#7a6230', '#ffe2a0'],
   ['#2f6680', '#c4e8ff'],
@@ -193,6 +196,8 @@ export default function RaceRouteMap({
 }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(initialWidth);
+  // The tile under the pointer (or keyboard focus): its roads onward and the tiles they lead to light up.
+  const [hoverId, setHoverId] = useState<number | null>(null);
   const measure = fit || shrink;
   useEffect(() => {
     if (!measure || !boxRef.current) return;
@@ -363,6 +368,11 @@ export default function RaceRouteMap({
             links.filter(({ from, to }) => from === selectedId || to === selectedId).map(({ from, to }) => (
               <path key={`e${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={GOLD} strokeWidth={5} strokeLinecap="round" />
             ))}
+          {/* Hovering a tile: every road that leaves it, so "what does this one open?" is answered by pointing. */}
+          {hoverId != null &&
+            links.filter(({ from }) => from === hoverId).map(({ from, to }) => (
+              <path key={`h${from}-${to}`} d={draw(pos.get(from)!, pos.get(to)!)} fill="none" stroke={HOVER_ROAD} strokeWidth={6} strokeLinecap="round" className="race-road-flow" />
+            ))}
           {/* Editor: each road is clickable (the svg itself lets clicks through to the tiles). */}
           {onLinkClick &&
             links.map(({ from, to }) => (
@@ -395,12 +405,18 @@ export default function RaceRouteMap({
           const linked = sel != null && (n.next.includes(sel.id) || sel.next.includes(n.id));
           const line = progress?.get(n.id);
           const mineHere = viewerTeamId != null && here.some((t) => t.id === viewerTeamId);
+          // One of the tiles the hovered tile leads to.
+          const opensFromHover = hoverId != null && hoverId !== n.id && (nodes.find((x) => x.id === hoverId)?.next.includes(n.id) ?? false);
           const heat = variant === 'huge' && here.length ? 0.25 + 0.6 * (here.length / maxAt) : 0;
           return (
             <div
               key={n.id}
               className={cn('absolute flex flex-col items-center', matched && !matched.has(n.id) && 'opacity-30')}
               style={{ left: p.x - nodeW / 2, top: p.y - r, width: nodeW }}
+              onMouseEnter={() => setHoverId(n.id)}
+              onMouseLeave={() => setHoverId((h) => (h === n.id ? null : h))}
+              onFocusCapture={() => setHoverId(n.id)}
+              onBlurCapture={() => setHoverId((h) => (h === n.id ? null : h))}
             >
               {variant === 'few' && here.some((t) => t.id !== viewerTeamId) && (
                 <div className="absolute bottom-full mb-1 z-10 flex flex-col-reverse items-center gap-0.5">
@@ -435,6 +451,7 @@ export default function RaceRouteMap({
                   st === 'ahead' && !lockedIds?.has(n.id) && 'opacity-60',
                   st === 'closed' && 'opacity-35 grayscale',
                   isSelected && 'border-gold ring-4 ring-gold/40',
+                  !isSelected && opensFromHover && 'border-[#8fd3ff] ring-4 ring-[#8fd3ff]/35 opacity-100 grayscale-0',
                   !isSelected && isLinkable && (linked ? 'border-gold' : 'border-dashed border-gold/50'),
                   !isSelected && problemIds?.has(n.id) && 'border-red-500',
                   blank && !isSelected && !isLinkable && !problemIds?.has(n.id) && 'border-dashed border-text-muted/40 bg-[#141010]',

@@ -9,7 +9,7 @@ import { applyLiveRouteEdit, previewRouteEdit } from '@/lib/raceRoutesDb';
 import { logTileAudit } from '@/lib/tile-audit';
 import { assertEventEditable } from '@/lib/eventLock';
 import { isMissionTile } from '@/lib/eventRules';
-import { routeOrder, validateRoute, type RouteEntry } from '@/lib/raceRoutes';
+import { routeOrder, validateRoute, type RouteEntry, routeStamp, routeEntries } from '@/lib/raceRoutes';
 
 // Saves a tile race's route (lib/raceRoutes): every board tile's step and its links to the next step.
 // Board order is rewritten to follow the steps, so every list reads in race order. Once the race has
@@ -46,7 +46,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Only an admin can change the route once the race has started.' }, { status: 403 });
   }
 
-  let body: { route?: unknown; straight?: unknown; preview?: unknown; policy?: unknown; discord?: unknown };
+  let body: { route?: unknown; straight?: unknown; preview?: unknown; policy?: unknown; discord?: unknown; draft?: unknown; base?: unknown; force?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -69,22 +69,44 @@ export async function PUT(
   if (!Array.isArray(body.route)) {
     return NextResponse.json({ error: 'route must be an array of { id, step, next }' }, { status: 400 });
   }
+  // A DRAFT: before the race starts, an unfinished road can be saved as it is (tiles not placed yet,
+  // steps still to link), so the work is kept and other staff see it. The race cannot START on one
+  // (lib/eventReadiness 'race-road'). Once it has started, only a playable road saves.
+  const draft = body.draft === true && !live;
   const entries: RouteEntry[] = [];
   for (const raw of body.route as unknown[]) {
     const r = raw as { id?: unknown; step?: unknown; next?: unknown };
-    if (!r || !Number.isInteger(r.id) || !Number.isInteger(r.step) || !Array.isArray(r.next) || !r.next.every((n) => Number.isInteger(n))) {
+    const stepOk = Number.isInteger(r?.step) || (draft && r?.step === null);
+    if (!r || !Number.isInteger(r.id) || !stepOk || !Array.isArray(r.next) || !r.next.every((n) => Number.isInteger(n))) {
       return NextResponse.json({ error: 'Each route entry needs an id, a step and a next list of tile ids.' }, { status: 400 });
     }
-    entries.push({ id: r.id as number, step: r.step as number, next: [...new Set(r.next as number[])] });
+    entries.push({ id: r.id as number, step: r.step as number | null, next: [...new Set(r.next as number[])] });
+  }
+  // SOMEONE ELSE SAVED FIRST: the editor says what it started from; when the stored road is no
+  // longer that, refuse once and say so, rather than quietly replacing their work. `force` is the
+  // editor's "save mine anyway".
+  if (typeof body.base === 'string' && body.force !== true && body.preview !== true && body.base !== routeStamp(routeEntries(board))) {
+    return NextResponse.json({ error: 'Someone else changed the roads since you opened this map.', conflict: true }, { status: 409 });
   }
   const ids = new Set(board.map((t) => t.id));
   const given = new Set(entries.map((e) => e.id));
   if (given.size !== entries.length || entries.length !== ids.size || ![...given].every((id) => ids.has(id))) {
     return NextResponse.json({ error: 'The route must place every tile on this board exactly once.' }, { status: 400 });
   }
+  // STRUCTURAL LIMITS, for every save and a draft above all (a draft skips the playability check
+  // below): a step is unplaced or a real step of this board, never negative or beyond the number of
+  // tiles (the map lays out one column per step), and a tile links only to tiles of this board.
+  for (const e of entries) {
+    if (e.step != null && (e.step < 0 || e.step >= ids.size)) {
+      return NextResponse.json({ error: 'A step number is out of range for this board.' }, { status: 400 });
+    }
+    if (e.next.length > ids.size || !e.next.every((n) => ids.has(n))) {
+      return NextResponse.json({ error: 'A road leads to a tile that is not on this board.' }, { status: 400 });
+    }
+  }
   const labelOf = new Map(board.map((t) => [t.id, t.label]));
   const problems = validateRoute(entries, (id) => `“${labelOf.get(id) ?? `Tile ${id}`}”`);
-  if (problems.length) {
+  if (problems.length && !draft) {
     return NextResponse.json({ error: problems[0].message, problems }, { status: 400 });
   }
 
@@ -123,8 +145,8 @@ export async function PUT(
   logTileAudit({
     eventId: eId,
     action: 'reordered',
-    newValue: { raceRoute: 'steps', tiles: entries.length, steps: Math.max(...entries.map((e) => e.step ?? 0)) + 1 },
+    newValue: { raceRoute: 'steps', tiles: entries.length, steps: Math.max(...entries.map((e) => e.step ?? 0)) + 1, ...(problems.length ? { draft: true, problems: problems.length } : {}) },
     actorUserId: editor.userId,
   });
-  return NextResponse.json({ ok: true, order });
+  return NextResponse.json({ ok: true, order, ...(problems.length ? { draft: true, problems } : {}) });
 }
