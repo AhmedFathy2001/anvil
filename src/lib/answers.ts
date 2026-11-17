@@ -83,6 +83,40 @@ export const LANDING_FAQ: Faq[] = LANDING_QUESTIONS.map((q) => GENERAL_FAQ.find(
   (f): f is Faq => Boolean(f),
 );
 
+/**
+ * What people type when they have never heard of Anvil: the plain meaning of the weekly competitions.
+ * Skill of the Week and Boss of the Week are things clans run, not something the game has built in.
+ */
+export const WEEKLY_FAQ: Faq[] = [
+  {
+    q: 'What is Skill of the Week (SOTW) in OSRS?',
+    a: 'Skill of the Week is a competition Old School RuneScape clans run among their own members: one skill is picked, and whoever gains the most XP in it over the week wins. It is run by clans, not by the game, so a clan needs a way to record everyone’s XP at the start and the end. Anvil does that automatically for every member on the roster.',
+  },
+  {
+    q: 'What is Boss of the Week (BOTW) in OSRS?',
+    a: 'Boss of the Week is the bossing version of the same idea: a clan picks one boss, and the member with the most kills there over the week wins. Like Skill of the Week it is run by clans, not by the game. Anvil counts each member’s kills from the hiscores and its RuneLite plugin and posts the winner to Discord.',
+  },
+];
+
+/**
+ * Asked on the clan directory (/clans). The first is about the game itself: "clan hall" is a place in
+ * Old School RuneScape as well as the name of that page, and most people searching it want the place.
+ */
+export const CLANS_FAQ: Faq[] = [
+  {
+    q: 'Where is the Clan Hall in OSRS, and how do you get there?',
+    a: 'The in-game Clan Hall is reached through the blue portal in the Clan Hub, the building in the south-east corner of the Grand Exchange. You need to be in a clan to use the portal, and guests can enter if the clan allows it. The Clan Hall on this page is a different thing: Anvil’s directory of clans.',
+  },
+  {
+    q: 'How do I find an OSRS clan to join?',
+    a: 'Browse the clans on this page: you can see which are recruiting and which are active this week. Open a clan to see its events and how to join. In the game itself, you join when a member of that clan with the right rank invites you.',
+  },
+  {
+    q: 'Can you be in more than one clan in OSRS?',
+    a: 'You can be a member of one clan at a time in Old School RuneScape. You can still visit another clan’s chat as a guest if that clan allows guests. On Anvil, a player can take part in another clan’s event as a guest without leaving their own clan.',
+  },
+];
+
 /** A page that answers one search, end to end. Rendered at /features/<slug>. */
 export interface FeaturePage {
   slug: string;
@@ -131,7 +165,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
   },
   {
     slug: 'skill-and-boss-of-the-week',
-    title: 'Skill of the Week & Boss of the Week Tracker for OSRS Clans — Anvil',
+    title: 'OSRS Skill of the Week (SOTW) & Boss of the Week (BOTW) Tracker — Anvil',
     h1: 'Skill of the Week and Boss of the Week, run for you',
     summary:
       'Anvil runs SOTW and BOTW competitions for Old School RuneScape clans: everyone on the roster is enrolled automatically, gains are tracked from the hiscores and the RuneLite plugin, and the winner is posted to Discord when the week ends.',
@@ -150,6 +184,7 @@ export const FEATURE_PAGES: FeaturePage[] = [
       },
     ],
     faq: [
+      ...WEEKLY_FAQ,
       GENERAL_FAQ[5],
       {
         q: 'Do members have to sign up for Skill of the Week?',

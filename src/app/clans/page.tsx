@@ -12,6 +12,9 @@ import { verifyUser } from '@/lib/auth';
 import { namespaceOf } from '@/lib/clanSlugLookup';
 import { clansOfPerson } from '@/lib/myClans';
 import ClanLookup, { type LookupClan } from '@/components/ClanLookup';
+import Faq from '@/components/landing/Faq';
+import { CLANS_FAQ } from '@/lib/answers';
+import { JsonLd, faqLd } from '@/lib/jsonLd';
 import { clanBoostDisplays, type ClanBoostDisplay } from '@/lib/clanBoosts';
 
 export const dynamic = 'force-dynamic';
@@ -101,7 +104,19 @@ export default async function ClansPage() {
     tenure: r.id != null ? (tenure.get(r.id) ?? null) : null,
   }));
 
-  return <ClanLookup clans={clans} />;
+  return (
+    <>
+      <JsonLd data={faqLd(CLANS_FAQ)} />
+      <ClanLookup clans={clans} />
+      <section className="mx-auto mt-14 w-full max-w-5xl">
+        <div className="mb-4 flex items-center gap-2.5">
+          <span className="molten h-5 w-1 shrink-0 rounded-sm" />
+          <h2 className="text-[17px] font-semibold">Questions</h2>
+        </div>
+        <Faq items={CLANS_FAQ} />
+      </section>
+    </>
+  );
 }
 
 /** The name of one live thing per clan, preferring a competition over a board. */
