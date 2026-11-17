@@ -1,3 +1,6 @@
+import WeeklyTargetPanel from '../WeeklyTargetPanel';
+import { competitionNotStarted } from '@/lib/competitionTeamsDb';
+import { huntFormFromConfig } from '@/lib/huntForm';
 import HuntSettingsPanel from '../HuntSettingsPanel';
 import { parseHunt } from '@/lib/itemHunt';
 import { notFound } from 'next/navigation';
@@ -39,6 +42,9 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
 
   return (
     <>
+    {competitionNotStarted(comp) && (
+      <WeeklyTargetPanel competitionId={comp.id} type={comp.type} metric={comp.metric} hunt={hunt ? huntFormFromConfig(hunt) : null} />
+    )}
     {hunt && <HuntSettingsPanel competitionId={comp.id} initial={{ ends: hunt.ends, confirm: hunt.confirm }} finished={comp.status === 'completed'} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
     <WeeklySettingsPanel
