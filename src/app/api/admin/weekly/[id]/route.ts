@@ -1,3 +1,4 @@
+import { cleanEntryFee } from '@/lib/weeklySignups';
 import { retargetCompetition } from '@/lib/weeklyRetarget';
 import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
@@ -137,6 +138,19 @@ export async function PUT(
   if (!modeChanged && typeof body.teamLateJoin === 'boolean') updates.teamLateJoin = body.teamLateJoin;
   // Who from this clan races: 'all' (roster swept in) or 'selected' (only the people an admin adds).
   if (body.hostEntrants === 'all' || body.hostEntrants === 'selected') updates.hostEntrants = body.hostEntrants;
+  // Sign-ups (lib/weeklySignups): members enter themselves, so nothing sweeps the roster in. Turning
+  // them on makes it a "selected people" competition; the people already in stay in. A new fee is
+  // owed by whoever signs up from now on; fees already recorded keep their amounts.
+  if (typeof body.selfSignup === 'boolean') {
+    updates.selfSignup = body.selfSignup;
+    // Switching them off leaves the fee as it was: the amount is a treasurer's to change, and with
+    // sign-ups off nobody new can owe it.
+    if (body.selfSignup) updates.hostEntrants = 'selected';
+  }
+  if (body.entryFee !== undefined && (body.selfSignup === true || (body.selfSignup === undefined && scoped.selfSignup))) {
+    if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can set an entry fee.' }, { status: 403 });
+    updates.entryFee = cleanEntryFee(body.entryFee);
+  }
 
   if (Object.keys(updates).length === 0 && modeChanged) {
     return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);

@@ -204,6 +204,9 @@ export async function clearHostEntrants(comp: Pick<Competition, 'id' | 'status' 
  */
 export async function carryOverSelectedEntrants(prev: Competition, next: Competition): Promise<number> {
   if (prev.hostEntrants !== 'selected') return 0;
+  // People who signed themselves up are not carried: each week is entered afresh, and with a fee,
+  // paid afresh (lib/weeklySignups).
+  if (prev.selfSignup) return 0;
   const seats = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn })
     .from(weeklyParticipants)

@@ -1464,6 +1464,13 @@
       "when": 1794900120000,
       "tag": "0271_weekly_day_gains",
       "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1794900180000,
+      "tag": "0272_weekly_signups",
+      "breakpoints": true
     }
   ]
 }

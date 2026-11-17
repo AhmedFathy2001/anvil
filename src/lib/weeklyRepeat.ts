@@ -107,6 +107,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               // "Selected people" stays selected: without this the next week went back to sweeping
               // the whole roster in, and the organiser's list lasted exactly one week.
               hostEntrants: prev.hostEntrants,
+              // A sign-up competition stays one, at the same fee; each week is entered (and paid) afresh.
+              selfSignup: prev.selfSignup,
+              entryFee: prev.entryFee,
             })
             .returning();
           const kept = await tx
