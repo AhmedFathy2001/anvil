@@ -774,7 +774,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               </div>
               <div className="mt-2 text-sm text-foreground/90 tabular-nums">{me.stepsDone} of {steps} steps done</div>
               {!curtain && !me.finished && (
-                <div className="mt-0.5 text-xs text-text-muted">{me.behind === 0 ? 'In the lead' : `${me.behind} behind the leader`}</div>
+                <div className="mt-0.5 text-xs text-text-muted">{me.behind === 0 ? (me.rank === 1 ? 'In the lead' : 'Level with the leader') : `${me.behind} behind the leader`}</div>
               )}
             </div>
             <div className="min-w-0">
