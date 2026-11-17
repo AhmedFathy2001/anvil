@@ -369,7 +369,16 @@ function easeSection(x: Ctx, id: number): Node | null {
   if (tile?.live.length) {
     rows.push(text(tile.live.length > 1 ? 'Easier options open' : 'Easier option open', GREEN, { font: 'bold' }));
     rows.push(text(`Finish the tile as written, or do ${tile.live.length > 1 ? 'one of these' : 'this'} instead. Either way the tile is done.`, SOFT, { wrap: CARD_W }));
-    for (const o of tile.live) rows.push(text(o.label, 'white', { wrap: CARD_W }));
+    // What each one takes (the board sends it with the tile) and the team's count on it so far.
+    const t = x.byId.get(id);
+    const sent: { tileId: number; what?: string }[] = (t && 'easier' in t && t.easier) || [];
+    for (const o of tile.live) {
+      const pr = x.o.ctx.progress?.get(o.id);
+      rows.push(text(`${o.label}${pr && pr.goal > 1 ? ` (${pr.current}/${pr.goal})` : ''}`, 'white', { wrap: CARD_W }));
+      const what = sent.find((e) => e.tileId === o.id)?.what;
+      if (what) rows.push(muted(what, { wrap: CARD_W }));
+    }
+    rows.push(muted('Nothing to press: it counts as you play, like the tile itself.', { wrap: CARD_W }));
   }
   const timed = nextTimedLine(ease, tile);
   if (timed) rows.push(muted(timed, { wrap: CARD_W }));

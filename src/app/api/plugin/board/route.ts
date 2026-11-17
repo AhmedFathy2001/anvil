@@ -1,5 +1,6 @@
 import { maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
 import { isRaceHidden } from '@/lib/raceHideAhead';
+import { easeLiveForTeam, loadEaseContext } from '@/lib/raceEaseDb';
 import { missionTileState } from '@/lib/tileState';
 import { parseTileMissionRules } from '@/lib/eventRules';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
@@ -277,6 +278,16 @@ export async function buildBoard(
   // Board cells only: a combo's parts (lib/combo) ride inside their combo's entry below.
   const boardRows = withoutParts(allEventTiles);
   const partsOf = partsByParent(allEventTiles);
+  // A race tile's easier options the caller's team has open (lib/raceEase): only those, so one still
+  // locked never reaches a client. They ride on their tile below, with what each takes.
+  const easeCtx = callerTeamId != null ? await loadEaseContext(event).catch(() => null) : null;
+  const easeLive = easeCtx && callerTeamId != null ? easeLiveForTeam(easeCtx, callerTeamId) : null;
+  const easierOf = new Map<number, typeof allEventTiles>();
+  if (easeLive) {
+    for (const o of allEventTiles) {
+      if (o.parentTileId != null && o.easeLevel != null && easeLive.has(o.id)) easierOf.set(o.parentTileId, [...(easierOf.get(o.parentTileId) ?? []), o]);
+    }
+  }
   // A race hiding the tiles past each team's next step (lib/raceHideAhead): the caller's team sees
   // those as locked "?" cells (a spectator sees what every team can). The panel is a player's view,
   // so it never sees through, staff included.
@@ -289,8 +300,15 @@ export async function buildBoard(
   // view should say what counts, not make a player decode "6571, 28919, …" by hand. A mapping outage
   // degrades to the id without taking the board down.
   const trackedItemNames = new Map<number, string>();
+  // A child row (a combo's part, an easier option) as the tile page lists it: its name, and what it
+  // takes when the name doesn't already say (the items, else its requirement).
+  const childLine = (p: (typeof allEventTiles)[number]) => {
+    const items = allItemIds(p.trackedItemIds, p.itemRequirements).map((id) => trackedItemNames.get(id) ?? `Item ${id}`);
+    const what = items.length ? `${items.slice(0, 8).join(', ')}${items.length > 8 ? ` +${items.length - 8} more` : ''}` : tileRequirement(p);
+    return { tileId: p.id, label: p.label, ...(what && what.trim().toLowerCase() !== p.label.trim().toLowerCase() ? { what } : {}) };
+  };
   // A combo's parts name their items too (the tile page lists what each part takes).
-  const named = [...eventTiles, ...eventTiles.flatMap((t) => (isComboTile(t) ? partsOf.get(t.id) ?? [] : []))];
+  const named = [...eventTiles, ...eventTiles.flatMap((t) => [...(isComboTile(t) ? partsOf.get(t.id) ?? [] : []), ...(isRaceHidden(t) ? [] : easierOf.get(t.id) ?? [])])];
   const rawTrackedIds = new Set(named.flatMap((t) => allItemIds(t.trackedItemIds, t.itemRequirements)));
   for (const tile of named) {
     if (!tile.itemRequirements) continue;
@@ -581,13 +599,9 @@ export async function buildBoard(
           ? comboSentence(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).map((p) => p.label), isIndividualMode(t.trackingMode))
           : tileHowItCounts(t),
         ...(isComboTile(t)
-          ? { comboRule: parseComboRule(t.comboRule).mode, comboLead: comboRuleLead(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).length), parts: (partsOf.get(t.id) ?? []).map((p) => {
-              // What the part takes, when its name doesn't already say: the items, else its requirement.
-              const items = allItemIds(p.trackedItemIds, p.itemRequirements).map((id) => trackedItemNames.get(id) ?? `Item ${id}`);
-              const what = items.length ? `${items.slice(0, 8).join(', ')}${items.length > 8 ? ` +${items.length - 8} more` : ''}` : tileRequirement(p);
-              return { tileId: p.id, label: p.label, ...(what && what.trim().toLowerCase() !== p.label.trim().toLowerCase() ? { what } : {}) };
-            }) }
+          ? { comboRule: parseComboRule(t.comboRule).mode, comboLead: comboRuleLead(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).length), parts: (partsOf.get(t.id) ?? []).map(childLine) }
           : {}),
+        ...(!isRaceHidden(t) && easierOf.get(t.id)?.length ? { easier: easierOf.get(t.id)!.map(childLine) } : {}),
         ...(itemRequirements
           ? { groupMode: t.groupMode === 'all' ? 'all' : 'any', setsRequired: parseSetsRequired(t.setsRequired) }
           : {}),
