@@ -322,7 +322,10 @@ export default function ProfileTabs({
     // actually wants dated, and it was the one thing missing. Only unlocks we WITNESSED carry a date
     // (`clogProfile` already filters on firstSeenAt), so a first sync can't backfill years of items
     // into "Lately" as if they happened today.
+    // A drop the plugin also reported has its own row below, with where it came from: one row, not two.
+    const reported = new Set(moments.map((m) => m.itemId).filter((x): x is number => x != null));
     for (const u of collection.recent) {
+      if (reported.has(u.itemId)) continue;
       entries.push({
         key: `clog-${u.itemId}`,
         kind: 'unlock',
