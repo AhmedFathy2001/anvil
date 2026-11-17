@@ -39,7 +39,6 @@ import { parseStatKeyTimes } from '@/lib/liveStats';
 import {
   baselineWithOverlay,
   completePartialBaseline,
-  effectiveValue,
   needsBaselineRecapture,
   pruneStaleOverlay,
   reconcileLive,
@@ -60,8 +59,8 @@ import {
 } from '@/lib/startingStatsRules';
 import { log } from '@/lib/logger';
 import { parseStamp } from '@/lib/dbTime';
-import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot } from '@/lib/weekly';
-import { competitionStat } from '@/lib/weeklyMetric';
+import { applyWeeklyValue, writePlayerSnapshot } from '@/lib/weekly';
+import { competitionStat, effectiveMetricValue } from '@/lib/weeklyMetric';
 
 /** Same window as the sweep's (lib/statsSweep STALE_OVERLAY_MS). */
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
@@ -513,13 +512,17 @@ async function captureWeeklyOne(comp: CompRow, row: WeeklyRow, owner: 'site' | '
     return false;
   }
   const { type, metric } = stat;
-  const m = readMetricFromSnapshot(read.snapshot, type, metric);
+  // Effective = max(hiscores, live) PER KEY, then summed, exactly as the sweep reads it
+  // (lib/weeklyMetric effectiveMetricValue): the first capture absorbs a session in progress. Taking
+  // the max of the two SUMS instead looked the live overlay up under the whole metric
+  // ("chaosElemental,chaosFanatic"), found nothing, and started a late entrant from stale hiscores,
+  // so the kills of the session they were already in counted as gained in the competition.
+  const m = effectiveMetricValue(read.snapshot, type, metric, read.overlay);
   if (m.kind !== 'value') {
     await stampMiss();
     return false;
   }
-  // Effective = max(hiscores, live): the first capture absorbs a session in progress.
-  const value = effectiveValue(m.value, read.overlay, metric);
+  const value = m.value;
   const fresh = await db.query.weeklyParticipants.findFirst({ where: eq(weeklyParticipants.id, row.id) });
   if (!fresh) return false;
   if (fresh.baselineValue !== null) return true; // the sweep got there first

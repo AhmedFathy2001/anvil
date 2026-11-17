@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import { foreignOr } from '@/lib/pluginForeign';
 import { db } from '@/db';
 import { eventParticipants, tiles, events, clanRoster, weeklyParticipants } from '@/db/schema';
-import { findRosterSeat } from '@/lib/roster';
+import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
+import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { eq, and, inArray } from 'drizzle-orm';
 import { pluginParticipantScope, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import { applyAccountPush, isEmptyPush, readPushed, type PushBody } from '@/lib/accountPush';
@@ -12,7 +13,7 @@ import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/plu
 import { statKeys } from '@/lib/tileKinds';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
-import { liveMetricValue, type CompetitionType } from '@/lib/weeklyMetric';
+import { effectiveMetricValue, liveMetricValue, type CompetitionType } from '@/lib/weeklyMetric';
 import { metricKeys } from '@/lib/constants';
 import { eventHasStarted } from '@/lib/completionGate';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
@@ -191,11 +192,20 @@ export async function POST(request: Request) {
         eq(weeklyParticipants.clanMemberId, member.clanMemberId),
       ));
     const seatByComp = new Map(seats.map((p) => [p.competitionId, p]));
+    let storedSnapshot: HiscoresSnapshot | null | undefined;
     for (const comp of activeComps) {
       const participant = seatByComp.get(comp.id);
       if (!participant) continue; // not enrolled yet — the lifecycle cron enrolls + the sweep baselines
       // A raid across its modes needs every mode in the overlay to be whole; otherwise the sweep has it.
-      const value = liveMetricValue(comp.type as CompetitionType, comp.metric, live);
+      // The live overlay alone when it holds every key; otherwise each key's freshest count, the
+      // stored hiscores under the keys the plugin has not pushed (a pet hunt over two bosses when
+      // only one was killed today). Without this a sum only moved on the sweep's next visit.
+      let value = liveMetricValue(comp.type as CompetitionType, comp.metric, live);
+      if (value == null && comp.type !== 'efficiency') {
+        storedSnapshot ??= await storedHiscores(accountId);
+        const eff = storedSnapshot ? effectiveMetricValue(storedSnapshot, comp.type as CompetitionType, comp.metric, live) : null;
+        value = eff?.kind === 'value' ? eff.value : null;
+      }
       if (value == null) continue;
       await applyWeeklyValue({
         participantId: participant.id,
@@ -216,6 +226,16 @@ export async function POST(request: Request) {
 }
 
 /** The lab board's half of a stats push (lib/labStats), for labDivert. */
+/** The account's last stored hiscores snapshot, parsed; null when there is none yet. */
+async function storedHiscores(accountId: number): Promise<HiscoresSnapshot | null> {
+  try {
+    const raw = await statSnapshotOf(accountId);
+    return raw ? (JSON.parse(raw) as HiscoresSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
 function labStatsOnSession(body: PushBody) {
   return (eventId: number, accountId: number) => applyLabStatsPush(eventId, accountId, readPushed(body));
 }
