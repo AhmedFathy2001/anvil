@@ -46,7 +46,12 @@ export default function DiscordCommandToggles() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-text-muted">
-        Turn off the ones your server doesn&apos;t need. Discord still lists them; asking one says your clan switched it off.
+        The quick way: untick a command and the bot stops answering it for your clan. Discord still lists it; asking it says your clan
+        switched it off.
+      </p>
+      <p className="text-sm text-text-muted">
+        For finer control, use Discord itself: <span className="text-foreground">Server Settings → Integrations → Anvil</span>. There you can
+        hide a command from the list completely, or allow it only for certain roles or in certain channels.
       </p>
       <p className="text-sm">
         <GuideLink href="/guide/commands">How to use the commands</GuideLink>
