@@ -7,6 +7,7 @@ import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
 import { analyticsOverview, type DailyPoint } from '@/lib/analyticsRead';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
 import { unusedFeatures, type FeatureUsage } from '@/lib/featureRegistry';
+import ScrollStrip from '@/components/ScrollStrip';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +82,7 @@ export default async function StaffAnalyticsPage({
             Last 30 days whatever the window above, from page views, actions and plugin panel views. Trend is the last 30
             days against the 30 before. Proof submission is left out: every board needs it.
           </p>
-          <div className="overflow-x-auto overflow-y-hidden">
+          <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-text-muted">
                 <tr>
@@ -111,7 +112,7 @@ export default async function StaffAnalyticsPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollStrip>
           {a.features.every((f) => f.lastUsed === null) && <Empty />}
           {unusedFeatures(a.features).length > 0 && (
             <div className="mt-4 border-t border-card-border pt-3">
@@ -184,7 +185,7 @@ export default async function StaffAnalyticsPage({
           {o.sources.length === 0 ? (
             <Empty />
           ) : (
-            <div className="overflow-x-auto overflow-y-hidden">
+            <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs text-text-muted">
                   <tr>
@@ -211,7 +212,7 @@ export default async function StaffAnalyticsPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollStrip>
           )}
         </Card>
       </Section>
@@ -264,7 +265,7 @@ export default async function StaffAnalyticsPage({
           {o.clanJourney.length === 0 ? (
             <Empty />
           ) : (
-            <div className="overflow-x-auto overflow-y-hidden">
+            <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
               <table className="w-full text-sm">
                 <thead className="text-left text-xs text-text-muted">
                   <tr>
@@ -291,7 +292,7 @@ export default async function StaffAnalyticsPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollStrip>
           )}
         </Card>
       </Section>
@@ -335,7 +336,7 @@ export default async function StaffAnalyticsPage({
 
       <Section title="Clans by activity">
         <Card>
-          <div className="overflow-x-auto overflow-y-hidden">
+          <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-text-muted">
                 <tr>
@@ -373,7 +374,7 @@ export default async function StaffAnalyticsPage({
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollStrip>
         </Card>
       </Section>
     </div>

@@ -251,7 +251,7 @@ export default function ClansClient({
       />
 
       <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
-        <table className="w-full min-w-[68rem] text-sm">
+        <table className="stack-phone w-full min-w-[68rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="px-4 py-3">Clan</th>
@@ -297,14 +297,14 @@ export default function ClansClient({
                       <button
                         onClick={() => (c.verified ? unverifyClan(c.id) : verifyClan(c.id, c.inGameName ?? ''))}
                         disabled={busy != null}
-                        className="text-gray-600 underline hover:text-gold"
+                        className="text-gray-600 underline hover:text-gold max-sm:min-h-11 max-sm:px-2"
                       >
                         {c.verified ? 'withdraw' : 'verify'}
                       </button>
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-300">
+                <td data-label="Owner" className="px-4 py-3 text-gray-300">
                   {c.owner ? (
                     /* THE NAME WAS ALL THIS SAID, which is the one thing you cannot contact somebody
                        with. The profile link opens a DM-able Discord profile; the email is the
@@ -365,7 +365,7 @@ export default function ClansClient({
                       {canWrite && (
                         <button
                           onClick={() => openOwner(c.id)}
-                          className="ml-2 text-xs text-gray-500 underline hover:text-gold"
+                          className="ml-2 text-xs text-gray-500 underline hover:text-gold max-sm:min-h-11 max-sm:px-2"
                           title="This clan has no owner, so its own transfer flow cannot give it one"
                         >
                           appoint
@@ -374,7 +374,7 @@ export default function ClansClient({
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-xs text-gray-400" title={c.createdAt}>
+                <td data-label="Created" className="stack-third px-4 py-3 text-xs text-gray-400" title={c.createdAt}>
                   {/* Two timestamp formats live in these columns and only the date prefix means the
                       same thing in both (lib/dbTime) — so the date prefix is what is shown. */}
                   {c.createdAt ? c.createdAt.slice(0, 10) : '—'}
@@ -384,7 +384,7 @@ export default function ClansClient({
                   const l = liveness(c, now);
                   return (
                     <>
-                      <td className="px-4 py-3">
+                      <td data-label="Subscription" className="stack-third px-4 py-3">
                         <span
                           className={`text-xs ${
                             b.state === 'lapsed'
@@ -397,7 +397,7 @@ export default function ClansClient({
                           {b.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Last sync" className="stack-third px-4 py-3">
                         <span className={`text-xs tabular-nums ${l.quiet ? 'text-yellow-400' : 'text-gray-400'}`}>
                           {l.syncDays == null ? 'never' : l.syncDays === 0 ? 'today' : `${l.syncDays}d`}
                         </span>
@@ -405,10 +405,10 @@ export default function ClansClient({
                     </>
                   );
                 })()}
-                <td className="px-4 py-3 text-right tabular-nums">{c.members}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-400">{c.guests}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{c.events}</td>
-                <td className="px-4 py-3">
+                <td data-label="Members" className="stack-third px-4 py-3 text-right tabular-nums">{c.members}</td>
+                <td data-label="Guests" className="stack-third px-4 py-3 text-right tabular-nums text-gray-400">{c.guests}</td>
+                <td data-label="Events" className="stack-third px-4 py-3 text-right tabular-nums">{c.events}</td>
+                <td data-label="Status" className="stack-half px-4 py-3">
                   {canWrite ? (
                     <Select
                       value={c.status}
@@ -422,7 +422,7 @@ export default function ClansClient({
                     <span className={`text-xs ${STATUS_STYLE[c.status] ?? ''}`}>{c.status}</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td data-label="Plan" className="stack-half px-4 py-3">
                   {canWrite ? (
                     <Select
                       value={c.plan}
@@ -442,7 +442,7 @@ export default function ClansClient({
                     number the price list does not have — so this overrides it, and empty means no cap
                     at all rather than a cap of nothing. Changing the plan resets it unless the same
                     request says otherwise, which is why this sends only the cap. */}
-                <td className="px-4 py-3">
+                <td data-label="Seat cap" className="px-4 py-3">
                   {canWrite ? (
                     <CapCell
                       cap={c.memberCap}
@@ -455,7 +455,7 @@ export default function ClansClient({
                   )}
                 </td>
                 {canWrite && (
-                  <td className="px-4 py-3">
+                  <td data-label="Access" className="px-4 py-3">
                     {liveByClan.has(c.id) ? (
                       <button
                         onClick={() => handBack(liveByClan.get(c.id)!.id, c.id)}
@@ -471,7 +471,7 @@ export default function ClansClient({
                           value={reason}
                           onChange={(e) => setReason(e.target.value)}
                           placeholder="Why (the clan sees this)"
-                          className="w-56 rounded-lg px-2 py-1 text-xs"
+                          className="w-56 max-w-full rounded-lg px-2 py-1 text-xs"
                         />
                         <div className="flex items-center gap-1.5">
                           <Input
