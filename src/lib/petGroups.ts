@@ -235,3 +235,73 @@ export const PET_GROUPS: PetGroup[] = [
     ],
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// Where each pet comes from, as hiscores boss keys (lib/constants BOSSES): what a pet hunt adds up
+// for "kills since the hunt started".
+//
+// Read off the collection log: a boss pet sits on its boss's own page in src/data/clog.json, and the
+// page names the boss. A page that covers two bosses ("Callisto and Artio"), both modes of a raid, or
+// an activity the hiscores list under its boss ("The Inferno" is TzKal-Zuk) gives every key that can
+// roll the pet. tests/pet-groups.test.ts checks every key is a real BOSSES key, that every key a
+// pet's page names by label is here, and that no pet is listed without such a page.
+//
+// A pet that is NOT here has no kill count on the hiscores: the skilling pets, and the ones from
+// minigames and clues (Pet penance queen, Lil' creator, Abyssal protector, Bloodhound…).
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+export const PET_BOSS_KEYS: Readonly<Record<number, readonly string[]>> = {
+  11995: ["chaosElemental", "chaosFanatic"], // Pet chaos elemental
+  12643: ["dagannothSupreme"], // Pet dagannoth supreme
+  12644: ["dagannothPrime"], // Pet dagannoth prime
+  12645: ["dagannothRex"], // Pet dagannoth rex
+  12646: ["giantMole"], // Baby mole
+  12647: ["kalphiteQueen"], // Kalphite princess
+  12648: ["thermonuclearSmokeDevil"], // Pet smoke devil
+  12649: ["kreeArra"], // Pet kree'arra
+  12650: ["generalGraardor"], // Pet general graardor
+  12651: ["commanderZilyana"], // Pet zilyana
+  12652: ["krilTsutsaroth"], // Pet k'ril tsutsaroth
+  12653: ["kingBlackDragon"], // Prince black dragon
+  12655: ["kraken"], // Pet kraken
+  12816: ["corporealBeast"], // Pet dark core
+  12921: ["zulrah"], // Pet snakeling
+  13177: ["venenatis", "spindel"], // Venenatis spiderling
+  13178: ["callisto", "artio"], // Callisto cub
+  13179: ["vetion", "calvarion"], // Vet'ion jr.
+  13181: ["scorpia"], // Scorpia's offspring
+  13225: ["tzTokJad"], // Tzrek-jad (The Fight Caves)
+  13247: ["cerberus"], // Hellpuppy
+  13262: ["abyssalSire"], // Abyssal orphan
+  20693: ["wintertodt"], // Phoenix
+  20851: ["chambersOfXeric", "chambersOfXericChallengeMode"], // Olmlet
+  21273: ["skotizo"], // Skotos
+  21291: ["tzKalZuk"], // Jal-nib-rek (The Inferno)
+  21748: ["grotesqueGuardians"], // Noon
+  21992: ["vorkath"], // Vorki
+  22473: ["theatreOfBlood", "theatreOfBloodHardMode"], // Lil' zik
+  22746: ["alchemicalHydra"], // Ikkle hydra
+  23495: ["sarachnis"], // Sraracha
+  23757: ["gauntlet", "corruptedGauntlet"], // Youngllef
+  23760: ["zalcano"], // Smolcano
+  24491: ["nightmare", "phosanisNightmare"], // Little nightmare
+  25602: ["tempoross"], // Tiny tempor
+  26348: ["nex"], // Nexling
+  27352: ["tombsOfAmascut", "tombsOfAmascutExpertMode"], // Tumeken's guardian
+  27590: ["phantomMuspah"], // Muphin
+  28246: ["whisperer"], // Wisp
+  28248: ["vardorvis"], // Butch
+  28250: ["dukeSucellus"], // Baron
+  28252: ["leviathan"], // Lil'viathan
+  28801: ["scurrius"], // Scurry
+  28960: ["solHeredit"], // Smol heredit (Fortis Colosseum)
+  29836: ["araxxor"], // Nid
+  30152: ["hueycoatl"], // Huberte
+  30154: ["amoxliatl"], // Moxi
+  30622: ["royalTitans"], // Bran
+  30888: ["yama"], // Yami
+  31130: ["doomOfMokhaiotl"], // Dom
+  31285: ["shellbaneGryphon"], // Gull (pet)
+  33124: ["brutus"], // Beef
+  33642: ["maggotKing"], // Maggot marquess
+  34042: ["madAngel"], // Aggy
+};

@@ -20,7 +20,7 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
-import HuntFields, { DEFAULT_HUNT, huntPayload, huntUnchosen, type HuntFormValue } from '@/components/weekly/HuntFields';
+import HuntFields, { DEFAULT_HUNT, huntFormPets, huntPayload, huntUnchosen, type HuntFormValue } from '@/components/weekly/HuntFields';
 import { PET_GROUPS } from '@/lib/petGroups';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
@@ -94,6 +94,9 @@ type WeeklyType = (typeof WEEKLY_KINDS)[number]['type'];
 /** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Any pet". */
 function huntName(hunt: HuntFormValue): string {
   if (hunt.target === 'pets') {
+    // Pets picked out of a group are named, the way lib/itemHunt defaultHuntTitle names them.
+    const picked = hunt.petIds && hunt.petIds.length > 0 ? huntFormPets(hunt) : null;
+    if (picked) return `Pet hunt: ${picked.slice(0, 2).map((p) => p.name).join(' + ')}${picked.length > 2 ? ' + more' : ''}`;
     const group = PET_GROUPS.find((g) => g.key === hunt.petGroup);
     return `Pet hunt: ${!group || group.key === 'all' ? 'Any pet' : group.label}`;
   }
@@ -503,6 +506,10 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       if (isHunt) {
         if (hunt.target === 'items' && hunt.items.length === 0) {
           setError('Pick at least one item to hunt.');
+          return;
+        }
+        if (hunt.target === 'pets' && huntFormPets(hunt).length === 0) {
+          setError('Tick at least one pet to hunt.');
           return;
         }
         const unchosen = huntUnchosen(hunt);

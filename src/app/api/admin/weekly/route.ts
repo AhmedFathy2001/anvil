@@ -70,7 +70,8 @@ export async function POST(request: Request) {
     if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
     const config = checked.config;
     // Kills at the source come from the chosen sources when every one is a hiscores boss. With
-    // "any source" (or a pet hunt) the organiser may have picked a boss to show instead.
+    // "any source" the organiser may have picked a boss to show instead. A pet hunt's come from the
+    // pets' own bosses, worked out in huntFromInput.
     if (config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
     if (config.killsOf) config.xpSkill = null;
     huntJson = serializeHunt(config);

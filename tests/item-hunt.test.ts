@@ -22,7 +22,15 @@ import {
   huntEndsAt,
   serverDropKey,
   unconfirmedPrizeDrops,
+  bossNames,
+  defaultHuntTitle,
   huntFromInput,
+  huntIconUrl,
+  huntPets,
+  huntStatLabel,
+  killsOfForPets,
+  MAX_PET_KILL_BOSSES,
+  petKills,
   huntStat,
   huntTargetsLabel,
   huntTitleLine,
@@ -35,6 +43,8 @@ import {
   rankHunt,
   serializeHunt,
 } from '@/lib/itemHunt';
+import { BOSSES } from '@/lib/constants';
+import { PET_GROUPS } from '@/lib/petGroups';
 import { competitionStat } from '@/lib/weeklyMetric';
 
 const ONYX = 6571;
@@ -466,4 +476,116 @@ test('the number a drop landed at reads as kill count or XP, or not at all', () 
   assert.equal(dropStatWords({ kc: 1204, xp: null, statSkill: null }), 'at 1,204 kc');
   assert.equal(dropStatWords({ kc: null, xp: 13034431, statSkill: 'woodcutting' }), 'at 13,034,431 Woodcutting XP');
   assert.equal(dropStatWords({ kc: null, xp: null, statSkill: null }), null);
+});
+
+// ── Pets picked out of a group ───────────────────────────────────────────────────────────────
+
+const OLMLET = 20851;
+const ZIK = 22473;
+const TUMEKEN = 27352;
+const SNAKELING = 12921;
+const BEAVER = 13322;
+const groupPets = (key: string) => PET_GROUPS.find((g) => g.key === key)!.items;
+
+test('a pet hunt can be narrowed to some pets of its group; the whole group is stored as before', () => {
+  const two = huntFromInput({ target: 'pets', petGroup: 'raids', petIds: [ZIK, OLMLET, SNAKELING, 'x', ZIK], rule: 'first' });
+  assert.ok(two.ok);
+  // Group order, own pets only: the snakeling is not a raid pet.
+  assert.deepEqual(two.config.petIds, [OLMLET, ZIK]);
+  assert.deepEqual(huntPets(two.config).map((p) => p.name), ['Olmlet', "Lil' zik"]);
+  assert.equal(huntTargetsLabel(two.config), "Olmlet + Lil' zik");
+  assert.equal(defaultHuntTitle(two.config), "Pet hunt: Olmlet + Lil' zik");
+  assert.ok(huntIconUrl(two.config)?.includes(String(OLMLET)));
+
+  const whole = huntFromInput({ target: 'pets', petGroup: 'raids', petIds: [OLMLET, ZIK, TUMEKEN], rule: 'first' });
+  assert.ok(whole.ok);
+  assert.equal('petIds' in whole.config, false);
+  assert.equal(huntTargetsLabel(whole.config), 'Raid pets');
+  const none = huntFromInput({ target: 'pets', petGroup: 'raids', rule: 'first' });
+  assert.ok(none.ok);
+  assert.equal('petIds' in none.config, false);
+  assert.equal(huntPets(none.config).length, 3);
+
+  assert.equal(huntFromInput({ target: 'pets', petGroup: 'raids', petIds: [], rule: 'first' }).ok, false);
+  assert.equal(huntFromInput({ target: 'pets', petGroup: 'raids', petIds: [SNAKELING], rule: 'first' }).ok, false);
+  // Items never carry a pet list.
+  const items = huntFromInput({ target: 'items', items: [{ id: ONYX, name: 'Uncut onyx', sources: ['Zulrah'] }], petIds: [OLMLET], rule: 'most' });
+  assert.ok(items.ok);
+  assert.equal('petIds' in items.config, false);
+  assert.deepEqual(huntPets(items.config), []);
+});
+
+test('a narrowed pet hunt counts only the pets picked, and reads back as it was stored', () => {
+  const narrowed = pets('raids', { petIds: [OLMLET, ZIK] });
+  const report = (itemId: number | null, itemName: string | null, kind = 'pet') => ({ kind, itemId, itemName, source: null, occurredAt: at(1), dedupKey: `k${itemId}` });
+  assert.equal(matchHuntReport(narrowed, report(OLMLET, 'Olmlet'))?.itemId, OLMLET);
+  assert.equal(matchHuntReport(narrowed, report(null, "lil' zik", 'clog'))?.itemId, ZIK);
+  assert.equal(matchHuntReport(narrowed, report(TUMEKEN, "Tumeken's guardian")), null);
+  // The same hunt without the list still takes the third.
+  assert.equal(matchHuntReport(pets('raids'), report(TUMEKEN, "Tumeken's guardian"))?.itemId, TUMEKEN);
+
+  // "Any pet" with pets left out: an unnamed pet could be one of those, so it waits for its name.
+  const most = pets('all', { petIds: groupPets('all').map((p) => p.id).filter((id) => id !== SNAKELING) });
+  assert.equal(matchHuntReport(most, report(null, null)), null);
+  assert.equal(matchHuntReport(most, report(SNAKELING, 'Pet snakeling')), null);
+  assert.equal(matchHuntReport(most, report(BEAVER, 'Beaver'))?.itemId, BEAVER);
+
+  assert.deepEqual(parseHunt(serializeHunt(narrowed)), narrowed);
+  // A hunt stored before pets could be picked has no list and is the whole group.
+  const old = parseHunt(JSON.stringify({ v: 1, target: 'pets', items: [], petGroup: 'slayer', rule: 'first', ends: { kind: 'date' }, confirm: 'staff', killsOf: 'kraken', xpSkill: null }));
+  assert.ok(old);
+  assert.equal('petIds' in old, false);
+  assert.equal(huntPets(old).length, groupPets('slayer').length);
+  // …and keeps the one boss it was created with, which a new pet hunt could not ask for.
+  assert.equal(old.killsOf, 'kraken');
+});
+
+test('a pet hunt shows kills at the bosses its pets come from, added together', () => {
+  assert.equal(killsOfForPets([{ id: SNAKELING, name: 'Pet snakeling' }]), 'zulrah');
+  const raids = petKills(groupPets('raids'));
+  assert.equal(raids.killsOf, 'chambersOfXeric,chambersOfXericChallengeMode,theatreOfBlood,theatreOfBloodHardMode,tombsOfAmascut,tombsOfAmascutExpertMode');
+  assert.deepEqual(raids.bosses, ['Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut']);
+  for (const key of ['slayer', 'gwd', 'raids', 'wilderness', 'dt2']) {
+    const got = petKills(groupPets(key));
+    assert.ok(got.killsOf, key);
+    assert.ok(got.bosses.length <= MAX_PET_KILL_BOSSES, key);
+    for (const k of got.killsOf.split(',')) assert.ok(BOSSES.some((b) => b.key === k), `${key}: ${k}`);
+  }
+  // One pet with no boss and there is no honest sum; too many bosses and the sum says nothing.
+  const mixed = petKills([{ id: SNAKELING, name: 'Pet snakeling' }, { id: BEAVER, name: 'Beaver' }]);
+  assert.equal(mixed.killsOf, null);
+  assert.deepEqual(mixed.noBoss, ['Beaver']);
+  const boss = petKills(groupPets('boss'));
+  assert.equal(boss.killsOf, null);
+  assert.deepEqual(boss.noBoss, []);
+  assert.ok(boss.bosses.length > MAX_PET_KILL_BOSSES);
+  assert.equal(petKills(groupPets('all')).killsOf, null);
+  assert.equal(petKills([]).killsOf, null);
+});
+
+test('the server builds the kill count of a pet hunt itself: the form only says whether to show one', () => {
+  const shown = huntFromInput({ target: 'pets', petGroup: 'slayer', petIds: [12655, 13247], rule: 'first', killsOf: 'zulrah', xpSkill: 'slayer' });
+  assert.ok(shown.ok);
+  assert.equal(shown.config.killsOf, 'cerberus,kraken');
+  assert.equal(shown.config.xpSkill, null);
+  assert.deepEqual(huntStat(shown.config), { type: 'boss', metric: 'cerberus,kraken' });
+  const off = huntFromInput({ target: 'pets', petGroup: 'slayer', rule: 'first', killsOf: null });
+  assert.ok(off.ok);
+  assert.equal(off.config.killsOf, null);
+  // Asked for, but these pets have no such number: none, and the XP choice stands.
+  const skilling = huntFromInput({ target: 'pets', petGroup: 'skilling', rule: 'first', killsOf: 'zulrah', xpSkill: 'woodcutting' });
+  assert.ok(skilling.ok);
+  assert.equal(skilling.config.killsOf, null);
+  assert.equal(skilling.config.xpSkill, 'woodcutting');
+  const any = huntFromInput({ target: 'pets', petGroup: 'all', rule: 'first', killsOf: 'zulrah' });
+  assert.ok(any.ok);
+  assert.equal(any.config.killsOf, null);
+});
+
+test('many bosses are named shortly beside the standings', () => {
+  assert.deepEqual(bossNames('zulrah,chambersOfXeric,vorkath'), ['Zulrah', 'Chambers of Xeric', 'Vorkath']);
+  assert.equal(huntStatLabel(base()), 'Zulrah');
+  assert.equal(huntStatLabel(base({ killsOf: 'chambersOfXeric,chambersOfXericChallengeMode' })), 'Chambers of Xeric (any mode)');
+  assert.equal(huntStatLabel(pets('raids', { killsOf: petKills(groupPets('raids')).killsOf })), 'Chambers of Xeric + Theatre of Blood + Tombs of Amascut');
+  assert.equal(huntStatLabel(pets('dt2', { killsOf: petKills(groupPets('dt2')).killsOf })), 'Duke Sucellus, Vardorvis and 2 more');
 });
