@@ -29,7 +29,8 @@ function Row({
   itemId: number;
   itemName: string;
   source: string;
-  headline: string;
+  /** The figure on the right; left out on a "going dry" row, whose sentence needs the width. */
+  headline?: string;
   detail: string | null;
   tone: 'dry' | 'spoon';
 }) {
@@ -49,11 +50,13 @@ function Row({
           {detail && <> · {detail}</>}
         </div>
       </div>
-      <span
-        className={`text-xs font-mono font-medium shrink-0 ${tone === 'dry' ? 'text-red-400' : 'text-accent-green-light'}`}
-      >
-        {headline}
-      </span>
+      {headline && (
+        <span
+          className={`text-xs font-mono font-medium shrink-0 ${tone === 'dry' ? 'text-red-400' : 'text-accent-green-light'}`}
+        >
+          {headline}
+        </span>
+      )}
     </div>
   );
 }
@@ -90,26 +93,46 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
 export function LuckColumns({
   dry,
   spooned,
+  goingDry = [],
   kcLabel = 'KC',
   emptyDry = 'Everyone is inside the ordinary range. Enjoy it while it lasts.',
   emptySpooned = 'Nobody is far enough ahead of their kill count to call it. Yet.',
 }: {
   dry: LuckEntry[];
   spooned: LuckEntry[];
+  /** An event's stand-in for an empty dry board: furthest along with no drop yet, not a verdict. */
+  goingDry?: { entry: LuckEntry; percent: number }[];
   /** "KC", or "KC this event" when the kills are an event's gains. */
   kcLabel?: string;
   emptyDry?: string;
   emptySpooned?: string;
 }) {
+  const showGoingDry = dry.length === 0 && goingDry.length > 0;
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <section>
         <h3 className="font-semibold flex items-center gap-2 mb-2">
           <span className="w-1 h-5 bg-red-500 rounded-full" />
-          Dry
-          <span className="text-xs text-text-muted font-normal">fewest drops for the kills</span>
+          {showGoingDry ? 'Going dry' : 'Dry'}
+          <span className="text-xs text-text-muted font-normal">
+            {showGoingDry ? 'most kills without the drop' : 'fewest drops for the kills'}
+          </span>
         </h3>
-        {dry.length === 0 ? (
+        {showGoingDry ? (
+          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+            {goingDry.map(({ entry: e, percent }) => (
+              <Row
+                key={`${e.accountId}-${e.itemId}`}
+                rsn={e.rsn}
+                itemId={e.itemId}
+                itemName={`${e.assessment.kills.toLocaleString()} kills at ${e.source}, no ${e.itemName}`}
+                source={`${percent}% would have one by now`}
+                detail={formatSources(e.sources)}
+                tone="dry"
+              />
+            ))}
+          </div>
+        ) : dry.length === 0 ? (
           <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
             {emptyDry}
           </div>

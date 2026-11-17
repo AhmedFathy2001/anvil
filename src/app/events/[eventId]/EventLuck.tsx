@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { LuckColumns } from '@/app/members/ClanLuck';
 import type { EventLuck as EventLuckData } from '@/lib/eventLuck';
+import { wouldHaveOnePercent } from '@/lib/clogLuck';
 
 /**
  * Who the game was kind to during this event, and who it wasn't — and, a click away, the same people
@@ -14,7 +15,7 @@ export default function EventLuck({ luck }: { luck: EventLuckData }) {
   const [view, setView] = useState<'event' | 'lifetime'>('event');
   const { thisEvent, lifetime } = luck;
   const nothing =
-    thisEvent.dry.length + thisEvent.spooned.length + lifetime.dry.length + lifetime.spooned.length === 0;
+    thisEvent.dry.length + thisEvent.spooned.length + thisEvent.goingDry.length + lifetime.dry.length + lifetime.spooned.length === 0;
   if (nothing) return null;
 
   return (
@@ -46,11 +47,13 @@ export default function EventLuck({ luck }: { luck: EventLuckData }) {
           <p className="mb-3 text-xs text-text-muted">
             Drops since the start against kills since the start, for the {thisEvent.judged} of{' '}
             {thisEvent.participants} players whose plugin was running. Without it we can&rsquo;t see their drops, so
-            they aren&rsquo;t judged.
+            they aren&rsquo;t judged. Spooned is a drop fewer than 1 in 20 would have on those kills; dry is fewer
+            drops than 19 in 20 would have.
           </p>
           <LuckColumns
             dry={thisEvent.dry}
             spooned={thisEvent.spooned}
+            goingDry={thisEvent.goingDry.map((entry) => ({ entry, percent: wouldHaveOnePercent(entry.assessment.expectedLow) }))}
             kcLabel="KC this event"
             emptyDry="Nobody is far enough behind on this event's kills to call it."
             emptySpooned="Nobody is far enough ahead on this event's kills to call it. Yet."
