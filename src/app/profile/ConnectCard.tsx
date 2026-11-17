@@ -30,9 +30,22 @@ interface Props {
   continueTo?: string | null;
   /**
    * Where "Verify by XP" goes. The locker opens its drawer through the #link-account anchor; the
-   * setup flow has no drawer and switches to its character step instead.
+   * setup flow has no drawer and opens the XP check folded under this card instead.
    */
   onVerifyByXp?: () => void;
+  /**
+   * Drawn where there is no clan (/welcome). The beacon's `linked`/`connected` count clan SEATS, which
+   * a clanless person never has, so here the card compares characters owned and whether the plugin
+   * has reported for one of them (`characters`/`suggestions`/`reported`). `linkedCount` and
+   * `detectedCount` must then be those same counts.
+   */
+  clanless?: boolean;
+  /**
+   * A character is linked but the plugin has never reported (it was proved by the XP check). Without
+   * this the card ticks every step for anybody with a character, which reads as "all done" to the
+   * one person who still has the plugin to install.
+   */
+  pluginMissing?: boolean;
 }
 
 type Beacon = { connected: boolean; linked: number; verified: number; detected: number };
@@ -46,6 +59,8 @@ export default function ConnectCard({
   connected,
   continueTo = null,
   onVerifyByXp,
+  clanless = false,
+  pluginMissing = false,
 }: Props) {
   const router = useRouter();
   const linkHere = useLinkCharacterHere();
@@ -90,8 +105,16 @@ export default function ConnectCard({
         try {
           const res = await fetch('/api/profile/connection', { cache: 'no-store' });
           if (res.ok) {
-            const next = (await res.json()) as Beacon;
+            const body = (await res.json()) as Beacon & { characters?: number; suggestions?: number; reported?: boolean };
             const prev = baseline.current;
+            const next: Beacon = clanless
+              ? {
+                  connected: body.reported ?? prev.connected,
+                  linked: body.characters ?? prev.linked,
+                  verified: prev.verified,
+                  detected: body.suggestions ?? prev.detected,
+                }
+              : body;
             baseline.current = next;
             const changed =
               next.connected !== prev.connected ||
@@ -126,10 +149,10 @@ export default function ConnectCard({
       document.removeEventListener('visibilitychange', pollWhenVisible);
       window.removeEventListener('focus', pollWhenVisible);
     };
-  }, [heard, router]);
+  }, [heard, router, clanless]);
 
-  const accountSeen = linkedCount > 0 || detectedCount > 0;
-  const tokenDone = connected || verifiedCount > 0 || accountSeen;
+  const accountSeen = !pluginMissing && (linkedCount > 0 || detectedCount > 0);
+  const tokenDone = connected || (!pluginMissing && (verifiedCount > 0 || accountSeen));
 
   return (
     <section
@@ -146,12 +169,21 @@ export default function ConnectCard({
         </div>
       )}
       <h2 className="text-xl font-bold tracking-tight">
-        {linkedCount > 0 ? 'Finish connecting your account' : 'Connect your account'}
+        {pluginMissing ? 'Add the plugin' : linkedCount > 0 ? 'Finish connecting your account' : 'Connect your account'}
       </h2>
       <p className="text-sm text-text-muted mt-1.5 mb-5 max-w-[62ch]">
-        Install the Anvil plugin, sign in from its side panel, and play — your character shows up here by itself.
-        If a clan on Anvil already lists that character, we&rsquo;ll ask for one quick check that it&rsquo;s really
-        you before it&rsquo;s linked.
+        {pluginMissing ? (
+          <>
+            Your character is linked. Install the Anvil plugin, sign in from its side panel, and play. From then on it
+            tracks your drops, kills and collection log for you.
+          </>
+        ) : (
+          <>
+            Install the Anvil plugin, sign in from its side panel, and play — your character shows up here by itself.
+            If a clan on Anvil already lists that character, we&rsquo;ll ask for one quick check that it&rsquo;s really
+            you before it&rsquo;s linked.
+          </>
+        )}
       </p>
       {continueTo && (
         <p className="text-sm text-text-muted -mt-3 mb-5">
@@ -179,9 +211,21 @@ export default function ConnectCard({
         <Step n={3} done={accountSeen} title={detectedCount > 0 ? 'Verify the character we found' : 'Log in to the game'} last>
           {detectedCount > 0 ? (
             <>
-              RuneLite reached Anvil. Confirm the detected character under <b className="text-foreground">Your accounts</b>{' '}
-              below. If a clan already lists it, you may need the quick XP check.
+              RuneLite reached Anvil. Confirm the detected character{' '}
+              {clanless ? (
+                // /welcome has no account list under the card; the characters page is where it is confirmed.
+                <ClanLink href="/settings/characters#add" className="text-gold hover:text-gold-light">
+                  on your characters page
+                </ClanLink>
+              ) : (
+                <>
+                  under <b className="text-foreground">Your accounts</b> below
+                </>
+              )}
+              . If a clan already lists it, you may need the quick XP check.
             </>
+          ) : pluginMissing ? (
+            <>Log in with the plugin running and play. This page notices and ticks the step.</>
           ) : (
             <>Log in to the account you want tracked and play — it shows up here on its own.</>
           )}
@@ -204,6 +248,8 @@ export default function ConnectCard({
       {/* ONE DEFAULT. The plugin is the way; the XP check is the one honest alternative for somebody
           who isn't at their PC; everything else is for the rare case and stays folded away, so a
           first-timer is not choosing between five doors. */}
+      {/* Already proved by XP: offering the XP check again would be asking for the same proof twice. */}
+      {!pluginMissing && (
       <p className="text-sm text-text-muted mt-4">
         Not on RuneLite right now?{' '}
         {onVerifyByXp ? (
@@ -217,6 +263,7 @@ export default function ConnectCard({
         )}{' '}
         — we pick one of your skills, and you gain 1,000 XP in it within 30 minutes.
       </p>
+      )}
 
       <details className="mt-3 max-w-[640px]">
         <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">Something else</summary>

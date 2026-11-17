@@ -27,7 +27,7 @@ export async function GET() {
     session.playerId == null
       ? Promise.resolve([])
       : db
-          .select({ rsnNormalized: accounts.rsnNormalized, accountHash: accounts.accountHash })
+          .select({ rsnNormalized: accounts.rsnNormalized, accountHash: accounts.accountHash, liveStatsAt: accounts.liveStatsAt })
           .from(accounts)
           .where(eq(accounts.playerId, session.playerId)),
   ]);
@@ -54,6 +54,10 @@ export async function GET() {
     // at all — and hides suggestions for ones they already own. These two match what it renders, so
     // its beacon compares like with like (AddCharacterClient).
     characters: owned.length,
+    // `connected` above is read off seats, so it is never true for somebody in no clan. This is the
+    // same question asked of their characters, which is what /welcome's plugin step waits on
+    // (lib/onboarding reads the same column).
+    reported: owned.some((a) => a.liveStatsAt != null),
     suggestions: pending.filter(
       (d) =>
         !owned.some((a) => a.rsnNormalized === d.rsnNormalized) &&

@@ -190,23 +190,21 @@ test('a fresh clan is fresh, and one that has been set up is not', async () => {
 
 // ── The person's flow ─────────────────────────────────────────────────────────────────────────
 
-test('somebody brand new has done exactly one of the four', async () => {
+test('somebody brand new has done exactly one step, and the plugin is next', async () => {
   const state = await O.onboardingState(newbieUser, newbiePlayer);
   assert.equal(state.doneCount, 1, 'signing in is the one thing they have done');
+  assert.equal(state.total, 3, 'counted off the rail the page draws, not off the four facts');
   assert.equal(state.steps.find((s) => s.key === 'discord')!.done, true);
-  assert.equal(state.current, 'character', 'and the character is the first real move');
+  assert.equal(state.current, 'plugin', 'the plugin is the first real move: it links the character');
 });
 
-test('the character step comes before the clan and depends on nothing', async () => {
-  // It went the other way first, and had to: every path that attached an account to a person ran
-  // through a SEAT, so offering the character first would have opened a door that did not open.
-  // lib/accountClaim is what changed that — proving a character is a fact about YOU, which is what
-  // accounts.verifiedAt has said all along. If `needs` here ever grows a 'clan' back, the claim has
-  // been re-coupled to a seat and this is the assertion that should stop it.
+test('the page draws three steps, plugin straight after Discord; the facts stay four', async () => {
+  // The XP check used to be step two and the plugin step four, so a new person was walked through
+  // the fallback before hearing about the thing that makes it unnecessary (lib/onboardingRail).
   const state = await O.onboardingState(newbieUser, newbiePlayer);
+  assert.deepEqual(state.rail.map((s) => s.key), ['discord', 'plugin', 'clan']);
+  // Other pages read these one at a time (lib/guidedFlowFacts), and the skip list is keyed by them.
   assert.deepEqual(state.steps.map((s) => s.key), ['discord', 'character', 'clan', 'plugin']);
-  assert.deepEqual(state.steps.find((s) => s.key === 'character')!.needs, []);
-  assert.deepEqual(state.steps.find((s) => s.key === 'clan')!.needs, []);
 });
 
 test('a linked character ticks its step with no clan and no seat anywhere', async () => {
@@ -223,7 +221,11 @@ test('a linked character ticks its step with no clan and no seat anywhere', asyn
   const state = await O.onboardingState(newbieUser, newbiePlayer);
   assert.equal(state.steps.find((x) => x.key === 'character')!.done, true);
   assert.equal(state.steps.find((x) => x.key === 'clan')!.done, false, 'still in no clan');
-  assert.equal(state.current, 'clan');
+  // Proved by XP, so nothing is tracking them yet: the plugin step stays open, and stops reading as
+  // "link your character".
+  assert.equal(state.current, 'plugin');
+  assert.equal(state.rail.find((x) => x.key === 'plugin')!.done, false);
+  assert.equal(state.rail.find((x) => x.key === 'plugin')!.title, 'Add the Anvil plugin');
 
   const seats = await db.select().from(s.clanMemberships);
   assert.equal(seats.length, 0, 'proving who you are seats you nowhere');
@@ -242,7 +244,7 @@ test('a creator space is not a clan: playing a streamer’s event leaves the cla
 
   const state = await O.onboardingState(newbieUser, newbiePlayer);
   assert.equal(state.steps.find((x) => x.key === 'clan')!.done, false, 'a space does not count as a clan');
-  assert.equal(state.current, 'clan');
+  assert.equal(state.rail.find((x) => x.key === 'clan')!.done, false);
 });
 
 test('joining a clan then ticks the clan step', async () => {
@@ -286,15 +288,20 @@ test('a skipped step stops being the current one, and comes back if unskipped', 
     .values({ playerId: person.id, displayName: 'Skipper', discordId: 'skipper-1' })
     .returning();
 
-  assert.equal((await O.onboardingState(u.id, person.id)).current, 'character');
+  assert.equal((await O.onboardingState(u.id, person.id)).current, 'plugin');
 
-  await O.setSkipped(u.id, 'character', true);
+  await O.setSkipped(u.id, 'plugin', true);
   const after = await O.onboardingState(u.id, person.id);
-  assert.equal(after.steps.find((x) => x.key === 'character')!.skipped, true);
+  assert.equal(after.rail.find((x) => x.key === 'plugin')!.skipped, true);
   assert.equal(after.current, 'clan', 'the flow moves past it');
 
-  await O.setSkipped(u.id, 'character', false);
-  assert.equal((await O.onboardingState(u.id, person.id)).current, 'character');
+  await O.setSkipped(u.id, 'plugin', false);
+  assert.equal((await O.onboardingState(u.id, person.id)).current, 'plugin');
+
+  // A 'character' skip stored by the old four-step page is still a valid entry, and passes over
+  // nothing the page now draws: the plugin step is still theirs to do.
+  await O.setSkipped(u.id, 'character', true);
+  assert.equal((await O.onboardingState(u.id, person.id)).current, 'plugin');
 });
 
 test('skipping twice is one entry, not two', async () => {
@@ -353,22 +360,21 @@ test('the clan step reads as three different acts, because it is', async () => {
   // Unasked: the old wording, which reads as one act and is really three.
   const unasked = await O.onboardingState(u.id, person.id);
   assert.equal(unasked.intent, null);
-  assert.equal(unasked.steps.find((x) => x.key === 'clan')!.title, 'Join a clan, or start one');
+  assert.equal(unasked.rail.find((x) => x.key === 'clan')!.title, 'Join a clan, or start one');
 
   await O.setIntent(u.id, 'owner');
-  assert.equal((await O.onboardingState(u.id, person.id)).steps.find((x) => x.key === 'clan')!.title, 'Start your clan');
+  assert.equal((await O.onboardingState(u.id, person.id)).rail.find((x) => x.key === 'clan')!.title, 'Start your clan');
 
   await O.setIntent(u.id, 'member');
-  assert.equal((await O.onboardingState(u.id, person.id)).steps.find((x) => x.key === 'clan')!.title, 'Find your clan');
+  assert.equal((await O.onboardingState(u.id, person.id)).rail.find((x) => x.key === 'clan')!.title, 'Find your clan');
 
   await O.setIntent(u.id, 'solo');
   const solo = await O.onboardingState(u.id, person.id);
-  assert.equal(solo.steps.find((x) => x.key === 'clan')!.title, 'A clan, if you ever want one');
+  assert.equal(solo.rail.find((x) => x.key === 'clan')!.title, 'A clan, if you ever want one');
 
-  // Only the clan step moves: a linked character and a working plugin mean the same thing to all
-  // three, and re-wording them would be difference for its own sake.
-  assert.equal(solo.steps.find((x) => x.key === 'character')!.title, 'Link your RuneScape account');
-  assert.equal(solo.steps.find((x) => x.key === 'plugin')!.title, 'Let the plugin do the rest');
+  // Only the clan step moves: a working plugin means the same thing to all three, and re-wording it
+  // would be difference for its own sake.
+  assert.equal(solo.rail.find((x) => x.key === 'plugin')!.title, 'Get the Anvil plugin');
 });
 
 test('"just me" IS the skip, derived rather than written', async () => {
@@ -383,14 +389,14 @@ test('"just me" IS the skip, derived rather than written', async () => {
   const state = await O.onboardingState(u.id, person.id);
   const clan = state.steps.find((x) => x.key === 'clan')!;
   assert.equal(clan.skipped, true, 'the flow stops leading with it');
-  assert.equal(state.current, 'character', 'and moves on to what they actually came for');
+  assert.equal(state.current, 'plugin', 'and moves on to what they actually came for');
 
   // Nothing was written to the skip list, so changing their mind finds the step waiting rather
   // than silently passed over — the bug a stored skip would have left behind.
   await O.setIntent(u.id, 'member');
   const rethought = await O.onboardingState(u.id, person.id);
   assert.equal(rethought.steps.find((x) => x.key === 'clan')!.skipped, false);
-  assert.equal(rethought.current, 'character', 'still the first thing outstanding, in order');
+  assert.equal(rethought.current, 'plugin', 'still the first thing outstanding, in order');
 });
 
 test('choosing "just me" is an answer the flow has to accept', async () => {
