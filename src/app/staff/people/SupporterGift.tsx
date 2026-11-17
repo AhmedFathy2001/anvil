@@ -279,7 +279,7 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
                       type="button"
                       disabled={busy}
                       onClick={() => void call({ method: 'DELETE' }, `?gift=${g.id}`)}
-                      className="text-red-300 hover:text-red-200"
+                      className="text-red-300 hover:text-red-200 max-sm:min-h-11 max-sm:px-2"
                     >
                       {g.queued ? 'Remove' : 'End now'}
                     </button>
