@@ -12,6 +12,7 @@ import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
 import { rebaseEfficiencyCompetitions } from '@/lib/efficiencyRebase';
+import { rebuildOldDailyHours } from '@/lib/dailyHoursRebuildDb';
 import { processRaceEasing } from '@/lib/raceEaseTick';
 import { boardRevealIsDue } from '@/lib/eventBoardReveal';
 import { settleLadderMonths } from '@/lib/monthlyChampion';
@@ -452,6 +453,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await processTileReveals().catch(() => {});
   // Running efficiency competitions keep their baselines on today's hours model (lib/efficiencyRebase). Once per process.
   await rebaseEfficiencyCompetitions().catch((err) => log.warn('event-lifecycle.efficiency-rebase-failed', { err: String(err) }));
+  // The past days' stored hours, redone under the same model (lib/dailyHoursRebuild). Once per process.
+  await rebuildOldDailyHours().catch((err) => log.warn('event-lifecycle.daily-hours-rebuild-failed', { err: String(err) }));
   // Tile races with timed easing (lib/raceEase): open the next step's easier option on the interval.
   await processRaceEasing().catch((err) => log.warn('event-lifecycle.race-ease-failed', { err: String(err) }));
 

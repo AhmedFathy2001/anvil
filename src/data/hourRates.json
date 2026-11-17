@@ -2406,9 +2406,9 @@
         "estimated": false
       },
       "bryophyta": {
-        "killsPerHour": 1.1,
-        "source": "Money making guide/Killing Bryophyta (free-to-play)",
-        "estimated": false
+        "killsPerHour": 20,
+        "source": null,
+        "estimated": true
       },
       "callisto": {
         "killsPerHour": 25,
@@ -2768,8 +2768,8 @@
         "estimated": true
       },
       "bryophyta": {
-        "killsPerHour": 0.88,
-        "source": "Money making guide/Killing Bryophyta (free-to-play)",
+        "killsPerHour": 16,
+        "source": null,
         "estimated": true
       },
       "callisto": {

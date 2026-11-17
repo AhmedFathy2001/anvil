@@ -539,3 +539,16 @@ test('the weekly page of a team competition shows your team and the standings', 
   assert.ok(all.some((t) => t.startsWith('Your team: 2nd of 2')));
   assert.ok(!all.includes('Secret'), 'standings carry names and totals only');
 });
+
+test('a weekly with prizes lists them on its page, and one without has no prize card', async () => {
+  const { __weeklyPageForTest } = await import('../src/lib/pluginUi/homeUi.ts');
+  const w = { id: 9, title: 'Pet hunt: Pet chaos elemental', type: 'hunt', metric: 'x', metricLabel: 'Pet chaos elemental', status: 'upcoming', startDate: '2026-11-21T20:00:00Z', endDate: '2026-11-28T20:00:00Z' };
+  const paid = JSON.stringify(__weeklyPageForTest({ ...w, prizeGp: [10_000_000, 5_000_000] }, Date.parse('2026-11-17T12:00:00Z')));
+  assert.match(paid, /"Prizes"/);
+  assert.match(paid, /1st/);
+  assert.match(paid, /15(\.0)?m in all/i);
+  assert.match(paid, /21 Nov 20:00 to 28 Nov 20:00 UTC/);
+  assert.match(paid, /"Pet chaos elemental"/, 'the name is whole, not clipped');
+  const free = JSON.stringify(__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')));
+  assert.ok(!free.includes('"Prizes"'));
+});

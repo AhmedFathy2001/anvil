@@ -1,3 +1,4 @@
+import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
@@ -55,6 +56,12 @@ export interface ScheduleBingo {
   gate?: string;
 }
 
+/** A weekly's prize ladder as plain gp amounts, for the panel. */
+function weeklyPrizeGp(raw: string | null | undefined): { prizeGp?: number[] } {
+  const gp = parseWeeklyPrizes(raw).places.map((p) => p.gp).filter((n) => n > 0);
+  return gp.length ? { prizeGp: gp } : {};
+}
+
 /** The id behind an item hunt's picture: its first item, or the first pet it counts. */
 function huntIconItem(w: { type: string; hunt?: string | null }): { iconItem?: number } {
   if (w.type !== 'hunt') return {};
@@ -79,6 +86,8 @@ export interface ScheduleWeekly {
   hostedBy?: string;
   /** An item hunt (type 'hunt'): the id of the item or pet it hunts, for its picture. */
   iconItem?: number;
+  /** Coffer prizes in gp, first place first (lib/weeklyPrizes). Absent when it pays nothing. */
+  prizeGp?: number[];
 }
 
 export interface PluginSchedule {
@@ -286,6 +295,7 @@ export async function buildSchedule(
       // An item hunt reads "Uncut onyx from Zulrah · most by the end" (lib/itemHunt).
       metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
       ...huntIconItem(w),
+      ...weeklyPrizeGp(w.prizes),
       status: weeklyStatus(w),
       startDate: w.startDate,
       endDate: w.endDate,

@@ -1,3 +1,4 @@
+import { weeklyBoard } from '@/lib/rankMoves';
 import { NextResponse } from 'next/server';
 import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
 import { finishCompetition } from '@/lib/weeklyFinish';
@@ -81,11 +82,11 @@ export async function GET(request: Request) {
     }
   }
 
-  // Halfway post for team / clan-vs-clan competitions (solo ones never had one). Once each.
+  // Halfway post, once each: the groups for team / clan-vs-clan competitions, the players for solo ones.
   for (const comp of allComps) {
     if (comp.status !== 'active') continue;
     try {
-      await announceHalfwayIfDue(comp);
+      await announceHalfwayIfDue(comp, Date.now(), () => weeklyBoard(comp.id));
     } catch (err) {
       log.warn('weekly-cron.notify-halfway-fail', { competitionId: comp.id }, err);
     }

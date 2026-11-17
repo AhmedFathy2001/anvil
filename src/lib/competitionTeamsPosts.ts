@@ -9,7 +9,9 @@ import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { competitionMode, pastHalfway } from '@/lib/competitionTeams';
 import { buildGroupStandings, racingClans } from '@/lib/competitionTeamsDb';
-import { notifyWeeklyHalfway, notifyWeeklyResults, notifyWeeklyStart, type WeeklyGroupPost, type WeeklyHuntPost } from '@/lib/discord';
+import { notifyWeeklyDaily, notifyWeeklyHalfway, notifyWeeklyResults, notifyWeeklyStart, type WeeklyGroupPost, type WeeklyHuntPost } from '@/lib/discord';
+import { getSetting } from '@/lib/settings';
+import { WEEKLY_DAILY_KEY, WEEKLY_HALFWAY_KEY, dailyLines, dailyWindowOpen, dayBest, dayClimber, dayWorthPosting, switchOn, type DayStart } from '@/lib/weeklyDaily';
 import { huntIconUrl, huntKindWord, huntLine, parseHunt } from '@/lib/itemHunt';
 import { BEST_DROPS_IN_RESULTS, bestDropLine, rankBestDrops } from '@/lib/bestDrops';
 import { bestDropMoments } from '@/lib/momentsStore';
@@ -93,12 +95,15 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
 }
 
 /**
- * The halfway post, once per competition, for teams/clans mode only. The stamp is claimed with a
- * conditional UPDATE before posting, so two overlapping ticks can't both send it.
+ * The halfway post, once per competition: the groups for teams/clans, the players for a solo one.
+ * Each clan's own switch decides whether it hears it (weekly_post_halfway, on unless turned off).
+ * The stamp is claimed with a conditional UPDATE before posting, so two overlapping ticks can't both send it.
  */
-export async function announceHalfwayIfDue(comp: Comp, nowMs = Date.now()): Promise<boolean> {
+export async function announceHalfwayIfDue(comp: Comp, nowMs = Date.now(), board?: () => Promise<{ rsn: string; gained: number }[]>): Promise<boolean> {
   if (comp.status !== 'active' || comp.halfwayPostedAt) return false;
-  if (competitionMode(comp.mode) === 'solo') return false;
+  const solo = competitionMode(comp.mode) === 'solo';
+  // A solo board needs its standings handed in (lib/rankMoves weeklyBoard, which imports this file).
+  if (solo && !board) return false;
   if (!pastHalfway(comp.startDate, comp.endDate, nowMs)) return false;
   const claimed = await db
     .update(weeklyCompetitions)
@@ -106,21 +111,67 @@ export async function announceHalfwayIfDue(comp: Comp, nowMs = Date.now()): Prom
     .where(and(eq(weeklyCompetitions.id, comp.id), isNull(weeklyCompetitions.halfwayPostedAt)))
     .returning({ id: weeklyCompetitions.id });
   if (!claimed.length) return false;
-  const groups = await groupPost(comp);
-  if (!groups) return false;
+  const groups = solo ? null : await groupPost(comp);
+  if (!solo && !groups) return false;
+  const standings = solo && board ? await board() : [];
   for (const t of await targets(comp)) {
     try {
+      if (!switchOn(await getSetting(t.clanId, WEEKLY_HALFWAY_KEY))) continue;
       await notifyWeeklyHalfway({
         clanId: t.clanId,
         type: comp.type,
         title: comp.title,
         metric: comp.metric,
         endDate: comp.endDate,
-        groups: { ...groups, you: t.you },
+        groups: groups ? { ...groups, you: t.you } : null,
+        standings,
+        hunt: huntPost(comp),
       });
     } catch (err) {
       log.warn('weekly.notify-halfway-fail', { competitionId: comp.id, clanId: t.clanId }, err);
     }
   }
   return true;
+}
+
+/**
+ * The daily post, as a new UTC day begins: the day just finished against the board as it began
+ * (lib/weeklyDaily). Called by lib/rankMoves at the one moment it writes the new day's row, so it
+ * runs once per competition per day. Each clan's own switch decides whether it hears it
+ * (weekly_post_daily, on unless turned off). A quiet day posts nothing. Never throws.
+ */
+export async function announceCompetitionDay(
+  comp: Comp,
+  board: { rsn: string; gained: number }[],
+  prev: DayStart | null,
+  nowMs = Date.now(),
+): Promise<boolean> {
+  try {
+    if (comp.status !== 'active' || !dailyWindowOpen(comp.startDate, comp.endDate, nowMs)) return false;
+    const lines = dailyLines(board, prev, weeklyRsnKey);
+    if (!lines || !dayWorthPosting(lines)) return false;
+    const groups = await groupPost(comp);
+    const dayNumber = Math.max(1, Math.round((nowMs - Date.parse(comp.startDate)) / 86_400_000));
+    let sent = false;
+    for (const t of await targets(comp)) {
+      if (!switchOn(await getSetting(t.clanId, WEEKLY_DAILY_KEY))) continue;
+      sent = (await notifyWeeklyDaily({
+        clanId: t.clanId,
+        type: comp.type,
+        title: comp.title,
+        metric: comp.metric,
+        endDate: comp.endDate,
+        dayNumber,
+        lines,
+        best: dayBest(lines),
+        climber: dayClimber(lines),
+        groups: groups ? { ...groups, you: t.you } : null,
+        hunt: huntPost(comp),
+      })) || sent;
+    }
+    return sent;
+  } catch (err) {
+    log.warn('weekly.notify-day-fail', { competitionId: comp.id }, err);
+    return false;
+  }
 }
