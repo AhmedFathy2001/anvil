@@ -239,7 +239,7 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
           onChange={toggleSharing}
           disabled={busy}
           label="Check for shared accounts"
-          description="Staff see when two players connect from the same network, or one player from two countries within a few hours. Players are told on the rules and sign-up pages. Addresses are never stored: only a code that means something on this event, deleted 30 days after it ends."
+          description="Staff see when accounts of different players connect from the same network, when one account connects from two countries within a few hours, and when an account added after the start connects from another country than its owner's other accounts or its team. One person's own accounts on one network are not flagged. Players are told on the rules and sign-up pages. Addresses are never stored: only a code that means something on this event, deleted 30 days after it ends."
         />
         <div className="rounded-lg border border-gold/20 bg-gold/5 px-3 py-2 text-xs text-text-muted">
           <strong className="text-gold">Before the bingo:</strong>{' '}
