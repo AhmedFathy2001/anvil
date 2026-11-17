@@ -66,7 +66,7 @@ export async function retargetCompetition(comp: Competition, input: Record<strin
   const competition = await db.transaction(async (tx) => {
     const [row] = await tx.update(weeklyCompetitions).set(updates).where(eq(weeklyCompetitions.id, comp.id)).returning();
     // Starting values read for the old target mean nothing for the new one: the sweep reads them again.
-    await tx.update(weeklyParticipants).set({ baselineValue: null, currentValue: null }).where(eq(weeklyParticipants.competitionId, comp.id));
+    await tx.update(weeklyParticipants).set({ baselineValue: null, currentValue: null, baselineParts: null, currentParts: null }).where(eq(weeklyParticipants.competitionId, comp.id));
     await tx.delete(playerSnapshots).where(eq(playerSnapshots.weeklyCompetitionId, comp.id));
     await tx.insert(clanAuditLog).values({
       clanId: comp.clanId,

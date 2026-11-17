@@ -76,6 +76,17 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
             {row.isMe && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-accent-green-light">you</span>}
           </span>
           {stat && <span className={`block text-xs ${!has && (row.statGain ?? 0) > 0 ? 'text-amber-300/90' : 'text-text-muted'}`}>{stat}</span>}
+          {/* A hunt over several bosses: where those kills were, and each count's start and now on hover. */}
+          {row.statParts && (
+            <span className="block text-[11px] text-text-dim">
+              {row.statParts.map((p, i) => (
+                <span key={p.label} title={`${p.label}: ${p.from.toLocaleString()} at the start, ${p.now.toLocaleString()} now`}>
+                  {i > 0 ? ' · ' : ''}
+                  {p.label} {p.gained.toLocaleString()}
+                </span>
+              ))}
+            </span>
+          )}
         </span>
         <span className="shrink-0 text-right">
           <span className={`block font-mono text-lg font-bold leading-none tabular-nums ${has ? 'text-gold-light' : 'text-text-muted'}`}>{row.count.toLocaleString()}</span>

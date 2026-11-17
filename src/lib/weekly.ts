@@ -202,6 +202,8 @@ export interface WeeklyValueUpdate {
    *  over comp time, not the sweep interval). Null skips the check. */
   competitionStartIso?: string | null;
   now?: string;
+  /** Each key's count behind `value`, for a metric over several bosses or skills (lib/weeklyMetric effectiveMetricParts). */
+  parts?: Record<string, number> | null;
 }
 
 export type WeeklyValueOutcome =
@@ -228,7 +230,7 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
     if (!u.allowFirstCapture) return { outcome: 'skipped-no-baseline', flagged: false };
     await db
       .update(weeklyParticipants)
-      .set({ baselineValue: u.value, currentValue: u.value, lastUpdated: nowIso })
+      .set({ baselineValue: u.value, currentValue: u.value, lastUpdated: nowIso, ...(u.parts ? { baselineParts: u.parts, currentParts: u.parts } : {}) })
       .where(eq(weeklyParticipants.id, u.participantId));
     return { outcome: 'first-captured', flagged: false };
   }
@@ -252,6 +254,14 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
     // GREATEST, not max(): max() is an AGGREGATE in Postgres and would not take two scalars.
     currentValue: sql`greatest(coalesce(${weeklyParticipants.currentValue}, 0), ${u.value})`,
     lastUpdated: nowIso,
+    // The split behind the new sum. Written with it, so the two never describe different moments.
+    ...(u.parts ? { currentParts: u.parts } : {}),
+    // A row captured before the split was kept (or whose start staff set by hand) has no per-key
+    // start. While nothing has been gained yet the split now IS the start, so it is adopted; a row
+    // already ahead of its start stays without one rather than guess.
+    ...(u.parts && u.baselineValue !== null && u.value === u.baselineValue
+      ? { baselineParts: sql`coalesce(${weeklyParticipants.baselineParts}, ${JSON.stringify(u.parts)}::jsonb)` }
+      : {}),
   };
   // The gain moved: stamp when, for the team/clan "who reached the total first" tie-break
   // (lib/competitionTeams). A re-read of the same value leaves it alone.
@@ -595,6 +605,9 @@ export async function getEffectiveParticipants(competitionId: number) {
       rsn: weeklyParticipants.rsn,
       baselineValue: weeklyParticipants.baselineValue,
       currentValue: weeklyParticipants.currentValue,
+      // The split of a sum over several bosses or skills (lib/weeklyMetric gainParts); null otherwise.
+      baselineParts: weeklyParticipants.baselineParts,
+      currentParts: weeklyParticipants.currentParts,
       // Carried so a board can join a participant to their daily history and mark a stale baseline.
       // computeLeaderboard ignores the extra columns.
       clanMemberId: weeklyParticipants.clanMemberId,

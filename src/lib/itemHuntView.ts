@@ -2,6 +2,8 @@
 //
 // Server only: the source choices for a manual proof come from the drop dataset (lib/itemObtain).
 
+import { gainParts } from '@/lib/weeklyMetric';
+import { weeklyMetricLabel } from '@/lib/constants';
 import { itemObtainInfo } from '@/lib/itemObtain';
 import {
   type HuntConfig,
@@ -37,6 +39,16 @@ export interface HuntViewDrop {
   screenshotUrl: string | null;
 }
 
+/** One entrant's kills (or XP) at each boss or skill of a hunt counted over several, named for a person. */
+function splitOf(
+  type: string,
+  parts: { baseline: Record<string, number> | null; current: Record<string, number> | null } | undefined,
+  gained: number,
+): { label: string; gained: number; from: number; now: number }[] | null {
+  const rows = gainParts(parts?.baseline, parts?.current, gained);
+  return rows ? rows.map((r) => ({ label: weeklyMetricLabel(type, r.key) || r.key, gained: r.gained, from: r.from, now: r.now })) : null;
+}
+
 export interface HuntViewRow {
   rank: number;
   rsn: string;
@@ -46,6 +58,8 @@ export interface HuntViewRow {
   statGain: number | null;
   /** Their starting line has not been read yet, so the gain is not known. */
   statPending: boolean;
+  /** A hunt over several bosses: the kills at each, adding up to statGain. Null with one boss, or when the split is not known. */
+  statParts: { label: string; gained: number; from: number; now: number }[] | null;
   drops: HuntViewDrop[];
   firstAt: string | null;
   lastAt: string | null;
@@ -103,6 +117,7 @@ export function buildHuntView(
   const stat = huntStat(config);
   const mine = new Set(standings.participants.filter((p) => p.clanMemberId != null && viewerMemberIds.includes(p.clanMemberId)).map((p) => p.rsn));
   const baselined = new Map(standings.participants.map((p) => [p.rsn, p.baselineValue != null]));
+  const partsOf = new Map(standings.participants.map((p) => [p.rsn, { baseline: p.baselineParts, current: p.currentParts }]));
   const awaitingIds = new Set(standings.awaiting.map((d) => d.id));
   const rows: HuntViewRow[] = standings.rows.map((r) => ({
     rank: r.rank,
@@ -111,6 +126,7 @@ export function buildHuntView(
     isMe: mine.has(r.rsn),
     statGain: stat ? r.statGain : null,
     statPending: !!stat && !baselined.get(r.rsn),
+    statParts: stat && r.statGain != null ? splitOf(stat.type, partsOf.get(r.rsn), r.statGain) : null,
     firstAt: r.firstAt,
     lastAt: r.lastAt,
     drops: r.drops.map((d) => ({

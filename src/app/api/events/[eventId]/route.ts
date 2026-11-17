@@ -14,7 +14,7 @@ import { eq, inArray, and, count, not } from 'drizzle-orm';
 import { writtenTile } from '@/lib/writtenTiles';
 import { deleteOwnedFiles, eventMediaUrls } from '@/lib/eventMediaRetention';
 import { cleanEventImageUrl } from '@/lib/eventImage';
-import { verifyAdmin, verifyUser } from '@/lib/auth';
+import { verifyAdmin, verifyUser, verifyTileEditorForEvent } from '@/lib/auth';
 import { mayChangeStaffHide } from '@/lib/raceHideAheadDb';
 import { tilesForViewer } from '@/lib/tilesForViewer';
 import { notifyBoardRevealed, notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
@@ -97,23 +97,37 @@ export async function GET(
   });
 }
 
+/** The race board rules a tile editor may change before the start (see PATCH). */
+const EDITOR_RACE_RULES = new Set(['raceBank', 'raceRoad', 'raceHideAhead', 'raceEase', 'raceLifelines']);
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  const body = await request.json();
+  if (!isAdmin) {
+    // THE RACE'S OWN BOARD RULES are part of building the board (what happens at a fork, hidden
+    // tiles, easier options and lifelines), and the people who build it are its tile editors: the
+    // map offered them these switches and this route then refused every one. So an editor of THIS
+    // event may change those rules, and nothing else here, until the race starts. From the start on
+    // they change what teams are playing under, which stays an admin's call.
+    const ruleKeys = body && typeof body === 'object' && body.rules && typeof body.rules === 'object' ? Object.keys(body.rules) : [];
+    const raceRulesOnly = Object.keys(body ?? {}).length === 1 && ruleKeys.length > 0 && ruleKeys.every((k) => EDITOR_RACE_RULES.has(k));
+    const editor = raceRulesOnly ? await verifyTileEditorForEvent(id, 'edit') : null;
+    const target = editor ? await db.query.events.findFirst({ where: eq(events.id, id) }) : null;
+    const started = !!target?.startDate && new Date(target.startDate) <= new Date();
+    if (!editor || !target || target.format !== 'tilerace' || started) {
+      return NextResponse.json({ error: editor && started ? 'Only an admin can change the race rules once it has started.' : 'Unauthorized' }, { status: editor && started ? 403 : 401 });
+    }
+  }
   // Whose event is this? Ids are global and this one came from the URL.
   if (!(await eventForRequest(request, id))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const body = await request.json();
 
   // Handle force-end action
   if (body.action === 'force-end') {

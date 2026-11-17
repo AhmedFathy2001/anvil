@@ -1485,6 +1485,13 @@
       "when": 1794900300000,
       "tag": "0274_weekly_fee_gates_prize",
       "breakpoints": true
+    },
+    {
+      "idx": 275,
+      "version": "7",
+      "when": 1794900360000,
+      "tag": "0275_weekly_parts",
+      "breakpoints": true
     }
   ]
 }

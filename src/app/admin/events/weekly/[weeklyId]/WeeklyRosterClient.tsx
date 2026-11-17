@@ -30,6 +30,7 @@ export default function WeeklyRosterClient({
   includeGuests,
   selectedOnly = false,
   startingStats = {},
+  partKeys = [],
 }: {
   competitionId: number;
   type: string;
@@ -41,6 +42,8 @@ export default function WeeklyRosterClient({
   selectedOnly?: boolean;
   /** Mid-competition additions: are their starting stats in yet (lib/startingStats)? By participant id. */
   startingStats?: Record<number, StartingStatsStatus>;
+  /** A competition over several bosses or skills: its keys and their names, so a start is corrected one at a time. */
+  partKeys?: { key: string; label: string }[];
 }) {
   const router = useRouter();
   const startingStatsPoll = useStartingStatsPoll(
@@ -58,7 +61,8 @@ export default function WeeklyRosterClient({
   const { confirm } = useDialog();
   const [message, setMessage] = useState('');
   const [names, setNames] = useState('');
-  const [editing, setEditing] = useState<{ id: number; rsn: string; value: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; rsn: string; value: string; parts?: Record<string, string> } | null>(null);
+  const split = partKeys.length > 1;
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(ROSTER_CHUNK);
 
@@ -200,8 +204,19 @@ export default function WeeklyRosterClient({
 
   async function saveBaseline() {
     if (!editing) return;
+    // Several bosses or skills: one count each; the starting value is their sum.
+    let partsBody: Record<string, number> | null = null;
+    if (split) {
+      const typed = editing.parts ?? {};
+      const nums = partKeys.map((p) => [p.key, typed[p.key]?.trim() === '' || typed[p.key] == null ? NaN : Number(typed[p.key])] as const);
+      if (nums.some(([, n]) => !Number.isFinite(n) || n < 0)) {
+        setMessage(`Enter a count of 0 or more for each of: ${partKeys.map((p) => p.label).join(', ')}.`);
+        return;
+      }
+      partsBody = Object.fromEntries(nums);
+    }
     const value = Number(editing.value);
-    if (!Number.isFinite(value) || value < 0) {
+    if (!partsBody && (!Number.isFinite(value) || value < 0)) {
       setMessage('Baseline must be a non-negative number.');
       return;
     }
@@ -210,7 +225,7 @@ export default function WeeklyRosterClient({
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantId: editing.id, baselineValue: value }),
+        body: JSON.stringify(partsBody ? { participantId: editing.id, baselineParts: partsBody } : { participantId: editing.id, baselineValue: value }),
       },
       `${editing.rsn}'s starting line corrected.`,
     );
@@ -460,7 +475,27 @@ export default function WeeklyRosterClient({
 
                   {mode === 'baselines' && (
                     <td data-label="Started at" className="stack-third px-3 py-2 text-right tabular-nums text-xs text-text-muted">
-                      {editing?.id === row.participantId ? (
+                      {editing?.id === row.participantId && split ? (
+                        // One box per boss or skill; the start is their sum.
+                        <span className="inline-flex flex-col items-end gap-1">
+                          {partKeys.map((p, i) => (
+                            <label key={p.key} className="inline-flex items-center gap-2">
+                              <span className="text-[11px] text-text-muted">{p.label}</span>
+                              <Input
+                                value={editing.parts?.[p.key] ?? ''}
+                                onChange={(e) => setEditing({ ...editing, parts: { ...(editing.parts ?? {}), [p.key]: e.target.value } })}
+                                autoFocus={i === 0}
+                                inputMode="numeric"
+                                aria-label={`${row.rsn}: ${p.label} at the start`}
+                                className="w-24 border-gold px-2 py-1 text-right text-xs"
+                              />
+                            </label>
+                          ))}
+                          <span className="text-[11px] text-text-dim">
+                            Start: {partKeys.reduce((n, p) => n + (Number(editing.parts?.[p.key]) || 0), 0).toLocaleString()}
+                          </span>
+                        </span>
+                      ) : editing?.id === row.participantId ? (
                         <Input
                           value={editing.value}
                           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
@@ -468,13 +503,21 @@ export default function WeeklyRosterClient({
                           className="w-28 max-sm:w-full border-gold px-2 py-1 text-right text-xs"
                         />
                       ) : (
-                        weeklyStatValue(type, row.baselineValue)
+                        <>
+                          {weeklyStatValue(type, row.baselineValue)}
+                          {split && row.baselineParts && (
+                            <span className="block text-[11px] text-text-dim">{partKeys.map((p) => `${p.label} ${(row.baselineParts?.[p.key] ?? 0).toLocaleString()}`).join(' · ')}</span>
+                          )}
+                        </>
                       )}
                     </td>
                   )}
                   {mode === 'baselines' && (
                     <td data-label="Now" className="stack-third px-3 py-2 text-right tabular-nums text-xs text-text-muted">
                       {weeklyStatValue(type, row.currentValue)}
+                      {split && row.currentParts && (
+                        <span className="block text-[11px] text-text-dim">{partKeys.map((p) => `${p.label} ${(row.currentParts?.[p.key] ?? 0).toLocaleString()}`).join(' · ')}</span>
+                      )}
                     </td>
                   )}
 
@@ -510,6 +553,8 @@ export default function WeeklyRosterClient({
                               id: row.participantId,
                               rsn: row.rsn,
                               value: String(row.baselineValue ?? row.currentValue ?? 0),
+                              // The stored start of each, else where they stand now, else left for staff to fill.
+                              parts: Object.fromEntries(partKeys.map((p) => [p.key, String(row.baselineParts?.[p.key] ?? row.currentParts?.[p.key] ?? '')])),
                             })
                           }
                           className="px-2 py-1 text-xs rounded-md border border-card-border hover:border-gold/50 hover:text-gold transition-colors"
