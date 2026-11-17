@@ -41,6 +41,11 @@ const SECONDARY =
   'px-4 py-2 bg-card-bg-hover border border-card-border text-text font-semibold rounded-lg text-sm hover:border-gold/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const LINK = 'text-sm text-gold hover:underline';
 
+/** This browser's choice to keep the set-up block open or folded. */
+const FOLD_KEY = 'anvil:discord-setup-folded';
+/** The cards inside the block that the settings search links to (lib/adminSettingsIndex). */
+const INNER_ANCHORS = ['discord-channel-layout', 'discord-from-other-plugins', 'discord-old-webhooks', 'discord-tell-members'];
+
 const LAYOUTS: { id: QuickSetupLayout; title: string; blurb: string; recommended?: boolean }[] = [
   { id: 'one', title: 'One channel', blurb: 'Everything in one place. Best for small clans.' },
   {
@@ -154,6 +159,44 @@ export default function DiscordQuickSetup({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // ---- Folding the whole block away once it is set up ----
+  // null = no choice made on this browser yet (folded by default once set up). Read once, on the
+  // client: the first paint is "Checking your server…" either way, so the server never draws it.
+  const [fold, setFold] = useState<boolean | null>(() => {
+    if (typeof window === 'undefined') return null;
+    // A link straight to one of the cards inside (the settings search) opens the block for it.
+    if (INNER_ANCHORS.includes(window.location.hash.slice(1))) return false;
+    try {
+      const saved = window.localStorage.getItem(FOLD_KEY);
+      return saved === '0' || saved === '1' ? saved === '1' : null;
+    } catch {
+      return null;
+    }
+  });
+  function setFolded(next: boolean) {
+    setFold(next);
+    try {
+      window.localStorage.setItem(FOLD_KEY, next ? '1' : '0');
+    } catch {
+      /* private window: the choice lasts for this visit */
+    }
+  }
+  useEffect(() => {
+    // The card only exists once the block is open: scroll to it after it has been drawn.
+    const scrollToHash = () => {
+      const target = window.location.hash.slice(1);
+      if (!INNER_ANCHORS.includes(target)) return;
+      window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ block: 'start' }), 60);
+    };
+    const onHash = () => {
+      if (INNER_ANCHORS.includes(window.location.hash.slice(1))) setFold(false);
+      scrollToHash();
+    };
+    if (!loading) scrollToHash();
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [loading]);
 
   // ---- Setup ----
   const [useSame, setUseSame] = useState(true);
@@ -284,11 +327,57 @@ export default function DiscordQuickSetup({
   const foreignChannels = [...new Set(foreign.map((w) => w.channelName))];
   const alreadySetUp = current.length > 0;
   const showChooser = !alreadySetUp || redo;
+  // Once the channels are set up this whole block is reference, not a task: it folds to one card.
+  // Open while there is something to do in it (a redo, a setup that just ran) or when the admin
+  // opened it; their choice is remembered on this browser.
+  const folded = alreadySetUp && !redo && !result && (fold ?? true);
+
+  if (folded) {
+    return (
+      <div id="discord-quick-setup" className="scroll-mt-24 space-y-4">
+        {loadError && (
+          <p className="text-sm text-amber-400 border border-amber-500/30 bg-amber-500/5 rounded-lg px-3 py-2">{loadError}</p>
+        )}
+        <section className="border border-card-border rounded-xl p-5 bg-card-bg">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-1.5">
+              <h2 className="display text-xl font-semibold">
+                <span className="text-gold">✓</span> Channels are set up
+              </h2>
+              <ul className="space-y-1 text-sm text-text-muted">
+                {groupByChannel(current).map((g) => (
+                  <li key={g.key}>
+                    {current.length === 1 && g.settingKeys[0] === BASE_KEY ? 'Everything' : g.settingKeys.map((k) => labelFor(null, k)).join(', ')} →{' '}
+                    <span className="text-foreground">{g.channelName ? `#${g.channelName}` : 'a pasted link'}</span>
+                  </li>
+                ))}
+              </ul>
+              {removable.length > 0 && (
+                <p className="text-sm text-amber-400">
+                  {removable.length} old {removable.length === 1 ? 'webhook' : 'webhooks'} from another plugin still to remove.
+                </p>
+              )}
+            </div>
+            <button type="button" onClick={() => setFolded(false)} aria-expanded={false} className={cn(SECONDARY, 'shrink-0')}>
+              Show setup
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div id="discord-quick-setup" className="scroll-mt-24 space-y-4">
       {loadError && (
         <p className="text-sm text-amber-400 border border-amber-500/30 bg-amber-500/5 rounded-lg px-3 py-2">{loadError}</p>
+      )}
+      {alreadySetUp && !redo && !result && (
+        <div className="flex justify-end">
+          <button type="button" onClick={() => setFolded(true)} aria-expanded className={LINK}>
+            Hide setup
+          </button>
+        </div>
       )}
 
       {foreign.length > 0 && (
