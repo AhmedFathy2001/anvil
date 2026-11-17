@@ -19,6 +19,9 @@ import { BoostedBadge, boostedClanNameStyle } from '@/components/ClanBoost';
 import { SupporterStar } from '@/components/SupporterName';
 import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
 
+/** Live events shown before "Show N more" on the public clan home. */
+const LIVE_SHOWN = 4;
+
 const FOCUS_LABEL: Record<ClanFocus, string> = {
   pvm: 'PvM',
   skilling: 'Skilling',
@@ -212,8 +215,10 @@ export default function PublicClanHome({
       {activity && hasLive && (
         <section className="mt-10">
           <h2 className="display mb-4 text-2xl font-semibold">Happening now</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {activity.live.map((item) => (
+          {/* Four on show: a busy clan runs a dozen at once, and the ways in (apply, recruiting) sit
+              under this section. The rest open in place, with no script needed. */}
+          {(() => {
+            const card = (item: (typeof activity.live)[number]) => (
               <ClanLink
                 key={item.key}
                 href={item.href}
@@ -234,8 +239,23 @@ export default function PublicClanHome({
                 {item.line && <span className="text-[13px] text-text-dim">{item.line}</span>}
                 <span className="mt-2 text-sm font-medium text-[var(--sa-text)] group-hover:opacity-80">See the standings →</span>
               </ClanLink>
-            ))}
-          </div>
+            );
+            const first = activity.live.slice(0, LIVE_SHOWN);
+            const rest = activity.live.slice(LIVE_SHOWN);
+            return (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">{first.map(card)}</div>
+                {rest.length > 0 && (
+                  <details className="group mt-3">
+                    <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-2 rounded-full border border-card-border px-4 py-2 text-sm text-text-muted transition-colors hover:border-[var(--sa-border)] hover:text-foreground group-open:hidden">
+                      Show {rest.length} more
+                    </summary>
+                    <div className="grid gap-3 sm:grid-cols-2">{rest.map(card)}</div>
+                  </details>
+                )}
+              </>
+            );
+          })()}
         </section>
       )}
 
