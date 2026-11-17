@@ -4,6 +4,7 @@ import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { competitionStat } from '@/lib/weeklyMetric';
+import { huntLine, parseHunt, petGroupOf } from '@/lib/itemHunt';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -54,6 +55,14 @@ export interface ScheduleBingo {
   gate?: string;
 }
 
+/** The id behind an item hunt's picture: its first item, or a pet from its group. */
+function huntIconItem(w: { type: string; hunt?: string | null }): { iconItem?: number } {
+  if (w.type !== 'hunt') return {};
+  const config = parseHunt(w.hunt);
+  const id = config?.target === 'pets' ? petGroupOf(config.petGroup)?.items[0]?.id : config?.items[0]?.id;
+  return id ? { iconItem: id } : {};
+}
+
 export interface ScheduleWeekly {
   id: number;
   title: string;
@@ -68,6 +77,8 @@ export interface ScheduleWeekly {
   mode?: string;
   /** Set when another clan hosts this clan-vs-clan competition and this clan races in it. */
   hostedBy?: string;
+  /** An item hunt (type 'hunt'): the id of the item or pet it hunts, for its picture. */
+  iconItem?: number;
 }
 
 export interface PluginSchedule {
@@ -272,7 +283,9 @@ export async function buildSchedule(
       title: w.title,
       type: w.type,
       metric: w.metric,
-      metricLabel: weeklyMetricLabel(w.type, w.metric),
+      // An item hunt reads "Uncut onyx from Zulrah · most by the end" (lib/itemHunt).
+      metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
+      ...huntIconItem(w),
       status: weeklyStatus(w),
       startDate: w.startDate,
       endDate: w.endDate,

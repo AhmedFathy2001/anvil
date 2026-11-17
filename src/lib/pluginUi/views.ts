@@ -1,3 +1,4 @@
+import type { PanelHighlights } from './highlightsUi';
 import { withoutPetDoubles } from '@/lib/momentDupes';
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
 import type { TenureGlyph } from '@/lib/supporterTiers';
@@ -690,8 +691,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
         const url = new URL(request.url);
         url.search = `?id=${w.id}${me ? `&rsn=${encodeURIComponent(me.rsn)}` : ''}`;
         const r = await weeklyRoute(new Request(url, { headers: request.headers }));
-        type Row = { rank: number; rsn: string; gained: number; move?: number | null };
-        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null; groups?: WeeklyGroupsPayload | null }) : null] as const;
+        type Row = { rank: number; rsn: string; gained: number; move?: number | null; sub?: string | null };
+        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null; groups?: WeeklyGroupsPayload | null; highlights?: PanelHighlights | null }) : null] as const;
       }),
     ),
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
@@ -718,7 +719,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     if (!b) continue;
     const top = (b.entries ?? []).map((e) => ({ ...e, self: !!me && norm(e.rsn) === norm(me.rsn) }));
     // Past the top 50 the route still names your own row.
-    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null), groups: b.groups ?? null });
+    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null), groups: b.groups ?? null, highlights: b.highlights ?? null });
   }
   // Cheap and best effort: the support line is a nudge, never a reason the panel fails.
   const viewer = await verifyPluginTokenUser(request).catch(() => null);

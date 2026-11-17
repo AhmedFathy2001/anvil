@@ -17,6 +17,7 @@ import { racePageUi } from './raceUi';
 import { type PinRow, trackedCard } from './trackedUi';
 import { ordinal } from '@/lib/raceSummary';
 import { type WeeklyGroupsPayload, groupStandingsNodes, yourGroupCard } from './teamStandingsUi';
+import { type PanelHighlights, highlightNodes } from './highlightsUi';
 import { BLUE, CARD_W, CORAL, FAINT, GOLD, GREEN, PROGRESS, SOFT, big, cells, chip, clip, clock, compactStandings, goldCard, link, more, openRow, pageHead, section, small, standingsCard, stop, thin, title, withMove } from './sections';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
@@ -94,6 +95,8 @@ export interface WeeklyStanding {
   rsn: string;
   gained: number;
   self: boolean;
+  /** A dim line under the row. An item hunt's: "412 kills, no drop" (kills at the source since it started). */
+  sub?: string | null;
   /** Places climbed since the UTC day began (lib/rankMoves); null = unchanged or unknown. */
   move?: number | null;
 }
@@ -123,7 +126,7 @@ export interface HomeData {
   /** Set while the host keeps the standings hidden (lib/standingsVisibility): the notice to show. */
   standingsNotice?: string | null;
   /** Live weeklies' boards by competition id: the caller's line and the top. */
-  weekly: Map<number, { total: number; top: WeeklyStanding[]; you: WeeklyStanding | null; /** Team / clan standings of a group competition (weekly-leaderboard `groups`); null when solo. */ groups?: WeeklyGroupsPayload | null }>;
+  weekly: Map<number, { total: number; top: WeeklyStanding[]; you: WeeklyStanding | null; /** Team / clan standings of a group competition (weekly-leaderboard `groups`); null when solo. */ groups?: WeeklyGroupsPayload | null; /** Best drops and the newest few, under the standings (highlightsUi). */ highlights?: PanelHighlights | null }>;
   /** Tiles this client has pinned on the live board; null where it can't pin. */
   pins: number[] | null;
   /** Every pin with its name, board and count (views.ts pinRowsFor), this board's and the others'. */
@@ -180,6 +183,7 @@ const isLadder = (format: string | null | undefined) => (format ?? '').toLowerCa
 
 export function weeklyKind(type: string): string {
   if (type === 'skill') return 'Skill of the Week';
+  if (type === 'hunt') return 'Item hunt';
   return type === 'efficiency' ? 'Efficiency of the Week' : 'Boss of the Week';
 }
 
@@ -188,14 +192,21 @@ function weeklyIcon(w: ScheduleWeekly): Node | undefined {
   if (!w.metric) return undefined;
   if (w.type === 'skill') return icon({ skill: w.metric, w: 14, h: 14, alt: 'S' });
   if (w.type === 'boss') return icon({ boss: w.metric, w: 16, h: 16, alt: 'B' });
+  // An item hunt: the item or pet it hunts.
+  if (w.type === 'hunt' && w.iconItem) return icon({ item: w.iconItem, w: 16, h: 16 });
   return undefined;
 }
 
 function weeklyGain(w: ScheduleWeekly, gained: number): string {
   const safe = Math.max(0, gained);
+  // An item hunt's number is its drops (lib/itemHuntDb competitionBoard).
+  if (w.type === 'hunt') return `${count(safe)} ${safe === 1 ? 'drop' : 'drops'}`;
   if (w.type === 'efficiency') return `${(safe / EFFICIENCY_SCALE).toFixed(2)} hrs`;
   return `${count(safe)} ${w.type === 'skill' ? 'xp' : 'kc'}`;
 }
+
+/** A gain reads "+4.1m xp"; a hunt's drops are a count, with no plus. */
+const plus = (w: ScheduleWeekly) => (w.type === 'hunt' ? '' : '+');
 
 export function scheduledKind(b: ScheduleBingo): string {
   if (isLadder(b.format)) return 'Ladder';
@@ -579,7 +590,8 @@ export function ownHeading(cfg: Pick<HomeConfig, 'activeClan'>): string {
 
 function yourWeeklyLine(w: ScheduleWeekly, s: { top: WeeklyStanding[]; you: WeeklyStanding | null } | undefined): string {
   // On +0 the rank is only an alphabetical place among everyone else on +0 — not worth a number.
-  if (s?.you) return s.you.gained > 0 ? `You: #${s.you.rank} · +${weeklyGain(w, s.you.gained)}` : `You: +${weeklyGain(w, 0)} so far`;
+  if (s?.you) return s.you.gained > 0 ? `You: #${s.you.rank} · ${plus(w)}${weeklyGain(w, s.you.gained)}` : w.type === 'hunt' ? 'You: no drop yet' : `You: +${weeklyGain(w, 0)} so far`;
+  if (w.type === 'hunt' && s && !s.top.some((r) => r.gained > 0)) return 'No one has a drop yet';
   return !s || !s.top.length ? 'No one has scored yet' : 'You’re not on the board yet';
 }
 
@@ -1135,13 +1147,13 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const top: Node[] = upcoming
     ? [row(undefined, clock(w.startDate, 'Starts in ', 'Starting…', d.now, { font: 'bold' }), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })), muted('No standings until it starts.')]
     : [
-        row(undefined, withMove(big(you && you.gained > 0 ? `#${you.rank} · +${weeklyGain(w, you.gained)}` : you ? `+${weeklyGain(w, 0)} so far` : 'Not on the board'), you?.move), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })),
+        row(undefined, withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
   if (!upcoming) {
-    if (!s || !s.top.length) parts.push(section([title('Standings'), muted('No one has scored yet.')]));
+    if (!s || !s.top.length) parts.push(section([title('Standings'), muted(w.type === 'hunt' ? 'No one is entered yet.' : 'No one has scored yet.')]));
     else {
       const rows = [...s.top, ...(s.you && !s.top.some((r) => r.self) ? [s.you] : [])];
       const line = (r: WeeklyStanding) => standingRow(w, r);
@@ -1154,6 +1166,8 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
     if (mine) parts.push(mine);
     parts.push(section(groupStandingsNodes(w.type, s.groups, 6), { gap: 3 }));
   }
+  // Under the standings: the competition's best drops, then the newest few. Nothing when there are none.
+  if (!upcoming) parts.push(...highlightNodes(s?.highlights, `weekly:${w.id}`));
   // The rest of the clan's weekly schedule, one line each.
   const rest = (d.cfg.panel?.weeklies ?? []).filter((x) => x.id !== w.id);
   if (rest.length) {
@@ -1164,7 +1178,11 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
 
 function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {
   const ink: Color = r.self ? GOLD : SOFT;
-  return row(withMove(row(text(String(r.rank), ink, { w: 26 }), text(clip(r.rsn, 14), ink, { tip: r.rsn, who: r.rsn }), undefined, { gap: 2 }), r.move), undefined, text(`+${weeklyGain(w, r.gained)}`, r.self ? GOLD : FAINT, { align: 'r' }), { gap: 6 });
+  // A hunt counts drops, which are not a gain: "2 drops", not "+2 drops".
+  const figure = w.type === 'hunt' ? weeklyGain(w, r.gained) : `+${weeklyGain(w, r.gained)}`;
+  const line = row(withMove(row(text(String(r.rank), ink, { w: 26 }), text(clip(r.rsn, 14), ink, { tip: r.rsn, who: r.rsn }), undefined, { gap: 2 }), r.move), undefined, text(figure, r.self ? GOLD : FAINT, { align: 'r' }), { gap: 6 });
+  // The dim line sits under the name, past the rank column.
+  return r.sub ? col([line, row(undefined, small(clip(r.sub, 30), FAINT, { tip: r.sub }), undefined, { inset: 28 })], { gap: 1 }) : line;
 }
 
 /**
