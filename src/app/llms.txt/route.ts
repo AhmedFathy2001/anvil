@@ -1,4 +1,4 @@
-import { ANVIL_DEFINITION, FEATURE_PAGES, GENERAL_FAQ } from '@/lib/answers';
+import { ANVIL_DEFINITION, CLANS_FAQ, FEATURE_PAGES, GENERAL_FAQ, WEEKLY_FAQ } from '@/lib/answers';
 import { absoluteUrl } from '@/lib/seo';
 
 /**
@@ -31,7 +31,7 @@ export function GET(): Response {
     `- [Discord](${absoluteUrl('/guide/discord')}): the bot, channels and slash commands`,
     '',
     '## FAQ',
-    ...GENERAL_FAQ.flatMap((f) => [`### ${f.q}`, f.a, '']),
+    ...[...GENERAL_FAQ, ...WEEKLY_FAQ, ...CLANS_FAQ].flatMap((f) => [`### ${f.q}`, f.a, '']),
     '## Optional',
     `- [Pricing](${absoluteUrl('/pricing')})`,
     `- [Clan directory](${absoluteUrl('/clans')})`,

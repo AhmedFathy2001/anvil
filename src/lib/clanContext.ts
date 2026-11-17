@@ -36,6 +36,8 @@ export interface ClanContext {
   name: string;
   inGameName: string | null;
   status: string;
+  /** Hidden by Anvil's staff, over the clan's own choices (clans.platform_hidden). */
+  platformHidden: boolean;
   /**
    * The plan IN FORCE: what the clan pays for, or its running Anvil trial's tier when that is higher
    * (lib/planTrials). Every capability and limit check reads this. `paidPlan` is `clans.plan` itself,
@@ -88,6 +90,7 @@ async function toContext(row: typeof clans.$inferSelect): Promise<ClanContext> {
     logoUrl: row.logoUrl ?? null,
     accentColor: row.accentColor ?? null,
     status: row.status,
+    platformHidden: row.platformHidden === true,
     plan: effectivePlanId(kind, row.plan, trial),
     paidPlan: row.plan,
     memberCap: effectiveMemberCap(kind, row.plan, row.memberCap, trial),
