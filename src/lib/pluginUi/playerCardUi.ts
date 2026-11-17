@@ -189,7 +189,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
         cells.push({ ...countCell(icon({ boss: b.key }), b.label, 0, `${b.label} — 0 kills`), k: [b.label, ...(b.aliases ?? [])].join(' '), q: true });
       }
     }
-    sections.push({ label: 'Bosses', c: searchable('bosses', bosses.length, { t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }) });
+    sections.push({ label: 'Bosses', c: searchable('bosses', bosses.length, { t: 'grid', cols: 3, gap: 3, vgap: 3, c: cells }) });
   }
   if (anvil && c.clog && c.clog.total > 0) sections.push({ label: 'Log', c: logTab(c, kills) });
   else if (anvil) sections.push({ label: 'Log', c: card([muted('No collection log synced yet. Sync profile (the gear button) sends it.', { wrap: true })]) });
@@ -430,7 +430,8 @@ function latest(c: PlayerCard): Node {
 
 /** A count with the game's own picture; the name stands in when the plugin has no picture for it. */
 function countCell(pic: Node, name: string, n: number, tip: string, on?: Action): Node {
-  return { t: 'text', s: count(n), color: 'white', cell: true, icon: { ...(pic as Extract<Node, { t: 'icon' }>), alt: name }, tip, ...(on ? { on } : {}), k: name };
+  // A larger picture, so each cell is taller: at the default size three across read as a wall of small numbers.
+  return { t: 'text', s: count(n), color: 'white', cell: true, icon: { w: 24, h: 22, ...(pic as Extract<Node, { t: 'icon' }>), alt: name }, tip, ...(on ? { on } : {}), k: name };
 }
 
 /** The game's skill tab: icon + level, three across, XP on hover; total level and a virtual toggle below. */
