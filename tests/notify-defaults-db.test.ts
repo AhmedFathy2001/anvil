@@ -143,3 +143,53 @@ test('migration 0245 copies an old gp floor on a webhook into min_value', async 
   const [after2] = await db.select().from(s.userWebhooks).where(eq(s.userWebhooks.id, row.id));
   assert.equal(after2.minValue, 750_000);
 });
+
+test('a notable unlock reads the character\'s own fresh kill count; a stale one is left out', async () => {
+  const { db, schema: s } = await loadDb();
+  // The item-name index reads the wiki mapping; this test needs no names (the unlock carries its id).
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => { throw new Error('offline'); }) as typeof fetch;
+  try {
+    const N = await import('../src/lib/notifyDropJudge.ts');
+    const now = Date.parse('2026-11-17T12:00:00Z');
+    const unlock = { rsn: 'InAlpha', notable: 'unlock', spoon: true, source: null, kc: null, items: [{ id: 28281, name: 'Magus vestige', qty: 1, value: 0 }] };
+    const run = async (acc: number | null) => (await N.withNotableFacts(unlock, acc, now)) as Record<string, unknown>;
+
+    // No reading at all: source and rate from the drop tables, no count.
+    const none = await run(inA);
+    assert.equal(none.source, 'Duke Sucellus');
+    assert.ok(Math.abs((none.dropRate as number) - 1 / 720) < 1e-12);
+    assert.equal(none.kc, null);
+
+    // A hiscores read this morning, raised by a live push a minute ago.
+    await db.insert(s.accountStatSnapshots).values({ accountId: inA, snapshot: JSON.stringify({ skills: {}, bosses: { dukeSucellus: { score: 140 } } }) });
+    await db.update(s.accounts).set({
+      statsPolledAt: '2026-11-17 06:00:00',
+      liveStats: JSON.stringify({ dukeSucellus: 150 }),
+      liveStatKeyTimes: JSON.stringify({ dukeSucellus: '2026-11-17T11:59:00.000Z' }),
+    }).where(eq(s.accounts.id, inA));
+    const fresh = await run(inA);
+    assert.equal(fresh.kc, 150);
+    assert.equal(fresh.kcAbout, true);
+
+    // Both readings over a day old: no count.
+    await db.update(s.accounts).set({
+      statsPolledAt: '2026-11-16 06:00:00',
+      liveStatKeyTimes: JSON.stringify({ dukeSucellus: '2026-11-15T11:59:00.000Z' }),
+    }).where(eq(s.accounts.id, inA));
+    const stale = await run(inA);
+    assert.equal(stale.kc, null);
+    assert.equal(stale.kcAbout, undefined);
+    assert.equal(stale.source, 'Duke Sucellus');
+
+    // The plugin's own count is kept as sent, and no character means no read.
+    const sent = (await N.withNotableFacts({ ...unlock, kc: 7 }, inA, now)) as Record<string, unknown>;
+    assert.deepEqual([sent.kc, sent.kcAbout], [7, undefined]);
+    assert.equal((await run(null)).kc, null);
+    // Not a notable post: handed back untouched.
+    const plain = { items: [{ id: 1, name: 'x', qty: 1, value: 1 }] };
+    assert.equal(await N.withNotableFacts(plain, inA, now), plain);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

@@ -258,7 +258,7 @@ for (const [name, c] of Object.entries(cases)) {
     });
     assert.ok(out.ok, out.ok ? '' : out.error);
     // Through JSON so an `undefined` key can't hide behind deepEqual.
-    const want = legacy[name];
+    const want = legacy[name] as { description: string };
     // Intentional difference: a notable item's lucky line now needs a rate and a count behind it, and
     // this post has no rate (the plugin used to print the line regardless).
     if (name === 'drop.notable-loot-spoon') want.description = want.description.split('\n')[0];
