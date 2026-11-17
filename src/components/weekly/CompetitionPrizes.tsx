@@ -17,7 +17,7 @@ export default function CompetitionPrizes({ prizes, hunt = false }: { prizes: st
     !hunt && !ladder.payZeroGain ? 'A place pays only to someone who gained something.' : null,
   ].filter(Boolean);
   return (
-    <section className="mt-4 rounded-xl border border-gold/30 bg-gold/[0.05] px-4 py-3">
+    <section className="my-4 rounded-xl border border-gold/30 bg-gold/[0.05] px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-sm font-semibold text-gold">Prizes</h2>
         {places.length > 1 && <span className="text-xs text-text-muted">{formatGp(totalPrizeGp(ladder))} gp in all, paid from the clan coffer</span>}
