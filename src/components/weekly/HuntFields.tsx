@@ -10,7 +10,7 @@ import Select from '@/components/Select';
 import ThingIcon from '@/components/ThingIcon';
 import { clanFetch } from '@/lib/clanFetch';
 import { BOSSES, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
-import { MAX_ENDING_DROPS, MAX_HUNT_ITEMS, type HuntConfirm, type HuntCountMode, type HuntEnding, type HuntRule, killsOfForItems } from '@/lib/itemHunt';
+import { MAX_ENDING_DROPS, MAX_HUNT_ITEMS, MAX_PET_KILL_BOSSES, type HuntConfirm, type HuntCountMode, type HuntEnding, type HuntRule, killsOfForItems, petKills } from '@/lib/itemHunt';
 import NumberInput from '@/components/NumberInput';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { itemIconUrl } from '@/lib/tileIcons';
@@ -34,28 +34,43 @@ export interface HuntFormValue {
   target: 'items' | 'pets';
   items: HuntFormItem[];
   petGroup: string;
+  /** The pets of the group that count. null = all of them; [] = none ticked yet, which cannot be created. */
+  petIds: number[] | null;
+  /** Pet hunts: show kills at the pets' bosses, when there is such a number to show (petKills). */
+  petKillsShown: boolean;
   rule: HuntRule;
   ends: HuntEnding;
   confirm: HuntConfirm;
-  /** "Any source" and pet hunts only: a boss whose kills the standings show. '' = none. */
+  /** "Any source" item hunts only: a boss whose kills the standings show. '' = none. */
   killsOf: string;
   /** XP gained in this skill, shown when there is no kill count. '' = none. */
   xpSkill: string;
 }
 
-export const DEFAULT_HUNT: HuntFormValue = { target: 'items', items: [], petGroup: 'all', rule: 'first', ends: { kind: 'date' }, confirm: 'staff', killsOf: '', xpSkill: '' };
+export const DEFAULT_HUNT: HuntFormValue = { target: 'items', items: [], petGroup: 'all', petIds: null, petKillsShown: true, rule: 'first', ends: { kind: 'date' }, confirm: 'staff', killsOf: '', xpSkill: '' };
+
+/** The pets a pet hunt on the form counts right now: the group, less the ones unticked. */
+export function huntFormPets(v: HuntFormValue): { id: number; name: string }[] {
+  const all = PET_GROUPS.find((g) => g.key === v.petGroup)?.items ?? [];
+  const picked = v.petIds;
+  return picked ? all.filter((p) => picked.includes(p.id)) : all;
+}
 
 /** What the form posts as `hunt`. */
 export function huntPayload(v: HuntFormValue) {
+  // A pet hunt's kills are the pets' own bosses. The server works the list out again from the pets
+  // (lib/itemHunt huntFromInput); what is sent here only says whether to show them.
+  const killsOf = v.target === 'pets' ? (v.petKillsShown ? petKills(huntFormPets(v)).killsOf : null) : v.killsOf || null;
   return {
     target: v.target,
     items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.anySource ? [] : it.sources, anySource: it.anySource, count: it.count })),
     petGroup: v.petGroup,
+    ...(v.target === 'pets' && v.petIds ? { petIds: v.petIds } : {}),
     rule: v.rule,
     ends: v.ends,
     confirm: v.confirm,
-    killsOf: v.killsOf || null,
-    xpSkill: v.xpSkill || null,
+    killsOf,
+    xpSkill: killsOf ? null : v.xpSkill || null,
   };
 }
 
@@ -67,6 +82,12 @@ export function huntUnchosen(v: HuntFormValue): HuntFormItem | null {
 
 interface SearchItem { id: number; name: string; sources: string[] }
 interface SearchBoss { name: string; items: { id: number; name: string }[] }
+
+/** "Kraken", "Kraken and Cerberus", "Kraken, Cerberus and 3 more". */
+function listWords(names: string[], max = names.length): string {
+  if (names.length > max) return `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
 
 const BOSS_OPTIONS = [
   { value: '', label: 'Do not show kills' },
@@ -132,6 +153,17 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
     set({ items: [...value.items, { id: item.id, name: item.name, known: [boss], sources: [boss], anySource: false, count: 'drops' }] });
   }
 
+  const group = PET_GROUPS.find((g) => g.key === value.petGroup) ?? PET_GROUPS[0];
+  const pets = huntFormPets(value);
+  const hasPet = (id: number) => value.petIds === null || value.petIds.includes(id);
+  /** Ticking the last one back on is the whole group again, which is stored as no list at all. */
+  function togglePet(id: number, on: boolean) {
+    const next = group.items.filter((p) => (p.id === id ? on : hasPet(p.id))).map((p) => p.id);
+    set({ petIds: next.length === group.items.length ? null : next });
+  }
+  const petStat = petKills(pets);
+  const petKillsOn = value.petKillsShown && !!petStat.killsOf;
+
   const shown = query.trim().length >= 2 ? results : null;
   const autoKills = value.target === 'items' ? killsOfForItems(value.items.map((it) => ({ id: it.id, name: it.name, sources: it.anySource ? [] : it.sources, count: it.count }))) : null;
 
@@ -140,11 +172,11 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
       <div>
         <p className="mb-1.5 text-sm font-medium text-foreground/70">What are you hunting?</p>
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-          <label className="flex cursor-pointer items-center gap-2">
+          <label className="flex cursor-pointer gap-2">
             <Radio name="hunt-target" checked={value.target === 'items'} onChange={() => set({ target: 'items' })} />
             One or more items
           </label>
-          <label className="flex cursor-pointer items-center gap-2">
+          <label className="flex cursor-pointer gap-2">
             <Radio name="hunt-target" checked={value.target === 'pets'} onChange={() => set({ target: 'pets' })} />
             Pets
           </label>
@@ -156,13 +188,51 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
           <label className="mb-1.5 block text-sm font-medium text-foreground/70">Which pets</label>
           <Select
             value={value.petGroup}
-            onChange={(v) => set({ petGroup: v })}
+            // The ticks belong to the group they were made in: a new group starts with all of its pets.
+            onChange={(v) => set({ petGroup: v, petIds: null })}
             ariaLabel="Which pets count"
             options={PET_GROUPS.map((g) => ({ value: g.key, label: g.key === 'all' ? 'Any pet' : g.label }))}
           />
-          <p className="mt-1.5 text-xs text-text-muted">
-            {PET_GROUPS.find((g) => g.key === value.petGroup)?.blurb} A pet counts wherever it came from.
-          </p>
+          <p className="mt-1.5 text-xs text-text-muted">{group.blurb} Untick the ones that should not count. A pet counts wherever it came from.</p>
+
+          <div className={`mt-3 rounded-lg border p-3 ${pets.length === 0 ? 'border-amber-400/60 bg-amber-400/[0.04]' : 'border-card-border bg-brown-dark/30'}`}>
+            <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className={`mr-auto text-xs font-medium ${pets.length === 0 ? 'text-amber-300' : 'text-foreground/70'}`}>
+                {pets.length === 0
+                  ? 'No pets ticked. Tick at least one.'
+                  : pets.length === group.items.length
+                    ? `All ${group.items.length} count`
+                    : `${pets.length} of ${group.items.length} count`}
+              </p>
+              <button type="button" onClick={() => set({ petIds: null })} disabled={value.petIds === null} className="min-h-9 rounded px-2 text-xs text-gold hover:text-gold-light disabled:text-text-muted disabled:opacity-60">
+                All
+              </button>
+              <button type="button" onClick={() => set({ petIds: [] })} disabled={pets.length === 0} className="min-h-9 rounded px-2 text-xs text-gold hover:text-gold-light disabled:text-text-muted disabled:opacity-60">
+                Clear
+              </button>
+            </div>
+            <div className="grid max-h-72 gap-x-4 gap-y-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+              {group.items.map((p) => (
+                <Checkbox
+                  key={p.id}
+                  checked={hasPet(p.id)}
+                  onChange={(on) => togglePet(p.id, on)}
+                  labelClassName="flex min-w-0 items-center gap-1.5 text-sm"
+                  label={
+                    <>
+                      <ThingIcon src={itemIconUrl(p.id)} alt="" size={22} />
+                      <span className="truncate">{p.name}</span>
+                    </>
+                  }
+                />
+              ))}
+            </div>
+            {value.petGroup === 'all' && value.petIds !== null && pets.length > 0 && (
+              <p className="mt-2 text-[11px] text-text-muted">
+                With every pet ticked, a pet the plugin could not name still counts. With some left out it does not, until the collection log names it.
+              </p>
+            )}
+          </div>
         </div>
       ) : (
         <div>
@@ -314,8 +384,8 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
             ['first', 'First to get it', 'Whoever lands it first wins. Others are listed in the order they got it.'],
             ['most', 'Most by the end', 'The highest count when it ends wins. A tie goes to whoever got there first.'],
           ] as const).map(([key, label, blurb]) => (
-            <label key={key} className={`flex cursor-pointer gap-2.5 rounded-lg border p-3 ${value.rule === key ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
-              <Radio name="hunt-rule" className="mt-0.5" checked={value.rule === key} onChange={() => set({ rule: key })} />
+            <label key={key} className={`flex cursor-pointer gap-2.5 text-sm rounded-lg border p-3 ${value.rule === key ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
+              <Radio name="hunt-rule" checked={value.rule === key} onChange={() => set({ rule: key })} />
               <span>
                 <span className="block text-sm font-medium">{label}</span>
                 <span className="block text-xs text-text-muted">{blurb}</span>
@@ -329,7 +399,38 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
 
       <div className="rounded-lg border border-card-border bg-brown-dark/30 p-3">
         <p className="text-sm font-medium text-foreground/70">Beside each player&rsquo;s count</p>
-        {autoKills ? (
+        {value.target === 'pets' ? (
+          <div className="mt-2 space-y-3">
+            {pets.length === 0 ? (
+              <p className="text-xs text-text-muted">Tick the pets first.</p>
+            ) : petStat.killsOf ? (
+              <Checkbox
+                checked={value.petKillsShown}
+                onChange={(on) => set({ petKillsShown: on })}
+                label={petStat.bosses.length === 1 ? `Show kills at ${petStat.bosses[0]}` : 'Show kills at the bosses these pets come from'}
+                description={
+                  petStat.bosses.length === 1
+                    ? 'Kills since the hunt started, so you can see who is dry.'
+                    : `Kills at ${listWords(petStat.bosses)}, added together, since the hunt started. It shows who is dry.`
+                }
+                className="text-sm"
+              />
+            ) : (
+              <p className="text-xs text-text-muted">
+                {petStat.noBoss.length > 0
+                  ? `No kill count is shown: ${listWords(petStat.noBoss, 3)} ${petStat.noBoss.length === 1 ? 'does' : 'do'} not come from a boss on the hiscores. Kills are shown when every ticked pet does.`
+                  : `No kill count is shown: these pets come from ${petStat.bosses.length} bosses, and that many added together says little. Kills are shown for ${MAX_PET_KILL_BOSSES} bosses or fewer, so untick pets to get one.`}
+              </p>
+            )}
+            {pets.length > 0 && !petKillsOn && (
+              <div className="max-w-xs">
+                <label className="mb-1 block text-xs text-text-muted">Show XP gained in (optional)</label>
+                <Select value={value.xpSkill} onChange={(v) => set({ xpSkill: v })} ariaLabel="Show XP gained in" options={SKILL_OPTIONS} />
+                <p className="mt-1 text-xs text-text-muted">For a skilling pet: the skill it comes from. Leave it empty to show only the pets.</p>
+              </div>
+            )}
+          </div>
+        ) : autoKills ? (
           <p className="mt-1 text-xs text-text-muted">
             Kills at {bossMetricLabel(autoKills)} since the hunt started, so you can see who is dry.
           </p>
@@ -340,13 +441,12 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
               <Select value={value.killsOf} onChange={(v) => set({ killsOf: v, xpSkill: v ? '' : value.xpSkill })} ariaLabel="Show kills at" options={BOSS_OPTIONS} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-text-muted">Also show XP gained in (optional)</label>
-              <Select value={value.xpSkill} onChange={(v) => set({ xpSkill: v })} ariaLabel="Also show XP gained in" options={SKILL_OPTIONS} disabled={!!value.killsOf} />
+              <label className="mb-1 block text-xs text-text-muted">Or show XP gained in (optional)</label>
+              <Select value={value.xpSkill} onChange={(v) => set({ xpSkill: v })} ariaLabel="Or show XP gained in" options={SKILL_OPTIONS} disabled={!!value.killsOf} />
             </div>
             <p className="text-xs text-text-muted sm:col-span-2">
-              {value.target === 'items'
-                ? 'These sources have no kill count on the hiscores, so nothing is shown unless you pick one. Leave both empty to show only the drops.'
-                : 'Pick a boss for a boss pet, or a skill for a skilling pet. Leave both empty to show only the pets.'}
+              These sources have no kill count on the hiscores, so nothing is shown unless you pick one. It is one or the other: kills, or XP.
+              Leave both empty to show only the drops.
             </p>
           </div>
         )}
@@ -382,16 +482,16 @@ export function HuntEndingFields({
       <div>
         <p className="mb-1.5 text-sm font-medium text-foreground/70">How it ends</p>
         <div className="space-y-2">
-          <label className={`flex cursor-pointer gap-2.5 rounded-lg border p-3 ${ends.kind === 'date' ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
-            <Radio name={`${name}-ends`} className="mt-0.5" checked={ends.kind === 'date'} onChange={() => onChange({ ends: { kind: 'date' } })} />
+          <label className={`flex cursor-pointer gap-2.5 text-sm rounded-lg border p-3 ${ends.kind === 'date' ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
+            <Radio name={`${name}-ends`} checked={ends.kind === 'date'} onChange={() => onChange({ ends: { kind: 'date' } })} />
             <span>
               <span className="block text-sm font-medium">At the end date</span>
               <span className="block text-xs text-text-muted">It runs the whole time and lists everyone who got one, in order.</span>
             </span>
           </label>
           <div className={`rounded-lg border p-3 ${ends.kind === 'drops' ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
-            <label className="flex cursor-pointer gap-2.5">
-              <Radio name={`${name}-ends`} className="mt-0.5" checked={ends.kind === 'drops'} onChange={() => onChange({ ends: { kind: 'drops', n, by: 'all' } })} />
+            <label className="flex cursor-pointer gap-2.5 text-sm">
+              <Radio name={`${name}-ends`} checked={ends.kind === 'drops'} onChange={() => onChange({ ends: { kind: 'drops', n, by: 'all' } })} />
               <span>
                 <span className="block text-sm font-medium">After a number of drops</span>
                 <span className="block text-xs text-text-muted">It ends early once enough have landed. One drop means it ends when the first one lands.</span>
@@ -421,8 +521,8 @@ export function HuntEndingFields({
       <div>
         <p className="mb-1.5 text-sm font-medium text-foreground/70">Who confirms drops</p>
         <div className="space-y-2">
-          <label className={`flex cursor-pointer gap-2.5 rounded-lg border p-3 ${confirm === 'staff' ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
-            <Radio name={`${name}-confirm`} className="mt-0.5" checked={confirm === 'staff'} onChange={() => onChange({ confirm: 'staff' })} />
+          <label className={`flex cursor-pointer gap-2.5 text-sm rounded-lg border p-3 ${confirm === 'staff' ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
+            <Radio name={`${name}-confirm`} checked={confirm === 'staff'} onChange={() => onChange({ confirm: 'staff' })} />
             <span>
               <span className="block text-sm font-medium">Staff confirm each drop that decides the result</span>
               <span className="block text-xs text-text-muted">
@@ -430,8 +530,8 @@ export function HuntEndingFields({
               </span>
             </span>
           </label>
-          <label className={`flex cursor-pointer gap-2.5 rounded-lg border p-3 ${confirm === 'auto' ? 'border-amber-400/60 bg-amber-400/[0.05]' : 'border-card-border bg-brown-dark/30'}`}>
-            <Radio name={`${name}-confirm`} className="mt-0.5" checked={confirm === 'auto'} onChange={() => onChange({ confirm: 'auto' })} />
+          <label className={`flex cursor-pointer gap-2.5 text-sm rounded-lg border p-3 ${confirm === 'auto' ? 'border-amber-400/60 bg-amber-400/[0.05]' : 'border-card-border bg-brown-dark/30'}`}>
+            <Radio name={`${name}-confirm`} checked={confirm === 'auto'} onChange={() => onChange({ confirm: 'auto' })} />
             <span>
               <span className="block text-sm font-medium">Count plugin drops automatically</span>
               <span className="block text-xs text-text-muted">

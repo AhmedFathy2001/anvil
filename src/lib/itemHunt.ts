@@ -12,9 +12,9 @@
 // PURE: no database, no datasets. The form (a client component), the routes and the tests all read
 // the rules from here. Source matching is the drop tiles' own (lib/pluginFacts/match sourceMatches).
 
-import { BOSSES, RAIDS_ANY_MODE, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
+import { BOSSES, RAIDS_ANY_MODE, SKILL_LABELS, bossMetricLabel, metricKeys } from '@/lib/constants';
 import { dropCounts } from '@/lib/h2hRules';
-import { PET_GROUPS } from '@/lib/petGroups';
+import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
 import { itemIconUrl } from '@/lib/tileIcons';
 
@@ -59,6 +59,11 @@ export interface HuntConfig {
   items: HuntItem[];
   /** target 'pets': a lib/petGroups key; 'all' is "any pet". */
   petGroup: string | null;
+  /**
+   * target 'pets', narrowed: the pets of the group that count, by item id. Absent on a hunt for the
+   * whole group, which is every hunt stored before a group could be narrowed. Read through huntPets.
+   */
+  petIds?: number[];
   rule: HuntRule;
   /** How it ends: at the end date, or as soon as enough drops have landed. Staff can always end it by hand. */
   ends: HuntEnding;
@@ -92,6 +97,14 @@ export function petGroupOf(key: string | null | undefined) {
   return PET_GROUPS.find((g) => g.key === key) ?? null;
 }
 
+/** The pets a pet hunt counts: its group, or the ones picked out of it. Empty for an item hunt. */
+export function huntPets(config: Pick<HuntConfig, 'target' | 'petGroup' | 'petIds'>): { id: number; name: string }[] {
+  if (config.target !== 'pets') return [];
+  const all = petGroupOf(config.petGroup)?.items ?? [];
+  const picked = config.petIds;
+  return picked ? all.filter((p) => picked.includes(p.id)) : all;
+}
+
 /** The stored rules, or null when the column is empty or unreadable. */
 export function parseHunt(raw: string | null | undefined): HuntConfig | null {
   if (!raw) return null;
@@ -122,9 +135,21 @@ export function huntFromInput(
 
   const items: HuntItem[] = [];
   let petGroup: string | null = null;
+  let petIds: number[] | undefined;
   if (target === 'pets') {
     petGroup = typeof body.petGroup === 'string' ? body.petGroup : 'all';
-    if (!petGroupOf(petGroup)) return { ok: false, error: 'Pick a pet group.' };
+    const group = petGroupOf(petGroup);
+    if (!group) return { ok: false, error: 'Pick a pet group.' };
+    // A list of pets narrows the group. Only pets of that group are taken, in the group's order, and
+    // a list that names all of them is the whole group again, stored the way it always was. A list
+    // with none left is refused, stored or not: read as "the whole group" it would count pets the
+    // organiser left out.
+    if (Array.isArray(body.petIds)) {
+      const asked: unknown[] = body.petIds;
+      const picked = group.items.filter((p) => asked.includes(p.id)).map((p) => p.id);
+      if (picked.length === 0) return { ok: false, error: 'Pick at least one pet.' };
+      if (picked.length < group.items.length) petIds = picked;
+    }
   } else {
     const raw = Array.isArray(body.items) ? body.items : [];
     const seen = new Set<number>();
@@ -150,10 +175,13 @@ export function huntFromInput(
     if (items.length === 0) return { ok: false, error: 'Pick at least one item to hunt.' };
   }
 
-  const killsOf =
+  let killsOf =
     typeof body.killsOf === 'string' && body.killsOf.trim()
       ? body.killsOf.split(',').map((k) => k.trim()).filter((k) => BOSSES.some((b) => b.key === k)).join(',') || null
       : null;
+  // A new pet hunt's kill count is not the form's to choose: asking for one gets the bosses the
+  // chosen pets come from, or none. A stored hunt keeps what it was created with.
+  if (target === 'pets' && killsOf && !opts.lenient) killsOf = killsOfForPets(huntPets({ target, petGroup, petIds }));
   const xpSkill =
     !killsOf && typeof body.xpSkill === 'string' && body.xpSkill !== 'overall' && SKILL_LABELS[body.xpSkill] ? body.xpSkill : null;
 
@@ -164,6 +192,7 @@ export function huntFromInput(
       target,
       items,
       petGroup,
+      ...(petIds ? { petIds } : {}),
       rule,
       ...huntSettingsFromInput(body),
       killsOf,
@@ -192,11 +221,15 @@ function sourcesWords(sources: string[]): string {
 
 /**
  * The targets as a person reads them: "Uncut onyx from Zulrah", "Uncut onyx, any source",
- * "Tanzanite fang + Magic fang from Zulrah", "Any pet", "Skilling pets". Stored as the
- * competition's `metric`.
+ * "Tanzanite fang + Magic fang from Zulrah", "Any pet", "Skilling pets", "Olmlet + Lil' zik" for
+ * pets picked out of a group. Stored as the competition's `metric`.
  */
 export function huntTargetsLabel(config: HuntConfig): string {
   if (config.target === 'pets') {
+    if (config.petIds) {
+      const picked = huntPets(config);
+      return (picked.slice(0, 3).map((p) => p.name).join(' + ') + (picked.length > 3 ? ` + ${picked.length - 3} more` : '')).slice(0, 160);
+    }
     const group = petGroupOf(config.petGroup);
     return !group || group.key === 'all' ? 'Any pet' : group.label;
   }
@@ -223,7 +256,10 @@ export function huntTitleLine(config: HuntConfig | null, metric: string): string
 
 /** A default name for the competition. */
 export function defaultHuntTitle(config: HuntConfig): string {
-  const label = config.target === 'pets' ? huntTargetsLabel(config) : config.items.map((i) => i.name).slice(0, 2).join(' + ') + (config.items.length > 2 ? ' + more' : '');
+  const picked = config.petIds ? huntPets(config) : null;
+  const label = picked
+    ? picked.slice(0, 2).map((p) => p.name).join(' + ') + (picked.length > 2 ? ' + more' : '')
+    : config.target === 'pets' ? huntTargetsLabel(config) : config.items.map((i) => i.name).slice(0, 2).join(' + ') + (config.items.length > 2 ? ' + more' : '');
   return `${huntKindWord(config)}: ${label}`.slice(0, 100);
 }
 
@@ -243,7 +279,34 @@ export function huntStat(config: HuntConfig | null): { type: 'boss' | 'skill'; m
 export function huntStatLabel(config: HuntConfig | null): string | null {
   const stat = huntStat(config);
   if (!stat) return null;
-  return stat.type === 'boss' ? bossMetricLabel(stat.metric) : SKILL_LABELS[stat.metric] ?? stat.metric;
+  if (stat.type !== 'boss') return SKILL_LABELS[stat.metric] ?? stat.metric;
+  // One boss, or one raid in any mode, reads as it always has. A pet hunt can add up a dozen:
+  // up to three are named, with a raid's two modes as the one raid, and past that only two.
+  const names = bossNames(stat.metric);
+  if (names.length === 1) return bossMetricLabel(stat.metric);
+  return names.length <= 3 ? names.join(' + ') : `${names[0]}, ${names[1]} and ${names.length - 2} more`;
+}
+
+/**
+ * The bosses behind a kill-count key list, by name, with both modes of a raid as the one raid:
+ * "Chambers of Xeric", not "Chambers of Xeric + CoX: CM".
+ */
+export function bossNames(metric: string): string[] {
+  const keys = metricKeys(metric);
+  const names: string[] = [];
+  const done = new Set<string>();
+  for (const k of keys) {
+    if (done.has(k)) continue;
+    const raid = RAIDS_ANY_MODE.find((r) => metricKeys(r.key).includes(k) && metricKeys(r.key).every((rk) => keys.includes(rk)));
+    if (raid) {
+      for (const rk of metricKeys(raid.key)) done.add(rk);
+      names.push(raid.label.replace(/\s*\(any mode\)$/i, ''));
+    } else {
+      done.add(k);
+      names.push(BOSSES.find((b) => b.key === k)?.label ?? k);
+    }
+  }
+  return names;
 }
 
 /**
@@ -273,6 +336,36 @@ export function killsOfForItems(items: HuntItem[]): string | null {
     }
   }
   return keys.size > 0 ? [...keys].join(',') : null;
+}
+
+/** A pet hunt shows kills only while the chosen pets come from this many bosses or fewer. */
+export const MAX_PET_KILL_BOSSES = 12;
+
+/**
+ * "Kills at the source" for a set of pets: the bosses they come from (lib/petGroups PET_BOSS_KEYS),
+ * added together.
+ *
+ * None when a chosen pet has no boss on the hiscores (a skilling pet: the sum would say nothing
+ * about the hunt for it), and none past MAX_PET_KILL_BOSSES: "any pet" is some sixty kill counts,
+ * which reads as "total boss kills" and tells nobody who is dry. `bosses` and `noBoss` are there so
+ * the form can say which of the two it was.
+ */
+export function petKills(pets: { id: number; name: string }[]): { killsOf: string | null; bosses: string[]; noBoss: string[] } {
+  const keys = new Set<string>();
+  const noBoss: string[] = [];
+  for (const p of pets) {
+    const own = PET_BOSS_KEYS[p.id];
+    if (!own) noBoss.push(p.name);
+    else for (const k of own) keys.add(k);
+  }
+  const joined = [...keys].join(',');
+  const bosses = bossNames(joined);
+  const ok = noBoss.length === 0 && bosses.length > 0 && bosses.length <= MAX_PET_KILL_BOSSES;
+  return { killsOf: ok ? joined : null, bosses, noBoss };
+}
+
+export function killsOfForPets(pets: { id: number; name: string }[]): string | null {
+  return petKills(pets).killsOf;
 }
 
 // ── Matching one report ─────────────────────────────────────────────────────────────────────
@@ -306,7 +399,8 @@ export interface HuntHit {
  * report with no source counts only under "any source".
  *
  * PETS: a 'pet' report (or the pet arriving as a drop/log line). "Any pet" takes every one, named
- * or not; a group takes the pets on its list. A pet follows its own source, so none is checked.
+ * or not; a group takes the pets on its list, and a narrowed hunt only the ones picked (huntPets).
+ * A pet follows its own source, so none is checked.
  */
 export function matchHuntReport(config: HuntConfig, report: HuntReport): HuntHit | null {
   if (report.kind !== 'drop' && report.kind !== 'clog' && report.kind !== 'pet') return null;
@@ -317,10 +411,11 @@ export function matchHuntReport(config: HuntConfig, report: HuntReport): HuntHit
   if (config.target === 'pets') {
     const group = petGroupOf(config.petGroup);
     if (!group) return null;
-    const pet = group.items.find((p) => (report.itemId != null && p.id === report.itemId) || (name != null && norm(p.name) === norm(name)));
+    const pet = huntPets(config).find((p) => (report.itemId != null && p.id === report.itemId) || (name != null && norm(p.name) === norm(name)));
     if (pet) return { itemId: pet.id, itemName: pet.name, quantity: 1, source };
-    // A pet line the plugin never got a name for: still a pet, so "any pet" counts it.
-    if (report.kind === 'pet' && group.key === 'all' && report.itemId == null && name == null) {
+    // A pet line the plugin never got a name for: still a pet, so "any pet" counts it. Not once
+    // pets were picked out of the list: it could be one that was left out.
+    if (report.kind === 'pet' && group.key === 'all' && !config.petIds && report.itemId == null && name == null) {
       return { itemId: null, itemName: 'A pet', quantity: 1, source };
     }
     return null;
@@ -671,12 +766,12 @@ export function manualStatKind(config: HuntConfig): 'kc' | 'xp' | 'either' {
   return 'either';
 }
 
-/** The picture that stands for a hunt: its first item, or a pet from the group. */
+/** The picture that stands for a hunt: its first item, or the first pet it counts. */
 export function huntIconUrl(config: HuntConfig | null): string | null {
   if (!config) return null;
   if (config.target === 'pets') {
-    const group = petGroupOf(config.petGroup);
-    return group?.items[0] ? itemIconUrl(group.items[0].id) : null;
+    const first = huntPets(config)[0];
+    return first ? itemIconUrl(first.id) : null;
   }
   return config.items[0] ? itemIconUrl(config.items[0].id) : null;
 }

@@ -4,7 +4,7 @@ import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { competitionStat } from '@/lib/weeklyMetric';
-import { huntLine, parseHunt, petGroupOf } from '@/lib/itemHunt';
+import { huntLine, huntPets, parseHunt } from '@/lib/itemHunt';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -55,11 +55,11 @@ export interface ScheduleBingo {
   gate?: string;
 }
 
-/** The id behind an item hunt's picture: its first item, or a pet from its group. */
+/** The id behind an item hunt's picture: its first item, or the first pet it counts. */
 function huntIconItem(w: { type: string; hunt?: string | null }): { iconItem?: number } {
   if (w.type !== 'hunt') return {};
   const config = parseHunt(w.hunt);
-  const id = config?.target === 'pets' ? petGroupOf(config.petGroup)?.items[0]?.id : config?.items[0]?.id;
+  const id = config?.target === 'pets' ? huntPets(config)[0]?.id : config?.items[0]?.id;
   return id ? { iconItem: id } : {};
 }
 
