@@ -12,12 +12,17 @@ export default function DiscordCommandToggles() {
   const [off, setOff] = useState<Set<string> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // What the server's admin set in Discord itself (lib/discordCommandPermissions); read-only here.
+  const [discord, setDiscord] = useState<{ all: string | null; byCommand: Record<string, string> } | null>(null);
 
   useEffect(() => {
     void (async () => {
       const res = await clanFetch('/api/admin/discord/commands');
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setOff(new Set(data.off ?? []));
+      if (res.ok) {
+        setOff(new Set(data.off ?? []));
+        setDiscord(data.discord ?? null);
+      }
       else setError(data.error ?? 'Could not load the commands.');
     })();
   }, []);
@@ -53,6 +58,11 @@ export default function DiscordCommandToggles() {
         For finer control, use Discord itself: <span className="text-foreground">Server Settings → Integrations → Anvil</span>. There you can
         hide a command from the list completely, or allow it only for certain roles or in certain channels.
       </p>
+      {discord?.all && (
+        <p className="text-sm text-amber-300">
+          Set in Discord for every Anvil command: <span className="text-foreground">{discord.all}</span>
+        </p>
+      )}
       <p className="text-sm">
         <GuideLink href="/guide/commands">How to use the commands</GuideLink>
       </p>
@@ -66,6 +76,11 @@ export default function DiscordCommandToggles() {
               label={<code className="text-gold">{c.label}</code>}
               description={c.help}
             />
+            {discord?.byCommand[c.name] && (
+              <p className="ml-6 mt-1 text-xs text-amber-300">
+                In Discord: <span className="text-foreground/90">{discord.byCommand[c.name]}</span>
+              </p>
+            )}
             {/* Everything this command can be asked: the eight names alone hide most of what is there. */}
             <details className="group ml-6 mt-1">
               <summary className="cursor-pointer list-none text-xs text-text-muted hover:text-foreground">
