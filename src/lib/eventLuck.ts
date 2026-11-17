@@ -7,13 +7,15 @@ import { db } from '@/db';
 import { accounts, clanMemberships, eventParticipants, events, memberClog, moments, teams } from '@/db/schema';
 import { countedLuckCandidates, lifetimeBoardsFor, type LuckBoards } from '@/lib/clogLuckBoard';
 import { clogPageIndex } from '@/lib/clogDataset';
-import { buildLuckBoards, type LuckEntry } from '@/lib/clogProfile';
-import { countEventDrops, eventBossGains, shapeEventLuck } from '@/lib/eventLuckRules';
+import type { LuckEntry } from '@/lib/clogProfile';
+import { buildEventLuckBoards, countEventDrops, eventBossGains, shapeEventLuck } from '@/lib/eventLuckRules';
 
 export interface EventLuck {
   thisEvent: {
     dry: LuckEntry[];
     spooned: LuckEntry[];
+    /** Shown in place of an empty dry board: furthest along with no drop (lib/eventLuckRules). */
+    goingDry: LuckEntry[];
     /** Participants whose plugin reported during the event — the only ones we can judge. */
     judged: number;
     participants: number;
@@ -73,7 +75,7 @@ async function computeEventLuck(eventId: number, limit: number): Promise<EventLu
   }
 
   const candidates = await countedLuckCandidates(event.clanId);
-  const empty = { dry: [], spooned: [], judged: 0, participants: participants.length };
+  const empty = { dry: [], spooned: [], goingDry: [], judged: 0, participants: participants.length };
   if (accountIds.length === 0 || candidates.length === 0) {
     return { thisEvent: empty, lifetime: { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length }, teamOf };
   }
@@ -106,7 +108,7 @@ async function computeEventLuck(eventId: number, limit: number): Promise<EventLu
     clogPageIndex().get('All Pets') ?? new Set<number>(),
   );
   // No rotation: an event's board is a record of that event, the same every time it is opened.
-  const boards = buildLuckBoards(shapeEventLuck(candidates, withGains, drops, judged), limit);
+  const boards = buildEventLuckBoards(shapeEventLuck(candidates, withGains, drops, judged), limit);
 
   const live = new Map(accountRows.map((a) => [a.id, a.liveStats]));
   const synced = syncedRows.map((r) => ({ id: r.id, rsn: byAccount.get(r.id)?.name ?? '', liveStats: live.get(r.id) ?? null }));

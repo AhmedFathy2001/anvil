@@ -12,8 +12,9 @@ import { computeGain } from '@/lib/statTracking';
 import { parsePluginStats } from '@/lib/pluginStats';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import type { LuckCandidate } from '@/lib/clogLuckBoard';
-import type { LuckSource } from '@/lib/clogProfile';
-import { expectationFor } from '@/lib/clogProfile';
+import type { LuckEntry, LuckRateSource, LuckSource } from '@/lib/clogProfile';
+import { expectationFor, pickBoard } from '@/lib/clogProfile';
+import { assessLuckAt } from '@/lib/clogLuck';
 
 export interface EventLuckParticipant {
   accountId: number;
@@ -133,4 +134,59 @@ export function shapeEventLuck(
       };
     }),
   }));
+}
+
+/** "Going dry" needs at least this many drops owed with none seen: below it, having none is the usual result. */
+export const GOING_DRY_MIN_EXPECTED = 1;
+/** At most this many "going dry" rows, and only when nobody is dry outright. */
+export const GOING_DRY_LIMIT = 3;
+
+/**
+ * The boards for ONE event. Lifetime boards (lib/clogProfile buildLuckBoards) want half a drop owed
+ * before they say anything, which is right for a whole log and wrong here: a week's kills rarely
+ * owe anyone half a rare drop, so the lucky drop of the event could never show.
+ *
+ *  - Spooned: at least one drop, and fewer than 1 in 20 would have that many on these kills. No floor.
+ *  - Dry: the lifetime rule unchanged (under 5%, which already takes about three drops owed).
+ *  - Going dry: only when nobody is dry. The people furthest along with none, at one drop owed or
+ *    more, capped at GOING_DRY_LIMIT. Not a verdict: most of them are still inside ordinary luck.
+ *
+ * A team boss is judged as everywhere else: dry and going dry against the low end of its range.
+ */
+export function buildEventLuckBoards(
+  candidates: { itemId: number; itemName: string; source: string; sources: LuckRateSource[]; members: LuckSource[] }[],
+  limit = 10,
+): { dry: LuckEntry[]; spooned: LuckEntry[]; goingDry: LuckEntry[] } {
+  const dry: LuckEntry[] = [];
+  const spooned: LuckEntry[] = [];
+  const waiting: LuckEntry[] = [];
+
+  for (const candidate of candidates) {
+    for (const member of candidate.members) {
+      if (member.kills <= 0 || member.expected <= 0) continue;
+      const assessment = assessLuckAt(member.expected, member.kills, member.obtained, member.expectedLow);
+      const entry: LuckEntry = {
+        accountId: member.accountId,
+        rsn: member.rsn,
+        itemId: candidate.itemId,
+        itemName: candidate.itemName,
+        source: candidate.source,
+        sources: candidate.sources,
+        assessment,
+      };
+      if (assessment.verdict === 'dry') {
+        if (assessment.notable) dry.push(entry);
+      } else if (assessment.verdict === 'spooned') {
+        if (assessment.obtained >= 1) spooned.push(entry);
+      } else if (assessment.obtained === 0 && assessment.expectedLow >= GOING_DRY_MIN_EXPECTED) {
+        waiting.push(entry);
+      }
+    }
+  }
+
+  const dryBoard = pickBoard(dry, limit);
+  // With none obtained the tail IS the chance of having none, so pickBoard's order (smallest tail
+  // first) is furthest along first.
+  const goingDry = dryBoard.length === 0 ? pickBoard(waiting, GOING_DRY_LIMIT) : [];
+  return { dry: dryBoard, spooned: pickBoard(spooned, limit), goingDry };
 }

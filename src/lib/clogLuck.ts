@@ -63,6 +63,14 @@ export function poissonAtMost(k: number, expected: number): number {
   return Math.min(1, sum);
 }
 
+/**
+ * Of everyone owed `expected` drops, the share who would have at least one by now, as a whole
+ * percent. Said of someone with none (an event's "going dry" rows): a share of people, never a promise.
+ */
+export function wouldHaveOnePercent(expected: number): number {
+  return Math.round((1 - poissonAtMost(0, expected)) * 100);
+}
+
 /** P(X ≥ k) — the chance of being AT LEAST this fortunate. */
 export function poissonAtLeast(k: number, expected: number): number {
   if (k <= 0) return 1;
