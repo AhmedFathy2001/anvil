@@ -26,6 +26,9 @@ export interface WeeklyStanding {
   rsn: string;
   baselineValue: number | null;
   currentValue: number | null;
+  /** A competition over several bosses or skills: each one's start and current count; null when not kept. */
+  baselineParts: Record<string, number> | null;
+  currentParts: Record<string, number> | null;
   gained: number;
   flagged: boolean;
   flagReason: string | null;
@@ -56,6 +59,8 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       rsn: weeklyParticipants.rsn,
       baselineValue: weeklyParticipants.baselineValue,
       currentValue: weeklyParticipants.currentValue,
+      baselineParts: weeklyParticipants.baselineParts,
+      currentParts: weeklyParticipants.currentParts,
       flagged: weeklyParticipants.flagged,
       flagReason: weeklyParticipants.flagReason,
       keepIfLeft: weeklyParticipants.keepIfLeft,
@@ -74,6 +79,8 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       rsn: r.rsn,
       baselineValue: r.baselineValue,
       currentValue: r.currentValue,
+      baselineParts: r.baselineParts ?? null,
+      currentParts: r.currentParts ?? null,
       // A missing baseline means "we haven't measured a starting line yet", not "gained nothing" —
       // it stays zero here and the Baselines surface is what flags it.
       gained: r.baselineValue != null && r.currentValue != null ? Math.max(0, r.currentValue - r.baselineValue) : 0,

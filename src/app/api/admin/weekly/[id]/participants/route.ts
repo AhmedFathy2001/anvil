@@ -1,3 +1,5 @@
+import { competitionStat } from '@/lib/weeklyMetric';
+import { metricKeys } from '@/lib/constants';
 import { NextResponse } from 'next/server';
 import { competitionForRequest } from '@/lib/eventScope';
 import { normalizeRsn, sanitizeRsn, verifyAdminOrModerator } from '@/lib/auth';
@@ -177,11 +179,12 @@ export async function PATCH(
 
   // WHOSE COMPETITION IS THIS? Same guard as DELETE. Without it a mod of any clan could rewrite
   // another clan's baselines — which decide who wins its prize.
-  if (!(await competitionForRequest(request, compId))) {
+  const scopedComp = await competitionForRequest(request, compId);
+  if (!scopedComp) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const { participantId, baselineValue, keepIfLeft } = await request.json();
+  const { participantId, baselineValue, keepIfLeft, baselineParts } = await request.json();
 
   if (typeof participantId !== 'number' || !Number.isInteger(participantId)) {
     return NextResponse.json({ error: 'participantId (number) is required' }, { status: 400 });
@@ -198,6 +201,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Participant not found in this competition' }, { status: 404 });
     }
     return NextResponse.json({ success: true });
+  }
+
+  // ONE BOSS AT A TIME: a competition over several bosses or skills takes its start as their counts,
+  // and the starting value is their sum. Every key of the competition, each a whole number of 0 or more.
+  if (baselineParts !== undefined) {
+    const stat = competitionStat(scopedComp);
+    const keys = stat && stat.type !== 'efficiency' ? metricKeys(stat.metric) : [];
+    const given = baselineParts && typeof baselineParts === 'object' ? (baselineParts as Record<string, unknown>) : null;
+    if (keys.length < 2 || !given || Object.keys(given).length !== keys.length || !keys.every((k) => typeof given[k] === 'number' && Number.isFinite(given[k] as number) && (given[k] as number) >= 0)) {
+      return NextResponse.json({ error: 'Give a starting count of 0 or more for every boss or skill this competition counts.' }, { status: 400 });
+    }
+    const parts = Object.fromEntries(keys.map((k) => [k, Math.round(given[k] as number)]));
+    const total = keys.reduce((n, k) => n + parts[k], 0);
+    const done = await db
+      .update(weeklyParticipants)
+      .set({ baselineValue: total, baselineParts: parts, flagged: 0, flagReason: null })
+      .where(and(eq(weeklyParticipants.id, participantId), eq(weeklyParticipants.competitionId, compId)))
+      .returning({ id: weeklyParticipants.id });
+    if (done.length === 0) return NextResponse.json({ error: 'Participant not found in this competition' }, { status: 404 });
+    return NextResponse.json({ success: true, baselineValue: total });
   }
 
   if (typeof baselineValue !== 'number' || !Number.isFinite(baselineValue) || baselineValue < 0) {
