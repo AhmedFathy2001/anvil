@@ -26,7 +26,7 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 // last push isn't clipped early.
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
-import { competitionStat, effectiveMetricValue } from '@/lib/weeklyMetric';
+import { competitionStat, effectiveMetricParts, effectiveMetricValue } from '@/lib/weeklyMetric';
 import { metricKeys } from '@/lib/constants';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
@@ -679,6 +679,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       // becomes the baseline, absorbing a mid-session logout flush so the gain starts at 0.
       const value = m.value;
       const outcome = await applyWeeklyValue({
+        parts: effectiveMetricParts(snapshot, w.comp.type, w.comp.metric, liveMap),
         participantId: w.participant.id,
         type: w.comp.type,
         metric: w.comp.metric,

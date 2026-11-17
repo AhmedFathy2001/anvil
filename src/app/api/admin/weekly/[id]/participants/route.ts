@@ -206,7 +206,8 @@ export async function PATCH(
 
   const updated = await db
     .update(weeklyParticipants)
-    .set({ baselineValue: Math.round(baselineValue), flagged: 0, flagReason: null })
+    // A starting value set by hand is no longer the sum of the per-boss starts that were read, so the split goes.
+    .set({ baselineValue: Math.round(baselineValue), flagged: 0, flagReason: null, baselineParts: null })
     .where(and(eq(weeklyParticipants.id, participantId), eq(weeklyParticipants.competitionId, compId)))
     .returning({ id: weeklyParticipants.id });
 

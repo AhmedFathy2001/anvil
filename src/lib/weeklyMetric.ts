@@ -123,6 +123,45 @@ export function effectiveMetricValue(
 }
 
 /**
+ * Each key's own count behind effectiveMetricValue, for a metric over SEVERAL bosses or skills (a
+ * pet hunt whose pet drops at two bosses): what the sum is made of, so a page can show the split.
+ * Null for a single key, for efficiency, and when the snapshot cannot be read.
+ */
+export function effectiveMetricParts(
+  snapshot: HiscoresSnapshot,
+  type: CompetitionType,
+  metric: string,
+  liveMap: Record<string, number>,
+): Record<string, number> | null {
+  if (type === 'efficiency') return null;
+  const keys = metricKeys(metric);
+  if (keys.length < 2) return null;
+  const parts: Record<string, number> = {};
+  for (const key of keys) {
+    const part = readMetricFromSnapshot(snapshot, type, key);
+    if (part.kind !== 'value') return null;
+    parts[key] = Math.max(part.value, liveMap[key] ?? 0);
+  }
+  return parts;
+}
+
+/**
+ * The split of a gain, one line per key, when it adds up to the gain the standings show (it always
+ * does for rows captured with parts; a hand-corrected baseline drops them). Null otherwise.
+ */
+export function gainParts(
+  baseline: Record<string, number> | null | undefined,
+  current: Record<string, number> | null | undefined,
+  gained: number,
+): { key: string; from: number; now: number; gained: number }[] | null {
+  if (!baseline || !current) return null;
+  const keys = Object.keys(baseline);
+  if (keys.length < 2 || !keys.every((k) => typeof current[k] === 'number')) return null;
+  const rows = keys.map((key) => ({ key, from: baseline[key], now: Math.max(current[key], baseline[key]), gained: Math.max(0, current[key] - baseline[key]) }));
+  return rows.reduce((n, r) => n + r.gained, 0) === gained ? rows : null;
+}
+
+/**
  * The live overlay alone for a metric, or null when it doesn't hold every key — a raid's live value is
  * only whole once each mode has been pushed; until then the sweep credits it.
  */

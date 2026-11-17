@@ -1832,6 +1832,11 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   feeConfirmedAt: text('fee_confirmed_at'),
   /** This fee has been credited to the clan coffer (competition.feesToPrizes), so an undo takes it back out. */
   feeInCoffer: boolean('fee_in_coffer').notNull().default(false),
+  // A competition over several bosses or skills: each key's count at the start and now (lib/weeklyMetric
+  // effectiveMetricParts). baselineValue/currentValue stay the sums the standings rank by. Null on a
+  // single-metric competition, on rows captured before this, and once staff correct a baseline by hand.
+  baselineParts: jsonb('baseline_parts').$type<Record<string, number>>(),
+  currentParts: jsonb('current_parts').$type<Record<string, number>>(),
 }, (table) => [
   index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),

@@ -13,7 +13,7 @@ import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/plu
 import { statKeys } from '@/lib/tileKinds';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
-import { effectiveMetricValue, liveMetricValue, type CompetitionType } from '@/lib/weeklyMetric';
+import { effectiveMetricParts, effectiveMetricValue, liveMetricValue, type CompetitionType } from '@/lib/weeklyMetric';
 import { metricKeys } from '@/lib/constants';
 import { eventHasStarted } from '@/lib/completionGate';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
@@ -201,13 +201,18 @@ export async function POST(request: Request) {
       // stored hiscores under the keys the plugin has not pushed (a pet hunt over two bosses when
       // only one was killed today). Without this a sum only moved on the sweep's next visit.
       let value = liveMetricValue(comp.type as CompetitionType, comp.metric, live);
+      // The split behind a sum (lib/weeklyMetric effectiveMetricParts), written with it.
+      const keys = comp.type === 'efficiency' ? [] : metricKeys(comp.metric);
+      let parts: Record<string, number> | null = value != null && keys.length > 1 ? Object.fromEntries(keys.map((k) => [k, live[k]])) : null;
       if (value == null && comp.type !== 'efficiency') {
         storedSnapshot ??= await storedHiscores(accountId);
         const eff = storedSnapshot ? effectiveMetricValue(storedSnapshot, comp.type as CompetitionType, comp.metric, live) : null;
         value = eff?.kind === 'value' ? eff.value : null;
+        parts = storedSnapshot && value != null ? effectiveMetricParts(storedSnapshot, comp.type as CompetitionType, comp.metric, live) : null;
       }
       if (value == null) continue;
       await applyWeeklyValue({
+        parts,
         participantId: participant.id,
         type: comp.type,
         metric: comp.metric,

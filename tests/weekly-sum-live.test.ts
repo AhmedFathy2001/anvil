@@ -37,3 +37,19 @@ test('one boss still reads as before', () => {
   const one = effectiveMetricValue(hiscores, 'boss', 'zulrah', { zulrah: 12 });
   assert.equal(one.kind === 'value' ? one.value : null, 12);
 });
+
+test('the split behind a sum, and the split of a gain when it adds up', async () => {
+  const { effectiveMetricParts, gainParts } = await import('../src/lib/weeklyMetric.ts');
+  assert.deepEqual(effectiveMetricParts(hiscores, 'boss', METRIC, { chaosElemental: 130 }), { chaosElemental: 130, chaosFanatic: 25 });
+  assert.equal(effectiveMetricParts(hiscores, 'boss', 'zulrah', {}), null, 'one boss has no split');
+  assert.equal(effectiveMetricParts(hiscores, 'efficiency', 'ehb', {}), null);
+
+  const start = { chaosElemental: 129, chaosFanatic: 25 };
+  assert.deepEqual(gainParts(start, { chaosElemental: 132, chaosFanatic: 26 }, 4), [
+    { key: 'chaosElemental', from: 129, now: 132, gained: 3 },
+    { key: 'chaosFanatic', from: 25, now: 26, gained: 1 },
+  ]);
+  assert.equal(gainParts(start, { chaosElemental: 132, chaosFanatic: 26 }, 10), null, 'a start corrected by hand no longer adds up: no split, never a wrong one');
+  assert.equal(gainParts(null, { chaosElemental: 132, chaosFanatic: 26 }, 4), null);
+  assert.equal(gainParts(start, { chaosElemental: 132 }, 3), null);
+});

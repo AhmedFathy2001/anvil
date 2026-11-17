@@ -60,7 +60,7 @@ import {
 import { log } from '@/lib/logger';
 import { parseStamp } from '@/lib/dbTime';
 import { applyWeeklyValue, writePlayerSnapshot } from '@/lib/weekly';
-import { competitionStat, effectiveMetricValue } from '@/lib/weeklyMetric';
+import { competitionStat, effectiveMetricParts, effectiveMetricValue } from '@/lib/weeklyMetric';
 
 /** Same window as the sweep's (lib/statsSweep STALE_OVERLAY_MS). */
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
@@ -527,6 +527,7 @@ async function captureWeeklyOne(comp: CompRow, row: WeeklyRow, owner: 'site' | '
   if (!fresh) return false;
   if (fresh.baselineValue !== null) return true; // the sweep got there first
   const outcome = await applyWeeklyValue({
+    parts: effectiveMetricParts(read.snapshot, type, metric, read.overlay),
     participantId: fresh.id,
     type,
     metric,
