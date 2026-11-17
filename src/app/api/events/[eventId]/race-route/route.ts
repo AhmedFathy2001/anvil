@@ -93,6 +93,17 @@ export async function PUT(
   if (given.size !== entries.length || entries.length !== ids.size || ![...given].every((id) => ids.has(id))) {
     return NextResponse.json({ error: 'The route must place every tile on this board exactly once.' }, { status: 400 });
   }
+  // STRUCTURAL LIMITS, for every save and a draft above all (a draft skips the playability check
+  // below): a step is unplaced or a real step of this board, never negative or beyond the number of
+  // tiles (the map lays out one column per step), and a tile links only to tiles of this board.
+  for (const e of entries) {
+    if (e.step != null && (e.step < 0 || e.step >= ids.size)) {
+      return NextResponse.json({ error: 'A step number is out of range for this board.' }, { status: 400 });
+    }
+    if (e.next.length > ids.size || !e.next.every((n) => ids.has(n))) {
+      return NextResponse.json({ error: 'A road leads to a tile that is not on this board.' }, { status: 400 });
+    }
+  }
   const labelOf = new Map(board.map((t) => [t.id, t.label]));
   const problems = validateRoute(entries, (id) => `“${labelOf.get(id) ?? `Tile ${id}`}”`);
   if (problems.length && !draft) {
