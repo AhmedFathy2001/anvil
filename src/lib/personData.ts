@@ -283,6 +283,7 @@ export const PERSON_DATA: PersonDataEntry[] = [
     ['guide_bulk_runs', 'created_by_user_id'], ['guide_posts', 'posted_by_user_id'], ['guide_proposals', 'reviewed_by_user_id'],
     ['guide_revisions', 'edited_by_user_id'], ['guides', 'created_by_user_id'], ['guides', 'updated_by_user_id'], ['h2h_challenges', 'challenger_user_id'],
     ['lab_scenarios', 'updated_by'], ['library_boards', 'published_by_user_id'], ['library_proposals', 'reviewed_by_user_id'],
+    ['hunt_drops', 'requested_by_user_id'], ['hunt_drops', 'decided_by_user_id'],
     ['library_tasks', 'created_by_user_id'], ['library_tasks', 'updated_by_user_id'], ['mode_line_patterns', 'updated_by'], ['owner_trials', 'granted_by'],
     ['owner_trials', 'revoked_by'], ['payouts', 'paid_by_user_id'], ['pending_renames', 'submitted_by_user_id'], ['platform_notices', 'created_by_user_id'],
     ['promo_blocked_domains', 'added_by_user_id'], ['promo_reports', 'reporter_user_id'], ['promo_reports', 'resolved_by_user_id'],

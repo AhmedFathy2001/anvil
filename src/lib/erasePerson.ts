@@ -53,6 +53,7 @@ import {
   players,
   profileMedia,
   proofUploads,
+  huntDrops,
   streamHighlights,
   supporterSubscriptions,
   unmatchedPurchases,
@@ -259,6 +260,8 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
     storedImages.push(...urls);
   }
   await tx.update(proofUploads).set({ userId: null }).where(eq(proofUploads.userId, userId));
+  // An item hunt keeps the name of whoever confirmed a drop beside the pointer: the name goes with the login.
+  await tx.update(huntDrops).set({ decidedByName: null }).where(eq(huntDrops.decidedByUserId, userId));
 
   // Event sign-ups: the schema would delete them with the login. They are the clan's record of who
   // entered (team, status, fees), so they are detached first and the answers they typed are emptied.
