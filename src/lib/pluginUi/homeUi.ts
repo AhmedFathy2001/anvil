@@ -565,7 +565,9 @@ function weeklyRow(d: HomeData, w: ScheduleWeekly): Node {
   const when = () => (upcoming ? clock(w.startDate, 'Starts in ', 'Starting…', d.now) : clock(w.endDate, 'Ends in ', 'Ended', d.now));
   // A title that already names the metric ("Pet hunt: Pet chaos elemental") does not get it again,
   // clipped, on the line below: the picture and the clock take the line.
-  const named = name.toLowerCase().includes(w.metricLabel.toLowerCase());
+  // A hunt's label carries its rule too ("Pet chaos elemental · first to get it"), so its bare target (`metric`) is checked as well.
+  const lower = name.toLowerCase();
+  const named = lower.includes(w.metricLabel.toLowerCase()) || (!!w.metric && w.type === 'hunt' && lower.includes(w.metric.toLowerCase()));
   const lines: Node[] = [named ? row(weeklyIcon(w), when(), undefined, { gap: 6 }) : row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, when())];
   if (!upcoming) lines.push(withMove(small(clip(yourWeeklyLine(w, s), 32), s?.you ? GOLD : FAINT), s?.you?.move));
   return openRow(text(name, '#e6e6e6', { wrap: 170 }), undefined, lines, home(`weekly:${w.id}`), name);
@@ -1180,7 +1182,10 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
         muted('Standings appear here when it starts.', { wrap: true }),
       ]
     : [
-        row(undefined, withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move), text(clip(w.metricLabel, 14), SOFT, { icon: weeklyIcon(w) })),
+        // What it is, whole, on its own line; then where you stand; then the clock. Side by side the
+        // name was clipped and its picture sat in the middle of the card.
+        text(w.metricLabel, SOFT, { icon: weeklyIcon(w), wrap: 175 }),
+        withMove(big(you && you.gained > 0 ? `#${you.rank} · ${plus(w)}${weeklyGain(w, you.gained)}` : you ? (w.type === 'hunt' ? 'No drop yet' : `+${weeklyGain(w, 0)} so far`) : 'Not on the board'), you?.move),
         row(clock(w.endDate, 'Ends in ', 'Ended', d.now), headcount ? muted(` · ${headcount}`) : undefined, undefined, { gap: 0 }),
       ];
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
