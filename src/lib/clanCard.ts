@@ -6,7 +6,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, memberClog } from '@/db/schema';
-import { SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
+import { bossMetricLabel, skillMetricLabel } from '@/lib/constants';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
@@ -205,7 +205,7 @@ export async function loadClanCard(clan: {
     competitions: weekly.map((c) => ({
       type: c.hunt ? 'hunt' : c.type,
       metric: c.metric,
-      label: c.hunt ? c.hunt : c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
+      label: c.hunt ? c.hunt : c.type === 'skill' ? skillMetricLabel(c.metric) || c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
       ...(c.endDate ? { endsAt: c.endDate } : {}),
     })),
   };

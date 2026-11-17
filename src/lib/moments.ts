@@ -860,8 +860,9 @@ function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null
   // Log slots, diaries and quests are the clan's (clanKindFor), never a week's.
   if (CLAN_ONLY_KINDS.has(obs.kind)) return null;
 
-  // A raid across its modes: whatever belongs to any one of them belongs to the week.
-  const keys = weekly.type === 'boss' ? metricKeys(weekly.metric) : [];
+  // A raid across its modes, or several bosses or skills added together: whatever belongs to any
+  // one of them belongs to the week.
+  const keys = weekly.type === 'boss' || weekly.type === 'skill' ? metricKeys(weekly.metric) : [];
   if (keys.length > 1) {
     for (const metric of keys) {
       const kind = weeklyKindFor(obs, { ...weekly, metric });

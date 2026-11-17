@@ -155,6 +155,81 @@ test("the host's own side can be 'selected' too", async () => {
   assert.deepEqual(await rsnsOf(c.id), [], 'no roster sweep for a selected host side');
 });
 
+test('created as selected people: empty until the organiser adds someone, and the sweep keeps out', async () => {
+  // What the create route does: the row is written with the choice, then enrolment runs.
+  const c = await comp(clan.host, 'Picked from the start', { mode: 'solo', hostEntrants: 'selected', status: 'upcoming' });
+  assert.equal(await enrollAllPlayers(c.id), 0);
+  assert.deepEqual(await rsnsOf(c.id), []);
+  // The organiser adds one person on Participants; every later sweep leaves the rest of the roster out.
+  const [hana] = await db.select({ id: s.clanMemberships.id }).from(s.clanMemberships).where(eq(s.clanMemberships.clanId, clan.host)).limit(1);
+  await db.insert(s.weeklyParticipants).values({ competitionId: c.id, clanMemberId: hana.id, rsn: 'Hana', rsnNormalized: 'hana' });
+  await enrollAllPlayers(c.id);
+  assert.deepEqual(await rsnsOf(c.id), ['Hana']);
+});
+
+test('switching to selected before the start: the list is cleared only when asked, and only the host side', async () => {
+  const soon = new Date(Date.now() + 86_400_000).toISOString();
+  const later = new Date(Date.now() + 8 * 86_400_000).toISOString();
+  const c = await comp(clan.host, 'Not started', { status: 'upcoming', startDate: soon, endDate: later });
+  const inv = await T.inviteClanToCompetition(c, clan.host, 'guest', admin.host);
+  assert.ok(inv.ok);
+  assert.ok((await T.respondToCompetitionInvite(inv.id, admin.guest, 'accept')).ok);
+  await enrollAllPlayers(c.id);
+  assert.deepEqual(await rsnsOf(c.id), ['Gil', 'Gus', 'Gwen', 'Hana', 'Hugo']);
+  assert.equal(T.competitionNotStarted(c), true);
+
+  // "Keep the current list": the switch alone removes nobody, and the sweep adds nobody.
+  await db.update(s.weeklyCompetitions).set({ hostEntrants: 'selected' }).where(eq(s.weeklyCompetitions.id, c.id));
+  await enrollAllPlayers(c.id);
+  assert.deepEqual(await rsnsOf(c.id), ['Gil', 'Gus', 'Gwen', 'Hana', 'Hugo'], 'kept as the starting selection');
+
+  // "Clear it": the host's own people go; the clan it races against keeps its side.
+  assert.equal(await T.clearHostEntrants(c), 2);
+  assert.deepEqual(await rsnsOf(c.id), ['Gil', 'Gus', 'Gwen']);
+  await enrollAllPlayers(c.id);
+  assert.deepEqual(await rsnsOf(c.id), ['Gil', 'Gus', 'Gwen'], 'and the sweep does not put the host roster back');
+
+  // Back to all members: the roster is entered again.
+  await db.update(s.weeklyCompetitions).set({ hostEntrants: 'all' }).where(eq(s.weeklyCompetitions.id, c.id));
+  await enrollAllPlayers(c.id);
+  assert.deepEqual(await rsnsOf(c.id), ['Gil', 'Gus', 'Gwen', 'Hana', 'Hugo']);
+});
+
+test('a competition that has started is never cleared', async () => {
+  const running = await comp(clan.host, 'Running', { mode: 'solo' });
+  await enrollAllPlayers(running.id);
+  assert.equal(T.competitionNotStarted(running), false);
+  assert.equal(await T.clearHostEntrants(running), null);
+  assert.deepEqual(await rsnsOf(running.id), ['Hana', 'Hugo'], 'nobody removed');
+
+  // Still marked upcoming, but its start time has passed (the cron has not flipped it yet): started.
+  const due = await comp(clan.host, 'Due', { mode: 'solo', status: 'upcoming', startDate: new Date(Date.now() - 60_000).toISOString(), endDate: new Date(Date.now() + 86_400_000).toISOString() });
+  await enrollAllPlayers(due.id);
+  assert.equal(await T.clearHostEntrants(due), null);
+  assert.deepEqual(await rsnsOf(due.id), ['Hana', 'Hugo']);
+
+  const done = await comp(clan.host, 'Done', { mode: 'solo', status: 'completed' });
+  await enrollAllPlayers(done.id);
+  assert.equal(await T.clearHostEntrants(done), null);
+});
+
+test('a repeating selected-people competition starts its next week with the same people', async () => {
+  const prev = await comp(clan.host, 'Week 1', { mode: 'solo', hostEntrants: 'selected', status: 'completed' });
+  const seats = await db.select({ id: s.clanMemberships.id, accountId: s.clanMemberships.accountId }).from(s.clanMemberships).where(eq(s.clanMemberships.clanId, clan.host));
+  const accounts = await db.select({ id: s.accounts.id, rsn: s.accounts.rsn }).from(s.accounts);
+  const seatOf = (rsn: string) => seats.find((x) => x.accountId === accounts.find((a) => a.rsn === rsn)!.id)!.id;
+  await db.insert(s.weeklyParticipants).values({ competitionId: prev.id, clanMemberId: seatOf('Hana'), rsn: 'Hana', rsnNormalized: 'hana', optedOut: true });
+  const next = await comp(clan.host, 'Week 2', { mode: 'solo', hostEntrants: 'selected' });
+  assert.equal(await T.carryOverSelectedEntrants(prev, next), 1);
+  await enrollAllPlayers(next.id);
+  assert.deepEqual(await rsnsOf(next.id), ['Hana'], 'Hugo was never picked, so he is not entered');
+  assert.equal((await getEffectiveParticipants(next.id)).length, 1, 'an opt-out belongs to one week, not the series');
+
+  // An all-members competition carries nothing: its roster is swept in instead.
+  const open = await comp(clan.host, 'Open', { mode: 'solo', status: 'completed' });
+  assert.equal(await T.carryOverSelectedEntrants(open, next), 0);
+});
+
 test('four clans race; each sees its own side; the cap is a named constant', async () => {
   const c = await comp(clan.host, 'Four-way');
   for (const slug of ['guest', 'third', 'fourth']) {

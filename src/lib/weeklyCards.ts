@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { clanRoster, clans, memberDailyStats, weeklyCompetitionClans, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
-import { EFFICIENCY_LABELS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
+import { EFFICIENCY_LABELS, bossMetricLabel, skillMetricLabel } from '@/lib/constants';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
 import { countsTowardLeaderboard } from '@/lib/weekly';
@@ -70,7 +70,7 @@ export interface LoadWeeklyCardsOptions {
 const KIND: Record<string, WeeklyKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff', hunt: 'hunt' };
 
 function metricLabel(type: string, metric: string): string {
-  if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
+  if (type === 'skill') return skillMetricLabel(metric) || metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
   return bossMetricLabel(metric) || metric;
 }

@@ -57,6 +57,19 @@ export function readMetricFromSnapshot(
     return { kind: 'value', value: Math.round(hours * EFFICIENCY_SCALE), snapshot };
   }
 
+  // Several keys are their sum — a raid across its modes, several bosses, or several skills — and
+  // unreadable if any one of them is.
+  const keys = metricKeys(metric);
+  if (keys.length > 1) {
+    let total = 0;
+    for (const key of keys) {
+      const part = readMetricFromSnapshot(snapshot, type, key);
+      if (part.kind !== 'value') return part;
+      total += part.value;
+    }
+    return { kind: 'value', value: total, snapshot };
+  }
+
   if (type === 'skill') {
     const skill = snapshot.skills?.[metric];
     // Unknown to the parser. Same reasoning as the boss branch below, and it is not hypothetical for
@@ -71,18 +84,6 @@ export function readMetricFromSnapshot(
     // `lib/statTracking.effectiveValue` applies, so the two engines agree about what -1 means.
     if (skill.xp < 0) return { kind: 'value', value: 0, snapshot };
     return { kind: 'value', value: skill.xp, snapshot };
-  }
-
-  // A raid across its modes is the sum of its keys — and unreadable if any one of them is.
-  const keys = metricKeys(metric);
-  if (keys.length > 1) {
-    let total = 0;
-    for (const key of keys) {
-      const part = readMetricFromSnapshot(snapshot, type, key);
-      if (part.kind !== 'value') return part;
-      total += part.value;
-    }
-    return { kind: 'value', value: total, snapshot };
   }
 
   const boss = snapshot.bosses?.[metric];
@@ -102,7 +103,8 @@ export function readMetricFromSnapshot(
 
 /**
  * A metric's value with the plugin's live overlay folded in: max(hiscores, live) per hiscores key, then
- * summed — so a raid across its modes takes each mode's freshest count, not the larger of two sums.
+ * summed — so a raid across its modes (or several bosses, or several skills) takes each one's
+ * freshest count, not the larger of two sums.
  */
 export function effectiveMetricValue(
   snapshot: HiscoresSnapshot,
@@ -110,7 +112,7 @@ export function effectiveMetricValue(
   metric: string,
   liveMap: Record<string, number>,
 ): FetchResult {
-  const keys = type === 'boss' ? metricKeys(metric) : [metric];
+  const keys = type === 'efficiency' ? [metric] : metricKeys(metric);
   let total = 0;
   for (const key of keys) {
     const part = readMetricFromSnapshot(snapshot, type, key);
@@ -125,7 +127,7 @@ export function effectiveMetricValue(
  * only whole once each mode has been pushed; until then the sweep credits it.
  */
 export function liveMetricValue(type: CompetitionType, metric: string, live: Record<string, number>): number | null {
-  const keys = type === 'boss' ? metricKeys(metric) : [metric];
+  const keys = type === 'efficiency' ? [metric] : metricKeys(metric);
   let total = 0;
   for (const key of keys) {
     const v = live[key];

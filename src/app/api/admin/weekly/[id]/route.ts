@@ -1,7 +1,8 @@
 import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
 import { parseCompetitionMode } from '@/lib/competitionTeams';
-import { setCompetitionMode } from '@/lib/competitionTeamsDb';
+import { clearHostEntrants, competitionNotStarted, setCompetitionMode } from '@/lib/competitionTeamsDb';
+import { enrollAllPlayers } from '@/lib/weekly';
 import { releaseWeeklyPool } from '@/lib/coffer';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
@@ -63,6 +64,23 @@ export async function PUT(
   const body = await request.json();
   const { title, startDate, endDate, status, includeGuests, repeat } = body;
 
+  // "Selected people" with `clearEntrants`: also take off the roster that was entered when the
+  // competition was created, so the organiser picks from scratch. Only ever on an explicit ask, only
+  // together with the switch itself, and only before the start — checked BEFORE anything is written
+  // so a refusal changes nothing. Without the flag the switch keeps everyone, as it always has.
+  const clearEntrants = body.clearEntrants === true;
+  if (clearEntrants) {
+    if (body.hostEntrants !== 'selected') {
+      return NextResponse.json({ error: 'The list can only be cleared when switching to selected people.' }, { status: 400 });
+    }
+    if (!competitionNotStarted(scoped)) {
+      return NextResponse.json(
+        { error: 'This competition has already started, so the people in it stay. Take someone out on Participants.' },
+        { status: 400 },
+      );
+    }
+  }
+
   // Team competitions: mode (solo | teams | clans) and the teams-mode late-join switch.
   let modeChanged = false;
   if (body.mode !== undefined) {
@@ -123,12 +141,23 @@ export async function PUT(
 
   await db.update(weeklyCompetitions).set(updates).where(eq(weeklyCompetitions.id, compId));
 
+  // The switch is saved; now make the list match what was asked.
+  let clearedEntrants: number | undefined;
+  let enrolled: number | undefined;
+  if (clearEntrants) {
+    clearedEntrants = (await clearHostEntrants(scoped)) ?? 0;
+  } else if (updates.hostEntrants === 'all' && scoped.hostEntrants === 'selected' && scoped.status !== 'completed') {
+    // Back to all members: enter the roster now rather than on the next cron tick (which only
+    // visits running competitions), so the page shows what the setting says.
+    enrolled = await enrollAllPlayers(compId);
+  }
+
   const updated = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));
   if (updated.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  return NextResponse.json(updated[0]);
+  return NextResponse.json({ ...updated[0], ...(clearedEntrants !== undefined ? { clearedEntrants } : {}), ...(enrolled !== undefined ? { enrolled } : {}) });
 }
 
 export async function DELETE(

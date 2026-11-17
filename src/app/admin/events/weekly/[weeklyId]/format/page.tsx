@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { weeklyParticipants } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { competitionMode } from '@/lib/competitionTeams';
-import { buildGroupStandings, competitionInvites, listTeams } from '@/lib/competitionTeamsDb';
+import { buildGroupStandings, competitionInvites, competitionNotStarted, listTeams } from '@/lib/competitionTeamsDb';
 import { verifyAdmin } from '@/lib/auth';
 import { getWeeklyRow } from '@/lib/weeklyWorkspace';
 import WeeklyFormatClient from './WeeklyFormatClient';
@@ -27,7 +27,7 @@ export default async function WeeklyFormatPage({ params }: { params: Promise<{ w
   const [teams, participants, invites, standings, isAdmin] = await Promise.all([
     listTeams(id),
     db
-      .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsn, teamId: weeklyParticipants.teamId })
+      .select({ id: weeklyParticipants.id, rsn: weeklyParticipants.rsn, teamId: weeklyParticipants.teamId, clanId: weeklyParticipants.clanId })
       .from(weeklyParticipants)
       .where(eq(weeklyParticipants.competitionId, id))
       .orderBy(weeklyParticipants.rsnNormalized),
@@ -40,11 +40,13 @@ export default async function WeeklyFormatPage({ params }: { params: Promise<{ w
     <WeeklyFormatClient
       competitionId={id}
       ended={comp.status === 'completed'}
+      notStarted={competitionNotStarted(comp)}
       initialMode={mode}
       initialLateJoin={comp.teamLateJoin}
       initialHostEntrants={comp.hostEntrants === 'selected' ? 'selected' : 'all'}
       initialTeams={teams.map((t) => ({ id: t.id, name: t.name, colour: t.colour }))}
-      initialParticipants={participants}
+      // `host`: entered for this clan, not for a clan it races against (their rows carry their clan).
+      initialParticipants={participants.map((p) => ({ id: p.id, rsn: p.rsn, teamId: p.teamId, host: p.clanId == null }))}
       initialInvites={invites.map((i) => ({ id: i.id, status: i.status, name: i.name, slug: i.slug }))}
       totals={(standings?.groups ?? []).map((g) => ({ key: g.key, total: g.total, average: g.average, members: g.members, rank: g.rank }))}
       canInvite={isAdmin}

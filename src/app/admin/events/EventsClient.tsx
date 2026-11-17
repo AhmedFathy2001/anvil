@@ -1,6 +1,7 @@
 'use client';
 
 import { WEEKLY_BADGE } from '@/lib/weeklyStage';
+import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import ActionMenu from '@/components/ActionMenu';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -578,7 +579,7 @@ function RunningWeeklyHero({ comp }: { comp: WeeklyRow }) {
         <span className="text-accent-green-light font-semibold">LIVE</span>
         <span>·</span>
         <span className="bg-purple-400/15 text-purple-300 px-2 py-0.5 rounded-full font-medium">{badge}</span>
-        <span className="capitalize">{comp.metric.replace(/_/g, ' ')}</span>
+        <span>{weeklyMetricLabel(comp.type, comp.metric)}</span>
         <span>·</span>
         <span>{comp.participantCount} players</span>
       </div>
@@ -848,7 +849,7 @@ function WeeklyCard({ comp }: { comp: WeeklyRow }) {
         </span>
       </div>
       <div className="flex items-center gap-3 text-xs text-text-muted">
-        <span className="capitalize">{comp.metric.replace(/_/g, ' ')}</span>
+        <span>{weeklyMetricLabel(comp.type, comp.metric)}</span>
         <span>·</span>
         <span>
           {comp.participantCount} player{comp.participantCount !== 1 ? 's' : ''}

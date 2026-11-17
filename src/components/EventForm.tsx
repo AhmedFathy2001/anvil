@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
 import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
-import { BOSSES, EFFICIENCY_METRICS, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS } from '@/lib/constants';
+import { BOSSES, EFFICIENCY_METRICS, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS, metricKeys, weeklyMetricLabel } from '@/lib/constants';
+import { MAX_WEEKLY_METRIC_KEYS, joinWeeklyMetricPicks, weeklyMetricPicks } from '@/lib/weeklyMetricInput';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
 import { localDayIso } from '@/lib/gapPrefill';
@@ -257,6 +258,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const weeklyName = (type: WeeklyType, metric: string, h: HuntFormValue = hunt) => (type === 'hunt' ? huntName(h) : defaultWeeklyTitle(type, metric));
   // Members only by default: guests are visitors on an event seat, and a clan's weekly is its own.
   const [includeGuests, setIncludeGuests] = useState(false);
+  // Who from this clan races: the whole roster, entered automatically (the default), or only the
+  // people the organiser adds on Participants afterwards. The same switch as the Format page; chosen
+  // here it means the competition is never filled with the roster in the first place.
+  const [hostEntrants, setHostEntrants] = useState<'all' | 'selected'>('all');
+  const selectedOnly = hostEntrants === 'selected';
   // Solo, teams or clan vs clan (lib/competitionTeams).
   const [weeklyMode, setWeeklyMode] = useState<WeeklyModeValue>(DEFAULT_WEEKLY_MODE);
   // "Repeat every week" (lib/weeklyRepeat): on by default — a weekly that has to be re-made by hand
@@ -278,7 +284,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
       decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
       multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
-      weeklyType, weeklyMetric, hunt, includeGuests, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+      weeklyType, weeklyMetric, hunt, includeGuests, hostEntrants, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
     },
     { guard: false },
   );
@@ -336,6 +342,30 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
           ]
         : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }));
+
+  // Several bosses, or several skills, in one competition: `weeklyMetric` holds them comma-joined
+  // (lib/constants metricKeys) and the picker shows them as one entry each. The first entry is the
+  // ordinary select, so picking one boss is exactly as it was; the rest are added below it.
+  const multiMetric = weeklyType === 'skill' || weeklyType === 'boss';
+  const metricPicks = weeklyType ? weeklyMetricPicks(weeklyType, weeklyMetric) : [];
+  const metricKeyCount = metricKeys(weeklyMetric).length;
+  /** What can still be added: nothing already counted, nothing past the cap, and never Overall
+   *  beside another skill (it already is every skill, so it would count that skill twice). */
+  const addableMetricOptions = weeklyOptions.filter((o) => {
+    const keys = metricKeys(o.value);
+    if (o.value === 'overall') return false;
+    if (keys.every((k) => metricKeys(weeklyMetric).includes(k))) return false;
+    return new Set([...metricKeys(weeklyMetric), ...keys]).size <= MAX_WEEKLY_METRIC_KEYS;
+  });
+  const canAddMetric = multiMetric && weeklyMetric !== 'overall' && addableMetricOptions.length > 0 && metricKeyCount < MAX_WEEKLY_METRIC_KEYS;
+  function setMetricPicks(picks: string[]) {
+    const next = joinWeeklyMetricPicks(picks);
+    if (!next) return;
+    setWeeklyMetric(next);
+    if (!nameTouched && weeklyType) setName(defaultWeeklyTitle(weeklyType, next));
+  }
+  /** A step of the rotation, or the first entry, in words. */
+  const metricWords = (m: string) => (weeklyType ? weeklyMetricLabel(weeklyType, m) || m : m);
 
   const isPool = POOL_MODES.includes(mode);
   const runPreset = activeRunPreset(startDate, endDate);
@@ -494,7 +524,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             title: name.trim() || weeklyName(weeklyType, weeklyMetric),
             startDate,
             endDate,
-            includeGuests,
+            // Selected people: nothing sweeps the roster in, so the guest switch has nothing to act on.
+            includeGuests: selectedOnly ? false : includeGuests,
+            hostEntrants,
             // A hunt is everyone for themselves: no teams, no clan sides.
             mode: isHunt ? 'solo' : weeklyMode.mode,
             ...(!isHunt && weeklyMode.mode === 'teams'
@@ -514,7 +546,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         // ever stops carrying an id, land on the hub — `/admin/events/weekly/` is not a route, so
         // the old `?? ''` would have answered a successful creation with a 404.
         const newId = data.id ?? data.competition?.id;
-        router.push(clanUrl(newId ? `/admin/events/weekly/${newId}` : '/admin/events'));
+        // Selected people starts empty, so the next thing to do is add them: land there.
+        router.push(clanUrl(newId ? `/admin/events/weekly/${newId}${selectedOnly ? '/participants' : ''}` : '/admin/events'));
         return;
       } catch {
         setError('Could not create the competition.');
@@ -962,16 +995,74 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   {weeklyType === 'boss' ? 'Boss' : weeklyType === 'efficiency' ? 'Measure' : 'Skill'}
                 </label>
                 <Select
-                  value={weeklyMetric}
+                  value={metricPicks[0] ?? weeklyMetric}
                   onChange={(v) => {
-                    setWeeklyMetric(v);
-                    if (!nameTouched && weeklyType) setName(defaultWeeklyTitle(weeklyType, v));
+                    // Overall is every skill already, so it stands alone.
+                    if (v) setMetricPicks(v === 'overall' ? [v] : [v, ...metricPicks.slice(1)]);
                   }}
                   ariaLabel="What the competition ranks by"
                   options={weeklyOptions}
                 />
+                {multiMetric && (metricPicks.length > 1 || canAddMetric) && (
+                  <div className="mt-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {metricPicks.slice(1).map((pick) => (
+                        <button
+                          key={pick}
+                          type="button"
+                          onClick={() => setMetricPicks(metricPicks.filter((p) => p !== pick))}
+                          className="text-xs px-2 py-1 rounded-full bg-brown-dark border border-card-border hover:border-red-400/50"
+                          title="Take it out of this competition"
+                          aria-label={`Remove ${metricWords(pick)}`}
+                        >
+                          + {metricWords(pick)} ×
+                        </button>
+                      ))}
+                      {canAddMetric && (
+                        <div className="min-w-[12rem]">
+                          <Select
+                            value=""
+                            onChange={(v) => v && setMetricPicks([...metricPicks, v])}
+                            ariaLabel={weeklyType === 'boss' ? 'Add another boss' : 'Add another skill'}
+                            placeholder={weeklyType === 'boss' ? '+ Add another boss' : '+ Add another skill'}
+                            options={addableMetricOptions}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-xs text-text-muted">
+                      {metricPicks.length > 1
+                        ? weeklyType === 'boss'
+                          ? `Kills at all ${metricPicks.length} are added together into one score. Up to ${MAX_WEEKLY_METRIC_KEYS} bosses.`
+                          : `XP in all ${metricPicks.length} skills is added together into one score. Up to ${MAX_WEEKLY_METRIC_KEYS} skills.`
+                        : weeklyType === 'boss'
+                          ? 'Optional. Add more bosses to count kills at any of them as one score.'
+                          : 'Optional. Add more skills to count XP in any of them as one score.'}
+                    </p>
+                  </div>
+                )}
               </div>}
-              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label={isHunt ? 'Guests hunt too' : 'Guests race too'} className="text-sm text-foreground/80" />
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1.5">Who from your clan {isHunt ? 'hunts' : 'races'}</label>
+                <Select
+                  value={hostEntrants}
+                  onChange={(v) => setHostEntrants(v === 'selected' ? 'selected' : 'all')}
+                  ariaLabel={`Who from your clan ${isHunt ? 'hunts' : 'races'}`}
+                  options={[
+                    { value: 'all', label: 'All members — the roster is entered automatically' },
+                    { value: 'selected', label: 'Selected people — only the ones you add on Participants' },
+                  ]}
+                />
+                {selectedOnly && (
+                  <p className="mt-1.5 text-xs text-text-muted">
+                    Nobody is entered when you create it. You add the people on the Participants page straight after.
+                    {repeatWeekly ? ' Each new week starts with the same people.' : ''}
+                  </p>
+                )}
+              </div>
+              {!selectedOnly && (
+                <Checkbox checked={includeGuests} onChange={setIncludeGuests} label={isHunt ? 'Guests hunt too' : 'Guests race too'} className="text-sm text-foreground/80" />
+              )}
               {!isHunt && <WeeklyModeFields value={weeklyMode} onChange={setWeeklyMode} />}
               <div className="rounded-lg border border-gold/25 bg-gold/[0.05] p-3 space-y-3">
                 <Checkbox
@@ -988,7 +1079,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs px-2 py-1 rounded-full bg-gold/15 text-gold border border-gold/30">
-                        1. {weeklyOptions.find((o) => o.value === weeklyMetric)?.label ?? weeklyMetric}
+                        1. {metricWords(weeklyMetric)}
                       </span>
                       {rotation.map((m, i) => (
                         <button
@@ -1015,8 +1106,10 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 )}
               </div>
               <p className="text-xs text-text-muted">
-                Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
-                no sign-up. {isHunt ? 'Only drops between the start and the end count.' : 'Baselines come from the hiscores at the start time.'}
+                {selectedOnly
+                  ? 'Only the people you add are entered. There is no sign-up.'
+                  : 'Everyone on the roster is entered automatically when it starts — there\u2019s nothing to draft and no sign-up.'}{' '}
+                {isHunt ? 'Only drops between the start and the end count.' : 'Baselines come from the hiscores at the start time.'}
               </p>
             </Section>
           )}
@@ -1494,16 +1587,18 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     value={isHunt ? (hunt.rule === 'first' ? 'first to get the drop' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
-                  <SpecRow label="Who's in" value={includeGuests ? 'roster + guests' : 'full members only'} />
-                  <SpecRow label="Sign-up" value="none — entered at start" />
+                  <SpecRow label="Who's in" value={selectedOnly ? 'only the people you add' : includeGuests ? 'roster + guests' : 'full members only'} />
+                  <SpecRow label="Sign-up" value={selectedOnly ? 'none — you add them' : 'none — entered at start'} />
                 </dl>
 
                 <ol className="mt-3 border-t border-gold/15 pt-3 space-y-1.5">
                   {[
                     isHunt ? 'Nothing to author — drops are counted from the plugin once it starts' : 'Nothing to author — baselines come from the hiscores when it starts',
-                    includeGuests
-                      ? 'Everyone on the roster is entered, guests included'
-                      : 'Every full member is entered; guests sit this one out',
+                    selectedOnly
+                      ? 'Nobody is entered yet — add the people who race on Participants'
+                      : includeGuests
+                        ? 'Everyone on the roster is entered, guests included'
+                        : 'Every full member is entered; guests sit this one out',
                     startDate ? 'Leave it — it starts on schedule by itself' : 'Give it a window on the right',
                   ].map((step, i) => (
                     <li key={step} className="text-xs text-text-muted leading-relaxed flex gap-2">
@@ -1706,7 +1801,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       </button>
       <p className="text-xs text-text-muted text-center">
         {weeklyType
-          ? 'Everyone on the roster is entered when it starts — nothing else to set up.'
+          ? selectedOnly
+            ? 'Nobody is entered yet. Next you add the people who race.'
+            : 'Everyone on the roster is entered when it starts — nothing else to set up.'
           : "Next you'll add tiles on the event's Tiles tab — with a spreadsheet (dropdowns + examples) or a quick paste."}
       </p>
     </form>

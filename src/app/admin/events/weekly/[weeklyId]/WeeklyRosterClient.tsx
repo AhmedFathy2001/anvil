@@ -28,6 +28,7 @@ export default function WeeklyRosterClient({
   standings,
   mode,
   includeGuests,
+  selectedOnly = false,
   startingStats = {},
 }: {
   competitionId: number;
@@ -36,6 +37,8 @@ export default function WeeklyRosterClient({
   mode: 'participants' | 'baselines';
   /** The competition's guest switch — shown and flippable on the participants view. */
   includeGuests?: boolean;
+  /** "Selected people" (Format page): only the names added here race; nothing is entered automatically. */
+  selectedOnly?: boolean;
   /** Mid-competition additions: are their starting stats in yet (lib/startingStats)? By participant id. */
   startingStats?: Record<number, StartingStatsStatus>;
 }) {
@@ -240,8 +243,9 @@ export default function WeeklyRosterClient({
             Add someone
           </h2>
           <p className="text-sm text-text-muted mb-3">
-            Everyone on the roster is entered automatically. Add a name here for someone the sweep missed — a guest,
-            or an account that isn&apos;t on the roster yet.
+            {selectedOnly
+              ? 'This competition is for selected people: only the names you add here race. Nobody is entered automatically.'
+              : 'Everyone on the roster is entered automatically. Add a name here for someone the sweep missed — a guest, or an account that isn\u2019t on the roster yet.'}
           </p>
           <div className="flex flex-wrap gap-2 items-start">
             <textarea
@@ -349,7 +353,7 @@ export default function WeeklyRosterClient({
             )}
           </h2>
           <div className="flex items-center gap-2">
-            {mode === 'participants' && includeGuests !== undefined && (
+            {mode === 'participants' && includeGuests !== undefined && !selectedOnly && (
               <button
                 type="button"
                 role="switch"

@@ -445,8 +445,10 @@ export function weeklyKindLabel(type: string): string {
  */
 /**
  * A boss competition's metric can name SEVERAL hiscores keys, comma-separated — a raid counted across
- * its modes ("theatreOfBlood,theatreOfBloodHardMode"). KC is the sum across them, the same convention
- * a boss-KC tile's trackedStat follows (lib/tileKinds statKeys). A single key is the common case.
+ * its modes ("theatreOfBlood,theatreOfBloodHardMode"), or several bosses an organiser picked. KC is
+ * the sum across them, the same convention a boss-KC tile's trackedStat follows (lib/tileKinds
+ * statKeys). A skill competition does the same with XP ("attack,strength"). A single key is the
+ * common case. What a form may send is checked by lib/weeklyMetricInput.
  */
 export function metricKeys(metric: string): string[] {
   return metric.split(',').map((s) => s.trim()).filter(Boolean);
@@ -459,20 +461,52 @@ export const RAIDS_ANY_MODE: { key: string; label: string; keywords: string[] }[
   { key: 'tombsOfAmascut,tombsOfAmascutExpertMode', label: 'Tombs of Amascut (any mode)', keywords: ['toa', 'expert', 'raids'] },
 ];
 
+/**
+ * A boss metric as the things an organiser picked: each raid whose every mode is in the list comes
+ * back as its one "any mode" entry (its comma-joined key), every other boss as its own key. So
+ * "chambersOfXeric,chambersOfXericChallengeMode,vorkath" is two picks, not three, and the picker
+ * and the label agree about what the competition counts.
+ */
+export function bossMetricPicks(metric: string): string[] {
+  const keys = [...new Set(metricKeys(metric))];
+  const picks: string[] = [];
+  const used = new Set<string>();
+  for (const key of keys) {
+    if (used.has(key)) continue;
+    const group = RAIDS_ANY_MODE.find((g) => {
+      const parts = metricKeys(g.key);
+      return parts.includes(key) && parts.every((p) => keys.includes(p) && !used.has(p));
+    });
+    for (const k of group ? metricKeys(group.key) : [key]) used.add(k);
+    picks.push(group ? group.key : key);
+  }
+  return picks;
+}
+
+/** One name per thing the competition counts: "Vorkath", "Theatre of Blood (any mode)", "Agility". */
+export function weeklyMetricParts(type: string, metric: string): string[] {
+  if (type === 'skill') return [...new Set(metricKeys(metric))].map((k) => SKILL_LABELS[k] ?? k);
+  if (type !== 'boss') return metric ? [metric] : [];
+  return bossMetricPicks(metric).map(
+    (pick) => RAIDS_ANY_MODE.find((g) => g.key === pick)?.label ?? BOSSES.find((b) => b.key === pick)?.label ?? pick,
+  );
+}
+
 /** "Theatre of Blood (any mode)", "Vorkath", or "ToB: HM + ToA: Expert" for a hand-made set. */
 export function bossMetricLabel(metric: string): string {
-  const group = RAIDS_ANY_MODE.find((g) => g.key === metric);
-  if (group) return group.label;
-  return metricKeys(metric)
-    .map((k) => BOSSES.find((b) => b.key === k)?.label ?? k)
-    .join(' + ');
+  return weeklyMetricParts('boss', metric).join(' + ');
+}
+
+/** "Agility", or "Attack + Strength" when a skill competition adds several skills together. */
+export function skillMetricLabel(metric: string): string {
+  return weeklyMetricParts('skill', metric).join(' + ');
 }
 
 export function weeklyMetricLabel(type: string, metric: string): string {
   if (!metric) return '';
   // An item hunt's metric is already its targets in words (lib/itemHunt huntTargetsLabel).
   if (type === 'hunt') return metric;
-  if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
+  if (type === 'skill') return skillMetricLabel(metric) || metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
   return bossMetricLabel(metric) || metric;
 }
