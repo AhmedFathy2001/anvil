@@ -2996,8 +2996,8 @@ const sv: PartialGuideDict = {
         { term: 'Partner', body: 'Ingen spelargräns. Ordnas direkt med Anvil — hör av dig.' },
       ],
       note: {
-        tag: 'Just nu',
-        body: 'Alla kommer fortfarande in medan Anvil växer, även över din plans siffror. Gränserna börjar gälla senare, med förvarning. Ditt plankort visar hur nära du är.',
+        tag: 'Ditt plankort',
+        body: 'Ditt plankort visar hur nära du är din plans siffror, och vilken nivå som ger dig plats.',
       },
     },
 

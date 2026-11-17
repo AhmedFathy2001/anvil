@@ -3003,8 +3003,8 @@ const da: PartialGuideDict = {
         { term: 'Partner', body: 'Ingen grænse for spillere. Sættes op direkte med Anvil — kontakt os.' },
       ],
       note: {
-        tag: 'Lige nu',
-        body: 'Alle kommer stadig ind, mens Anvil vokser, også over din plans tal. Grænserne starter senere, med varsel. Dit plankort viser, hvor tæt du er på.',
+        tag: 'Dit plankort',
+        body: 'Dit plankort viser, hvor tæt du er på din plans tal, og hvilket niveau der giver dig plads.',
       },
     },
 

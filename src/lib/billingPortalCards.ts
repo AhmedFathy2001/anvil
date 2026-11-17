@@ -272,7 +272,7 @@ export function creatorCardModel(
     lapsed,
     overdue: lapsed && !free,
     overLine: card.over
-      ? `${overWhat(meter)} more players at once than ${card.planName} allows. Everyone still gets in for now — the next tier gives you room.`
+      ? `${overWhat(meter)} more players at once than ${card.planName} allows. The next tier gives you room.`
       : null,
     upgrade,
     subscriptionId: row.subscriptionId,

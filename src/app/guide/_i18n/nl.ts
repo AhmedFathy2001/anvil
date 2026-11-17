@@ -2996,8 +2996,8 @@ const nl: PartialGuideDict = {
         { term: 'Partner', body: 'Geen spelerslimiet. Direct met Anvil ingesteld — neem contact op.' },
       ],
       note: {
-        tag: 'Op dit moment',
-        body: 'Zolang Anvil groeit, komt iedereen nog binnen, ook boven de aantallen van je abonnement. De limieten gaan later in, met aankondiging. Je abonnementskaart laat zien hoe dicht je erbij zit.',
+        tag: 'Je abonnementskaart',
+        body: 'Je abonnementskaart laat zien hoe dicht je bij de aantallen van je abonnement zit, en welk niveau je ruimte geeft.',
       },
     },
 

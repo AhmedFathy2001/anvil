@@ -2997,8 +2997,8 @@ const no: PartialGuideDict = {
         { term: 'Partner', body: 'Ingen grense for spillere. Settes opp direkte med Anvil — ta kontakt.' },
       ],
       note: {
-        tag: 'Akkurat nå',
-        body: 'Alle slipper fortsatt inn mens Anvil vokser, også over tallene i planen din. Grensene starter senere, med varsel. Plankortet ditt viser hvor nær du er.',
+        tag: 'Plankortet ditt',
+        body: 'Plankortet ditt viser hvor nær du er tallene i planen din, og hvilket nivå som gir deg plass.',
       },
     },
 

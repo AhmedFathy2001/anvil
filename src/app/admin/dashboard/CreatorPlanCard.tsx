@@ -129,7 +129,7 @@ export default async function CreatorPlanCard({
         <p className="mt-3 text-[13.5px] leading-relaxed text-text-muted">
           {card.enforced
             ? `You're over your plan's players at once: new players can't join events running at the same time. ${next ? `Upgrade to ${next.name} for ${fmt(next.playersPerEvent ?? 0)} players at once.` : 'Get in touch about a Partner plan.'}`
-            : `That's more than ${card.planName} allows. Everyone still gets in while Anvil is growing; the limit starts later, with notice.`}
+            : `That's more than ${card.planName} allows. ${next ? `${next.name} gives you room.` : 'The next tier gives you room.'}`}
         </p>
       )}
 

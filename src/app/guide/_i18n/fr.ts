@@ -2998,8 +2998,8 @@ const fr: PartialGuideDict = {
         { term: 'Partner', body: 'Pas de limite de joueurs. Mise en place directement avec Anvil — contacte-nous.' },
       ],
       note: {
-        tag: 'Pour l’instant',
-        body: 'Tout le monde peut encore entrer pendant qu’Anvil grandit, même au-delà des chiffres de ton offre. Les limites arriveront plus tard, avec préavis. Ta carte d’offre montre où tu en es.',
+        tag: 'Ta carte d’offre',
+        body: 'Ta carte d’offre montre où tu en es par rapport aux chiffres de ton offre, et quel palier te donne de la place.',
       },
     },
 

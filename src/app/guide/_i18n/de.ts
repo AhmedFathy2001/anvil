@@ -2995,8 +2995,8 @@ const de: PartialGuideDict = {
         { term: 'Partner', body: 'Keine Spielergrenze. Wird direkt mit Anvil eingerichtet — melde dich bei uns.' },
       ],
       note: {
-        tag: 'Im Moment',
-        body: 'Solange Anvil wächst, kommt noch jeder rein, auch über die Zahlen deines Tarifs hinaus. Die Limits greifen später, mit Vorankündigung. Deine Tarifkarte zeigt, wie nah du dran bist.',
+        tag: 'Deine Tarifkarte',
+        body: 'Deine Tarifkarte zeigt, wie nah du an den Zahlen deines Tarifs bist und welche Stufe dir mehr Platz gibt.',
       },
     },
 

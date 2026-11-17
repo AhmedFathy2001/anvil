@@ -2984,8 +2984,8 @@ const ptBr: PartialGuideDict = {
         { term: 'Partner', body: 'Sem limite de jogadores. Configurado direto com o Anvil — entre em contato.' },
       ],
       note: {
-        tag: 'Por enquanto',
-        body: 'Enquanto o Anvil cresce, todo mundo ainda consegue entrar, mesmo acima dos números do seu plano. Os limites começam mais tarde, com aviso. O cartão do seu plano mostra o quanto falta.',
+        tag: 'O cartão do seu plano',
+        body: 'O cartão do seu plano mostra o quanto você está perto dos números do seu plano e qual nível dá mais espaço.',
       },
     },
 

@@ -2984,8 +2984,8 @@ const it: PartialGuideDict = {
         { term: 'Partner', body: 'Nessun limite di giocatori. Si imposta direttamente con Anvil — contattaci.' },
       ],
       note: {
-        tag: 'Per ora',
-        body: 'Per ora entrano tutti mentre Anvil cresce, anche oltre i numeri del tuo piano. I limiti partiranno più avanti, con preavviso. La scheda del tuo piano mostra quanto ci sei vicino.',
+        tag: 'La scheda del tuo piano',
+        body: 'La scheda del tuo piano mostra quanto sei vicino ai numeri del tuo piano e quale livello ti dà più spazio.',
       },
     },
 

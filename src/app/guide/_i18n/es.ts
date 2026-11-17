@@ -2997,8 +2997,8 @@ const es: PartialGuideDict = {
         { term: 'Partner', body: 'Sin límite de jugadores. Se configura directamente con Anvil — ponte en contacto.' },
       ],
       note: {
-        tag: 'Por ahora',
-        body: 'Mientras Anvil crece, todos siguen pudiendo entrar, incluso por encima de los números de tu plan. Los límites empezarán más adelante, con aviso. La tarjeta de tu plan muestra cuánto te falta.',
+        tag: 'La tarjeta de tu plan',
+        body: 'La tarjeta de tu plan muestra lo cerca que estás de los números de tu plan y qué nivel te da más espacio.',
       },
     },
 

@@ -2995,8 +2995,8 @@ const fi: PartialGuideDict = {
         { term: 'Partner', body: 'Ei pelaajarajaa. Sovitaan suoraan Anvilin kanssa — ota yhteyttä.' },
       ],
       note: {
-        tag: 'Juuri nyt',
-        body: 'Kaikki pääsevät vielä sisään Anvilin kasvaessa, myös tasosi lukujen yli. Rajat alkavat myöhemmin, ennakkoilmoituksella. Tasokorttisi näyttää kuinka lähellä olet.',
+        tag: 'Tasokorttisi',
+        body: 'Tasokorttisi näyttää, kuinka lähellä tasosi lukuja olet ja mikä taso antaa lisää tilaa.',
       },
     },
 

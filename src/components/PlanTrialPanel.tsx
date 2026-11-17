@@ -65,7 +65,7 @@ export default async function PlanTrialPanel({
     keeps = 'your space, its events, players and history. Nothing is deleted.';
     loses = enforced
       ? `the space is on ${paid.name}: ${paid.playersPerEvent ?? 'no limit on'} players at once across your events, and the extras above ${paid.name} switch off (follower and sub checks, several events at once, !join in chat, hiding the Anvil mark).`
-      : `the space is on ${paid.name}. Limits are not being applied to any space right now, so nothing switches off that day.`;
+      : `the space is on ${paid.name}.`;
     buy = creatorBuy(tier, ref, billing, true);
   } else {
     const tier = planOf(trial.tier);

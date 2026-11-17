@@ -106,18 +106,24 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
           <span className="text-base font-semibold">
             {onTrial ? `${inForce.name} trial` : `${plan.name} plan`} · {members.toLocaleString()} member{members === 1 ? '' : 's'}
           </span>
-          <span className="text-[13.5px] text-text-muted">{inForce.capLabel}{onTrial && ` (${plan.name}: ${plan.capLabel.toLowerCase()})`}</span>
+          <span className={`text-[13.5px] ${over ? 'font-medium text-orange-300' : 'text-text-muted'}`}>
+            {over ? `${members.toLocaleString()} of ${(cap ?? 0).toLocaleString()} members` : inForce.capLabel}
+            {onTrial && ` (${plan.name}: ${plan.capLabel.toLowerCase()})`}
+          </span>
         </div>
         <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-brown-dark" aria-hidden>
           <span className="bg-accent-green-light" style={{ width: `${usedPct}%` }} />
-          {over && <span className="flex-1 bg-gold/50" />}
+          {/* The part past the cap, in the site's over-the-limit colour. */}
+          {over && <span className="flex-1 bg-orange-400" />}
         </div>
         <p className="mt-3 text-[13.5px] leading-relaxed text-text-muted">
           {!over
             ? 'Your clan fits its plan.'
             : freemiumEnforced()
               ? `You're ${(members - (cap ?? 0)).toLocaleString()} over. Everyone already tracked stays tracked; a bigger plan makes room for the rest.`
-              : `Everyone is still tracked while Anvil grows, so nobody in your clan loses anything today. The ${cap} limit will apply later, with notice. A plan is how a clan this size helps pay for the servers it uses.`}
+              : `Your clan has ${members.toLocaleString()} members. ${inForce.name} covers up to ${(cap ?? 0).toLocaleString()}. ${
+                  fits?.memberCap ? `${fits.name} covers up to ${fits.memberCap.toLocaleString()} and helps` : 'A plan helps'
+                } pay for the servers a clan this size uses.`}
         </p>
       </section>
 

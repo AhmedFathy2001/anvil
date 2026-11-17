@@ -2975,8 +2975,8 @@ export const en = {
         { term: 'Partner', body: 'No player cap. Set up with Anvil directly — get in touch.' },
       ],
       note: {
-        tag: 'Right now',
-        body: 'Everyone still gets in while Anvil is growing, even past your plan’s numbers. The limits start later, with notice. Your plan card shows how close you are.',
+        tag: 'Your plan card',
+        body: 'Your plan card shows how close you are to your plan’s numbers, and which tier gives you room.',
       },
     },
 

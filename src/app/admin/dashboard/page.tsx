@@ -1007,8 +1007,10 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
                     ? `Nothing scheduled after ${addDays(g.start, -1).toLocaleDateString()}`
                     : `Nothing scheduled for ${g.days} days`
                 }
-                style={{ left: `${left}%` }}
-                className="absolute inset-y-0 flex items-end gap-2 pl-2 pb-0.5 border-l border-dashed border-yellow-500/30 text-[9px] leading-none text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap"
+                // Past the middle the words hang to the LEFT of the line: to its right they ran off the
+                // card on a phone and were cut off.
+                style={left > 55 ? { right: `${100 - left}%` } : { left: `${left}%` }}
+                className={`absolute inset-y-0 flex items-end gap-2 pb-0.5 border-dashed ${left > 55 ? 'pr-2 border-r' : 'pl-2 border-l'} border-yellow-500/30 text-[9px] leading-none text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap`}
               >
                 {/* An open-ended gap has no honest length — only a start. */}
                 {g.openEnded ? 'nothing scheduled beyond here' : `${g.days}d clear`}

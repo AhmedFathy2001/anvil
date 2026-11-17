@@ -2982,8 +2982,8 @@ const pl: PartialGuideDict = {
         { term: 'Partner', body: 'Bez limitu graczy. Ustalane bezpośrednio z Anvil — napisz do nas.' },
       ],
       note: {
-        tag: 'Na razie',
-        body: 'Na razie, gdy Anvil rośnie, wchodzą wszyscy, nawet ponad liczby z twojego planu. Limity ruszą później, z uprzedzeniem. Karta planu pokazuje, jak blisko jesteś.',
+        tag: 'Karta planu',
+        body: 'Karta planu pokazuje, jak blisko jesteś liczb ze swojego planu i który poziom daje ci więcej miejsca.',
       },
     },
 
