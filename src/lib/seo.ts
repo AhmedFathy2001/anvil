@@ -148,6 +148,17 @@ export function robotsDisallowRoots(): string[] {
 }
 
 /**
+ * May a search engine index this clan's pages?
+ *
+ * Only a clan a stranger may read: active, `public`, and not hidden by the platform. A private clan's
+ * name and roster are its own, and one Anvil's staff hid is hidden from search as well as from the
+ * directory. Anything unrecognised reads as no.
+ */
+export function isClanIndexable(clan: { status?: string | null; visibility?: string | null; platformHidden?: boolean | null }): boolean {
+  return clan.status === 'active' && clan.visibility === 'public' && !clan.platformHidden;
+}
+
+/**
  * The Disallow lines themselves.
  *
  * A robots.txt rule is a PREFIX: `Disallow: /p` also blocks `/pricing`, and the clan-prefixed form of it (whose star

@@ -6,7 +6,6 @@ import { headers } from 'next/headers';
 import { permanentRedirect } from 'next/navigation';
 import { clanPathOf } from '@/lib/clanScopedPaths';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
-import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
 import {
   APEX_TITLE,
@@ -15,6 +14,7 @@ import {
   apexOrigin,
   canonicalPathFor,
   isNoIndexDeployment,
+  isClanIndexable,
   isNoIndexPath,
   socialMetadata,
 } from '@/lib/seo';
@@ -114,13 +114,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug, clanKind: clan?.kind });
 
   // WHAT MAY BE INDEXED. Two separate refusals, and they fail in the same safe direction:
-  // a gated or personal path is never indexed anywhere, and a clan that is not `public` is not
-  // indexed at all — its name, its roster and the fact that it exists are its own.
+  // a gated or personal path is never indexed anywhere, and a clan that is not `public`, or that
+  // the platform hid or suspended, is not indexed at all (lib/seo isClanIndexable).
   const indexable =
     !isNoIndexDeployment() &&
     proven != null &&
     !isNoIndexPath(pathname) &&
-    (!clan || clanVisibilityOf(clan.visibility) === 'public');
+    (!clan || isClanIndexable(clan));
 
   const name = clan ? await getClanDisplayName(clan.id, clan.name || SITE_NAME) : null;
 

@@ -24,6 +24,7 @@ import {
   isLegacyClanHost,
   isNoIndexDeployment,
   isNoIndexPath,
+  isClanIndexable,
   robotsDisallowRoots,
   robotsDisallowRules,
 } from '../src/lib/seo.ts';
@@ -217,4 +218,12 @@ test('robots.txt rules stop at the path segment, so /p does not block /pricing',
   for (const shut of ['/p', '/p/Zezima', '/p/Zezima/wrapped', '/admin', '/admin?tab=x', '/c/a-clan/admin/events', '/c/a-clan/team', '/api/og/site']) {
     assert.ok(blocked(shut), `${shut} must be disallowed`);
   }
+});
+
+test('a private, suspended or platform-hidden clan is kept out of search', () => {
+  assert.ok(isClanIndexable({ status: 'active', visibility: 'public', platformHidden: false }));
+  assert.ok(!isClanIndexable({ status: 'active', visibility: 'members', platformHidden: false }));
+  assert.ok(!isClanIndexable({ status: 'active', visibility: 'public', platformHidden: true }));
+  assert.ok(!isClanIndexable({ status: 'suspended', visibility: 'public', platformHidden: false }));
+  assert.ok(!isClanIndexable({ status: 'active', visibility: null }));
 });
