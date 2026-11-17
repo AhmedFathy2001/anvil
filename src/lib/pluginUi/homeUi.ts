@@ -313,7 +313,12 @@ function boardOf(d: HomeData): Board | null {
   const c = d.cfg;
   if (d.live && c.event) {
     const tiles = c.panel?.tiles ?? [];
-    const scored = c.board && c.board.tilesTotal > 0 ? c.board : { tilesComplete: tiles.filter((t) => t.complete).length, tilesTotal: tiles.length, pointsScored: false };
+    // A branching race is counted in STEPS, and the race card already holds them: the same two numbers
+    // its own page shows ("Step 3 of 8"), so the home card can never disagree with it.
+    const race = c.event.race;
+    const scored = race && race.steps > 0
+      ? { tilesComplete: race.stepsDone, tilesTotal: race.steps, pointsScored: false }
+      : c.board && c.board.tilesTotal > 0 ? c.board : { tilesComplete: tiles.filter((t) => t.complete).length, tilesTotal: tiles.length, pointsScored: false };
     return { id: c.event.id, title: c.event.name, done: scored.tilesComplete, total: scored.tilesTotal, points: scored.pointsScored, note: null, ladder: isLadder(c.event.format), spectating: false };
   }
   if (c.homeBoard) {
@@ -485,7 +490,7 @@ export function homeUi(d: HomeData): Node {
     if (b.total > 0 && !b.ladder && !b.spectating) {
       lines.push(row(muted(clip([kind, p.team].filter(Boolean).join(' · '), 24)), undefined, placeNode(p)));
       lines.push(tally(b.done, b.total, b.points));
-      lines.push(row(muted(`${count(b.done)} / ${count(b.total)} ${b.points ? 'pts' : 'tiles'}`), undefined, d.live && endOf(d) ? clock(endOf(d), 'Live · ends in ', 'Ended', d.now) : d.live ? small('Live', BLUE) : undefined));
+      lines.push(row(muted(`${count(b.done)} / ${count(b.total)} ${b.points ? 'pts' : d.cfg.event?.race ? 'steps' : 'tiles'}`), undefined, d.live && endOf(d) ? clock(endOf(d), 'Live · ends in ', 'Ended', d.now) : d.live ? small('Live', BLUE) : undefined));
     } else lines.push(muted(clip(statusLine(b, d), 34), { wrap: CARD_W }));
     const open = openRow(text(clip(titled(b.id, b.title), 24), 'white'), undefined, lines, home('board'), `Open ${b.title}`);
     if (d.live && !b.spectating) playingHere = open;
