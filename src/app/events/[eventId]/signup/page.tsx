@@ -291,9 +291,11 @@ export default async function EventSignupPage({
       {eventRules.sharingChecks && (
         <p className="text-sm text-text-muted mb-6 rounded-lg border border-card-border bg-card-bg px-3 py-2">
           <strong className="text-foreground">This event checks for shared accounts.</strong> Staff can see when
-          two players&rsquo; plugins connect from the same network, or one player&rsquo;s from two countries within a
-          few hours. Your address is never stored, only a code that means something on this event, deleted 30
-          days after it ends.
+          accounts of different players connect from the same network, when one account connects from two
+          countries within a few hours, and when an account added after the start connects from another
+          country than its owner&rsquo;s other accounts or its team. Your own accounts sharing your network is
+          expected and is not flagged. Your address is never stored, only a code that means something on this
+          event, deleted 30 days after it ends.
         </p>
       )}
 

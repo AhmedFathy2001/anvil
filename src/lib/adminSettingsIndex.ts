@@ -1232,7 +1232,7 @@ const DETAILS: readonly SettingEntry[] = [
     [
       ['list-on-anvil', 'List an event on Anvil', 'Advertise one event on anvilosrs.com/events while it is upcoming or live.', 'settings/access#access', ['list on anvil', 'advertise', 'public', 'events page', 'directory']],
       ['ask-first', 'Ask me about everyone', 'Every entry waits for your yes, even from people you invited.', 'settings/access#access', ['approval', 'approve players', 'ask to join', 'who can enter']],
-      ['shared-accounts', 'Check for shared accounts', 'Flag shared networks or impossible travel to staff during the event.', 'settings/rules#rulebook', ['shared account', 'boosting', 'cheating', 'ip', 'alt', 'account sharing']],
+      ['shared-accounts', 'Check for shared accounts', 'Flag different players on one network, impossible travel and late additions from another country to staff during the event.', 'settings/rules#rulebook', ['shared account', 'boosting', 'cheating', 'ip', 'alt', 'account sharing']],
       ['point-decay', 'Points that change over time', 'Points decay (or grow) the longer a task has been open, with a floor or cap.', 'settings/board#opening', ['decay', 'grow', 'points over time', 'diminishing']],
       ['first-finisher', 'First-finisher bonus and locks', 'Extra points for the first team to finish a task, or lock it for everyone else.', 'settings/board#opening', ['first finisher', 'bonus', 'lock', 'race', 'first to']],
       ['celebrate', 'Celebrate on stream', 'A pop-up on your overlay when a tile finishes or a team scores.', 'settings/stream#overlay', ['celebrate', 'pop-up', 'alert', 'overlay', 'stream']],

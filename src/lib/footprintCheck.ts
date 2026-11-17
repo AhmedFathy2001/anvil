@@ -13,6 +13,8 @@ import {
 } from '@/db/schema';
 import { parseEventRules } from '@/lib/eventRules';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { sharingRoster } from '@/lib/integrityNetwork';
+import { sharingSignals } from '@/lib/sharingRules';
 import { parseStamp } from '@/lib/dbTime';
 import { log } from '@/lib/logger';
 import { parseJsonArray } from '@/lib/tileKinds';
@@ -365,7 +367,7 @@ export async function raiseOtherLoginSignals(
 /**
  * The signals that read how somebody plays rather than what the hiscores say: another Anvil login on
  * the account, a run far past their old PB, play at hours they never kept, a new timezone on their
- * proofs, and — on boards that opted in — shared networks and two countries.
+ * proofs, and — on boards that opted in — what the network sightings show (raiseSharingSignals).
  */
 async function raiseBehaviourSignals(ctx: {
   eventId: number;
@@ -459,34 +461,51 @@ async function raiseBehaviourSignals(ctx: {
     }
   }
 
-  // Opt-in boards: shared networks and two countries (lib/integrityNetwork).
-  if (ctx.sharing) {
-    const nets = await db
-      .select({ participantId: integrityNetwork.participantId, netHash: integrityNetwork.netHash, country: integrityNetwork.country, firstSeenAt: integrityNetwork.firstSeenAt, lastSeenAt: integrityNetwork.lastSeenAt })
-      .from(integrityNetwork)
-      .where(eq(integrityNetwork.eventId, eventId));
-    const byId = new Map(players.map((p) => [p.id, p]));
-    const onNet = new Map<string, Set<number>>();
-    for (const n of nets) onNet.set(n.netHash, (onNet.get(n.netHash) ?? new Set()).add(n.participantId));
-    for (const ids of onNet.values()) {
-      if (ids.size < 2) continue;
-      for (const a of ids) {
-        for (const b of ids) {
-          if (a === b) continue;
-          const other = byId.get(b);
-          found.push({ participantId: a, kind: `shared_network:${b}`, detail: { other: other?.name ?? `#${b}`, sameTeam: other?.teamId != null && other.teamId === byId.get(a)?.teamId } });
-        }
-      }
-    }
-    for (const p of players) {
-      const pair = twoCountries(nets.filter((n) => n.participantId === p.id).map((n) => ({
-        country: n.country, first: parseStamp(n.firstSeenAt) ?? 0, last: parseStamp(n.lastSeenAt) ?? 0,
-      })));
-      if (pair) found.push({ participantId: p.id, kind: 'two_countries', detail: { countries: pair } });
-    }
-  }
-
   await saveSignals(eventId, found);
+
+  // Opt-in boards: what the network sightings add up to (lib/integrityNetwork, lib/sharingRules).
+  if (ctx.sharing) await raiseSharingSignals(eventId, startMs, new Set(players.map((p) => p.id)));
+}
+
+/**
+ * Boards with account-sharing checks on: the signals their network sightings raise. The rules, and
+ * what does not count (one person's own characters on one network), are lib/sharingRules.
+ *
+ * Shared-network and two-countries lines are kept first-only, like every other signal. The two
+ * added-late lines are refreshed while staff haven't dismissed them, because what is known about a
+ * new arrival grows as it plays (the network it shares, the countries it connects from).
+ */
+export async function raiseSharingSignals(eventId: number, startMs: number, tracked?: Set<number>): Promise<void> {
+  const roster = await sharingRoster(eventId);
+  const nets = await db
+    .select({ participantId: integrityNetwork.participantId, netHash: integrityNetwork.netHash, country: integrityNetwork.country, firstSeenAt: integrityNetwork.firstSeenAt, lastSeenAt: integrityNetwork.lastSeenAt })
+    .from(integrityNetwork)
+    .where(eq(integrityNetwork.eventId, eventId));
+  const { shared, late } = sharingSignals({ startMs, players: roster, sightings: nets });
+
+  const found: Signal[] = [...shared];
+  // Two countries: unchanged, and as before only for players with a starting line (`tracked`).
+  for (const p of roster) {
+    if (tracked && !tracked.has(p.id)) continue;
+    const pair = twoCountries(nets.filter((n) => n.participantId === p.id).map((n) => ({
+      country: n.country, first: parseStamp(n.firstSeenAt) ?? 0, last: parseStamp(n.lastSeenAt) ?? 0,
+    })));
+    if (pair) found.push({ participantId: p.id, kind: 'two_countries', detail: { countries: pair } });
+  }
+  await saveSignals(eventId, found);
+
+  for (const f of late) {
+    const detail = JSON.stringify(f.detail);
+    await db
+      .insert(integritySignals)
+      .values({ eventId, participantId: f.participantId, kind: f.kind, detail })
+      .onConflictDoUpdate({
+        target: [integritySignals.eventId, integritySignals.participantId, integritySignals.kind],
+        set: { detail },
+        // Staff said "looks fine": leave it be.
+        setWhere: isNull(integritySignals.dismissedAt),
+      });
+  }
 }
 
 function snapJson(json: string | null | undefined): unknown {
