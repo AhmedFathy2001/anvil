@@ -168,6 +168,11 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
   // as data loss. Anyone else still gets the indistinguishable-from-nonexistent 404.
   const ownedByViewer = viewerPlayerId != null && acct.playerId === viewerPlayerId;
   if (!acct.shared && !ownedByViewer) return null;
+  // A person banned from the platform has no public page (lib/bannedPeople). They cannot sign in, so
+  // there is no owner's view to keep.
+  // clan-scope: global -- a ban is the platform's.
+  const owner0 = await db.query.players.findFirst({ where: eq(players.id, acct.playerId), columns: { banned: true } });
+  if (owner0?.banned) return null;
 
   // Their clan, if they are a member of one AND that clan is listed. A member seat is unique per
   // account (one clan at a time), so this is at most one row.

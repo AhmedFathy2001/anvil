@@ -1,3 +1,4 @@
+import { ownerNotBanned } from '@/lib/bannedPeople';
 import { NextResponse } from 'next/server';
 import { and, asc, desc, eq, isNull, like, ne, sql } from 'drizzle-orm';
 
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
         eq(clans.visibility, 'public'),
       ),
     )
-    .where(and(eq(accounts.shared, true), like(accounts.rsnNormalized, `${term}%`)))
+    .where(and(eq(accounts.shared, true), ownerNotBanned, like(accounts.rsnNormalized, `${term}%`)))
     // A name that STARTS with what was typed, best-known first — somebody typing three letters is
     // far more often after the account with numbers on it than the one nobody has seen.
     .orderBy(desc(sql`coalesce(${accounts.statsOverallXp}, 0)`), asc(accounts.rsnNormalized))
