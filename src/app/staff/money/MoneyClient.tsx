@@ -11,6 +11,7 @@ import { useDialog } from '@/components/Confirm';
 import { PRODUCT_LABEL, type Bucket, type ByCurrency, type ProductKey } from '@/lib/moneyRules';
 import type { loadMoney } from '@/lib/money';
 import type { listTrials } from '@/lib/ownerTrials';
+import ScrollStrip from '@/components/ScrollStrip';
 
 type Money = Awaited<ReturnType<typeof loadMoney>>;
 type Trials = Awaited<ReturnType<typeof listTrials>>;
@@ -44,7 +45,7 @@ function Amounts({ by, pick }: { by: ByCurrency; pick: (b: Bucket) => number }) 
 
 function PeriodTable({ rows }: { rows: { label: string; by: ByCurrency }[] }) {
   return (
-    <div className={`${card} overflow-x-auto`}>
+    <ScrollStrip as="div" className={`${card} overflow-x-auto`}>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-gray-400"><th className="py-1 pr-4">Period</th><th className="pr-4">Gross</th><th className="pr-4">Refunds</th><th className="pr-4">Fees</th><th>Net</th></tr></thead>
         <tbody>
@@ -63,7 +64,7 @@ function PeriodTable({ rows }: { rows: { label: string; by: ByCurrency }[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollStrip>
   );
 }
 
@@ -173,7 +174,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
       </Section>
 
       <Section title="By product" note="Clan boosts are not sold: a boost is a seat placed by a Champion or Patron, so that money is inside Supporter tiers.">
-        <div className={`${card} overflow-x-auto`}>
+        <ScrollStrip as="div" className={`${card} overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead><tr className="text-left text-gray-400"><th className="py-1 pr-4">Product</th><th className="pr-4">Last 30 days net</th><th>All time net</th></tr></thead>
             <tbody>
@@ -186,7 +187,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollStrip>
       </Section>
 
       <Section title="Subscriptions">
@@ -253,7 +254,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
           <button type="button" disabled={busy} onClick={grant} className="mt-3 rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Grant trial</button>
         </div>
 
-        <div className={`${card} overflow-x-auto`}>
+        <ScrollStrip as="div" className={`${card} overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead><tr className="text-left text-gray-400"><th className="py-1 pr-3">Who</th><th className="pr-3">What</th><th className="pr-3">Ends</th><th className="pr-3">Status</th><th className="pr-3">Worth / mo</th><th /></tr></thead>
             <tbody>
@@ -270,7 +271,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollStrip>
       </Section>
     </div>
   );
