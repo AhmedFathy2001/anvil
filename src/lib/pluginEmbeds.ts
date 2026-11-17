@@ -324,6 +324,7 @@ export function countLabel(source: string | null | undefined): string {
  */
 export function obtainedShare(p: number, kc: number, rolls = 1): number {
   if (p <= 0 || kc <= 0) return 0;
+  rolls = Math.min(Math.floor(rolls), 10);
   if (rolls > 1) {
     const q = Math.min(1, p * rolls);
     let fewer = 0;
@@ -688,7 +689,7 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
         facts: {
           rsn: rsnOf(o), items, source: optStr(o, 'source'), sourceKind: optStr(o, 'sourceKind', 32),
           kc: optInt(o, 'kc'), kcAbout: flag(o, 'kcAbout'), dropRate: optRate(o, 'dropRate'),
-          rateRolls: optInt(o, 'rateRolls'), guaranteed: flag(o, 'guaranteed'),
+          rateRolls: ((r) => (r != null && r >= 1 && r <= 10 ? r : null))(optInt(o, 'rateRolls')), guaranteed: flag(o, 'guaranteed'),
           troll: flag(o, 'troll'), notable, earned: flag(o, 'earned'), spoon: flag(o, 'spoon'),
           note: optStr(o, 'note', 512), modeOnly: flag(o, 'modeOnly'),
         },

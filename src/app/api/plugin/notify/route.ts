@@ -236,6 +236,12 @@ export async function POST(request: Request) {
     dropVerdict = judged;
   }
   // A notable item says where it came from, its rate and the kill count whenever the site knows them.
+  // `kcAbout` and `rateRolls` are the site's own marks (set by the step below): a request never sets them.
+  if (kind === 'drop' && facts && typeof facts === 'object' && !Array.isArray(facts)) {
+    const { kcAbout: _a, rateRolls: _r, ...rest } = facts as Record<string, unknown>;
+    void _a; void _r;
+    facts = rest;
+  }
   if (kind === 'drop') facts = await withNotableFacts(facts, member?.accountId ?? null);
   if (kind === 'pet') facts = await withPetRarity(facts);
   // WHO POSTED IS THE TOKEN'S CHARACTER, for every kind: the `rsn` a body names is ignored and replaced
