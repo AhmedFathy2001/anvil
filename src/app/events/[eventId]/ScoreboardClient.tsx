@@ -790,11 +790,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           </section>
         )}
 
-        {/* The track, with the standings beside it on a wide screen and under it on a narrow one. */}
-        <div className="mb-8 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0">
-        {!curtain && <RaceStatCardsRow cards={raceStatCards(raceG, raceLineList, raceViewer)} />}
-
+        {/* The track keeps the full width: its map only shrinks to 85% before it scrolls sideways
+            (lib/raceMapLayout), so a rail beside it would cut the far steps off on most races. */}
+        <div className="mb-8 min-w-0">
         {/* Fullscreen on a race is a full-viewport overlay (Esc or Close), and the map scales up to
             use the room — on the page the board already fills its card. */}
         <section
@@ -836,7 +834,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           />
         </section>
         </div>
-        <aside className="min-w-0 space-y-6">
+
+        {/* Standings, with the race at a glance beside them. */}
+        <div className="mb-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
               <RaceSectionTitle>{curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}</RaceSectionTitle>
               {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
@@ -854,8 +854,10 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                 <RaceStandings lines={raceLineList} steps={steps} labelOf={labelOf} hiddenTile={(id) => isRaceHidden(tileById.get(id) ?? {})} stepProgress={raceStepProgress} teamMvps={teamMvps} eventId={event.id} viewerTeamId={raceViewer} compact={variant === 'medium'} />
               )}
           </div>
+          <aside className="min-w-0 space-y-4">
+          {!curtain && <RaceStatCardsRow stacked cards={raceStatCards(raceG, raceLineList, raceViewer)} />}
           {!curtain && <RaceGapWatch sentences={gapWatch(raceLineList, raceG)} />}
-        </aside>
+          </aside>
         </div>
 
         {(mvpToday || mvp) && (

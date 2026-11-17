@@ -40,14 +40,14 @@ function StatCard({ label, children, sub, accent }: { label: string; children: R
 }
 
 /** Leader · Your team · Busiest road · Race pace. Cards with nothing to say yet are left out. */
-export function RaceStatCardsRow({ cards }: { cards: RaceStatCards }) {
+export function RaceStatCardsRow({ cards, stacked = false }: { cards: RaceStatCards; stacked?: boolean }) {
   const items: ReactNode[] = [];
   if (cards.leader) items.push(<StatCard key="l" label="Leader" accent={cards.leader.color} sub={cards.leader.line}>{cards.leader.name}</StatCard>);
   if (cards.you) items.push(<StatCard key="y" label="Your team" sub={cards.you.sub}>{cards.you.line}</StatCard>);
   if (cards.busiest) items.push(<StatCard key="b" label="Busiest road" sub={cards.busiest.sub}>{cards.busiest.line}</StatCard>);
   if (cards.pace) items.push(<StatCard key="p" label="Race pace" sub={cards.pace.sub}>{cards.pace.line}</StatCard>);
   if (!items.length) return null;
-  return <div className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4">{items}</div>;
+  return <div className={stacked ? 'grid gap-3 grid-cols-2 lg:grid-cols-1' : 'mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4'}>{items}</div>;
 }
 
 /**
