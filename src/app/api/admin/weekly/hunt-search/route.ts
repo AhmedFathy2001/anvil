@@ -62,12 +62,14 @@ export async function GET(request: Request) {
           if (baseName(key).toLowerCase() !== name.toLowerCase()) continue;
           for (const r of list) rows.set(r.i, Math.max(rows.get(r.i) ?? 0, r.d));
         }
-        // Rarest first: the drops a clan would hunt, not the runes.
+        // The drops a clan would hunt, not the runes: what the collection log lists first (the
+        // game's own idea of this boss's uniques), then the rest, rarest first.
+        const logged = (id: number) => (itemObtainInfo(id).clogPage ? 1 : 0);
         const top = [...rows.entries()]
-          .sort((a, b) => b[1] - a[1])
+          .sort((a, b) => logged(b[0]) - logged(a[0]) || b[1] - a[1])
           .map(([id]) => byId.get(id))
           .filter((m): m is MappingItem => !!m)
-          .slice(0, 10)
+          .slice(0, 12)
           .map((m) => ({ id: m.id, name: m.name }));
         return { name, items: top };
       })

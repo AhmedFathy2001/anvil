@@ -186,9 +186,9 @@ export function HuntProofForm({
     if (!participantId) return setError('Choose the character.');
     if (!itemId) return setError(proof.pets ? 'Choose the pet.' : 'Choose the item.');
     if (target && !target.free && !effectiveSource) return setError('Choose where it came from.');
-    if (!when) return setError('Pick when you got it.');
+    if (!when) return setError('Pick when the drop happened.');
     if (!screenshot) return setError('Add a screenshot of the drop. It is required.');
-    if (!(stat > 0)) return setError(statKind === 'kc' ? 'Enter the kill count when you got it.' : 'Enter the exact XP you had when you got it.');
+    if (!(stat > 0)) return setError(statKind === 'kc' ? 'Enter the kill count at the drop.' : 'Enter the exact XP at the drop.');
     if (statKind === 'xp' && !xpSkill) return setError('Choose the skill the XP is in.');
     setBusy(true);
     try {
@@ -300,7 +300,7 @@ export function HuntProofForm({
         )}
         <div>
           <label className={label}>
-            {statKind === 'kc' ? 'Kill count when you got it' : `Exact ${SKILL_LABELS[xpSkill] ?? ''} XP when you got it`.replace(/\s+/g, ' ')}
+            {statKind === 'kc' ? (staff ? 'Kill count at the drop' : 'Kill count when you got it') : `Exact ${SKILL_LABELS[xpSkill] ?? ''} XP ${staff ? 'at the drop' : 'when you got it'}`.replace(/\s+/g, ' ')}
           </label>
           <NumberInput value={stat} onChange={setStat} min={0} max={statKind === 'kc' ? 1_000_000 : 200_000_000} aria-label={statKind === 'kc' ? 'Kill count at the drop' : 'XP at the drop'} />
         </div>
