@@ -348,6 +348,9 @@ export function deriveTileIcon(tile: IconableTile): string | null {
  * competition and the tile that tracks it look like the same thing.
  */
 export function competitionIconUrl(type: string, metric: string, scale = 1): string | null {
+  // An item hunt's picture is the item or pet it hunts, which type and metric alone cannot say:
+  // callers holding the row use lib/itemHunt huntIconFor.
+  if (type === 'hunt') return null;
   if (type === 'skill') return skillIconUrl(metric, scale);
   if (type === 'efficiency') return wikiImageUrl('Stats_icon.png', scale);
   return bossIconForStatKey(metricKeys(metric)[0] ?? metric, scale);
@@ -360,6 +363,7 @@ export function competitionIconUrl(type: string, metric: string, scale = 1): str
  * image still falls back to the drop sprite.
  */
 export function competitionImageUrl(type: string, metric: string): string | null {
+  if (type === 'hunt') return null;
   if (type === 'skill') return skillIconUrl(metric);
   if (type === 'efficiency') return wikiImageUrl('Stats_icon.png');
   // A raid across its modes draws as its first mode.

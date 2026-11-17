@@ -15,6 +15,7 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import { retitleForAmount } from '@/lib/tileAmountText';
 import {
   chooseKillSource,
   hiscoresKeyForMonster,
@@ -830,6 +831,10 @@ function TileTrackingEditor({
   const canOverride = !!eventStarted && !!isAdmin;
   const [liveOverride, setLiveOverride] = useState(false);
   const locked = !!eventStarted && !(canOverride && liveOverride);
+  // One sentence for every frozen field: why it is locked and what unlocks it (the checkbox at the top).
+  const lockNote = canOverride
+    ? 'Locked because the event has started. Tick “Override live-event lock (admin)” above to change it.'
+    : 'Locked because the event has started. Only an admin can unlock it.';
   // Lookups go to the clan's /api/admin, or /api/library in the Anvil library editor (no clan there).
   const lookupApi = useContext(AuthoringApiContext);
   // A LIST tile (lib/listTile): several bosses or skills counted separately, stored as a combo. It
@@ -2119,20 +2124,44 @@ function TileTrackingEditor({
   // Light heads-up: a count in the title that doesn't line up with the tile's target amount. Scoped
   // to the field each kind actually uses (statGoal for skill/boss, gp for value, requiredAmount for
   // the count kinds), and only when the target isn't mentioned in the title OR description.
-  const amountWarning = useMemo(() => {
+  const amountTarget = useMemo(() => {
     let target: number | null = null;
     if (kind === 'skill') target = parseAmountToken(statGoal);
     else if (kind === 'kills') target = parseAmountToken(killAmount);
     else if (kind === 'value') target = parseAmountToken(valueGpText);
     else if (['drop', 'lap', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
-    if (target == null || target <= 0) return null;
+    return target != null && target > 0 ? target : null;
+  }, [kind, requiredAmount, statGoal, killAmount, valueGpText]);
+
+  // Editing the amount re-writes the number in the title and description when they carried the old
+  // one (they were generated from it). Text that never mentioned it was written by hand: it is left
+  // alone and the hint below says so. The last real amount is kept across an empty box mid-typing.
+  const lastAmount = useRef<number | null>(amountTarget);
+  const [leftAsWritten, setLeftAsWritten] = useState(false);
+  useEffect(() => {
+    const prev = lastAmount.current;
+    if (amountTarget == null) return;
+    lastAmount.current = amountTarget;
+    if (prev == null || prev === amountTarget || locked) return;
+    const nextLabel = retitleForAmount(label, prev, amountTarget);
+    const nextDesc = retitleForAmount(description, prev, amountTarget);
+    if (nextLabel != null) setLabel(nextLabel);
+    if (nextDesc != null) setDescription(nextDesc);
+    setLeftAsWritten(nextLabel == null && nextDesc == null);
+    // Only the amount triggers this; label/description are read as they stand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amountTarget]);
+
+  const amountWarning = useMemo(() => {
+    const target = amountTarget;
+    if (target == null) return null;
     const labelNums = extractCountLikeNumbers(label);
     if (labelNums.length === 0) return null;
     const allNums = [...labelNums, ...extractCountLikeNumbers(description)];
     if (allNums.includes(target)) return null;
     const titleNum = labelNums.find((n) => n !== target) ?? labelNums[0];
     return { titleNum, target };
-  }, [kind, label, description, requiredAmount, statGoal, killAmount, valueGpText]);
+  }, [amountTarget, label, description]);
 
   return (
     <div
@@ -2194,7 +2223,7 @@ function TileTrackingEditor({
         </div>
         <p className="text-[10px] text-text-muted mt-1 leading-relaxed">
           {KINDS.find((k) => k.key === kind)?.blurb}
-          {locked && ' · Kind is locked after the event starts.'}
+          {locked && ` · ${lockNote}`}
         </p>
       </div>
 
@@ -2208,7 +2237,7 @@ function TileTrackingEditor({
           disabled={locked}
           className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
         />
-        {locked && <p className="text-[10px] text-text-muted mt-0.5">Cannot change after event start</p>}
+        {locked && <p className="text-[10px] text-text-muted mt-0.5">{lockNote}</p>}
       </div>
 
       {/* Description */}
@@ -2230,6 +2259,7 @@ function TileTrackingEditor({
           <span>
             The title mentions <strong>{amountWarning.titleNum.toLocaleString()}</strong>, but this tile&apos;s amount is set
             to <strong>{amountWarning.target.toLocaleString()}</strong>. Double-check they should match.
+            {leftAsWritten && ' Your own wording was left as you wrote it.'}
           </span>
         </div>
       )}
@@ -4458,7 +4488,7 @@ function TileTrackingEditor({
         disabled={saving}
         className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
       >
-        {saving ? "Saving..." : asPart ? "Done with this part" : "Save Configuration"}
+        {saving ? "Saving..." : asPart ? "Done with this part" : "Save tile"}
       </button>
       <UnsavedIndicator dirty={tileDirty && !saving} className="justify-center w-full" />
     </div>

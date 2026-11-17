@@ -321,7 +321,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Vil du også have indlæg på din egen server?',
-          body: 'Gå til din profil → **Announcements & webhooks** → _Your own webhooks_.',
+          body: 'Gå til [Settings → Posts & alerts](/settings/posts#webhooks) → _Your webhooks_.',
         },
       ],
     },
@@ -336,7 +336,7 @@ const da: PartialGuideDict = {
     facts: [
       {
         strong: 'Gratis',
-        rest: 'intet kort, ingen prøveperiode',
+        rest: 'intet kort for at starte',
       },
       {
         strong: 'Live',
@@ -352,7 +352,7 @@ const da: PartialGuideDict = {
       title: 'Før du går i gang',
       body: [
         'Du skal bruge en Discord-konto, og det er hele listen. Log først ind på `{apex}`: en klan skal have en ejer, og indlogningen er måden siden ved, at det er dig. Start fra **Start en klan** på platformsiderne, eller gå direkte til `{apex}/clans/new`.',
-        'Det koster ingenting. Ingen plan at vælge, intet kort at indtaste, og ingen prøveperiode der udløber og tager dit bræt med sig — en klan starter gratis og bliver ved med at virke.',
+        'Det koster ingenting at starte. Ingen plan at vælge og intet kort at indtaste. En ny klan får en gratis prøveperiode på den øverste plan fra Anvil. Når prøveperioden slutter, står klanen på den gratis plan og beholder sit bræt, sin medlemsliste og sin historik.',
         'Store klaner kan senere skifte til en større plan via **Plan and billing** i Admin. Alt, hvad du betaler for på Anvil — en klan, et creator-rum eller dit eget Supporter-medlemskab — står på [din betalingsside](/portal).',
       ],
       note: {
@@ -403,7 +403,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Få dine medlemmer ind',
-          body: 'Installér pluginet, log ind med Discord, åbn så dit klanvindue i spillet og tryk på **Anvil**-knappen i dets titellinje. Ingen kan tilmelde sig et event, før din medlemsliste er inde.',
+          body: 'Installér pluginet, log ind med Discord, åbn så dit klanvindue i spillet og tryk på **Anvil**-knappen i dets titellinje. Den liste er der, dine medlemmer kommer fra. Indtil den er inde, kan folk stadig tilmelde sig dine events som gæster.',
         },
         {
           term: 'Lav et bræt',
@@ -426,7 +426,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'De beder om at komme ind',
-          body: 'At logge ind eller spille med pluginet giver aldrig nogen en plads af sig selv. Ser pluginet nogen spille i din klan i spillet, før din medlemsliste har dem, opretter det en anmodning om at komme ind for dem, og alle andre kan spørge med **Apply** på jeres klanside. Staben svarer på begge dele øverst på **Roster**-fanen, og **Who can join** afgør, om de venter på et ja, kommer ind med det samme eller slet ikke kan spørge. En, der spiller en karakter, som allerede står på din medlemsliste, bliver i stedet bekræftet under **Needs review**. Detaljerne står i [Dine folk]({peopleGuide}).',
+          body: 'Medlemmer kommer kun fra din medlemsliste i spillet. Ser pluginet nogen spille i din klan i spillet, før din medlemsliste har dem, opretter det en anmodning om at komme ind for dem, og staben besvarer den øverst på **Roster**-fanen. Alle andre kan trykke på **Apply** på jeres klanside med deres navn i spillet: en, der bekræfter karakteren med pluginet eller XP-tjekket, bliver med det samme gæst, og en, der beder din stab om at gå i borgen for dem, følger **Who can join**: hvor gæster skal godkendes, er det en anmodning om at komme ind, og de har ingen plads, før du accepterer den; hvor gæster lukkes ind frit, bliver de tilføjet som gæst. Begge veje holdes de under **Needs review**, indtil du går i borgen for dem. At sætte **Who can join** til lukket stopper alt det her. En, der spiller en karakter, som allerede står på din medlemsliste, bliver i stedet bekræftet under **Needs review**. Detaljerne står i [Dine folk]({peopleGuide}).',
         },
         {
           term: 'I hånden',
@@ -610,7 +610,7 @@ const da: PartialGuideDict = {
     roles: {
       title: 'Roller og kaldenavne',
       body: [
-        'Begge synkroniseringer er slukket, indtil du aktiverer dem under **Admin → Discord → Roles & nicknames**, og begge styres af medlemslisten. Slå **Enable Discord role sync** til, lad **Auto-match in-game rank → Discord role by name** være slået til, vælg eventuelle generelle **Member roles** og **Guest roles**, gem, og tryk så **Sync roles & nicknames now**. Hver person skal også have en forbundet Discord-identitet; synkroniseringsrapporten nævner alle, den ikke kunne finde ud af.',
+        'Begge synkroniseringer er slukket, indtil du aktiverer dem under **Admin → Discord → Roles & nicknames**, og begge styres af medlemslisten. Slå **Enable Discord role sync** til, lad **Auto-match in-game rank → Discord role by name** være slået til, vælg eventuelle generelle **Member roles** og **Guest roles**, gem, og tryk så **Sync roles & nicknames now**. Roller går til personer, der har logget ind på Anvil med Discord. Et medlem, der ikke har logget ind, får kun roller, hvis du også slår **Also match members by Discord nickname** til, og den er slået fra fra start i hver klan. Synkroniseringsrapporten nævner alle, den ikke kunne finde ud af.',
       ],
       ways: [
         {
@@ -706,7 +706,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Ligger bottens rolle højt nok?',
-          body: 'Kun for rolle- og kaldenavnssynkronisering — se ovenfor. Det er den, der fejler tavst.',
+          body: 'For rolle- og kaldenavnssynkronisering: læg botten over hver rolle, den styrer, tjek at hver person har logget ind med Discord (eller slå **Also match members by Discord nickname** til for din klan), og tjek at rang-rollernes navne står præcis som angivet ovenfor. Gem først, og kør derefter **Sync roles & nicknames now**; listen over overspringede fortæller, hvem der stadig skal forbindes.',
         },
       ],
       note: {
@@ -824,24 +824,24 @@ const da: PartialGuideDict = {
         'Åbner browseren ikke af sig selv, skriver panelet adressen og koden, så du kan åbne den manuelt. Koder udløber efter ti minutter — tryk bare på knappen igen.',
       manualHeading: 'Nødløsning: indsæt dit token i hånden',
       manualIntro:
-        'Hvis login fra pluginnet ikke virker for dig, så kopiér dit token nedenfor (eller fra [Profile → plugin token](/profile#plugin-token), hvor du også kan rotere det), klik derefter på **Paste a token instead** under login-knappen i Anvil-panelet, og indsæt det dér.',
+        'Hvis login fra pluginnet ikke virker for dig, så lav et token under [Settings → In game → Plugin connection](/settings/in-game#plugin) (det vises kun én gang, og du kan tilbagekalde alle tokens dér), klik derefter på **Paste a token instead** under login-knappen i Anvil-panelet, og indsæt det dér.',
       tokenFigure: {
-        caption: 'Profile → RuneLite plugin',
-        alt: 'RuneLite plugin-kortet på profilsiden med tokenfeltet og knapperne Reveal, Copy og Rotate markeret',
+        caption: 'Settings → In game → Plugin connection',
+        alt: 'Plugin connection-kortet under Settings → In game, med tokenfeltet og knapperne Reveal, Copy token og Revoke all markeret',
         legend: [
           {
             label: 'Din token',
-            body: 'skjult indtil du trykker Reveal. Den er sløret på dette skærmbillede med vilje; post aldrig din egen på Discord.',
+            body: 'lavet én gang, når du trykker på **Make a token**, og skjult, indtil du trykker **Reveal**. Den er sløret på dette skærmbillede med vilje. Den logger ind som dig, så behandl den som en adgangskode, og post den aldrig på Discord.',
           },
           {
-            label: 'Copy / Rotate',
-            body: 'kopiér den, og brug så **Paste a token instead** i Anvil-panelet. Rotate udsteder en ny og dræber den gamle — brug den, hvis du overhovedet mistænker, at din token er sluppet ud.',
+            label: 'Reveal / Copy token / Revoke all',
+            body: '**Copy token** virker uden at vise den. Kopiér den, og brug derefter **Paste a token instead** i Anvil-panelet. At lave et nyt token annullerer ikke de gamle; det gør **Revoke all**, så tryk på den, hvis du nogensinde tror, et token er lækket.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Brug sidepanelet til daglig',
-        body: ['**Anvil-sidepanelet er dit primære arbejdssted**: log ind og ud dér, se dine klaner og aktive events, gennemse og gør krav på felter, følg fremskridt, tag startbilleder, kør synkroniseringer og åbn supportværktøjer. **Configuration → Anvil**, vist nedenfor, er kun til indstillinger — der er intet token i det. Vil du logge denne computer ud, så åbn **⋯**-menuen ved siden af dit navn øverst i panelet. Ét login dækker alle events, du er tilmeldt — du skal aldrig gøre det igen for hver bingo.'],
+        body: ['**Anvil-sidepanelet er dit primære arbejdssted**: log ind og ud dér, se dine klaner og aktive events, gennemse og gør krav på felter, følg fremskridt, tag startbilleder, kør synkroniseringer og åbn supportværktøjer. **Configuration → Anvil**, vist nedenfor, er kun til indstillinger — der er intet token i det. For at logge denne computer ud, så åbn **⋯**-menuen ved siden af dit navn øverst i panelet; det afslutter også denne computers login på siden, mens dine andre computere forbliver logget ind. Hvis et token måske er lækket, så brug **Revoke all** under Settings → In game → Plugin connection. Ét login dækker alle events, du er tilmeldt — du skal aldrig gøre det igen for hver bingo.'],
       },
     },
 
@@ -849,27 +849,31 @@ const da: PartialGuideDict = {
       title: 'Forbind dine konti',
       body: [
         'Når din token er på plads, vises konti, du spiller på, automatisk på din profil. En helt ny konto kan forbindes med det samme; en konto, der allerede står på en klanliste, kræver først ét ejerskabstjek, fordi et offentligt RuneScape-navn ikke beviser, hvem der ejer det.',
-        'Ved den første forbindelse kan du bruge [det hurtige XP-tjek](/profile#link-account) eller bede en klanmoderator godkende kontoen under [konti vi har registreret](/profile#detected-accounts). Når den er bevist, følger det stabile kontofingeraftryk fremtidige navneskift og genkender kontoen automatisk.',
+        'Til den første forbindelse kan du bruge [det hurtige XP-tjek](/settings/characters#link-account) eller bede en klanmoderator om at godkende den, startende fra [We noticed you playing](/settings/characters#detected). Når den er bevist, gemmer pluginnet kontoens stabile fingeraftryk, følger fremtidige navneskift og genkender kontoen automatisk ved hvert login.',
       ],
       figure: {
-        caption: 'Profile → RuneScape Accounts',
-        alt: 'RuneScape Accounts-kortet på profilsiden med konti verificeret via pluginnet',
+        caption: 'Settings → Characters',
+        alt: 'Characters-siden under Settings, med listen over forbundne karakterer og kortet We noticed you playing indrammet',
         legend: [
           {
-            label: 'Dine forbundne konti',
-            body: 'alt med “Verified via plugin” er forbundet og genkendes automatisk. Etablerede klankonti kan først bede om et enkelt XP-tjek eller en moderatorgodkendelse.',
+            label: 'Your linked characters',
+            body: 'alt, der står her, er forbundet og genkendes automatisk.',
+          },
+          {
+            label: 'We noticed you playing',
+            body: 'karakterer, pluginnet har set dig spille, som endnu ikke er forbundet. Tryk på **Verify ownership** for at forbinde en (en helt ny konto forbindes med det samme; en konto, der allerede står på en klanliste, kræver først et engangs-XP- eller moderatortjek), eller **Not mine** for at afvise den.',
           },
         ],
       },
       noPluginHeading: 'Kan du ikke køre pluginnet?',
       noPluginIntro:
-        'På mobil eller i den officielle klient kan du bruge [Profile → account linking](/profile#link-account) i stedet:',
+        'På mobil eller i den officielle klient kan du i stedet bruge [Settings → Characters → Link a character](/settings/characters#link-account):',
       noPluginOptions: [
         '**Verify by XP** — skriv dit RSN, siden vælger en tilfældig skill, og du skal tjene 1.000 XP i den inden for 30 minutter.',
-        '**Manual review** — til skjulte Hiscores eller helt nye alts: indsend dit RSN med en note, og en moderator godkender det.',
+        '**Manual review** — til skjulte Hiscores eller helt nye alts: gå på en klans side og bed dens stab om at gå i borgen for dit RSN. Hvis klanen godkender sine gæster først, kan du melde dig til dens events, når dens stab har accepteret din anmodning. Din tilmelding holdes, indtil de bekræfter karakteren.',
       ],
       signupNote:
-        'Tilmelding til et event kræver mindst én verificeret konto, så få det klaret, inden du melder dig til.',
+        'Du kan melde dig til et event, så snart du har navngivet din karakter. Med pluginet eller et bestået XP-tjek er du med det samme. Har du bedt staben om at gå i borgen for dig, kan du melde dig til, når klanen har accepteret dig som gæst, og din tilmelding holdes, indtil de bekræfter karakteren.',
     },
 
     working: {
@@ -982,74 +986,76 @@ const da: PartialGuideDict = {
     notifications: {
       title: 'Discord-beskeder',
       intro:
-        'De sendes, uanset om der kører en bingo eller ej, og de lander i klanens kanaler. Hvilken kanal bestemmer administratorerne her — du vælger kun _hvad_ du poster. I den næste plugin-opdatering flytter disse valg til hjemmesiden, under **Settings → Discord posts & screenshots**, og følger dig til hver computer. På samme side vælger **Screenshot privacy**, hvilken chat (private beskeder, offentlig chat, klanchat) der skjules på alle skærmbilleder, pluginet tager. Pluginet beholder to kontakter under **Notifications**: **Share clan posts** sætter alle opslag fra hovedspillet på pause på én gang, og **Share seasonal activity** gør det samme på Leagues, Deadman og andre sæsonverdener.',
+        'Disse udløses, uanset om en bingo kører eller ikke, og de postes i klanens kanaler. Hvilken kanal der er sat op, bestemmer administratorerne — du vælger kun _hvad_ du poster. Valgene ligger på hjemmesiden under **Settings → Posts & alerts → What your plugin posts** og følger dig til hver computer; pluginnet har ikke længere egne indstillinger for dem. På samme side vælger **Screenshot privacy**, hvilken chat (private beskeder, offentlig chat, klanchat) der skjules på alle skærmbilleder, pluginnet tager. Pluginnet har to kontakter under **Notifications**: **Share clan posts** sætter alle opslag fra hovedspillet på pause på én gang, og **Share seasonal activity** gør det samme for Leagues, Deadman og andre sæsonverdener.',
       examplesFigure: {
         caption: 'Sådan ser et opslag ud',
         alt: 'To Discord-opslag fra Anvil: en Grandmaster combat task med point og fremskridt mod næste unlock, og et dødsfald med dets besked, hver med et skærmbillede af øjeblikket',
       },
       dropsFigure: {
-        caption: 'Deaths & kills · Drops & pets',
-        alt: 'Beskedafsnittene Deaths and kills og Drops and pets med hver indstilling markeret og nummereret',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Drops & pets · Deaths & PvP',
+        alt: 'Grupperne Drops & pets og Deaths & PvP under What your plugin posts på indstillingssiden Posts & alerts, med hver indstilling indrammet og nummereret',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'poster til klanens dødskanal med et skærmbillede af øjeblikket, hvor du døde.',
+            label: 'Rare drops',
+            body: 'hovedkontakten for drop-posts. Tændt som standard.',
           },
           {
-            label: 'Death message',
-            body: 'din egen linje. `{name}` erstattes med dit RSN.',
+            label: 'Min drop value / Min drop rarity (1 in N)',
+            body: 'et drop postes, når det er værd mindst dette beløb (GE eller high alch, det højeste af de to) eller er sjældnere end 1-ud-af-N. Anvils egne tal er 1.000.000 gp og 1 ud af 1.000, og ingen af dem kan du sætte løsere end det. Sæt et tal til 0 for at slå det fra. Din klan kan sætte egne standarder for sine medlemmer; linjen under hver boks siger **Using your clan’s default**, indtil du selv skriver et tal, og **Reset to clan default** (eller **Reset to Anvil default**, hvis du ingen klan har) går tilbage til at følge den. En klan kan også sætte en hård sjældenhedsgrænse, som kun gælder for posts i klanens egne kanaler.',
           },
           {
-            label: 'Notify on PvP kill',
-            body: 'et skærmbillede af tikken, hvor dit mål rammer 0 HP. Fra som standard; tændt her.',
-          },
-          {
-            label: 'Notify on rare drops',
-            body: 'hovedkontakten for drop-posts.',
-          },
-          {
-            label: 'Min drop value / Min drop rarity',
-            body:
-              'et drop postes, hvis det er værd mindst dette (GE eller high alch, det højeste af de to) eller sjældnere end 1-ud-af-N. Anvil starter ved 1m og 1/1,000. Din klan kan sætte egne standarder for sine medlemmer. Indtil du selv vælger et tal, følger du klanens. **Reset to clan default** (eller **Reset to Anvil default**, hvis du ingen klan har) går tilbage til at følge den. En klan kan også sætte en hård sjældenhedsgrænse, som kun gælder for posts i klanens egne kanaler. Dit tal kan ikke gå løsere end den der, og det ændrer aldrig værdigrænsen. Sæt et af tallene til 0 for at slå det fra.',
-          },
-          {
-            label: 'Value and rarity together',
-            body:
-              'et drop postes som standard, når det opfylder værdien **or** sjældenheden. Slår du **Require both** til, skal det opfylde værdien **and** sjældenheden. Din klan kan vælge denne standard for sine medlemmer. Indtil du vælger, følger du den. Uden klan gælder enten det ene eller det andet. Hver af dine egne webhooks kan også sætte sin egen minimumsværdi, sjældenhed og enten/begge. Det den lader være tomt, følger dine indstillinger.',
+            label: 'Require both (and)',
+            body: 'som standard postes et drop, når det opfylder værdien **or** sjældenheden. Slår du **Require both (and)** til, skal det opfylde både værdien **and** sjældenheden. Din klan kan vælge denne standard for sine medlemmer; indtil du selv vælger, siger linjen under boksen **Using your clan’s choice**, og uden klan gælder enten det ene eller det andet. Hver af dine egne webhooks kan også sætte sin egen minimumsværdi, sjældenhed og enten/begge; det den lader være tomt, følger dine indstillinger.',
           },
           {
             label: 'Loot key value',
-            body: 'en loot key postes én gang som en enkelt notifikation, når hele indholdet overstiger dette tal.',
+            body: 'en loot key postes én gang som en enkelt notifikation, når hele dens indhold overstiger dette tal. Starter på 1.000.000 gp; 0 slår den fra.',
           },
           {
-            label: 'Notify on pets',
-            body: 'kæledyr postes i kanalen for sjældne drops.',
+            label: 'Pets',
+            body: 'kæledyr postes i klanens drops-kanal. Tændt som standard.',
+          },
+          {
+            label: 'Deaths',
+            body: 'postes i klanens dødskanal med et skærmbillede af øjeblikket, hvor du døde. Tændt som standard.',
+          },
+          {
+            label: 'Death message',
+            body: 'din egen linje. `{name}` erstattes med dit RSN. Standarden er `{name} just died!`.',
+          },
+          {
+            label: 'PvP kills',
+            body: 'et skærmbillede af tikken, hvor dit mål rammer 0 HP, postes i klanens PvP-kanal. Fra som standard.',
           },
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · collection log · levels · diaries · quests',
-        alt: 'Beskedafsnittet Combat achievements med hver indstilling markeret og nummereret',
+        caption: 'Settings → Posts & alerts → What your plugin posts: Achievements',
+        alt: 'Gruppen Achievements under What your plugin posts på indstillingssiden Posts & alerts, med hver indstilling indrammet og nummereret',
         legend: [
           {
-            label: 'CA post tier',
-            body: 'det laveste opgave-tier, der posteres; gennemførte tiers posteres også. Standarden er Master; Grandmaster poster kun de allersjældneste, **Off** poster ingen. Bingoens CA-felter tæller uanset hvad.',
+            label: 'Collection log slots',
+            body: 'hver ny plads i collection loggen postes i klanens achievement-kanal. Tændt som standard.',
           },
           {
-            label: 'Notify on collection log slots',
-            body: 'hver ny plads i collection loggen.',
+            label: 'Level milestones',
+            body: 'level-ups, din klan har valgt at annoncere — som standard 99’ere, hver 100 total levels fra 1800 og max. Klanens admins sætter reglerne; du kan poste mindre (eller sætte dine egne regler for dine personlige webhooks) under Announcements-indstillingerne.',
           },
           {
-            label: 'Notify on level milestones',
-            body: 'level-ups, din klan har valgt at annoncere — som standard 99’ere, hver 100 total levels fra 1800, samt max. Klanens admins sætter reglerne; du kan poste mindre (eller lave dine egne regler til dine personlige webhooks) under Announcements på din profil.',
+            label: 'Diary completions',
+            body: 'achievement diary-tiers, med et skærmbillede. Tændt som standard.',
           },
           {
-            label: 'Notify on diary completions',
-            body: 'gennemførte achievement diary-tiers, med et screenshot.',
+            label: 'Diary tier',
+            body: 'det laveste diary-tier, der postes. Starter på **Clan default**, altså alle tiers, medmindre din klan har valgt andet; du kan vælge et strengere tier, aldrig et løsere end klanens.',
           },
           {
-            label: 'Quest post tier',
-            body: 'quests fra den sværhedsgrad, du vælger, og opefter, fra All (hver quest) op til Grandmaster; **Off** poster ingen. Standarden er Master. Bingoens quest-felter tæller uanset hvad.',
+            label: 'Combat task tier',
+            body: 'det laveste opgave-tier, der postes; gennemførte tiers postes også. Starter på **Clan default** (Master, medmindre din klan har valgt et andet tier); Grandmaster poster kun de sjældneste, og **Off** poster ingen. Du kan ikke gå løsere end din klan. Bingoens CA-felter tæller uanset hvad.',
+          },
+          {
+            label: 'Quest tier',
+            body: 'quests ved eller over den sværhedsgrad, du vælger, fra All (hver quest) op til Grandmaster; **Off** poster ingen. Starter på **Clan default** (Master, medmindre din klan har valgt en anden). Bingoens quest-felter tæller uanset hvad.',
           },
         ],
       },
@@ -1062,7 +1068,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Token er forkert eller er blevet roteret. Åbn **⋯**-menuen øverst i Anvil-panelet, tryk på **Sign out** og derefter **Sign in with Discord** igen — eller brug **Paste a token instead** med en frisk token fra [Profile → RuneLite plugin](/profile#plugin-token).',
+          body: 'Token er forkert eller er blevet udskiftet. Åbn **⋯**-menuen øverst i Anvil-panelet, tryk på **Sign out** og derefter **Sign in with Discord** igen — eller brug **Paste a token instead** med et friskt token fra [Settings → In game → Plugin connection](/settings/in-game#plugin).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -1070,7 +1076,7 @@ const da: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Kontoen er ikke forbundet endnu. Åbn [Profile → registrerede konti](/profile#detected-accounts) for at tilføje den eller starte ejerskabstjekket.',
+          body: 'Kontoen er ikke forbundet endnu. Åbn [Settings → Characters → We noticed you playing](/settings/characters#detected) for at tilføje den eller starte ejerskabstjekket.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1150,7 +1156,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Chatfarver',
-          body: '**[Anvil] tag colour** og **Message colour** under **Chat messages**. Indtil du vælger, bliver de mørkt guld og sort på en uigennemsigtig chatboks, så de forbliver læselige. Hold musen over en Supporters navn i chatten for at se niveauet, f.eks. _Anvil Patron_.',
+          body: '**[Anvil] tag colour** og **Message colour** under **Settings → In game → Chat colours** på hjemmesiden. Indtil du vælger, bliver de mørkt guld og sort på en uigennemsigtig chatboks, så de forbliver læselige. Hold musen over en Supporters navn i chatten for at se niveauet, f.eks. _Anvil Patron_.',
         },
       ],
     },
@@ -1229,7 +1235,7 @@ const da: PartialGuideDict = {
     setup: {
       title: 'Navngiv klanen, forbind Discord',
       intro:
-        '**Settings → Finish setup** er en kort guide (den bliver i menuen, indtil du er færdig), og dashboardet holder en tjekliste i fem trin, indtil de er klaret: navngiv klanen, forbind Discord, hent dine medlemmer, opret et event, tilføj felter. Status regnes ud fra rigtige data, så et trin bliver først flueben, når det virkelig er færdigt.',
+        '**Settings → Finish setup** er en kort guide (den bliver i menuen, indtil du er færdig eller springer den over), og dashboardet holder en tjekliste i fem trin, indtil de er klaret: navngiv klanen, forbind Discord, hent dine medlemmer, opret et event, tilføj felter. Status regnes ud fra rigtige data, så et trin bliver først flueben, når det virkelig er færdigt.',
       discord:
         'Til Discord har du to veje, og de kan kombineres: giv Anvil en **bot**, og den kan oprette webhooks, synkronisere roller og kaldenavne og bygge private holdkanaler for dig; giv den en enkelt **webhook-URL**, og den kan poste beskeder og intet andet. Start med webhooken, hvis du vil være i luften om to minutter, og tilføj botten, når du vil have automatikken.',
       permsNote: {
@@ -1312,7 +1318,7 @@ const da: PartialGuideDict = {
     tiles: {
       title: 'Fyld brættet',
       body: [
-        'Eventets **Board & tiles**-side er der, hvor et bræt bliver til en bingo. Hvert felt er én _slags_ opgave, og slagsen afgør, hvad pluginnet holder øje med: et drop, en boss-killcount, skill-XP, et NPC-kill, en tid at slå, en achievement diary, en combat achievement, en collection log-oplåsning, et PvP-kill, en gevinst i inventory eller en tur uden dødsfald. Manuelle felter — dem et menneske godkender ud fra et screenshot — er også altid en mulighed.',
+        'Eventets **Tiles**-fane er der, hvor et bræt bliver til en bingo. Hvert felt er én _slags_ opgave, og slagsen afgør, hvad pluginnet holder øje med: et drop, en boss-killcount, skill-XP, et NPC-kill, en tid at slå, en achievement diary, en combat achievement, en collection log-oplåsning, et PvP-kill, en gevinst i inventory eller en tur uden dødsfald. Manuelle felter — dem et menneske godkender ud fra et screenshot — er også altid en mulighed.',
         'Til et helt bræt er det hurtigere at skrive dem i bulk: eksportér arket, udfyld det i et regneark, og importér det tilbage. Både CSV og .xlsx kan gå frem og tilbage, og rækkerne følger positionerne, så du kan skrive et helt 25-felters gitter om i én indsætning.',
       ],
       rows: [
@@ -1378,7 +1384,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Indsendelser til godkendelse',
-          body: 'manuelle felter og alt, pluginnet har markeret. Godkend eller afvis med beviset foran dig.',
+          body: 'manuelle felter og alt, pluginnet har markeret. Tryk **Looks fine**, eller **Remove…** med en begrundelse, med beviset foran dig.',
         },
         {
           term: 'Statistik',
@@ -1474,7 +1480,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Hvad et invitationslink ikke er',
-        body: 'Det er ikke et login og ikke en genvej uden om verificering. Den, der åbner det, logger stadig ind med Discord og skal stadig have et verificeret RSN, præcis som ved enhver anden tilmelding. Det eneste, linket afgør, er _hvilket hold_ tilmeldingen kommer på, og at den ikke skal godkendes af nogen.',
+        body: 'Det er ikke et login og ikke en genvej uden om verificering. Den, der åbner det, logger stadig ind med Discord og skal stadig oplyse sit RSN, præcis som ved enhver anden tilmelding. Det eneste, linket afgør, er _hvilket hold_ tilmeldingen kommer på, og at den ikke skal godkendes af nogen. En karakter, der stadig venter på, at staben går i borgen for den, kommer på holdet, når staben bekræfter den.',
       },
     },
 
@@ -1494,11 +1500,11 @@ const da: PartialGuideDict = {
     staff: {
       title: 'Giv deres moderator en plads',
       body: [
-        'Panelet **Team staff** på holdsiden er måden, gæsteklanens egen moderator kommer i gang på, uden at du giver dem noget som helst på din side. Tryk **Add someone**, søg dem frem, skriv en note som “Ironforges mod”, så den næste admin ved, hvorfor de er der, og tryk **Give a seat**.',
+        'Panelet **Team staff** på holdsiden er måden, gæsteklanens egen moderator kommer i gang på, uden at du giver dem noget som helst på din side. Tryk **Add someone**, søg dem frem, skriv en note som “Ironforges mod”, så den næste admin ved, hvorfor de er der, og tryk **Add to team staff**.',
       ],
       figure: {
         caption: 'Event → Teams & draft → holdet → Team staff',
-        alt: 'Team staff-panelet med én tildelt plads og søgefeltet til at tilføje flere åbent',
+        alt: 'Team staff-panelet med én tildelt plads, med knappen Add someone, pladsen og dens note samt knappen Remove indrammet',
         legend: [
           {
             label: 'Add someone',
@@ -1558,7 +1564,7 @@ const da: PartialGuideDict = {
         ],
       },
       shape:
-        'Linket ser sådan ud: `{origin}/events/{eventId}/join/{token}` — én linje, sikker at indsætte i en Discord-besked.',
+        'Linket ser sådan ud: `{origin}/c/{clan}/events/{eventId}/join/{token}` — én linje, sikker at indsætte i en Discord-besked.',
       note: {
         tag: 'Fornuftige standardvalg',
         body: 'Til en clan-mod-clan, hvor du har aftalt truppen med én moderator, så lad begge felter stå på `0`, og lad dem styre det. Grib til pladser og udløb, når linket skal et sted hen, du ikke selv kontrollerer.',
@@ -1609,7 +1615,7 @@ const da: PartialGuideDict = {
           },
           {
             label: 'Resten af formularen',
-            body: 'uændret. Et verificeret RSN er stadig påkrævet, tilmeldingsspørgsmålene bliver stadig stillet, og et tilmeldingsgebyr gælder stadig.',
+            body: 'uændret. Et RSN er stadig påkrævet, tilmeldingsspørgsmålene bliver stadig stillet, og et tilmeldingsgebyr gælder stadig.',
           },
         ],
       },
@@ -1774,7 +1780,7 @@ const da: PartialGuideDict = {
         'At klikke sig gennem et 25-felters gitter er fint. At klikke sig gennem et Point Hunt-bræt med 200 opgaver er det ikke — og at læse korrektur bagefter er værre. Tiles-fanen har en tur-retur bygget til præcis det.',
       ],
       steps: [
-        '**Download spreadsheet** på eventets **Board & tiles**-side. Du får en .xlsx af brættet, som det ser ud nu, med dropdowns, itemlisten og kolonnevejledningen på hver sit ark.',
+        '**Tiles**-fanen → **Add tiles** → **Download spreadsheet** på eventet. Du får en .xlsx af brættet, som det ser ud nu, med dropdowns, itemlisten og kolonnevejledningen på hver sit ark.',
         'Ret i det. Én række pr. felt; rækkefølgen af rækker er rækkefølgen af felter.',
         '**Upload CSV / Excel** på samme fane. Kun **Tiles**-arket bliver læst.',
       ],
@@ -1907,7 +1913,7 @@ const da: PartialGuideDict = {
       intro:
         'På et tile-kapløbs-board bygger du en bane i stedet for et gitter. Tiles ligger på nummererede trin, og et hold bevæger sig langs dem.',
       body: [
-        'Åbn **Tiles** og brug sektionen **Route**. Vælg en skabelon (**Diamond** er standard), tilføj dine tiles til trinene og tryk på **Save route**. Hvert tile du linker til, skal ligge på det næste trin.',
+        'Åbn **Tiles** og brug sektionen **Route**. Vælg en skabelon (**Diamond** er standard), tilføj dine tiles til trinene og tryk på **Save roads**. Hvert tile du linker til, skal ligge på det næste trin.',
         'Veje kan dele sig og mødes igen, men der er kun ét mål. Ved en vejgaffel vælger du, om fuldførelse af et tile sætter vejen, eller om kaptajnen vælger den og låser den. Den fulde liste over valg, og hvad spillerne ser, står i [Formats, and how tiles open]({formatsGuide}).',
       ],
     },
@@ -2159,7 +2165,7 @@ const da: PartialGuideDict = {
         'Åbn eventets **Tiles**-side og find **Route**.',
         'Vælg en **Route template** og tryk på **Apply template**. **Diamond** er standard: én start, to veje, ét mål. **Two roads**, **Braid**, **Straight line** og **Free** (uden links) findes også.',
         'Vælg **How a team’s road is set at a fork**: efter præstation, eller vælg og lås.',
-        'Tilføj eller flyt trin med **+ Step before**, **Move step earlier/later** og **Remove step**, og tryk derefter på **Save route**.',
+        'Tilføj eller flyt trin med **+ Empty step before**, **Move step earlier/later** og **Remove step**, og tryk derefter på **Save roads**.',
         'Er eventet allerede live, spørger Anvil, hvad der skal ske med færdiggørelser, den nye rute skærer af: **Keep** dem eller **Roll back**.',
       ],
       outro:
@@ -2290,16 +2296,16 @@ const da: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'I kassen',
+          term: 'Confirmed total',
           body: 'godkendte donationer og reguleringer. Hvad klanen har fået, minus hvad den har afskrevet.',
         },
         {
-          term: 'Lovet væk',
+          term: 'Promised',
           body: 'gp som en præmie har gjort krav på — vundet men ikke sendt endnu, plus en eventuel pulje sat af til en plade. Disponeret, også selvom det stadig står i nogens bank.',
         },
         {
-          term: 'Frit at love væk',
-          body: 'i kassen minus lovet væk. Det eneste tal en ny præmie bliver holdt op imod, for alternativet er at love de samme 50m til to vindere mens kassereren sover.',
+          term: 'Available',
+          body: 'Confirmed total minus Promised. Det eneste tal en ny præmie bliver holdt op imod, for alternativet er at love de samme 50m til to vindere, mens kassereren sover.',
         },
       ],
       note: {
@@ -2686,12 +2692,12 @@ const da: PartialGuideDict = {
       ],
       rows: [
         {
-          term: 'Godkend når det er sandsynligt',
-          body: 'du reviderer ikke en bank. Viser billedet tingen, står kontoen på medlemslisten, og ligger tidsstemplet inde i eventet, så godkend det og gå videre.',
+          term: 'Tryk Looks fine, når det er sandsynligt',
+          body: 'du reviderer ikke en bank. Viser billedet tingen, står kontoen på medlemslisten, og ligger tidsstemplet inde i eventet, så tryk **Looks fine** og gå videre.',
         },
         {
-          term: 'Afvis med en begrundelse',
-          body: 'en afvisning uden forklaring kommer tilbage som en DM til dig inden for en time. Sig hvad der manglede, så forsøg nummer to er rigtigt.',
+          term: 'Remove med en begrundelse',
+          body: '**Remove** spørger efter en begrundelse, og holdet ser den. Sig, hvad der manglede, så forsøg nummer to er rigtigt.',
         },
         {
           term: 'En markeret indsendelse er et spørgsmål, ikke en anklage',
@@ -2703,7 +2709,7 @@ const da: PartialGuideDict = {
     verify: {
       title: 'At verificere konti',
       intro:
-        'Ingen kan melde sig til et event uden mindst én verificeret konto, så den her kø blokerer folk direkte fra at spille. Det er den, der er værd at tømme dagligt.',
+        'Folk kan melde sig til med det samme, men en, der har bedt dig om at gå i borgen, venter på dig: på deres anmodning om at komme ind, hvor dine gæster skal godkendes, og derefter holdes de her, indtil du går i borgen for dem: tilmeldt, men på intet hold. Så den her kø blokerer folk direkte fra at spille. Det er den, der er værd at tømme dagligt.',
       rows: [
         {
           term: 'Verificeret via pluginnet',
@@ -2711,11 +2717,11 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Verify by XP',
-          body: 'til spillere uden pluginnet. Siden vælger en tilfældig skill, og de skal tjene 1.000 XP i den inden for tredive minutter. Den tjekker sig selv — du ser kun dem, der fejler.',
+          body: 'til spillere uden pluginet. Siden vælger en tilfældig skill, og de skal tjene 1.000 XP i den inden for tredive minutter. Den tjekker sig selv, og en bestået kontrol tilføjer dem automatisk til din klan som gæst og markerer dem under **Needs review**, så du kan kigge på det, når du kan (fjern dem der, hvis det er forkert), for XP viser, at nogen har trænet, ikke hvem. En kontrol, der fejler, er den, du skal kigge nærmere på.',
         },
         {
           term: 'Manuelt gennemsyn',
-          body: 'skjulte Hiscores eller en alt, der er for ny til at stå på dem. Nogen indsender et RSN med en note, og du bestemmer. Bed om et screenshot af login-skærmen, hvis noten ikke er nok.',
+          body: 'skjulte Hiscores eller en alt, der er for ny til at stå på dem. Nogen beder dig om at gå i borgen for et RSN, og du bestemmer. Hvor dine gæster skal godkendes, sender de først en anmodning om at komme ind og har ingen plads, før du accepterer den; hvor gæster lukkes ind frit, tilføjes de straks som gæst. Når de er gæst, kan de melde sig til, men deres tilmeldinger holdes, på intet hold, indtil du godkender. Godkender du, bliver de fuldført, og **Not our member** trækker dem tilbage. Bed om et screenshot af login-skærmen, hvis du ikke er sikker.',
         },
       ],
       note: {
@@ -2727,7 +2733,7 @@ const da: PartialGuideDict = {
     roster: {
       title: 'At holde medlemslisten ærlig',
       body: [
-        'Medlemslisten kommer ét sted fra: en admin kører en synkronisering fra klanlisten i spillet med **Anvil**-knappen i titellinjen på klanvinduet (eller **Sync roster** i pluginnets sidepanel). Alt andet — verificeringer, tilknytninger, tilmeldinger — hænger på den.',
+        'Medlemslisten kommer ét sted fra: en admin kører en synkronisering fra klanlisten i spillet med **Anvil**-knappen i titellinjen på klanvinduet (eller **Sync clan roster** i pluginnets sidepanel). Alt andet — verificeringer, tilknytninger, tilmeldinger — hænger på den.',
         'Så vedligeholdelsesjobbet er lille, men reelt: bed en admin om at køre synkroniseringen efter enhver rekrutteringsrunde (den gør gæster, der er kommet ind i klanen i spillet, til medlemmer), svar på anmodningerne om at komme ind øverst på **Roster**-fanen, og arbejd dig igennem **Needs review** i stedet for at vente på, at folk brokker sig. Se [Dine folk]({peopleGuide}).',
       ],
       note: {
@@ -2997,8 +3003,8 @@ const da: PartialGuideDict = {
         { term: 'Partner', body: 'Ingen grænse for spillere. Sættes op direkte med Anvil — kontakt os.' },
       ],
       note: {
-        tag: 'Lige nu',
-        body: 'Alle kommer stadig ind, mens Anvil vokser, også over din plans tal. Grænserne starter senere, med varsel. Dit plankort viser, hvor tæt du er på.',
+        tag: 'Dit plankort',
+        body: 'Dit plankort viser, hvor tæt du er på din plans tal, og hvilket niveau der giver dig plads.',
       },
     },
 
@@ -3257,7 +3263,7 @@ const da: PartialGuideDict = {
     roster: {
       title: 'Hvor medlemslisten kommer fra',
       body: [
-        'Medlemslisten er klanlisten fra spillet, kopieret over på siden. En admin sender den fra RuneLite med Anvil-pluginnet: tryk på **Anvil**-knappen i klanvinduets titellinje eller på **Sync roster** i pluginnets sidepanel. Alle på listen kommer ind som **medlem** med deres rang fra spillet. Kun en med Admin-rollen på siden kan sende den. Alle andre får det at vide i spillet.',
+        'Medlemslisten er klanlisten fra spillet, kopieret over på siden. En admin sender den fra RuneLite med Anvil-pluginnet: tryk på **Anvil**-knappen i klanvinduets titellinje, eller på **Sync clan roster** i pluginnets sidepanel. Alle på listen kommer ind som **medlem** med deres rang fra spillet. Kun en med Admin-rollen på siden kan sende den. Alle andre får det at vide i spillet.',
         'En synkronisering er det eneste, der gør nogen til medlem af sig selv. Forlader nogen klanen i spillet, bliver de markeret som udmeldt ved næste synkronisering, og melder de sig ind igen, kommer de tilbage ved synkroniseringen efter. Deres historik bliver liggende i begge tilfælde.',
         'Alle andre pladser er **gæstepladser**: folk, der spiller med i jeres events uden at være i klanen i spillet. Gæster bliver tracket og kan deltage i events. De er ikke medlemmer, og de tæller ikke med i jeres abonnement.',
       ],
@@ -3628,7 +3634,7 @@ const da: PartialGuideDict = {
       { strong: 'Intet bliver slettet', rest: 'når du stopper' },
     ],
     footnote:
-      'Alt her sættes på hjemmesiden under **Settings** → **Supporter**, **Profile look** og **Clan boosts**. Boosts i detaljer står i [At booste en klan]({boostsGuide}). Hvor dine farver vises i RuneLite, står i [Sidepanelet, fane for fane]({panelGuide}).',
+      'Alt dette sættes på hjemmesiden under **Settings**: **Account** → **Your plan & billing**, og **Profile & look** med sine **Name colours** og **Clan boosts**. Boosts i detaljer står i [At booste en klan]({boostsGuide}). Hvor dine farver vises i RuneLite, står i [Sidepanelet, fane for fane]({panelGuide}).',
 
     tiers: {
       title: 'De tre niveauer',
@@ -3649,7 +3655,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Tid fra invitationer',
-        body: 'Under Settings → Supporter får du et invitationslink. Når en ven, du har inviteret, betaler, optjener du gratis måneder; belønningen lander to uger efter deres første betaling. Tid optjent på den måde giver alle fordelene på sit niveau undtagen klan-boosts.',
+        body: 'Under Settings → Account → Your plan & billing får du et invitationslink. Når en ven, du har inviteret, betaler, optjener du gratis måneder; belønningen lander to uger efter deres første betaling. Tid optjent på den måde giver alle fordelene på sit niveau undtagen klan-boosts.',
       },
     },
 
@@ -3678,7 +3684,7 @@ const da: PartialGuideDict = {
     names: {
       title: 'Navnefarver',
       intro:
-        'Sæt dem under **Settings** → **Supporter**, i **Your name’s look**. Forhåndsvisningen viser dit navn på en mørk og på en lys baggrund.',
+        'Sæt dem under **Settings** → **Profile & look** → **Name colours**. Forhåndsvisningen viser dit navn på en mørk og på en lys baggrund.',
       rows: [
         {
           term: 'Supporter',
@@ -3728,13 +3734,13 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Kun på karakterer, der er bevist at være dine',
-        body: 'Farverne vises kun på karakterer, pluginnet har bekræftet er dine, på siden og i spillet. Vil du holde dem væk fra dine navne i andres chat i spillet, så fjern fluebenet i **Show my colours on my characters’ names in game chat** under Settings → Supporter.',
+        body: 'Farverne vises kun på karakterer, pluginnet har bekræftet er dine, på siden og i spillet. Vil du holde dem væk fra dine navne i andres chat i spillet, så fjern fluebenet i **Show my colours on my characters’ names in game chat** under Settings → Account → Your plan & billing.',
       },
     },
 
     profile: {
       title: 'Avatar, banner og vitrine',
-      intro: 'Alle tre ligger under **Settings** → **Profile look**.',
+      intro: 'Alle tre ligger under **Settings** → **Profile & look**.',
       rows: [
         {
           term: 'Avatar og banner',
@@ -3783,7 +3789,7 @@ const da: PartialGuideDict = {
         'Betal. Dine fordele slår til, så snart Gumroad giver Anvil besked, og dit niveau står på Supporter-siden som **Your tier**.',
       ],
       outro:
-        'Skift niveau med **Change tier** under Settings → Supporter. Opsig eller opdatér dit kort med **Manage on Gumroad** samme sted. Et opsagt medlemskab beholder alle fordele til slutningen af den periode, du har betalt for.',
+        'Skift niveau med **Change tier** under Settings → Account → Your plan & billing. Opsig eller opdatér dit kort med **Manage on Gumroad** samme sted. Et opsagt medlemskab beholder alle fordele til slutningen af den periode, du har betalt for.',
       note: {
         tag: 'Start altid fra /supporter',
         body: '**Choose**-knappen bærer en kode, der fortæller Anvil, hvilken konto der betalte. Anvil matcher aldrig en betaling på e-mail, så køber du direkte hos Gumroad uden den knap, bliver betalingen ikke koblet til noget. Er det sket, så spørg på Anvils Discord, så kan staben knytte den til din konto i hånden.',
@@ -3814,7 +3820,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'En midlertidig opgradering fra Anvils stab',
-        body: 'Staben kan give nogen et højere niveau i en periode, fx som tak. Det ligger oven på det, du betaler, og ændrer aldrig dit abonnement. Settings → Supporter viser **A gift from Anvil** og hvornår den udløber; derefter er du tilbage på dit betalte niveau. En gave giver kun pladser til klan-boosts, når staben tager dem med.',
+        body: 'Staben kan give nogen et højere niveau i en periode, fx som tak. Det ligger oven på det, du betaler, og ændrer aldrig dit abonnement. Settings → Account → Your plan & billing viser **A gift from Anvil** og hvornår den udløber; derefter er du tilbage på dit betalte niveau. Staben kan også tilføje tid til et niveau, du allerede har. Betaler du for det niveau, starter den tilføjede tid, når dit medlemskab slutter, og dine betalinger ændrer sig ikke. En gave giver kun pladser til klan-boosts, når staben tager dem med.',
       },
     },
   },
@@ -3875,7 +3881,7 @@ const da: PartialGuideDict = {
         {
           term: 'Events',
           body:
-            'alle live og kommende boards, Skill- eller Boss of the Week og klanevents, med hvor du står. Derefter **Your other boards**, **Also live** og **Your clan**.',
+            'alle live og kommende boards, Skill- eller Boss of the Week og klanevents, med hvor du står. Derefter **Running**, **Coming up**, **Also live** og **Your clan**.',
         },
         {
           term: 'Et board',
@@ -3889,7 +3895,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Et klanevent',
-          body: '**I’m going**, **Sign me up** eller **Answer the survey**, afhængigt af eventet.',
+          body: '**I’m going**, **Register** (eller **Register on Anvil**, når værten har spørgsmål) eller **Answer the survey**, afhængigt af eventet.',
         },
       ],
     },
@@ -3916,7 +3922,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Ikke det samme som chatfeedet i spillet',
-        body: 'Feed-fanen virker, uanset hvad dine pluginindstillinger siger. **Show feed in game chat** (trin 8) er den separate indstilling, der også skriver det i din chatboks.',
+        body: 'Feed-fanen virker, uanset hvad dine pluginindstillinger siger. **Anvil messages in chat** (trin 8) er den separate indstilling, der også skriver det i din chatboks.',
       },
     },
 
@@ -3960,7 +3966,7 @@ const da: PartialGuideDict = {
         {
           term: 'Afsendelse',
           body:
-            'skriv i feltet og tryk på Enter. Linjer kan være op til 200 tegn, og kun værten og mods kan poste links.',
+            'skriv i feltet og tryk på Enter. Linjer kan være op til 80 tegn (en længere afvises), og kun værten og mods kan poste links.',
         },
         {
           term: 'Hvor ofte',
@@ -4030,27 +4036,19 @@ const da: PartialGuideDict = {
     settings: {
       title: 'Indstillinger, der ændrer, hvad du ser',
       intro:
-        'I RuneLites konfiguration for Anvil, under **Chat messages**. De er alle slået til fra start.',
+        'I RuneLites konfiguration for Anvil, under **General**. De er alle slået til fra start.',
       rows: [
         {
-          term: 'Show feed in game chat',
+          term: 'Anvil messages in chat',
           body: 'skriver også feedet i din chatboks, efterhånden som det sker: store drops, pets og achievements fra bræt, hvis vært har slået det til, og klaner, du er gæst i, dine holdkammeraters fremskridt på felter og andre holds færdige felter.',
         },
         {
           term: 'Supporter names in chat',
-          body: 'Supporters’ farver (og en Patrons stjerne) i offentlig chat, klan-, venne- og privatchat og på din venneliste og kanalernes medlemslister. Listen over navne hentes fra Anvil; intet om, hvem du ser, bliver sendt.',
+          body: 'Supporters’ farver (og en Patrons stjerne) i offentlig chat, klan-, venne- og privatchat og på din venneliste og kanalernes medlemslister. Listen over navne hentes fra Anvil; intet om, hvem du ser, bliver sendt. Vælg **Animated** (en Patrons gradient glider), **Still colours** eller **Off**.',
         },
         {
-          term: 'Animated names',
-          body: 'lader en Patrons gradient glide i panelet, Feed og eventchatten. Slået fra står den stille. I næste pluginopdatering dækker den også boostede klannavne og animerede bannere i panelet.',
-        },
-        {
-          term: 'Supporter names in menus',
-          body: 'Supporters’ farver på deres navn, når du højreklikker på dem, aldrig på PvP-verdener eller i Wilderness.',
-        },
-        {
-          term: 'Over other plugins’ colours',
-          body: 'slået til erstatter en Supporters farver en navnefarve, et andet plugin har sat, fx Player Indicators. Slået fra lader de navne være.',
+          term: 'Supporter & clan looks in game (outside chat)',
+          body: 'Supporters’ farver på deres navn, når du højreklikker på dem, og på venne- og kanalmedlemslister, og en boostet klans navn i klanpanelet. Aldrig på PvP-verdener eller i Wilderness.',
         },
       ],
     },
@@ -4069,7 +4067,7 @@ const da: PartialGuideDict = {
       { strong: 'Én gang om ugen', rest: 'kan et boost flyttes' },
     ],
     footnote:
-      'Medlemmer placerer boosts under **Settings** → **Clan boosts**. Klanens stab ser niveauet og dets muligheder under Admin → **Clan settings** → **Boosts**. Selve niveauerne står i [Anvil Supporter: niveauer og fordele]({supporterGuide}).',
+      'Medlemmer placerer boosts under **Settings** → **Profile & look** → **Clan boosts**. Klanens stab ser niveauet og dets muligheder under Admin → **Clan settings** → **Boosts**. Selve niveauerne står i [Anvil Supporter: niveauer og fordele]({supporterGuide}).',
 
     what: {
       title: 'Hvem har boosts',
@@ -4083,7 +4081,7 @@ const da: PartialGuideDict = {
         },
       ],
       outro:
-        'Boosts tilhører dig, ikke en karakter: tre karakterer i tre klaner deler stadig ét sæt. **Settings** → **Clan boosts** vises kun i dine indstillinger, mens du er Supporter eller stadig har et boost placeret.',
+        'Boosts tilhører dig, ikke en karakter: tre karakterer i tre klaner deler stadig ét sæt. **Settings** → **Profile & look** → **Clan boosts** vises altid, men kun et Champion- eller Patron-medlemskab giver pladser; uden et ser du reglerne og et link til Supporter.',
     },
 
     place: {
@@ -4092,7 +4090,7 @@ const da: PartialGuideDict = {
       steps: [
         'Åbn **Settings** → **Clan boosts**. **Your boosts** viser, hvad du har placeret, og eventuelle **Free slot**.',
         'Under **Clans you can boost** trykker du **Boost** ud for en klan. Du kan også trykke **Boost this clan** i Boosters-afsnittet på klanens egen side.',
-        'Vil du flytte et, så brug **Move to…** på dets række, og vælg en anden klan. **Remove** tager det af.',
+        'Vil du flytte et, så tryk på **Move** på dets række, og vælg en anden klan under **Move to…**. **Remove** tager det af.',
       ],
       rows: [
         {
@@ -4191,7 +4189,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Rekrutteringsopslag på Anvils Discord',
-          body: 'Niveau 3. Én gang pr. kalendermåned, 20 til 500 tegn, skrevet af dig og postet, når du trykker **Post it**, med et link til jeres klanside. Mentions bliver fjernet, og ingen bliver pinget. Du kan ikke redigere det eller sende et nyt før næste måned.',
+          body: 'Niveau 3. Én gang pr. kalendermåned, 20 til 500 tegn, skrevet af dig og postet, når du trykker **Post to the Anvil Discord** og derefter **Post it** for at bekræfte, med et link til jeres klanside. Mentions bliver fjernet, og ingen bliver pinget. Du kan ikke redigere det eller sende et nyt før næste måned.',
         },
         {
           term: 'Boosters',
@@ -4340,7 +4338,7 @@ const da: PartialGuideDict = {
       title: 'Find en indstilling',
       body: [
         'Den første side, **Overview & search**, har et søgefelt. Skriv det, du vil have, med egne ord, som _private messages_, _rare drop value_, _death message_, _name colour_ eller _plugin token_, og det fører dig til det rette skifte.',
-        'Menuen ned ad siden har to grupper. **Account** rummer siderne nedenfor. **Characters** har én side pr. karakter, du har koblet (din hovedkarakter er markeret **main**), og så **Add character**. Et tal på **Add character** betyder, at Anvil har set dig spille karakterer, du ikke har koblet endnu.',
+        'Menuen ned ad siden har fem sider: **Profile & look**, **Characters**, **In game**, **Posts & alerts** og **Account**. Under **Characters** er der én side pr. karakter, du har koblet (din hovedkarakter er markeret **main**), og så **Add character**. Et tal på **Add character** betyder, at Anvil har set dig spille karakterer, du ikke har koblet endnu.',
       ],
     },
     posts: {
@@ -4357,7 +4355,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Hvor dine opslag går',
-          body: '**Keep my announcements out of clans I only guest in**, og **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** lister hver karakter med et **Clans →**-link, så du kan slå opslag fra for én klan.',
+          body: '**Post my drops and levels in clans where I am a guest** (slået fra, indtil du slår den til), og **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** lister hver karakter med et **Clans →**-link, så du kan slå opslag fra for én klan.',
         },
         {
           term: 'Skærmbilleder pr. type',
@@ -4387,7 +4385,7 @@ const da: PartialGuideDict = {
     },
     chat: {
       title: 'Chatfeed i spillet',
-      intro: 'Hvad pluginnet skriver i din chatboks, når pluginindstillingen **Show feed in game chat** er slået til.',
+      intro: 'Hvad pluginnet skriver i din chatboks, når pluginindstillingen **Anvil messages in chat** er slået til.',
       rows: [
         {
           term: 'Hvorfra',
@@ -4413,15 +4411,15 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Pluginforbindelse',
-          body: 'dit plugin-token, til det sjældne tilfælde hvor du indsætter det i hånden. Normalt gør **Sign in with Discord** i sidepanelet det for dig.',
+          body: 'under **In game**: dit plugin-token, til det sjældne tilfælde hvor du indsætter det i hånden. Det laves én gang og er skjult, indtil du trykker **Reveal**, og **Revoke all** annullerer alle tokens. Normalt gør **Sign in with Discord** i sidepanelet det for dig.',
         },
         {
           term: 'Login og enheder',
-          body: 'hver computer pluginnet er logget ind på, som **RuneLite sign-in 1**, **2** … med hvornår den blev lavet og sidst brugt. **Revoke** logger en ud, f.eks. en computer du har solgt. **Enter a code** kobler en anden computer til. **Sessions** logger dig ud af hjemmesiden alle steder.',
+          body: 'under **Account**: hver computer pluginnet er logget ind på, som **RuneLite sign-in 1**, **2** … med hvornår den blev lavet og sidst brugt. **Revoke** logger en ud, f.eks. en computer du har solgt. **Enter a code** kobler en anden computer til. **Sessions** logger dig ud af hjemmesiden alle steder.',
         },
         {
           term: 'Klanfakturering',
-          body: 'klanejere får **Open portal →** her, til klanens fakturering.',
+          body: 'under **Account**, klanejere får **Open portal →** her, til klanens fakturering.',
         },
       ],
     },
@@ -4456,11 +4454,11 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Supporter og navnefarver',
-          body: 'dit niveau, dine fordele og dit invitationslink: tag venner med og optjen gratis måneder. Niveauerne forklares i [Anvil Supporter]({supporterGuide}).',
+          body: 'under **Account** → **Your plan & billing**: dit niveau, dine fordele og dit invitationslink: tag venner med og optjen gratis måneder. Niveauerne forklares i [Anvil Supporter]({supporterGuide}).',
         },
         {
           term: 'Profilens udseende',
-          body: 'avatar og banner (animeret fra Champion), forskellige pr. karakter hvis du vil, og **Display case**: 4, 8 eller 12 pins efter niveau.',
+          body: 'under **Profile & look**: avatar og banner (animeret fra Champion), forskellige pr. karakter hvis du vil, og **Display case**: 4, 8 eller 12 pins efter niveau.',
         },
         {
           term: 'Streamingkonti',
@@ -4468,7 +4466,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Klan-boosts',
-          body: 'vises først, når du kan booste: dine pladser, hvor de er placeret, og de klaner du kan booste. Se [Sådan booster du en klan]({boostsGuide}).',
+          body: 'under **Profile & look**: dine pladser, hvor de er placeret, og de klaner du kan booste. Uden et Champion- eller Patron-medlemskab vises reglerne. Se [At booste en klan]({boostsGuide}).',
         },
       ],
     },
@@ -4558,7 +4556,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Starting lines',
-          body: 'hver spillers **Started at**, **Now** og **Gained**. Ret en startlinje i hånden, når et grind før konkurrencen blev talt, og ranglisten følger med. **Pull current stats** opdaterer alle; **Reset baselines** starter alle forfra fra deres hiscores nu og fjerner alle gevinster.',
+          body: 'hver spillers **Started at**, **Now** og **Gained**. Ret en startlinje i hånden, når et grind før konkurrencen blev talt, og ranglisten følger med. **Pull current stats** opdaterer alle; **Reset every baseline** starter alle forfra fra deres hiscores nu og fjerner alle gevinster.',
         },
         {
           term: 'Participants',
@@ -4791,7 +4789,7 @@ const da: PartialGuideDict = {
     players: {
       title: 'Hvad medlemmer ser',
       body: [
-        'Eventsiden viser **When**, **Where**, **Host**, **Discord**, **Entry** og **Prizes**, med **Live now**, mens det kører. Medlemmer trykker **I’m going** eller **Sign me up**, eller **Ask to sign up**, når staff godkender hver enkelt. Det står også i pluginnets sidepanels fane **Clan**, med de samme knapper.',
+        'Eventsiden viser **When**, **Where**, **Host**, **Discord**, **Entry** og **Prizes**, med **Live now**, mens det kører. Medlemmer trykker **I’m going** eller **Register**, eller **Ask to sign up**, når staff godkender hver enkelt. Det står også i pluginnets sidepanels fane **Clan**, med de samme knapper.',
         'Kun medlemmer af klanen kan sige, at de kommer, eller tilmelde sig.',
       ],
     },
@@ -4953,7 +4951,7 @@ const da: PartialGuideDict = {
       title: 'Find et event at deltage i',
       body: [
         '[Events](/events) lister, hvad der kører og kommer op på tværs af Anvil. Filtrér efter **Live now**, **Open to join** eller **Starting this week**, efter format eller **Solo**, efter **Anyone can join** eller **Ask or meet a rule**, og efter **Clans** eller **Creators**. **Join** fører dig til at tilmelde dig.',
-        'Kun events, hvis vært slog **Advertise on Anvil** til, vises. Medlemsbegrænsede og inviteringsbegrænsede events gør aldrig.',
+        'Kun events, hvis vært slog **List on Anvil** til, vises. Medlemsbegrænsede og inviteringsbegrænsede events vises aldrig.',
       ],
     },
     ghost: {

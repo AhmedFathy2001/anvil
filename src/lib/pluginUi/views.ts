@@ -1,3 +1,4 @@
+import type { PanelHighlights } from './highlightsUi';
 import { withoutPetDoubles } from '@/lib/momentDupes';
 import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
 import type { TenureGlyph } from '@/lib/supporterTiers';
@@ -9,7 +10,7 @@ import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
-import { clans, events, memberClogItems, settings, tiles, users } from '@/db/schema';
+import { clans, eventParticipants, events, eventStartProofs, memberClogItems, settings, tiles, users } from '@/db/schema';
 import { challengesForAccount, respondToChallenge } from '@/lib/h2h';
 import { h2hUi } from './h2hUi';
 import { apexCharacter } from '@/lib/apexProfiles';
@@ -34,11 +35,14 @@ import { resolveClanById } from '@/lib/clanContext';
 import { pluginRsnHintOnly, resolvePluginMember } from '@/lib/auth';
 import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
-import type { RosterPersonOut, RosterTeamOut } from '@/lib/eventRoster';
+import type { RosterPersonOut, RosterTeamOut, RosterTeamPage } from '@/lib/eventRoster';
+import { parseEventRules } from '@/lib/eventRules';
+import { startProofWindowOpen } from '@/lib/startProof';
 import { streakWeeksForRsns } from '@/lib/activityStreaks';
 import { rankMove, teamBaselineRanks } from '@/lib/rankMoves';
 import type { StandingsWindow } from '@/lib/standingsWindow';
 import { rateLimit } from '@/lib/rate-limit';
+import type { WeeklyGroupsPayload } from './teamStandingsUi';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
@@ -70,7 +74,7 @@ import { boardFeedLinks } from './feedUi';
 import { type Action, type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
-import { rosterUi, teamsUi } from './teamsUi';
+import { missingStartShots, rosterUi, teamsUi } from './teamsUi';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
 import { curtainInfo, standingsHiddenNotice } from '@/lib/standingsVisibility';
 import { clanBasePath } from '@/lib/clanScopedPaths';
@@ -552,6 +556,24 @@ async function proofDeleteAct(request: Request, a: Args, reason: string | undefi
   return boardView(request, a, error);
 }
 
+/**
+ * A team's captain sees who on it still owes a starting shot. Only the team's own captain (the
+ * roster marks the caller `you` and `captain`), and only while the ask is open: names are the
+ * enrolments' own, never anyone's login.
+ */
+async function missingShotsFor(eventId: number, data: RosterTeamPage): Promise<string[]> {
+  if (!data.players.some((p) => p.you && p.captain)) return [];
+  // clan-scope: global -- the event the roster call above already resolved for this viewer.
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!ev || !ev.startProofDrawnAt || !parseEventRules(ev.rules).startProof) return [];
+  const open = startProofWindowOpen({ ...ev, id: ev.id } as never);
+  if (!open) return [];
+  const members = await db.select({ id: eventParticipants.id, name: eventParticipants.name }).from(eventParticipants).where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, data.team.teamId)));
+  if (!members.length) return [];
+  const proofs = await db.select({ playerId: eventStartProofs.playerId, status: eventStartProofs.status }).from(eventStartProofs).where(inArray(eventStartProofs.playerId, members.map((m) => m.id)));
+  return missingStartShots(members, new Map(proofs.map((p) => [p.playerId, p.status])), open);
+}
+
 async function teamsView(request: Request, a: Args): Promise<View> {
   const scope = positive(a.event) ? null : await pluginBoardScope(request, null);
   const event = positive(a.event) ?? scope?.event.id ?? 0;
@@ -568,7 +590,8 @@ async function teamsView(request: Request, a: Args): Promise<View> {
     }
   }
   const players = !!data && (data.mode === 'players' || (data.mode === 'search' && !!data.ranked));
-  return { ui: a.part === 'list' ? rosterUi(data, state) : withBack(a, players ? 'Players' : 'Teams', teamsUi(data, state, q)) };
+  const missing = data && data.mode === 'members' ? await missingShotsFor(event, data).catch(() => []) : [];
+  return { ui: a.part === 'list' ? rosterUi(data, state, missing) : withBack(a, players ? 'Players' : 'Teams', teamsUi(data, state, q, missing)) };
 }
 
 /** A page opened from the Clan tab: "‹ <event>" back to it, then the page's title over it. */
@@ -613,14 +636,23 @@ async function focusBoard<C extends HomeConfig>(request: Request, cfg: C, eventI
 
 async function homeView(request: Request, a: Args): Promise<View> {
   const res = await configRoute(request);
-  const noClan = 'You’re not in a clan or an event on Anvil yet — join one on the site and it shows here.';
+  // No dead end: the two ways to get a clan are one click each. Your own characters are on the You tab.
+  const noClan = () =>
+    message('You’re signed in, but not in a clan or an event yet. Find your clan, or open an invite link from your host. Your characters are on the You tab.', [
+      gap(6),
+      button('Find a clan', { a: 'site', path: '/clans' }),
+      gap(4),
+      button('Events open to everyone', { a: 'site', path: '/events' }),
+      gap(4),
+      button('Start a clan', { a: 'site', path: '/clans/new' }),
+    ]);
   if (!res.ok) {
-    return message(res.status === 404 ? noClan : 'Couldn’t reach Anvil — try again in a moment.');
+    return res.status === 404 ? noClan() : message('Couldn’t reach Anvil — try again in a moment.');
   }
   let cfg = (await res.json()) as HomeConfig & { clanless?: boolean; event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
   // In no clan, but in a head-to-head drop race: the config answered only to carry the race's items
   // (lib/pluginConfigClanless). The Clan tab still has no clan to show.
-  if (cfg.clanless) return message(noClan);
+  if (cfg.clanless) return noClan();
   const now = Date.now();
   // `open: board:<id>`: another board this character is on gets the same event page the followed one
   // does. Only a seat liveBoardsForCharacter names (live, visible clan, this character's own entry),
@@ -659,8 +691,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
         const url = new URL(request.url);
         url.search = `?id=${w.id}${me ? `&rsn=${encodeURIComponent(me.rsn)}` : ''}`;
         const r = await weeklyRoute(new Request(url, { headers: request.headers }));
-        type Row = { rank: number; rsn: string; gained: number; move?: number | null };
-        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null }) : null] as const;
+        type Row = { rank: number; rsn: string; gained: number; move?: number | null; sub?: string | null };
+        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null; groups?: WeeklyGroupsPayload | null; highlights?: PanelHighlights | null }) : null] as const;
       }),
     ),
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
@@ -687,7 +719,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     if (!b) continue;
     const top = (b.entries ?? []).map((e) => ({ ...e, self: !!me && norm(e.rsn) === norm(me.rsn) }));
     // Past the top 50 the route still names your own row.
-    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null) });
+    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null), groups: b.groups ?? null, highlights: b.highlights ?? null });
   }
   // Cheap and best effort: the support line is a nudge, never a reason the panel fails.
   const viewer = await verifyPluginTokenUser(request).catch(() => null);
@@ -807,7 +839,11 @@ async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
   const playerId = await viewerPlayerId(request);
   const member = await canSeeClan({ clanId: clan.id, visibility: 'private', playerId, userId: user.userId });
   if (!member) return message('Only members of this clan can say they’re going.');
-  if (!(await rateLimit(request, `plugin-clan-event-going:${user.userId}`, { limit: 20, windowMs: 60_000 })).ok) return back();
+  if (!(await rateLimit(request, `plugin-clan-event-going:${user.userId}`, { limit: 20, windowMs: 60_000 })).ok) {
+    // Redraw as it was, with one line saying why the tap did nothing.
+    const v = await back();
+    return { ui: col([text('Too many taps — give it a minute.', 'error', { wrap: true }), gap(4), v.ui]) };
+  }
   const r = await setGoing(clan.id, Number(a.id), { userId: user.userId, playerId: playerId ?? null, displayName: null }, a.going === '1');
   return r.ok ? back() : message(r.error);
 }

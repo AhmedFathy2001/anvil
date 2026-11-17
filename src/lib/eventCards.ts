@@ -1,3 +1,4 @@
+import { entrantChip, playsAsIndividuals } from '@/lib/competitionRows';
 import { db } from '@/db';
 import { eventIconUrl } from '@/lib/eventImage';
 import { clans, completions, eventCohosts, events, teams, tiles } from '@/db/schema';
@@ -7,6 +8,8 @@ import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { hasRevealPolicy, parseEventRules } from '@/lib/eventRules';
 import { eventShapeBadge, isPointsMode } from '@/lib/utils';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { eventStage, START_WAITING_WORDS, startIsHeld } from '@/lib/eventStage';
+import { raceStandingsForEvent } from '@/lib/raceRoutesDb';
 
 /**
  * One event, reduced to what a card needs.
@@ -46,6 +49,11 @@ export interface EventCard {
       event. Only a hint: the card still links to this clan's own `/events/<id>`, which serves a
       co-host's members the board (lib/eventScope `requireEventForParticipantPage`). */
   hostSlug: string | null;
+  /** Every scoring team's figure, best first, for the viewer's "2nd of 4" (lib/competitionRows). The
+      card's own scoring, from the same read as `top`, so it costs no query. Empty when no place can
+      be given: standings hidden, not started, a tile race (ordered by route, not score) or a ladder
+      (ranked by stats). `teams` is the whole field, scoring or not. */
+  ranking: { teams: number; scores: { teamId: number; value: number }[] };
   /** The card's picture: the event's own icon, else its HOST clan's logo; null = the crest. */
   iconUrl: string | null;
 }
@@ -107,14 +115,13 @@ export async function loadEventCards(
     .orderBy(desc(events.createdAt));
 
   // A draft has no start date and no forced end: the host is still building it, so it is not public.
-  const isDraft = (e: (typeof all)[number]) => !e.forceEndedAt && !e.startDate;
-  const live = all.filter(
-    (e) => !e.forceEndedAt && !isDraft(e) && !(e.endDate && e.endDate < nowIso) && !(e.startDate && e.startDate > nowIso),
-  );
-  const upcoming = opts.includeUpcoming
-    ? all.filter((e) => !e.forceEndedAt && !!e.startDate && e.startDate > nowIso)
-    : [];
-  const past = all.filter((e) => !!e.forceEndedAt || (!!e.endDate && e.endDate < nowIso));
+  // ONE derivation (lib/eventStage) for live / upcoming / past, so a card can never disagree with
+  // the event page's badge, and an event past its end date can't sit under "Happening now".
+  const nowMs = Date.parse(nowIso);
+  const stageOf = (e: (typeof all)[number]) => eventStage(e, nowMs);
+  const live = all.filter((e) => !!e.startDate && stageOf(e) === 'run');
+  const upcoming = opts.includeUpcoming ? all.filter((e) => !!e.startDate && stageOf(e) === 'build') : [];
+  const past = all.filter((e) => stageOf(e) === 'wrap');
   const shownPast = opts.pastLimit != null ? past.slice(0, opts.pastLimit) : past;
   const shown = [...live, ...upcoming, ...shownPast];
   if (shown.length === 0) return [];
@@ -236,6 +243,21 @@ export async function loadEventCards(
     : [];
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
 
+  // A tile race is ordered by the route, not by tiles claimed: first to finish, then steps done, then
+  // who reached that step first (lib/raceRoutesDb raceStandingsForEvent, the event page's own order).
+  // A branching board has more tiles than steps, so "most tiles" named the wrong leader.
+  // The route's length is the board's size: like the tile count, it stays back until the reveal.
+  const raceTop = new Map<number, NonNullable<EventCard['top']>>();
+  for (const event of shown) {
+    if (event.format !== 'tilerace' || !event.startDate || upcoming.some((e) => e.id === event.id)) continue;
+    if (standingsHidden({ ...event, rules: rulesById.get(event.id)! })) continue;
+    const race = await raceStandingsForEvent(event).catch(() => null);
+    const first = race?.standings.find((r) => r.rank === 1 && r.stepsDone > 0);
+    if (!race || !first) continue;
+    const [team] = await db.select({ name: teams.name, color: teams.color }).from(teams).where(eq(teams.id, first.teamId)).limit(1);
+    if (team) raceTop.set(event.id, { name: team.name, color: team.color, score: first.stepsDone, total: event.tilesRevealed || past.some((e) => e.id === event.id) ? race.steps : 0, unit: 'steps' });
+  }
+
   return shown.map((event) => {
     const status: EventCard['status'] = live.some((e) => e.id === event.id)
       ? 'live'
@@ -272,21 +294,33 @@ export async function loadEventCards(
       if (!team || team.eventId !== event.id) continue;
       top = { name: team.name, color: team.color, score: value, total, unit };
     }
+    if (event.format === 'tilerace') top = scoreable ? raceTop.get(event.id) ?? null : null;
 
     const teamCount = teamCounts.get(event.id) ?? 0;
     // Set only in a CO-HOST's view (the event's own clan is someone else).
     const cardHostSlug = event.clanId === clanId ? null : hostSlugByEvent.get(event.id) ?? null;
     const axes = eventAxes({ ...event, rules });
     const chips: string[] = [];
-    if (axes.competitors === 'individuals') {
-      if (teamCount > 0) chips.push(`${teamCount} player${teamCount === 1 ? '' : 's'}`);
-    } else if (teamCount > 0) {
-      chips.push(`${teamCount} team${teamCount === 1 ? '' : 's'}`);
-    }
+    const entrants = entrantChip(playsAsIndividuals(event, axes.competitors), teamCount);
+    if (entrants) chips.push(entrants);
     if (claimed > 0) chips.push(`${claimed} claimed`);
     // Appended (never first — eventsHub parses chips[0] for the entrant count) so a co-host's card
     // reads as theirs-to-play but not theirs-to-run.
     if (cardHostSlug) chips.push(`co-hosted · ${cardHostSlug}`);
+
+    // The place the viewer's team holds, from the very figures `top` is picked from. Only a plain
+    // scored board: a race is ordered by route and a ladder by stats, neither by these figures.
+    const rankable = scoreable && event.format !== 'tilerace' && event.format !== 'ladder';
+    const ranking: EventCard['ranking'] = {
+      teams: teamCount,
+      scores: rankable
+        ? [...(teamScores.get(event.id) ?? [])]
+            .filter(([teamId]) => teamById.get(teamId)?.eventId === event.id)
+            .map(([teamId, score]) => ({ teamId, value: points ? score.points : score.tiles }))
+            .filter((r) => r.value > 0)
+            .sort((a, b) => b.value - a.value || a.teamId - b.teamId)
+        : [],
+    };
 
     return {
       id: event.id,
@@ -303,11 +337,14 @@ export async function loadEventCards(
       // Only set when this clan is a co-host (the event's own clan is someone else). Drives a
       // "co-hosted" hint on the card.
       hostSlug: cardHostSlug,
+      ranking,
       iconUrl: eventIconUrl(event, { logoUrl: hostLogoByEvent.has(event.id) ? hostLogoByEvent.get(event.id) : ownClan?.logoUrl }),
       foot:
         status === 'upcoming'
           ? event.startDate
-            ? `starts ${dateShort(event.startDate)}`
+            ? startIsHeld(event)
+              ? START_WAITING_WORDS
+              : `starts ${dateShort(event.startDate)}`
             : 'not scheduled yet'
           : status === 'live'
             ? event.endDate

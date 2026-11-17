@@ -79,6 +79,7 @@ import {
 import { KICK_ALREADY_USED } from '@/lib/gates/kick';
 import { kickContext, kickGateInfo, kickGateOptions, kickProbe, viewerKick } from '@/lib/gates/kickDb';
 import { claimGateAccount } from '@/lib/gates/claims';
+import { withPlanInForce } from '@/lib/planTrials';
 
 /** Shared across requests in this process. See GateCache for the TTLs. */
 export const gateCache = new GateCache();
@@ -537,7 +538,7 @@ export async function gateOptions(clanId: number): Promise<GateOptions> {
     configured ? hostTwitchChannel(clanId) : null,
     getBotCredentials(clanId),
     youtubeGateOptions(clanId),
-    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { plan: true, kind: true } }),
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { plan: true, kind: true } }).then((row) => withPlanInForce(clanId, row)),
   ]);
   const roles = creds
     ? (await fetchGuildRoles(clanId))

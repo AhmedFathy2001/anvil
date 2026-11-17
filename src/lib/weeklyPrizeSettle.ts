@@ -3,7 +3,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
-import { computeLeaderboard, countsTowardLeaderboard } from '@/lib/weekly';
+import { countsTowardLeaderboard } from '@/lib/weekly';
+import { competitionBoard, huntPrizeBoard } from '@/lib/itemHuntDb';
 import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
@@ -78,9 +79,25 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   // An event player's seat is never the clan's: no coffer prize for it.
   const eligible = rows.filter((r) => r.seatKind !== 'event' && (comp.includeGuests === 1 || r.seatKind !== 'guest'));
   const byRsn = new Map(eligible.map((r) => [r.rsn, r]));
-  const standings = computeLeaderboard(eligible).map((e) => ({
+  // competitionBoard: an item hunt places by its drops (lib/itemHuntDb), everything else by the gain.
+  // AN ITEM HUNT PAYS ONLY ON DROPS STAFF HAVE CONFIRMED, and the question is asked of the rows
+  // that are about to be paid: the hunt is ranked over `eligible` (the list the coffer pays, not
+  // the public board), and the hold looks at the paying places of that same ranking. While any drop
+  // behind one of them is unconfirmed nothing is reserved and nothing is stamped: the pass comes
+  // back every tick and settles once staff have confirmed (or turned down) those drops. The
+  // ladder's hold on the coffer stays in place meanwhile. A clan that chose "count plugin drops
+  // automatically" has no holds (lib/itemHunt unconfirmedPrizeDrops).
+  const hunt = comp.type === 'hunt' ? await huntPrizeBoard(comp, eligible, prizes.places.length) : null;
+  if (hunt && hunt.holds.length > 0) return { settled: false, reserved: 0, unfunded: 0 };
+  const board = hunt
+    ? hunt.rows.map((r) => ({ rsn: r.rsn, gained: r.count }))
+    : (await competitionBoard(comp, eligible)).map((e) => ({ rsn: e.rsn, gained: e.gained }));
+  const standings = board.map((e, i) => ({
     rsn: e.rsn,
-    gained: e.gained,
+    // A hunt's order is its rule's (first drop, or count then time), which the count alone cannot
+    // say: two finishers of a "first to get it" hunt both hold one drop and are not tied. So each
+    // placed hunter gets a strictly descending figure and "split ties" finds no tie to split.
+    gained: hunt ? (e.gained > 0 ? board.length - i : 0) : e.gained,
     clanMemberId: byRsn.get(e.rsn)?.clanMemberId ?? null,
   }));
 

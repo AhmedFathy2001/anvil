@@ -1,5 +1,6 @@
 'use client';
 
+import { eventStage } from '@/lib/eventStage';
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -141,7 +142,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)
-        .map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
+        .map((c) => ({ teamId: team.id, teamName: team.name, color: team.color, completedAt: c.completedAt }))
     : [];
 
   return (
@@ -183,6 +184,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           tile={selectedTile}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
           canSubmit={true}
           canManage={true}
           canToggle={true}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { helloListsActivity } from '@/lib/pluginHelloRules';
 import { db } from '@/db';
 import { LAST_SEEN_REFRESH_MS, resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
@@ -6,7 +7,8 @@ import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { reportedAnvilClanId } from '@/lib/gameClans';
-import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
+import { eq, and, lte, gt, isNull, ne, or } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { weeklyMetricLabel } from '@/lib/constants';
@@ -22,9 +24,17 @@ async function activeNow(clan: { id: number }) {
   const nowIso = new Date().toISOString();
   const [activeWeekly, activeBingos] = await Promise.all([
     db
-      .select({ type: weeklyCompetitions.type, title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
+      .select({
+        type: weeklyCompetitions.type,
+        title: weeklyCompetitions.title,
+        metric: weeklyCompetitions.metric,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+        status: weeklyCompetitions.status,
+      })
       .from(weeklyCompetitions)
-      .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active'))),
+      .where(and(eq(weeklyCompetitions.clanId, clan.id), ne(weeklyCompetitions.status, 'completed')))
+      .then((rows) => rows.filter((w) => weeklyStatus(w) === 'active').map(({ type, title, metric }) => ({ type, title, metric }))),
     db
       .select({ name: events.name })
       .from(events)
@@ -95,9 +105,14 @@ export async function POST(request: Request) {
   // clan-scope: this clan -- `here` carries the clan predicate.
   const existing = (await findRosterSeat(and(here, rosterClanSeat()))) ?? (await findRosterSeat(here));
 
-  if (!existing && !signedIn) {
-    // Not signed in: answer the question, touch nothing.
-    return NextResponse.json({ clanName: clan.name, clanSlug: clan.slug, rsn, knownMember: false, isGuest: false, ...(await activeNow(clan)) });
+  if (!signedIn) {
+    // Not signed in (no token, or one that was revoked): touch nothing and say nothing about this
+    // name, the same reply whether or not it holds a seat here. Otherwise the greeting is a roster
+    // probe for anyone with curl. `knownMember` is OMITTED, not false: a current plugin reads a
+    // missing answer as unknown and stays quiet, where an explicit false prints "Tracked as a guest"
+    // to a real member whose token just died. What is running is listed only for a public clan.
+    const running = helloListsActivity(signedIn, clan.visibility) ? await activeNow(clan) : { activeWeekly: [], activeBingos: [] };
+    return NextResponse.json({ clanName: clan.name, clanSlug: clan.slug, rsn, ...running });
   }
 
   if (!existing) {

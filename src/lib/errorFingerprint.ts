@@ -80,6 +80,27 @@ export function trimStack(stack: string | null | undefined): string | null {
   return lines.slice(0, STACK_FRAMES + 1).join('\n').slice(0, 4000);
 }
 
+/**
+ * Take the DATA out of an error's text, keeping what identifies the failure.
+ *
+ * A failed query's error reads "Failed query: <sql>\nparams: <every bound value>" — and the bound
+ * values are whatever the request carried: an email, a Discord id, a chat line, a token. Stored
+ * whole, they sat on /staff/errors and were posted into the ops channel by the digest. Postgres adds
+ * its own in a constraint detail: "Key (email)=(someone@example.com) already exists".
+ *
+ * Removed here, before anything is written or logged: the `params:` section (up to the cause, or to
+ * the first stack frame), and the value half of a `Key (…)=(…)` detail. The SQL text, the error
+ * name, the constraint and column names, the cause and the stack frames all stay — those are what an
+ * operator debugs with, and none of them is a person's data.
+ */
+export function scrubErrorText(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return raw
+    // "params: …" runs to the cause marker, the first stack frame, or the end — whichever is first.
+    .replace(/\r?\n?params: [\s\S]*?(?= — caused by |\r?\n\s+at |$)/g, '')
+    .replace(/Key \(((?:[^()]|\([^()]*\))*)\)=\((?:[^()]|\([^()]*\))*\)/g, 'Key ($1)=(<redacted>)');
+}
+
 export function truncateMessage(raw: string): string {
   return raw.length > MAX_MESSAGE ? `${raw.slice(0, MAX_MESSAGE - 1)}…` : raw;
 }

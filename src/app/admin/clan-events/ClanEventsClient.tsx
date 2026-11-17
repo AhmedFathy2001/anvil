@@ -1,5 +1,6 @@
 'use client';
 
+import { localDayIso } from '@/lib/gapPrefill';
 import { useCallback, useEffect, useState } from 'react';
 
 import ClanLink, { useClanUrl } from '@/components/ClanLink';
@@ -118,11 +119,19 @@ const SLOT_HINTS: Record<ChannelSlot, string> = { chat: 'Where to talk about it'
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export default function ClanEventsClient() {
+export default function ClanEventsClient({ prefillDay = null }: { prefillDay?: string | null }) {
   const clanUrl = useClanUrl();
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [form, setForm] = useState<Form>(BLANK);
   const [editing, setEditing] = useState<number | null>(null);
+  const [prefilledStart, setPrefilledStart] = useState<string | null>(null);
+  // The schedule's "Fill the gap" passes a day: start the form on it (evening, browser zone), changeable.
+  useEffect(() => {
+    if (!prefillDay) return;
+    const iso = localDayIso(prefillDay, 0, 19);
+    setForm((f) => (f.start ? f : { ...f, start: iso }));
+    setPrefilledStart(iso);
+  }, [prefillDay]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -321,7 +330,7 @@ export default function ClanEventsClient() {
         {events == null ? (
           <p className="text-sm text-text-muted">Loading…</p>
         ) : events.length === 0 ? (
-          <p className="text-sm text-text-muted">Nothing scheduled. Add one with the form.</p>
+          <p className="text-sm text-text-muted">Nothing scheduled yet. Use the form to add the first one.</p>
         ) : (
           <ul className="divide-y divide-card-border">
             {events.map((ev) => (
@@ -367,6 +376,9 @@ export default function ClanEventsClient() {
           <div>
             <label className={label}>Starts (your time)</label>
             <DateTimePicker value={form.start} onChange={(iso) => set('start', iso)} ariaLabel="Starts" required />
+            {prefilledStart && !editing && form.start === prefilledStart && (
+              <p className="mt-1 text-xs text-gold-light">Day filled in from the empty stretch on the schedule. Change it if you like.</p>
+            )}
           </div>
           <div>
             <label className={label}>Minutes</label>

@@ -70,6 +70,34 @@ export function foldBalance(groups: { kind: string; status: string; total: numbe
   return { confirmed, reserved, available, pending };
 }
 
+/** What the clan has promised and what it has paid, over the WHOLE ledger. */
+export interface CofferMoneyOut {
+  /** Prizes and pools not yet sent, held or not. */
+  stillOwed: number;
+  /** Prizes and pools sent, plus gp taken out by hand. */
+  paidOut: number;
+  /** How many movements those two add up. Zero hides the line. */
+  count: number;
+}
+
+/**
+ * The "still owed / paid out" line on the coffer page, from grouped totals of the money-out rows:
+ * awards, pools, and negative adjustments (`total` is the sum of their absolute amounts).
+ *
+ * The page used to add these up in the browser from the newest 200 ledger rows, so a clan with a
+ * longer ledger was told it owed and had paid less than it really had.
+ */
+export function foldMoneyOut(groups: { kind: string; status: string; total: number; count: number }[]): CofferMoneyOut {
+  const out: CofferMoneyOut = { stillOwed: 0, paidOut: 0, count: 0 };
+  for (const g of groups) {
+    if (g.kind !== 'award' && g.kind !== 'pool' && g.kind !== 'adjustment') continue;
+    out.count += g.count;
+    if (g.status === 'reserved' || g.status === 'planned' || g.status === 'unfunded') out.stillOwed += g.total;
+    if (g.status === 'paid' || g.kind === 'adjustment') out.paidOut += g.total;
+  }
+  return out;
+}
+
 /** Nothing at all — used where a clan has no ledger yet, so every surface has numbers to render. */
 export function emptyBalance(): CofferBalance {
   return { confirmed: 0, reserved: 0, available: 0, pending: 0 };

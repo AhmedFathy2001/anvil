@@ -20,6 +20,8 @@ import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { settleDeathSource } from '@/lib/deathSource';
 import { FALLEN_MODE } from '@/lib/hardcoreFall';
 import { recordH2hDrops, type ReportedDrop } from '@/lib/h2h';
+import { recordHuntReports } from '@/lib/itemHuntDb';
+import { log } from '@/lib/logger';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -239,6 +241,10 @@ export async function POST(request: Request) {
   // See lib/pluginNoClan: a moment with no clan to tell has nobody to tell.
   const clan = await resolvePluginClan(request);
   if (!clan) return noClanForPlugin();
+  // Item hunts (lib/itemHuntDb) read every drop, log line and pet first: a hunt counts its own
+  // targets whatever the feed's floors below would keep. Main game only, and a character in a
+  // hunt is the only one it does anything for. Never fails the push.
+  if (!mode) await recordHuntReports(member, clan.id, observations, new Date(now)).catch((err) => log.warn('hunt.record-failed', { clanId: clan.id }, err));
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
   const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));

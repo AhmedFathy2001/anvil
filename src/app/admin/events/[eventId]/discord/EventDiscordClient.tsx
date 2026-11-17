@@ -76,7 +76,7 @@ function Segmented<T extends string>({
           disabled={disabled}
           aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`min-h-9 px-3 py-1.5 text-[13px] transition-colors disabled:opacity-50 ${
+          className={`min-h-9 max-sm:min-h-10 px-3 py-1.5 text-[13px] transition-colors disabled:opacity-50 ${
             value === o.value ? 'bg-gold font-semibold text-brown-dark' : 'bg-brown-dark text-text-muted hover:text-foreground'
           }`}
         >
@@ -392,7 +392,7 @@ export default function EventDiscordClient({ eventId, hasCohosts }: { eventId: n
                         type="button"
                         disabled={saving}
                         onClick={() => setGroup(g.key, v)}
-                        className="min-h-9 rounded-lg border border-card-border px-3 text-[12px] text-text-muted hover:text-foreground disabled:opacity-50"
+                        className="min-h-9 max-sm:min-h-10 rounded-lg border border-card-border px-3 text-[12px] text-text-muted hover:text-foreground disabled:opacity-50"
                       >
                         {v === 'on' ? 'All on' : v === 'off' ? 'All off' : 'Reset'}
                       </button>

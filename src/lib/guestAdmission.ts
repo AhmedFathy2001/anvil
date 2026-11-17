@@ -11,7 +11,8 @@
 import { and, count, desc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, userNotices, users } from '@/db/schema';
+import { tierOf } from '@/lib/characterState';
 import { isPlausibleRsn } from '@/lib/auth';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
@@ -263,6 +264,36 @@ export async function approveRequest(
     .set({ status: 'approved', decidedAt: new Date().toISOString(), decidedByUserId: byUserId })
     .where(eq(clanJoinRequests.id, requestId));
 
+  // Somebody who asked staff to vouch (lib/characterState: the `manual` path) had no seat while this
+  // waited, so they could not sign up for anything. Tell them on the site that they can now: the
+  // bell opens Settings > Characters, which offers the way back to the sign-up they came from
+  // (lib/continueStore). The clan's name and theirs only, never a Discord identity.
+  if (req.eventId == null && req.playerId != null) {
+    const acct = await db.query.accounts.findFirst({ where: eq(accounts.id, req.accountId) });
+    if (acct && tierOf(acct) === 'manual') {
+      const [host, logins] = await Promise.all([
+        db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } }),
+        db.select({ id: users.id }).from(users).where(eq(users.playerId, req.playerId)),
+      ]);
+      if (host && logins.length > 0) {
+        const createdAt = new Date().toISOString();
+        await db
+          .insert(userNotices)
+          .values(
+            logins.map((l) => ({
+              userId: l.id,
+              kind: 'seat-granted',
+              refId: seatId,
+              title: `${host.name} accepted your request`,
+              body: `${acct.rsn} is a guest of ${host.name} now, so you can sign up for its events. Your sign-ups are held until its staff confirm the character is yours.`,
+              createdAt,
+            })),
+          )
+          .catch(() => {});
+      }
+    }
+  }
+
   await db
     .insert(clanAuditLog)
     .values({
@@ -301,13 +332,16 @@ export async function rejectRequest(
     .returning();
   if (!row) return false;
 
+  // The in-game name goes on the record (never a Discord identity): a declined request has no roster
+  // seat to name it by, and the log read "member ?".
+  const [who] = await db.select({ rsn: accounts.rsn }).from(accounts).where(eq(accounts.id, row.accountId)).limit(1);
   await db
     .insert(clanAuditLog)
     .values({
       clanId,
       eventType: 'guest_rejected',
       actorUserId: byUserId,
-      newValue: JSON.stringify({ requestId, accountId: row.accountId, note: note ?? null }),
+      newValue: JSON.stringify({ requestId, accountId: row.accountId, rsn: who?.rsn ?? null, note: note ?? null }),
     })
     .catch(() => {});
   // A decline used to be silent: the row flipped and the person kept waiting on a request nobody
@@ -402,14 +436,15 @@ export async function doorStates(clanId: number, accountIds: number[]): Promise<
 
 export interface PendingRequest {
   id: number;
-  accountId: number;
   rsn: string;
-  playerId: number | null;
   message: string | null;
   source: string;
   requestedAt: string;
-  /** The clan they are a member of right now, if any — the most useful thing staff can be told. */
-  memberOf: string | null;
+  /**
+   * Are they another clan's member right now? Yes or no — which clan is that clan's business and
+   * the applicant's, and a members-only clan's name is not ours to hand to a third clan's staff.
+   */
+  memberOfAnotherClan: boolean;
   /** The one event they asked to play (a creator space's approval event); null = the whole clan. */
   eventId: number | null;
 }
@@ -466,16 +501,16 @@ export async function pendingRequests(clanId: number, opts: { eventId?: number }
   // "#Player1281" rows came from the client's pre-login placeholder name: no real character to admit.
   return Promise.all(
     rows.filter((r) => isPlausibleRsn(r.rsn)).map(async (r) => {
-      // Where else this account sits. Visible without any sharing rule, because an account's CLAN is
-      // not a private fact — it is on the in-game roster — and a clan deciding whether to admit a
-      // guest is entitled to know they are somebody else's member.
+      // Does this account sit somewhere else as a member? A clan deciding whether to admit a guest is
+      // entitled to know that much. It is not told WHICH clan: this used to name it, which handed a
+      // members-only clan's name, and the applicant's membership of it, to any clan they applied to.
       const member = await db
-        .select({ name: clans.name })
+        .select({ id: clanMemberships.id })
         .from(clanMemberships)
-        .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
         .where(
           and(
             eq(clanMemberships.accountId, r.accountId),
+            ne(clanMemberships.clanId, clanId),
             eq(clanMemberships.kind, 'member'),
             isNull(clanMemberships.leftAt),
           ),
@@ -483,7 +518,16 @@ export async function pendingRequests(clanId: number, opts: { eventId?: number }
         .limit(1)
         .then((x) => x[0] ?? null);
 
-      return { ...r, memberOf: member?.name ?? null };
+      // Picked, not spread: the account and person ids are keys no screen reads.
+      return {
+        id: r.id,
+        rsn: r.rsn,
+        message: r.message,
+        source: r.source,
+        requestedAt: r.requestedAt,
+        eventId: r.eventId,
+        memberOfAnotherClan: member != null,
+      };
     }),
   );
 }
@@ -556,4 +600,16 @@ export async function leaveClan(seatId: number, playerId: number): Promise<boole
     })
     .catch(() => {});
   return true;
+}
+
+/**
+ * Did this clan's staff end this character's seat on purpose ("not a member")? Then nothing automatic
+ * puts it back: the person asking again files a request instead of being granted a seat.
+ */
+export async function removedByStaff(clanId: number, accountId: number): Promise<boolean> {
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId), ne(clanMemberships.kind, 'event')),
+    columns: { leftAt: true, source: true },
+  });
+  return !!seat?.leftAt && seat.source === 'manual';
 }

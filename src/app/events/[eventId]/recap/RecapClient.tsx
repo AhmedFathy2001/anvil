@@ -15,12 +15,14 @@ function splitLabel(label: string): { count: number | null; prefix: string; suff
 
 // Count a headline number up from 0 the first time the card scrolls into view. Respects
 // prefers-reduced-motion (jumps straight to the final value). Falls back to the raw label for
-// non-numeric values (times). Renders 0 on the server / first client paint (deterministic, so no
+// non-numeric values (times). Renders the final value on the server / first client paint (deterministic, so no
 // hydration mismatch); every update below runs in an async rAF / observer callback.
+// The real value is what is in the page until the count starts: a card nobody has scrolled to, or a
+// browser that never runs the animation, must not read "0 tiles alone" above a runner-up's 2.
 function CountUp({ label, className }: { label: string; className?: string }) {
   const { count, suffix } = splitLabel(label);
   const ref = useRef<HTMLSpanElement>(null);
-  const [shown, setShown] = useState(0);
+  const [shown, setShown] = useState(count ?? 0);
   const started = useRef(false);
 
   useEffect(() => {
@@ -30,10 +32,7 @@ function CountUp({ label, className }: { label: string; className?: string }) {
     const run = () => {
       if (started.current) return;
       started.current = true;
-      if (reduce) {
-        raf = requestAnimationFrame(() => setShown(count));
-        return;
-      }
+      if (reduce) return;
       const duration = 900;
       let startTs: number | null = null;
       const tick = (ts: number) => {
@@ -64,6 +63,8 @@ function CountUp({ label, className }: { label: string; className?: string }) {
     return () => {
       io.disconnect();
       cancelAnimationFrame(raf);
+      // A run cut short (an effect re-run) starts again from the observer.
+      started.current = false;
     };
   }, [count]);
 
@@ -158,7 +159,13 @@ export default function RecapClient({
           <TotalPill value={t.contenders.toLocaleString()} label="players in the running" />
           <TotalPill value={t.tilesCompleted.toLocaleString()} label="tiles completed" />
           <TotalPill value={t.submissions.toLocaleString()} label="submissions" />
-          <TotalPill value={`${t.gpLooted.toLocaleString()} gp`} label="tracked loot value" />
+          {/* The plugin's loot total: the same number Loot Lord is ranked on. A board with no plugin
+              loot but gp tiles shows what those tiles banked instead, and says so. */}
+          {(t.lootGp ?? 0) > 0 || t.gpLooted === 0 ? (
+            <TotalPill value={`${(t.lootGp ?? 0).toLocaleString()} gp`} label="tracked loot value" />
+          ) : (
+            <TotalPill value={`${t.gpLooted.toLocaleString()} gp`} label="banked on gp tiles" />
+          )}
         </div>
       )}
 

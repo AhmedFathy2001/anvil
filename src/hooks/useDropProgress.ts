@@ -28,7 +28,12 @@ interface DoneRow {
  * `teamId` to pick theirs) lets a COMBO (lib/combo) read which of its parts are done.
  */
 export function useDropProgress(tiles: Tile[], submissions: Submission[], completions?: DoneRow[], teamId?: number) {
-  return useMemo(() => {
+  return useMemo(() => dropProgressFor(tiles, submissions, completions, teamId), [tiles, submissions, completions, teamId]);
+}
+
+/** The hook's work, pure: `submissions` are ONE team's rows. */
+export function dropProgressFor(tiles: Tile[], submissions: Submission[], completions?: DoneRow[], teamId?: number) {
+  {
     const dropProgress = new Map<number, DropProgress>();
     const perItemProgressMap = new Map<number, ItemRequirementProgress[]>();
 
@@ -94,5 +99,5 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[], comple
     }
 
     return { dropProgress, perItemProgressMap };
-  }, [tiles, submissions, completions, teamId]);
+  }
 }

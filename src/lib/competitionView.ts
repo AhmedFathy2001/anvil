@@ -1,9 +1,12 @@
+import { viewerPlace } from '@/lib/weeklyPlace';
 import { db } from '@/db';
 import { memberDailyStats, memberMilestones, weeklyCompetitions, clanRoster } from '@/db/schema';
 import { and, eq, gte, inArray, isNull, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
-import { momentsForCompetition } from '@/lib/momentsStore';
+import { bestDropMoments, momentsForCompetition } from '@/lib/momentsStore';
+import { rankBestDrops, type BestDrop } from '@/lib/bestDrops';
+import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import { collapseMomentRuns } from '@/lib/feedRuns';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
@@ -120,6 +123,12 @@ export interface CompetitionView {
    * Plugin-reported and never scored — the colour around the standings.
    */
   highlights: CompetitionHighlight[];
+  /**
+   * The competition's best drops out of ALL its moments, ranked (lib/bestDrops): pets, then rarest,
+   * then dearest; no deaths. Only for people still on the board, so someone who opted out or left
+   * is off this list as they are off the standings.
+   */
+  bestDrops: BestDrop[];
   /**
    * The week's superlatives. Every one is decided by the SHAPE of the days rather than by when a
    * number arrived, because the plugin reports in seconds and the sweep can be hours behind — see
@@ -321,21 +330,16 @@ export async function buildCompetitionView(
   const previous = await loadPrevious(competition, projected ?? clanTotal);
 
   // The viewer's own row, and the exact distance to the person above them.
-  const myIndex = entries.findIndex((e) => e.isMe);
-  const me =
-    myIndex >= 0
-      ? {
-          rank: myIndex + 1,
-          entry: entries[myIndex],
-          behind:
-            myIndex > 0
-              ? { rsn: entries[myIndex - 1].rsn, amount: entries[myIndex - 1].gained - entries[myIndex].gained }
-              : null,
-        }
-      : null;
+  // The place itself is worked out in lib/weeklyPlace, which the events list reads too.
+  const place = viewerPlace(entries, myRsns);
+  const me = place
+    ? { rank: place.rank, entry: entries[place.rank - 1], behind: place.behind }
+    : null;
 
   const milestones = await loadMilestones(accountIds, rsnByAccount, competition, days, type, metric);
   const highlights = await loadHighlights(competition.id);
+  const onBoard = new Set(entries.map((e) => weeklyRsnKey(e.rsn)));
+  const bestDrops = rankBestDrops((await bestDropMoments(competition.id)).filter((m) => onBoard.has(weeklyRsnKey(m.rsn))));
 
   return {
     type,
@@ -359,6 +363,7 @@ export async function buildCompetitionView(
     me,
     milestones,
     highlights,
+    bestDrops,
     // Every record here is a claim about a single day — biggest day, longest streak, most consistent.
     // A week the daily rows can't account for produces confident nonsense (a 397K "biggest day" in a
     // week whose leader gained 1.0M), so it produces nothing instead.

@@ -12,8 +12,9 @@ import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, clans, completions, eventParticipants, events, moments, teams, tiles, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, completions, eventEditors, eventParticipants, events, moments, teams, tiles, users } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
+import { teamChatStaffListeners } from '@/lib/staffSight';
 import { normalizeRsn } from '@/lib/auth';
 import { supporterInksForRsns } from '@/lib/supporter';
 import { inkForSurface } from '@/lib/supporterStyle';
@@ -92,14 +93,29 @@ async function readBoardUserIds(eventId: number, teamId: number | null): Promise
 }
 
 /**
- * The host clan's moderators and up on a board: they read every channel of its chat, a team's too.
- * Read fresh (a team channel's line goes to them by name, and a demoted mod must not hear the next).
+ * The host clan's moderators and up on a board: who the BOARD's rows and chat-wide notices reach.
+ * A team's channel is pushed to fewer people — see eventTeamChatStaffUserIds below.
+ * Read fresh (a demoted mod must not hear the next).
  */
 export async function eventStaffUserIds(eventId: number): Promise<number[]> {
   const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
   if (!ev) return [];
   const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
   return staff.filter((st) => atLeast(st.role, 'moderator')).map((st) => st.userId);
+}
+
+/**
+ * The staff who hear a TEAM's channel live: the people running this board (lib/staffSight
+ * teamChatStaffListeners), not every moderator of the host clan. Read fresh, for the same reason.
+ */
+export async function eventTeamChatStaffUserIds(eventId: number): Promise<number[]> {
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!ev) return [];
+  const [staff, grants] = await Promise.all([
+    db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId)),
+    db.select({ userId: eventEditors.userId }).from(eventEditors).where(eq(eventEditors.eventId, eventId)),
+  ]);
+  return teamChatStaffListeners(staff, grants.map((g) => g.userId));
 }
 
 /** The people with a live member seat in a clan: who hears its Feed. Held a minute. */

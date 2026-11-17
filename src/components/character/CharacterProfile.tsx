@@ -1,4 +1,5 @@
 import { formatJoinDate } from '@/lib/clanJoinDate';
+import { viewerIsClanInsider } from '@/lib/clanInsider';
 import RecordsCard from '@/components/records/RecordsCard';
 import { getAccountRecords, type AccountRecord } from '@/lib/records';
 import Persona from '@/app/members/[rsn]/Persona';
@@ -236,6 +237,8 @@ export default async function CharacterProfile({
   // The persona ties an RSN to a Discord identity and names that person's other accounts — in OSRS
   // exactly what people keep private (ironman and PK alts especially) — so it resolves only for a
   // signed-in clan viewer: the clan can see who owns an alt; the open internet can't.
+  // Inside this clan (a seat, its staff)? Decides how much of the persona and the history shows.
+  const insiderP = clanCtx ? viewerIsClanInsider(clanCtx.clanId).catch(() => false) : Promise.resolve(false);
   const [
     milestones, records, series, collection, progress, questItems, caItems, trackingSince, supporterLooks,
     media, showcase, connected,
@@ -264,8 +267,12 @@ export default async function CharacterProfile({
     // ── What only a clan knows ──
     clanCtx ? ingameJoinDates([clanCtx.seat.id]).then((m) => m.get(clanCtx.seat.id) ?? null) : Promise.resolve(null),
     clanCtx ? getStandings(clanCtx.seat.id) : Promise.resolve(NO_STANDINGS),
-    clanCtx ? getCompetitionHistory(clanCtx.seat.id, rsn) : Promise.resolve(NO_COMPETITIONS),
-    clanCtx && show.persona ? getPersona(clanCtx.seat.id) : Promise.resolve(null),
+    clanCtx ? insiderP.then((insider) => getCompetitionHistory(clanCtx.seat.id, rsn, { insider })) : Promise.resolve(NO_COMPETITIONS),
+    // A clanmate sees who plays this (Discord name, the characters seated here); a signed-in visitor
+    // from outside sees only what the person published and linked (lib/rosterVisibility).
+    clanCtx && show.persona
+      ? insiderP.then((insider) => getPersona(clanCtx.seat.id, { insider }))
+      : Promise.resolve(null),
     // Standings are a clan's answer — "#3 of 47" says nothing on a page with no clan behind it.
     clanCtx ? getActivityStandings(clanCtx.clanId, rsn) : Promise.resolve({} as Record<string, ActivityStanding>),
     // The drops, pets and combat tasks we watched happen. Keyed by the SEAT: a moment belongs to

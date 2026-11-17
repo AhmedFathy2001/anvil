@@ -18,9 +18,10 @@ const SOCKET_PATH = '/api/plugin/push/ws';
 // Who hears what is decided HERE, by the page's own rules: the site session and chatAccess
 // (../scope liveScope, the same gate as chat/feed/pulse), then lib/liveTicket for the rooms. The
 // ticket is a web one (rows only, short-lived) and the only kind the socket takes in its address.
-// 404 when this deployment runs no push server: the page just polls.
+// 204 when this deployment runs no push server: the page just polls. Not a 404: that is not an
+// error, and the browser logged one in the console on every Feed & chat page of such a deployment.
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  if (!pushEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!pushEnabled()) return new NextResponse(null, { status: 204 });
   const url = new URL(request.url);
   const s = await liveScope((await params).eventId, url.searchParams.get('seat'));
   if (s instanceof NextResponse) return s;

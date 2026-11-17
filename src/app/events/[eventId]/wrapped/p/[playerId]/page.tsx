@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import EndsAt from '../../EndsAt';
 import ClanLink from '@/components/ClanLink';
 import EventApiHost from '@/components/EventApiHost';
 import { viewerPlayerIds, wrappedPlayerFor, wrappedPlayerKey } from '@/lib/eventWrapped';
@@ -45,7 +46,7 @@ export default async function PlayerWrappedPage({ params }: { params: Promise<Pa
   if (!open) {
     return (
       <div>{back}
-        <Notice title="Cards aren’t out yet">Everyone gets theirs when the event ends. Check back then.</Notice>
+        <Notice title="Cards aren’t out yet">Everyone gets theirs when the event ends.{event.endDate ? <EndsAt endDate={event.endDate} /> : null} Check back then.</Notice>
       </div>
     );
   }

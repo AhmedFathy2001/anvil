@@ -220,6 +220,7 @@ export default async function GuideIndex({ lang, tab = 'anvil' }: { lang: string
         labels={{ anvil: t.index.anvilTab, ingame: t.index.ingame.title }}
         anvil={anvilPanel}
         ingame={ingamePanel}
+        search={{ anvil: t.index.search, ingame: { ...t.index.search, placeholder: t.index.ingame.placeholder } }}
       />
       <p className="mt-8 text-sm text-text-muted">{rt(t.common.aboutLine)}</p>
     </div>

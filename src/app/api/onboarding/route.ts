@@ -4,6 +4,7 @@ import { verifyUser } from '@/lib/auth';
 import {
   completeOnboarding,
   isOnboardingIntent,
+  markQuickSettingsDone,
   onboardingState,
   setIntent,
   setSkipped,
@@ -56,6 +57,14 @@ export async function POST(request: Request) {
   if (action === 'complete') {
     await completeOnboarding(session.userId);
     return NextResponse.json(await onboardingState(session.userId, session.playerId));
+  }
+
+  // The strip's quick-settings step for one clan: looked good, or skipped. Remembered per clan.
+  if (action === 'quickSettingsDone') {
+    const clanId = Number(body.clanId);
+    if (!Number.isInteger(clanId) || clanId <= 0) return NextResponse.json({ error: 'Unknown clan' }, { status: 400 });
+    await markQuickSettingsDone(session.userId, clanId);
+    return NextResponse.json({ ok: true });
   }
 
   if (action === 'skip' || action === 'unskip') {

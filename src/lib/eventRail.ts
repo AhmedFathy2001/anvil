@@ -43,7 +43,8 @@ export function eventRailGroups(opts: {
   };
   const teams = {
     href: `${base}/teams`,
-    label: stage === 'build' ? 'Teams & draft' : 'Rosters & subs',
+    // One name in every stage (it used to flip to "Rosters & subs"); it is also what the guides call the page.
+    label: 'Teams & draft',
     icon: '◈',
     sprite: 'bandos' as const,
     badge: counts.teamCount === 0 ? 'none' : counts.teamCount,
@@ -185,6 +186,8 @@ export function weeklyRailGroups(opts: {
   counts: WeeklyCounts;
   /** 'solo' | 'teams' | 'clans' — names the format item (lib/competitionTeams). */
   mode?: string;
+  /** An item hunt: no teams or clan sides (no Format item), and no Baselines item when it shows no stat. */
+  hunt?: { hasStat: boolean };
 }): SidebarGroup[] {
   const { weeklyId, stage, counts } = opts;
   const formatLabel = opts.mode === 'teams' ? 'Teams' : opts.mode === 'clans' ? 'Clans' : 'Format';
@@ -203,16 +206,20 @@ export function weeklyRailGroups(opts: {
           badge: counts.participants,
           matchPrefix: true,
         },
-        {
-          href: `${base}/baselines`,
-          label: 'Baselines',
-          icon: '◷',
-          badge: counts.flagged > 0 ? `${counts.flagged} flagged` : missingBaselines > 0 ? `${missingBaselines} missing` : undefined,
-          attn: counts.flagged > 0 || missingBaselines > 0,
-          matchPrefix: true,
-        },
+        ...(opts.hunt && !opts.hunt.hasStat
+          ? []
+          : [
+              {
+                href: `${base}/baselines`,
+                label: 'Baselines',
+                icon: '◷',
+                badge: counts.flagged > 0 ? `${counts.flagged} flagged` : missingBaselines > 0 ? `${missingBaselines} missing` : undefined,
+                attn: counts.flagged > 0 || missingBaselines > 0,
+                matchPrefix: true,
+              },
+            ]),
         // Solo / teams / clan vs clan, and the teams or invited clans that go with it.
-        { href: `${base}/format`, label: formatLabel, icon: '⚑', matchPrefix: true },
+        ...(opts.hunt ? [] : [{ href: `${base}/format`, label: formatLabel, icon: '⚑', matchPrefix: true }]),
         // Name, dates, status and delete — a board has these on its Settings tab, and a competition
         // had them in a modal on a list page that no longer exists.
         { href: `${base}/settings`, label: 'Settings', icon: '⚙', matchPrefix: true },

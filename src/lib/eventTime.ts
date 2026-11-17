@@ -8,6 +8,8 @@
 // All formatting is locale/timezone dependent, so it must only run on the
 // client (after mount) to avoid SSR hydration mismatches.
 
+import { parseStamp } from './dbTime.ts';
+
 const DAY_MS = 86_400_000;
 
 export type EventPhase = 'upcoming' | 'active' | 'ended' | 'force-ended' | 'none';
@@ -32,11 +34,11 @@ export function eventTimeState({
   now?: number;
 }): EventTimeState {
   if (forceEndedAt) {
-    return { phase: 'force-ended', target: new Date(forceEndedAt).getTime(), imminent: false };
+    return { phase: 'force-ended', target: parseStamp(forceEndedAt), imminent: false };
   }
 
-  const start = startDate ? new Date(startDate).getTime() : null;
-  const end = endDate ? new Date(endDate).getTime() : null;
+  const start = parseStamp(startDate);
+  const end = parseStamp(endDate);
 
   // Not started yet → count down to the start.
   if (start !== null && start > now) {

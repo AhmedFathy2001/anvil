@@ -170,3 +170,26 @@ export function teamRanksFromDay(data: unknown): Map<number, number> {
   const ranked = competitionRanks(rows, (r) => r.score);
   return new Map(rows.map((r) => [r.id, ranked.get(r) ?? 0]));
 }
+
+// ---- Gap to the place above ------------------------------------------------------------------------
+
+/**
+ * How far the viewer's best line is from passing the place above it: the nearest row ranked higher
+ * (a worse rank number than every row ahead is the one directly above), and the score that beats it
+ * (one past it, since a tie shares the rank). Null at the top, with no rows of the viewer's own, or
+ * when the order is not decided by score (a tile race passes its own ranks and never calls this).
+ */
+export function gapToPlaceAbove<T extends { id: number; rank: number }>(
+  rows: readonly T[],
+  isMine: (row: T) => boolean,
+  scoreOf: (row: T) => number,
+): { toPass: number; aboveRank: number } | null {
+  let me: T | null = null;
+  for (const r of rows) if (isMine(r) && (!me || r.rank < me.rank)) me = r;
+  if (!me || me.rank <= 1) return null;
+  let above: T | null = null;
+  for (const r of rows) if (r.rank < me.rank && (!above || r.rank > above.rank)) above = r;
+  if (!above) return null;
+  const toPass = scoreOf(above) - scoreOf(me) + 1;
+  return toPass > 0 ? { toPass, aboveRank: above.rank } : null;
+}

@@ -10,12 +10,28 @@
 // Node type-stripping, the same way lib/eventReadiness and lib/eventRules do. Callers pass the
 // counts in.
 
+import { parseStamp } from './dbTime.ts';
+
 export type EventStage = 'build' | 'run' | 'wrap';
 
 export interface StageEvent {
   startDate: string | null;
   endDate: string | null;
   forceEndedAt: string | null;
+  /** The start was due but is waiting on teams (the hold latch the lifecycle tick sets). */
+  startHoldNotified?: number | null;
+  startNotified?: number | null;
+}
+
+/** One wording for a start that is waiting on teams — the hero, the lists, cards, link previews and the stage line all say this. */
+export const START_WAITING_WORDS = 'Start is waiting on teams';
+
+/**
+ * The start time came but the event has not started: the lifecycle tick is holding it for teams.
+ * The one derivation every "when does it start" line uses (the date is not a promise while held).
+ */
+export function startIsHeld(e: Pick<StageEvent, 'startHoldNotified' | 'startNotified'>, live = false): boolean {
+  return !live && e.startHoldNotified === 1 && !e.startNotified;
 }
 
 /**
@@ -28,9 +44,11 @@ export interface StageEvent {
  */
 export function eventStage(event: StageEvent, now: number = Date.now()): EventStage {
   if (event.forceEndedAt) return 'wrap';
-  if (event.endDate && Date.parse(event.endDate) <= now) return 'wrap';
-  if (!event.startDate) return 'build';
-  return Date.parse(event.startDate) <= now ? 'run' : 'build';
+  const end = parseStamp(event.endDate);
+  if (end !== null && end <= now) return 'wrap';
+  const start = parseStamp(event.startDate);
+  if (start === null) return 'build';
+  return start <= now ? 'run' : 'build';
 }
 
 export interface StageCounts {
@@ -43,11 +61,30 @@ export interface StageCounts {
   pendingSignups: number;
   unpaidPayouts: number;
   payoutCount: number;
+  /** Team placement (lib/teamPlacement); 'auto' and 'solo' make teams from sign-ups. */
+  placement?: string | null;
   surveyResponses: number;
   /** True once the event has any survey question authored. */
   hasSurvey: boolean;
   /** Blocking reasons from lib/eventReadiness, already turned into sentences. */
   blockers: string[];
+}
+
+/**
+ * The three setup facts every surface asks about an event before it starts. One definition, read by
+ * the lifecycle steps below, the event home's checklist and the guide strip (lib/guidedFlows/runEvent),
+ * so they cannot tick differently.
+ */
+export function setupFacts(
+  counts: Pick<StageCounts, 'tileCount' | 'expectedTiles' | 'teamCount' | 'assignedPlayers'>,
+  event: { startDate: string | null },
+): { tilesDone: boolean; teamsDone: boolean; datesDone: boolean } {
+  return {
+    tilesDone: counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles,
+    teamsDone: counts.teamCount > 0 && counts.assignedPlayers > 0,
+    // A start date is what schedules it. No end date is a legitimate open-ended board.
+    datesDone: !!event.startDate,
+  };
 }
 
 export type StepState = 'done' | 'now' | 'todo';
@@ -76,8 +113,7 @@ export function lifecycleSteps(
   now: number = Date.now(),
 ): LifecycleStep[] {
   const stage = eventStage(event, now);
-  const tilesDone = counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles;
-  const teamsDone = counts.teamCount > 0 && counts.assignedPlayers > 0;
+  const { tilesDone, teamsDone } = setupFacts(counts, event);
   const ended = stage === 'wrap';
   const paidUp = counts.payoutCount > 0 && counts.unpaidPayouts === 0;
 
@@ -104,7 +140,9 @@ export function lifecycleSteps(
         ? `${counts.teamCount} ready`
         : counts.teamCount > 0
           ? 'nobody assigned'
-          : 'no teams',
+          : counts.placement === 'auto' || counts.placement === 'solo'
+            ? 'form from sign-ups'
+            : 'no teams',
       state: teamsDone ? 'done' : 'todo',
     },
     {
@@ -147,7 +185,8 @@ export function lifecycleSteps(
 
 function startsLabel(event: StageEvent, now: number): string {
   if (!event.startDate) return 'not scheduled';
-  const ms = Date.parse(event.startDate) - now;
+  if (startIsHeld(event)) return START_WAITING_WORDS.toLowerCase();
+  const ms = (parseStamp(event.startDate) ?? now) - now;
   if (ms <= 0) return 'due to start';
   return `starts in ${humanDays(ms)}`;
 }

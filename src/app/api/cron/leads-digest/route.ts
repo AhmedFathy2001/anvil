@@ -150,7 +150,6 @@ export async function GET(request: Request) {
     .select({
       displayName: users.displayName,
       discordId: users.discordId,
-      email: users.email,
       seats: sql<number>`(
         select count(*) from ${clanMemberships} m
         join ${accounts} a on a.id = m.account_id
@@ -166,7 +165,7 @@ export async function GET(request: Request) {
 
   const people: StalledPerson[] = stalledPeople
     .filter((p) => Number(p.seats ?? 0) === 0 && Number(p.characters ?? 0) === 0)
-    .map((p) => ({ displayName: p.displayName, discordId: p.discordId, email: p.email }));
+    .map((p) => ({ displayName: p.displayName, discordId: p.discordId }));
 
   const embed = buildLeadsDigest({ clans: leads, counts, people }, Date.now());
   if (!embed) {

@@ -44,13 +44,16 @@ interface DraftState {
   pickInRound: number;
   totalPicked: number;
   poolRemaining: number;
+  balanceMode?: string;
 }
 
 interface Props {
   event: Event;
+  /** The team this viewer captains in the event, if any: they pick on its team page. */
+  captainOf?: { id: number; name: string } | null;
 }
 
-export default function DraftSpectatorClient({ event }: Props) {
+export default function DraftSpectatorClient({ event, captainOf = null }: Props) {
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [statsRsn, setStatsRsn] = useState<string | null>(null);
 
@@ -84,7 +87,16 @@ export default function DraftSpectatorClient({ event }: Props) {
       </ClanLink>
 
       <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">{event.name}</h1>
-      <p className="text-text-muted text-sm mb-6">Player Draft — Spectator View</p>
+      {captainOf ? (
+        <p className="text-text-muted text-sm mb-6">
+          Player draft · you pick for {captainOf.name}.{' '}
+          <ClanLink href={`/team/${captainOf.id}`} className="text-gold hover:underline">
+            Make your picks on your team page
+          </ClanLink>
+        </p>
+      ) : (
+        <p className="text-text-muted text-sm mb-6">Player draft · watching live</p>
+      )}
 
       {draft.status === 'none' && (
         <div className="text-center py-12 border border-dashed border-card-border rounded-xl">
@@ -95,6 +107,7 @@ export default function DraftSpectatorClient({ event }: Props) {
       {(draft.status === 'active' || draft.status === 'paused' || draft.status === 'completed') && (
         <div className="space-y-6">
           <DraftStatus
+            snake={draft.balanceMode !== 'dynamic-order'}
             status={draft.status}
             currentTeamId={draft.currentTeamId}
             round={draft.round}
@@ -112,7 +125,8 @@ export default function DraftSpectatorClient({ event }: Props) {
               <h3 className="font-bold text-sm mb-2">Recent Picks</h3>
               <div className="space-y-1">
                 {draft.players
-                  .filter((p) => p.teamId !== null)
+                  // Picks only: a captain sits on their team from the start, with no pick number.
+                  .filter((p) => p.teamId !== null && p.pickNumber != null)
                   .sort((a, b) => (b.pickNumber ?? 0) - (a.pickNumber ?? 0))
                   .slice(0, 5)
                   .map((p) => {

@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  tenureProgress,
   rowInForce,
   supporterState,
   paidRunStart,
@@ -216,4 +217,18 @@ test('the tenure star SVG frames every step past Apprentice and renders only che
   assert.ok((tenureInk('#101010') & 0xff) < 0x30, 'black stays dark');
   for (const grey of ['#ffffff', '#c0c0c0', '#a0a0a0']) { const c = hue(tenureInk(grey)); assert.ok(c.s > 0.3 && c.b > c.r, `${grey} turns blue`); }
   assert.equal(tenureInk('#e05ad0'), 0xe05ad0);
+});
+
+test('tenureProgress says the step, the months so far and the months to the next', () => {
+  const a = tenureFor(4);
+  const p = tenureProgress(4, a.step, a.next);
+  assert.match(p.line, /Journeyman/);
+  assert.match(p.line, /2 months to Artisan/);
+  assert.equal(p.pct, 33);
+  const n = tenureFor(0);
+  assert.match(tenureProgress(0, n.step, n.next).line, /3 months to Journeyman/);
+  const top = tenureFor(40);
+  assert.deepEqual([tenureProgress(40, top.step, top.next).pct], [100]);
+  const one = tenureFor(5);
+  assert.match(tenureProgress(5, one.step, one.next).line, /1 month to Master|1 month to Artisan/);
 });

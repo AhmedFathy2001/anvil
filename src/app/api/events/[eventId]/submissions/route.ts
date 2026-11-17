@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
-import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
+import { eventForPluginRequest, eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { tilesForViewer } from '@/lib/tilesForViewer';
@@ -37,12 +37,19 @@ import { parseProofClaims, captureFlag, PROOF_IMAGE_MISMATCH_FLAG, PROVENANCE_RE
 import { encodePendingProof, parseProofKey, proofDueAt, publicSubmission } from '@/lib/proofAfter';
 import { stampAndPost } from '@/lib/proofFinish';
 import { parseStamp } from '@/lib/dbTime';
-import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { isStandingsStaff, standingsScopeForRequest } from '@/lib/standingsAccess';
+import { playerSubmission } from '@/lib/clientRows';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { claimUploads } from '@/lib/uploadClaims';
+import { raceProofBlockFor } from '@/lib/raceRoutesDb';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
 import { provenClanSlug } from '@/lib/requestHeaderProof';
+import { decideFactClaim, parseFactIds } from '@/lib/pluginFacts/factIds';
+import { claimTileFacts, tileFactIds, type FactOwner } from '@/lib/pluginFacts/factIdStore';
+
+/** Thrown inside the credit's transaction to roll it back: one of its fact ids was already taken. */
+class FactsTaken extends Error {}
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -62,8 +69,9 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  const scopedEvent = await eventForRequest(request, eId);
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  // Proofs are the board's contents: an invite-only board's are not for whoever guesses its id.
+  const scopedEvent = await readableEventForRequest(request, eId);
   if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -113,9 +121,15 @@ export async function GET(
   const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   const playerMap = new Map(allPlayers.map((p) => [p.id, p.name]));
 
+  // This event's own staff keep every proof field — it is their integrity evidence. Everyone else
+  // (the public on an open board, players, another team) gets the row without the raw evidence
+  // columns (lib/clientRows playerSubmission).
+  const viewer = await verifyUser();
+  const eventStaff = viewer ? await isStandingsStaff(scopedEvent, viewer.userId) : false;
+
   const extras = await attachmentsFor(filtered.map((s) => s.id));
   const result = filtered.map((s) => ({
-    ...publicSubmission(s),
+    ...(eventStaff ? publicSubmission(s) : playerSubmission(publicSubmission(s))),
     attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,
@@ -160,7 +174,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments, proofKey: rawProofKey } = await request.json();
+  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments, proofKey: rawProofKey, factIds: rawFactIds } = await request.json();
 
   // CAPPED counter tiles (lib/tileCaps): the plugin config hands out VIRTUAL negative tile ids for a
   // tile's cap counters (slots 1..n). Every plugin build credits them like any kill tile, so they
@@ -229,6 +243,22 @@ export async function POST(
     ({ captain, player, pluginAuth, membership } = access);
   }
 
+  // FACT IDS (lib/pluginFacts/factIds): the facts route names the plugin facts this credit is made
+  // of. One already in on this tile is never filed twice: answered as accepted, nothing stored.
+  // Plugin only, and remembered under the token's own person and character, never a body's word.
+  const factIds = pluginAuth?.userId != null ? parseFactIds(rawFactIds) : [];
+  const owner: FactOwner | null = factIds.length ? { userId: pluginAuth!.userId!, accountId: pluginAuth!.accountId } : null;
+  const factReplay = async () => {
+    const seen = owner ? await tileFactIds(owner, factIds, rawTileId) : new Set<string>();
+    const claim = decideFactClaim(factIds.length, seen.size);
+    if (claim === 'duplicate') return NextResponse.json({ ok: true, duplicate: true, completed: false });
+    // Some of its facts are in and some are not: nothing is filed, the facts route sends it back.
+    if (claim === 'mixed') return NextResponse.json({ error: 'Part of this was already counted', factsSeen: [...seen] }, { status: 409 });
+    return null;
+  };
+  const replayed = await factReplay();
+  if (replayed) return replayed;
+
   // Get event and check start date
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),
@@ -256,6 +286,16 @@ export async function POST(
   });
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
+  }
+  // TILE RACE: a person cannot file proof on a tile their team has not reached (lib/raceRoutes
+  // raceProofBlock). The completion gate already refuses the CREDIT, but the proof itself used to be
+  // stored: the tile then read "complete" under a Locked banner, and the stored count would credit
+  // by itself the moment the road got there. The plugin is not refused here on purpose: it reports
+  // what happened in game when it happened, and its evidence waits on the gate (or is banked) as
+  // before. Staff are let through so they can correct a board, the same as on completions.
+  if (!isAdmin && !pluginAuth) {
+    const raceBlock = await raceProofBlockFor(event, tile, teamId);
+    if (raceBlock) return NextResponse.json({ error: raceBlock, code: 'race-locked' }, { status: 409 });
   }
   // What this row credits: null = the tile's own count; 'cap:N' = one of its cap counters.
   const capBy = capEligible(tile) ? parseCapBy(tile.capBy) : [];
@@ -711,35 +751,47 @@ export async function POST(
   // File the pictures under this event (lib/uploadClaims) — what the media purge goes by.
   await claimUploads([...(upload && imageUrlValue ? [imageUrlValue] : []), ...extraItems.filter((a) => a.kind === 'image').map((a) => a.url)], eId);
 
-  const [inserted] = await db
-    .insert(submissions)
-    .values({
-      tileId,
-      teamId,
-      playerId: uploaderId,
-      creditPlayerId: resolvedCreditPlayerId,
-      amount: creditedAmount,
-      imageUrl: imageUrlValue,
-      note: creditNote,
-      itemId: itemId || null,
-      durationSeconds: durationSecondsValue,
-      coopGroup: coopGroupJson,
-      coopPartySize: coopPartySizeValue,
-      flaggedReason,
-      // 'staff': a clan admin's correction with no picture, which stands as its own proof (lib/submissions).
-      source: staffAdjustment ? 'staff' : pluginAuth ? 'plugin' : 'web',
-      worldMode: pluginAuth ? (worldModeOf(request)?.key ?? null) : null,
-      imageSha256: upload?.sha256 ?? null,
-      goal: goalValue,
-      ...(pendingKey
-        ? {
-            proofKey: pendingKey,
-            proofDueAt: proofDueAt(receivedAt),
-            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: await provenClanSlug(request.headers), announce: null, sender: pluginAuth?.userId ?? null }),
-          }
-        : {}),
-    })
-    .returning();
+  const row: typeof submissions.$inferInsert = {
+    tileId,
+    teamId,
+    playerId: uploaderId,
+    creditPlayerId: resolvedCreditPlayerId,
+    amount: creditedAmount,
+    imageUrl: imageUrlValue,
+    note: creditNote,
+    itemId: itemId || null,
+    durationSeconds: durationSecondsValue,
+    coopGroup: coopGroupJson,
+    coopPartySize: coopPartySizeValue,
+    flaggedReason,
+    // 'staff': a clan admin's correction with no picture, which stands as its own proof (lib/submissions).
+    source: staffAdjustment ? 'staff' : pluginAuth ? 'plugin' : 'web',
+    worldMode: pluginAuth ? (worldModeOf(request)?.key ?? null) : null,
+    imageSha256: upload?.sha256 ?? null,
+    goal: goalValue,
+    ...(pendingKey
+      ? {
+          proofKey: pendingKey,
+          proofDueAt: proofDueAt(receivedAt),
+          proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: await provenClanSlug(request.headers), announce: null, sender: pluginAuth?.userId ?? null }),
+        }
+      : {}),
+  };
+  // The fact ids are taken in the SAME transaction as the row, insert-if-absent on the store's unique
+  // index: the credit and its ids are in together or not at all, and of two requests carrying the
+  // same id at once the second waits for the first, finds the id taken and files nothing.
+  const inserted = owner
+    ? await db.transaction(async (tx) => {
+        if (!(await claimTileFacts(tx, owner, factIds, rawTileId))) throw new FactsTaken();
+        return (await tx.insert(submissions).values(row).returning())[0];
+      }).catch((e) => {
+        if (e instanceof FactsTaken) return null;
+        throw e;
+      })
+    : (await db.insert(submissions).values(row).returning())[0];
+  if (!inserted) {
+    return (await factReplay()) ?? NextResponse.json({ error: 'Try again' }, { status: 503 });
+  }
 
   // The extras sent with it, and the start screenshot this person saved on the tile before the grind
   // (a draft) — both ride on this proof. Web only: a plugin token speaks for a character, not a person
@@ -1033,5 +1085,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     .where(and(eq(submissions.id, sId), inArray(submissions.tileId, eventTileIds)))
     .returning({ id: submissions.id });
   if (updated.length === 0) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+  track('proof.reviewed', { userId: actingUser?.userId });
   return NextResponse.json({ ok: true });
 }

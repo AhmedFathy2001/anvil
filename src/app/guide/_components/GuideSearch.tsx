@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import { rank } from '../_i18n/searchRank';
 
@@ -23,34 +23,23 @@ export interface SearchLabels {
   clear: string;
 }
 
-/**
- * Find-a-guide, by meaning rather than by substring.
- *
- * A plain `includes()` filter over titles answers almost nothing here, because nobody searching for
- * the board guide types "Building a board that tracks itself" — they type "tiles", "csv", or "drops
- * not showing". So every guide carries jargon and symptom words alongside its translated copy, a
- * query is scored token by token across all three, and near-misses still match: one typo is
- * forgiven on anything long enough for that to mean a typo rather than a different word.
- *
- * Multi-word queries AND rather than OR — "discord webhook" should not return every guide that says
- * Discord once. A token nothing scores on drops the guide entirely.
- */
-export default function GuideSearch({
-  cards,
+const SharedQuery = createContext<{ query: string; setQuery: (q: string) => void } | null>(null);
+
+/** Holds the one search query for every GuideSearch list inside it. */
+export function GuideSearchProvider({ query, setQuery, children }: { query: string; setQuery: (q: string) => void; children: React.ReactNode }) {
+  return <SharedQuery.Provider value={{ query, setQuery }}>{children}</SharedQuery.Provider>;
+}
+
+export function GuideSearchBox({
+  query,
+  setQuery,
   labels,
-  children,
 }: {
-  cards: GuideCard[];
-  labels: SearchLabels;
-  /** The normal grouped listing, shown whenever the box is empty. */
-  children: React.ReactNode;
+  query: string;
+  setQuery: (q: string) => void;
+  labels: Pick<SearchLabels, 'placeholder' | 'clear'>;
 }) {
-  const [query, setQuery] = useState('');
-
-  const hits = useMemo(() => rank(query, cards), [query, cards]);
-
   return (
-    <>
       <div className="relative mb-8">
         <span aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -79,6 +68,43 @@ export default function GuideSearch({
           </button>
         )}
       </div>
+  );
+}
+
+/**
+ * Find-a-guide, by meaning rather than by substring.
+ *
+ * A plain `includes()` filter over titles answers almost nothing here, because nobody searching for
+ * the board guide types "Building a board that tracks itself" — they type "tiles", "csv", or "drops
+ * not showing". So every guide carries jargon and symptom words alongside its translated copy, a
+ * query is scored token by token across all three, and near-misses still match: one typo is
+ * forgiven on anything long enough for that to mean a typo rather than a different word.
+ *
+ * Multi-word queries AND rather than OR — "discord webhook" should not return every guide that says
+ * Discord once. A token nothing scores on drops the guide entirely.
+ */
+export default function GuideSearch({
+  cards,
+  labels,
+  children,
+}: {
+  cards: GuideCard[];
+  labels: SearchLabels;
+  /** The normal grouped listing, shown whenever the box is empty. */
+  children: React.ReactNode;
+}) {
+  // On /guide ONE box above the tabs drives whichever list is showing (GuideSearchProvider); used
+  // on its own, the list brings its own box.
+  const shared = useContext(SharedQuery);
+  const [ownQuery, setOwnQuery] = useState('');
+  const query = shared ? shared.query : ownQuery;
+  const setQuery = shared ? shared.setQuery : setOwnQuery;
+
+  const hits = useMemo(() => rank(query, cards), [query, cards]);
+
+  return (
+    <>
+      {!shared && <GuideSearchBox query={query} setQuery={setQuery} labels={labels} />}
 
       {hits === null ? (
         children

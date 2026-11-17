@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
@@ -8,6 +8,7 @@ import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
 import { BOSSES, EFFICIENCY_METRICS, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
+import { localDayIso } from '@/lib/gapPrefill';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
@@ -18,11 +19,22 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import HuntFields, { DEFAULT_HUNT, huntPayload, huntUnchosen, type HuntFormValue } from '@/components/weekly/HuntFields';
+import { PET_GROUPS } from '@/lib/petGroups';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
+import { useDirtyForm, useUnsavedChanges } from '@/components/UnsavedChanges';
 import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
 interface EventFormProps {
+  /** Told whenever the form differs from how it opened, so a dialog around it can ask before closing. */
+  onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Ask before leaving the page with typed work (the full-page create form; the dialog version has its
+   * own close prompt). Safe with the create itself: that leaves through router.push, which the
+   * guard does not intercept.
+   */
+  guardLeave?: boolean;
   presets?: EventPreset[];
   suggestedName?: string;
   /**
@@ -46,7 +58,9 @@ interface EventFormProps {
    * form opens already on that format and does not show its own format picker — the choice was
    * made, and asking it again on the same screen is exactly the "asked twice" the redesign removed.
    */
-  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency'; placement?: 'solo' };
+  /** Empty stretch from the schedule's "Fill the gap" (validated days): the dates start filled in. */
+  gapPrefill?: { start: string; end: string | null } | null;
+  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo' };
 }
 
 /**
@@ -71,7 +85,20 @@ const WEEKLY_KINDS = [
   { type: 'skill' as const, label: 'Skill of the Week', chips: 'everyone · xp gained', defaultMetric: 'attack' },
   { type: 'boss' as const, label: 'Boss of the Week', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
   { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · Hours played / Hours bossed', defaultMetric: 'ehp' },
+  // Ranked by drops, not by a hiscores gain: its own fields (components/weekly/HuntFields).
+  { type: 'hunt' as const, label: 'Item hunt', chips: 'everyone · an item or a pet, first or most', defaultMetric: '' },
 ];
+type WeeklyType = (typeof WEEKLY_KINDS)[number]['type'];
+
+/** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Any pet". */
+function huntName(hunt: HuntFormValue): string {
+  if (hunt.target === 'pets') {
+    const group = PET_GROUPS.find((g) => g.key === hunt.petGroup);
+    return `Pet hunt: ${!group || group.key === 'all' ? 'Any pet' : group.label}`;
+  }
+  if (hunt.items.length === 0) return 'Item hunt';
+  return `Item hunt: ${hunt.items.slice(0, 2).map((i) => i.name).join(' + ')}${hunt.items.length > 2 ? ' + more' : ''}`;
+}
 
 /** One "this costs you" row in the panel. */
 function SpecRow({ label, value }: { label: string; value: string }) {
@@ -104,6 +131,17 @@ function runOfDays(days: number): { start: string; end: string } {
   return { start, end: new Date(Date.parse(start) + days * 86_400_000).toISOString() };
 }
 
+/** Next Monday 00:00 local for seven days: the "next week" window a weekly competition usually wants. */
+function nextWeekSlot(): { start: string; end: string } {
+  const start = new Date();
+  const daysUntilMonday = (8 - start.getDay()) % 7 || 7;
+  start.setDate(start.getDate() + daysUntilMonday);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 /**
  * Which run preset the current dates ARE, rather than which button was pressed last.
  *
@@ -111,8 +149,10 @@ function runOfDays(days: number): { start: string; end: string } {
  * "Two weeks" lit "This weekend" and the fortnight looked like it hadn't taken. Deriving it from
  * the dates also means editing them by hand correctly un-highlights both.
  */
-function activeRunPreset(startIso: string, endIso: string): 'weekend' | 'week' | 'fortnight' | null {
+function activeRunPreset(startIso: string, endIso: string): 'weekend' | 'week' | 'fortnight' | 'nextweek' | null {
   if (!startIso || !endIso) return null;
+  const next = nextWeekSlot();
+  if (startIso === next.start && endIso === next.end) return 'nextweek';
   const weekend = weekendSlot(0);
   if (startIso === weekend.start && endIso === weekend.end) return 'weekend';
   const week = runOfDays(7);
@@ -132,7 +172,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, gapPrefill = null, onDirtyChange, guardLeave = false }: EventFormProps) {
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
@@ -194,14 +234,27 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [customDates, setCustomDates] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
+  // Browser-zone dates, so set after mount rather than in the initial state (no hydration mismatch).
+  useEffect(() => {
+    if (!gapPrefill) return;
+    setStartDate(localDayIso(gapPrefill.start));
+    setEndDate(localDayIso(gapPrefill.end ?? gapPrefill.start, 1));
+    setPrefilled(true);
+  }, [gapPrefill]);
   // A weekly competition is an event too — same page, same name field, same schedule. It just
   // stores itself in the competition tables, so picking one of these switches where we POST.
-  const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(
+  const [weeklyType, setWeeklyType] = useState<WeeklyType | null>(
     // In weekly-only mode the board half of the form is not rendered at all, so starting with no
     // kind chosen would leave a form with no format picker and no format.
     chosenWeekly ? chosenWeekly.type : weeklyOnly ? WEEKLY_KINDS[0].type : null,
   );
   const [weeklyMetric, setWeeklyMetric] = useState(chosenWeekly?.defaultMetric ?? 'attack');
+  // Item hunt: what is hunted, where each item counts from, the rule and how it ends.
+  const [hunt, setHunt] = useState<HuntFormValue>(DEFAULT_HUNT);
+  const isHunt = weeklyType === 'hunt';
+  /** The competition's default name, for the placeholder and for a name nobody typed. */
+  const weeklyName = (type: WeeklyType, metric: string, h: HuntFormValue = hunt) => (type === 'hunt' ? huntName(h) : defaultWeeklyTitle(type, metric));
   // Members only by default: guests are visitors on an event seat, and a clan's weekly is its own.
   const [includeGuests, setIncludeGuests] = useState(false);
   // Solo, teams or clan vs clan (lib/competitionTeams).
@@ -217,6 +270,22 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   // event once it exists so its use is counted and the host can suggest changes back.
   const [libraryBoardId, setLibraryBoardId] = useState<number | null>(null);
   const [drawn, setDrawn] = useState<LibraryTask[] | null>(null);
+
+  // Dirty against how the form opened. Only reported upward (the page-leave guard stays off: a
+  // successful create navigates away on purpose).
+  const { dirty: formDirty } = useDirtyForm(
+    {
+      name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
+      decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
+      multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
+      weeklyType, weeklyMetric, hunt, includeGuests, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+    },
+    { guard: false },
+  );
+  useEffect(() => {
+    onDirtyChange?.(formDirty);
+  }, [formDirty, onDirtyChange]);
+  useUnsavedChanges(guardLeave && formDirty);
 
   const meta = MODES.find((m) => m.key === mode)!;
   // The reveal policy actually in effect: a ladder uses its rotation sub-choice; every other mode
@@ -288,11 +357,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   }
 
   /** Choosing a weekly parks the board config; choosing a board format clears the weekly. */
-  function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
+  function pickWeekly(type: WeeklyType, metric: string) {
     setWeeklyType(type);
     setWeeklyMetric(metric);
     setRotation([]);
-    if (!nameTouched) setName(defaultWeeklyTitle(type, metric));
+    if (!nameTouched) setName(weeklyName(type, metric));
     setError('');
     setStartFrom('blank');
     setPresetCsv(null);
@@ -398,8 +467,19 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
     // here it's the same act: name it, say when it runs, press create.
     if (weeklyType) {
       if (!startDate || !endDate) {
-        setError('A weekly competition always needs an end — it scores the gains between its start and end. Pick a window on the right.');
+        setError(isHunt ? 'An item hunt needs a start and an end: only drops between the two count. Pick a window on the right.' : 'A weekly competition always needs an end — it scores the gains between its start and end. Pick a window on the right.');
         return;
+      }
+      if (isHunt) {
+        if (hunt.target === 'items' && hunt.items.length === 0) {
+          setError('Pick at least one item to hunt.');
+          return;
+        }
+        const unchosen = huntUnchosen(hunt);
+        if (unchosen) {
+          setError(`Choose where ${unchosen.name} counts from: one or more sources, or any source.`);
+          return;
+        }
       }
       setLoading(true);
       try {
@@ -408,17 +488,20 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: weeklyType,
-            metric: weeklyMetric,
-            title: name.trim() || defaultWeeklyTitle(weeklyType, weeklyMetric),
+            // A hunt's metric is written by the server from its targets (lib/itemHunt).
+            metric: isHunt ? 'hunt' : weeklyMetric,
+            ...(isHunt ? { hunt: huntPayload(hunt) } : {}),
+            title: name.trim() || weeklyName(weeklyType, weeklyMetric),
             startDate,
             endDate,
             includeGuests,
-            mode: weeklyMode.mode,
-            ...(weeklyMode.mode === 'teams'
+            // A hunt is everyone for themselves: no teams, no clan sides.
+            mode: isHunt ? 'solo' : weeklyMode.mode,
+            ...(!isHunt && weeklyMode.mode === 'teams'
               ? { teams: weeklyMode.teams.map((n) => ({ name: n })), teamLateJoin: weeklyMode.teamLateJoin }
               : {}),
-            ...(weeklyMode.mode === 'clans' ? { inviteClans: weeklyMode.clans } : {}),
-            ...(repeatWeekly ? { repeat: { rotation: rotation.length > 0 ? [weeklyMetric, ...rotation] : null } } : {}),
+            ...(!isHunt && weeklyMode.mode === 'clans' ? { inviteClans: weeklyMode.clans } : {}),
+            ...(repeatWeekly ? { repeat: { rotation: !isHunt && rotation.length > 0 ? [weeklyMetric, ...rotation] : null } } : {}),
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -699,7 +782,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               }}
               required
               className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
-              placeholder="Summer Bingo 2026"
+              placeholder={weeklyType ? weeklyName(weeklyType, weeklyMetric) : 'Summer Bingo 2026'}
             />
           </div>
 
@@ -836,7 +919,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 Whole clan · no sign-up
               </p>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {WEEKLY_KINDS.map((w) => {
                 const active = weeklyType === w.type;
                 return (
@@ -864,8 +947,17 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           )}
 
           {weeklyType && (
-            <Section title="Competition">
-              <div>
+            <Section title={isHunt ? 'Item hunt' : 'Competition'}>
+              {isHunt && (
+                <HuntFields
+                  value={hunt}
+                  onChange={(next) => {
+                    setHunt(next);
+                    if (!nameTouched) setName(huntName(next));
+                  }}
+                />
+              )}
+              {!isHunt && <div>
                 <label className="block text-sm font-medium text-foreground/70 mb-1.5">
                   {weeklyType === 'boss' ? 'Boss' : weeklyType === 'efficiency' ? 'Measure' : 'Skill'}
                 </label>
@@ -878,9 +970,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   ariaLabel="What the competition ranks by"
                   options={weeklyOptions}
                 />
-              </div>
-              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label="Guests race too" className="text-sm text-foreground/80" />
-              <WeeklyModeFields value={weeklyMode} onChange={setWeeklyMode} />
+              </div>}
+              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label={isHunt ? 'Guests hunt too' : 'Guests race too'} className="text-sm text-foreground/80" />
+              {!isHunt && <WeeklyModeFields value={weeklyMode} onChange={setWeeklyMode} />}
               <div className="rounded-lg border border-gold/25 bg-gold/[0.05] p-3 space-y-3">
                 <Checkbox
                   checked={repeatWeekly}
@@ -889,7 +981,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   description="A new one starts the moment this one ends, with the same length and prizes. Turn it off any time from the competition's Settings."
                   className="text-sm"
                 />
-                {repeatWeekly && (
+                {repeatWeekly && !isHunt && (
                   <div>
                     <p className="text-sm text-foreground/70 mb-1.5">
                       Then rotate through <span className="text-text-muted">(optional: leave empty to repeat the same one)</span>
@@ -924,7 +1016,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               </div>
               <p className="text-xs text-text-muted">
                 Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
-                no sign-up. Baselines come from the hiscores at the start time.
+                no sign-up. {isHunt ? 'Only drops between the start and the end count.' : 'Baselines come from the hiscores at the start time.'}
               </p>
             </Section>
           )}
@@ -1393,13 +1485,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 <p className="text-sm font-medium text-purple-300">
                   {WEEKLY_KINDS.find((w) => w.type === weeklyType)?.label}
                 </p>
-                <p className="text-xs text-text-muted mt-0.5">{defaultWeeklyTitle(weeklyType, weeklyMetric)}</p>
+                <p className="text-xs text-text-muted mt-0.5">{weeklyName(weeklyType, weeklyMetric)}</p>
 
                 <dl className="mt-3 border-t border-gold/15 pt-3 text-xs">
                   <SpecRow label="Tiles to author" value="none — it scores itself" />
                   <SpecRow
                     label="Scoring"
-                    value={weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
+                    value={isHunt ? (hunt.rule === 'first' ? 'first to get the drop' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
                   <SpecRow label="Who's in" value={includeGuests ? 'roster + guests' : 'full members only'} />
@@ -1408,7 +1500,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
 
                 <ol className="mt-3 border-t border-gold/15 pt-3 space-y-1.5">
                   {[
-                    'Nothing to author — baselines come from the hiscores when it starts',
+                    isHunt ? 'Nothing to author — drops are counted from the plugin once it starts' : 'Nothing to author — baselines come from the hiscores when it starts',
                     includeGuests
                       ? 'Everyone on the roster is entered, guests included'
                       : 'Every full member is entered; guests sit this one out',
@@ -1505,6 +1597,25 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               >
                 One week
               </button>
+              {weeklyType && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { start, end } = nextWeekSlot();
+                    setStartDate(start);
+                    setEndDate(end);
+                    setCustomDates(false);
+                  }}
+                  aria-pressed={runPreset === 'nextweek'}
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                    runPreset === 'nextweek'
+                      ? 'border-gold/50 text-gold bg-gold/10'
+                      : 'border-card-border text-text-muted hover:text-foreground'
+                  }`}
+                >
+                  Next week
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1564,10 +1675,15 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             {/* One statement of the window, not three. With the picker open it already prints its
                 own "Ends …" line, so repeating the whole range underneath in a different date
                 format just made the panel look like it disagreed with itself. */}
+            {prefilled && gapPrefill && startDate === localDayIso(gapPrefill.start) && endDate === localDayIso(gapPrefill.end ?? gapPrefill.start, 1) && (
+              <p className="text-xs text-gold-light mt-2">
+                Dates filled in from the empty stretch you picked on the schedule. Change them with the buttons above or Pick dates.
+              </p>
+            )}
             <p className="text-xs text-text-muted mt-2">
               {!startDate ? (
                 weeklyType
-                  ? 'Pick a window — a weekly competition always has an end, because it scores the gains between the two.'
+                  ? isHunt ? 'Pick a window. Only drops between the start and the end count.' : 'Pick a window — a weekly competition always has an end, because it scores the gains between the two.'
                   : 'No dates — it starts when you say so.'
               ) : customDates ? null : (
                 <span suppressHydrationWarning>

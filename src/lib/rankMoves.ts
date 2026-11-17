@@ -8,6 +8,7 @@ import { rankMove, teamRanksFromDay } from '@/lib/standingsWindow';
 export { rankMove, teamRanksFromDay };
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
+import { competitionBoard } from '@/lib/itemHuntDb';
 
 // Rank movement since the day began ("▲3 today"): the rank now against the rank at the start of the
 // day. A board's baseline is its last daily snapshot (event_day_snapshots, one per event day, written
@@ -43,7 +44,11 @@ export async function weeklyBoard(competitionId: number) {
     const existing = byRsn.get(key);
     if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) byRsn.set(key, p);
   }
-  return computeLeaderboard([...byRsn.values()]);
+  const rows = [...byRsn.values()];
+  // An item hunt ranks by its drops (lib/itemHuntDb competitionBoard), not by a gain.
+  // clan-scope: global -- one competition by the id the caller already resolved.
+  const [comp] = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, competitionId));
+  return comp?.type === 'hunt' ? competitionBoard(comp, rows) : computeLeaderboard(rows);
 }
 
 /** `{ rsnKey: rank }` of a ranked weekly board. */

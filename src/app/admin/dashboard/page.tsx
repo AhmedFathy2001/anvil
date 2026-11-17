@@ -1,3 +1,4 @@
+import { countRunning, runningLabel, runningParts } from '@/lib/runningCount';
 import { requireClan } from '@/lib/clanContext';
 import { parseBillingInterval } from '@/lib/billingInterval';
 import { pendingUpdateCount } from '@/lib/guides';
@@ -18,7 +19,7 @@ import { eventTileCount, isLadderFormat } from '@/lib/utils';
 import { writtenTile } from '@/lib/writtenTiles';
 import { getSetupStatus } from '@/lib/setupStatus';
 import CreatorDashboard from './CreatorDashboard';
-import SetupChecklist from '@/components/SetupChecklist';
+import GuidedFlow from '@/components/GuidedFlow';
 import MemberCapNotice from '@/components/MemberCapNotice';
 import { rosterCapStatus } from '@/lib/member-cap';
 import { pendingRequestCount } from '@/lib/guestAdmission';
@@ -34,6 +35,7 @@ import { openRequestCountForClan } from '@/lib/accountChangeRequests';
 import { capacityFrom, clanEventPool, eventParticipantCounts } from '@/lib/webhookCapacity';
 import { clanBlockedWebhookUses } from '@/lib/sharedWebhooks';
 import { parseEventDiscordPrefs } from '@/lib/discordPostPolicy';
+import PlanTrialPanel from '@/components/PlanTrialPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +51,12 @@ function sinceDay(column: unknown, now: number, daysAgo: number) {
 function betweenDays(column: unknown, now: number, fromDaysAgo: number, toDaysAgo: number) {
   return sql`substr(${column}, 1, 10) >= ${dayKey(now, fromDaysAgo)} AND substr(${column}, 1, 10) < ${dayKey(now, toDaysAgo)}`;
 }
+
+/** Activity rows whose stored name is an internal word: said plainly instead. */
+const FEED_WORDS: Record<string, string> = {
+  owner_trial_granted: 'trial from Anvil started',
+  owner_trial_revoked: 'trial from Anvil ended early',
+};
 
 export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
   const clan = await requireClan();
@@ -81,6 +89,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
         clanId={clan.id}
         setup={setup}
         clanPlan={clan.plan}
+        paidPlan={clan.paidPlan}
         canBuy={!!session && atLeast(session.role, 'admin')}
         billing={parseBillingInterval((await searchParams).billing)}
       />
@@ -487,20 +496,22 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
         </h1>
         <p className="text-text-muted text-[15px] mt-2">
           {creator ? '' : `${activeMembers} on the roster · `}
-          {running.length} running · {openCount(queue)} waiting on you
+          {runningLabel(countRunning(running))} · {openCount(queue)} waiting on you
         </p>
       </header>
 
       {!creator && <MemberCapNotice status={capStatus} />}
-
-      {!setup.allDone && !setup.dismissed && (
-        <SetupChecklist
-          steps={setup.steps}
-          completedCount={setup.completedCount}
-          totalCount={setup.totalCount}
-          creator={creator}
-        />
+      {/* The clan's trial from Anvil: the tier, the end date, and the one way to keep it (lib/planTrials). */}
+      {!creator && (
+        <div className="mb-6">
+          <PlanTrialPanel clan={clan} canBuy={!!session && atLeast(session.role, 'owner')} planHref={await clanHref('/admin/plan')} />
+        </div>
       )}
+
+      {/* The owner's guide (lib/guidedFlows/clanSetup), for admins: every button leads to a page only
+          they can open. It stays until every step is done; "Hide" in the old checklist or "Skip" in the
+          wizard only folds it down to a Show guide control. */}
+      {setup.guide && atLeast(session?.role, 'admin') && <GuidedFlow view={setup.guide} scope={clan.id} startDismissed={setup.dismissed} />}
 
       <NowBar running={running} nextUp={nextUp} now={now} canReach={canReach} />
 
@@ -518,7 +529,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             </span>
           </h2>
           {canManageEvents && (
-            <ClanLink href="/admin/events" className="text-xs text-gold hover:text-gold-light">
+            <ClanLink href="/admin/events" className="tap-pad text-xs text-gold hover:text-gold-light">
               Manage events →
             </ClanLink>
           )}
@@ -615,6 +626,9 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
    Now — what is live this second, and what rolls next.
    --------------------------------------------------------------------------- */
 
+/** How many running things the Now bar draws in full; the rest are counted in one line under them. */
+const NOW_BAR_SHOWN = 2;
+
 function NowBar({
   running,
   nextUp,
@@ -643,7 +657,7 @@ function NowBar({
             </div>
           </>
         ) : (
-          running.slice(0, 2).map((it, i) => {
+          running.slice(0, NOW_BAR_SHOWN).map((it, i) => {
             const start = Date.parse(it.startDate!);
             // Open-ended: no finish line to measure against, so no countdown and a full bar.
             const end = it.endDate ? Date.parse(it.endDate) : null;
@@ -660,7 +674,7 @@ function NowBar({
                   </span>
                 </div>
                 {canOpenEvents ? (
-                  <ClanLink href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+                  <ClanLink href={it.href} className="tap-pad block mt-1.5 font-semibold hover:text-gold transition-colors">
                     {it.title}
                   </ClanLink>
                 ) : (
@@ -676,6 +690,12 @@ function NowBar({
             );
           })
         )}
+        {/* The header counts everything running; say where the ones not drawn here are. */}
+        {running.length > NOW_BAR_SHOWN && (
+          <ClanLink href="/admin/schedule" className="tap-pad mt-3 block text-xs text-gold hover:underline">
+            and {runningParts(countRunning(running.slice(NOW_BAR_SHOWN)))} more running: see the schedule →
+          </ClanLink>
+        )}
       </div>
 
       <div className="bg-card-bg p-4">
@@ -690,7 +710,7 @@ function NowBar({
         {nextUp ? (
           <>
             {canOpenEvents ? (
-              <ClanLink href={nextUp.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+              <ClanLink href={nextUp.href} className="tap-pad block mt-1.5 font-semibold hover:text-gold transition-colors">
                 {nextUp.title}
               </ClanLink>
             ) : (
@@ -935,7 +955,7 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
           Runway
           <span className="text-xs text-text-muted font-normal">next {weeks} weeks</span>
         </h2>
-        <ClanLink href="/admin/schedule" className="text-xs text-gold hover:text-gold-light">
+        <ClanLink href="/admin/schedule" className="tap-pad text-xs text-gold hover:text-gold-light">
           Full schedule →
         </ClanLink>
       </div>
@@ -947,7 +967,9 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
             <span
               key={i}
               className="absolute top-0 text-[9px] text-text-muted/70 tabular-nums whitespace-nowrap"
-              style={{ left: `${pct(daysBetween(from, t))}%` }}
+              // A label that starts in the last tenth is hung to the LEFT of its line: it used to run
+              // past the card's edge and get cut off on a phone.
+              style={{ left: `${pct(daysBetween(from, t))}%`, transform: pct(daysBetween(from, t)) > 88 ? 'translateX(-100%) translateX(-3px)' : undefined }}
             >
               {i === 0 ? 'today' : t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </span>
@@ -985,8 +1007,10 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
                     ? `Nothing scheduled after ${addDays(g.start, -1).toLocaleDateString()}`
                     : `Nothing scheduled for ${g.days} days`
                 }
-                style={{ left: `${left}%` }}
-                className="absolute inset-y-0 flex items-end gap-2 pl-2 pb-0.5 border-l border-dashed border-yellow-500/30 text-[9px] leading-none text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap"
+                // Past the middle the words hang to the LEFT of the line: to its right they ran off the
+                // card on a phone and were cut off.
+                style={left > 55 ? { right: `${100 - left}%` } : { left: `${left}%` }}
+                className={`absolute inset-y-0 flex items-end gap-2 pb-0.5 border-dashed ${left > 55 ? 'pr-2 border-r' : 'pl-2 border-l'} border-yellow-500/30 text-[9px] leading-none text-text-muted/60 hover:text-yellow-500/80 transition-colors whitespace-nowrap`}
               >
                 {/* An open-ended gap has no honest length — only a start. */}
                 {g.openEnded ? 'nothing scheduled beyond here' : `${g.days}d clear`}
@@ -1032,18 +1056,18 @@ function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; w
                     href={l.item.href}
                     title={`${l.item.title} · ${l.item.headline}${l.item.endDate ? '' : ' · no end date'}`}
                     style={{ left: `${left}%`, width: `${width}%`, top: `${l.lane * RUNWAY_ROW}px` }}
-                    className={`absolute h-[24px] border flex items-center px-2 text-[10px] font-semibold overflow-hidden whitespace-nowrap hover:brightness-125 transition-[filter] ${tone} ${
+                    className={`tap-pad absolute h-[24px] border flex items-center px-2 text-[10px] font-semibold overflow-hidden max-sm:overflow-visible whitespace-nowrap hover:brightness-125 transition-[filter] ${tone} ${
                       clipped ? 'rounded-r-md border-l-0' : 'rounded-md'
                     }`}
                   >
-                    {inside && <span className="truncate">{l.item.title}</span>}
+                    {inside && <span className="truncate min-w-0">{l.item.title}</span>}
                   </ClanLink>
                   {/* A bar too narrow to hold its title gets it alongside, rather than as "Bo…". */}
                   {!inside && (
                     <ClanLink
                       href={l.item.href}
                       style={{ left: `calc(${left + width}% + 6px)`, top: `${l.lane * RUNWAY_ROW}px` }}
-                      className="absolute h-[24px] flex items-center text-[10px] text-text-muted hover:text-foreground whitespace-nowrap max-w-[45%] overflow-hidden"
+                      className="tap-pad absolute h-[24px] flex items-center text-[10px] text-text-muted hover:text-foreground whitespace-nowrap max-w-[45%] overflow-hidden max-sm:overflow-visible"
                     >
                       <span className="truncate">{l.item.title}</span>
                     </ClanLink>
@@ -1156,7 +1180,7 @@ function Activity({
                       <div className="text-sm">
                         {a.memberRsn && <span className="font-semibold">{a.memberRsn}</span>}
                         {a.memberRsn && ' '}
-                        <span className="text-text-muted">{a.eventType.replace(/_/g, ' ')}</span>
+                        <span className="text-text-muted">{FEED_WORDS[a.eventType] ?? a.eventType.replace(/_/g, ' ')}</span>
                         {a.count > 1 && (
                           <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gold/15 text-gold/90 align-middle">
                             ×{a.count}

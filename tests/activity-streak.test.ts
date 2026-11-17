@@ -83,3 +83,17 @@ test('the login brief carries the streak on its second line, for everyone by def
   assert.deepEqual(lines, [{ tone: 'info', text: 'Week 6 locked in.' }]);
   assert.deepEqual(composeBrief(['bingo'], { bingo: null, weeklies: [], clanEvents: [], goal: null, streak: 'Week 6 locked in.' }), []);
 });
+
+import { activeThisWeek } from '../src/lib/activityStreak.ts';
+test('activeThisWeek: a carried streak with nothing this week is not active', () => {
+  // Wednesday-start weeks; today is Fri 2026-11-13, this week began Wed 11-11. Three full prior weeks, none this week.
+  const days = ['2026-10-21', '2026-10-22', '2026-10-23', '2026-10-28', '2026-10-29', '2026-10-30', '2026-11-04', '2026-11-05', '2026-11-06'];
+  const quiet = streakFrom(days, '2026-11-13');
+  assert.ok(quiet.weeks > 0);
+  assert.equal(activeThisWeek(quiet), false);
+  const one = streakFrom([...days, '2026-11-12'], '2026-11-13');
+  assert.equal(activeThisWeek(one), true);
+});
+test('activeThisWeek: nothing at all is not active', () => {
+  assert.equal(activeThisWeek(streakFrom([], '2026-11-13')), false);
+});

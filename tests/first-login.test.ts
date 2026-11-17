@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { firstLoginDestination, onboardingNext } from '../src/lib/firstLogin.ts';
+import { firstLoginDestination, onboardingNext, returnedToClanHost } from '../src/lib/firstLogin.ts';
 
 test('home page sign-in goes to onboarding with nothing to continue to', () => {
   assert.equal(firstLoginDestination('/', false), '/welcome');
@@ -16,11 +16,27 @@ test('home page sign-in goes to onboarding with nothing to continue to', () => {
 
 test('a deep link goes through onboarding and rides along as next', () => {
   assert.equal(firstLoginDestination('/events/12', false), '/welcome?next=%2Fevents%2F12');
-  assert.equal(
-    firstLoginDestination('/c/ironfoundry/leaderboard?tab=xp', false),
-    '/welcome?next=%2Fc%2Fironfoundry%2Fleaderboard%3Ftab%3Dxp',
-  );
-  assert.equal(firstLoginDestination('/events/12/signup', true), '/profile?welcome=1&next=%2Fevents%2F12%2Fsignup');
+  assert.equal(firstLoginDestination('/events/12/leaderboard', true), '/profile?welcome=1&next=%2Fevents%2F12%2Fleaderboard');
+});
+
+test('a clan page, a creator space or the clan directory goes straight there', () => {
+  for (const path of [
+    '/c/ironforge',
+    '/c/ironforge/',
+    '/c/ironforge?x=1',
+    '/c/ironforge/events/8',
+    '/c/ironforge/leaderboard?tab=xp',
+    '/s/cleo',
+    '/s/cleo/events/3',
+    '/clans',
+    '/clans?q=iron',
+    '/clans/iron-forge',
+  ]) {
+    assert.equal(firstLoginDestination(path, false), path, path);
+  }
+  // Look-alikes still go through the chooser.
+  assert.equal(firstLoginDestination('/clansfoo', false), '/welcome?next=%2Fclansfoo');
+  assert.equal(firstLoginDestination('/cx/foo', false), '/welcome?next=%2Fcx%2Ffoo');
 });
 
 test('time-sensitive targets are not detoured', () => {
@@ -33,6 +49,10 @@ test('time-sensitive targets are not detoured', () => {
     '/clans/new',
     '/events/7/join/tok123',
     '/c/foo/events/7/join/tok123',
+    '/host',
+    '/host/friends',
+    '/events/12/signup',
+    '/c/foo/events/12/signup',
   ]) {
     assert.equal(firstLoginDestination(path, false), path, path);
   }
@@ -52,4 +72,13 @@ test('onboardingNext reads only safe, non-root paths', () => {
   assert.equal(onboardingNext('https://evil.com'), null);
   assert.equal(onboardingNext('//evil.com'), null);
   assert.equal(onboardingNext(undefined), null);
+});
+
+test('the apex host is not a clan host, so apex-first newcomers reach /welcome', () => {
+  const apex = ['anvilosrs.com', 'www.anvilosrs.com'];
+  assert.equal(returnedToClanHost('anvilosrs.com', apex), false);
+  assert.equal(returnedToClanHost('ANVILOSRS.com:443', apex), false);
+  assert.equal(returnedToClanHost('www.anvilosrs.com', apex), false);
+  assert.equal(returnedToClanHost(null, apex), false);
+  assert.equal(returnedToClanHost('ironfoundry.anvilosrs.com', apex), true);
 });

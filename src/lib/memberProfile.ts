@@ -4,13 +4,17 @@
 // rows, the milestone log. Opening a profile never triggers a hiscores fetch, which is what keeps a
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
+import { historyEventShown, historyRowIsThisSeats } from '@/lib/clanScopeRules';
+import { visibilityOf } from '@/lib/eventVisibility';
+import { avatarUrl } from '@/lib/discord-oauth';
+import { personaCharacterVisible } from '@/lib/rosterVisibility';
 import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
 import { notFriendsEvent } from '@/lib/friendEventsSql';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players, clanMemberships, accountGameClans, clans, gameClans } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
-import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
 import {
@@ -1097,7 +1101,11 @@ export interface CompetitionHistory {
  * of the comps they entered, since a weekly's result isn't materialised anywhere: one grouped query
  * over the participants of those comps, not a query per competition.
  */
-export async function getCompetitionHistory(clanMemberId: number, rsn: string): Promise<CompetitionHistory> {
+export async function getCompetitionHistory(
+  clanMemberId: number,
+  rsn: string,
+  viewer: { insider: boolean } = { insider: false },
+): Promise<CompetitionHistory> {
   // Events come from ENROLLMENT, not from player_event_facts.
   //
   // Facts are computed when an event ends, so a bingo that finished before that machinery existed
@@ -1118,7 +1126,12 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
     /* a malformed alias list shouldn't cost someone their history */
   }
 
-  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
+  // The same boundary as lib/clanScopeRules historyRowIsThisSeats, as SQL: the seat's own rows in any
+  // event, plus every row of this clan's own events (for the rename aliases).
+  const ownOrSeat = (seatColumn: typeof eventParticipants.clanMemberId | typeof playerEventFacts.clanMemberId) =>
+    member?.clanId != null ? or(eq(seatColumn, clanMemberId), eq(events.clanId, member.clanId))! : eq(seatColumn, clanMemberId);
+
+  // clan-scope: this clan -- narrowed to this seat's rows and this clan's own events (ownOrSeat).
   const enrolled = await db
     .select({
       eventId: eventParticipants.eventId,
@@ -1128,16 +1141,27 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       endDate: events.endDate,
       format: events.format,
       scoringMode: events.scoringMode,
+      eventClanId: events.clanId,
+      visibility: events.visibility,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     // A Supporter's friends events are private to the friends invited (lib/friendEventRules): never on
     // a clan profile anybody can read.
-    .where(notFriendsEvent(events.clanId))
+    //
+    // THIS SEAT'S ROWS, OR THIS CLAN'S EVENTS — in the query, not after it. This read every
+    // participant of every event on Anvil and matched by name afterwards, so a same-named player in
+    // another clan's event (a members-only clan's included) appeared in this member's history.
+    .where(and(notFriendsEvent(events.clanId), ownOrSeat(eventParticipants.clanMemberId)))
     .orderBy(desc(events.endDate));
 
+  const seatRef = { id: clanMemberId, clanId: member?.clanId ?? null };
   const mineEvents = enrolled.filter(
-    (e) => e.playerClanMemberId === clanMemberId || aliases.has(normalizeRsn(e.playerName)),
+    (e) =>
+      historyRowIsThisSeats(
+        { seatId: e.playerClanMemberId, nameMatchesAlias: aliases.has(normalizeRsn(e.playerName)), eventClanId: e.eventClanId },
+        seatRef,
+      ) && historyEventShown(visibilityOf(e.visibility), viewer.insider),
   );
 
   // Facts for this member across ALL events, not just the enrolled ones: a player row can be dropped
@@ -1157,13 +1181,21 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       endDate: events.endDate,
       format: events.format,
       scoringMode: events.scoringMode,
+      eventClanId: events.clanId,
+      visibility: events.visibility,
     })
     .from(playerEventFacts)
     .innerJoin(events, eq(playerEventFacts.eventId, events.id))
-    .where(notFriendsEvent(events.clanId));
+    .where(and(notFriendsEvent(events.clanId), ownOrSeat(playerEventFacts.clanMemberId)));
   const factFor = new Map(
     factRows
-      .filter((f) => f.clanMemberId === clanMemberId || aliases.has(normalizeRsn(f.rsn)))
+      .filter(
+        (f) =>
+          historyRowIsThisSeats(
+            { seatId: f.clanMemberId, nameMatchesAlias: aliases.has(normalizeRsn(f.rsn)), eventClanId: f.eventClanId },
+            seatRef,
+          ) && historyEventShown(visibilityOf(f.visibility), viewer.insider),
+      )
       .map((f) => [f.eventId, f]),
   );
 
@@ -1222,7 +1254,8 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
     .innerJoin(weeklyCompetitions, eq(weeklyParticipants.competitionId, weeklyCompetitions.id))
     .where(eq(weeklyParticipants.clanMemberId, clanMemberId));
 
-  const finished = mine.filter((m) => m.status === 'completed');
+  // Item hunts are left out: they are won by drops, and this history ranks by the hiscores gain.
+  const finished = mine.filter((m) => m.status === 'completed' && m.type !== 'hunt');
   const weeklies: WeeklyResult[] = [];
   if (finished.length > 0) {
     const compIds = finished.map((m) => m.competitionId);
@@ -1344,10 +1377,10 @@ export interface PersonaAccount {
 }
 
 export interface Persona {
-  userId: number;
-  discordId: string | null;
+  /** Clan insiders only (lib/rosterVisibility); null for anyone else. */
   discordUsername: string | null;
-  discordAvatar: string | null;
+  /** Clan insiders only. Built here so the Discord id is never a field of its own. */
+  avatarUrl: string | null;
   accounts: PersonaAccount[];
   totalEhp: number;
   totalEhb: number;
@@ -1364,7 +1397,7 @@ export interface Persona {
  * Returns null when the member has no linked account or is the only one on it: a "persona" of one is
  * just the profile you're already looking at.
  */
-export async function getPersona(clanMemberId: number): Promise<Persona | null> {
+export async function getPersona(clanMemberId: number, viewer: { insider: boolean } = { insider: false }): Promise<Persona | null> {
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.playerId) return null;
@@ -1410,12 +1443,21 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
     columns: { linkAccountsPublicly: true, banned: true },
   });
   const linkable = !!ownerRow?.linkAccountsPublicly && !ownerRow?.banned;
+  //
+  // AND WHO IS LOOKING. Any signed-in visitor to a public clan's member page used to get the whole
+  // card: the Discord name and face, and every character seated here, shared or not. Someone outside
+  // the clan now gets only what the person published and agreed to link, and no Discord identity.
   for (let i = owned.length - 1; i >= 0; i--) {
-    if (seatByAccount.has(owned[i].accountId)) continue;
-    if (!linkable || !owned[i].shared) owned.splice(i, 1);
+    const visible = personaCharacterVisible({
+      insider: viewer.insider,
+      seatedHere: seatByAccount.has(owned[i].accountId),
+      shared: owned[i].shared,
+      linkable,
+    });
+    if (!visible) owned.splice(i, 1);
   }
   // An unclaimed seat on this person (rare — a roster entry under a placeholder) still belongs here.
-  for (const seat of seatsHere) {
+  for (const seat of viewer.insider ? seatsHere : []) {
     if (!owned.some((o) => o.accountId === seat.accountId)) {
       const row = rows.find((r) => r.id === seat.id);
       owned.push({ accountId: seat.accountId, rsn: row?.rsn ?? '', isPrimary: 0, accountType: null, overallXp: row?.overallXp ?? null, shared: true });
@@ -1449,10 +1491,8 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
         Number(b.isPrimary) - Number(a.isPrimary) || rank[a.status] - rank[b.status] || (b.ehp ?? 0) - (a.ehp ?? 0),
     );
   return {
-    userId: member.playerId,
-    discordId: user?.discordId ?? null,
-    discordUsername: user?.discordUsername ?? null,
-    discordAvatar: user?.discordAvatar ?? null,
+    discordUsername: viewer.insider ? user?.discordUsername ?? null : null,
+    avatarUrl: viewer.insider && user?.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null,
     accounts: characters,
     // Summed, not averaged: hours spent on an alt are still hours this person played.
     totalEhp: characters.reduce((sum, a) => sum + (a.ehp ?? 0), 0),

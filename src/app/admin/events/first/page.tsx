@@ -1,9 +1,12 @@
+import GuidedFlow from '@/components/GuidedFlow';
+import { newEventFlow } from '@/lib/guidedFlows/runEvent';
 import { count, eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 
 import { db } from '@/db';
 import { events } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
+import { track } from '@/lib/analytics';
 import { suggestEventName } from '@/lib/eventPresets';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { FRIENDS_CAPS, isFriendsHost } from '@/lib/friendEventRules';
@@ -20,6 +23,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function FirstEventPage() {
   const clan = await requireClan();
+  track('flow.first.opened', { clanId: clan.id });
   // clan-scope: this clan's own events, for the suggested name's number.
   const [ec] = await db.select({ c: count() }).from(events).where(eq(events.clanId, clan.id));
   // A friends host: the owner's tier sets the size (lib/friendEventRules). Lapsed → no tier: send
@@ -28,11 +32,16 @@ export default async function FirstEventPage() {
   if (isFriendsHost(clan) && !friendsTier) redirect('/host/friends'); // clan-prefix: platform -- the friends host's home is on the apex
   const friends = friendsTier ? { playersCap: FRIENDS_CAPS[friendsTier].playersPerEvent, tierName: SUPPORTER_TIERS[friendsTier].name } : null;
   return (
-    <FirstEventClient
-      suggestedName={suggestEventName(clan.name, ec?.c ?? 0)}
-      first={(ec?.c ?? 0) === 0}
-      creator={isCreatorSpace(clan)}
-      friends={friends}
-    />
+    <>
+      {/* The same guide strip the event's own pages carry, with its first step open. A friends host
+          runs a smaller job (no sign-ups, no prizes), so it gets no strip. */}
+      {!friends && <GuidedFlow view={newEventFlow({ quick: true })} />}
+      <FirstEventClient
+        suggestedName={suggestEventName(clan.name, ec?.c ?? 0)}
+        first={(ec?.c ?? 0) === 0}
+        creator={isCreatorSpace(clan)}
+        friends={friends}
+      />
+    </>
   );
 }

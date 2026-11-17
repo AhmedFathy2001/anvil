@@ -147,7 +147,7 @@ export interface AttentionFacts {
    * two boards had to open both to find out whether anything was waiting.
    */
   flaggedProofs?: { count: number; events: { name: string; count: number; href: string }[] };
-  /** Active roster seats. A new clan has at most its owner, and nobody can sign up until it syncs. */
+  /** Active roster seats. A new clan has at most its owner; members only arrive when it syncs (guests can still sign up). */
   rosterSize?: number;
   /**
    * A big clan on the free plan, and what just went well there (app/admin/plan). The caller only
@@ -239,8 +239,18 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
         key: `tiles-${e.id}`,
         snoozable: false,
         severity: e.tileCount === 0 ? 'critical' : 'warn',
-        title: `${e.name} is short ${plural(e.expectedTiles - e.tileCount, 'tile')}`,
-        detail: `${e.tileCount} of ${e.expectedTiles} drawn · opens ${inDays(startsIn)}`,
+        // A running board has already opened: "opens in 1 hour" (the floor of a start time in the
+        // past) was wrong about the one thing the card is for. Say it is live with gaps instead.
+        title:
+          e.status === 'running'
+            ? `${e.name} is running with ${plural(e.expectedTiles - e.tileCount, 'empty tile')}`
+            : `${e.name} is short ${plural(e.expectedTiles - e.tileCount, 'tile')}`,
+        detail:
+          e.status === 'running'
+            ? `${e.tileCount} of ${e.expectedTiles} drawn · players see the rest as blank squares`
+            : startsIn > 0
+              ? `${e.tileCount} of ${e.expectedTiles} drawn · opens ${inDays(startsIn)}`
+              : `${e.tileCount} of ${e.expectedTiles} drawn · its start time has passed`,
         href: `${e.href}/tiles`,
         action: 'Draw tiles',
         at: startsIn,
@@ -474,8 +484,12 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       severity: 'info',
       // An open-ended gap gets a date, not a duration: "33 days" was only ever the distance to the
       // edge of a six-week window, and would have read 47 over eight.
+      // A gap that has already begun has no "last day something is on" ahead of the reader: naming
+      // yesterday ("after November 14" on the 15th) reads as a stale page, so it says from today.
       title: facts.gap.openEnded
-        ? `Nothing is scheduled after ${facts.gap.startsOn}`
+        ? facts.gap.startsInDays <= 0
+          ? 'Nothing is scheduled from today on'
+          : `Nothing is scheduled after ${facts.gap.startsOn}`
         : `Nothing runs for ${plural(facts.gap.days, 'day')}${
             facts.gap.startsInDays > 0 ? `, starting ${inDays(facts.gap.startsInDays * DAY)}` : ''
           }`,

@@ -5,6 +5,8 @@ import { isBannedFromClan } from '@/lib/clanBans';
 import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rosterClanSeat } from '@/lib/seatScope';
+import { staffEnteredDiscordLink } from '@/lib/discordLink';
+import { mayHandLink } from '@/lib/discordRoleSafety';
 
 /**
  * Seat an RSN on a clan's roster, creating the account behind it if it is new. Returns the seat id.
@@ -18,10 +20,19 @@ import { rosterClanSeat } from '@/lib/seatScope';
 export async function findOrCreateClanMember(
   clanId: number,
   rsn: string,
-  options: { discordId?: string | null; asGuest?: boolean } = {},
+  options: {
+    discordId?: string | null;
+    asGuest?: boolean;
+    /** Who typed the Discord id: decides whether it is stored as a hand link (lib/discordLink). */
+    linkedBy?: { userId: number; role: string } | null;
+  } = {},
 ): Promise<number> {
   const trimmed = sanitizeRsn(rsn);
   if (!trimmed) throw new Error('rsn is required');
+  // A character's Discord id is written only for an admin or the owner (lib/discordRoleSafety
+  // rosterDiscordIdWrite). From anyone else, or with nobody to attribute it to, it is dropped here,
+  // whatever route the call came through.
+  if (!options.linkedBy || !mayHandLink(options.linkedBy.role)) options = { ...options, discordId: null };
 
   const normalized = normalizeRsn(trimmed);
   // Scoped to the clan: the same RSN is legitimately on several clans' rosters, so a global lookup
@@ -34,7 +45,14 @@ export async function findOrCreateClanMember(
   if (existing) {
     // The Discord id is a fact about the account; whether they have left is a fact about the seat.
     if (options.discordId && !existing.discordId) {
-      await db.update(accounts).set({ discordId: options.discordId }).where(eq(accounts.id, existing.accountId));
+      const link = await staffEnteredDiscordLink({
+        clanId,
+        seatId: existing.id,
+        claimed: existing.claimedAt != null,
+        discordId: options.discordId,
+        actor: options.linkedBy,
+      });
+      await db.update(accounts).set(link).where(eq(accounts.id, existing.accountId));
     }
     // A live clan ban keeps the seat departed. Without this the ban is decorative: the next thing
     // that touches this row puts them straight back on the roster.
@@ -46,7 +64,14 @@ export async function findOrCreateClanMember(
 
   const account = await findOrCreateAccount({ rsn: trimmed, rsnNormalized: normalized });
   if (options.discordId) {
-    await db.update(accounts).set({ discordId: options.discordId }).where(eq(accounts.id, account.id));
+    const link = await staffEnteredDiscordLink({
+      clanId,
+      seatId: null,
+      claimed: account.claimedAt != null,
+      discordId: options.discordId,
+      actor: options.linkedBy,
+    });
+    await db.update(accounts).set(link).where(eq(accounts.id, account.id));
   }
   return findOrCreateSeat(clanId, account.id, {
     kind: options.asGuest === false ? 'member' : 'guest',

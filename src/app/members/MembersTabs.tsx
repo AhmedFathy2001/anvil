@@ -111,8 +111,11 @@ export default function MembersTabs({
 
       {tab === 'roster' && (
         <>
-          <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} heat={heatOf(members, streaks)} />
+          {/* The list first: it used to sit about two and a half screens down, under the stats. */}
           <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} initialSort={initialSort} streaks={streaks} />
+          <div className="mt-8">
+            <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} heat={heatOf(members, streaks)} />
+          </div>
         </>
       )}
 

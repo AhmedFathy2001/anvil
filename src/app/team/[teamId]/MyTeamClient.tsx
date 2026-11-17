@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useUrlTile } from '@/hooks/useUrlTile';
+import { eventStage } from '@/lib/eventStage';
 import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
@@ -26,6 +28,7 @@ import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingSt
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import { claimFilterIds, TeamPlanPanel, TileClaimSection, useTeamClaims, type ClaimFilter } from './TeamClaims';
 import { completionMarkers } from '@/lib/tileClaimsView';
+import { prefetchTileDialog } from '@/lib/tileData';
 
 interface Props {
   event: Event;
@@ -73,7 +76,8 @@ export default function MyTeamClient({
   const [completions, setCompletions] = useState(initialCompletions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
-  const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  // The open tile lives in the URL (?tile=ID), same as the event page: deep link, Back closes.
+  const [selectedTileId, setSelectedTileId] = useUrlTile((id) => tiles.some((t) => t.id === id));
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(initialTeam.name);
   const [newColor, setNewColor] = useState(initialTeam.color);
@@ -205,8 +209,10 @@ export default function MyTeamClient({
     fetchCompletions();
     fetchGains();
   }, [fetchSubmissions, fetchCompletions, fetchGains]);
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
-  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: fetchGains });
+  // A finished event can't change: no polling at all (same rule as the scoreboard).
+  const finished = eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap';
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange, enabled: !finished });
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: fetchGains, enabled: !finished });
 
   function handleTileClick(tileId: number) {
     const tile = tiles.find((t) => t.id === tileId);
@@ -334,7 +340,7 @@ export default function MyTeamClient({
     myPlayerId,
   });
   const selectedTileCompletedBy = selectedTileId
-    ? completions.filter((c) => c.tileId === selectedTileId).map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
+    ? completions.filter((c) => c.tileId === selectedTileId).map((c) => ({ teamId: team.id, teamName: team.name, color: team.color, completedAt: c.completedAt }))
     : [];
   const selectedMember = teamPlayers.find((p) => p.id === selectedMemberId) ?? null;
   const selectedMemberSubmissions = selectedMemberId
@@ -466,7 +472,8 @@ export default function MyTeamClient({
       </div>
       <p className="text-text-muted text-sm mb-2">
         {event.name}
-        {!boardHidden && (isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
+        {/* A finished event takes nothing more: no marking, no proof (the server refuses both). */}
+        {!boardHidden && (finished ? ' · The event has ended. Tap a tile to see how it went' : isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
         {/* "Where did my screenshot go?" — the member panel already lists a player's own proof; this
             opens it on them without having to know you can click your own name in the roster. */}
         {!boardHidden && myPlayerId != null && (
@@ -510,7 +517,7 @@ export default function MyTeamClient({
 
       {/* Manual refresh is captains-only now — a team override on top of the periodic stats cron.
           Regular members no longer refresh their own stats (rate-limit hygiene). */}
-      {isCaptain && eventStarted && (
+      {isCaptain && eventStarted && !finished && (
         <div className="mb-4 flex items-center gap-3 flex-wrap">
           <button
             onClick={refreshStats}
@@ -586,9 +593,9 @@ export default function MyTeamClient({
             </div>
           )}
 
-          {/* Team roster — shut by default; the breakdown above already names everyone. */}
+          {/* Team roster — open: this is the viewer's own team hub, and who is on it is the first question. */}
           {teamPlayers.length > 0 && (
-            <details className="border border-card-border rounded-xl bg-card-bg group">
+            <details open className="border border-card-border rounded-xl bg-card-bg group">
               <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
                 <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
                 <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />
@@ -598,9 +605,9 @@ export default function MyTeamClient({
                 {teamPlayers.map((player) => (
                   <span
                     key={player.id}
-                    className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 ${player.frozenAt ? 'bg-brown-dark/50 text-text-muted' : 'bg-brown-dark'}`}
+                    className={`text-sm px-3 py-1.5 rounded-lg border border-card-border inline-flex items-center gap-1.5 max-w-full ${player.frozenAt ? 'bg-brown-dark/50 text-text-muted' : 'bg-brown-dark'}`}
                   >
-                    <span className={player.frozenAt ? 'line-through' : ''}>{player.name}</span>
+                    <span title={player.name} className={`min-w-0 truncate ${player.frozenAt ? 'line-through' : ''}`}>{player.name}</span>
                     {player.frozenAt && (
                       <span
                         className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px"
@@ -643,14 +650,17 @@ export default function MyTeamClient({
               </div>
             ) : (
               <>
-            <TeamPlanPanel
-              claims={claims}
-              tiles={tiles}
-              completedIds={completedTileIds}
-              filter={claimFilter}
-              onFilter={setClaimFilter}
-              onOpenTile={handleTileClick}
-            />
+            {/* Planning is for a board still in play. */}
+            {!finished && (
+              <TeamPlanPanel
+                claims={claims}
+                tiles={tiles}
+                completedIds={completedTileIds}
+                filter={claimFilter}
+                onFilter={setClaimFilter}
+                onOpenTile={handleTileClick}
+              />
+            )}
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
             <EventBoard
               format={event.format}
@@ -661,6 +671,10 @@ export default function MyTeamClient({
               activeTeamId={team.id}
               interactive={isCaptain}
               onTileClick={handleTileClick}
+              onTileIntent={(id) => {
+                const t = tiles.find((x) => x.id === id);
+                if (t) prefetchTileDialog({ eventId: event.id, tile: t as never, teamId: team.id, skipProof: true });
+              }}
               dropProgress={dropProgress}
               statProgress={statProgress}
               pointsMode={pointsMode}
@@ -706,9 +720,10 @@ export default function MyTeamClient({
           race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
-          canSubmit={eventStarted}
-          canManage={isCaptain && eventStarted}
-          canToggle={isCaptain && !selectedTile.trackedStat && eventStarted}
+          ended={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'}
+          canSubmit={eventStarted && !finished}
+          canManage={isCaptain && eventStarted && !finished}
+          canToggle={isCaptain && !selectedTile.trackedStat && eventStarted && !finished}
           onSubmit={handleSubmit}
           onDelete={handleDeleteSubmission}
           onToggle={handleToggle}
@@ -722,6 +737,8 @@ export default function MyTeamClient({
           statProgress={gains[selectedTile.id]}
           pointsMode={pointsMode}
           extra={
+            // Planning is for a board still in play: on a finished one only who did the tile is shown.
+            finished && selectedTileCompletedBy.length === 0 ? undefined :
             <TileClaimSection
               claims={claims}
               tileId={selectedTile.id}

@@ -1,4 +1,7 @@
+import GuidedFlow from '@/components/GuidedFlow';
+import { newEventFlow } from '@/lib/guidedFlows/runEvent';
 import { requireClan } from '@/lib/clanContext';
+import { track } from '@/lib/analytics';
 import { db } from '@/db';
 import { eventPresets, events } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
@@ -12,6 +15,7 @@ import GuideLink from '@/components/GuideLink';
 import ItemSlot from '@/components/ItemSlot';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { parseGapPrefill, type GapPrefill } from '@/lib/gapPrefill';
 import { FORMAT_CARDS, FORMAT_GROUP_BLURB, findFormat, type FormatCard } from '@/lib/formatCatalog';
 
 export const dynamic = 'force-dynamic';
@@ -21,17 +25,22 @@ export const dynamic = 'force-dynamic';
  * and what it suits. Picking one opens the form already on that format (?format=…), so the format is
  * chosen once and the form only asks what that format needs.
  */
-export default async function NewEventPage({ searchParams }: { searchParams: Promise<{ format?: string }> }) {
+export default async function NewEventPage({ searchParams }: { searchParams: Promise<{ format?: string; start?: string; end?: string }> }) {
   const clan = await requireClan();
+  const sp = await searchParams;
+  // From the schedule's "Fill the gap": the empty stretch, carried through the format pick into the form.
+  const gap = parseGapPrefill(sp.start, sp.end);
+  const gapQuery = gap ? `&start=${gap.start}${gap.end ? `&end=${gap.end}` : ''}` : '';
   const features = await getClanFeatures(clan.id);
   const offered = FORMAT_CARDS.filter((f) => !f.feature || features.on(f.feature));
-  const picked = findFormat((await searchParams).format);
+  const picked = findFormat(sp.format);
   const chosen = picked && offered.includes(picked) ? picked : null;
   // Formats behind a switched-off feature used to just not be there, and the reason lived on a page the
   // admin had no cause to open. Name them, and where to turn them on.
   // A creator space (lib/creatorSpaces): the same wizard with the clan-only parts left out — no
   // weeklies (feature forced off), no "Clan event", no multi-clan co-hosting.
   const creator = isCreatorSpace(clan);
+  track(chosen ? 'flow.event.form' : 'flow.event.picker', { clanId: clan.id });
   if (!chosen) {
     return (
       <FormatPicker
@@ -39,6 +48,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
         // Weeklies are not "switched off" for a creator space; they do not exist there.
         hidden={FORMAT_CARDS.filter((f) => !offered.includes(f) && !(creator && f.feature === 'weekly')).map((f) => f.name)}
         creator={creator}
+        gap={gap}
       />
     );
   }
@@ -82,11 +92,14 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
   return (
     <div>
       <ClanLink
-        href="/admin/events/new"
+        href={gap ? `/admin/events/new?${gapQuery.slice(1)}` : '/admin/events/new'}
         className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors mb-4"
       >
         &larr; Change format
       </ClanLink>
+
+      {/* Same strip as the picker before it and the event's pages after it: still step 1. */}
+      <GuidedFlow view={newEventFlow({ picked: chosen.name.toLowerCase() })} className="mb-6 max-w-4xl" />
 
       <header className="mb-6 flex items-center gap-4">
         <ItemSlot name={chosen.sprite} size={56} />
@@ -104,6 +117,8 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
           suggestedName={suggestedName}
           choice={chosen.choice}
           creator={creator}
+          gapPrefill={gap}
+          guardLeave
         />
       </div>
     </div>
@@ -113,7 +128,8 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
 const GROUPS: FormatCard['group'][] = ['Team bingo', 'Surprise tasks', 'Solo & ongoing'];
 
 /** "What are you running?" */
-function FormatPicker({ cards, hidden, creator = false }: { cards: FormatCard[]; hidden: string[]; creator?: boolean }) {
+function FormatPicker({ cards, hidden, creator = false, gap = null }: { cards: FormatCard[]; hidden: string[]; creator?: boolean; gap?: GapPrefill | null }) {
+  const gapQuery = gap ? `&start=${gap.start}${gap.end ? `&end=${gap.end}` : ''}` : '';
   return (
     <div className="max-w-5xl">
       <ClanLink
@@ -122,6 +138,13 @@ function FormatPicker({ cards, hidden, creator = false }: { cards: FormatCard[];
       >
         &larr; All events
       </ClanLink>
+      {/* The same guide strip the event's own pages carry, with its first step open. */}
+      <GuidedFlow view={newEventFlow()} />
+      {gap && (
+        <p className="mb-4 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm text-gold-light">
+          Filling the empty days {gap.start}{gap.end ? ` to ${gap.end}` : ''}. Pick a format and the dates are filled in for you.
+        </p>
+      )}
       <header className="mb-8">
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">What are you running?</h1>
         <p className="text-text-muted mt-2 text-[15px] max-w-[62ch]">
@@ -146,7 +169,7 @@ function FormatPicker({ cards, hidden, creator = false }: { cards: FormatCard[];
                 {inGroup.map((c) => (
                   <ClanLink
                     key={c.key}
-                    href={`/admin/events/new?format=${c.key}`}
+                    href={`/admin/events/new?format=${c.key}${gapQuery}`}
                     className={`relative overflow-hidden flex gap-4 items-start p-[18px] rounded-xl border transition-colors ${
                       c.tag
                         ? 'border-gold/45 bg-[radial-gradient(70%_90%_at_15%_20%,rgba(224,170,30,.14),transparent_70%)] bg-[#1a1411]'
@@ -177,7 +200,7 @@ function FormatPicker({ cards, hidden, creator = false }: { cards: FormatCard[];
           <p className="text-text-muted mt-1 mb-4">Nothing to track: a time, a place and who&rsquo;s going.</p>
           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
             <ClanLink
-              href="/admin/clan-events"
+              href={gap ? `/admin/clan-events?start=${gap.start}` : '/admin/clan-events'}
               className="flex gap-4 items-start p-[18px] rounded-xl border border-[#2e251d] bg-[#18130f] hover:border-gold/35 transition-colors"
             >
               <ItemSlot name="teleport" size={60} />

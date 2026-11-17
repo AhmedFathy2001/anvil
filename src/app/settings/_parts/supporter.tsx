@@ -11,11 +11,15 @@ import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers
 import { parseSupporterStyle } from '@/lib/supporterStyle';
 import ClanLink from '@/components/ClanLink';
 import SupporterSection, { supporterView } from '@/components/SupporterSection';
+import SupporterPlanNotes from '@/components/SupporterPlanNotes';
+import EarlyBirdBadge from '@/components/EarlyBirdBadge';
+import { supporterPlanNotes } from '@/lib/supporterPlanNotes';
+import { SECOND_MEMBERSHIP_WARNING } from '@/lib/supporterDuplicates';
 import { Pill, SettingsGroup, SettingsRow } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
 
 /**
- * Your plan (the top of Profile & look): the subscription, every perk once with the tier it needs,
+ * Your plan (the top of Account): the subscription, every perk once with the tier it needs,
  * and the settings that only exist because of it (game-chat flair, the wall, the Discord
  * announcement, the invite link). Each perk's own control is further down the page, or under In
  * game, and anyone may try it there before subscribing.
@@ -24,7 +28,7 @@ const PERKS: { label: string; where: string | null; tier: SupporterTierId }[] = 
   { label: 'Name colours on boards, rosters and Discord posts', where: '/settings/profile#name-colours', tier: 'supporter' },
   { label: 'Your name colour in other players’ game chat', where: '/settings/profile#name-colours', tier: 'supporter' },
   { label: 'A display case of your best drops (4 / 8 / 12 slots)', where: '/settings/profile#display-case', tier: 'supporter' },
-  { label: 'Your own chat line colours', where: '/settings/profile#chat-colours', tier: 'supporter' },
+  { label: 'Your own chat line colours', where: '/settings/in-game#chat-colours', tier: 'supporter' },
   { label: 'Your own avatar and banner, animated', where: '/settings/profile#avatar-banner', tier: 'champion' },
   { label: 'Choose what your login brief covers', where: '/settings/in-game#chat-feed', tier: 'champion' },
   { label: 'Boosts for clans you’re in (1 / 2 slots)', where: '/settings/profile#boosts', tier: 'champion' },
@@ -36,7 +40,7 @@ const TIER_NAME: Record<SupporterTierId, string> = { supporter: 'Supporter', cha
 
 export async function PlanGroups() {
   const session = await settingsSession();
-  const [user, supporter, referral, boosts, characters, gifted] = await Promise.all([
+  const [user, supporter, referral, boosts, characters, gifted, notes] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     supporterForUser(session.userId),
     referralSummary(session.userId).catch(() => null),
@@ -46,6 +50,7 @@ export async function PlanGroups() {
           .from(accounts).where(eq(accounts.playerId, session.playerId)).orderBy(desc(accounts.isPrimary), accounts.rsn)
       : Promise.resolve([]),
     giftedMonthsFor([session.userId]).then((m) => m.get(session.userId) ?? 0).catch(() => 0),
+    supporterPlanNotes(session.userId),
   ]);
   const tier = supporter?.tier.id ?? null;
 
@@ -63,9 +68,14 @@ export async function PlanGroups() {
         </ClanLink>
       )}
 
+      {/* A trial or gift from Anvil, a membership waiting for its first payment, two memberships at once. */}
+      <SupporterPlanNotes notes={notes} earlyBird={false} />
+
       <SupporterSection
         bare
         looks={false}
+        trialDays={notes.buttons.kind === 'trial' ? notes.buttons.trialDays : 0}
+        upgradeWarning={notes.paying ? SECOND_MEMBERSHIP_WARNING : null}
         supporter={supporterView(supporter)}
         name={user?.displayName ?? null}
         announce={user?.announceSupporter ?? true}
@@ -79,6 +89,8 @@ export async function PlanGroups() {
             : null
         }
       />
+
+      <EarlyBirdBadge className="mt-3" />
 
       <div className="mt-6">
       <SettingsGroup title="Perks" id="perks">

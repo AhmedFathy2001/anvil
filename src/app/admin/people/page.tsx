@@ -11,6 +11,8 @@ import { pendingRequests } from '@/lib/guestAdmission';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { creatorPlayers } from '@/lib/creatorHome';
 import CreatorPlayers from './CreatorPlayers';
+import DeletedAccountBans from './DeletedAccountBans';
+import { deletedAccountClanBans } from '@/lib/deletedAccountBans';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,12 +32,16 @@ export default async function AdminClanPage() {
     // Clan vs clan competition invites — an owner/admin answers, same bar as co-hosting.
     isAdmin ? competitionInvitesForClan(clan.id) : Promise.resolve([]),
   ]);
+  // Bans on accounts that have since been deleted: nobody to show on the roster, so they get their
+  // own short list. Admin only, like banning.
+  const deletedBans = isAdmin ? await deletedAccountClanBans(clan.id) : [];
   if (isCreatorSpace(clan)) {
     return (
       <>
         {requests.length > 0 && <JoinRequests initial={requests} />}
         {pending.length > 0 && <PendingCoHostInvites initial={pending} />}
         <CreatorPlayers players={await creatorPlayers(clan.id)} />
+        <DeletedAccountBans initial={deletedBans} />
       </>
     );
   }
@@ -46,6 +52,7 @@ export default async function AdminClanPage() {
       {compInvites.length > 0 && <CompetitionInvites initial={compInvites} />}
       {/* Only the owner can hand out Admin (Staff & roles' rule), so only they are offered it. */}
       <ClanRosterClient isAdmin={isAdmin} canGrantAdmin={canGrantRole(session?.role, 'admin')} />
+      <DeletedAccountBans initial={deletedBans} />
     </>
   );
 }

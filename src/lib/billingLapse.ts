@@ -15,6 +15,7 @@ import { clanAuditLog, clans } from '@/db/schema';
 import { daysUntil } from '@/lib/clanBilling';
 import { checkSubscriptionWithGumroad } from '@/lib/gumroad';
 import { freeTierFor, isFreePlanId } from '@/lib/billingCatalog';
+import { fallBackToOlderMembership } from '@/lib/extraMemberships';
 import { log } from '@/lib/logger';
 
 export async function logBilling(clanId: number, eventType: string, detail: unknown, notes = 'gumroad webhook') {
@@ -36,6 +37,9 @@ export async function logBilling(clanId: number, eventType: string, detail: unkn
  * creator free, lib/billingCatalog). Status is NOT touched: the site, roster and history stay.
  */
 export async function endMembership(clan: { id: number; kind: string; plan: string }, notes = 'gumroad webhook', reason?: string) {
+  // Still charged for an older membership it was told to cancel (lib/extraMemberships)? It goes back
+  // to that one, on Gumroad's word that it is running, instead of to free.
+  if (await fallBackToOlderMembership(clan, notes)) return;
   const free = freeTierFor(clan.kind);
   await db
     .update(clans)

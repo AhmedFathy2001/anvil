@@ -66,13 +66,30 @@ test('the gate refuses a tile that is not open on the route', async () => {
   assert.equal((await gate('start')).allowed, true);
 });
 
+test('a hand-filed proof is refused on a tile the team has not reached, and allowed once it is open', async () => {
+  // Nothing done yet: the start takes proof, the fork tiles and the end do not.
+  assert.equal(await raceDb.raceProofBlockFor(await event(), await tile('start'), teamId), null);
+  assert.match((await raceDb.raceProofBlockFor(await event(), await tile('a'), teamId))!, /locked for your team/);
+  assert.match((await raceDb.raceProofBlockFor(await event(), await tile('end'), teamId))!, /locked for your team/);
+  // With "bank early finishes" on, a tile further along the road takes proof (it is banked).
+  await db.update(s.events).set({ rules: JSON.stringify({ raceBank: true }) }).where(eq(s.events.id, eventId));
+  assert.equal(await raceDb.raceProofBlockFor(await event(), await tile('end'), teamId), null);
+  await db.update(s.events).set({ rules: null }).where(eq(s.events.id, eventId));
+  // Another format is never the race's to refuse.
+  assert.equal(await raceDb.raceProofBlockFor({ ...(await event()), format: 'bingo' }, await tile('end'), teamId), null);
+});
+
 test('finishing a tile at a fork closes the other option', async () => {
+  // (continues the proof rule: after the start both fork tiles take proof; after b, a is closed.)
+
   await complete('start');
   assert.equal((await gate('a')).allowed, true);
   assert.equal((await gate('b')).allowed, true);
   await complete('b');
   assert.equal((await gate('a')).allowed, false);
   assert.equal((await gate('end')).allowed, true);
+  assert.match((await raceDb.raceProofBlockFor(await event(), await tile('a'), teamId))!, /closed for your team/);
+  assert.equal(await raceDb.raceProofBlockFor(await event(), await tile('end'), teamId), null);
 });
 
 test('a banked early finish lands when the route reaches it (rule on)', async () => {

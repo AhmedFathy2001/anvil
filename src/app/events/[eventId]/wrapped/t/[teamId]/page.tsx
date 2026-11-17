@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import EndsAt from '../../EndsAt';
 import ClanLink from '@/components/ClanLink';
 import EventApiHost from '@/components/EventApiHost';
 import { teamCardLine } from '@/lib/eventWrappedRules';
@@ -42,7 +43,7 @@ export default async function TeamWrappedPage({ params }: { params: Promise<Para
   if (!open) {
     return (
       <div>{back}
-        <Notice title="Cards aren’t out yet">Every team gets one when the event ends. Check back then.</Notice>
+        <Notice title="Cards aren’t out yet">Every team gets one when the event ends.{event.endDate ? <EndsAt endDate={event.endDate} /> : null} Check back then.</Notice>
       </div>
     );
   }

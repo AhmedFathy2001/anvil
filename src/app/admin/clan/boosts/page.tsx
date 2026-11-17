@@ -43,6 +43,21 @@ export default async function ClanBoostsPage() {
             {summary.progress && <> · {summary.progress.need - summary.progress.have} more to Level {summary.progress.next}</>}
           </span>
         </div>
+        {summary.progress && summary.progress.need > 0 && (
+          <div
+            role="progressbar"
+            aria-label={`Progress to Level ${summary.progress.next}`}
+            aria-valuemin={0}
+            aria-valuemax={summary.progress.need}
+            aria-valuenow={Math.min(summary.progress.have, summary.progress.need)}
+            className="mb-3 h-1.5 overflow-hidden rounded-full bg-card-border"
+          >
+            <div
+              className="h-full rounded-full bg-gold"
+              style={{ width: `${Math.max(0, Math.min(100, Math.round((summary.progress.have / summary.progress.need) * 100)))}%` }}
+            />
+          </div>
+        )}
         {summary.platformCount > 0 && (
           <p className="mb-2 text-[12.5px] text-[#ff9fcd]">
             {summary.organicCounted} member boost{summary.organicCounted === 1 ? '' : 's'} + {summary.platformCount} dynamic Anvil gift boost{summary.platformCount === 1 ? '' : 's'} to hold Level {summary.giftTargetLevel}.

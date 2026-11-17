@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import TileCreator from '@/components/tile-creator/TileCreator';
 import BulkQuickAdd from '@/components/tile-creator/BulkQuickAdd';
+import { quickAddUndoLine, tilesAddedSince, undoableAdd } from '@/lib/quickAddUndo';
 import { draftToTileConfig } from '@/lib/tileCreatorConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
@@ -39,9 +40,10 @@ import {
 } from '@/lib/tileKinds';
 import { authoringModel, unfinishedFormatJob, type AuthoringView } from '@/lib/tileAuthoring';
 import { findBoardProblems } from '@/lib/boardMisconfig';
-import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvRow, tilesToCsvText } from '@/lib/csvTiles';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import { clanFetch } from '@/lib/clanFetch';
+import { downloadFromApi } from '@/lib/downloadFile';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import RaceRouteEditor from './RaceRouteEditor';
@@ -151,6 +153,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const boardRef = useRef<HTMLDivElement>(null);
   const [localTiles, setLocalTiles] = useState<Tile[]>([...tiles].sort((a, b) => a.position - b.position));
   const [editingTileId, setEditingTileId] = useState<number | null>(null);
+  // Follow a server refresh (a co-host or a suggestion changed the board) when nothing here is being
+  // edited or reordered; otherwise the host keeps looking at a list that has gone stale.
+  const tilesSig = useMemo(() => JSON.stringify(tiles), [tiles]);
+  const lastTilesSig = useRef(tilesSig);
+  const busyRef = useRef({ editing: false, reordering: false });
+  useEffect(() => {
+    if (lastTilesSig.current === tilesSig) return;
+    if (busyRef.current.editing || busyRef.current.reordering) return;
+    lastTilesSig.current = tilesSig;
+    setLocalTiles([...tiles].sort((a, b) => a.position - b.position));
+  }, [tilesSig, tiles]);
   // Opening another tile or closing the editor throws away an open tile's unsaved edits: ask first.
   const leaveGuard = useLeaveGuard();
   const openTileGuarded = (id: number | null) => {
@@ -168,8 +181,23 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
+  // The tiles the last Quick add created, so a wrong paste can be taken back without hunting them
+  // down one by one. Only tiles that were ADDED to the board: a blank square it filled in was already
+  // there, and the delete route cannot remove it. Kept for this visit; a later Quick add replaces it.
+  const [lastQuickAdd, setLastQuickAdd] = useState<{ ids: number[]; filled: number } | null>(null);
+  const [undoingQuickAdd, setUndoingQuickAdd] = useState(false);
   const { confirm, ask, notify } = useDialog();
+  // A green "Added 12 tiles" line is about THAT action: let it go after a while rather than sit
+  // there through every later save.
+  useEffect(() => {
+    if (importMsg?.type !== 'success') return;
+    const t = setTimeout(() => setImportMsg(null), 8000);
+    return () => clearTimeout(t);
+  }, [importMsg]);
   const [reordering, setReordering] = useState(false);
+  useEffect(() => {
+    busyRef.current = { editing: editingTileId != null, reordering };
+  }, [editingTileId, reordering]);
   // What authoring THIS board involves — which views it offers, what its entries are called, and
   // what its format still needs from you (lib/tileAuthoring). Everything below asks the model
   // rather than re-deriving "is this a bingo?" from the columns.
@@ -452,6 +480,25 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // so a fixed grid can use them too while it has blanks left.
   const blankCount = useMemo(() => localTiles.filter(isPlaceholderTile).length, [localTiles]);
   const canAddTiles = !eventStarted && (dynamicBoard || blankCount > 0);
+  // Titles already on the board (blank "Tile N" placeholders do not count), for Quick add's repeat check.
+  // Why the add tools are off, said once and shown on every disabled item (and beside the menu).
+  const addOffReason = canAddTiles
+    ? undefined
+    : editLocked
+      ? 'This event has finished, so editing is locked. Use "Unlock editing" at the top of the page.'
+      : eventStarted
+        ? 'Tiles are locked once the event has started.'
+        : 'Every square on the board already has a tile.';
+  /** One tile, explicitly: a new tile on a list board, the next blank square on a grid. */
+  function addOneTile() {
+    if (dynamicBoard) {
+      leaveGuard(() => void handleAddTile());
+      return;
+    }
+    const blank = localTiles.find((t) => isPlaceholderTile(t) && !t.mission);
+    if (blank) openTileGuarded(blank.id);
+  }
+  const existingLabels = useMemo(() => localTiles.filter((t) => !isPlaceholderTile(t)).map((t) => t.label), [localTiles]);
 
   async function handleAddTile() {
     setAdding(true);
@@ -508,6 +555,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // The tile creator filled a blank tile. "Add & another" goes straight to the next blank: a new one
   // on a list board, the next placeholder on a fixed grid.
   function handleCreatorSaved(updated: Tile, another: boolean) {
+    setImportMsg(null);
     setLocalTiles((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
     setEditingFresh((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
     router.refresh();
@@ -608,6 +656,49 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     });
     setEditingTileId(null);
     router.refresh();
+  }
+
+  /** Delete every selected tile, one by one through the same delete API the editor uses. */
+  async function bulkDelete() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `Delete ${ids.length} ${ids.length === 1 ? model.noun : model.nounPlural}?`,
+      body: 'They go for good, along with any configuration they carry.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    setBulkMsg('');
+    const removed: number[] = [];
+    let failure = '';
+    try {
+      for (const id of ids) {
+        const res = await clanFetch(`/api/events/${event.id}/tiles/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          failure = (await res.json().catch(() => ({}))).error || 'Could not delete a tile.';
+          break;
+        }
+        removed.push(id);
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+    if (removed.length > 0) {
+      setLocalTiles((prev) => {
+        let rest = prev;
+        for (const id of removed) {
+          const pos = rest.find((t) => t.id === id)?.position ?? Infinity;
+          rest = rest.filter((t) => t.id !== id).map((t) => (t.position > pos ? { ...t, position: t.position - 1 } : t));
+        }
+        return rest;
+      });
+      setSelectedIds((prev) => new Set([...prev].filter((id) => !removed.includes(id))));
+      if (editingTileId != null && removed.includes(editingTileId)) setEditingTileId(null);
+      router.refresh();
+    }
+    setBulkMsg(failure ? `Deleted ${removed.length}. ${failure}` : `Deleted ${removed.length} ${removed.length === 1 ? model.noun : model.nounPlural}.`);
   }
 
   // Filter state — essential once a Leagues board imports hundreds of tiles.
@@ -748,6 +839,21 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     void applyOrder(ids, 'Tile order updated.');
   }
 
+  // Move earlier / later: the keyboard and phone way to reorder, same route as drag.
+  function moveTile(tileId: number, delta: -1 | 1) {
+    const ids = localTiles.map((t) => t.id);
+    const from = ids.indexOf(tileId);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, tileId);
+    setLocalTiles((prev) => {
+      const byId = new Map(prev.map((t) => [t.id, t]));
+      return ids.map((id, i) => ({ ...byId.get(id)!, position: i }));
+    });
+    void applyOrder(ids, `Moved to #${to + 1}.`);
+  }
+
   async function handleShuffle() {
     if (!(await confirm({
       title: 'Shuffle the board?',
@@ -778,30 +884,20 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }
 
   function downloadTemplate() {
-    // Seed the template with the current tiles so the admin edits in-place. tileToCsvCells emits
-    // every column in TILE_CSV_COLUMNS order so a round-trip preserves kill/timed/collection config.
-    const header = TILE_CSV_COLUMNS.join(',');
-    const escape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-    const lines = localTiles.map((t) => tileToCsvCells(t).map(escape).join(','));
-    // Empty board → ship worked examples showing the friendly formats (skill/boss by name,
-    // "10m" numbers, "30:00" times, comma- or pipe-separated NPCs). Delete/replace before import.
-    if (lines.length === 0) {
-      const examples: string[][] = [
-        ['10M Mining XP', '', 'standard', '10', 'Skilling', 'false', '', 'Mining', '', '10m', '', '', '', ''],
-        ['50 Zulrah KC', '', 'standard', '8', 'Zulrah', 'false', '', 'Zulrah', '', '50', '', '', '', ''],
-        ['Any Bandos unique', '', 'drop', '15', 'GWD', 'false', '3', '', '', '', '', '', '', 'Bandos chestplate; Bandos tassets; Bandos boots'],
-        ['Kill 100 cows', '', 'kill', '3', 'Skilling', 'false', '100', '', '', '', 'Cow, Cow calf', '', '', ''],
-        ['Sub-30 Inferno', '', 'timed', '50', 'Inferno', 'false', '', '', '', '', '', 'Inferno', '30:00', ''],
-      ];
-      lines.push(...examples.map((cells) => cells.map(escape).join(',')));
-    }
-    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+    // The board's own tiles so the admin edits in place, or worked examples on an empty board.
+    const { text, hasExamples } = tilesToCsvText(localTiles);
+    const blob = new Blob([text], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${event.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-tiles.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    notify(
+      hasExamples
+        ? 'The template is downloading. It has five example rows: delete them before you upload.'
+        : 'The template is downloading. Check your downloads folder.',
+    );
   }
 
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -856,11 +952,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // Re-fetch the whole tile set after a bulk operation (CSV import, clog generation) that returns
   // counts rather than the created rows, so both updated and new tiles render immediately. Clears
   // filters so freshly-added tiles aren't hidden. router.refresh() re-syncs the server component too.
-  async function syncTilesFromServer() {
+  async function syncTilesFromServer(): Promise<Tile[] | null> {
+    let fresh: Tile[] | null = null;
     try {
       const refreshed = await clanFetch(`/api/events/${event.id}/tiles`);
       if (refreshed.ok) {
-        const fresh = (await refreshed.json()) as Tile[];
+        fresh = (await refreshed.json()) as Tile[];
         setLocalTiles([...fresh].sort((a, b) => a.position - b.position));
         setSearch('');
         setKindFilter('all');
@@ -871,6 +968,38 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       /* ignore — router.refresh below still re-syncs server data */
     }
     router.refresh();
+    return fresh;
+  }
+
+  /** Take back the tiles the last Quick add created, through the same delete route the editor uses. */
+  async function undoQuickAdd() {
+    if (!lastQuickAdd || undoingQuickAdd) return;
+    setUndoingQuickAdd(true);
+    let removed = 0;
+    let failure = '';
+    try {
+      for (const id of [...lastQuickAdd.ids].reverse()) {
+        const res = await clanFetch(`/api/events/${event.id}/tiles/${id}`, { method: 'DELETE' });
+        // Already gone (deleted by hand since): nothing to take back.
+        if (!res.ok && res.status !== 404) {
+          failure = (await res.json().catch(() => ({}))).error || 'Could not remove a tile.';
+          break;
+        }
+        if (res.ok) removed++;
+      }
+    } finally {
+      setUndoingQuickAdd(false);
+    }
+    await syncTilesFromServer();
+    setLastQuickAdd(null);
+    setImportMsg(
+      failure
+        ? { type: 'error', text: `Removed ${removed} of the tiles you added. ${failure}` }
+        : {
+            type: 'success',
+            text: `Removed the ${removed} ${removed === 1 ? 'tile' : 'tiles'} you just added.${lastQuickAdd.filled > 0 ? ` The ${lastQuickAdd.filled} blank ${lastQuickAdd.filled === 1 ? 'square' : 'squares'} it filled stay: open one to change it.` : ''}`,
+          },
+    );
   }
 
   async function handleClogCreated(summary: { created: number; ignored: number; activity: string }) {
@@ -950,6 +1079,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     noun={model.Noun}
     key={editingTile.id}
     tile={editingTile}
+    // Its place in the order, with Move earlier / later, inside the editor itself. The same bar
+    // sits above the cards in List view, but a covering editor (every phone, and Board view) hides
+    // or never draws that one, so on a phone there was no way to reorder at all.
+    order={
+      !editingTile.mission && !eventStarted && !listFiltered && localTiles.some((t) => t.id === editingTile.id)
+        ? {
+            index: localTiles.findIndex((t) => t.id === editingTile.id),
+            total: localTiles.length,
+            busy: reordering,
+            onMove: (delta: -1 | 1) => moveTile(editingTile.id, delta),
+          }
+        : null
+    }
     eventId={event.id}
     eventStarted={eventStarted}
     isAdmin={isAdmin}
@@ -962,6 +1104,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     missionsEnabled={missionsEnabled}
     cofferAvailable={cofferAvailable}
     canDelete={canEditTileSet}
+    deleteNote={
+      !canEditTileSet && !eventStarted
+        ? 'A bingo grid has a fixed number of squares, so a square cannot be removed. Rewrite it instead, or change the board size in Settings.'
+        : undefined
+    }
     canLab={canLab}
     revealEditor={
       showsReveal(editingTile) ? (
@@ -982,6 +1129,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     onDuplicate={canEditTileSet ? () => void duplicateTile(editingTile.id) : undefined}
     onDelete={() => handleDeleteTile(editingTile.id, true)}
     onSaved={(updated) => {
+      setImportMsg(null);
       handleTileConfigSaved(editingTile.id, updated);
       setEditingTileId(null);
     }}
@@ -1017,7 +1165,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               <GuideLink href="/guide/board#kinds">What each tile kind tracks</GuideLink>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div id="add-tiles" className="flex flex-wrap items-center gap-2 scroll-mt-24 rounded-lg">
+            {/* #add-tiles: where the guide strip's "Add tiles" button lands (lib/guidedFlows/runEvent). */}
             {!eventStarted && localTiles.length > 1 && (
               <>
                 <button
@@ -1050,7 +1199,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     key={v}
                     onClick={() => leaveGuard(() => setViewMode(v), true)}
                     title={meta.title}
-                    className={`text-xs px-3 py-1.5 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
+                    className={`text-xs px-3 py-1.5 max-sm:min-h-11 max-sm:px-4 transition-colors ${viewMode === v ? 'bg-gold/20 text-gold' : 'text-text-muted hover:text-foreground'}`}
                   >
                     {meta.label}
                   </button>
@@ -1062,7 +1211,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 onClick={handleAddTile}
                 disabled={adding || eventStarted}
                 title={eventStarted ? 'Tiles are locked after the event starts' : undefined}
-                className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 max-sm:min-h-11 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {adding ? 'Adding…' : `+ Add ${model.noun}`}
               </button>
@@ -1076,14 +1225,24 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             />
             {/* Every way to add tiles in bulk lives in one menu: generators first (what people reach
                 for), then the file and library round-trips. */}
+            {canAddTiles && !(dynamicBoard && viewMode === 'cards') && (
+              <button
+                type="button"
+                onClick={addOneTile}
+                disabled={adding}
+                className="shrink-0 text-xs font-semibold px-3 py-1.5 max-sm:min-h-11 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
+              >
+                + Add one {model.noun}
+              </button>
+            )}
             <ActionMenu
               label={`＋ Add ${model.nounPlural}`}
               items={[
-                { label: 'Quick add: paste your list…', onClick: () => setBulkOpen(true), disabled: !canAddTiles, variant: 'gold' },
-                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canAddTiles },
-                { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canAddTiles },
-                { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canAddTiles },
-                { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canAddTiles },
+                { label: 'Quick add: paste your list…', onClick: () => setBulkOpen(true), disabled: !canAddTiles, disabledReason: addOffReason, variant: 'gold' },
+                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canAddTiles, disabledReason: addOffReason },
+                { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canAddTiles, disabledReason: addOffReason },
+                { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canAddTiles, disabledReason: addOffReason },
+                { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canAddTiles, disabledReason: addOffReason },
                 {
                   label: importing ? 'Importing…' : 'Upload CSV / Excel…',
                   onClick: () => fileInputRef.current?.click(),
@@ -1092,7 +1251,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 },
                 {
                   label: 'Download spreadsheet',
-                  onClick: () => { window.location.href = clanUrl(`/api/events/${event.id}/tiles/spreadsheet`); },
+                  onClick: async () => {
+                    const err = await downloadFromApi(`/api/events/${event.id}/tiles/spreadsheet`, 'tiles.xlsx');
+                    if (err) notify(err, 'error');
+                    else notify('Your spreadsheet is downloading. Check your downloads folder.');
+                  },
                   title: 'Excel workbook with the current tiles, dropdowns, the item list and instructions',
                 },
                 { label: 'Template CSV', onClick: downloadTemplate },
@@ -1104,7 +1267,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 },
                 {
                   label: 'Export as task pack',
-                  onClick: () => { window.location.href = clanUrl(`/api/admin/tile-library/export?eventId=${event.id}`); },
+                  onClick: async () => {
+                    const err = await downloadFromApi(`/api/admin/tile-library/export?eventId=${event.id}`, 'tile-seed-pack.json');
+                    if (err) notify(err, 'error');
+                    else notify('Your task pack is downloading. Check your downloads folder.');
+                  },
                 },
               ]}
             />
@@ -1152,9 +1319,32 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           </div>
         </div>
 
+        {addOffReason && (
+          <p className="text-xs text-text-muted mb-3">Adding {model.nounPlural} is off: {addOffReason}</p>
+        )}
+
         {importMsg && (
           <p className={`text-sm mb-3 ${importMsg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
             {importMsg.text}
+          </p>
+        )}
+
+        {lastQuickAdd && !editLocked && (
+          <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+            <span>
+              {quickAddUndoLine(lastQuickAdd.ids.length, lastQuickAdd.filled)}
+            </span>
+            <button
+              type="button"
+              onClick={() => void undoQuickAdd()}
+              disabled={undoingQuickAdd}
+              className="rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1 text-gold hover:bg-gold/20 disabled:opacity-50"
+            >
+              {undoingQuickAdd ? 'Removing…' : 'Undo'}
+            </button>
+            <button type="button" onClick={() => setLastQuickAdd(null)} className="hover:text-foreground">
+              Dismiss
+            </button>
           </p>
         )}
 
@@ -1523,6 +1713,16 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               </>
             )}
 
+            {canEditTileSet && (
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => void bulkDelete()}
+                className="text-xs px-2.5 py-1 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-400 transition-colors disabled:opacity-50"
+              >
+                Delete
+              </button>
+            )}
             <span className="flex-1" />
             {bulkMsg && <span className="text-xs text-text-muted">{bulkMsg}</span>}
             <button
@@ -1543,6 +1743,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             No {model.nounPlural} match your search.
           </div>
         ) : (
+        <>
         <div
           // Fewer, wider cards when the editor is open beside them — a tile clipped to "Til e…" is
           // no use for finding the one you want.
@@ -1646,6 +1847,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             );
           })}
         </div>
+        </>
         )}
 
         {filteredTiles.length > visibleTiles.length && (
@@ -1793,6 +1995,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
           pointsMode={pointsMode}
           tierBands={tierBands}
           teamPlay={teamPlay}
+          existingLabels={existingLabels}
           onClose={() => setBulkOpen(false)}
           onUploadFile={() => { setBulkOpen(false); fileInputRef.current?.click(); }}
           onCreated={async (summary) => {
@@ -1801,7 +2004,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               type: 'success',
               text: `Added ${summary.created + summary.applied} tile${summary.created + summary.applied === 1 ? '' : 's'} from your list${summary.ignored ? ` · ${summary.ignored} skipped (no room left on the board)` : ''}.`,
             });
-            await syncTilesFromServer();
+            const before = new Set(localTiles.map((t) => t.id));
+            const fresh = await syncTilesFromServer();
+            const added = fresh ? tilesAddedSince(before, fresh) : [];
+            setLastQuickAdd(undoableAdd(summary.created, added) ? { ids: added, filled: summary.applied } : null);
           }}
         />
       )}
@@ -2030,6 +2236,8 @@ function RevealAtEditor({
 
 interface DrawerProps {
   tile: Tile;
+  /** Where the tile sits in the order and how to move it; null when it cannot be moved (started, a mission, a filtered list). */
+  order?: { index: number; total: number; busy: boolean; onMove: (delta: -1 | 1) => void } | null;
   /** Wide screens dock the editor beside the board instead of covering it. */
   docked?: boolean;
   eventId: number;
@@ -2037,6 +2245,8 @@ interface DrawerProps {
   isAdmin?: boolean;
   pointsMode: boolean;
   canDelete?: boolean;
+  /** Said where the delete control would be, when this board can't delete (a fixed grid). */
+  deleteNote?: string;
   onClose: () => void;
   onDelete?: () => void;
   onSaved: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  onAutoSaved?: Parameters<typeof TileTrackingConfig>[0]['onSaved'];  tierBands?: TierBand[];
@@ -2064,13 +2274,18 @@ interface DrawerProps {
   onDuplicate?: () => void;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
+function TileConfigDrawer({ tile, order = null, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, deleteNote, onClose, onDelete, onSaved, onAutoSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother, onDuplicate }: DrawerProps) {
   // A blank placeholder before the start is a NEW tile: it opens on the tile creator ("what should
   // players do?") instead of the full editor, which stays one tap away under "More options".
   const creating = !eventStarted && isPlaceholderTile(tile) && !tile.mission && !!onCreated;
   // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
   // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
   const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
+  // Opening a tile should show its editor: when it sits beside or below a tall board, bring it in view.
+  useEffect(() => {
+    if (!docked) return;
+    ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [docked, ref]);
 
   // Scroll the form back to the top when a DIFFERENT tile is opened. The panel persists across
   // selections (that's the point of the docked editor — picking another tile just moves the pane),
@@ -2110,11 +2325,36 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
           <button
             onClick={onClose}
             aria-label="Close configuration"
-            className="shrink-0 w-8 h-8 grid place-items-center rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors text-lg leading-none"
+            className="shrink-0 w-8 h-8 max-sm:w-11 max-sm:h-11 grid place-items-center rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors text-lg leading-none"
           >
             &times;
           </button>
         </div>
+
+        {order && (
+          <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-card-border px-5 sm:px-6 py-2 text-xs text-text-muted">
+            <span>
+              #{order.index + 1} of {order.total}
+            </span>
+            <span className="flex-1" />
+            <button
+              type="button"
+              onClick={() => order.onMove(-1)}
+              disabled={order.busy || order.index === 0}
+              className="px-2.5 py-1 max-sm:min-h-11 max-sm:px-3 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
+            >
+              Move earlier
+            </button>
+            <button
+              type="button"
+              onClick={() => order.onMove(1)}
+              disabled={order.busy || order.index === order.total - 1}
+              className="px-2.5 py-1 max-sm:min-h-11 max-sm:px-3 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold transition-colors disabled:opacity-40"
+            >
+              Move later
+            </button>
+          </div>
+        )}
 
         {/* Form */}
         <div ref={bodyRef} className="flex-1 min-h-0 px-5 sm:px-6 pt-5 pb-6 overflow-y-auto">
@@ -2175,10 +2415,10 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
           )}
 
           {/* The quiet things, below the task: copy it, try it in the lab, delete it. */}
-          {(onDuplicate || (canDelete && onDelete)) && (
+          {(onDuplicate || (canDelete && onDelete) || deleteNote) && (
             <div className="mt-8 pt-4 border-t border-card-border/60 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
               {onDuplicate && !creating && (
-                <button type="button" onClick={onDuplicate} className="min-h-9 text-text-muted hover:text-gold transition-colors">
+                <button type="button" onClick={onDuplicate} className="min-h-9 max-sm:min-h-10 text-text-muted hover:text-gold transition-colors">
                   Duplicate this {noun.toLowerCase()}
                 </button>
               )}
@@ -2207,11 +2447,12 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
                     </button>
                   </span>
                 ) : (
-                  <button type="button" onClick={() => setConfirmingDelete(true)} className="ml-auto min-h-9 text-red-400/80 hover:text-red-300 transition-colors">
+                  <button type="button" onClick={() => setConfirmingDelete(true)} className="ml-auto min-h-9 max-sm:min-h-10 px-3 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition-colors">
                     Delete this {noun.toLowerCase()}
                   </button>
                 )
               )}
+              {!(canDelete && onDelete) && deleteNote && <p className="basis-full text-text-muted">{deleteNote}</p>}
             </div>
           )}
           {canLab && (

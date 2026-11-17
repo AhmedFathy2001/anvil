@@ -2,16 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { avatarUrl } from '@/lib/discord-oauth';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 
 interface UserRow {
   id: number;
   displayName: string;
-  discordId: string | null;
+  hasDiscord: boolean;
   discordUsername: string | null;
-  discordAvatar: string | null;
+  avatarUrl: string | null;
   role: string;
 }
 
@@ -44,7 +43,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId, captai
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
     // Only Discord-linked users can be assigned — anyone else can't actually claim the seat.
-    const linked = users.filter((u) => Boolean(u.discordId));
+    const linked = users.filter((u) => u.hasDiscord);
     if (!q) return linked.slice(0, 10);
     return linked
       .filter((u) =>
@@ -92,7 +91,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId, captai
         </div>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="text-xs text-text-muted hover:text-foreground underline-offset-2 hover:underline"
+          className="tap-pad text-xs text-text-muted hover:text-foreground underline-offset-2 hover:underline"
         >
           {open ? 'Close' : current ? 'Change' : 'Assign'}
         </button>
@@ -125,10 +124,10 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId, captai
       <div className="mt-3 flex items-center gap-3">
         {current ? (
           <>
-            {current.discordId ? (
+            {current.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={avatarUrl(current.discordId, current.discordAvatar) || ''}
+                src={current.avatarUrl}
                 alt=""
                 width={36}
                 height={36}
@@ -174,7 +173,7 @@ export default function CaptainAssignment({ teamId, currentCaptainUserId, captai
               <p className="text-text-muted text-sm py-2">No matching users.</p>
             ) : (
               candidates.map((u) => {
-                const avatar = u.discordId ? avatarUrl(u.discordId, u.discordAvatar) : null;
+                const avatar = u.avatarUrl;
                 return (
                   <button
                     key={u.id}

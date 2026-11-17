@@ -10,9 +10,47 @@
 // churn when marketing changed; there is no provisioning code left to protect, and two vocabularies
 // for one concept is a translation layer that only ever produces bugs.
 
-import { urlEnvFor, withRef, type BillingInterval } from './billingInterval.ts';
+import { tierHasProduct, tierHasYearlyProduct, urlEnvFor, withRef, type BillingInterval, type CheckoutMode } from './billingInterval.ts';
 
-export const TRIAL_DAYS = Number(process.env.GUMROAD_TRIAL_DAYS || 30);
+/** A day count from an env var: a whole number of days, 0 for unset or anything that is not one. */
+export function trialDaysFrom(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+/**
+ * The length of GUMROAD's own free trial on the clan and creator plan products, for DISPLAY only
+ * ("30-day free trial, then $6.99 a month" on the "Start free trial" button). 0, the default, means
+ * Gumroad's trial is off: nothing on the site offers or mentions one, and there is one "Subscribe"
+ * button. Whatever this says, the webhook only ever believes a trial Gumroad itself reports
+ * (lib/clanSale). Anvil's own trials are a different thing: lib/planTrials, lib/ownerTrials.
+ */
+export const TRIAL_DAYS = trialDaysFrom(process.env.GUMROAD_TRIAL_DAYS);
+
+/**
+ * EARLY-BIRD PRICING: one line shown beside prices everywhere (components/EarlyBirdBadge), so people
+ * who are deciding know these are the launch prices. ONE config, here:
+ *   EARLY_BIRD_PRICING=off      hides it everywhere.
+ *   EARLY_BIRD_HEADING / EARLY_BIRD_LINE   reword it.
+ *   EARLY_BIRD_PRICE_LOCK=true  adds the price-lock promise. OFF by default: it is a promise the
+ *                               owner has to keep, so it is only said once they have decided to.
+ * It never names a date, a countdown or a number of places left: none of those would be true.
+ */
+export interface EarlyBird {
+  heading: string;
+  line: string;
+  /** The price-lock sentence, or null when that promise is not being made. */
+  lock: string | null;
+}
+export const EARLY_BIRD_LOCK_LINE = 'Subscribe now and keep this price for as long as your membership stays active.';
+export function earlyBird(env: Record<string, string | undefined> = process.env): EarlyBird | null {
+  if ((env.EARLY_BIRD_PRICING ?? '').trim().toLowerCase() === 'off') return null;
+  return {
+    heading: env.EARLY_BIRD_HEADING?.trim() || 'Early-bird pricing',
+    line: env.EARLY_BIRD_LINE?.trim() || 'These are our launch prices for early clans and supporters.',
+    lock: env.EARLY_BIRD_PRICE_LOCK === 'true' ? EARLY_BIRD_LOCK_LINE : null,
+  };
+}
 
 export const PLAN_IDS = ['free', 'bronze', 'silver', 'gold', 'custom'] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
@@ -155,6 +193,18 @@ export function planHasCapability(plan: Plan, capability: Capability): boolean {
   return PLAN_RANK[plan.id] >= PLAN_RANK[CAPABILITY_MIN_PLAN[capability]];
 }
 
+/**
+ * A plan's feature list as the admin Plan page can say it truthfully. `features` is the marketing
+ * list; two of its lines name capabilities nothing in the app gates (Discord posts work on Free, and
+ * any clan can run several events), so the admin page drops them rather than present a free thing as
+ * paid. Co-hosting events with other clans IS gated (host-multi-clan, Silver) once FREEMIUM_ENFORCED.
+ */
+const NOT_GATED_FEATURES = ['Discord notifications'];
+const FEATURE_REWRITES: Record<string, string> = { 'Run multiple events at once': 'Host events together with other clans' };
+export function truthfulFeatures(plan: Plan): string[] {
+  return plan.features.filter((f) => !NOT_GATED_FEATURES.includes(f)).map((f) => FEATURE_REWRITES[f] ?? f);
+}
+
 /** The ladder's order, Free first — for "the next tier up". */
 export function planRank(plan: Plan): number {
   return PLAN_RANK[plan.id];
@@ -181,27 +231,21 @@ export function planForGumroadTier(tier: string | null | undefined): Plan | null
   return Object.values(PLANS).find((p) => p.name.toLowerCase() === want) ?? null;
 }
 
-/** The tier matching a Gumroad product id (monthly or yearly), for the per-tier-product setup. */
+/** The tier matching a Gumroad product id (original or pay-now, monthly or yearly), for the per-tier-product setup. */
 export function planForGumroadProduct(productId: string | null | undefined): Plan | null {
   if (!productId) return null;
-  return (
-    Object.values(PLANS).find(
-      (p) =>
-        (p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId) ||
-        (p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId),
-    ) ?? null
-  );
+  return Object.values(PLANS).find((p) => tierHasProduct(p, productId)) ?? null;
 }
 
 /** Is this the id of a clan tier's yearly-only Gumroad product? */
 export function isYearlyClanProduct(productId: string | null | undefined): boolean {
   if (!productId) return false;
-  return Object.values(PLANS).some((p) => p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId);
+  return Object.values(PLANS).some((p) => tierHasYearlyProduct(p, productId));
 }
 
-/** Hosted checkout URL for a tier at an interval, if one is configured. */
-export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly'): string | null {
-  const env = urlEnvFor(plan, interval);
+/** Hosted checkout URL for a tier at an interval, if one is configured: the original product, or its pay-now copy. */
+export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly', mode: CheckoutMode = 'trial'): string | null {
+  const env = urlEnvFor(plan, interval, mode);
   return env ? (process.env[env] || null) : null;
 }
 
@@ -210,8 +254,8 @@ export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly'): 
  * forwards a product URL's params to the ping as `url_params`, so this is how a payment finds its clan
  * even when the buyer pays with a different email than the clan's contact.
  */
-export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined, interval: BillingInterval = 'monthly'): string | null {
-  return withRef(checkoutUrl(plan, interval), ref);
+export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined, interval: BillingInterval = 'monthly', mode: CheckoutMode = 'trial'): string | null {
+  return withRef(checkoutUrl(plan, interval, mode), ref);
 }
 
 /**

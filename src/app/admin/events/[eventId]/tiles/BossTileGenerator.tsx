@@ -1,5 +1,6 @@
 'use client';
 
+import DialogFrame from '@/components/DialogFrame';
 import { useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import Checkbox from '@/components/Checkbox';
@@ -179,17 +180,21 @@ export default function BossTileGenerator({
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={close}>
-          <div
-            className="w-full max-w-2xl max-h-[88vh] flex flex-col rounded-xl border border-card-border bg-card-bg p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <DialogFrame
+          dirty={selected.size > 0 || pickedMonsters.size > 0 || npcText.trim() !== ''}
+          onClose={close}
+          ariaLabel="Generate KC tiles"
+          overlayClassName="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+          panelClassName="w-full max-w-2xl max-h-[88vh] flex flex-col rounded-xl border border-card-border bg-card-bg p-5 shadow-2xl"
+        >
+          {(requestClose) => (
+          <>
             <div className="flex items-center justify-between gap-3 mb-1">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <span className="w-1 h-5 bg-gold rounded-full" />
                 Generate KC tiles
               </h3>
-              <button onClick={close} className="text-text-muted hover:text-foreground text-lg leading-none">×</button>
+              <button onClick={requestClose} aria-label="Close" className="text-text-muted hover:text-foreground text-lg leading-none">×</button>
             </div>
             <p className="text-xs text-text-muted mb-3">
               Every source you pick × every kill count you type. 25/50/100 across twelve bosses is
@@ -403,7 +408,7 @@ export default function BossTileGenerator({
                   : 'Pick sources and kill counts'}
               </span>
               <div className="flex gap-2">
-                <button onClick={close} className="text-xs px-3 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors">
+                <button onClick={requestClose} className="text-xs px-3 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors">
                   Done
                 </button>
                 <button
@@ -417,8 +422,9 @@ export default function BossTileGenerator({
             </div>
 
             {lastBatch && <p className="text-xs text-accent-green-light mt-2">{lastBatch} Kill counts kept — pick the next batch.</p>}
-          </div>
-        </div>
+          </>
+          )}
+        </DialogFrame>
       )}
     </>
   );

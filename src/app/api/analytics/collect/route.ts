@@ -1,9 +1,10 @@
-import { forgetSession, isOperatorPattern, isPlatformStaff, trackLeave, trackPage } from '@/lib/analytics';
+import { forgetSession, isOperatorPattern, isPlatformStaff, track, trackLeave, trackPage } from '@/lib/analytics';
 import { boundProps, isBotUserAgent, tenantOfBeacon, isSessionId, scrubPattern } from '@/lib/analyticsPattern';
 import { classifyFirstTouch, clampLeaveMs, isViewportClass } from '@/lib/analyticsSource';
 import { sessionUserIdForAnalytics } from '@/lib/auth';
 import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
 import { getClientIp } from '@/lib/clientIp';
+import { isFlowKey, isFlowStep } from '@/lib/guidedFlow';
 
 // Page views, from components/AnalyticsBeacon.
 //
@@ -45,7 +46,25 @@ export async function POST(request: Request) {
 
     const raw = await request.text();
     if (raw.length > MAX_BODY) return done();
-    const body = JSON.parse(raw) as { p?: unknown; s?: unknown; c?: unknown; w?: unknown; f?: unknown; l?: unknown };
+    const body = JSON.parse(raw) as { p?: unknown; s?: unknown; c?: unknown; w?: unknown; f?: unknown; l?: unknown; g?: unknown };
+
+    // The guide strip (components/GuidedFlow): its step button used, or the guide dismissed. Only a
+    // flow and step key that exist are recorded, so nothing typed can reach the table this way; the
+    // user and clan come from the request, as for every other action (lib/analytics track).
+    if (body.g && typeof body.g === 'object') {
+      const g = body.g as { a?: unknown; f?: unknown; k?: unknown };
+      if ((g.a === 'step' || g.a === 'dismiss') && isFlowKey(g.f) && isFlowStep(g.f, g.k)) {
+        // The clan is named by the page's own path, the same way a page view names it.
+        const where = typeof body.c === 'string' ? tenantOfBeacon(body.c) : null;
+        const guideClan =
+          (where ? await resolveClanBySlug(where.slug, where.kind) : null) ?? (await resolveClanByHost(request.headers.get('host')));
+        track(g.a === 'step' ? 'guidedflow.step' : 'guidedflow.dismissed', {
+          clanId: guideClan?.id ?? null,
+          props: { flow: g.f, step: g.k },
+        });
+      }
+      return done();
+    }
 
     const pattern = scrubPattern(body.p);
     if (!pattern || !isSessionId(body.s)) return done();

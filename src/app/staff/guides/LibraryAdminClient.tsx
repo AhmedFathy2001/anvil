@@ -89,7 +89,7 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
         <p className="rounded-xl border border-dashed border-card-border p-8 text-center text-sm text-text-muted">The library is empty.</p>
       ) : (
         <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
-          <table className="w-full text-sm">
+          <table className="stack-phone w-full text-sm">
             <thead className="text-left text-xs text-text-muted">
               <tr className="border-b border-card-border">
                 <th className="px-4 py-2 font-normal">Guide</th>
@@ -112,7 +112,7 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
                         {c.icon} {c.label}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td data-label="Status" className="stack-third px-4 py-2.5">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] ${
                           r.status === 'published' ? 'bg-emerald-900/40 text-emerald-300' : 'bg-white/10 text-text-muted'
@@ -121,12 +121,12 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-text-muted">v{r.version}</td>
-                    <td className="px-4 py-2.5 text-text-muted">
+                    <td data-label="Version" className="stack-third px-4 py-2.5 text-text-muted">v{r.version}</td>
+                    <td data-label="Copies" className="stack-third px-4 py-2.5 text-text-muted">
                       {r.copies}
                       {r.copies > 0 && <span className="text-[11px]"> ({r.following} following)</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-text-muted">{r.updatedAt.slice(0, 10)}</td>
+                    <td data-label="Updated" className="px-4 py-2.5 text-xs text-text-muted">{r.updatedAt.slice(0, 10)}</td>
                   </tr>
                 );
               })}

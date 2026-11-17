@@ -123,13 +123,26 @@ test('a skill week ignores drops and deaths — it has no boss', () => {
   assert.deepEqual(classifyObservation(obs({ kind: 'death', source: 'Zulrah' }), scopes), []);
 });
 
-test('an efficiency week claims nothing — everything happens during it', () => {
+test('an efficiency week keeps pets and top-tier uniques from anywhere, and nothing else', () => {
+  // Account-wide, so it cannot claim by subject: only what stands on its own (lib/moments weeklyKindFor).
   const ehp: WeeklyScope = { id: 3, type: 'efficiency', metric: 'ehp' };
-  const planned = classifyObservation(
-    obs({ kind: 'pet', itemName: 'Rift guardian' }),
-    { weeklies: [ehp], event: null },
-  );
-  assert.deepEqual(planned, []);
+  const scopes = { weeklies: [ehp], event: null };
+  const pet = classifyObservation(obs({ kind: 'pet', itemName: 'Rift guardian' }), scopes);
+  assert.equal(pet.length, 1);
+  assert.equal(pet[0].kind, 'pet');
+  assert.equal(pet[0].weeklyCompetitionId, 3);
+  // The same scoped key every other week uses, so a retry lands on the row it already made.
+  assert.ok(pet[0].dedupKey.endsWith(':w3'));
+
+  // A rare single item (Tanzanite fang, 1 in 1,024 from Zulrah) clears the clan feed's rarity bar.
+  const fang = classifyObservation(obs({ itemId: 12922, source: 'Zulrah', valueGp: 4_000_000 }), scopes);
+  assert.equal(fang.length, 1);
+  assert.equal(fang[0].kind, 'unique');
+
+  // A common drop, a pile kept only for its price, a death, a level and a combat task are not its story.
+  assert.deepEqual(classifyObservation(obs({ itemId: 12934, source: 'Zulrah', quantity: 200, valueGp: 50_000_000 }), scopes), []);
+  assert.deepEqual(classifyObservation(obs({ kind: 'death', source: 'Zulrah' }), scopes), []);
+  assert.deepEqual(classifyObservation(obs({ kind: 'level', itemName: 'Cooking', quantity: 99, sourceKind: 'skill' }), scopes), []);
 });
 
 test('a boss week keeps a death to that boss', () => {

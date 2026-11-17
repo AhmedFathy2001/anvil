@@ -15,6 +15,8 @@ import { PLANS, checkoutUrlWithRef } from '@/lib/plans';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { parseBillingInterval } from '@/lib/billingInterval';
 import { welcomeLater } from '@/lib/welcomeDm';
+import { autoTrialDays } from '@/lib/planTrialRules';
+import { latestPlanTrial, ownerDeletedTrialedClan } from '@/lib/planTrials';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -32,6 +34,14 @@ export async function GET(request: Request) {
   if (!isApexHost((await headers()).get('host'))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // SIGNED IN ONLY. The form that calls this is behind sign-in anyway, and answering a stranger
+  // "a clan on Anvil already uses that name" lets anyone enumerate which clans exist (including ones
+  // that keep to themselves). Bounded per person too, since typing fires it on every pause.
+  const session = await verifyUser();
+  if (!session) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
+  const budget = await rateLimitByKey('clan-name-check', String(session.userId), { limit: 120, windowMs: 60_000 });
+  if (!budget.ok) return NextResponse.json({ error: 'Slow down a little.' }, { status: 429 });
 
   const url = new URL(request.url);
   const slug = (url.searchParams.get('slug') ?? '').trim().toLowerCase();
@@ -157,10 +167,20 @@ export async function POST(request: Request) {
   const picked = typeof body.plan === 'string' ? PLANS[body.plan as keyof typeof PLANS] : undefined;
   // `billing: 'yearly'` (the /pricing switch) takes the yearly checkout; unconfigured → the monthly one.
   const billing = parseBillingInterval(typeof body.billing === 'string' ? body.billing : null);
+  // Not while automatic trials are on: the clan just started Anvil's own trial with no card, and a
+  // clan that has had a trial is never sent to the product that starts Gumroad's (lib/buyOffer).
   const checkoutUrl =
-    freemiumEnforced() && picked?.priceUsd
+    autoTrialDays() <= 0 && freemiumEnforced() && picked?.priceUsd
       ? (billing === 'yearly' ? checkoutUrlWithRef(picked, row?.gumroadRef, 'yearly') : null) ?? checkoutUrlWithRef(picked, row?.gumroadRef)
       : null;
 
-  return NextResponse.json({ ok: true, clan: row, checkoutUrl });
+  // What the finished screen says about the automatic trial: granted and until when, or why not
+  // (a reused in-game name and a deleted trialed clan both start on Free).
+  const started = await latestPlanTrial(result.clanId);
+  const trial =
+    started && !started.revoked && started.endsAt > Date.now()
+      ? { granted: true as const, tierName: PLANS[started.tier as keyof typeof PLANS]?.name ?? started.tier, endsAt: started.endsAt }
+      : { granted: false as const, reason: autoTrialDays() <= 0 ? ('off' as const) : (await ownerDeletedTrialedClan(session.userId)) ? ('owner-deleted-trialed' as const) : ('name-had-trial' as const) };
+
+  return NextResponse.json({ ok: true, clan: row, checkoutUrl, trial });
 }

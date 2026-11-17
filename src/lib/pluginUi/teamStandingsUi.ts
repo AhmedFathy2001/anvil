@@ -10,6 +10,7 @@
 import { count, card, gap, muted, row, text, type Color, type Node } from '@/lib/pluginUi/nodes';
 import { ordinal } from '@/lib/competitionTeams';
 import type { GroupStandingsView } from '@/lib/competitionTeamsDb';
+import { clip } from '@/lib/pluginUi/sections';
 import { EFFICIENCY_SCALE } from '@/lib/constants';
 
 export interface WeeklyGroupRow {
@@ -75,7 +76,7 @@ export function yourGroupCard(type: string, g: WeeklyGroupsPayload): Node | null
   if (!g.you) return null;
   return card([
     row(text(g.you.name, hex(g.you.colour)), undefined, text(groupGain(type, g.you.total), 'progress')),
-    muted(`Your ${g.noun}: ${ordinal(g.you.rank)} of ${g.of} · ${groupGain(type, g.you.average)} avg/player`),
+    muted(`Your ${g.noun}: ${ordinal(g.you.rank)} of ${g.of} · ${groupGain(type, g.you.average)} avg/player`, { wrap: true }),
   ]);
 }
 
@@ -83,7 +84,7 @@ export function yourGroupCard(type: string, g: WeeklyGroupsPayload): Node | null
 export function groupStandingsNodes(type: string, g: WeeklyGroupsPayload, max = 8): Node[] {
   const rows = g.standings.slice(0, max).map((s) =>
     row(
-      text(`${s.rank}. ${s.name}${s.you ? ' (you)' : ''}`, s.you ? 'brand' : hex(s.colour)),
+      text(`${s.rank}. ${clip(s.name, 18)}${s.you ? ' (you)' : ''}`, s.you ? 'brand' : hex(s.colour)),
       undefined,
       text(groupGain(type, s.total), s.you ? 'progress' : 'white'),
     ),

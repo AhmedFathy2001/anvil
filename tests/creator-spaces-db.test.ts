@@ -117,7 +117,12 @@ test('a creator space is made with no in-game name: open, public, unlisted, owne
   assert.equal(setup.creator, true);
   assert.deepEqual(
     setup.steps.map((st) => st.key),
-    ['event', 'share', 'discord'],
+    ['event', 'share', 'stream', 'discord'],
+  );
+  // Connecting a stream and Discord are extras: a fresh space is not held up by either.
+  assert.deepEqual(
+    setup.steps.filter((st) => st.optional).map((st) => st.key),
+    ['stream', 'discord'],
   );
   assert.equal(setup.isFresh, false);
 });

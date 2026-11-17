@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForRequest, readableEventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanRoster, events, eventParticipants, teams } from '@/db/schema';
@@ -17,6 +17,7 @@ import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams
 import { assertEventEditable } from '@/lib/eventLock';
 import { track } from '@/lib/analytics';
 import { startingStatsFor } from '@/lib/startingStats';
+import { spectatorPlayer, staffPlayer } from '@/lib/clientRows';
 
 export async function GET(
   request: Request,
@@ -26,8 +27,9 @@ export async function GET(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  // Spectators may watch a draft, but only of an event they could open the page of.
+  if (!(await readableEventForRequest(request, id))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const event = await db.query.events.findFirst({
@@ -41,15 +43,9 @@ export async function GET(
     .select()
     .from(eventParticipants)
     .where(eq(eventParticipants.eventId, id));
-  // Strip the per-player login token before this leaves the server — this endpoint is public
-  // (spectator/scoreboard views read it), and the token is a bearer credential for /api/player/login.
-  const safeRaw = rawPlayers.map((row) => {
-    const rest = { ...row };
-    delete (rest as { playerToken?: unknown }).playerToken;
-    // The frozen-stats blob is a server-only snapshot for gain math; clients only need `frozenAt`.
-    delete (rest as { frozenStats?: unknown }).frozenStats;
-    return rest;
-  });
+  // Picked, never spread (lib/clientRows): this read is public (spectators watch the draft), and a
+  // spread row carried the login token, account ids, loot, deaths and every plugin stat column.
+  const safeRaw = rawPlayers.map(staffPlayer);
   // Owner (userId) per player so a multi-account pool can group a person's accounts into one card and
   // the draft board can show they draft together (guests have no owner → their own single entry).
   const memberIds = [...new Set(safeRaw.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
@@ -74,7 +70,10 @@ export async function GET(
       if (!ordinals.has(ownerUserId)) ordinals.set(ownerUserId, -(ordinals.size + 1));
       key = ordinals.get(ownerUserId)!;
     }
-    return { ...p, discord: null, timezone: null, ownerUserId: key };
+    // A spectator gets who is in the pool and who picked whom — nothing else. The stat caches are
+    // standings by another name (the scoreboard curtains them, lib/standingsVisibility), and the
+    // seat id is an internal key no spectator screen reads.
+    return spectatorPlayer({ ...p, ownerUserId: key });
   });
 
   const eventTeams = await db
@@ -156,7 +155,8 @@ export async function GET(
     currentTeamId,
     round,
     pickInRound,
-    totalPicked: pickedPlayers.length,
+    // Picks made, not seats filled: a captain sits on a team from the start with no pick number.
+    totalPicked: currentPickNumber,
     poolRemaining: poolPlayers.length,
     // Late joiners on a running event: are their starting stats in yet (lib/startingStats)? Only
     // ids with something to say are present; nothing at all before the start.

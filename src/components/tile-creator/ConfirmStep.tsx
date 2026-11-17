@@ -303,11 +303,11 @@ function SingleConfirm({
           <>
             {canAddAnother && (
               <SecondaryButton onClick={() => onSubmit(draft, true)} disabled={saving}>
-                Add &amp; next tile
+                Save &amp; next tile
               </SecondaryButton>
             )}
             <PrimaryButton onClick={() => onSubmit(draft, false)} disabled={saving}>
-              {saving ? 'Adding…' : 'Add tile'}
+              {saving ? 'Saving…' : 'Save tile'}
             </PrimaryButton>
           </>
         )}
@@ -483,11 +483,11 @@ function ComboConfirm(props: ConfirmProps) {
           <>
             {canAddAnother && (
               <SecondaryButton onClick={() => onSubmit(draft, true)} disabled={saving}>
-                Add &amp; next tile
+                Save &amp; next tile
               </SecondaryButton>
             )}
             <PrimaryButton onClick={() => onSubmit(draft, false)} disabled={saving}>
-              {saving ? 'Adding…' : 'Add tile'}
+              {saving ? 'Saving…' : 'Save tile'}
             </PrimaryButton>
           </>
         )}

@@ -15,6 +15,7 @@
 //
 // BRAGGING RIGHTS ONLY: see lib/h2hRules. Nothing here moves gp, items or money.
 
+import { blockedPeople, type BlockedPerson } from '@/lib/h2hBlocked';
 import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -126,6 +127,17 @@ function parseBlocked(raw: string | null | undefined): number[] {
   } catch {
     return [];
   }
+}
+
+/** Your prefs plus who is blocked, by public character name (lib/h2hBlocked). */
+export async function getH2hPrefsView(playerId: number): Promise<H2hPrefs & { people: BlockedPerson[] }> {
+  const prefs = await getH2hPrefs(playerId);
+  if (prefs.blocked.length === 0) return { ...prefs, people: [] };
+  const rows = await db
+    .select({ playerId: accounts.playerId, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt, provisional: accounts.provisional, isPrimary: accounts.isPrimary })
+    .from(accounts)
+    .where(inArray(accounts.playerId, prefs.blocked));
+  return { ...prefs, people: blockedPeople(prefs.blocked, rows) };
 }
 
 export async function getH2hPrefs(playerId: number): Promise<H2hPrefs> {

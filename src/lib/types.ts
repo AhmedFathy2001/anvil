@@ -148,12 +148,12 @@ export interface Player {
   id: number;
   eventId: number;
   name: string;
-  discord: string | null;
-  timezone: string | null;
+  // Staff screens only (lib/clientRows staffPlayer); board and team screens never receive these.
+  discord?: string | null;
+  timezone?: string | null;
   teamId: number | null;
   pickNumber: number | null;
   pickedAt: string | null;
-  playerToken: string | null;
   statsSnapshot?: string | null;
   snapshotAt?: string | null;
   cachedStats?: string | null;

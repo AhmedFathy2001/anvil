@@ -5,21 +5,26 @@ import { useCallback, useMemo } from 'react';
 
 import { withClanPrefix } from '@/lib/clanScopedPaths';
 import { parseClanPrefix } from '@/lib/clanScopedPaths';
+import { useClanPrefixValue } from '@/components/ClanLink';
 
 /**
  * The clan prefix a client component is currently under, read from the URL it is already at.
  *
- * No context provider and nothing passed down from the server: the browser's own path is the
- * authority, and it cannot disagree with itself. A provider would have to be threaded through every
- * tree and would be wrong exactly when someone forgot.
+ * The root layout's ClanPrefixProvider answers when it is there; the browser's own path is the
+ * fallback for a tree rendered outside it.
  *
  * '' on the apex and on a clan's own subdomain, where paths are already correct.
  */
 export function useClanPrefix(): string {
   const pathname = usePathname() ?? '';
+  // The layout's own answer first (ClanPrefixProvider, the one ClanLink uses): it is the same on
+  // the server and in the browser. The path alone is not: under a /c/<slug> address the two passes
+  // can see it with and without the prefix, which built two different hrefs for one link (a
+  // hydration mismatch on the task library's "Export pack").
+  const provided = useClanPrefixValue();
   return useMemo(() => {
-    return parseClanPrefix(pathname)?.prefix ?? '';
-  }, [pathname]);
+    return provided || (parseClanPrefix(pathname)?.prefix ?? '');
+  }, [provided, pathname]);
 }
 
 /**

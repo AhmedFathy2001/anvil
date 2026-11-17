@@ -347,6 +347,19 @@ export const accounts = pgTable('accounts', {
   // users.discordId, which is a proven OAuth link — this is a cache, and the only handle there is on
   // a member who has never signed in. Readers should prefer the account's player and fall back here.
   discordId: text('discord_id'),
+  // WHERE THAT STORED ID CAME FROM (drizzle/0265, lib/discordRoleSafety DiscordIdSource):
+  //   'login' | 'signup' | 'plugin'  copied from a source the database can prove
+  //   'admin'                         a clan admin linked the member by hand (who / when / which clan below)
+  //   'name'                          a nickname match
+  //   null                            unknown: stored before this was recorded
+  // With a clan's nickname matching off, role sync trusts a stored id only when it is 'admin' AND
+  // was made by that same clan. Every writer of discordId sets this (lib/discordLink).
+  discordIdSource: text('discord_id_source'),
+  discordIdLinkedByUserId: integer('discord_id_linked_by_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  discordIdLinkedAt: text('discord_id_linked_at'),
+  // A character is one row for every clan that seats it, so a hand link names the clan that made it
+  // and is trusted there only: one clan's admin must not decide who earns roles in another's server.
+  discordIdLinkedClanId: integer('discord_id_linked_clan_id').references((): AnyPgColumn => clans.id, { onDelete: 'set null' }),
   // 'active' | 'unranked' | 'banned' | 'archived' — drives whether the hiscores sweep polls it.
   // Jagex-side health, not a clan's opinion: 'banned' here means Jagex banned the account. Being
   // barred from a clan is a property of that clan's membership, and lives there.
@@ -433,6 +446,7 @@ export const accounts = pgTable('accounts', {
   // indexed: the sweep loads its candidates by seat and decides due-ness in JS (api/cron/stats), and
   // the only query the old index served filters on `status` alone.
   index('accounts_status_idx').on(table.status),
+  check('accounts_discord_id_source_check', sql`${table.discordIdSource} IS NULL OR ${table.discordIdSource} IN ('admin', 'name', 'login', 'signup', 'plugin')`),
 ]);
 
 /**
@@ -1544,13 +1558,12 @@ export const users = pgTable('users', {
   // It defaulted to off while `accounts.shared` was itself off by default — the two together meant
   // silence, and turning sharing on was a deliberate act that fairly read as "announce me". Sharing
   // is the default now (drizzle/0080), and it says only that the leaderboards may see the character.
-  // It DEFAULTS TO ANNOUNCE (drizzle/0086, "opt in by default"): a clan announces the guests it
-  // admitted (a seat there) unless the clan refuses via its own veto ("Only announce your own
-  // members"), the person turns THIS on to go quiet in every clan they guest in, or the person
-  // silences one clan explicitly. The per-clan whitelist still opts one back in past a global mute.
-  // The old default was quiet, but the guest-social feature never actually emitted under it, so the
-  // migration reset every existing row to false as well — nobody was relying on it as a real mute.
-  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(false),
+  // true = QUIET in guest clans. It DEFAULTS TO TRUE (drizzle/0263): nothing posts in a clan where the
+  // person only guests until they switch it on in Settings ("Post my drops and levels in clans where
+  // I am a guest" — the UI shows the inverse of this column), or allow one clan from a character's
+  // page. The clan's own veto ("Only announce your own members") still wins. History: 0080 quiet,
+  // 0086 announce, 0264 quiet again.
+  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(true),
   // Level / XP milestone posts (lib/levelRules). On the LOGIN, like the guest toggle above and the
   // personal webhooks, so the choice follows the person into every clan.
   //   level_posts_clan  'clan' | 'ninetyNinesAndMax' | 'off' — what of the clan's level rules this
@@ -1680,6 +1693,12 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
    * for its own side on weekly_competition_clans.entrants.
    */
   hostEntrants: text('host_entrants').notNull().default('all'),
+  /**
+   * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
+   * where each one counts from, the rule, and what the standings show beside the count. `metric`
+   * then holds the targets as words. Null on every other kind.
+   */
+  hunt: text('hunt'),
 });
 
 /** A team inside a teams-mode weekly competition. Members are weekly_participants.team_id. */
@@ -1777,6 +1796,59 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   index('weekly_participants_comp_id_idx').on(table.competitionId),
   index('weekly_participants_clan_member_id_idx').on(table.clanMemberId),
 ]);
+
+/**
+ * A drop in an item hunt (lib/itemHunt, lib/itemHuntDb): the hunt's whole scoreboard.
+ *
+ * Two ways in. A PLUGIN report (origin 'plugin') is counted at once; it is the same report the
+ * highlight feed reads, deduped by the client's own key plus the same-drop rule in lib/itemHunt.
+ * A MANUAL proof (origin 'manual') is a screenshot with the kill count or XP at the drop: asked for
+ * by the member ('pending' until staff decide) or added by staff (counted straight away).
+ *
+ * Keyed to the participant by name (rsn_normalized, as weekly_participants is) so a guest with no
+ * seat can hold one; clan_member_id rides along where there is a seat.
+ */
+export const huntDrops = pgTable('hunt_drops', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(),
+  rsnNormalized: text('rsn_normalized').notNull(),
+  /** Null only for a pet the plugin could not name. */
+  itemId: integer('item_id'),
+  itemName: text('item_name').notNull(),
+  quantity: integer('quantity').notNull().default(1),
+  source: text('source'),
+  /** Kill count at the drop, or XP in stat_skill at the drop. One of them, or neither. */
+  kc: integer('kc'),
+  xp: bigint('xp', { mode: 'number' }),
+  statSkill: text('stat_skill'),
+  /** Where that number came from: 'reported' (the plugin), 'site' (our own reading then), 'stated' (a manual proof). */
+  statBasis: text('stat_basis'),
+  /** Manual proofs: the site's own reading for this character when the proof was sent, for the reviewer. */
+  siteKc: integer('site_kc'),
+  siteXp: bigint('site_xp', { mode: 'number' }),
+  occurredAt: text('occurred_at').notNull(),
+  /** 'plugin' | 'manual' */
+  origin: text('origin').notNull(),
+  /** 'counted' | 'pending' (a member's proof) | 'review' (a plugin report held for staff) | 'rejected' */
+  status: text('status').notNull().default('counted'),
+  /** Why a plugin report was held for staff (lib/itemHunt dropFlag), in words. */
+  flagReason: text('flag_reason'),
+  dedupKey: text('dedup_key').notNull(),
+  screenshotUrl: text('screenshot_url'),
+  note: text('note'),
+  requestedByUserId: integer('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** The approver's name as shown then: "manual proof (approved by Olive)". */
+  decidedByName: text('decided_by_name'),
+  decidedAt: text('decided_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('hunt_drops_dedup_unique').on(table.competitionId, table.rsnNormalized, table.dedupKey),
+  index('hunt_drops_comp_idx').on(table.competitionId, table.status),
+]);
+export type HuntDropRow = typeof huntDrops.$inferSelect;
 
 /**
  * A clan's roster, reassembled: every seat with the account sitting in it.
@@ -1952,6 +2024,38 @@ export const clanBans = pgTable('clan_bans', {
   // One live ban per person per clan. Partial, so a lifted ban does not block a later one.
   uniqueIndex('clan_bans_live_unique').on(table.clanId, table.playerId).where(sql`lifted_at is null`),
   index('clan_bans_clan_idx').on(table.clanId),
+]);
+
+/**
+ * A ban that outlives a deleted account (drizzle/0266, lib/deletedAccountBans).
+ *
+ * A ban is keyed on the person, and deleting an account deletes the person. What still recognises
+ * the same human afterwards is the Discord account they sign in with, so that id is kept here with
+ * the ban and NOTHING ELSE about them: no name, no email, no character.
+ *
+ *   scope 'platform'  that Discord account cannot sign in. clan_id is null.
+ *   scope 'clan'      on that account's next sign-in the ban goes back onto the new person as an
+ *                     ordinary clan_bans row and this row is deleted. `reason` is the clan's own
+ *                     note, with the person's Discord id and name taken out of it.
+ *
+ * Staff lift one by deleting the row.
+ */
+export const bannedDiscordIds = pgTable('banned_discord_ids', {
+  id: serial('id').primaryKey(),
+  discordId: text('discord_id').notNull(),
+  scope: text('scope').notNull(),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  bannedAt: text('banned_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  bannedByUserId: integer('banned_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  // One row per (discord_id, scope, clan_id): two partial indexes, because clan_id is null for a
+  // platform ban and a plain unique index treats nulls as different.
+  uniqueIndex('banned_discord_ids_platform_unique').on(table.discordId).where(sql`scope = 'platform'`),
+  uniqueIndex('banned_discord_ids_clan_unique').on(table.discordId, table.clanId).where(sql`scope = 'clan'`),
+  index('banned_discord_ids_clan_idx').on(table.clanId),
+  check('banned_discord_ids_scope_check', sql`(${table.scope} = 'platform' AND ${table.clanId} IS NULL) OR (${table.scope} = 'clan' AND ${table.clanId} IS NOT NULL)`),
 ]);
 
 /**
@@ -4562,6 +4666,9 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   // bought it and how many months. The giver ladder sums gift_months by gifted_by_user_id.
   giftedByUserId: integer('gifted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   giftMonths: integer('gift_months'),
+  // Staff "add time" for someone who PAYS for this tier (drizzle/0267, lib/supporterGifts): status
+  // 'queued', in force for nobody, and it starts for this many days when their paid membership stops.
+  queuedDays: integer('queued_days'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),
@@ -4814,7 +4921,9 @@ export const guestPresence = pgTable('guest_presence', {
 }, (t) => [index('guest_presence_clan_idx').on(t.clanId, t.seenAt)]);
 
 // The chat feed's sender-side idempotency: a retried item (same character, same plugin key) goes to
-// nobody twice. Swept after a couple of days (lib/chatFeed sweepFeedItems).
+// nobody twice. Swept after a couple of days (lib/chatFeed sweepChatFeed).
+// Also where plugin fact ids are remembered (lib/pluginFacts/factIdStore, keys starting `fact:`), so a
+// re-sent fact is never credited twice; the same sweep is their two-day retention.
 export const feedItems = pgTable('feed_items', {
   id: serial('id').primaryKey(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
@@ -5324,17 +5433,50 @@ export const billingLedger = pgTable('billing_ledger', {
   index('billing_ledger_sub_idx').on(t.subscriptionId, t.occurredAt),
 ]);
 
+// clan_extra_memberships (drizzle/0267, lib/extraMemberships): a Gumroad membership bought through a
+// clan's or creator space's checkout that is NOT the one on its clans row. 'to_cancel' is the older
+// membership after an upgrade purchase (it keeps charging until cancelled on Gumroad); 'waiting' is a
+// new one Gumroad started with a free trial on a row that has had a membership and still pays for
+// another, which takes over at its first real charge. Open while resolved_at is null.
+export const clanExtraMemberships = pgTable('clan_extra_memberships', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  gumroadSubscriptionId: text('gumroad_subscription_id').notNull(),
+  /** The plan id (the row's own catalogue) this membership pays for. */
+  plan: text('plan').notNull(),
+  /** 'to_cancel' | 'waiting' */
+  state: text('state').notNull(),
+  /** waiting: when Gumroad's trial ends and the first charge is due. */
+  trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  /** to_cancel: the last time Gumroad charged it after it was superseded. */
+  lastChargedAt: timestamp('last_charged_at', { withTimezone: true }),
+  /** to_cancel (drizzle/0268): 'superseded' (the older one after an upgrade) or 'lower_tier' (a lower or equal tier bought while a higher one is live). */
+  reason: text('reason'),
+  /** to_cancel: Gumroad reported it cancelled; it keeps its paid term, so the row stays open until it ends. */
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  /** to_cancel: when its paid term runs out, as far as we know. */
+  periodEndsAt: timestamp('period_ends_at', { withTimezone: true }),
+  notedAt: timestamp('noted_at', { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  /** 'cancelled' | 'ended' | 'refunded' | 'applied' | 'restored' | 'dismissed' */
+  resolution: text('resolution'),
+}, (t) => [
+  uniqueIndex('clan_extra_memberships_sub_unique').on(t.gumroadSubscriptionId),
+  index('clan_extra_memberships_clan_idx').on(t.clanId),
+  check('clan_extra_memberships_state_check', sql`${t.state} IN ('to_cancel', 'waiting')`),
+]);
+
 // owner_trials: a free Supporter tier or clan boost level the owner granted for N days. The
 // entitlement itself is an ordinary time-limited row (a supporter gift row, or the clan's gift
 // level + expiry), so resolution needs no trial-specific code and expiry is enforced at read time.
 // This table is the pipeline: who, what, until when, and whether they later bought.
 export const ownerTrials = pgTable('owner_trials', {
   id: serial('id').primaryKey(),
-  /** 'supporter' | 'boost' */
+  /** 'supporter' | 'boost' | 'plan' (a clan or creator-space plan tier, lib/planTrials) */
   kind: text('kind').notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
   clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
-  /** supporter tier id, or boost level 1-3 as text. */
+  /** supporter tier id, boost level 1-3 as text, or a plan id of the row's own catalogue. */
   tier: text('tier').notNull(),
   days: integer('days').notNull(),
   note: text('note'),
@@ -5346,6 +5488,9 @@ export const ownerTrials = pgTable('owner_trials', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   revokedBy: integer('revoked_by').references(() => users.id, { onDelete: 'set null' }),
   convertedAt: timestamp('converted_at', { withTimezone: true }),
+  /** "Remind me when the trial ends" (drizzle/0267): when they asked, and when the notice went out. */
+  remindRequestedAt: timestamp('remind_requested_at', { withTimezone: true }),
+  remindedAt: timestamp('reminded_at', { withTimezone: true }),
 }, (t) => [
   index('owner_trials_ends_idx').on(t.endsAt),
   index('owner_trials_user_idx').on(t.userId),

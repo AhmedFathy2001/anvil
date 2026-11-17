@@ -1,3 +1,4 @@
+import ModeratorGuide from '@/app/admin/_components/ModeratorGuide';
 import { headers } from 'next/headers';
 import { supporterForUser } from '@/lib/supporter';
 import { adminGateTarget, redirectFor } from '@/lib/adminAccess';
@@ -17,7 +18,7 @@ import AdminSettingsSearch from './_components/AdminSettingsSearch';
 import HashReveal from '@/components/HashReveal';
 import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
-import { creatorHidesAdminPath, isCreatorSpace, placeWord } from '@/lib/creatorSpaces';
+import { creatorHidesAdminPath, isCreatorSpace, placeWord, streamsEvents } from '@/lib/creatorSpaces';
 import { friendsAllowsAdminPath, isFriendsHost } from '@/lib/friendEventRules';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
@@ -220,7 +221,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return (
       <div className="lg:flex lg:gap-6">
         <AdminSidebar groups={scopedGroups} user={scopedUser} search />
-        <AdminSettingsSearch access={access} features={FEATURES.filter((f) => scopedFeatures.on(f.key)).map((f) => f.key)} creator={creator} />
+        <AdminSettingsSearch access={access} features={FEATURES.filter((f) => scopedFeatures.on(f.key)).map((f) => f.key)} creator={creator} streaming={streamsEvents(clan)} />
         <HashReveal />
         <div className="flex-1 min-w-0">{children}</div>
       </div>
@@ -261,6 +262,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ? [{ href: '/admin/events', label: 'All events', icon: '🎯', sprite: 'fireCape' as const, matchPrefix: true }]
         : []),
       { href: '/admin/schedule', label: 'Schedule', icon: '📅', sprite: 'stats' },
+      // Weekly competitions (Skill / Boss of the Week). They were reachable only from the dashboard
+      // card, so nobody who wanted to schedule one found the form.
+      ...(features.on('weekly')
+        ? [{ href: '/admin/weekly', label: 'Competitions', icon: '🏆', sprite: 'fireCape' as const }]
+        : []),
       { href: '/admin/clan-events', label: 'Clan events', icon: '🔥', sprite: 'tinderbox' },
       ...(canCheckProofs
         ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount, matchPrefix: true }]
@@ -289,7 +295,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // Every staff seat may read the clan's history — admins included. It is also a tab of Clan
       // settings, but "who changed what" is a daily question, not a setting, so it stays listed here
       // for everyone rather than only behind that tab.
-      { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
+      ...(isAdmin ? [] : [{ href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' as const }]),
       // Posting news is something staff do, not something they set up.
       ...(isAdmin && features.on('announce')
         ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
@@ -320,7 +326,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       label: 'Settings',
       items: [
         // SETUP IS A STATE, NOT A PLACE: listed only while unfinished, and first while it is.
-        ...(!setup || setup.allDone || setup.dismissed
+        // Finished means the guide strip's steps are (lib/guidedFlows/clanSetup); a creator space has
+        // no guide and keeps its own checklist's count.
+        ...(!setup || (setup.guide ? setup.guide.complete : setup.allDone) || setup.dismissed
           ? []
           : [{ href: creator ? '/admin/dashboard' : '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
         { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
@@ -333,8 +341,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           sprite: 'zenyte',
           matchPrefix: true,
           alsoMatch: ['/admin/features', '/admin/rules'],
-          // The Activity log has its own item above.
-          exclude: ['/admin/clan/audit'],
           // The hub's tabs, named under it: "Keep deaths too" lives in Rules & scoring, and nobody
           // guessed that from the one word "Clan settings". Same pages as ClanSettingsHeader.
           children: [
@@ -342,6 +348,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             { href: '/admin/features', label: 'Features' },
             { href: '/admin/rules', label: 'Rules & scoring' },
             { href: '/admin/clan/boosts', label: 'Boosts' },
+            { href: '/admin/clan/audit', label: 'Activity log' },
           ],
         },
       ],
@@ -400,7 +407,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="lg:flex lg:gap-6">
       <AdminSidebar groups={groups} user={user} primary={primary} guideHref={creator ? '/guide/creators' : '/guide/admin'} guideLabel={creator ? 'Creator guide' : 'Admin guide'} search />
       {/* Ctrl/Cmd+K from anywhere in the admin area — inside an event too, where the rail above is hidden. */}
-      <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} creator={creator} />
+      <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} creator={creator} streaming={streamsEvents(clan)} />
       {/* #anchors land opened, scrolled to and ringed — search results, cross-page links, pasted URLs. */}
       <HashReveal />
       <div className="flex-1 min-w-0">
@@ -416,6 +423,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         )}
         {pendingTransfer && <OwnershipTransferBanner viewerUserId={session.userId} transfer={pendingTransfer} />}
+        {/* A moderator's round, as a guide strip: only for moderators, and only while something waits. */}
+        {session.role === 'moderator' && canCheckProofs && (flaggedCount > 0 || provisionalCount > 0) && (
+          <ModeratorGuide flaggedProofs={flaggedCount} peopleWaiting={provisionalCount} />
+        )}
         {children}
       </div>
     </div>

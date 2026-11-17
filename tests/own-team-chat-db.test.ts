@@ -102,7 +102,15 @@ test('on: her own team only, like a player; announcements and moderation of what
   const unread = await C.chatUnread(a, u.Hana, [`team:${jade}`]);
   assert.equal(unread.get(`team:${jade}`), 0, 'no other-team counts');
   const target = await C.channelTarget(eventId, `team:${jade}`);
-  assert.ok('u' in target && !target.u.includes(u.Hana) && target.u.includes(u.Kev), 'no live push of Jade’s lines to her; Kev still');
+  assert.ok('u' in target && !target.u.includes(u.Hana), 'no live push of Jade’s lines to her');
+  // A moderator with no job on this board is not SENT a team's lines (lib/staffSight
+  // teamChatStaffListeners); he can still open the channel. A grant on the board puts him back.
+  assert.ok('u' in target && !target.u.includes(u.Kev), 'a clan moderator with no grant on this board is not pushed a team’s lines');
+  assert.equal(await C.mayRead(await access('Kev'), `team:${jade}`), true, 'but he can still open it');
+  await db.insert(s.eventEditors).values({ eventId, userId: u.Kev, role: 'editor' });
+  const granted = await C.channelTarget(eventId, `team:${jade}`);
+  assert.ok('u' in granted && granted.u.includes(u.Kev), 'with a grant on this board he hears it live');
+  await db.delete(s.eventEditors).where(eq(s.eventEditors.userId, u.Kev));
   const own = await C.channelTarget(eventId, `team:${ruby}`);
   assert.ok('u' in own && own.u.includes(u.Hana), 'her own team’s lines still reach her');
 

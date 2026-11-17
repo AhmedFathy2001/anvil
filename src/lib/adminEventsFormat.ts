@@ -26,6 +26,8 @@ function trimZero(n: number): string {
  */
 export function formatWeeklyGain(type: string, value: number): string {
   if (type === 'boss') return `${value.toLocaleString()} kc`;
+  // An item hunt's board counts drops (lib/itemHuntDb competitionBoard).
+  if (type === 'hunt') return `${value.toLocaleString()} ${value === 1 ? 'drop' : 'drops'}`;
   if (type === 'efficiency') return `${(value / 1000).toFixed(1)} hrs`;
   return `${formatGp(value)} xp`;
 }

@@ -1,4 +1,7 @@
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
+import { discordStartHref } from '@/lib/discordStart';
+import SignInReceives from '@/components/SignInReceives';
+import { clientEvent } from '@/lib/clientRows';
 import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
 import { raceViewData } from '@/lib/raceSummary';
 import { raceRouteOpts } from '@/lib/raceRoutes';
@@ -397,17 +400,22 @@ export default async function EventScoreboardPage({
     teamMembers = Object.fromEntries(eventTeams.map((t) => [t.id, [] as string[]]));
     for (const p of eventPlayers) if (p.teamId != null && teamMembers[p.teamId]) teamMembers[p.teamId].push(p.name);
   }
-  let myTeamIds: number[] = [];
-  if ((soloBoard || manyTeamsBoard) && session?.playerId != null) {
+  // The viewer's own team(s) on any board shape: the tile dialog's "Submit proof" hand-off needs one,
+  // and the players board's lens marks them (that one only on a players / many-teams board).
+  let viewerTeamIds: number[] = [];
+  if (session?.playerId != null) {
     const myAccountIds = new Set(
       (await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, session.playerId))).map((a) => a.id),
     );
-    myTeamIds = [...new Set(
+    viewerTeamIds = [...new Set(
       eventPlayers
         .filter((p) => p.teamId != null && (myPlayerIds.includes(p.id) || (p.accountId != null && myAccountIds.has(p.accountId))))
         .map((p) => p.teamId!),
     )];
   }
+  const myTeamIds = soloBoard || manyTeamsBoard ? viewerTeamIds : [];
+  // A team's plans ("Going for it: ...") are NOT passed to this page, even the viewer's own: claims
+  // live on the team page and the authed plugin board only (tests/tile-claims.test.ts).
 
   // Playing, but the plugin hasn't been heard from since the start? Then drop, kill and lap tiles
   // are silently not counting for them, and nothing on the board said so.
@@ -567,7 +575,7 @@ export default async function EventScoreboardPage({
   // Fun end-of-event recap ("superlatives") CTA — shown to everyone once the event has ended, but only
   // when there's actually something to show. `mvp` is non-null exactly when someone scored/completed a
   // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
-  const showRecapCta = isEventEnded(event) && !!mvp;
+  const showRecapCta = isEventEnded(event);
   // The viewer's chat seat, for the tab bar's Feed & chat / Moderate tabs and unread dot (lib/eventTabs).
   const viewerChat = session ? await chatAccess(event.id, session.userId) : null;
 
@@ -638,7 +646,7 @@ export default async function EventScoreboardPage({
     const ladderLooks = await supporterLooksByName([...new Set(ladderView.scopes.flatMap((sc) => sc.rows.map((r) => r.name)))]);
     return (
       <LadderClient
-        event={event}
+        event={clientEvent(event)}
         tiles={ladderTiles
           .map((t) => ({
             id: t.id,
@@ -804,16 +812,17 @@ export default async function EventScoreboardPage({
         </section>
       )}
       {pluginQuiet && (
-        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 flex flex-wrap items-center justify-between gap-4">
+        // Phones: one compact row (title + button), so the board is not pushed a screen down.
+        <div className="mb-6 max-sm:mb-3 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 max-sm:px-3 max-sm:py-2 flex items-center justify-between gap-4 max-sm:gap-2 sm:flex-wrap">
           <div className="min-w-0">
-            <div className="font-semibold">We haven’t heard from your Anvil plugin since the start</div>
-            <div className="text-sm text-text-muted">
+            <div className="font-semibold max-sm:text-[13px] max-sm:leading-snug">We haven’t heard from your Anvil plugin since the start</div>
+            <div className="text-sm text-text-muted max-sm:hidden">
               Drops, kills and laps only count by themselves while the plugin is running in RuneLite.
             </div>
           </div>
           <ClanLink
-            href="/guide/plugin"
-            className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+            href="/guide/plugin#trouble"
+            className="shrink-0 text-sm font-medium px-4 py-2 max-sm:px-3 max-sm:min-h-11 max-sm:inline-flex max-sm:items-center rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
           >
             Set up the plugin
           </ClanLink>
@@ -845,7 +854,7 @@ export default async function EventScoreboardPage({
           </div>
         </div>
       )}
-      {creatorEvent && !session && window.open ? (
+      {isEventEnded(event) ? null : creatorEvent && !session && window.open ? (
         // A creator space's event, signed out: one button. Discord sign-in, then straight back here,
         // where the same button joins them (EnterEvent, creator mode).
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--sa)]/40 bg-[var(--sa-soft)] p-5">
@@ -854,12 +863,15 @@ export default async function EventScoreboardPage({
             <div className="mt-1 text-lg font-semibold">Join this event</div>
             <div className="text-sm text-text-muted">Sign in with Discord — it takes a few seconds. Then one more tap and you’re playing.</div>
           </div>
-          <ClanLink
-            href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--sa)] px-7 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90 sm:w-auto"
-          >
-            Continue with Discord
-          </ClanLink>
+          <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:max-w-[16rem]">
+            <a
+              href={/* clan-prefix: platform -- the Discord start is the platform's */ discordStartHref(await clanHref(`/events/${event.id}`))}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--sa)] px-7 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90 sm:w-auto"
+            >
+              Continue with Discord
+            </a>
+            <SignInReceives />
+          </div>
         </div>
       ) : isOutsider ? (
         <EnterEvent
@@ -899,7 +911,7 @@ export default async function EventScoreboardPage({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 sm:shrink-0 min-w-0 max-w-full flex-wrap">
             {showRecapCta && (
               <ClanLink
                 href={`/events/${id}/recap`}
@@ -938,7 +950,15 @@ export default async function EventScoreboardPage({
         ) : (
           <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
             <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
-            <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+            {event.startDate && new Date(event.startDate).getTime() <= Date.now() ? (
+              // Start time reached: the tiles are revealed by the minute-by-minute start check, or the
+              // start is being held until the event is ready (teams, draft). Not "before it begins".
+              <p className="text-sm">This event has reached its start time. The tiles appear as soon as it goes live, usually within a minute. If it stays hidden, the host still has something to finish.</p>
+            ) : event.startDate ? (
+              <p className="text-sm">The tiles appear when the event starts, <LocalTime date={event.startDate} />.</p>
+            ) : (
+              <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+            )}
           </div>
         )
       ) : (
@@ -959,7 +979,7 @@ export default async function EventScoreboardPage({
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
           curtain={curtain}
-          event={event}
+          event={clientEvent(event)}
           tiles={withSearchText(boardTiles)}
           lockedMissions={lockedMissionPreviews(eventTiles)}
           raceStandings={raceStandings}
@@ -981,6 +1001,8 @@ export default async function EventScoreboardPage({
           manyTeams={manyTeamsBoard}
           teamMembers={teamMembers}
           myTeamIds={myTeamIds}
+          proofTeamId={viewerTeamIds[0] ?? null}
+          signedIn={!!session?.userId}
         />
         {luck && <EventLuck luck={luck} />}
         </>
@@ -1006,12 +1028,15 @@ export default async function EventScoreboardPage({
             <div className="text-base font-semibold">Watching on stream?</div>
             <div className="text-text-muted">Join in about a minute. Sign in with Discord.</div>
           </div>
-          <ClanLink
-            href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
-            className="inline-flex min-h-12 items-center rounded-xl bg-[var(--sa)] px-6 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
-          >
-            Join
-          </ClanLink>
+          <div className="flex flex-col gap-1.5">
+            <a
+              href={/* clan-prefix: platform -- the Discord start is the platform's */ discordStartHref(await clanHref(`/events/${event.id}`))}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[var(--sa)] px-6 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
+            >
+              Join
+            </a>
+            <SignInReceives className="max-w-[16rem]" />
+          </div>
         </div>
       )}
     </div>

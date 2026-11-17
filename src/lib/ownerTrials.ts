@@ -1,4 +1,6 @@
-// Owner trials: a free Supporter tier or clan boost level for N days, granted by the platform owner.
+// Owner trials: a free Supporter tier, clan boost level, or clan / creator-space PLAN tier for N days,
+// granted by the platform owner (a plan trial is also started by the site itself on every new clan,
+// lib/planTrials startAutoTrial).
 //
 // HOW IT PLUGS INTO ENTITLEMENTS, with no trial-specific resolver:
 //  - Supporter: an ordinary staff-gift row in supporter_subscriptions (status 'granted', recurrence
@@ -6,6 +8,8 @@
 //    is in the future and drop it after, at read time, so it expires on its own with no sweep.
 //  - Boost: the clan's platform gift on clan_boost_state (giftLevel + giftExpiresAt). giftTargetLevel
 //    already returns 0 once the expiry passes.
+//  - Plan: the owner_trials row IS the entitlement (lib/planTrials planInForce reads it; clans.plan is
+//    never written), so it expires at read time too, and revoking it is just the revoked stamp.
 // owner_trials records who/what/until and whether they later bought. "Converted" is derived from
 // the billing rows themselves and stamped the first time it is seen.
 
@@ -17,18 +21,24 @@ import { syncAnvilSupporterRoles } from '@/lib/anvilDiscord';
 import { giftTargetLevel } from '@/lib/clanBoostRules';
 import { loadClanRows } from '@/lib/money';
 import { TRIAL_MAX_DAYS, boostConverted, pipelineCents, supporterConverted, trialStatus, trialValueCents, validTrialDays, type TrialStatus } from '@/lib/moneyRules';
+import { AUTO_TRIAL_NOTE, isTrialTier, repeatNameClans } from '@/lib/planTrials';
+import { planConverted, tierNameOf, tierRankOf } from '@/lib/planTrialRules';
 import { endGift, giveGift, isGiftTier } from '@/lib/supporterGifts';
 import { SUPPORTER_TIERS, parseStamp, type SupporterTierId } from '@/lib/supporterTiers';
+import { CREATOR_PLANS, isCreatorPlanId } from '@/lib/creatorCatalog';
+import { planOf } from '@/lib/plans';
 
 export class TrialError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 
+export type TrialKind = 'supporter' | 'boost' | 'plan';
+
 export interface GrantInput {
-  kind: 'supporter' | 'boost';
+  kind: TrialKind;
   userId?: number;
   clanId?: number;
-  /** supporter tier id, or boost level 1-3 */
+  /** supporter tier id, boost level 1-3, or (kind 'plan') a plan id of the clan's own catalogue */
   tier: string | number;
   days: number;
   note?: string | null;
@@ -58,6 +68,23 @@ export async function grantTrial(i: GrantInput, now = Date.now()) {
     return row;
   }
 
+  if (i.kind === 'plan') {
+    if (!i.clanId) throw new TrialError('Pick a clan or creator space.');
+    const clan = await db.query.clans.findFirst({ where: eq(clans.id, i.clanId), columns: { id: true, kind: true, plan: true, name: true } });
+    if (!clan) throw new TrialError('No such clan.', 404);
+    if (!isTrialTier(clan.kind, i.tier)) throw new TrialError(clan.kind === 'creator' ? 'Pick a creator plan tier for a creator space.' : 'Pick Bronze, Silver or Gold for a clan.');
+    // One plan trial at a time; every past one stays on record.
+    if (await listForTarget('plan', i.clanId, now)) throw new TrialError('That clan already has a plan trial running. Revoke it first.', 409);
+    if (tierRankOf(clan.kind, clan.plan) >= tierRankOf(clan.kind, i.tier)) {
+      throw new TrialError(`${clan.name} already pays for ${tierNameOf(clan.kind, clan.plan)}, so a ${tierNameOf(clan.kind, i.tier)} trial would change nothing.`, 409);
+    }
+    const [row] = await db.insert(ownerTrials).values({
+      kind: 'plan', clanId: i.clanId, tier: i.tier, days: i.days, note, startsAt: new Date(now), endsAt, grantedBy: i.actorUserId,
+    }).returning();
+    await audit(i.clanId, 'owner_trial_granted', i.actorUserId, { trialId: row.id, kind: 'plan', clanId: i.clanId, tier: i.tier, days: i.days, endsAt: endsAt.toISOString(), note });
+    return row;
+  }
+
   const level = Number(i.tier);
   if (!i.clanId || !Number.isInteger(level) || level < 1 || level > 3) throw new TrialError('Pick a clan and a boost level from 1 to 3.');
   const clan = await db.query.clans.findFirst({ where: eq(clans.id, i.clanId), columns: { id: true } });
@@ -77,7 +104,7 @@ export async function grantTrial(i: GrantInput, now = Date.now()) {
 }
 
 /** A running (not revoked, not expired) trial for this target, or null. */
-async function listForTarget(kind: 'supporter' | 'boost', id: number, now: number) {
+async function listForTarget(kind: TrialKind, id: number, now: number) {
   const [row] = await db
     .select({ id: ownerTrials.id })
     .from(ownerTrials)
@@ -107,7 +134,11 @@ export async function revokeTrial(id: number, actorUserId: number, now = Date.no
 export interface TrialView {
   id: string;
   source: 'owner' | 'gumroad';
-  kind: 'supporter' | 'boost' | 'hosted';
+  kind: 'supporter' | 'boost' | 'hosted' | 'plan';
+  /** A plan trial the site started when the clan was created (nobody granted it by hand). */
+  automatic?: boolean;
+  /** For staff: the clan's in-game name already used a trial on a clan since deleted. Nothing was taken back. */
+  flag?: string | null;
   target: string;
   tier: string;
   startsAt: number | null;
@@ -125,7 +156,7 @@ export async function listTrials(now = Date.now()) {
   const clanIds = [...new Set(rows.map((r) => r.clanId).filter((x): x is number => x != null))];
   const [userRows, clanNames, paid, boostState] = await Promise.all([
     userIds.length ? db.select({ id: users.id, name: users.displayName }).from(users).where(inArray(users.id, userIds)) : [],
-    clanIds.length ? db.select({ id: clans.id, name: clans.name }).from(clans).where(inArray(clans.id, clanIds)) : [],
+    clanIds.length ? db.select({ id: clans.id, name: clans.name, kind: clans.kind, plan: clans.plan, inGameName: clans.inGameName, gumroadSubscriptionId: clans.gumroadSubscriptionId }).from(clans).where(inArray(clans.id, clanIds)) : [],
     userIds.length
       ? db.select({ userId: supporterSubscriptions.userId, startedAt: supporterSubscriptions.startedAt, status: supporterSubscriptions.status, recurrence: supporterSubscriptions.recurrence, gumroadSubscriptionId: supporterSubscriptions.gumroadSubscriptionId }).from(supporterSubscriptions).where(inArray(supporterSubscriptions.userId, userIds))
       : [],
@@ -133,25 +164,37 @@ export async function listTrials(now = Date.now()) {
   ]);
   const uName = new Map(userRows.map((u) => [u.id, u.name]));
   const cName = new Map(clanNames.map((c) => [c.id, c.name]));
+  const cRow = new Map(clanNames.map((c) => [c.id, c]));
+  const repeats = await repeatNameClans(clanNames.filter((c) => rows.some((r) => r.kind === 'plan' && r.clanId === c.id)));
   const organic = new Map(boostState.map((b) => [b.clanId, b.level]));
 
   const stamp: number[] = [];
   const out: TrialView[] = rows.map((r) => {
     let convertedAt = r.convertedAt?.getTime() ?? null;
     if (convertedAt == null && !r.revokedAt) {
+      const clan = cRow.get(r.clanId as number);
       const isConv = r.kind === 'supporter'
         ? supporterConverted(paid.filter((p) => p.userId === r.userId), r.startsAt.getTime())
-        : boostConverted(organic.get(r.clanId as number) ?? 0, Number(r.tier));
+        : r.kind === 'plan'
+          ? !!clan && planConverted(clan, r.tier)
+          : boostConverted(organic.get(r.clanId as number) ?? 0, Number(r.tier));
       if (isConv) { convertedAt = now; stamp.push(r.id); }
     }
-    const v = trialValueCents(r.kind, r.tier);
+    const clan = r.clanId != null ? cRow.get(r.clanId) : undefined;
+    const v = r.kind === 'plan' ? planTrialValue(clan?.kind, r.tier) : trialValueCents(r.kind, r.tier);
     return {
-      id: `o${r.id}`, source: 'owner', kind: r.kind as 'supporter' | 'boost',
+      id: `o${r.id}`, source: 'owner', kind: r.kind as 'supporter' | 'boost' | 'plan',
       target: r.kind === 'supporter' ? (uName.get(r.userId as number) ?? `login ${r.userId}`) : (cName.get(r.clanId as number) ?? `clan ${r.clanId}`),
-      tier: r.kind === 'supporter' ? (SUPPORTER_TIERS[r.tier as SupporterTierId]?.name ?? r.tier) : `Boost level ${r.tier}`,
+      tier: r.kind === 'supporter'
+        ? (SUPPORTER_TIERS[r.tier as SupporterTierId]?.name ?? r.tier)
+        : r.kind === 'plan'
+          ? `${clan?.kind === 'creator' ? 'Creator plan' : 'Clan plan'} ${tierNameOf(clan?.kind, r.tier)}`
+          : `Boost level ${r.tier}`,
       startsAt: r.startsAt.getTime(), endsAt: r.endsAt.getTime(),
       status: trialStatus({ endsAt: r.endsAt.getTime(), revokedAt: r.revokedAt?.getTime() ?? null, convertedAt }, now),
       valueCents: v.cents, estimated: v.estimated, note: r.note, convertedAt,
+      automatic: r.kind === 'plan' && r.grantedBy == null && r.note === AUTO_TRIAL_NOTE,
+      flag: r.kind === 'plan' && r.clanId != null && repeats.has(r.clanId) ? 'This in-game clan name already used a trial on a clan that was deleted. Nothing was taken back.' : null,
     };
   });
   if (stamp.length) await db.update(ownerTrials).set({ convertedAt: new Date(now) }).where(and(inArray(ownerTrials.id, stamp), isNull(ownerTrials.convertedAt)));
@@ -177,13 +220,19 @@ export async function listTrials(now = Date.now()) {
   };
 }
 
-/** Owner-only target search for the grant form. */
-export async function searchTargets(kind: 'supporter' | 'boost', q: string) {
+/** What converting a plan trial is worth per month: the tier's catalogue price. */
+function planTrialValue(kind: string | null | undefined, tier: string): { cents: number; estimated: boolean } {
+  const price = kind === 'creator' ? (isCreatorPlanId(tier) ? CREATOR_PLANS[tier].priceUsd : null) : planOf(tier).priceUsd;
+  return { cents: Math.round((price ?? 0) * 100), estimated: false };
+}
+
+/** Owner-only target search for the grant form. A plan trial's options carry the row's kind, for the tier list. */
+export async function searchTargets(kind: TrialKind, q: string) {
   const term = `%${q.replace(/[%_\\]/g, '\\$&').slice(0, 40)}%`;
   if (kind === 'supporter') {
     const rows = await db.select({ id: users.id, name: users.displayName }).from(users).where(sql`${users.displayName} ilike ${term}`).limit(12);
     return rows.map((r) => ({ value: String(r.id), label: r.name ?? `login ${r.id}` }));
   }
-  const rows = await db.select({ id: clans.id, name: clans.name }).from(clans).where(sql`${clans.name} ilike ${term}`).limit(12);
-  return rows.map((r) => ({ value: String(r.id), label: r.name }));
+  const rows = await db.select({ id: clans.id, name: clans.name, kind: clans.kind }).from(clans).where(sql`${clans.name} ilike ${term}`).limit(12);
+  return rows.map((r) => ({ value: String(r.id), label: kind === 'plan' && r.kind === 'creator' ? `${r.name} (creator space)` : r.name, kind: r.kind }));
 }

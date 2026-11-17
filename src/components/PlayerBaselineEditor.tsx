@@ -1,5 +1,6 @@
 'use client';
 
+import DialogFrame from '@/components/DialogFrame';
 import { useState, useEffect, useCallback } from 'react';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
@@ -109,9 +110,15 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden shadow-2xl">
+    <DialogFrame
+      dirty={baselineDirty}
+      onClose={onClose}
+      overlayClassName="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      panelClassName="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden shadow-2xl"
+      ariaLabel="Edit baseline stats"
+    >
+      {(requestClose) => (
+      <>
         {/* Header */}
         <div className="sticky top-0 bg-card-bg border-b border-card-border p-4 flex items-center justify-between">
           <div>
@@ -123,7 +130,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-text-muted hover:text-foreground text-xl">
+          <button onClick={requestClose} className="text-text-muted hover:text-foreground text-xl">
             &times;
           </button>
         </div>
@@ -217,7 +224,8 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
             {resetting ? 'Resetting...' : 'Reset All Baselines to Current'}
           </button>
         </div>
-      </div>
-    </div>
+      </>
+      )}
+    </DialogFrame>
   );
 }

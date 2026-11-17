@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -18,7 +19,7 @@ async function scope(request: Request, params: Promise<{ id: string }>) {
   const id = Number((await params).id);
   const scoped = clan && Number.isInteger(id) ? await competitionForClan(clan.id, id) : null;
   if (!scoped) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
-  return { id, playerId: session.playerId };
+  return { id, playerId: session.playerId, clanId: clan?.id, userId: session.userId };
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -34,5 +35,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (typeof body?.optOut !== 'boolean') return NextResponse.json({ error: 'optOut must be true or false' }, { status: 400 });
   const r = await setOptOut(s.id, { playerId: s.playerId }, body.optOut);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+  track(body.optOut ? 'weekly.optedout' : 'weekly.joined', { clanId: s.clanId, userId: s.userId });
   return NextResponse.json(await entryStatus(s.id, { playerId: s.playerId }));
 }

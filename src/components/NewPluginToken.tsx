@@ -2,17 +2,27 @@
 
 import { useState } from 'react';
 
+import Input from '@/components/Input';
+
+/** What the field holds while the token is hidden: a fixed run of dots, so not even its length shows. */
+const MASK = '•'.repeat(32);
+
 /**
  * Make a plugin token for one RuneLite client and show it — once.
  *
  * Tokens are stored only as hashes, so there is no "your token" to fetch and display any more: the
  * site never kept it. Each press mints a new one for one more client (pasting it signs nobody else
- * out), shown here until the page is left. Lost it? Make another.
+ * out), kept here until the page is left. Lost it? Make another.
+ *
+ * Hidden by default: it signs in as the person, and this page is often on a stream or a shared
+ * screen. While hidden the field holds dots, not the token, so it cannot be selected or read out of
+ * the page; Copy works either way. The token is never logged.
  */
 export default function NewPluginToken({ cta = 'Make a token', primary = false }: { cta?: string; primary?: boolean }) {
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState('');
 
   async function make() {
@@ -30,6 +40,7 @@ export default function NewPluginToken({ cta = 'Make a token', primary = false }
         setError(res.status === 401 ? 'Sign in first.' : data.error || 'Could not make a token.');
         return;
       }
+      setRevealed(false);
       setToken(data.token);
     } finally {
       setBusy(false);
@@ -43,7 +54,8 @@ export default function NewPluginToken({ cta = 'Make a token', primary = false }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setError('Copy failed — select it and copy by hand.');
+      setRevealed(true);
+      setError('Copy failed. The token is shown now: select it and copy by hand.');
     }
   }
 
@@ -70,9 +82,23 @@ export default function NewPluginToken({ cta = 'Make a token', primary = false }
   return (
     <div>
       <div className="flex flex-wrap gap-2 items-center">
-        <code className="flex-1 min-w-[220px] px-3 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm font-mono break-all text-foreground select-all">
-          {token}
-        </code>
+        <Input
+          readOnly
+          value={revealed ? token : MASK}
+          aria-label={revealed ? 'Your new plugin token' : 'Your new plugin token, hidden'}
+          autoComplete="off"
+          spellCheck={false}
+          onFocus={(e) => revealed && e.currentTarget.select()}
+          className="flex-1 min-w-[220px] w-auto py-2.5 rounded-lg font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => setRevealed((v) => !v)}
+          aria-pressed={revealed}
+          className="px-3 py-2.5 text-sm border border-gold/30 text-gold rounded-lg hover:bg-gold/10 transition-colors"
+        >
+          {revealed ? 'Hide' : 'Reveal'}
+        </button>
         <button
           type="button"
           onClick={copy}
@@ -82,7 +108,11 @@ export default function NewPluginToken({ cta = 'Make a token', primary = false }
         </button>
       </div>
       <p className="text-xs text-text-muted mt-1.5">
-        Shown once — Anvil keeps only a fingerprint of it. Paste it now; if you lose it, make another.
+        Made once and hidden until you press Reveal. Copy works without revealing it. Anvil keeps only a fingerprint of it, so paste it now; if you lose it, make another.
+      </p>
+      <p className="text-xs text-text-muted mt-1">
+        This token signs in as you, so treat it like a password. If it leaks, press <b>Revoke all</b> in your
+        plugin settings.
       </p>
       {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
     </div>

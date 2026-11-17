@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import {
   addTasksFromRows,
   deleteTasks,
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 /** GET — the whole catalogue plus what the generator needs to render its controls. */
 export async function GET() {
   const clan = await requireClan();
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [tasks, categories, tierCounts, pending] = await Promise.all([
@@ -48,7 +48,7 @@ export async function GET() {
  *   { action: 'delete', ids: [...] }       drop tasks the clan doesn't want
  */
 export async function POST(request: Request) {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // Changing the library is a CLAN authoring job. Someone who only holds a board — a grant on one
   // event, or a co-host's staff let onto one — may draw from it and read it, never rewrite it.

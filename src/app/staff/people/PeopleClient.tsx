@@ -477,31 +477,34 @@ export default function PeopleClient({
 
         {!initialQuery ? (
           <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
-            <table className="w-full min-w-[34rem] text-sm">
+            <table className="w-full sm:min-w-[34rem] text-sm">
               <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
                 <tr>
                   <th className="px-4 py-2.5">Person</th>
-                  <th className="px-4 py-2.5 text-right">Characters</th>
-                  <th className="px-4 py-2.5 text-right">Clans</th>
-                  <th className="px-4 py-2.5">Login</th>
+                  <th className="px-2 sm:px-4 py-2.5 text-right">
+                    <span className="sm:hidden">Chars</span>
+                    <span className="max-sm:hidden">Characters</span>
+                  </th>
+                  <th className="px-2 sm:px-4 py-2.5 text-right">Clans</th>
+                  <th className="px-2 sm:px-4 py-2.5">Login</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
                 {browse.rows.map((row) => (
                   <tr key={row.playerId} className="hover:bg-brown-light/40">
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2.5 max-sm:py-0">
                       <button
                         onClick={() => go({ q: `#${row.playerId}`, page: null })}
-                        className="text-left font-medium hover:text-gold"
+                        className="text-left font-medium hover:text-gold max-sm:min-h-11"
                       >
                         {row.name ?? `Person #${row.playerId}`}
                       </button>
                       <span className="ml-2 text-xs text-gray-600">#{row.playerId}</span>
                       {row.banned && <span className="ml-2"><Pill tone="red">banned</Pill></span>}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{row.accounts}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{row.clans}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400">{row.hasLogin ? 'Discord' : '—'}</td>
+                    <td className="px-2 sm:px-4 py-2.5 text-right tabular-nums">{row.accounts}</td>
+                    <td className="px-2 sm:px-4 py-2.5 text-right tabular-nums">{row.clans}</td>
+                    <td className="px-2 sm:px-4 py-2.5 text-xs text-gray-400">{row.hasLogin ? 'Discord' : '—'}</td>
                   </tr>
                 ))}
                 {browse.rows.length === 0 && (

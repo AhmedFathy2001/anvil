@@ -46,6 +46,7 @@ interface DraftState {
   pickInRound: number;
   totalPicked: number;
   poolRemaining: number;
+  balanceMode?: string;
 }
 
 interface Props {
@@ -112,6 +113,7 @@ export default function DraftBoardClient({ event, team }: Props) {
 
       <div className="space-y-6">
         <DraftStatus
+            snake={draft.balanceMode !== 'dynamic-order'}
           status={draft.status}
           currentTeamId={draft.currentTeamId}
           round={draft.round}

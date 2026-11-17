@@ -7,6 +7,8 @@ import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { isEventSeat } from '@/lib/seatKinds';
+import { staffEnteredDiscordLink } from '@/lib/discordLink';
+import { DISCORD_ID_ADMIN_ONLY, rosterDiscordIdWrite } from '@/lib/discordRoleSafety';
 
 // An event player's seat is not a roster seat — it is managed only under "Past viewers"
 // (/api/admin/viewers), never edited, promoted or removed here.
@@ -71,18 +73,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // The Discord id is a name-match CACHE on an unclaimed roster entry. Once a person has claimed the
   // character their own Discord login is the answer, and a clan overwriting it would be one clan
   // editing that person everywhere.
+  //
+  // And it is an admin's or the owner's to set, change or clear (lib/discordRoleSafety
+  // rosterDiscordIdWrite): from a moderator the field is dropped, so a link an admin made cannot be
+  // overwritten or cleared, and the other fields in the same request are still saved.
   const accountPatch: Record<string, unknown> = {};
-  if (body.discordId !== undefined) {
+  const discordWrite = rosterDiscordIdWrite(user.role, body.discordId);
+  if (discordWrite.write) {
     if (existing.claimedAt != null) {
       return NextResponse.json(
         { error: 'This character belongs to a player — their Discord comes from their own login. Report it to Anvil if it is wrong.' },
         { status: 403 },
       );
     }
-    accountPatch.discordId = body.discordId;
+    // Stored with its source (lib/discordLink): a hand link only when an admin typed a real Discord
+    // id; clearing it clears the source too.
+    Object.assign(
+      accountPatch,
+      await staffEnteredDiscordLink({ clanId: existing.clanId, seatId: existing.id, claimed: false, discordId: body.discordId, actor: user }),
+    );
   }
 
   if (Object.keys(seatPatch).length === 0 && Object.keys(accountPatch).length === 0) {
+    // The Discord id was the only thing sent, and it was not theirs to change: say that.
+    if (discordWrite.ignored) return NextResponse.json({ error: DISCORD_ID_ADMIN_ONLY }, { status: 403 });
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
@@ -92,7 +106,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (Object.keys(accountPatch).length > 0) {
     await db.update(accounts).set(accountPatch).where(eq(accounts.id, existing.accountId));
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...(discordWrite.ignored ? { discordIdIgnored: DISCORD_ID_ADMIN_ONLY } : {}) });
 }
 
 // DELETE — soft-delete (mark as left). Preserves historical references.

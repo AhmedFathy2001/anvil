@@ -20,9 +20,10 @@ const ids: Record<string, { userId: number; accountId: number }> = {};
 let eventId = 0;
 let red = 0;
 
+// blockGuestEmissions false = this person turned guest-clan posting ON (it is off by default, 0263).
 async function person(name: string, clanId: number | null, prefs?: Record<string, unknown>) {
   const [p] = await db.insert(s.players).values({ displayName: name }).returning();
-  const [u] = await db.insert(s.users).values({ displayName: name, discordId: `d-${name}`, playerId: p.id, chatFeedPrefs: prefs ? JSON.stringify(prefs) : null }).returning();
+  const [u] = await db.insert(s.users).values({ displayName: name, discordId: `d-${name}`, playerId: p.id, chatFeedPrefs: prefs ? JSON.stringify(prefs) : null, blockGuestEmissions: false }).returning();
   const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: name, rsnNormalized: name.toLowerCase() }).returning();
   if (clanId != null) await db.insert(s.clanMemberships).values({ clanId, accountId: a.id, kind: 'member' });
   ids[name] = { userId: u.id, accountId: a.id };

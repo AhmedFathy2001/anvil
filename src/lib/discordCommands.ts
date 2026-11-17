@@ -841,6 +841,9 @@ interface CommandContext {
    * it is the same character either way.
    */
   accountIds: number[];
+  /** A Discord id is stored for them here but nothing proves it (lib/discordContext InvokerIdentity):
+   *  they are answered as not linked, and told how to link. */
+  unconfirmedLink?: boolean;
   /** Their display name, for prose. */
   who: string;
   options: Record<string, string | number | boolean>;
@@ -902,7 +905,7 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     return { embeds: [await meEmbed(t, clan, event, cross, memberIds, accountIds, who, shared)] };
   },
 
-  async team({ t, clan, event, cross, memberIds, accountIds, options, shared }) {
+  async team({ t, clan, event, cross, memberIds, accountIds, unconfirmedLink, options, shared }) {
     // Hidden boards stay hidden. Staff see them on the web; Discord is a member-facing surface with
     // no way to prove a staff role, so it shows what a member would see.
     if (!event.tilesRevealed) return { text: fmt(t.team.hiddenBoard, { event: event.name }) };
@@ -913,7 +916,12 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     const curtain = curtainLine(t, event);
     if (curtain) {
       if (shared) return { text: `${curtain}\n${t.standings.ownTeamOnly}` };
-      if (fallback == null) return { text: `${curtain}\n${t.standings.notYourTeam}` };
+      if (fallback == null) {
+        // Not linked (a stored Discord id nothing proves): say how to link, since that is why their
+        // own team's card is not shown.
+        const link = unconfirmedLink ? `\n${clan.origin ? fmt(t.apply.noAccountUrl, { url: clan.origin }) : t.apply.noAccountNoUrl}` : '';
+        return { text: `${curtain}\n${t.standings.notYourTeam}${link}` };
+      }
       const own = await db.query.teams.findFirst({ where: eq(teams.id, fallback), columns: { name: true } });
       const needle = wanted?.trim().toLowerCase() ?? '';
       if (needle && !own?.name.toLowerCase().includes(needle)) return { text: `${curtain}\n${t.standings.notYourTeam}` };
@@ -1035,6 +1043,7 @@ async function resolveBingo(
       liveEvents,
       memberIds: identity?.memberIds ?? [],
       accountIds: identity?.accountIds ?? [],
+      unconfirmedLink: identity?.unconfirmedLink,
       who: invokerName(interaction),
     },
   };

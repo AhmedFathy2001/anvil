@@ -1280,7 +1280,7 @@ export function libraryCandidate(t: NonNullable<MatchContext['library']>[number]
   return {
     key: t.key,
     source: 'library',
-    badge: 'Your library',
+    badge: t.key.startsWith('anvil-') ? 'Starter task' : 'Your library',
     title: t.label,
     titleTemplate: t.label,
     hint: how.text,

@@ -131,18 +131,22 @@ export function eventLd(opts: {
   clanSlug: string;
   /** 'creator' for a creator space: its host is a person streaming, not an organisation (a clan). */
   hostKind?: string | null;
+  /** For tests; defaults to the current time. */
+  now?: number;
 }): object {
   const startDate = isoOrNull(opts.startDate);
   const endDate = isoOrNull(opts.endDate);
+  const ended = !!endDate && Date.parse(endDate) <= (opts.now ?? Date.now());
   return {
     '@context': 'https://schema.org',
     '@type': 'Event',
     name: opts.name,
     url: absoluteUrl(opts.url),
     eventAttendanceMode: 'https://schema.org/OnlineEventAttendanceMode',
-    // There is no "finished" status in the vocabulary and inventing one would be wrong: a board that
-    // has ended is simply an event whose endDate has passed, which the date already says.
-    eventStatus: 'https://schema.org/EventScheduled',
+    // There is no "finished" status in the vocabulary and inventing one would be wrong. So an event
+    // whose endDate has passed carries no status at all (the field is optional, and the date already
+    // says it is over) rather than "scheduled", which a finished board is not.
+    ...(ended ? {} : { eventStatus: 'https://schema.org/EventScheduled' }),
     ...(startDate ? { startDate } : {}),
     ...(endDate ? { endDate } : {}),
     location: {

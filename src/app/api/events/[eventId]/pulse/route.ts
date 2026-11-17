@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { readableEventForRequest } from '@/lib/eventScope';
 import { events, tiles, completions, submissions, moments, eventParticipants, clanRoster } from '@/db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -11,8 +11,9 @@ import { standingsScopeForRequest } from '@/lib/standingsAccess';
  * Cheap "did anything change?" pulse for an event board. Returns a tiny fingerprint of the board's
  * mutable state, wrapped in {@link jsonWithEtag} — so an unchanged board answers **304 with no body**.
  * The page's useLiveRefresh polls this on tab-focus (throttled) and only pulls the real update
- * (router.refresh + client refetch) when the token moves. A few cheap indexed aggregates, no auth
- * (it exposes only counts/timestamps already visible on the public board).
+ * (router.refresh + client refetch) when the token moves. A few cheap indexed aggregates. Readable by
+ * whoever may see the board itself (lib/eventScope readableEventForRequest): it exposes only
+ * counts/timestamps already visible there.
  */
 export async function GET(
   request: Request,
@@ -20,8 +21,8 @@ export async function GET(
 ) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
-  // Whose event is this? Ids are global and this one came from the URL.
-  const scopedEvent = await eventForRequest(request, eId);
+  // Whose event is this, and may this caller see it? Ids are global and this one came from the URL.
+  const scopedEvent = await readableEventForRequest(request, eId);
   if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

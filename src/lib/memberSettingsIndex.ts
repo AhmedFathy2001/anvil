@@ -42,8 +42,8 @@ export const MEMBER_SETTINGS_CARDS: readonly MemberSettingsCard[] = [
   {
     id: 'profile',
     title: 'Profile & look',
-    blurb: 'Your Supporter plan and clan boosts, avatar and banner, display case, name colours and chat colours, with a live preview. Try any look before you subscribe.',
-    href: '/settings/profile#plan',
+    blurb: 'Your clan boosts, avatar and banner, display case, name colours and chat colours, with a live preview. Try any look before you subscribe.',
+    href: '/settings/profile#boosts',
     icon: '▣',
   },
   {
@@ -187,8 +187,8 @@ export const MEMBER_SETTINGS: readonly MemberSettingEntry[] = [
     label: 'Chat colours and the [Anvil] tag',
     description: 'The colours of Anvil’s lines in your chatbox, and the [Anvil] tag’s colour (free for everyone).',
     keywords: ['chat colours', 'chat colors', 'tag colour', 'anvil tag', 'line colours', 'palette'],
-    href: '/settings/profile#chat-colours',
-    section: 'Profile & look',
+    href: '/settings/in-game#chat-colours',
+    section: 'In game',
   },
   {
     id: 'event-chat',
@@ -244,7 +244,7 @@ export const MEMBER_SETTINGS: readonly MemberSettingEntry[] = [
     id: 'character-visibility',
     label: 'Who sees each character',
     description: 'Give a character a public page and a place on cross-clan leaderboards, or keep it to its clans.',
-    keywords: ['public', 'private', 'hide', 'share', 'leaderboards', 'visibility', 'privacy', 'accounts', 'characters'],
+    keywords: ['public', 'private', 'hide', 'share', 'leaderboards', 'visibility', 'visible', 'invisible', 'show', 'show to other clans', 'other clans', 'who can see', 'privacy', 'accounts', 'characters'],
     href: '/settings/account#character-visibility',
     section: 'Account',
   },
@@ -279,8 +279,8 @@ export const MEMBER_SETTINGS: readonly MemberSettingEntry[] = [
     label: 'Supporter membership',
     description: 'Your tier, what each perk needs, billing and your invite link.',
     keywords: ['supporter', 'champion', 'patron', 'membership', 'subscription', 'perks', 'billing', 'invite', 'referral', 'gumroad'],
-    href: '/settings/profile#perks',
-    section: 'Profile & look',
+    href: '/settings/account#perks',
+    section: 'Account',
   },
   {
     id: 'boosts',

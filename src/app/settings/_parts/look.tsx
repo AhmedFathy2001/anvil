@@ -10,7 +10,7 @@ import ProfileLookEditor from '@/components/ProfileLookEditor';
 import CharacterLookOverrides from '@/components/CharacterLookOverrides';
 import DisplayCaseEditor from '@/components/DisplayCaseEditor';
 import SupporterNameLooks from '@/components/SupporterNameLooks';
-import ChatFeedPanel from '../ChatFeedPanel';
+import ClanLink from '@/components/ClanLink';
 import { LookPreview, LookPreviewProvider } from '../_preview';
 import { SettingsBlock, SettingsGroup } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
@@ -118,15 +118,10 @@ export async function LookGroups() {
         </SettingsBlock>
       </SettingsGroup>
 
-      <SettingsGroup
-        id="chat-colours"
-        title="Chat colours"
-        note="How Anvil’s lines look in your own RuneLite chatbox. Your own line colours are a Supporter perk; the [Anvil] tag colour is free."
-      >
-        <SettingsBlock>
-          <ChatFeedPanel part="colours" />
-        </SettingsBlock>
-      </SettingsGroup>
+      <p id="chat-colours" className="text-sm text-text-muted">
+        Chat colours (how Anvil&rsquo;s lines look in your RuneLite chatbox) are under{' '}
+        <ClanLink href="/settings/in-game#chat-colours" className="text-gold hover:underline">In game</ClanLink>.
+      </p>
     </LookPreviewProvider>
   );
 }

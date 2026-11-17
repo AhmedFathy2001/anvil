@@ -11,6 +11,7 @@ import { useDialog } from '@/components/Confirm';
 import { PRODUCT_LABEL, type Bucket, type ByCurrency, type ProductKey } from '@/lib/moneyRules';
 import type { loadMoney } from '@/lib/money';
 import type { listTrials } from '@/lib/ownerTrials';
+import ScrollStrip from '@/components/ScrollStrip';
 
 type Money = Awaited<ReturnType<typeof loadMoney>>;
 type Trials = Awaited<ReturnType<typeof listTrials>>;
@@ -44,7 +45,7 @@ function Amounts({ by, pick }: { by: ByCurrency; pick: (b: Bucket) => number }) 
 
 function PeriodTable({ rows }: { rows: { label: string; by: ByCurrency }[] }) {
   return (
-    <div className={`${card} overflow-x-auto`}>
+    <ScrollStrip as="div" className={`${card} overflow-x-auto`}>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-gray-400"><th className="py-1 pr-4">Period</th><th className="pr-4">Gross</th><th className="pr-4">Refunds</th><th className="pr-4">Fees</th><th>Net</th></tr></thead>
         <tbody>
@@ -63,7 +64,7 @@ function PeriodTable({ rows }: { rows: { label: string; by: ByCurrency }[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollStrip>
   );
 }
 
@@ -75,20 +76,29 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
   const [reveal, setReveal] = useState<{ id: number; data: Record<string, unknown> | null } | null>(null);
 
   // grant form
-  const [kind, setKind] = useState<'supporter' | 'boost'>('supporter');
+  const [kind, setKind] = useState<'supporter' | 'boost' | 'plan'>('supporter');
   const [q, setQ] = useState('');
-  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const [options, setOptions] = useState<{ value: string; label: string; kind?: string }[]>([]);
   const [target, setTarget] = useState('');
   const [tier, setTier] = useState('supporter');
   const [days, setDays] = useState(14);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // When the page was opened: what "ends on" is counted from in the form (the server stamps the real start).
+  const [openedAt] = useState(() => Date.now());
 
   async function search(text: string, k = kind) {
     setQ(text);
     if (text.trim().length < 2) { setOptions([]); return; }
     const r = await fetch(`/api/staff/money/targets?kind=${k}&q=${encodeURIComponent(text)}`);
-    if (r.ok) setOptions(((await r.json()) as { options: { value: string; label: string }[] }).options);
+    if (r.ok) setOptions(((await r.json()) as { options: { value: string; label: string; kind?: string }[] }).options);
+  }
+  // A plan trial's tiers are the picked row's own catalogue: clan tiers for a clan, creator tiers for a space.
+  function pickTarget(v: string) {
+    setTarget(v);
+    if (kind !== 'plan') return;
+    const creator = options.find((o) => o.value === v)?.kind === 'creator';
+    setTier(creator ? 'creator_gold' : 'gold');
   }
   async function grant() {
     if (!target) { dialog.notify('Pick who the trial is for.', 'error'); return; }
@@ -104,7 +114,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
     router.refresh();
   }
   async function revoke(id: string) {
-    if (!(await dialog.confirm({ title: 'Revoke this trial?', body: 'The free tier or boost level ends now.', confirmLabel: 'Revoke', tone: 'danger' }))) return;
+    if (!(await dialog.confirm({ title: 'Revoke this trial?', body: 'The free tier, plan or boost level ends now.', confirmLabel: 'Revoke', tone: 'danger' }))) return;
     const r = await fetch(`/api/staff/money/trials/${id.slice(1)}`, { method: 'DELETE' });
     if (!r.ok) { dialog.notify('Could not revoke.', 'error'); return; }
     router.refresh();
@@ -117,8 +127,13 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
   }
 
   const p = money.periods;
+  const creatorTarget = options.find((o) => o.value === target)?.kind === 'creator';
   const tierOptions = kind === 'supporter'
     ? [{ value: 'supporter', label: 'Supporter ($1/mo)' }, { value: 'champion', label: 'Champion ($2/mo)' }, { value: 'patron', label: 'Patron ($5/mo)' }]
+    : kind === 'plan'
+      ? creatorTarget
+        ? [{ value: 'creator_bronze', label: 'Creator Bronze' }, { value: 'creator_silver', label: 'Creator Silver' }, { value: 'creator_gold', label: 'Creator Gold' }]
+        : [{ value: 'bronze', label: 'Bronze (150 members)' }, { value: 'silver', label: 'Silver (300 members)' }, { value: 'gold', label: 'Gold (600 members)' }]
     : [{ value: '1', label: 'Boost level 1' }, { value: '2', label: 'Boost level 2' }, { value: '3', label: 'Boost level 3' }];
 
   const feed = (items: Money['recentSales'], empty: string) =>
@@ -159,7 +174,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
       </Section>
 
       <Section title="By product" note="Clan boosts are not sold: a boost is a seat placed by a Champion or Patron, so that money is inside Supporter tiers.">
-        <div className={`${card} overflow-x-auto`}>
+        <ScrollStrip as="div" className={`${card} overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead><tr className="text-left text-gray-400"><th className="py-1 pr-4">Product</th><th className="pr-4">Last 30 days net</th><th>All time net</th></tr></thead>
             <tbody>
@@ -172,7 +187,7 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollStrip>
       </Section>
 
       <Section title="Subscriptions">
@@ -226,19 +241,20 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
           <h3 className="mb-3 text-sm font-semibold text-gray-300">Grant a trial</h3>
           <div className="grid gap-3 md:grid-cols-2">
             <div><div className="mb-1 text-xs text-gray-400">Type</div>
-              <Select value={kind} ariaLabel="Trial type" onChange={(v) => { const k = v as 'supporter' | 'boost'; setKind(k); setTier(k === 'boost' ? '1' : 'supporter'); setTarget(''); setOptions([]); setQ(''); }}
-                options={[{ value: 'supporter', label: 'Supporter tier, for a person' }, { value: 'boost', label: 'Clan boost level, for a clan' }]} /></div>
+              <Select value={kind} ariaLabel="Trial type" onChange={(v) => { const k = v as 'supporter' | 'boost' | 'plan'; setKind(k); setTier(k === 'boost' ? '1' : k === 'plan' ? 'gold' : 'supporter'); setTarget(''); setOptions([]); setQ(''); }}
+                options={[{ value: 'supporter', label: 'Supporter tier, for a person' }, { value: 'boost', label: 'Clan boost level, for a clan' }, { value: 'plan', label: 'Plan tier, for a clan or creator space' }]} /></div>
             <div><div className="mb-1 text-xs text-gray-400">Tier</div><Select value={tier} ariaLabel="Tier" onChange={setTier} options={tierOptions} /></div>
-            <div><div className="mb-1 text-xs text-gray-400">{kind === 'supporter' ? 'Find a person' : 'Find a clan'}</div>
+            <div><div className="mb-1 text-xs text-gray-400">{kind === 'supporter' ? 'Find a person' : kind === 'plan' ? 'Find a clan or creator space' : 'Find a clan'}</div>
               <Input value={q} onChange={(e) => search(e.target.value)} placeholder="Type 2+ letters" maxLength={40} />
-              {options.length > 0 && <div className="mt-2"><Select value={target} ariaLabel="Result" onChange={setTarget} placeholder="Pick from results" options={options} /></div>}</div>
-            <div><div className="mb-1 text-xs text-gray-400">Days</div><NumberInput value={days} onChange={setDays} min={1} max={365} fallback={14} /></div>
+              {options.length > 0 && <div className="mt-2"><Select value={target} ariaLabel="Result" onChange={pickTarget} placeholder="Pick from results" options={options} /></div>}</div>
+            <div><div className="mb-1 text-xs text-gray-400">Days</div><NumberInput value={days} onChange={setDays} min={1} max={365} fallback={14} />
+              <div className="mt-1 text-xs text-gray-500">Ends {day(openedAt + days * 86_400_000)}.{kind === 'plan' && ' No card is asked for; the clan’s own plan and charges are not changed. When it ends the clan is back on what it pays for.'}</div></div>
             <div className="md:col-span-2"><div className="mb-1 text-xs text-gray-400">Note (optional)</div><Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} /></div>
           </div>
           <button type="button" disabled={busy} onClick={grant} className="mt-3 rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black disabled:opacity-50">Grant trial</button>
         </div>
 
-        <div className={`${card} overflow-x-auto`}>
+        <ScrollStrip as="div" className={`${card} overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead><tr className="text-left text-gray-400"><th className="py-1 pr-3">Who</th><th className="pr-3">What</th><th className="pr-3">Ends</th><th className="pr-3">Status</th><th className="pr-3">Worth / mo</th><th /></tr></thead>
             <tbody>
@@ -246,16 +262,16 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
               {trials.trials.map((t) => (
                 <tr key={t.id} className="border-t border-card-border">
                   <td className="py-2 pr-3 text-gray-200">{t.target}{t.note && <div className="text-xs text-gray-500">{t.note}</div>}</td>
-                  <td className="pr-3 text-gray-300">{t.tier}{t.source === 'gumroad' && <span className="ml-1 text-xs text-gray-500">(Gumroad free trial)</span>}</td>
+                  <td className="pr-3 text-gray-300">{t.tier}{t.source === 'gumroad' && <span className="ml-1 text-xs text-gray-500">(Gumroad free trial)</span>}{t.automatic && <span className="ml-1 text-xs text-gray-500">(automatic, on create)</span>}{t.flag && <div className="text-xs text-yellow-400">{t.flag}</div>}</td>
                   <td className="pr-3 text-gray-300">{day(t.endsAt)}</td>
-                  <td className={`pr-3 ${STATUS_TONE[t.status]}`}>{t.status === 'expired' ? 'expired, not converted' : t.status}</td>
+                  <td className={`pr-3 ${STATUS_TONE[t.status]}`}>{t.status === 'expired' ? 'ended, not converted' : t.status === 'active' ? 'running' : t.status === 'ending' ? 'running, ends within 7 days' : t.status}</td>
                   <td className="pr-3 text-gold">{fmt(t.valueCents, 'usd')}{t.estimated && EST}</td>
                   <td>{t.source === 'owner' && (t.status === 'active' || t.status === 'ending') && <button type="button" className="text-xs text-red-400 hover:underline" onClick={() => revoke(t.id)}>Revoke</button>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollStrip>
       </Section>
     </div>
   );

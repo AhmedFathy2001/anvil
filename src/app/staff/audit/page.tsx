@@ -33,6 +33,8 @@ const WHAT: Record<string, string> = {
   platform_webhook_dismissed: 'Shared webhook left as it is',
   platform_clan_updated: 'Clan updated',
   platform_clan_deleted: 'Clan deleted',
+  // A person deleting their own account (lib/erasePerson). Counts only, never who.
+  platform_account_deleted: 'Account deleted by its holder',
   platform_act_as_granted: 'Borrowed a grant in this clan',
   platform_act_as_revoked: 'Handed back a borrowed grant',
   // The reports inbox (/staff/promotions, lib/platformReports). Never the reporter.
@@ -234,8 +236,8 @@ function Chip({
       href={href}
       className={
         active
-          ? 'rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-gold'
-          : 'rounded-full border border-card-border px-2 py-0.5 text-text-muted transition-colors hover:border-gold/30 hover:text-foreground'
+          ? 'tap-pad rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-gold'
+          : 'tap-pad rounded-full border border-card-border px-2 py-0.5 text-text-muted transition-colors hover:border-gold/30 hover:text-foreground'
       }
     >
       {children}

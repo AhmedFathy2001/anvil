@@ -5,7 +5,8 @@ import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { clanRoster, eventParticipants, events, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
+import { verifyAdmin, verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { effectiveSnapshotJson } from '@/lib/statTracking';
@@ -17,15 +18,16 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { boardPlayer, staffPlayer } from '@/lib/clientRows';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  // Staff-only: this returns the full roster, which carries each player's login token (a bearer
-  // credential for /api/player/login). It was previously world-readable — an unauthenticated
-  // caller could harvest every token and take over any player. Consumed only by admin screens.
-  const staff = await verifyAdminOrModerator();
+  // Admins only, and only what a roster screen reads (lib/clientRows). Nothing on the site calls
+  // this GET any more; it used to hand moderators every column of every participant — Discord
+  // handle, timezone, loot, deaths, plugin stats.
+  const staff = await verifyAdmin();
   if (!staff) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { eventId } = await params;
@@ -40,21 +42,17 @@ export async function GET(
     .from(eventParticipants)
     .where(eq(eventParticipants.eventId, id));
 
-  // Defense in depth: never serialize the login token, even to staff.
-  const safe = eventPlayers.map((row) => {
-    const rest: Record<string, unknown> = { ...row };
-    delete rest.playerToken;
-    return rest;
-  });
-  return NextResponse.json(safe);
+  return NextResponse.json(eventPlayers.map(boardPlayer));
 }
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) {
+  // The same gate as verifyAdmin, keeping the login: a Discord id typed beside a player is stored
+  // with who entered it (lib/discordLink).
+  const actor = await verifyUser();
+  if (!actor || !atLeast(actor.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const clan = await requireClan();
@@ -122,7 +120,7 @@ export async function POST(
     for (const p of fromText) {
       const name = p.name.trim();
       const discord = p.discord?.trim() || null;
-      const clanMemberId = await findOrCreateClanMember(clan.id, name, { discordId: discord });
+      const clanMemberId = await findOrCreateClanMember(clan.id, name, { discordId: discord, linkedBy: actor });
       members.push({ clanMemberId, name, discord, timezone: p.timezone?.trim() || null });
     }
 
@@ -137,7 +135,7 @@ export async function POST(
     const full = await signupsOrFull(id, members.map((m) => m.clanMemberId));
     if (full) return full;
     const result = await upsertPlayers(id, members, assignTeamId);
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(result.map(staffPlayer), { status: 201 });
   }
 
   // Single player (legacy text add).
@@ -147,7 +145,7 @@ export async function POST(
   }
   const trimmedName = name.trim();
   const trimmedDiscord = discord?.trim() || null;
-  const clanMemberId = await findOrCreateClanMember(clan.id, trimmedName, { discordId: trimmedDiscord });
+  const clanMemberId = await findOrCreateClanMember(clan.id, trimmedName, { discordId: trimmedDiscord, linkedBy: actor });
   members.push({ clanMemberId, name: trimmedName, discord: trimmedDiscord, timezone: timezone?.trim() || null });
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
@@ -156,7 +154,7 @@ export async function POST(
   const full = await signupsOrFull(id, [clanMemberId]);
   if (full) return full;
   const result = await upsertPlayers(id, members, assignTeamId);
-  return NextResponse.json(result[0], { status: 201 });
+  return NextResponse.json(result[0] ? staffPlayer(result[0]) : result[0], { status: 201 });
 }
 
 export async function DELETE(
@@ -348,7 +346,8 @@ export async function PATCH(
   captureStartingStatsSoon(eId, [pId]);
   // Benched, unbenched or moved: their event-server team role follows (no-op without an event server).
   if (frozen !== undefined || teamId !== undefined) syncEventServerMembersFireAndForget(eId);
-  return NextResponse.json(updated);
+  // The row as the draft screens read it (lib/clientRows): the write used to answer with every column.
+  return NextResponse.json(updated ? staffPlayer(updated) : updated);
 }
 
 /**

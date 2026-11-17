@@ -10,6 +10,7 @@ import { useDialog } from '@/components/Confirm';
 import { doubleEntries, surplusSeats, type EntrantSeat } from '@/lib/weeklyEntrants';
 import StartingStatsLine, { StartingStatsSummary, postStartingStatsRetry, unreadIds, useStartingStatsPoll } from '@/components/StartingStatsLine';
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
+import ShowMoreButton from '@/components/ShowMoreButton';
 
 /**
  * The two roster surfaces of a weekly, which are the same table read two ways.
@@ -18,6 +19,9 @@ import type { StartingStatsStatus } from '@/lib/startingStatsRules';
  * 'baselines' answers whether their numbers can be trusted — the starting line, the current value,
  * and the implausible-gain flags that mean the hiscores flushed a pre-competition grind.
  */
+/** Entrants drawn before "Show more"; the name search still looks through all of them. */
+const ROSTER_CHUNK = 50;
+
 export default function WeeklyRosterClient({
   competitionId,
   type,
@@ -53,6 +57,7 @@ export default function WeeklyRosterClient({
   const [names, setNames] = useState('');
   const [editing, setEditing] = useState<{ id: number; rsn: string; value: string } | null>(null);
   const [search, setSearch] = useState('');
+  const [limit, setLimit] = useState(ROSTER_CHUNK);
 
   const visible = search.trim()
     ? standings.filter((s) => s.rsn.toLowerCase().includes(search.trim().toLowerCase()))
@@ -128,7 +133,7 @@ export default function WeeklyRosterClient({
     await removeParticipants(surplus, `${surplus.length} extra ${surplus.length === 1 ? 'entry' : 'entries'} removed.`);
   }
 
-  async function call(url: string, init: RequestInit, okMessage: string) {
+  async function call(url: string, init: RequestInit, okMessage: string): Promise<boolean> {
     setBusy(true);
     setMessage('');
     try {
@@ -137,11 +142,13 @@ export default function WeeklyRosterClient({
       if (res.ok) {
         setMessage(okMessage);
         router.refresh();
-      } else {
-        setMessage(data.error || 'That did not work.');
+        return true;
       }
+      setMessage(data.error || 'That did not work.');
+      return false;
     } catch {
       setMessage('Network error.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -167,12 +174,13 @@ export default function WeeklyRosterClient({
       .map((n) => n.trim())
       .filter(Boolean);
     if (rsns.length === 0) return;
-    await call(
+    const ok = await call(
       `/api/admin/weekly/${competitionId}/participants`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rsns }) },
       `Added ${rsns.length} name${rsns.length === 1 ? '' : 's'}.`,
     );
-    setNames('');
+    // Keep the pasted list when the add fails, so it can be fixed and sent again.
+    if (ok) setNames('');
   }
 
   async function toggleKeep(row: WeeklyStanding) {
@@ -194,7 +202,7 @@ export default function WeeklyRosterClient({
       setMessage('Baseline must be a non-negative number.');
       return;
     }
-    await call(
+    const ok = await call(
       `/api/admin/weekly/${competitionId}/participants`,
       {
         method: 'PATCH',
@@ -203,7 +211,7 @@ export default function WeeklyRosterClient({
       },
       `${editing.rsn}'s starting line corrected.`,
     );
-    setEditing(null);
+    if (ok) setEditing(null);
   }
 
   async function refresh(rebaseline: boolean) {
@@ -252,6 +260,7 @@ export default function WeeklyRosterClient({
               Add
             </button>
           </div>
+          {message && names.trim() && <p className="text-xs text-red-400 mt-2">{message}</p>}
         </section>
       ) : (
         <section className="border border-card-border rounded-xl bg-card-bg p-5">
@@ -390,7 +399,7 @@ export default function WeeklyRosterClient({
         />
 
         <div className="overflow-x-auto overflow-y-hidden">
-          <table className="w-full text-sm">
+          <table className={`${mode === 'baselines' ? 'stack-phone ' : ''}w-full text-sm`}>
             <thead>
               <tr className="text-[10px] uppercase tracking-wider text-text-muted/70">
                 <th className="text-left font-medium px-4 py-2">Player</th>
@@ -401,7 +410,7 @@ export default function WeeklyRosterClient({
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => (
+              {visible.slice(0, limit).map((row) => (
                 <tr key={row.participantId} className="border-t border-card-border/70 hover:bg-white/[0.02]">
                   <td className="px-4 py-2">
                     <span className="flex items-center gap-2 min-w-0">
@@ -446,13 +455,13 @@ export default function WeeklyRosterClient({
                   </td>
 
                   {mode === 'baselines' && (
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-text-muted">
+                    <td data-label="Started at" className="stack-third px-3 py-2 text-right tabular-nums text-xs text-text-muted">
                       {editing?.id === row.participantId ? (
                         <Input
                           value={editing.value}
                           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
                           autoFocus
-                          className="w-28 border-gold px-2 py-1 text-right text-xs"
+                          className="w-28 max-sm:w-full border-gold px-2 py-1 text-right text-xs"
                         />
                       ) : (
                         weeklyStatValue(type, row.baselineValue)
@@ -460,16 +469,16 @@ export default function WeeklyRosterClient({
                     </td>
                   )}
                   {mode === 'baselines' && (
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-text-muted">
+                    <td data-label="Now" className="stack-third px-3 py-2 text-right tabular-nums text-xs text-text-muted">
                       {weeklyStatValue(type, row.currentValue)}
                     </td>
                   )}
 
-                  <td className="px-3 py-2 text-right tabular-nums text-xs">
+                  <td data-label={mode === 'baselines' ? 'Gained' : undefined} className="stack-third px-3 py-2 text-right tabular-nums text-xs">
                     {row.gained > 0 ? weeklyGain(type, row.gained) : <span className="text-text-muted/60">—</span>}
                   </td>
 
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                  <td className="stack-actions px-3 py-2 text-right whitespace-nowrap">
                     {mode === 'baselines' ? (
                       editing?.id === row.participantId ? (
                         <span className="inline-flex gap-1">
@@ -541,6 +550,7 @@ export default function WeeklyRosterClient({
             </tbody>
           </table>
         </div>
+        <ShowMoreButton total={visible.length} shown={limit} chunk={ROSTER_CHUNK} onMore={() => setLimit((n) => n + ROSTER_CHUNK)} className="rounded-none border-x-0 border-b-0" />
       </section>
     </div>
   );

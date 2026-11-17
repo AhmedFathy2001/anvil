@@ -845,10 +845,18 @@ export function isEventFeedWorthy(row: { kind: string; itemId?: number | null; v
  * What this observation is to a competition week, or null when it's nothing to do with it.
  *
  * An efficiency week is account-wide — every drop and death in the game happens "during" it — so it
- * claims nothing. A feed that keeps everything says as little as one that keeps nothing.
+ * cannot claim by subject, and a feed that keeps everything says as little as one that keeps
+ * nothing. It keeps only what stands on its own: every pet, and a drop that clears the clan feed's
+ * own rarity bar (clanRareDrop at CLAN_MIN_RARITY_DENOMINATOR: one item, 1 in 500 or rarer). No
+ * deaths, no levels, no combat tasks, no hauls kept for their price. That is what gives an
+ * efficiency race a "Best drops" list (lib/bestDrops) without turning its feed into the clan's.
  */
 function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null {
-  if (weekly.type === 'efficiency') return null;
+  if (weekly.type === 'efficiency') {
+    if (obs.kind === 'pet') return 'pet';
+    if (obs.kind !== 'drop') return null;
+    return clanRareDrop(dropInfo(obs.source, obs.itemId), obs.quantity ?? 1, CLAN_MIN_RARITY_DENOMINATOR, obs.valueGp) ? 'unique' : null;
+  }
   // Log slots, diaries and quests are the clan's (clanKindFor), never a week's.
   if (CLAN_ONLY_KINDS.has(obs.kind)) return null;
 

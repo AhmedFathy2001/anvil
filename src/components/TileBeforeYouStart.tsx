@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import ClanLink from '@/components/ClanLink';
-import { clanFetch } from '@/lib/clanFetch';
+import { tileReadinessUrl, useTileData } from '@/lib/tileData';
 import {
   needChecks,
   needCount,
@@ -43,21 +43,8 @@ export default function TileBeforeYouStart({ tile, eventId, compact = false, lab
   const needs = useMemo(() => tileNeeds(tile), [tile]);
   const total = needCount(needs);
   const wantsChecks = !compact && eventId != null && tile.id != null && needChecks(needs).length > 0;
-  const [results, setResults] = useState<Result[]>([]);
-
-  useEffect(() => {
-    if (!wantsChecks) return;
-    let cancelled = false;
-    clanFetch(`/api/events/${eventId}/tiles/${tile.id}/readiness`)
-      .then((r) => (r.ok ? r.json() : { results: [] }))
-      .then((d: { results?: Result[] }) => {
-        if (!cancelled) setResults(Array.isArray(d.results) ? d.results : []);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [wantsChecks, eventId, tile.id]);
+  const read = useTileData<{ results?: Result[] }>(wantsChecks ? tileReadinessUrl(eventId!, tile.id!) : null);
+  const results = useMemo(() => (Array.isArray(read?.results) ? read.results : []), [read]);
 
   if (total === 0) return null;
 
@@ -160,7 +147,7 @@ function NeedList({
             </span>
             <span className="min-w-0">
               <span className={problem ? 'text-amber-100/90' : 'text-text-muted'}>{n.text}</span>{' '}
-              <ClanLink href={tileNeedHref(n.anchor)} className="text-gold/80 hover:text-gold hover:underline whitespace-nowrap">
+              <ClanLink href={tileNeedHref(n.anchor)} className="text-gold/80 hover:text-gold hover:underline whitespace-nowrap max-sm:relative max-sm:before:absolute max-sm:before:-inset-x-2 max-sm:before:-inset-y-[15px] max-sm:before:content-['']">
                 Why?
               </ClanLink>
               {mine

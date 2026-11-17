@@ -131,6 +131,9 @@ export default function ClanPrivate({
                 slug={slug}
                 clanName={name}
                 labels={{ open: 'Guest here', approval: 'Ask to guest' }}
+                // Whoever sees this card has no tie to the clan, and an unproven name cannot ask a
+                // members-only clan's staff to vouch (lib/clanAddress): the plugin or the XP check.
+                ways={['plugin', 'xp']}
               />
             )}
             <ClanLink

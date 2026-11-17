@@ -15,6 +15,8 @@ export function settingsViewer(
   enabledFeatures: readonly FeatureKey[],
   /** A creator space: the in-game-clan pages are not reachable there (lib/creatorSpaces). */
   creator = false,
+  /** The clan streams events (Past viewers is only there then). */
+  streaming = creator,
 ): SettingsViewer {
   const on = new Set(enabledFeatures);
   return {
@@ -23,7 +25,7 @@ export function settingsViewer(
       min === 'treasurer' ? access.role === 'treasurer' || atLeast(access.role, 'admin') : atLeast(access.role, min),
     featureOn: (key) => on.has(key),
     // …nor the clan-only sections inside the pages it does reach (Discord's role sync, commands, …).
-    hides: (id) => creator && creatorHidesSetting(id),
+    hides: (id) => (creator && creatorHidesSetting(id)) || (id === 'people-viewers' && !streaming),
     space: creator,
   };
 }

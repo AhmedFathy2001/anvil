@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useDialog } from '@/components/Confirm';
+import ClanLink from '@/components/ClanLink';
 import NewPluginToken from '@/components/NewPluginToken';
 
 /**
@@ -12,6 +13,7 @@ import NewPluginToken from '@/components/NewPluginToken';
 export default function PluginPlayerTokenClient() {
   const { confirm } = useDialog();
   const [count, setCount] = useState<number | null>(null);
+  const [signIns, setSignIns] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,7 +21,11 @@ export default function PluginPlayerTokenClient() {
     let alive = true;
     fetch('/api/profile/plugin-token')
       .then((r) => r.json())
-      .then((d) => alive && setCount(typeof d.tokens === 'number' ? d.tokens : 0))
+      .then((d) => {
+        if (!alive) return;
+        setCount(typeof d.tokens === 'number' ? d.tokens : 0);
+        setSignIns(typeof d.signIns === 'number' ? d.signIns : 0);
+      })
       .catch(() => alive && setError('Could not load your tokens'));
     return () => {
       alive = false;
@@ -47,6 +53,7 @@ export default function PluginPlayerTokenClient() {
       return;
     }
     setCount(0);
+    setSignIns(0);
   }
 
   return (
@@ -59,7 +66,16 @@ export default function PluginPlayerTokenClient() {
         {count != null && (
           <>
             {' '}
-            You have <span className="text-foreground">{count}</span> active {count === 1 ? 'token' : 'tokens'}.
+            You have <span className="text-foreground">{count}</span> active {count === 1 ? 'token' : 'tokens'}
+            {signIns > 0 && (
+              <>
+                : your main one and {signIns} {signIns === 1 ? 'sign-in' : 'sign-ins'} made from the panel, which you can revoke one by one under{' '}
+                <ClanLink href="/settings/account#plugin-sign-ins" className="text-gold hover:text-gold-light">
+                  Account → Plugin sign-ins
+                </ClanLink>
+              </>
+            )}
+            .
           </>
         )}
       </p>

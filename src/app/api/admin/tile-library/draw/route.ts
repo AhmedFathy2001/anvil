@@ -1,6 +1,7 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { drawTasks } from '@/lib/tileLibrary';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
 // smaller board than asked for.
 export async function POST(request: Request) {
   const clan = await requireClan();
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
@@ -34,5 +35,6 @@ export async function POST(request: Request) {
     exclude: Array.isArray(body.exclude) ? body.exclude.filter((n: unknown) => Number.isInteger(n)) : undefined,
   });
 
+  track('tasks.drawn', { clanId: clan.id, userId: editor.userId });
   return NextResponse.json(result);
 }

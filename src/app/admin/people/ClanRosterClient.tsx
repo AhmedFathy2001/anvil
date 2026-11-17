@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Select from '@/components/Select';
+import PathChip from '@/components/PathChip';
+import type { JoinPath } from '@/lib/characterState';
 import Input from '@/components/Input';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import { useGuardedClose } from '@/components/UnsavedChanges';
 import GuideLink from '@/components/GuideLink';
 import { ROLE_BLURB } from '@/lib/clanRoles';
 import type { ClanReportView } from '@/lib/characterReports';
@@ -71,6 +74,8 @@ interface ClanMember {
   pendingRole: PendingRole | null;
   /** The newest report this clan sent Anvil about the character, and where it stands. */
   anvilReport?: ClanReportView | null;
+  /** How the character came in: plugin, XP check, awaiting a staff vouch, or vouched (PathChip). */
+  path?: JoinPath | null;
 }
 
 // Staff roles that can be pre-assigned to a roster member (applied when they verify). Mirrors the
@@ -78,7 +83,7 @@ interface ClanMember {
 type PendingRole = 'admin' | 'moderator' | 'editor' | 'treasurer';
 type PendingRoleValue = PendingRole | 'none';
 
-type FilterMode = 'active' | 'review' | 'quiet' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
+type FilterMode = 'active' | 'review' | 'vouch' | 'quiet' | 'guests' | 'left' | 'linked' | 'unlinked' | 'all';
 
 const QUIET_DAYS = 7;
 
@@ -332,6 +337,9 @@ function PendingRoleBadge({ m }: { m: ClanMember }) {
   );
 }
 
+/** Roster rows drawn at a time. */
+const ROSTER_CHUNK = 50;
+
 export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { isAdmin: boolean; canGrantAdmin?: boolean }) {
   // One reading of the clock for the page's lifetime, so "6d ago" and the Idle view can never
   // disagree with each other across a re-render.
@@ -371,6 +379,10 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
 
   const [renameTarget, setRenameTarget] = useState<ClanMember | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const closeRename = useGuardedClose(
+    renameTarget !== null && renameValue.trim() !== '' && renameValue.trim() !== renameTarget.rsn.trim(),
+    () => setRenameTarget(null),
+  );
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState('');
 
@@ -395,6 +407,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
       // Everyone the plugin reported but no mod has confirmed yet — the queue this page exists
       // to clear, previously only reachable from another route entirely.
       if (filter === 'review' && (m.leftAt || !m.provisional)) return false;
+      if (filter === 'vouch' && (m.leftAt || m.path !== 'manual')) return false;
       // "Quiet", not "idle": someone who has never run the plugin isn't inactive, we simply have
       // no evidence either way, so they belong in neither bucket.
       if (filter === 'quiet') {
@@ -420,6 +433,21 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
     });
   }, [members, search, filter, rankFilter, roleFilter, nowMs]);
 
+  // Rows are drawn in chunks (173 rows was ten thousand elements, the table and the phone cards both).
+  // Search and filters above still run over every member; "Show more" draws the next chunk.
+  const [limit, setLimit] = useState(ROSTER_CHUNK);
+  const rowsShown = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
+  const showMore =
+    filtered.length > limit ? (
+      <button
+        type="button"
+        onClick={() => setLimit((l) => l + ROSTER_CHUNK)}
+        className="w-full rounded-lg border border-card-border px-3 py-2 text-sm text-text-muted transition-colors hover:border-gold/50 hover:text-foreground"
+      >
+        Show {Math.min(ROSTER_CHUNK, filtered.length - limit)} more{filtered.length - limit > ROSTER_CHUNK ? ` (${filtered.length - limit} left)` : ''}
+      </button>
+    ) : null;
+
   // Rank options come from the roster itself — in-game ranks are free text pushed by the plugin,
   // so there's no fixed list to hardcode. Counted over the status-filtered set the chips describe.
   const rankOptions = useMemo(() => {
@@ -444,7 +472,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
   }, [members]);
 
   const counts = useMemo(() => {
-    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, quiet = 0, staff = 0, noPluginData = 0;
+    let active = 0, guests = 0, left = 0, linked = 0, unlinked = 0, review = 0, quiet = 0, staff = 0, noPluginData = 0, vouch = 0;
     for (const m of members) {
       if (m.leftAt) left++;
       else if (m.isGuest) guests++;
@@ -453,6 +481,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         if (m.userId) linked++;
         else unlinked++;
         if (m.provisional) review++;
+        if (m.path === 'manual') vouch++;
         if (STAFF_ROLES.has(m.userRole ?? '')) staff++;
         if (!m.isGuest) {
           const days = daysSincePlayed(m, nowMs);
@@ -461,14 +490,14 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         }
       }
     }
-    return { active, guests, left, linked, unlinked, review, quiet, staff, noPluginData, total: members.length };
+    return { active, guests, left, linked, unlinked, review, quiet, staff, noPluginData, vouch, total: members.length };
   }, [members, nowMs]);
 
   // ── Bulk selection ────────────────────────────────────────────────────────
   // Selection is by id and survives filter changes, so you can stage a few names from one filter,
   // switch to another, add more, then apply once.
   const selectedCount = selected.size;
-  const visibleIds = useMemo(() => filtered.map((m) => m.id), [filtered]);
+  const visibleIds = useMemo(() => rowsShown.map((m) => m.id), [rowsShown]);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
 
   function toggleOne(id: number) {
@@ -574,7 +603,8 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         rsn: addRsn,
-        discordId: addDiscord || undefined,
+        // Admins and the owner only: the server ignores it from anyone else.
+        discordId: isAdmin ? addDiscord || undefined : undefined,
         rank: addRank || undefined,
         isGuest: addIsGuest,
       }),
@@ -863,6 +893,9 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
   //   seat-shaped answer to a person-shaped question looks like.
   const filterDefs: { key: FilterMode; label: string; count: number; attn?: boolean }[] = [
     { key: 'active', label: 'Active', count: counts.active },
+    // Only while somebody is waiting: the people who asked your staff to vouch and are held until
+    // someone does. The rows carry the chip, which opens Needs review where the vouch is one click.
+    ...(counts.vouch > 0 ? [{ key: 'vouch' as const, label: 'Awaiting vouch', count: counts.vouch, attn: true }] : []),
     { key: 'quiet', label: `Quiet ${QUIET_DAYS}d+`, count: counts.quiet },
     { key: 'guests', label: 'Guests', count: counts.guests },
     { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
@@ -907,8 +940,10 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
             Members can&apos;t sign up for events until they&apos;re on it. Install the Anvil plugin in RuneLite, open
             your clan window in game and press the <b className="text-foreground">Anvil</b> button in its title bar —
             everyone arrives with their rank.{' '}
-            <ClanLink href="/guide/clan#members" className="text-gold hover:underline">
-              Show me how
+            {/* For an admin, the wizard's in-game part rather than the written guide: it lists the three
+                things to do and watches for the list arriving. A moderator cannot open the wizard. */}
+            <ClanLink href={isAdmin ? '/admin/setup?step=game' : '/guide/admin#roster'} className="text-gold hover:underline">
+              {isAdmin ? 'Show me the steps' : 'Show me how'}
             </ClanLink>
           </p>
         </div>
@@ -983,7 +1018,9 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
 
       {/* Bulk actions — admin-only (the endpoint is too). Appears as soon as anything is ticked. */}
       {isAdmin && (selectedCount > 0 || bulkNotice) && (
-        <div className="border border-gold/30 rounded-xl bg-gold/5 px-4 py-3 mb-4">
+        // Sticks under the site header while anything is ticked, so the action is still in reach
+        // after scrolling down a long roster to tick more rows (same bar as the tile list's).
+        <div className={`border border-gold/30 rounded-xl px-4 py-3 mb-4 ${selectedCount > 0 ? 'sticky top-[4.5rem] z-20 bg-[#221c15] shadow-[0_8px_20px_rgba(0,0,0,.35)]' : 'bg-gold/5'}`}>
           {selectedCount > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-gold">
@@ -1070,11 +1107,15 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                 <label className="block text-xs text-text-muted mb-1">Discord ID (optional)</label>
                 <Input
                   type="text"
-                  value={addDiscord}
+                  value={isAdmin ? addDiscord : ''}
                   onChange={(e) => setAddDiscord(e.target.value)}
-                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-                  placeholder="e.g. 1234567890"
+                  disabled={!isAdmin}
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm disabled:opacity-50"
+                  placeholder={isAdmin ? 'e.g. 1234567890' : 'Admins only'}
                 />
+                {!isAdmin && (
+                  <p className="mt-1 text-xs text-text-muted">Only an admin or the owner can set a member&apos;s Discord ID.</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1144,7 +1185,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
               </tr>
             </thead>
             <tbody>
-              {filtered.map((m) => (
+              {rowsShown.map((m) => (
                 <tr
                   key={m.id}
                   className={`border-b border-card-border/50 hover:bg-card-bg-hover transition-colors ${m.leftAt ? 'opacity-60' : ''}`}
@@ -1163,6 +1204,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                       <span>{m.rsn}</span>
                       <DiscordLink id={m.effectiveDiscordId ?? m.discordId} rsn={m.rsn} />
                       <AccountBadge m={m} />
+                      {!m.leftAt && <PathChip path={m.path} />}
                     </div>
                     {m.pendingRole && (
                       <div className="mt-1">
@@ -1207,15 +1249,16 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
             </tbody>
           </table>
         </div>
+        {showMore && <div className="hidden sm:block mt-3">{showMore}</div>}
 
         {/* Mobile: one card per member (no sideways scroll). */}
-        <div className="sm:hidden space-y-3">
-          {filtered.map((m) => (
+        <div className="sm:hidden space-y-2">
+          {rowsShown.map((m) => (
             <div
               key={m.id}
-              className={`border border-card-border rounded-xl bg-card-bg p-4 ${m.leftAt ? 'opacity-60' : ''}`}
+              className={`border border-card-border rounded-xl bg-card-bg px-4 py-3 ${m.leftAt ? 'opacity-60' : ''}`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap font-medium">
                     {isAdmin && (
@@ -1228,6 +1271,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                     <span className="break-all">{m.rsn}</span>
                     <DiscordLink id={m.effectiveDiscordId ?? m.discordId} rsn={m.rsn} />
                     <AccountBadge m={m} />
+                    {!m.leftAt && <PathChip path={m.path} />}
                   </div>
                   {m.pendingRole && (
                     <div className="mt-1">
@@ -1253,26 +1297,16 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
                   )}
                 </div>
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Status</dt>
-                  <dd className="mt-0.5"><StatusBadge m={m} /></dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Rank</dt>
-                  <dd className="mt-0.5 truncate">{m.rank || '—'}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Source</dt>
-                  <dd className="mt-0.5">{SOURCE_LABEL[m.source] ?? m.source}</dd>
-                </div>
-                <div className="min-w-0">
-                  <dt className="text-text-muted">Last played</dt>
-                  <dd className="mt-0.5">
-                    <LastPlayed m={m} now={nowMs} />
-                  </dd>
-                </div>
-              </dl>
+              {/* One line of facts, not a labelled 2x2 grid: a 60-member roster was eleven screens long. */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+                <StatusBadge m={m} />
+                {m.rank && <span className="text-foreground/90">{m.rank}</span>}
+                <span>{SOURCE_LABEL[m.source] ?? m.source}</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="sr-only">Last played</span>
+                  <LastPlayed m={m} now={nowMs} />
+                </span>
+              </div>
             </div>
           ))}
           {filtered.length === 0 && (
@@ -1281,6 +1315,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
             </div>
           )}
         </div>
+        {showMore && <div className="sm:hidden mt-3">{showMore}</div>}
         </>
       )}
 
@@ -1352,7 +1387,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/70"
-            onClick={() => !renameSaving && setRenameTarget(null)}
+            onClick={() => !renameSaving && closeRename()}
           />
           <form
             onSubmit={submitRename}
@@ -1386,7 +1421,7 @@ export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { i
               <button
                 type="button"
                 disabled={renameSaving}
-                onClick={() => setRenameTarget(null)}
+                onClick={closeRename}
                 className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors disabled:opacity-50"
               >
                 Cancel

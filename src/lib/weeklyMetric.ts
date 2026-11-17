@@ -13,6 +13,7 @@ import { computeEhpEhb } from '@/lib/efficiency';
 import { EFFICIENCY_SCALE, metricKeys } from '@/lib/constants';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { log } from '@/lib/logger';
+import { huntStat, parseHunt } from '@/lib/itemHunt';
 
 /** What a weekly competition ranks by. 'efficiency' pairs with metric 'ehp' | 'ehb'. */
 export type CompetitionType = 'skill' | 'boss' | 'efficiency';
@@ -132,4 +133,18 @@ export function liveMetricValue(type: CompetitionType, metric: string, live: Rec
     total += v;
   }
   return total;
+}
+
+/**
+ * The hiscores stat a competition's participants carry a baseline and a current value for.
+ *
+ * Skill, boss and efficiency competitions rank by it, so it is simply their own type and metric. An
+ * item hunt ranks by drops (lib/itemHunt) and keeps a stat only to show beside them: kills at the
+ * source since the hunt started, or XP in the linked skill. A hunt with neither has no stat at all
+ * (null), and nothing is read, baselined or pushed for it.
+ */
+export function competitionStat(comp: { type: string; metric: string; hunt?: string | null }): { type: CompetitionType; metric: string } | null {
+  if (comp.type === 'hunt') return huntStat(parseHunt(comp.hunt));
+  if (comp.type === 'skill' || comp.type === 'boss' || comp.type === 'efficiency') return { type: comp.type, metric: comp.metric };
+  return null;
 }

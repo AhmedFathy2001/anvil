@@ -46,8 +46,19 @@ export async function GET(request: Request) {
         isNull(clanMemberships.leftAt),
       ),
     )
-    // Only a clan a stranger may see named (a hidden friends host or lab never is).
-    .leftJoin(clans, and(eq(clans.id, clanMemberships.clanId), eq(clans.platformHidden, false), ne(clans.kind, 'friends')))
+    // Only a clan a stranger may see named (a hidden friends host or lab never is) — and only a
+    // PUBLIC one: a members-only clan's name, and who is in it, is not a search result. Anything
+    // but exactly 'public' is closed, as lib/clanVisibility reads it.
+    .leftJoin(
+      clans,
+      and(
+        eq(clans.id, clanMemberships.clanId),
+        eq(clans.platformHidden, false),
+        ne(clans.kind, 'friends'),
+        eq(clans.status, 'active'),
+        eq(clans.visibility, 'public'),
+      ),
+    )
     .where(and(eq(accounts.shared, true), like(accounts.rsnNormalized, `${term}%`)))
     // A name that STARTS with what was typed, best-known first — somebody typing three letters is
     // far more often after the account with numbers on it than the one nobody has seen.

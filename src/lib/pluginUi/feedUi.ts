@@ -687,6 +687,8 @@ export function emptyLine(pane: 'feed' | 'chat', filter: string): string {
   if (filter === 'drops') return 'No big drops yet. The next one lands here.';
   if (filter === 'achievements') return 'No achievements yet. The next log slot, 99 or diary lands here.';
   if (filter === 'milestones') return 'No milestones yet. Slayer tasks, clues, PBs, kill counts and BA gambles land here once members turn them on.';
+  if (filter === 'deaths') return 'No deaths yet. Lucky you.';
+  if (filter === 'tiles') return 'No tiles done yet. The first one lands here.';
   if (filter === 'team') return 'Nothing from your team yet.';
   return 'Nothing yet. The next pet, big drop or achievement lands here.';
 }

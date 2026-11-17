@@ -1,5 +1,7 @@
+import { raceGraph, teamRoute } from '@/lib/raceRoutes';
+import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { db } from '@/db';
-import { clans, events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
+import { clans, events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff, tiles, completions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
@@ -23,6 +25,7 @@ import { startProofState } from '@/lib/startProof';
 import StartProofCard from '@/components/StartProofCard';
 import ClanLink from '@/components/ClanLink';
 import { clanPathOf } from '@/lib/clanScopedPaths';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +61,7 @@ const FEE_BADGE: Record<string, { label: string; cls: string }> = {
 
 export default async function MyTeamsHubPage() {
   const user = await verifyUser();
-  if (!user) redirect('/login?return=/team');
+  if (!user) redirect(`/login?return=${encodeURIComponent(await clanHref('/team'))}`);
 
   // WHICH EVENTS THIS PAGE MAY SHOW.
   //
@@ -208,6 +211,53 @@ export default async function MyTeamsHubPage() {
   const activeTeams = all.filter((i) => !isPast(i));
   const pastTeams = all.filter(isPast);
 
+  // "N of M tiles done" on each live card. Top-level tiles only (a combo's parts are not tiles of
+  // their own) and not on a tile race, whose board hides what is ahead of the team.
+  const progress = new Map<number, { done: number; total: number; unit?: 'steps' }>();
+  const progressTeams = activeTeams.filter((i) => !isTileRaceFormat(i.format));
+  if (progressTeams.length > 0) {
+    const eventIds = [...new Set(progressTeams.map((i) => i.eventId))];
+    const teamIds = progressTeams.map((i) => i.teamId);
+    // clan-scope: global -- ids come from this person's own involvements above.
+    const [totals, dones] = await Promise.all([
+      db
+        .select({ eventId: tiles.eventId, n: sql<number>`count(*)::int` })
+        .from(tiles)
+        .where(and(inArray(tiles.eventId, eventIds), isNull(tiles.parentTileId)))
+        .groupBy(tiles.eventId),
+      db
+        .select({ teamId: completions.teamId, n: sql<number>`count(*)::int` })
+        .from(completions)
+        .innerJoin(tiles, eq(tiles.id, completions.tileId))
+        .where(and(inArray(completions.teamId, teamIds), isNull(tiles.parentTileId)))
+        .groupBy(completions.teamId),
+    ]);
+    const totalByEvent = new Map(totals.map((t) => [t.eventId, t.n]));
+    const doneByTeam = new Map(dones.map((d) => [d.teamId, d.n]));
+    for (const i of progressTeams) {
+      const total = totalByEvent.get(i.eventId) ?? 0;
+      if (total > 0) progress.set(i.teamId, { done: Math.min(doneByTeam.get(i.teamId) ?? 0, total), total });
+    }
+  }
+  // A tile race counts STEPS along the team's road, not tiles: the board has several tiles at a
+  // fork and the team only ever takes one of them. Steps done says how far they are without
+  // showing what is ahead. (This card used to be the only live one with no progress at all.)
+  for (const i of activeTeams.filter((t) => isTileRaceFormat(t.format))) {
+    // clan-scope: global -- ids come from this person's own involvements above.
+    const [board, done, [ev]] = await Promise.all([
+      db.select().from(tiles).where(and(eq(tiles.eventId, i.eventId), isNull(tiles.parentTileId))),
+      db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, i.teamId)),
+      db.select({ format: events.format, rules: events.rules }).from(events).where(eq(events.id, i.eventId)).limit(1),
+    ]);
+    if (!ev) continue;
+    const graph = raceGraph(board);
+    const steps = graph.lastStep + 1;
+    if (steps > 0) {
+      const route = teamRoute(graph, done.map((d) => d.tileId), await loadRacePicks(ev, i.teamId), eventRaceOpts(ev));
+      progress.set(i.teamId, { done: Math.min(route.stepsDone, steps), total: steps, unit: 'steps' });
+    }
+  }
+
   // My sign-ups + fee status (the pre-draft stage of the same journey).
   // clan-scope: global -- a person's own teams span clans; each row carries the clan it belongs to.
   const signupRows = await db
@@ -343,19 +393,29 @@ export default async function MyTeamsHubPage() {
         </h2>
         {activeTeams.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
-            You&apos;re not on a team for any active event yet.
+            <p>You&apos;re not on a team for any active event yet.</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <ClanLink href="/events" className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-gold/40 text-gold font-semibold hover:bg-gold/10">
+                Browse events
+              </ClanLink>
+              {activeSignups.length > 0 && (
+                <a href="#signups" className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-card-border hover:border-gold/40 hover:text-gold">
+                  Your sign-ups
+                </a>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {activeTeams.map((i) => (
-              <TeamLink key={i.teamId} i={i} showClan={manyClans} />
+              <TeamLink key={i.teamId} i={i} showClan={manyClans} progress={progress.get(i.teamId)} />
             ))}
           </div>
         )}
       </section>
 
       {activeSignups.length > 0 && (
-        <section className="mb-10">
+        <section id="signups" className="mb-10 scroll-mt-20">
           <h2 className="font-semibold flex items-center gap-2 mb-3">
             <span className="w-1 h-5 bg-gold rounded-full" />
             Sign-ups &amp; fees
@@ -402,7 +462,17 @@ export default async function MyTeamsHubPage() {
   );
 }
 
-function TeamLink({ i, past, showClan }: { i: Involvement; past?: boolean; showClan?: boolean }) {
+function TeamLink({
+  i,
+  past,
+  showClan,
+  progress,
+}: {
+  i: Involvement;
+  past?: boolean;
+  showClan?: boolean;
+  progress?: { done: number; total: number; unit?: 'steps' };
+}) {
   return (
     <ClanLink
       // `/c|s/<slug>/…`, not `/team/<id>`. A bare team path resolves against whichever clan's page
@@ -427,6 +497,16 @@ function TeamLink({ i, past, showClan }: { i: Involvement; past?: boolean; showC
           {i.isPlayer && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400">Player</span>}
         </div>
       </div>
+      {progress && (
+        <div className="mb-2" title={`${progress.done} of ${progress.total} ${progress.unit ?? 'tiles'} done`}>
+          <div className="text-[11px] text-text-muted mb-1">
+            {progress.done} of {progress.total} {progress.unit ?? 'tiles'} done
+          </div>
+          <div className="h-1.5 rounded-full bg-brown-dark/60 overflow-hidden">
+            <div className="h-full bg-accent-green rounded-full" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
+          </div>
+        </div>
+      )}
       <div className="text-xs text-text-muted truncate">
         {i.eventName}
         {showClan && <span className="text-text-muted/60"> · {i.clanName}</span>}

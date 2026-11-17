@@ -11,7 +11,7 @@ import GuideLink from '@/components/GuideLink';
 import { useDialog } from '@/components/Confirm';
 import LocalTime from '@/components/LocalTime';
 import { parseStamp } from '@/lib/dbTime';
-import type { CofferBalance } from '@/lib/cofferMath';
+import type { CofferBalance, CofferMoneyOut } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
 /**
@@ -31,11 +31,18 @@ export interface DonorSeat {
 export default function CofferClient({
   balance,
   entries,
+  waiting,
+  moneyOut,
   roster,
   physicalState,
 }: {
   balance: CofferBalance;
+  /** The newest movements, for the ledger list. */
   entries: CofferLedgerRow[];
+  /** Every row still waiting on a person, however old: the two queues are built from this. */
+  waiting: CofferLedgerRow[];
+  /** Still owed and paid out over the whole ledger. */
+  moneyOut: CofferMoneyOut;
   /** Who a donation can be credited to — every current seat, guests included. */
   roster: DonorSeat[];
   /** Last amount a member's plugin read from the physical in-game Clan Coffer. */
@@ -122,13 +129,13 @@ export default function CofferClient({
 
   // Member-filed donations, and in-game coffer readings only one client has seen so far (a second
   // member's client confirms those on its own; until then they are the treasurer's to confirm).
-  const pendingDonations = entries.filter(
+  const pendingDonations = waiting.filter(
     (e) => (e.kind === 'donation' || e.kind === 'adjustment' || e.kind === 'withdrawal') && e.status === 'pending',
   );
   // Pools belong in this queue too: gp set aside for a board is money a treasurer still has to send,
   // and leaving it out would mean the one movement nobody is ever prompted to complete. A planned
   // pool is here as well — it is unpaid money owed to a board, whether or not it is held.
-  const owedPrizes = entries.filter(
+  const owedPrizes = waiting.filter(
     (e) => (e.kind === 'award' || e.kind === 'pool') && (e.status === 'reserved' || e.status === 'planned'),
   );
 
@@ -141,15 +148,9 @@ export default function CofferClient({
    * hand, so both belong here or the log quietly under-reports what was spent. A physical coffer to
    * bank transfer does not: the clan still owns that gp.
    */
-  const moneyOut = entries.filter(
-    (e) => e.kind === 'award' || e.kind === 'pool' || (e.kind === 'adjustment' && e.amount < 0),
-  );
-  const stillOwed = moneyOut
-    .filter((e) => e.status === 'reserved' || e.status === 'planned' || e.status === 'unfunded')
-    .reduce((sum, e) => sum + Math.abs(e.amount), 0);
-  const paidOut = moneyOut
-    .filter((e) => e.status === 'paid' || e.kind === 'adjustment')
-    .reduce((sum, e) => sum + Math.abs(e.amount), 0);
+  // Summed on the server over the whole ledger (lib/coffer getCofferMoneyOut): the rows on this page
+  // are only the newest ones, and adding those up under-reported both numbers.
+  const { stillOwed, paidOut } = moneyOut;
 
   async function act(entryId: number, action: 'approve' | 'reject' | 'pay' | 'cancel') {
     setBusy(entryId);
@@ -252,7 +253,8 @@ export default function CofferClient({
           pendingDonations.map((e) => (
             <Row key={e.id}>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
+                {/* Phones: wraps, so the amount is never the part that gets cut off. */}
+                <p className="text-sm font-medium sm:truncate">
                   {e.kind === 'adjustment' ? (
                     <>
                       In-game coffer {e.amount >= 0 ? 'up' : 'down'}{' '}
@@ -505,7 +507,7 @@ export default function CofferClient({
           prize showed three times on one page — under Prizes to send, here, and in the ledger. The
           rows are all in the ledger; the totals are the part only this added. */}
       <Section id="coffer-ledger" title="Everything that has moved" count={entries.length}>
-        {moneyOut.length > 0 && (
+        {moneyOut.count > 0 && (
           <div className="px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-text-muted border-b border-card-border/60">
             <span>
               <span className="text-gold font-semibold">{formatGp(stillOwed)}</span> still owed

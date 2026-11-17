@@ -19,6 +19,7 @@ import {
 import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
 import { freemiumEnforced } from '@/lib/entitlements';
 import type { DatedEvent } from '@/lib/concurrentSeats';
+import { withPlanInForce } from '@/lib/planTrials';
 
 /** The creator setting behind "Hide the Anvil mark" on the OBS overlay ('on' | absent). */
 export const OVERLAY_HIDE_MARK_SETTING = 'creator_overlay_hide_mark';
@@ -75,7 +76,7 @@ export async function eventPlayerCount(eventId: number, tx: Executor = db): Prom
  */
 export async function creatorPlanOfClan(clanId: number): Promise<string | null> {
   // clan-scope: this clan -- the host's own kind and plan.
-  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, plan: true } });
+  const row = await withPlanInForce(clanId, await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, plan: true } }));
   return row && isCreatorSpace(row) ? row.plan : null;
 }
 
@@ -91,7 +92,7 @@ export async function streamPlanOfEvent(eventId: number): Promise<string | null>
   const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true, openToViewers: true } });
   if (!ev) return null;
   // clan-scope: this clan -- the event's own host.
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true, plan: true, streaming: true } });
+  const host = await withPlanInForce(ev.clanId, await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true, plan: true, streaming: true } }));
   // A Streaming clan's clan tier, read as the creator tier it equals (lib/creatorPlans streamPlanId).
   return host && streamedEvent(host, ev) ? streamPlanId(host) : null;
 }

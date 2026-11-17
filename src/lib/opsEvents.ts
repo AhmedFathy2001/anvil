@@ -20,6 +20,7 @@
 //   3. Nothing fires when ANVIL_OPS_WEBHOOK_URL is unset, which is every self-hosted instance. A
 //      self-hoster has no leads to lose and no channel to lose them in.
 
+import { maskEmail } from '@/lib/maskEmail';
 import { apexDomain } from '@/lib/apexHost';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { log } from '@/lib/logger';
@@ -43,15 +44,16 @@ function apexUrl(path: string): string {
  *
  * The Discord PROFILE link is the useful half and the one that was nowhere: `discord.com/users/<id>`
  * opens a DM-able profile, and the id is the thing we always have (a username can be changed; the
- * snowflake cannot). The email rides alongside because the two channels fail differently — a DM from
- * a stranger can be closed off entirely by a privacy setting, an inbox cannot.
+ * snowflake cannot). Only a MASKED email rides alongside (lib/maskEmail): this channel is read by
+ * several people, so it says whether the person has an inbox, not what it is. The full address is on
+ * the staff clan page.
  */
 function describePerson(p: OpsPerson): string {
   const lines: string[] = [];
   const name = p.displayName || p.discordUsername || 'Unknown';
   lines.push(p.discordId ? `[${name}](https://discord.com/users/${p.discordId})` : name);
   if (p.discordUsername && p.discordUsername !== name) lines.push(`\`@${p.discordUsername}\``);
-  lines.push(p.email ? `\`${p.email}\`` : '_no email on their Discord account_');
+  lines.push(p.email ? `\`${maskEmail(p.email)}\`` : '_no email on their Discord account_');
   return lines.join('\n');
 }
 

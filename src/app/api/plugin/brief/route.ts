@@ -87,10 +87,10 @@ export async function GET(request: Request) {
         const b = r.ok ? ((await r.json()) as { entries?: Row[]; you?: Row | null }) : null;
         const you = b?.you ?? null;
         const ahead = you && you.rank > 1 ? (b?.entries ?? []).find((e) => e.rank === you.rank - 1)?.gained ?? null : null;
-        const kind = w.type === 'skill' ? 'SOTW' : w.type === 'efficiency' ? 'EOTW' : 'BOTW';
+        const kind = w.type === 'skill' ? 'SOTW' : w.type === 'efficiency' ? 'EOTW' : w.type === 'hunt' ? 'Item hunt' : 'BOTW';
         return {
           label: `${kind} ${w.metricLabel}`,
-          unit: w.type === 'skill' ? ('XP' as const) : w.type === 'efficiency' ? ('h' as const) : ('KC' as const),
+          unit: w.type === 'skill' ? ('XP' as const) : w.type === 'efficiency' ? ('h' as const) : w.type === 'hunt' ? ('drops' as const) : ('KC' as const),
           rank: you?.rank ?? null,
           gained: you?.gained ?? 0,
           ahead,

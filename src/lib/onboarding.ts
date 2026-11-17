@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { accounts, users } from '@/db/schema';
 import { clansOfPerson } from '@/lib/myClans';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { keepQuickEntries, withQuickSettingsDone } from '@/lib/quickSettings';
 
 /**
  * First run, for a person.
@@ -279,6 +280,15 @@ export async function setSkipped(userId: number, key: StepKey, skipped: boolean)
   if (skipped) set.add(key);
   else set.delete(key);
   const next = [...set];
-  await db.update(users).set({ onboardingSkipped: JSON.stringify(next) }).where(eq(users.id, userId));
+  await db.update(users).set({ onboardingSkipped: keepQuickEntries(user?.onboardingSkipped, next) }).where(eq(users.id, userId));
   return next;
+}
+
+/**
+ * The quick-settings step of a clan's getting-started strip was dealt with (looked good, or skipped):
+ * remembered as a `qs:<clanId>` entry in the same list the first-run steps use (lib/quickSettings).
+ */
+export async function markQuickSettingsDone(userId: number, clanId: number): Promise<void> {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { onboardingSkipped: true } });
+  await db.update(users).set({ onboardingSkipped: withQuickSettingsDone(user?.onboardingSkipped, clanId) }).where(eq(users.id, userId));
 }

@@ -1414,7 +1414,7 @@ function eventSettingEntries(): SettingEntry[] {
   ];
   const out: SettingEntry[] = [];
   for (const e of SETTINGS_INDEX) {
-    if (e.elsewhere) continue; // the event's other tabs are EVENT_PAGES
+    if (e.elsewhere || e.clanPath) continue; // the event's other tabs are EVENT_PAGES; clan-wide ones have their own entries
     const variants = kinds
       .filter(({ kind }) => !e.only || e.only(kind))
       .map(({ only, kind }) => {

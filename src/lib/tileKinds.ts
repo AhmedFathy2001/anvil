@@ -13,6 +13,10 @@ export interface TileKindLike {
   targetNpcs?: string | string[] | null;
 }
 
+// The stored tile types, so a catalog of kinds can be read off tileKindLabel instead of retyped
+// (lib/featureRegistry). A tile with no type is 'Standard'; a tracked-stat tile is 'Kills' or 'XP'.
+export const TILE_TYPES = ['drop', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'valuetotal', 'diary', 'ca', 'clog'] as const;
+
 // Human label for a tile's tracking kind — mirrors the kind picker in TileTrackingConfig.
 // Collection is a drop tile that carries per-item requirements (deriveKind does the same).
 export function tileKindLabel(tile: TileKindLike): string {

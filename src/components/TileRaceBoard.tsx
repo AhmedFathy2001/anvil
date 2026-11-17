@@ -3,6 +3,8 @@
 import { Fragment } from 'react';
 import { cn, exactTitle, formatNumber } from '@/lib/utils';
 import { isManualTile } from '@/lib/clogManual';
+import { TileHoverButton } from '@/components/TileHoverCard';
+import { tileHoverView } from '@/lib/tileHover';
 import { isBranchingRoute } from '@/lib/raceRoutes';
 import BranchingRaceBoard from '@/components/board/BranchingRaceBoard';
 
@@ -39,10 +41,14 @@ export interface TileRaceBoardProps {
   activeTeamId?: number;
   interactive?: boolean;
   onTileClick?: (tileId: number) => void;
+  /** Steady hover/focus on a tile: warm what its dialog needs. */
+  onTileIntent?: (tileId: number) => void;
   dropProgress?: Map<number, { current: number; required: number }>;
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   matchedTileIds?: Set<number> | null;
+  /** The viewer's own team's plans (lib/tileClaims), for the tile hover card. Never another team's. */
+  claimedBy?: Map<number, import('@/lib/tileClaimsView').ClaimMarker[]> | null;
   /**
    * Set on every surface that should draw the race as roads (a plain straight race too): 'track' on
    * the event page (the race track card only; its other sections are on the page), 'full' for the
@@ -73,10 +79,12 @@ function LinearRaceBoard({
   teams,
   activeTeamId,
   onTileClick,
+  onTileIntent,
   dropProgress,
   statProgress,
   expanded,
   matchedTileIds,
+  claimedBy,
 }: TileRaceBoardProps) {
   const sortedTiles = [...tiles].sort((a, b) => a.position - b.position);
   const tileIds = new Set(sortedTiles.map((t) => t.id));
@@ -207,8 +215,10 @@ function LinearRaceBoard({
                           isLocked={isLocked}
                           tokens={tokens}
                           onClick={onTileClick ? () => onTileClick(tile.id) : undefined}
+                          onIntent={onTileIntent ? () => onTileIntent(tile.id) : undefined}
                           progress={dropProgress?.get(tile.id)}
                           statProgress={statProgress?.get(tile.id)}
+                          claimedBy={claimedBy?.get(tile.id)}
                           dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
                         />
                       </div>
@@ -263,8 +273,10 @@ interface TrackTileProps {
   isLocked: boolean;
   tokens: Team[];
   onClick?: () => void;
+  onIntent?: () => void;
   progress?: { current: number; required: number };
   statProgress?: { current: number; goal: number; statType?: string };
+  claimedBy?: { name: string; mine?: boolean }[];
   dimmed?: boolean;
 }
 
@@ -277,8 +289,10 @@ function TrackTile({
   isLocked,
   tokens,
   onClick,
+  onIntent,
   progress,
   statProgress,
+  claimedBy,
   dimmed,
 }: TrackTileProps) {
   const isDrop = tile.tileType === 'drop' || tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp';
@@ -286,7 +300,17 @@ function TrackTile({
   const showStat = statProgress && statProgress.current > 0 && !reached;
 
   return (
-    <button
+    <TileHoverButton
+      view={tileHoverView({
+        label: tile.label,
+        doneBy: reached ? [{ name: '' }] : [],
+        locked: isLocked,
+        manualOnly: isManualTile(tile),
+        progress,
+        stat: statProgress,
+        claimedBy,
+      })}
+      onIntent={onIntent}
       onClick={onClick}
       disabled={!onClick}
       className={cn(
@@ -303,7 +327,6 @@ function TrackTile({
           ? { backgroundColor: fillColor + '22', borderColor: fillColor, boxShadow: `0 0 10px ${fillColor}30` }
           : undefined
       }
-      title={tile.label}
     >
       {/* Sequence number */}
       <span className="absolute top-0.5 left-1 text-[8px] sm:text-[10px] font-bold text-text-muted/70 tabular-nums leading-none">
@@ -390,6 +413,6 @@ function TrackTile({
           <TokenRow teams={tokens} />
         </div>
       )}
-    </button>
+    </TileHoverButton>
   );
 }

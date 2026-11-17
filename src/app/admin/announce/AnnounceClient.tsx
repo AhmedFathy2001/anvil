@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Select, { type SelectOption } from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
 import { clanFetch } from '@/lib/clanFetch';
@@ -53,6 +53,8 @@ export default function AnnounceClient() {
   const [mentionRoleId, setMentionRoleId] = useState('');
 
   const [busy, setBusy] = useState(false);
+  // Held from the first click through the confirm dialog and the request, so a double click cannot post twice.
+  const sendingRef = useRef(false);
   const { confirm } = useDialog();
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   // Editing a past post: its id, while the form holds its text.
@@ -167,6 +169,7 @@ export default function AnnounceClient() {
   );
 
   async function send() {
+    if (sendingRef.current) return;
     if (!channelId) {
       setMessage({ type: 'error', text: 'Pick a channel first.' });
       return;
@@ -178,6 +181,7 @@ export default function AnnounceClient() {
 
     const channelName = targets?.channels.find((c) => c.id === channelId)?.name ?? 'that channel';
     const roleName = mentionRoleId ? targets?.roles.find((r) => r.id === mentionRoleId)?.name : null;
+    sendingRef.current = true;
     const ok = await confirm({
       title: `Send to #${channelName}?`,
       body: roleName
@@ -186,7 +190,10 @@ export default function AnnounceClient() {
       confirmLabel: 'Send',
       tone: 'gold',
     });
-    if (!ok) return;
+    if (!ok) {
+      sendingRef.current = false;
+      return;
+    }
 
     setBusy(true);
     setMessage(null);
@@ -210,6 +217,12 @@ export default function AnnounceClient() {
           type: 'success',
           text: `Sent to #${channelName}${n > 1 ? ` as ${n} messages (long text was split)` : ''}. ✓`,
         });
+        // Clear only what was sent and only after the server accepted it; a failed send keeps the draft.
+        // Text typed while the request was in flight is a new draft and stays.
+        const sentTitle = title;
+        const sentBody = body;
+        setTitle((t) => (t === sentTitle ? '' : t));
+        setBody((b) => (b === sentBody ? '' : b));
         void loadHistory();
       } else {
         setMessage({ type: 'error', text: data.error || 'Send failed' });
@@ -217,6 +230,7 @@ export default function AnnounceClient() {
     } catch {
       setMessage({ type: 'error', text: 'Send failed' });
     } finally {
+      sendingRef.current = false;
       setBusy(false);
     }
   }

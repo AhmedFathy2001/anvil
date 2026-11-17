@@ -29,6 +29,12 @@ interface Props {
   // Managed clan: identity fields were collected at sign-up (provisioner env → seeded settings),
   // not typed here — flavors the "already filled in" notice on skipped-into steps.
   provisioned: boolean;
+  /** The dashboard checklist's own count (lib/setupStatus) — one source for "N of M done". */
+  checklist?: { completedCount: number; totalCount: number };
+  /** Open at this part (0 clan details, 2 in game) instead of the first with anything left: the guide strip asks for one by name. */
+  openAt?: number;
+  /** `openAt` came from the clan's next setup step, not from a link that asked for a part by name. */
+  openedByGuide?: boolean;
 }
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
@@ -72,10 +78,10 @@ function skippedNotice(initial: Props['initial'], provisioned: boolean, openedAt
   return `${filled} already filled in${provisioned ? ' from when you created the clan' : ''}, so we started at Discord.`;
 }
 
-export default function SetupWizardClient({ initial, channels, provisioned }: Props) {
+export default function SetupWizardClient({ initial, channels, provisioned, checklist, openAt, openedByGuide = false }: Props) {
   const router = useRouter();
   // Open at the first step with anything left to do; already-satisfied steps are skipped.
-  const [initialStep] = useState(() => firstIncompleteStep(initial));
+  const [initialStep] = useState(() => openAt ?? firstIncompleteStep(initial));
   const [step, setStep] = useState(initialStep);
 
   const [clanName, setClanName] = useState(initial.clanName);
@@ -153,17 +159,17 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
           {isDone
             ? rosterDone(initial)
               ? 'Your clan is ready to run its first bingo.'
-              : 'One thing left: load your member list from the plugin. Nobody can sign up for an event until it is in.'
+              : 'One thing left: load your member list from the plugin, so your clanmates are members. Until it is in, people can still join your events as guests.'
             : 'A few quick questions to get your clan running. You can change any of this later.'}
         </p>
       </header>
 
-      {!isDone && <StepDots current={step} total={TOTAL_STEPS} />}
+      {!isDone && <StepDots current={step} total={TOTAL_STEPS} checklist={checklist} />}
 
       <div className="border border-card-border rounded-xl bg-card-bg p-6 mt-5">
         {/* Skipped-ahead notice: shown on the step we opened at when earlier steps were auto-
             skipped, saying where the prefilled values came from and where to change them. */}
-        {initialStep > 0 && step === initialStep && !isDone && (
+        {openAt === undefined && initialStep > 0 && step === initialStep && !isDone && (
           <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-gold/25 bg-gold/5 px-4 py-3">
             <span className="text-gold text-sm leading-5" aria-hidden>
               ✓
@@ -174,6 +180,20 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
                 Clan profile
               </ClanLink>
               .
+            </p>
+          </div>
+        )}
+
+        {/* Opened at the in-game part because that is the clan's next step, with Discord (the part
+            before it) not connected: say it was passed over on purpose and how to reach it. */}
+        {openedByGuide && initialStep === 2 && step === 2 && !discordReady && (
+          <div className="mb-5 rounded-lg border border-gold/25 bg-gold/5 px-4 py-3">
+            <p className="text-sm text-text-muted leading-relaxed">
+              We started with the plugin, because that is your clan&apos;s next step. Discord is optional:{' '}
+              <button type="button" onClick={() => { setMsg(null); setStep(1); }} className="text-gold hover:underline">
+                connect it now
+              </button>{' '}
+              or leave it for later.
             </p>
           </div>
         )}
@@ -259,7 +279,7 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <ClanLink
-                href="/admin/events/new"
+                href="/admin/events/first"
                 className="bg-gold hover:bg-gold-light text-brown-dark font-bold px-5 py-2.5 rounded-lg transition-colors"
               >
                 Create your first event →
@@ -349,7 +369,7 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
   );
 }
 
-function StepDots({ current, total }: { current: number; total: number }) {
+function StepDots({ current, total, checklist }: { current: number; total: number; checklist?: { completedCount: number; totalCount: number } }) {
   return (
     <div className="flex items-center gap-2">
       {Array.from({ length: total }).map((_, i) => (
@@ -361,7 +381,10 @@ function StepDots({ current, total }: { current: number; total: number }) {
         />
       ))}
       <span className="ml-2 text-xs text-text-muted">
-        Step {current + 1} of {total}
+        {checklist
+          ? // One number. The bars beside it already show which part of this guide is open.
+            `${checklist.completedCount} of ${checklist.totalCount} setup steps done`
+          : `Part ${current + 1} of ${total}`}
       </span>
     </div>
   );

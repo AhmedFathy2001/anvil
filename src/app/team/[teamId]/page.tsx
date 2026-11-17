@@ -1,4 +1,6 @@
+import { eventStage } from '@/lib/eventStage';
 import { maskRaceTilesForSession, maskRaceTilesForTeams } from '@/lib/raceHideAheadDb';
+import { boardPlayer, clientEvent } from '@/lib/clientRows';
 import { db } from '@/db';
 import { placementOf } from '@/lib/teamPlacement';
 import { requireClan } from '@/lib/clanContext';
@@ -39,7 +41,7 @@ export default async function MyTeamPage({
   searchParams,
 }: {
   params: Promise<{ teamId: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; tile?: string }>;
 }) {
   const clan = await requireClan();
   const { teamId } = await params;
@@ -213,11 +215,11 @@ export default async function MyTeamPage({
         </ClanLink>
       </div>
       <MyTeamClient
-        event={event}
+        event={clientEvent(event)}
         team={safeTeam}
         tiles={withSearchText(nestParts(eventTiles))}
         completions={teamCompletions}
-        players={eventPlayers}
+        players={eventPlayers.map(boardPlayer)}
         startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         isCaptain={membership.isCaptain}
         boardHidden={boardHidden}
@@ -250,7 +252,7 @@ export default async function MyTeamPage({
       {membership.canManage && (
               <div className="mb-6">
                 {/* Roster, requests, proof, fees and invite links in one shut card. */}
-                <TeamManageClient teamId={tId} />
+                <TeamManageClient teamId={tId} eventEnded={eventStage({ startDate: event.startDate ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null }) === 'wrap'} />
               </div>
             )}
           </>

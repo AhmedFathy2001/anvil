@@ -158,7 +158,7 @@ export default function NoticeBell({ className = '' }: { className?: string }) {
         aria-label={unread ? `Notices from Anvil, ${unread} unread` : 'Notices from Anvil'}
         aria-expanded={open}
         title="Notices from Anvil"
-        className="relative rounded-md p-2 text-gray-400 transition-all hover:bg-gold/10 hover:text-gold"
+        className="relative rounded-md p-2 text-gray-400 transition-all hover:bg-gold/10 hover:text-gold max-lg:flex max-lg:h-11 max-lg:w-11 max-lg:items-center max-lg:justify-center"
       >
         {BellIcon}
         {unread > 0 && (
@@ -195,6 +195,12 @@ export default function NoticeBell({ className = '' }: { className?: string }) {
                   <li key={n.id} className="px-4 py-3">
                     {n.kind === 'whatsNew' ? (
                       <ClanLink href="/whats-new" onClick={() => setOpen(false)} className="block">
+                        {inner}
+                      </ClanLink>
+                    ) : n.kind === 'personal' ? (
+                      // About this person's own characters: it opens where those notices are kept.
+                      // clan-prefix: platform -- Settings is the platform's, never under a clan.
+                      <ClanLink href="/settings/characters#claims" onClick={() => setOpen(false)} className="block">
                         {inner}
                       </ClanLink>
                     ) : (

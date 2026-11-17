@@ -1,3 +1,4 @@
+import { track } from '@/lib/analytics';
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
@@ -5,7 +6,7 @@ import {
   capForPlayer,
   challengesForPlayer,
   createChallenge,
-  getH2hPrefs,
+  getH2hPrefsView,
   myH2hCharacters,
   openCount,
   recordForPlayer,
@@ -28,7 +29,7 @@ export async function GET() {
     recordForPlayer(session.playerId, false),
     capForPlayer(session.playerId),
     openCount(session.playerId),
-    getH2hPrefs(session.playerId),
+    getH2hPrefsView(session.playerId),
     myH2hCharacters(session.playerId),
   ]);
   return NextResponse.json({ challenges, record, cap, open, prefs, characters });
@@ -68,5 +69,6 @@ export async function POST(request: Request) {
     public: body.public === true,
   });
   if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status ?? 400 });
+  track('challenge.sent', { userId: session.userId });
   return NextResponse.json({ id: out.id });
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import ScrollStrip from '@/components/ScrollStrip';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 // Pages that share one rail item (Clans + Ghost clans, Discord + Event chat, …) keep their own
@@ -24,13 +25,14 @@ export default function StaffSectionTabs({ sections }: { sections: StaffSection[
   const section = sections.find((s) => s.tabs.some((t) => hit(s, t)));
   if (!section) return null;
   return (
-    <div className="mb-5 flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden scroll-quiet">
+    <ScrollStrip as="div" className="mb-5 flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden scroll-quiet">
       {section.tabs.map((t) => {
         const active = hit(section, t);
         return (
           <ClanLink
             key={t.href}
             href={t.href}
+            aria-current={active ? 'page' : undefined}
             className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors ${
               active ? 'border-gold text-gold-light' : 'border-transparent text-text-muted hover:text-foreground'
             }`}
@@ -42,6 +44,6 @@ export default function StaffSectionTabs({ sections }: { sections: StaffSection[
           </ClanLink>
         );
       })}
-    </div>
+    </ScrollStrip>
   );
 }

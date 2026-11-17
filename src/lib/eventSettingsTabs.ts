@@ -4,8 +4,11 @@
 //
 // A creator space and a clan are DIFFERENT shapes, not one page with parts hidden:
 //
-//   space   Event · Viewers · Stream · Board & play · Rules · More
-//   clan    Event · Board & play · Rules · Entry & co-hosts · Staff · More      (+ Stream when it streams)
+//   space   Event · Board & play · Viewers · Rules · Stream · More
+//   clan    Event · Board & play · Entry & co-hosts · Rules · Staff · (Stream) · More
+//
+// The order is the order a host needs them, matching the guide strip: what the event is and when it
+// runs, how its board opens, who can get in, the rules they play by, who helps run it.
 //
 // The same panels back both where they mean the same thing; the words are the host's.
 
@@ -23,20 +26,32 @@ export interface TabInfo {
   /** Path under /settings ('' for the first tab). */
   slug: string;
   label: string;
+  /** One line on what is in it, shown under the tab strip and on the settings map. */
+  blurb: string;
 }
+
+const BLURB: Record<SettingsTab, (kind: SettingsKind) => string> = {
+  event: () => 'The name and look, the format and board size, and when it starts and ends.',
+  board: () => 'When tiles are revealed, how they open, who sees the standings, and which game-mode worlds count.',
+  access: (k) => (k.creator ? 'Who can see this event and who can join it, by their channel or role.' : 'Who can see and enter this event, and any clans you co-host it with.'),
+  rules: () => 'The rules your players follow, and posting them to Discord.',
+  staff: () => 'The people who help run this event: board editors and treasurers.',
+  stream: (k) => (k.creator ? 'The stream overlay, channel panels, and the moderators for the stream.' : 'The stream overlay and channel panels.'),
+  more: () => 'Copy this event, save it as a template, share the board, repair counts, or delete it.',
+};
 
 const SLUG: Record<SettingsTab, string> = { event: '', board: 'board', rules: 'rules', access: 'access', staff: 'staff', stream: 'stream', more: 'more' };
 
 export function tabsFor(kind: SettingsKind): TabInfo[] {
-  const t = (key: SettingsTab, label: string): TabInfo => ({ key, slug: SLUG[key], label });
+  const t = (key: SettingsTab, label: string): TabInfo => ({ key, slug: SLUG[key], label, blurb: BLURB[key](kind) });
   if (kind.creator) {
-    return [t('event', 'Event'), t('access', 'Viewers'), t('stream', 'Stream'), t('board', 'Board & play'), t('rules', 'Rules'), t('more', 'More')];
+    return [t('event', 'Event'), t('board', 'Board & play'), t('access', 'Viewers'), t('rules', 'Rules'), t('stream', 'Stream'), t('more', 'More')];
   }
   return [
     t('event', 'Event'),
     t('board', 'Board & play'),
-    t('rules', 'Rules'),
     t('access', 'Entry & co-hosts'),
+    t('rules', 'Rules'),
     t('staff', 'Staff'),
     ...(kind.streams ? [t('stream', 'Stream')] : []),
     t('more', 'More'),
@@ -68,6 +83,8 @@ export interface SettingsEntry {
   elsewhere?: string;
   /** Only for this kind of host. */
   only?: (kind: SettingsKind) => boolean;
+  /** A clan-wide setting this event's page defers to: a bare admin path with #anchor. */
+  clanPath?: string;
 }
 
 export const SETTINGS_INDEX: SettingsEntry[] = [
@@ -113,6 +130,15 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
   { id: 'teams', label: 'Teams and placement', keywords: ['teams', 'draft', 'captains', 'auto-balance', 'placement', 'solo', 'pick team'], tab: 'event', elsewhere: 'teams' },
   { id: 'prizes', label: 'Prizes and payouts', keywords: ['prizes', 'payouts', 'coffer', 'gp', 'winnings', 'pool'], tab: 'event', elsewhere: 'payouts' },
   { id: 'tiles', label: 'Tiles and points', keywords: ['tiles', 'tasks', 'points', 'board', 'goals', 'tile kinds'], tab: 'event', elsewhere: 'tiles' },
+  { id: 'survey', label: 'Survey after the event', keywords: ['survey', 'feedback', 'questions', 'poll', 'after the event'], tab: 'event', elsewhere: 'survey' },
+  { id: 'stats', label: 'Standings, gains and baselines', keywords: ['stats', 'standings', 'gains', 'baselines', 'starting stats'], tab: 'event', elsewhere: 'stats' },
+  { id: 'proofs', label: 'Proofs and submissions', keywords: ['proofs', 'submissions', 'screenshots', 'evidence', 'flagged'], tab: 'event', elsewhere: 'proofs' },
+  // Clan-wide settings that every event inherits — the other half of "where is that setting?".
+  { id: 'clan-house-rules', label: 'Clan house rules (all events)', keywords: ['house rules', 'rules text', 'rules link', 'clan rules'], tab: 'rules', clanPath: '/admin/rules#house-rules' },
+  { id: 'clan-fees', label: 'Fee sign-off (all events)', keywords: ['fee', 'fees', 'confirmations', 'settle', 'sign off', 'entry fee'], tab: 'event', clanPath: '/admin/rules#fees' },
+  { id: 'clan-tiers', label: 'Difficulty tiers and balance rates', keywords: ['tiers', 'difficulty', 'balance', 'effort', 'rates', 'bands'], tab: 'event', clanPath: '/admin/rules#scoring' },
+  { id: 'clan-feed', label: 'Lately feed and luck floors', keywords: ['lately', 'feed', 'luck', 'deaths', 'min drop value', 'combat tasks'], tab: 'event', clanPath: '/admin/rules#feeds' },
+  { id: 'clan-event-posts', label: 'Default event posts in Discord', keywords: ['default posts', 'event posts', 'pings', 'player role', 'cleanup'], tab: 'event', clanPath: '/admin/integrations#discord-event-posts', only: (k) => !k.creator },
 ];
 
 export interface SearchHit {
@@ -125,7 +151,7 @@ export interface SearchHit {
   elsewhere: boolean;
 }
 
-const ELSEWHERE_LABEL: Record<string, string> = { discord: 'Discord tab', signups: 'Sign-ups', teams: 'Teams', payouts: 'Prizes', tiles: 'Tiles' };
+const ELSEWHERE_LABEL: Record<string, string> = { discord: 'Discord tab', signups: 'Sign-ups', teams: 'Teams', payouts: 'Prizes', tiles: 'Tiles', survey: 'Survey', stats: 'Stats', proofs: 'Proofs' };
 
 function norm(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -154,7 +180,11 @@ export function searchSettings(query: string, eventId: number, kind: SettingsKin
     else score = 100;
     const tab = typeof e.tab === 'function' ? e.tab(kind) : e.tab;
     // A tab this host does not have (a clan without Streaming and the overlay) is not a result.
-    if (!e.elsewhere && !tabs.some((t) => t.key === tab)) continue;
+    if (!e.elsewhere && !e.clanPath && !tabs.some((t) => t.key === tab)) continue;
+    if (e.clanPath) {
+      scored.push({ hit: { id: e.id, label: e.label, href: e.clanPath, where: 'Clan settings', elsewhere: true }, score: score - 60 });
+      continue;
+    }
     const href = e.elsewhere ? `/admin/events/${eventId}/${e.elsewhere}` : `${tabHref(eventId, tab)}#${e.id}`;
     const where = e.elsewhere ? (ELSEWHERE_LABEL[e.elsewhere] ?? e.elsewhere) : (tabs.find((t) => t.key === tab)?.label ?? '');
     scored.push({ hit: { id: e.id, label: e.label, href, where, elsewhere: !!e.elsewhere }, score: score - (e.elsewhere ? 50 : 0) });

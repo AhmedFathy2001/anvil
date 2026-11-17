@@ -7,7 +7,7 @@ async function partnerScoped(request: Request, compId: number) {
   const clan = await resolveClanFromRequest(request);
   return clan ? (await competitionForClan(clan.id, compId))?.comp ?? null : null;
 }
-import { moments, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { huntDrops, moments, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { cachedPulseToken } from '@/lib/pulseCache';
@@ -58,7 +58,20 @@ async function computeWeeklyToken(_request: Request, compId: number): Promise<st
     .from(moments)
     .where(eq(moments.weeklyCompetitionId, compId));
 
+  // An item hunt's standings ARE its drops: one landing, or staff deciding one, changes the page
+  // without moving any stat. Counted per status so a confirm or a reject moves the token too.
+  let hunt = '';
+  if (comp.type === 'hunt') {
+    const rows = await db
+      .select({ status: huntDrops.status, n: sql<number>`count(*)`, decided: sql<number>`count(${huntDrops.decidedAt})` })
+      .from(huntDrops)
+      .where(eq(huntDrops.competitionId, compId))
+      .groupBy(huntDrops.status);
+    hunt = rows.map((r) => `${r.status}:${Number(r.n)}:${Number(r.decided)}`).sort().join(',');
+  }
+
   return [
+    hunt,
     comp.status,
     comp.endDate ?? '',
     Number(agg?.count ?? 0),

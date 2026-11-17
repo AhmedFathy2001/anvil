@@ -2,10 +2,10 @@
 
 import { modeTag } from '@/lib/worldModes';
 import DropOdds from '@/components/DropOdds';
-import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
+import RaceTileDetail, { useRaceProofBlock, type RaceDetailContext } from '@/components/board/RaceTileDetail';
 import { TileStateBanner } from '@/components/board/TileState';
 import { missionTileState } from '@/lib/tileState';
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
@@ -19,6 +19,7 @@ import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
 import LapCounterTip from './LapCounterTip';
 import TileBeforeYouStart from './TileBeforeYouStart';
+import { outcomeLines } from '@/lib/tileOutcome';
 import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
 import { killSourceOf } from '@/lib/killSource';
 import { lapUnitNoun } from '@/lib/constants';
@@ -32,6 +33,7 @@ import { MomentStreamLinks } from './HighlightsStrip';
 import type { ShownHighlight } from '@/lib/highlights/rules';
 import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { useGuardedClose } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import { clogTileLooseSpec, clogTileSetupNote } from '@/lib/clogTileWords';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
@@ -72,6 +74,8 @@ interface CompletedByTeam {
   teamId: number;
   teamName: string;
   color: string;
+  /** When the team completed it, for the ended-event "how it went" line. */
+  completedAt?: string | null;
 }
 
 interface TeamPlayer {
@@ -104,6 +108,8 @@ interface Props {
   /** Proof is being fetched — show a placeholder rather than "no submissions" while it lands. */
   submissionsLoading?: boolean;
   completedBy: CompletedByTeam[];
+  /** The event is over: the dialog says how the tile went and gives no instructions to play. */
+  ended?: boolean;
   canSubmit: boolean;
   canManage: boolean;
   canToggle: boolean;
@@ -133,6 +139,11 @@ interface Props {
   extra?: ReactNode;
   /** A branching tile race (lib/raceRoutes): the tile's route banner, links and who is on it. */
   race?: RaceDetailContext | null;
+  /**
+   * The public board's hand-off to the proof form (which lives on the team page): a link for a player
+   * with a team, or the plain reason there is none. Omit where the form is already here.
+   */
+  submitProof?: { href: string } | { reason: string } | null;
 }
 
 /** Combo parts that take a screenshot of their own (the kinds the submission forms below serve). */
@@ -141,11 +152,16 @@ const PART_PROOF_TYPES = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'diary',
 /** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
 const CONTRIBUTOR_PREVIEW = 8;
 
+// The Submit button rides the bottom edge of the dialog while its form is on screen, so it is
+// always one tap away however long the form is. Bleeds to the form's own edges (its p-3).
+const SUBMIT_BAR = 'sticky bottom-0 z-[5] -mx-3 -mb-3 rounded-b-lg border-t border-card-border bg-card-bg px-3 py-3';
+
 export default function TileDetailModal({
   tile,
   submissions,
   submissionsLoading = false,
   completedBy,
+  ended = false,
   canSubmit,
   canManage,
   canToggle,
@@ -168,6 +184,7 @@ export default function TileDetailModal({
   extra,
   race,
   highlights,
+  submitProof,
 }: Props) {
   // Public board's Team Progress: which team's row is opened into its members.
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
@@ -680,14 +697,44 @@ export default function TileDetailModal({
     }
   }
 
-  const modalRef = useModalA11y<HTMLDivElement>({ onClose });
+  // This team's tile is completed although its proofs on file fall short of the count: a captain or
+  // staff marked it done. Then there is no "N more needed" and no "0/1".
+  const doneShort = isCompleted && teamId != null && !!dropProgress && dropProgress.current < dropProgress.required;
+  // Tile race: no proof form on a tile the viewer's team has not reached (the server refuses it too).
+  const raceBlock = useRaceProofBlock(race, tile.id, eventId);
+  const canFile = canSubmit && raceBlock === null;
+
+  // Escape, the x and a click outside all ask first once a proof is half written (a screenshot
+  // attached, a note, a time or a value typed). Cleared again by a successful submit.
+  const proofStarted =
+    !!note.trim() || !!clearTime.trim() || !!valueGp.trim() || imageUrls.some((u) => !!u.trim()) || extras.length > 0;
+  const guardedClose = useGuardedClose(proofStarted, onClose);
+  const modalRef = useModalA11y<HTMLDivElement>({ onClose: guardedClose });
   const titleId = `tile-modal-title-${tile.id}`;
+  // Is there a proof form, and is it scrolled out of sight below? (Drives the jump button.)
+  const [proofFormBelow, setProofFormBelow] = useState(false);
+  const proofFormWatch = useRef<IntersectionObserver | null>(null);
+  const proofFormRef = useCallback(
+    (form: HTMLFormElement | null) => {
+      proofFormWatch.current?.disconnect();
+      proofFormWatch.current = null;
+      if (!form) return setProofFormBelow(false);
+      // No root: the observer already counts the dialog's own scroll clipping, and this runs before
+      // the dialog's ref is set.
+      const io = new IntersectionObserver(([entry]) => setProofFormBelow(!entry.isIntersecting && entry.boundingClientRect.top > 0));
+      io.observe(form);
+      proofFormWatch.current = io;
+    },
+    [],
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Pinned near the top, not centred: a centred box moves every time its content grows (adding a
+    // screenshot preview made the whole dialog jump).
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[5vh]">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={guardedClose}
         aria-hidden="true"
       />
       <div
@@ -699,7 +746,8 @@ export default function TileDetailModal({
         className="relative bg-card-bg border border-card-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl focus:outline-none"
       >
         {/* Header */}
-        <div className="sticky top-0 bg-card-bg border-b border-card-border p-4 rounded-t-2xl flex items-start justify-between">
+        {/* z-10: links in the body with their own stacking (the "Why?" tap area) slid over the title. */}
+        <div className="sticky top-0 z-10 bg-card-bg border-b border-card-border p-4 rounded-t-2xl flex items-start justify-between">
           <div className="flex items-start gap-3 min-w-0">
             {tile.icon && (
               <div className="w-10 h-10 flex-shrink-0">
@@ -778,6 +826,13 @@ export default function TileDetailModal({
                 )}
               </div>
               {/* How a player gets this one, in words a phone can show — the ✋ and badge blurbs are hover-only. */}
+              {ended ? (
+                <div className="text-xs text-text-muted mt-2 space-y-0.5">
+                  {outcomeLines(completedBy, (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })).map((l) => (
+                    <p key={l}>{l}</p>
+                  ))}
+                </div>
+              ) : (
               <p className="text-xs text-text-muted mt-2">
                 <span className={howCounts.auto ? 'text-accent-green-light' : 'text-amber-300'}>
                   {howCounts.auto ? 'Automatic. ' : 'Screenshot. '}
@@ -792,11 +847,12 @@ export default function TileDetailModal({
                   </>
                 )}
               </p>
+              )}
             </div>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={guardedClose}
             aria-label="Close dialog"
             className="text-text-muted hover:text-foreground text-xl leading-none flex-shrink-0 ml-2 -mr-1 -mt-1 p-2"
           >
@@ -823,11 +879,29 @@ export default function TileDetailModal({
           <TileTargets tile={tile} hideItems={!!perItemProgress?.length} />
 
           {/* Course laps only (the Sepulchre prints its own floor lines, no counter to toggle). */}
-          {isLap && countNoun === 'lap' && !manualOnly && <LapCounterTip />}
+          {!ended && isLap && countNoun === 'lap' && !manualOnly && <LapCounterTip />}
 
           {/* What this tile needs from a player and what it can't do (lib/tileRequirements), with the
               viewer's own problems on top ("you haven't synced your collection log yet"). */}
-          <TileBeforeYouStart tile={tile} eventId={eventId} />
+          {!ended && <TileBeforeYouStart tile={tile} eventId={eventId} />}
+
+          {/* The board is read-only: the proof form is on the team page, which opens on this tile. */}
+          {/* A race tile the team has not reached takes no proof: say why instead of a form or a link to one. */}
+          {raceBlock && (canSubmit || (submitProof && 'href' in submitProof)) && (
+            <p className="rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2 text-xs text-text-muted">{raceBlock}</p>
+          )}
+          {submitProof && !canSubmit && raceBlock === null && (
+            'href' in submitProof ? (
+              <ClanLink
+                href={submitProof.href}
+                className="flex min-h-11 w-full items-center justify-center rounded-lg border border-gold/50 bg-gold/15 px-4 py-2 text-sm font-semibold text-gold hover:bg-gold/25"
+              >
+                Submit proof for this tile
+              </ClanLink>
+            ) : (
+              <p className="rounded-lg border border-card-border bg-brown-dark/40 px-3 py-2 text-xs text-text-muted">{submitProof.reason}</p>
+            )
+          )}
 
           {/* Completion status */}
           {completedBy.length > 0 && (
@@ -900,7 +974,7 @@ export default function TileDetailModal({
                             </button>
                           )}
                           {/* A part that takes screenshots gets the same form its own tile would have. */}
-                          {canSubmit && onSubmit && teamId && !st?.state.done && PART_PROOF_TYPES.has(p.tileType ?? '') && (
+                          {canFile && onSubmit && teamId && !st?.state.done && PART_PROOF_TYPES.has(p.tileType ?? '') && (
                             <button type="button" onClick={() => setOpenPart(p)} className="text-[11px] text-gold hover:underline">
                               Add screenshot
                             </button>
@@ -939,15 +1013,17 @@ export default function TileDetailModal({
                   )}
                 </span>
                 <span className="font-medium text-accent-green-light">
-                  {dropProgress.current}/{dropProgress.required}
+                  {/* Marked done with fewer proofs on file than the count (a captain or staff ticked
+                      it): it is done, so it does not read "0/1" beside "Completed". */}
+                  {doneShort ? 'Done' : `${dropProgress.current}/${dropProgress.required}`}
                 </span>
               </div>
               <div className="w-full bg-brown-dark rounded-full h-3 overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${Math.min(100, (dropProgress.current / dropProgress.required) * 100)}%`,
-                    background: dropProgress.current >= dropProgress.required
+                    width: `${doneShort ? 100 : Math.min(100, (dropProgress.current / dropProgress.required) * 100)}%`,
+                    background: doneShort || dropProgress.current >= dropProgress.required
                       ? 'linear-gradient(90deg, #22c55e, #4ade80)'
                       : 'linear-gradient(90deg, #eab308cc, #eab308)',
                   }}
@@ -1503,22 +1579,24 @@ export default function TileDetailModal({
           )}
 
           {/* Submit form for drop / kill tiles */}
-          {isCount && canSubmit && onSubmit && teamId && (() => {
+          {isCount && canFile && onSubmit && teamId && (() => {
             const remaining = dropProgress ? Math.max(0, dropProgress.required - dropProgress.current) : undefined;
             const maxAmount = remaining ?? 99;
-            const isComplete = remaining === 0;
+            const isComplete = remaining === 0 || doneShort;
 
             if (isComplete) {
               return (
                 <div className="border border-accent-green/30 rounded-lg p-3 bg-accent-green/10 text-center">
                   <p className="text-sm text-accent-green-light font-medium">Tile Complete!</p>
-                  <p className="text-xs text-text-muted mt-1">All required {countNoun}s have been submitted.</p>
+                  <p className="text-xs text-text-muted mt-1">
+                    {doneShort ? 'Marked done for your team. Nothing more is needed.' : `All required ${countNoun}s have been submitted.`}
+                  </p>
                 </div>
               );
             }
 
             return (
-            <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+            <form data-proof-form ref={proofFormRef} onSubmit={handleSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Add Submission</h3>
               {canManage && (
                 <p className="text-xs text-text-muted">
@@ -1685,20 +1763,22 @@ export default function TileDetailModal({
               )}
               {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit'}
-              </button>
+              <div className={SUBMIT_BAR}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
             </form>
             );
           })()}
 
           {/* Submit form for timed tiles */}
-          {isTimed && canSubmit && onSubmit && teamId && !isCompleted && (
-            <form onSubmit={handleSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+          {isTimed && canFile && onSubmit && teamId && !isCompleted && (
+            <form data-proof-form ref={proofFormRef} onSubmit={handleSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Submit a Clear</h3>
               <p className="text-xs text-text-muted">
                 Normally the plugin bakes &amp; submits this automatically. Use this only as a manual fallback.
@@ -1757,19 +1837,21 @@ export default function TileDetailModal({
               {error && <p className="text-xs text-red-400">{error}</p>}
               {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit Clear'}
-              </button>
+              <div className={SUBMIT_BAR}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Clear'}
+                </button>
+              </div>
             </form>
           )}
 
           {/* Submit form for loot-value tiles — a gp-valued haul + one proof screenshot. */}
-          {isValue && canSubmit && onSubmit && teamId && !isCompleted && (
-            <form onSubmit={handleValueSubmit} className="border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
+          {isValue && canFile && onSubmit && teamId && !isCompleted && (
+            <form data-proof-form ref={proofFormRef} onSubmit={handleValueSubmit} className="scroll-mt-40 border border-card-border rounded-lg p-3 bg-brown-dark/30 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Submit Loot Value</h3>
               <p className="text-xs text-text-muted">
                 Normally the plugin prices &amp; submits hauls automatically. Use this only as a manual fallback.
@@ -1834,16 +1916,31 @@ export default function TileDetailModal({
               {error && <p className="text-xs text-red-400">{error}</p>}
               {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? 'Submitting...' : 'Submit Loot Value'}
-              </button>
+              <div className={SUBMIT_BAR}>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Loot Value'}
+                </button>
+              </div>
             </form>
           )}
         </div>
+        {/* The form sits under the progress and the proofs already in, so on a phone it can open
+            below the fold. While it is out of sight, one button at the bottom edge goes to it. */}
+        {proofFormBelow && (
+          <div className="sticky bottom-0 z-10 border-t border-card-border bg-card-bg p-3 rounded-b-2xl">
+            <button
+              type="button"
+              onClick={() => modalRef.current?.querySelector('[data-proof-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="w-full py-2.5 text-sm font-semibold rounded bg-accent-green/20 border border-accent-green text-accent-green-light hover:bg-accent-green/30 transition-colors"
+            >
+              Add your proof
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}

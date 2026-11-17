@@ -164,3 +164,19 @@ export function canTeamUndoCollection(
   if (!managerIds.has(fee.collectedByUserId)) return 'foreign-collector';
   return null;
 }
+
+/**
+ * May a team's manager mark a fee in this state as collected?
+ *
+ * Not once it is settled, and not once the host CLOSED it. `closed` is the host writing an unpaid
+ * fee off at the end of the event (lib/feeConfirmations closeOutEventFees). Marking it collected after
+ * that put it back on the books as money received, and could settle it outright — a team manager
+ * reopening a decision that was the host's to make.
+ */
+export type CollectRefusal = 'settled' | 'closed';
+
+export function canTeamMarkCollected(status: string): { ok: true } | { ok: false; reason: CollectRefusal } {
+  if (status === 'confirmed') return { ok: false, reason: 'settled' };
+  if (status === 'closed') return { ok: false, reason: 'closed' };
+  return { ok: true };
+}

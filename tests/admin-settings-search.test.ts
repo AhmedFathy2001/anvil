@@ -124,7 +124,7 @@ test('every webhook field, feature switch, feed row, game mode and event setting
     assert.ok(ADMIN_SETTINGS.some((e) => e.href.endsWith(`#discord-feed-${f.id}`)), `feed row ${f.id}`);
   }
   for (const m of WORLD_MODES) assert.ok(ADMIN_SETTINGS.some((e) => e.id === `discord-mode-${m.key}`), m.key);
-  for (const s of SETTINGS_INDEX.filter((s) => !s.elsewhere)) {
+  for (const s of SETTINGS_INDEX.filter((s) => !s.elsewhere && !s.clanPath)) {
     assert.ok(ADMIN_SETTINGS.some((e) => e.eventPath?.endsWith(`#${s.id}`)), `event setting ${s.id}`);
   }
 });

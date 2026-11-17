@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { listAnvilTasks, taskOffers } from '@/lib/libraryTasks';
 import LibraryTabs from './LibraryTabs';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 // library is doing the same job as an editor building a board, one step earlier.
 export default async function TileLibraryPage() {
   const clan = await requireClan();
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) redirect(await clanHref('/admin/dashboard'));
 
   const tierBands = await getTierBands(clan.id);

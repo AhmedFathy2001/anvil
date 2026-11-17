@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { requireSecret } from '@/lib/env';
-import { clanBasePath, isPlatformPath, kindOfSegment } from '@/lib/clanScopedPaths';
+import { clanBasePath, isPlatformPath, kindOfSegment, loginHref } from '@/lib/clanScopedPaths';
 import {
   CLAN_PREFIX_HEADER,
   CLAN_PROOF_HEADER,
@@ -159,6 +159,13 @@ export async function middleware(request: NextRequest) {
     // rewrite a POST body's destination under clients that handle 308 badly, for no gain — nothing
     // legitimate builds these, since every link and fetch goes through withClanPrefix, which does
     // not prefix a platform path in the first place. Dropping the header is the part that matters.
+    // The one exception: a clan's own leaderboard is its roster ranking (/members), which exists per
+    // clan. Everything else platform-side is global and goes to the apex.
+    if (inner === '/leaderboard' && kind === 'clan') {
+      const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
+      const forwardedHost = request.headers.get('host') ?? request.nextUrl.host;
+      return NextResponse.redirect(new URL(`/${segment}/${slug}/members`, `${proto}://${forwardedHost}`), 308);
+    }
     if (isPlatformPath(inner)) {
       const url = request.nextUrl.clone();
       url.pathname = inner;
@@ -177,6 +184,15 @@ export async function middleware(request: NextRequest) {
       const forwardedHost = request.headers.get('host') ?? request.nextUrl.host;
       const to = new URL(`${inner}${request.nextUrl.search}`, `${proto}://${forwardedHost}`);
       return NextResponse.redirect(to, 308);
+    }
+
+    // `/admin` is only a door to the dashboard (app/admin/page.tsx redirects). Doing it here, one hop,
+    // spares the browser rendering the admin shell just to be sent on. Built from the forwarded
+    // host for the same reason as the platform-path redirect above.
+    if (inner === '/admin' || inner === '/admin/') {
+      const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '');
+      const forwardedHost = request.headers.get('host') ?? request.nextUrl.host;
+      return NextResponse.redirect(new URL(`/${segment}/${slug}/admin/dashboard${request.nextUrl.search}`, `${proto}://${forwardedHost}`), 307);
     }
 
     const url = request.nextUrl.clone();
@@ -224,8 +240,9 @@ export async function middleware(request: NextRequest) {
 
   // Protect admin routes — all auth flows through Discord OAuth at /login now.
   if (pathname.startsWith('/admin')) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('return', pathname);
+    // Under /c/<slug> this is the second pass, over the path with the prefix taken off: put it back,
+    // or signing in lands on the apex instead of the clan page that was asked for.
+    const loginUrl = new URL(loginHref(downstream.get(CLAN_PREFIX_HEADER) ?? '', pathname), request.url);
     const token = request.cookies.get('admin_session')?.value;
     if (!token) {
       return NextResponse.redirect(loginUrl);
@@ -296,8 +313,9 @@ export async function middleware(request: NextRequest) {
   // Unified "My Team" surface — open to any logged-in Discord user; the page itself
   // resolves captain/player membership per team.
   if (pathname.startsWith('/team')) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('return', pathname);
+    // Under /c/<slug> this is the second pass, over the path with the prefix taken off: put it back,
+    // or signing in lands on the apex instead of the clan page that was asked for.
+    const loginUrl = new URL(loginHref(downstream.get(CLAN_PREFIX_HEADER) ?? '', pathname), request.url);
     const token = request.cookies.get('admin_session')?.value;
     if (!token) {
       return NextResponse.redirect(loginUrl);

@@ -79,12 +79,15 @@ test('a plugin token stops working the moment its login or its person is banned'
 
   await db.update(s.users).set({ banned: true }).where(eq(s.users.id, captain));
   assert.equal(await auth.verifyPluginTokenUser(bearer(token)), null, 'login ban');
+  // 2026-11-14 audit: pluginTokenPerson looked the same link up a second time and skipped the ban.
+  assert.equal(await auth.pluginTokenPerson(bearer(token)), null, 'login ban, via pluginTokenPerson');
   await db.update(s.users).set({ banned: false }).where(eq(s.users.id, captain));
   assert.deepEqual(await auth.verifyPluginTokenUser(bearer(token)), { userId: captain }, 'lifted: the token is not revoked');
 
   const [person] = await db.insert(s.players).values({ displayName: 'Captain', banned: true }).returning();
   await db.update(s.users).set({ playerId: person.id }).where(eq(s.users.id, captain));
   assert.equal(await auth.verifyPluginTokenUser(bearer(token)), null, 'platform ban on the person');
+  assert.equal(await auth.pluginTokenPerson(bearer(token)), null, 'platform ban, via pluginTokenPerson');
 });
 
 test('staff may mark their own fee paid: it goes through, records who, and is tagged self-marked', async () => {

@@ -37,6 +37,7 @@ export const HUB_KINDS: HubKindMeta[] = [
   { key: 'ladder', label: label('ladder', 'Ladder'), short: 'Ladder', group: 'boards', accent: '#c39cf5', emoji: '🪜' },
   { key: 'sotw', label: 'Skill of the Week', short: 'SOTW', group: 'weeks', accent: '#4aa3d4', emoji: '📈' },
   { key: 'botw', label: 'Boss of the Week', short: 'BOTW', group: 'weeks', accent: '#d0553f', emoji: '💀' },
+  { key: 'hunt', label: 'Item hunt', short: 'Item hunt', group: 'weeks', accent: '#e0b34a', emoji: '🎁' },
   { key: 'eff', label: 'Efficiency race', short: 'Hours played', group: 'weeks', accent: 'var(--accent-green-light)', emoji: '⚡' },
 ];
 

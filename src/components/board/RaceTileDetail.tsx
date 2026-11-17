@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { raceGraph, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
+import { useMemo } from 'react';
+import { raceDetailTeam, raceGraph, raceProofBlock, raceRouteOpts, raceTileInfo, isBranchingRoute, rankRaceTeams, roadOf, teamRoute, type RaceRoadMode, type TeamRouteOpts } from '@/lib/raceRoutes';
 import { raceTileState } from '@/lib/tileState';
-import { clanFetch } from '@/lib/clanFetch';
+import { racePickUrl, useTileData } from '@/lib/tileData';
 import { cn } from '@/lib/utils';
 import { TileStateBanner } from './TileState';
 import { RoadBadge } from './RaceRouteMap';
@@ -13,6 +13,8 @@ export interface RaceDetailContext {
   completions: { teamId: number; tileId: number; completedAt?: string | null }[];
   teams: { id: number; name: string; color: string }[];
   viewerTeamId?: number | null;
+  /** The team a proof from this viewer would be filed for, when it is not the team being viewed (the public board's lens). */
+  proofTeamId?: number | null;
   onOpenTile?: (id: number) => void;
 }
 
@@ -20,25 +22,16 @@ export interface RaceDetailContext {
  * A race's road mode for a team (GET /api/events/:id/race-pick): the picks on a "Choose and lock
  * in" race (null elsewhere) and teamRoute's options ("Roads stay open").
  */
-export function useRacePicks(eventId: number | undefined, teamId: number | null | undefined): { picks: Map<number, number> | null; opts: TeamRouteOpts } {
-  const [picks, setPicks] = useState<Map<number, number> | null>(null);
-  const [mode, setMode] = useState<RaceRoadMode | null>(null);
-  useEffect(() => {
-    if (eventId == null || teamId == null) return;
-    let gone = false;
-    clanFetch(`/api/events/${eventId}/race-pick?teamId=${teamId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (gone || !d) return;
-        setMode(d.mode ?? null);
-        if (d.mode === 'choose') setPicks(new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])));
-      })
-      .catch(() => {});
-    return () => {
-      gone = true;
-    };
-  }, [eventId, teamId]);
-  return { picks, opts: raceRouteOpts(mode) };
+export function useRacePicks(eventId: number | undefined, teamId: number | null | undefined): { picks: Map<number, number> | null; opts: TeamRouteOpts; bank: boolean; loaded: boolean } {
+  // Through the shared read cache: the board's own read of the same picks (and a hover prefetch)
+  // answers this at once instead of asking again when the dialog opens.
+  const d = useTileData<{ mode?: RaceRoadMode | null; bank?: boolean; picks?: Record<string, number> }>(eventId != null && teamId != null ? racePickUrl(eventId, teamId) : null);
+  const mode = d?.mode ?? null;
+  const picks = useMemo(
+    () => (d && mode === 'choose' ? new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])) : null),
+    [d, mode],
+  );
+  return { picks, opts: raceRouteOpts(mode), bank: !!d?.bank, loaded: d !== undefined };
 }
 
 /**
@@ -49,15 +42,17 @@ export function useRacePicks(eventId: number | undefined, teamId: number | null 
 export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext; tileId: number }) {
   const graph = useMemo(() => raceGraph(ctx.tiles), [ctx.tiles]);
   const eventId = ctx.tiles[0]?.eventId;
-  const { picks, opts } = useRacePicks(eventId, ctx.viewerTeamId);
+  // The same team the proof rule asks about (useRaceProofBlock): the lens team, else the viewer's own.
+  const viewerTeamId = raceDetailTeam(ctx.viewerTeamId, ctx.proofTeamId);
+  const { picks, opts } = useRacePicks(eventId, viewerTeamId);
   if (!isBranchingRoute(ctx.tiles) || !graph.byId.has(tileId)) return null;
   const byId = new Map(ctx.tiles.map((t) => [t.id, t]));
   const label = (id: number) => byId.get(id)?.label ?? `Tile ${id}`;
   const doneBy = (teamId: number) => ctx.completions.filter((c) => c.teamId === teamId).map((c) => c.tileId);
-  const route = ctx.viewerTeamId != null ? teamRoute(graph, doneBy(ctx.viewerTeamId), picks, opts) : null;
+  const route = viewerTeamId != null ? teamRoute(graph, doneBy(viewerTeamId), picks, opts) : null;
   const info = raceTileInfo(graph, route, tileId, label)!;
   const view = raceTileState(info.state) ?? { kind: 'locked' as const, label: info.stepLine };
-  const doneRow = ctx.viewerTeamId != null ? ctx.completions.find((c) => c.teamId === ctx.viewerTeamId && c.tileId === tileId) : undefined;
+  const doneRow = viewerTeamId != null ? ctx.completions.find((c) => c.teamId === viewerTeamId && c.tileId === tileId) : undefined;
   const title = info.state === 'open' ? 'Next for your team' : info.state === 'done' ? 'Done' : info.state === 'closed' ? 'Locked' : info.state === 'ahead' ? 'Locked' : info.stepLine;
   const standing = new Map(rankRaceTeams(graph, ctx.teams, ctx.completions).map((s) => [s.teamId, s]));
   const onIt = ctx.teams.filter((t) => {
@@ -112,4 +107,22 @@ export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext
       )}
     </div>
   );
+}
+
+/**
+ * Why the viewer's team cannot file proof for this race tile now (lib/raceRoutes raceProofBlock), or
+ * null when it can. The server refuses the same way; this keeps the form from being offered.
+ * `undefined` while the race's road mode is still loading: nothing is offered until it is known.
+ */
+export function useRaceProofBlock(ctx: RaceDetailContext | null | undefined, tileId: number, eventId?: number): string | null | undefined {
+  const tiles = ctx?.tiles;
+  const teamId = raceDetailTeam(ctx?.proofTeamId, ctx?.viewerTeamId);
+  const graph = useMemo(() => (tiles ? raceGraph(tiles) : null), [tiles]);
+  const { picks, opts, bank, loaded } = useRacePicks(ctx ? (eventId ?? tiles?.[0]?.eventId) : undefined, teamId);
+  if (!ctx || !graph || teamId == null) return null;
+  if (!loaded) return undefined;
+  const done = ctx.completions.filter((c) => c.teamId === teamId).map((c) => c.tileId);
+  // A combo part answers for its combo, which is the tile on the route.
+  const self = ctx.tiles.find((t) => t.id === tileId);
+  return raceProofBlock(graph, teamRoute(graph, done, picks, opts), self?.parentTileId ?? tileId, { bank });
 }

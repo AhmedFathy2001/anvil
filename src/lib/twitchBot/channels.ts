@@ -6,6 +6,8 @@ import { joinEventFor, joinReplyForClan } from '@/lib/chatBot/join';
 import { chatJoinAllowed, streamPlanId } from '@/lib/creatorPlans';
 
 import { CHAT_JOIN_SETTING } from './wire';
+import { runningPlanTrials } from '@/lib/planTrials';
+import { effectivePlanId } from '@/lib/planTrialRules';
 
 // The event-picking half moved to lib/chatBot/join (shared with Kick); re-exported for callers.
 export { joinEventFor };
@@ -68,9 +70,11 @@ export async function chatBotChannels(): Promise<{ clanId: number; broadcaster: 
     );
   const out: { clanId: number; broadcaster: TwitchBroadcaster }[] = [];
   const seen = new Set<string>();
+  // The plan in force: a running Anvil trial counts (lib/planTrials).
+  const trials = await runningPlanTrials(rows.map((r) => r.clanId));
   for (const r of rows) {
     // Left out entirely, so the bot leaves the channel on its next refresh after a downgrade.
-    if (!chatJoinAllowed(streamPlanId(r))) continue;
+    if (!chatJoinAllowed(streamPlanId({ ...r, plan: effectivePlanId(r.kind, r.plan, trials.get(r.clanId) ?? null) }))) continue;
     const b = await linkedTwitchBroadcaster(r.clanId);
     // One channel answers for one space: a channel two spaces both claim is answered by neither.
     if (!b) continue;

@@ -38,6 +38,8 @@ export function Section({
   title,
   optional,
   labels,
+  collapsible,
+  defaultOpen = false,
   children,
 }: {
   id: string;
@@ -45,8 +47,33 @@ export function Section({
   title: string;
   optional?: boolean;
   labels: SectionLabels;
+  /** Fold the body under its heading (long guides). The heading, number and anchor are unchanged. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  if (collapsible) {
+    return (
+      <section id={id} className="scroll-mt-24">
+        <details id={`${id}-fold`} open={defaultOpen} className="group">
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <span className="mb-2 block text-[11px] uppercase tracking-widest text-text-muted">
+              {labels.step} {n}
+              {optional && ` · ${labels.optional}`}
+            </span>
+            <span className="flex items-center gap-2">
+              <span aria-hidden className="h-5 w-1 shrink-0 rounded-full bg-gold" />
+              <h2 className="text-[17px] font-bold sm:text-lg">{title}</h2>
+              <span aria-hidden className="ml-auto text-lg text-text-dim transition-transform group-open:rotate-90">
+                ›
+              </span>
+            </span>
+          </summary>
+          <div className="mt-3 space-y-4">{children}</div>
+        </details>
+      </section>
+    );
+  }
   return (
     // `scroll-mt` so a heading landed on by its own anchor clears the sticky site nav instead of
     // hiding under it — the whole point of a copyable link is that it arrives somewhere readable.
@@ -93,6 +120,7 @@ export function Figure({
           alt={alt}
           width={width}
           height={height}
+          loading="lazy"
           className="mx-auto max-w-full h-auto rounded"
         />
       </div>

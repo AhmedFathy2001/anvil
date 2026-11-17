@@ -1,4 +1,5 @@
 import { accountTypeLabel } from '@/lib/accountType';
+import { characterHiddenFromViewer } from '@/lib/clanInsider';
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { SKILLS } from '@/lib/constants';
@@ -31,6 +32,8 @@ async function load(request: Request, { params }: { params: Promise<{ slug: stri
 
   const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
   if (!profile || profile.leftAt) return siteCard();
+  // An image is fetched by anybody: a character kept to its clans gets the plain card, like a stranger's name.
+  if (await characterHiddenFromViewer(clan.id, profile.accountId, false)) return siteCard();
 
   const [clanName, moments, clanLogo] = await Promise.all([
     getClanDisplayName(clan.id, clan.name),

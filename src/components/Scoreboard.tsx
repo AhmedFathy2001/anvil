@@ -44,6 +44,18 @@ export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam,
         // hand, not board progress — subtracting it here would advertise a shorter board than exists.
         const tilesLeft = Math.max(0, score.total - score.boardScore);
         const isLeading = !unranked && index === 0 && completed > 0;
+        // The gap to the team above, as the race page words it ("3 behind", "leading"). Nothing before
+        // anyone has scored — a gap between zeros is noise — and nothing when standings are hidden.
+        const above = index > 0 ? sortedTeams[index - 1] : null;
+        const gap = above ? scoreOf(above.id).score - completed : 0;
+        const gapText =
+          unranked || scoreOf(sortedTeams[0].id).score <= 0
+            ? null
+            : above === null
+              ? 'leading'
+              : gap > 0
+                ? `${gap}${pointsMode ? ' pts' : ''} behind ${above.name}`
+                : `level with ${above.name}`;
         const dropInfo = dropProgressByTeam?.get(team.id);
         const mvp = teamMvps?.[team.id] ?? null;
 
@@ -106,7 +118,7 @@ export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam,
               />
             </div>
             <div className="flex justify-between mt-1.5">
-              <span className="text-[11px] text-text-muted">{Math.round(percentage)}% complete</span>
+              <span className="text-[11px] text-text-muted">{Math.round(percentage)}% complete{gapText ? ` · ${gapText}` : ''}</span>
               <span className="text-[11px] text-text-muted">View board &rarr;</span>
             </div>
             {mvp && (

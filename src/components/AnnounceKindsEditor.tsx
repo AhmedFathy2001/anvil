@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
+import CollapsibleSection from '@/components/CollapsibleSection';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import TemplatesEditor from '@/components/TemplatesEditor';
@@ -171,7 +172,7 @@ export default function AnnounceKindsEditor({
 
   return (
     <div className="grid gap-6">
-      <Group title="Screenshots" id="posts-screenshots">
+      <Group title="Screenshots" id="posts-screenshots" summary="Whether each announcement carries a screenshot.">
         <p className="max-w-[70ch] text-[12.5px] text-text-muted">
           Whether each announcement carries a screenshot. Bingo proofs are always captured, whatever you choose here: they are your evidence.
         </p>
@@ -195,7 +196,7 @@ export default function AnnounceKindsEditor({
           })}
         </div>
       </Group>
-      <Group title="Message templates" id="posts-templates">
+      <Group title="Message templates" id="posts-templates" summary="The wording of each kind of post.">
         <TemplatesEditor
           mode={mode}
           value={value.templates ?? {}}
@@ -205,7 +206,7 @@ export default function AnnounceKindsEditor({
           onSave={(templates) => onSave({ ...value, templates } as Value)}
         />
       </Group>
-      <Group title="More to announce" id="posts-more">
+      <Group title="More to announce" id="posts-more" summary="Extra kinds of post, off unless turned on.">
         <p className="max-w-[70ch] text-[12.5px] text-text-muted">
           {mode === 'clan'
             ? 'Defaults for your members. They post to your Milestones channel, and each member can still change their own.'
@@ -216,7 +217,7 @@ export default function AnnounceKindsEditor({
         ))}
       </Group>
       {mode === 'personal' ? (
-        <Group title="Private" id="posts-private">
+        <Group title="Private" id="posts-private" summary="Posts that only go to your own webhooks.">
           <p className="max-w-[70ch] text-[12.5px] text-text-muted">
             Only you can turn these on, and they only go to your own webhooks; your clan never sees them. Tick the kind on the webhook you want them in.
           </p>
@@ -231,15 +232,12 @@ export default function AnnounceKindsEditor({
   );
 }
 
-function Group({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
+function Group({ title, id, summary, children }: { title: string; id?: string; summary?: string; children: React.ReactNode }) {
+  // Folded: the templates alone ran to about 2,500px.
   return (
-    <div id={id} className="grid scroll-mt-24 gap-3">
-      <h3 className="flex items-center gap-2 text-sm font-semibold">
-        <span className="h-4 w-1 bg-gold" aria-hidden />
-        {title}
-      </h3>
-      {children}
-    </div>
+    <CollapsibleSection id={id} title={title} summary={summary}>
+      <div className="grid gap-3">{children}</div>
+    </CollapsibleSection>
   );
 }
 

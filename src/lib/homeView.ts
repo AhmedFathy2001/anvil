@@ -1,7 +1,10 @@
+import { huntIconFor, huntLine, parseHunt } from '@/lib/itemHunt';
+import { huntStandings } from '@/lib/itemHuntDb';
 import { db } from '@/db';
 import { clanStreaks } from '@/lib/activityStreaks';
-import { clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanMemberships, clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
@@ -18,6 +21,7 @@ import { parseContributionSnapshot } from '@/lib/statTracking';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { ladderLifecycle } from '@/lib/ladderView';
 import { monthWindow } from '@/lib/ladderInsights';
+import { inWindow } from '@/lib/monthWindow';
 import { eventParticipants as playersTable, submissions as submissionsTable } from '@/db/schema';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
 import { listClanEvents } from '@/lib/clanEvents';
@@ -41,8 +45,10 @@ const SHAPE_WINDOW_DAYS = 60;
 export interface HomeWeekly {
   id: number;
   title: string;
-  kind: 'SOTW' | 'BOTW' | 'EOTW';
+  kind: 'SOTW' | 'BOTW' | 'EOTW' | 'HUNT';
   type: CompetitionType;
+  /** An item hunt (lib/itemHunt): ranked by drops, so `top.value` is a count and there is no daily shape. */
+  hunt?: boolean;
   metricLabel: string;
   iconUrl: string | null;
   status: 'active' | 'upcoming' | 'completed';
@@ -55,6 +61,8 @@ export interface HomeWeekly {
   top: { rsn: string; value: number; tied: boolean } | null;
   /** Clan-wide gain per day across the competition, for the card's shape. Empty when out of window. */
   days: number[];
+  /** The viewer has a seat entered in it and has not opted out (from the rows already read). */
+  mine: boolean;
 }
 
 /** The home page draws the same card as the events index (lib/eventCards). */
@@ -114,7 +122,7 @@ export interface HomeClanEvent {
 /** How many clan events the home page lists; the events hub has the rest. */
 const HOME_CLAN_EVENTS = 4;
 
-const KIND: Record<string, HomeWeekly['kind']> = { skill: 'SOTW', boss: 'BOTW', efficiency: 'EOTW' };
+const KIND: Record<string, HomeWeekly['kind']> = { skill: 'SOTW', boss: 'BOTW', efficiency: 'EOTW', hunt: 'HUNT' };
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -162,7 +170,13 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, 'completed')))
       .then((r) => r[0]?.c ?? 0),
   ]);
-  const railComps = [...live, ...upcoming, ...finished].slice(0, RAIL_LIMIT);
+  // The recorded status lags the clock, so bucket by the shared derivation (lib/weeklyStage): a week
+  // past its end date is finished here even if the cron has not flipped it yet.
+  const nowMs = now.getTime();
+  const pool = [...new Map([...live, ...upcoming, ...finished].map((c) => [c.id, c])).values()];
+  const byStatus = (st: 'active' | 'upcoming' | 'completed') =>
+    pool.filter((c) => weeklyStatus(c, nowMs) === st).sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+  const railComps = [...byStatus('active'), ...byStatus('upcoming'), ...byStatus('completed')].slice(0, RAIL_LIMIT);
 
   const railIds = railComps.map((c) => c.id);
   const partRows = railIds.length
@@ -171,6 +185,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
           competitionId: weeklyParticipants.competitionId,
           clanMemberId: weeklyParticipants.clanMemberId,
           rsn: weeklyParticipants.rsn,
+          optedOut: weeklyParticipants.optedOut,
           baselineValue: weeklyParticipants.baselineValue,
           currentValue: weeklyParticipants.currentValue,
         })
@@ -185,10 +200,32 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   const earliestDay = shapeComps.length
     ? shapeComps.map((c) => c.startDate.slice(0, 10)).sort()[0]
     : null;
-  const dailyRows = earliestDay
+  // A participant names a SEAT; daily stats are kept per ACCOUNT. Those are different id sequences,
+  // so each seat is resolved to its account first. Comparing them raw drew an empty chart for most
+  // weeks and, where a seat id happened to equal some other clan's account id, drew that account's.
+  // The read is also bounded to exactly these accounts rather than every clan's rows since the day.
+  const shapeIds = new Set(shapeComps.map((c) => c.id));
+  const shapeSeatIds = [
+    ...new Set(
+      partRows
+        .filter((p) => shapeIds.has(p.competitionId))
+        .map((p) => p.clanMemberId)
+        .filter((id): id is number => id != null),
+    ),
+  ];
+  // clan-scope: global -- seats named by this clan's own competitions' participants, by id.
+  const seatAccounts = shapeSeatIds.length
+    ? await db
+        .select({ seatId: clanMemberships.id, accountId: clanMemberships.accountId })
+        .from(clanMemberships)
+        .where(inArray(clanMemberships.id, shapeSeatIds))
+    : [];
+  const accountBySeat = new Map(seatAccounts.map((r) => [r.seatId, r.accountId]));
+  const shapeAccountIds = [...new Set(seatAccounts.map((r) => r.accountId))];
+  const dailyRows = earliestDay && shapeAccountIds.length
     ? await db
         .select({
-          clanMemberId: memberDailyStats.accountId,
+          accountId: memberDailyStats.accountId,
           day: memberDailyStats.day,
           xpGained: memberDailyStats.xpGained,
           ehpMilliGained: memberDailyStats.ehpMilliGained,
@@ -196,13 +233,25 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
           deltas: memberDailyStats.deltas,
         })
         .from(memberDailyStats)
-        .where(gte(memberDailyStats.day, earliestDay))
+        .where(and(inArray(memberDailyStats.accountId, shapeAccountIds), gte(memberDailyStats.day, earliestDay)))
     : [];
   const parsedDaily = dailyRows.map((r) => ({
     ...r,
     rsn: '',
     parsed: safeParse(r.deltas),
   }));
+
+  // An item hunt's leader is whoever its rule puts first, with their count of drops (lib/itemHuntDb).
+  const huntTops = new Map<number, { top: HomeWeekly['top']; scoring: number }>();
+  for (const c of railComps) {
+    if (c.type !== 'hunt') continue;
+    const standings = await huntStandings(c);
+    const first = standings?.rows[0];
+    huntTops.set(c.id, {
+      top: first && first.count > 0 ? { rsn: first.rsn, value: first.count, tied: false } : null,
+      scoring: standings?.rows.filter((r) => r.count > 0).length ?? 0,
+    });
+  }
 
   const weeklies: HomeWeekly[] = railComps.map((c) => {
     const type = (['skill', 'boss', 'efficiency'].includes(c.type) ? c.type : 'skill') as CompetitionType;
@@ -219,12 +268,16 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       .sort((a, b) => b.value - a.value || a.rsn.localeCompare(b.rsn));
 
     let days: number[] = [];
-    if (shapeComps.some((s) => s.id === c.id)) {
+    if (c.type !== 'hunt' && shapeComps.some((s) => s.id === c.id)) {
       const range = dayRange(c.startDate, c.endDate);
-      const memberIds = new Set(parts.map((p) => p.clanMemberId).filter((id): id is number => id != null));
+      const accountIds = new Set(
+        parts
+          .map((p) => (p.clanMemberId != null ? accountBySeat.get(p.clanMemberId) : undefined))
+          .filter((id): id is number => id != null),
+      );
       const byDay = new Map(range.map((d) => [d, 0]));
       for (const row of parsedDaily) {
-        if (!memberIds.has(row.clanMemberId) || !byDay.has(row.day)) continue;
+        if (!accountIds.has(row.accountId) || !byDay.has(row.day)) continue;
         byDay.set(
           row.day,
           (byDay.get(row.day) ?? 0) +
@@ -259,16 +312,21 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       title: c.title,
       kind: KIND[c.type] ?? 'SOTW',
       type,
-      metricLabel: metricLabel(c.type, c.metric),
-      iconUrl: competitionIconUrl(c.type, c.metric),
-      status: (c.status as HomeWeekly['status']) ?? 'completed',
+      hunt: c.type === 'hunt',
+      // "Uncut onyx from Zulrah · most by the end"
+      metricLabel: c.type === 'hunt' ? huntLine(parseHunt(c.hunt), c.metric) : metricLabel(c.type, c.metric),
+      iconUrl: c.type === 'hunt' ? huntIconFor(c.hunt) : competitionIconUrl(c.type, c.metric),
+      mine: parts.some((p) => p.clanMemberId != null && !p.optedOut && viewerMemberIds.includes(p.clanMemberId)),
+      status: weeklyStatus(c, nowMs),
       startDate: c.startDate,
       endDate: c.endDate,
       entrants: parts.length,
-      scoring: ranked.length,
+      scoring: huntTops.get(c.id)?.scoring ?? ranked.length,
       // A tie at the top is said out loud rather than resolved behind the scenes — see
       // computeLeaderboard on why the pick itself is alphabetical.
-      top: ranked[0] ? { rsn: ranked[0].rsn, value: ranked[0].value, tied: ranked[1]?.value === ranked[0].value } : null,
+      top: c.type === 'hunt'
+        ? huntTops.get(c.id)?.top ?? null
+        : ranked[0] ? { rsn: ranked[0].rsn, value: ranked[0].value, tied: ranked[1]?.value === ranked[0].value } : null,
       days,
     };
   });
@@ -438,7 +496,8 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
             .from(memberDailyStats)
             .where(and(inArray(memberDailyStats.accountId, [...myAccountIds]), gte(memberDailyStats.day, weekStart)))
         : [];
-      const liveComp = weeklies.find((w) => w.status === 'active');
+      // The viewer's place by GAIN, so a competition that ranks by gain: an item hunt ranks by drops.
+      const liveComp = weeklies.find((w) => w.status === 'active' && !w.hunt);
       let weekly: HomeYou['weekly'] = null;
       if (liveComp) {
         const ranked = partRows
@@ -498,7 +557,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
             // The frozen KC/XP split is stored as JSON text; the breakdown wants it parsed, or a
             // completed stat tile would score for nobody.
             completions: ladderCompletions
-              .filter((c) => !seasonWindow || (c.completedAt >= seasonWindow.start && c.completedAt < seasonWindow.end))
+              .filter((c) => !seasonWindow || inWindow(c.completedAt, seasonWindow))
               .map((c) => ({ ...c, statContributions: parseContributionSnapshot(c.statContributions) })),
             submissions: ladderSubs,
             ownerByPlayerId: await loadPlayerOwners(ladderPlayers),

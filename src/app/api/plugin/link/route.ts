@@ -174,9 +174,10 @@ export async function POST(request: Request) {
       .update(clanMemberships)
       .set({
         // If this seat was previously soft-deleted (left clan) and is now linking, treat them as
-        // returned. Admin removals stay marked-left.
+        // returned. Admin removals stay marked-left, and so does a seat ended on purpose (`manual`:
+        // staff said "not our member", or the person left): nothing automatic puts it back.
         // An event player's seat closes with its event; linking never reopens it.
-        leftAt: existing.source === 'admin' || isEventSeat(existing) ? existing.leftAt : null,
+        leftAt: existing.source === 'admin' || existing.source === 'manual' || isEventSeat(existing) ? existing.leftAt : null,
         lastSeenInClan: nowIso,
       })
       .where(eq(clanMemberships.id, existing.id));

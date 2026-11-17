@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
-import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { verifyTileEditorInClan } from '@/lib/auth';
 import { anvilCategories, importAnvilTasks, importedTaskIds, listAnvilTasks } from '@/lib/libraryTasks';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 // has a copy. Read by tile authors; importing is the same authority that changes the clan's library.
 
 export async function GET() {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
   const [tasks, have, categories] = await Promise.all([listAnvilTasks(), importedTaskIds(clan.id), anvilCategories()]);
@@ -21,7 +21,7 @@ export async function GET() {
 
 // POST { ids?: number[] } — copy Anvil tasks into this clan's library (all not-yet-imported when omitted).
 export async function POST(request: Request) {
-  const editor = await verifyTileEditorAnywhere();
+  const editor = await verifyTileEditorInClan();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!editor.canEditTiles || editor.editorScope !== 'all') {
     return NextResponse.json({ error: 'Only your clan’s tile authors can change the library.' }, { status: 403 });

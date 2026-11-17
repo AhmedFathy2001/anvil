@@ -14,7 +14,7 @@
 // Pure: no database import (tests/pure-module-imports).
 
 import { freemiumEnforced } from '@/lib/entitlements';
-import { urlEnvFor, withRef, type BillingInterval } from '@/lib/billingInterval';
+import { tierHasProduct, tierHasYearlyProduct, urlEnvFor, withRef, type BillingInterval, type CheckoutMode } from '@/lib/billingInterval';
 
 export const CREATOR_PLAN_IDS = ['creator_free', 'creator_bronze', 'creator_silver', 'creator_gold', 'creator_partner'] as const;
 export type CreatorPlanId = (typeof CREATOR_PLAN_IDS)[number];
@@ -220,22 +220,16 @@ export function creatorMinPlanNameFor(capability: CreatorCapability): string {
 
 // ── Gumroad ──────────────────────────────────────────────────────────────────────────────────────
 
-/** The creator tier matching a Gumroad product id (GUMROAD_PRODUCT_CREATOR_*, monthly or yearly), or null. */
+/** The creator tier matching a Gumroad product id (GUMROAD_PRODUCT_CREATOR_*: original or pay-now, monthly or yearly), or null. */
 export function creatorPlanForGumroadProduct(productId: string | null | undefined): CreatorPlan | null {
   if (!productId) return null;
-  return (
-    CREATOR_BUYABLE.find(
-      (p) =>
-        (p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId) ||
-        (p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId),
-    ) ?? null
-  );
+  return CREATOR_BUYABLE.find((p) => tierHasProduct(p, productId)) ?? null;
 }
 
 /** Is this the id of a creator tier's yearly-only Gumroad product? */
 export function isYearlyCreatorProduct(productId: string | null | undefined): boolean {
   if (!productId) return false;
-  return CREATOR_BUYABLE.some((p) => p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId);
+  return CREATOR_BUYABLE.some((p) => tierHasYearlyProduct(p, productId));
 }
 
 /**
@@ -253,8 +247,8 @@ export function creatorPlanForGumroadTier(tier: string | null | undefined, opts:
 }
 
 /** Hosted checkout URL for a creator tier at an interval, if one is configured. Null hides that button. */
-export function creatorCheckoutUrl(plan: CreatorPlan, interval: BillingInterval = 'monthly'): string | null {
-  const env = urlEnvFor(plan, interval);
+export function creatorCheckoutUrl(plan: CreatorPlan, interval: BillingInterval = 'monthly', mode: CheckoutMode = 'trial'): string | null {
+  const env = urlEnvFor(plan, interval, mode);
   return env ? (process.env[env] || null) : null;
 }
 
@@ -263,6 +257,7 @@ export function creatorCheckoutUrlWithRef(
   plan: CreatorPlan,
   ref: string | null | undefined,
   interval: BillingInterval = 'monthly',
+  mode: CheckoutMode = 'trial',
 ): string | null {
-  return withRef(creatorCheckoutUrl(plan, interval), ref);
+  return withRef(creatorCheckoutUrl(plan, interval, mode), ref);
 }

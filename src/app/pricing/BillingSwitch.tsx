@@ -25,7 +25,7 @@ export default function BillingSwitch({ value }: { value: BillingInterval }) {
         showHint={false}
         options={[
           { value: 'monthly', label: 'Monthly' },
-          { value: 'yearly', label: 'Yearly · 2 months free' },
+          { value: 'yearly', label: 'Yearly · 12 months for the price of 10' },
         ]}
         onChange={(v) =>
           start(() => {

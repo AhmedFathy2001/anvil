@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, detectedAccounts, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, detectedAccounts, eventParticipants, eventSignups, signupFees, users } from '@/db/schema';
+import { mayDisplace } from '@/lib/characterState';
 import { findOrCreateAccount } from '@/lib/roster';
 import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 
@@ -35,7 +36,17 @@ export type ClaimOutcome =
   | { ok: true; accountId: number; alreadyOurs: boolean }
   | { ok: false; code: 'owned_by_other'; error: string };
 
-export async function claimAccountForPerson(input: {
+export async function claimAccountForPerson(input: Parameters<typeof claimInTransaction>[0]): Promise<ClaimOutcome> {
+  const outcome = await claimInTransaction(input);
+  // A PROVEN claim carries out whatever this person applied for while the character was only a name
+  // (lib/applyIntents). After the transaction, and never able to fail the claim itself.
+  if (outcome.ok && input.verified !== false) {
+    await import('@/lib/applyIntents').then((m) => m.completeApplyIntents(input.playerId, outcome.accountId)).catch(() => {});
+  }
+  return outcome;
+}
+
+async function claimInTransaction(input: {
   /** The PERSON claiming it. `session.playerId`, never `session.userId`. */
   playerId: number;
   rsn: string;
@@ -63,7 +74,10 @@ export async function claimAccountForPerson(input: {
   // instead of inventing one — so a non-null `playerId` says nothing at all about whether a human
   // has ever claimed it. Testing the wrong one of those two is how this check came to pass for
   // every roster-synced RSN on the platform.
-    if (account.claimedAt != null && account.playerId !== input.playerId) {
+    const heldByOther = account.claimedAt != null && account.playerId !== input.playerId;
+    // An unconfirmed manual claim never beats a proven one (lib/characterState mayDisplace).
+    const displacing = heldByOther && mayDisplace(account, { verified: input.verified !== false, method: input.method });
+    if (heldByOther && !displacing) {
       return ownedByOther();
     }
 
@@ -88,7 +102,12 @@ export async function claimAccountForPerson(input: {
       .where(
         and(
           eq(accounts.id, account.id),
-          or(isNull(accounts.claimedAt), eq(accounts.playerId, input.playerId)),
+          or(
+            isNull(accounts.claimedAt),
+            eq(accounts.playerId, input.playerId),
+            // Only the unconfirmed manual claim, re-checked in the same statement.
+            ...(displacing ? [and(isNull(accounts.verifiedAt), eq(accounts.verificationMethod, 'manual'), eq(accounts.provisional, 1))] : []),
+          ),
         ),
       )
       .returning({ id: accounts.id });
@@ -118,6 +137,42 @@ export async function claimAccountForPerson(input: {
   // ban. That was right about the danger: the answer is to MOVE what it carries first, which is what
   // mergePeople does. The guard is that it merges only a row with no characters and no login left —
   // anything else is a different human.
+    if (displacing && previousPlayerId != null) {
+      // Their entries for this character go with it: withdrawn, and the clans' staff told.
+      const seats = await tx.select({ id: clanMemberships.id, clanId: clanMemberships.clanId }).from(clanMemberships).where(eq(clanMemberships.accountId, account.id));
+      const theirLogins = tx.select({ id: users.id }).from(users).where(eq(users.playerId, previousPlayerId));
+      if (seats.length > 0) {
+        const withdrawn = await tx
+          .update(eventSignups)
+          .set({ status: 'withdrawn' })
+          .where(and(inArray(eventSignups.clanMemberId, seats.map((s) => s.id)), inArray(eventSignups.userId, theirLogins)))
+          .returning({ id: eventSignups.id, eventId: eventSignups.eventId });
+        if (withdrawn.length > 0) {
+          // Off the board too: a held entry only ever waits in the pool (no team), and a withdrawn
+          // name left there could still be drafted. An untouched fee goes with it.
+          await tx.delete(signupFees).where(and(inArray(signupFees.signupId, withdrawn.map((w) => w.id)), eq(signupFees.status, 'pending')));
+          await tx
+            .delete(eventParticipants)
+            .where(and(inArray(eventParticipants.eventId, withdrawn.map((w) => w.eventId)), eq(eventParticipants.accountId, account.id), isNull(eventParticipants.teamId)));
+        }
+        // The guest seat the unconfirmed claim was given was theirs, not the character's: it ends here
+        // rather than passing to an owner who never asked that clan for anything. A seat the in-game
+        // list or staff made is left alone.
+        await tx
+          .update(clanMemberships)
+          .set({ leftAt: nowIso })
+          .where(and(inArray(clanMemberships.id, seats.map((s) => s.id)), eq(clanMemberships.kind, 'guest'), eq(clanMemberships.source, 'application'), isNull(clanMemberships.leftAt)));
+      }
+      for (const clanId of new Set(seats.map((s) => s.clanId))) {
+        await tx.insert(clanAuditLog).values({
+          clanId,
+          eventType: 'unconfirmed_claim_displaced',
+          actorUserId: input.actorUserId ?? null,
+          newValue: JSON.stringify({ accountId: account.id, rsn: input.rsn, by: input.method }),
+          notes: 'A proven owner appeared; the unconfirmed claim and its sign-ups were removed.',
+        });
+      }
+    }
     if (previousPlayerId != null && previousPlayerId !== input.playerId) {
       await mergeEmptyPersonInto(previousPlayerId, input.playerId, input.actorUserId ?? null, tx);
     }

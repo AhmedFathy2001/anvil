@@ -1,9 +1,9 @@
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { accounts, clanMemberships, clanRoster, pendingRenames, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, pendingRenames, playerSnapshots, weeklyCompetitionClans, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
-import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
@@ -348,17 +348,45 @@ export async function applyRenameToActiveWeeklyParticipants(
   const newNorm = normalizeRsn(newRsn);
   if (oldNorm === newNorm) return;
 
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+  // THE SEAT'S OWN CLAN ONLY. This used to walk every active competition on the platform and move
+  // any row carrying the old name onto this seat — so a rename in one clan re-pointed another clan's
+  // row at a seat that clan does not have, and its prize could then be reserved for that stranger.
+  // A character seated in two clans is renamed once per seat (lib/characterRename), each call
+  // touching its own clan's rows.
+  const [seat] = await db
+    .select({ clanId: clanMemberships.clanId })
+    .from(clanMemberships)
+    .where(eq(clanMemberships.id, clanMemberId))
+    .limit(1);
+  if (!seat) return;
+
+  // Competitions this clan runs, plus clan-vs-clan ones it accepted a place in.
+  const partnered = db
+    .select({ id: weeklyCompetitionClans.competitionId })
+    .from(weeklyCompetitionClans)
+    .where(and(eq(weeklyCompetitionClans.clanId, seat.clanId), eq(weeklyCompetitionClans.status, 'accepted')));
   const activeComps = await db
-    .select({ id: weeklyCompetitions.id })
+    .select({ id: weeklyCompetitions.id, clanId: weeklyCompetitions.clanId })
     .from(weeklyCompetitions)
-    .where(eq(weeklyCompetitions.status, 'active'));
+    .where(
+      and(
+        eq(weeklyCompetitions.status, 'active'),
+        or(eq(weeklyCompetitions.clanId, seat.clanId), inArray(weeklyCompetitions.id, partnered)),
+      ),
+    );
 
   for (const comp of activeComps) {
+    // And inside a shared competition, only this clan's side of it. A row's clan is its own
+    // `clanId`, or the host's when that is null (db/schema weeklyParticipants.clanId).
+    const ourSide =
+      comp.clanId === seat.clanId
+        ? or(isNull(weeklyParticipants.clanId), eq(weeklyParticipants.clanId, seat.clanId))
+        : eq(weeklyParticipants.clanId, seat.clanId);
     const oldRow = await db.query.weeklyParticipants.findFirst({
       where: and(
         eq(weeklyParticipants.competitionId, comp.id),
         eq(weeklyParticipants.rsnNormalized, oldNorm),
+        ourSide,
       ),
     });
     if (!oldRow) continue;
@@ -367,6 +395,7 @@ export async function applyRenameToActiveWeeklyParticipants(
       where: and(
         eq(weeklyParticipants.competitionId, comp.id),
         eq(weeklyParticipants.rsnNormalized, newNorm),
+        ourSide,
       ),
     });
 

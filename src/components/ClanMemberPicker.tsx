@@ -188,13 +188,14 @@ export default function ClanMemberPicker(props: Props) {
           {error}
         </div>
       )}
-      <div className="flex items-center gap-2 mb-2">
+      {/* Phones: the search box takes its own line; beside the chips it shrank to "Search by". */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
         <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by RSN, Discord name…"
-          className="flex-1 bg-brown-light border border-card-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gold"
+          className="flex-1 max-sm:basis-full bg-brown-light border border-card-border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gold"
         />
         <button
           type="button"

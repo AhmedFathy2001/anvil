@@ -15,12 +15,17 @@ import { db } from '@/db';
 import { parseStamp } from '@/lib/dbTime';
 import {
   CLAN_ONBOARDING,
+  FIRST_EVENT_FLOW,
+  FIRST_EVENT_TRACKED,
   MEMBER_ONBOARDING,
+  NEW_EVENT_FLOW,
   computeFunnel,
   densifyDays,
+  firstEventReached,
   windowStart,
   type FunnelRow,
 } from '@/lib/analyticsFunnels';
+import { type FeatureUsage, type UsageRow, rankFeatures, registryNames } from '@/lib/featureRegistry';
 
 async function rows<T>(query: SQL): Promise<T[]> {
   const res = await db.execute(query);
@@ -102,6 +107,9 @@ export interface AnalyticsOverview {
   memberFunnel: FunnelRow[];
   clanActivity: ClanActivityRow[];
   discordJoins: DiscordJoinRow[];
+  features: FeatureUsage[];
+  newEventFlow: FunnelRow[];
+  firstEventFlow: FunnelRow[];
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -306,9 +314,139 @@ async function clanActivity(): Promise<ClanActivityRow[]> {
   });
 }
 
+/**
+ * Everything the "Feature use" table needs, from one grouped read of the last 90 days: the rows for
+ * the registry's own pages, plugin paths and every action, grouped by who and which day so the
+ * distinct clans and people can be counted in `rankFeatures` (pure, tested) rather than in SQL that
+ * could not tell one feature's actions from another's.
+ */
+async function featureUsage(): Promise<FeatureUsage[]> {
+  const names = registryNames();
+  const pageMatch = [
+    ...names.exact.map((p) => sql`name = ${p}`),
+    ...names.prefixes.map((p) => sql`(name = ${p} or name like ${`${p}/%`})`),
+  ];
+  const r = await rows<{
+    kind: 'page' | 'action' | 'plugin';
+    name: string;
+    fmt: string | null;
+    type: string | null;
+    tile_kind: string | null;
+    clan_id: number | null;
+    user_id: number | null;
+    account_id: number | null;
+    day: string;
+    n: number;
+  }>(sql`
+    select kind, name, props->>'fmt' as fmt, props->>'type' as type, props->>'kind' as tile_kind,
+           clan_id, user_id, account_id, left(ts, 10) as day, count(*) as n
+      from analytics_events
+     where ts >= ${windowStart(90)}
+       and (kind = 'action'
+            or (kind = 'plugin' and name in (${sql.join(names.plugin.map((p) => sql`${p}`), sql`, `)}))
+            or (kind = 'page' and (${sql.join(pageMatch, sql` or `)})))
+     group by 1, 2, 3, 4, 5, 6, 7, 8, 9
+  `);
+  const usage: UsageRow[] = r.map((x) => ({
+    kind: x.kind,
+    name: x.name,
+    fmt: x.fmt,
+    type: x.type,
+    tileKind: x.tile_kind,
+    clanId: x.clan_id == null ? null : num(x.clan_id),
+    userId: x.user_id == null ? null : num(x.user_id),
+    accountId: x.account_id == null ? null : num(x.account_id),
+    day: x.day,
+    n: num(x.n),
+  }));
+  return rankFeatures(usage);
+}
+
+/**
+ * The new-event flow: which steps each clan reached in the window, from the action rows written where
+ * each step is served. The first step anchors the funnel (a clan enters it by reaching it), as in
+ * every other funnel here.
+ */
+async function newEventFlow(days: number): Promise<FunnelRow[]> {
+  const keys = NEW_EVENT_FLOW.steps.map((s) => s.key);
+  const r = await rows<{ clan_id: number; names: string[] }>(sql`
+    select clan_id, array_agg(distinct name) as names
+      from analytics_events
+     where kind = 'action' and clan_id is not null and ts >= ${windowStart(days)}
+       and name in (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+     group by clan_id
+  `);
+  return computeFunnel(NEW_EVENT_FLOW, r.map((x) => x.names));
+}
+
+/**
+ * New owner -> first running event, per clan created in the window, read from the DOMAIN tables like
+ * clanFunnel above, so it is true for clans made before the tracking shipped. Each step uses the
+ * same fact the setup checklist does (lib/setupStatus): the verified stamp on the clan, a plugin
+ * report for someone who runs it, more than one live member seat, an event, and a tile somebody
+ * wrote rather than a board's blank placeholder (the rule in lib/writtenTiles, spelled out in SQL).
+ * Tracked actions only fill in for a record that is gone (lib/analyticsFunnels firstEventReached).
+ * Creator spaces are left out: they have no in-game name to verify and no roster.
+ */
+async function firstEventFlow(days: number): Promise<FunnelRow[]> {
+  const r = await rows<{
+    verified: boolean;
+    plugin: boolean;
+    members: number | string;
+    event: boolean;
+    tile: boolean;
+    starts: (string | null)[] | null;
+    tracked: string[] | null;
+  }>(sql`
+    select
+      (c.ingame_name_verified_at is not null) as verified,
+      exists (
+        select 1 from clan_staff cs
+          join users u on u.id = cs.user_id
+          join accounts a on a.player_id = u.player_id
+         where cs.clan_id = c.id and a.live_stats_at is not null
+      ) as plugin,
+      (select count(*) from clan_memberships m where m.clan_id = c.id and m.left_at is null and m.kind = 'member') as members,
+      exists (select 1 from events e where e.clan_id = c.id) as event,
+      exists (
+        select 1 from tiles t join events e on e.id = t.event_id
+         where e.clan_id = c.id and t.parent_tile_id is null
+           and not (t.label ~ '^Tile [0-9]+$' and t.tile_type = 'standard' and t.tracked_stat is null)
+      ) as tile,
+      (select array_agg(e.start_date) from events e where e.clan_id = c.id and e.start_date is not null) as starts,
+      (select array_agg(distinct ae.name) from analytics_events ae
+        where ae.kind = 'action' and ae.clan_id = c.id
+          and ae.name in (${sql.join(Object.values(FIRST_EVENT_TRACKED).map((k) => sql`${k}`), sql`, `)})) as tracked
+    from clans c
+    where c.created_at >= ${dayOf(days)} and c.kind <> 'creator'
+  `);
+  const now = Date.now();
+  return computeFunnel(
+    FIRST_EVENT_FLOW,
+    r.map((x) =>
+      firstEventReached(
+        {
+          verified: !!x.verified,
+          plugin: !!x.plugin,
+          // The owner alone is a roster of one (lib/setupStatus).
+          members: Number(x.members) > 1,
+          event: !!x.event,
+          tile: !!x.tile,
+          // Start stamps come in two formats (lib/dbTime), so they are parsed, never compared as text.
+          started: (x.starts ?? []).some((d) => {
+            const at = parseStamp(d);
+            return at != null && at <= now;
+          }),
+        },
+        x.tracked ?? [],
+      ),
+    ),
+  );
+}
+
 export async function analyticsOverview(days: number): Promise<AnalyticsOverview> {
   const from = windowStart(days);
-  const [head, series, routes, actions, plugin, conv, cf, mf, clans, joins] = await Promise.all([
+  const [head, series, routes, actions, plugin, conv, cf, mf, clans, joins, features, newEvent, firstEvent] = await Promise.all([
     headline(),
     daily(from, days),
     topRoutes(from),
@@ -319,6 +457,9 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     memberFunnel(days),
     clanActivity(),
     discordJoins(from),
+    featureUsage(),
+    newEventFlow(days),
+    firstEventFlow(days),
   ]);
   return {
     days,
@@ -332,5 +473,8 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     memberFunnel: mf,
     clanActivity: clans,
     discordJoins: joins,
+    features,
+    newEventFlow: newEvent,
+    firstEventFlow: firstEvent,
   };
 }

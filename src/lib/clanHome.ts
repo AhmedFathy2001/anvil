@@ -5,6 +5,8 @@
 // read: the profile fields the clan wrote about itself, plus a few counts and its recent events to
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
+import { unsharedRosterNames } from '@/lib/clanInsider';
+import { withoutHiddenRows } from '@/lib/rosterVisibility';
 import { sceneFor } from '@/lib/scenes';
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
 import { clanStreaks } from '@/lib/activityStreaks';
@@ -169,7 +171,7 @@ export interface PublicClanActivity {
 }
 
 // Keyed by lib/weeklyCards WeeklyKind. (Upper-case keys here never matched, so every week read "Competition".)
-const WEEK_KIND: Record<string, string> = { sotw: 'Skill of the week', botw: 'Boss of the week', eff: 'Efficiency of the week' };
+const WEEK_KIND: Record<string, string> = { sotw: 'Skill of the week', botw: 'Boss of the week', eff: 'Efficiency of the week', hunt: 'Item hunt' };
 
 export async function publicClanActivity(clanId: number, now = new Date()): Promise<PublicClanActivity> {
   const [hub, clanEvts, members, moments] = await Promise.all([
@@ -196,6 +198,7 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
     : [];
   const hidden = new Set(invited.map((r) => r.id));
   const analytics = await getClanAnalytics(members).catch(() => null);
+  const unshared = await unsharedRosterNames(clanId).catch(() => new Set<string>());
 
   const board = (b: (typeof hub.live.boards)[number]): VisitorItem => ({
     key: `e${b.id}`,
@@ -244,7 +247,9 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
         top: i.top ? { name: i.top.name, text: i.top.text } : null,
         when: i.endDate ?? i.startDate,
       })),
-    week: { top: (analytics?.topWeek ?? []).slice(0, 5), activeThisWeek: analytics?.activeThisWeek ?? 0 },
-    moments,
+    // This is the page a visitor from outside gets, so it names only characters whose owner left
+    // "Show publicly" on (lib/rosterVisibility); the active count still covers everyone.
+    week: { top: withoutHiddenRows(analytics?.topWeek ?? [], unshared).slice(0, 5), activeThisWeek: analytics?.activeThisWeek ?? 0 },
+    moments: withoutHiddenRows(moments, unshared),
   };
 }

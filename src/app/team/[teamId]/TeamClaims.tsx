@@ -182,7 +182,7 @@ export function TeamPlanPanel({
                         {claimInitials(p.name)}
                       </span>
                       <div className="min-w-0">
-                        <div className="truncate text-[13px] font-semibold">
+                        <div className="truncate text-[13px] font-semibold" title={p.name}>
                           {p.name}
                           {p.mine && <span className="ml-1 font-normal text-gold">(you)</span>}
                         </div>
@@ -288,7 +288,7 @@ export function TileClaimSection({
             {completers.map((c) => (
               <span key={c.name} className="inline-flex min-w-0 items-center gap-2">
                 <ClaimAvatars claims={[c]} size="sm" label="Completed by" />
-                <span className={c.mine ? 'font-semibold text-gold' : 'font-semibold'}>{c.mine ? 'You' : c.name}</span>
+                <span title={c.name} className={`min-w-0 truncate ${c.mine ? 'font-semibold text-gold' : 'font-semibold'}`}>{c.mine ? 'You' : c.name}</span>
               </span>
             ))}
           </div>

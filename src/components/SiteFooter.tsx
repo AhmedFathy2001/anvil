@@ -98,15 +98,15 @@ export default async function SiteFooter() {
                   <span className="h-3 w-[3px] shrink-0 rounded-full bg-gold/60" aria-hidden />
                   {col.title}
                 </h2>
-                <ul className="space-y-2 text-[13px]">
+                <ul className="space-y-2 text-[13px] max-sm:space-y-0">
                   {col.links.map((l) => (
                     <li key={l.href}>
                       <ClanLink
                         href={l.href}
                         className={
                           l.highlight
-                            ? 'text-gold/85 transition-colors hover:text-gold-light'
-                            : 'transition-colors hover:text-foreground'
+                            ? 'text-gold/85 transition-colors hover:text-gold-light max-sm:flex max-sm:min-h-11 max-sm:items-center'
+                            : 'transition-colors hover:text-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center'
                         }
                       >
                         {l.label}
@@ -125,7 +125,7 @@ export default async function SiteFooter() {
             href="https://github.com/AhmedFathy2001"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-gold/85 transition-colors hover:text-gold-light"
+            className="font-medium text-gold/85 transition-colors hover:text-gold-light max-sm:inline-block max-sm:py-[13px]"
           >
             Ahmed Fathy
           </a>
@@ -134,7 +134,7 @@ export default async function SiteFooter() {
             href="https://github.com/AhmedFathy2001/anvil"
             target="_blank"
             rel="noopener noreferrer"
-            className="transition-colors hover:text-foreground"
+            className="transition-colors hover:text-foreground max-sm:inline-block max-sm:py-[13px]"
           >
             Source-available
           </a>

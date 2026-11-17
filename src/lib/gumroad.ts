@@ -16,8 +16,16 @@
 //                                catalogue's own products and checkouts (see creatorCatalog.ts).
 //   …_YEARLY on each of the above — the yearly checkout (and product id, if yearly is its own
 //                                product) per tier; unset = no yearly button (see billingInterval.ts).
-//   GUMROAD_TRIAL_DAYS         — cosmetic only; mirrors the free trial set on the Gumroad products
-//                                so we can show "trial ends in N days" (default 30).
+//   …_NOW on each product id and checkout URL — the PAY-NOW copy of that product, which has no
+//                                Gumroad trial ("Skip trial, pay now", and "Subscribe" for anyone who
+//                                has had a trial; see billingInterval.ts and buyOffer.ts).
+//   GUMROAD_TRIAL_DAYS         — the length of GUMROAD's own free trial on the original clan and
+//                                creator products, for display on "Start free trial". Default 0 =
+//                                Gumroad's trial is off: nothing offers or mentions one. The webhook
+//                                only ever believes a trial Gumroad itself reports (clanSale.ts).
+//   GUMROAD_SUPPORTER_TRIAL_DAYS — the same for the Supporter product (default 0).
+//   ANVIL_PLAN_TRIAL_DAYS      — Anvil's OWN trial on every new clan and creator space: the top tier,
+//                                no card (planTrials.ts). Default 30; 0 switches it off.
 
 import crypto from 'crypto';
 
@@ -114,7 +122,11 @@ export function parseWebhook(raw: string): GumroadEvent {
 
   const resourceName = get('resource_name'); // present on resource subscriptions, absent on Ping
   const isRecurringCharge = bool(get('is_recurring_charge'));
-  const refunded = bool(get('refunded')) || bool(get('partially_refunded'));
+  // A PARTIAL refund is not a refund of the subscription: the seller gave some money back (a
+  // goodwill credit, a prorated change) and the customer is still paying. Folding it into `refunded`
+  // suspended a paying clan and reset its plan. It is logged and otherwise left alone.
+  const refunded = bool(get('refunded'));
+  const partialOnly = !refunded && bool(get('partially_refunded'));
   const disputed = bool(get('disputed'));
   const cancelled = bool(get('cancelled'));
   const ended = bool(get('subscription_ended')) || !!get('subscription_ended_at') || !!get('ended_at');
@@ -123,7 +135,7 @@ export function parseWebhook(raw: string): GumroadEvent {
   if (resourceName) {
     switch (resourceName) {
       case 'sale':                  kind = isRecurringCharge ? 'recurring_charge' : 'sale'; break;
-      case 'refund':                kind = 'refund'; break;
+      case 'refund':                kind = partialOnly ? 'other' : 'refund'; break;
       case 'dispute':               kind = 'dispute'; break;
       case 'cancellation':          kind = 'cancellation'; break;
       case 'subscription_ended':    kind = 'subscription_ended'; break;
@@ -137,6 +149,7 @@ export function parseWebhook(raw: string): GumroadEvent {
     else if (disputed) kind = 'dispute';
     else if (ended) kind = 'subscription_ended';
     else if (cancelled) kind = 'cancellation';
+    else if (partialOnly) kind = 'other';
     else if (isRecurringCharge) kind = 'recurring_charge';
     else kind = 'sale';
   }
