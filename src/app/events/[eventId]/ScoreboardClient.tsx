@@ -758,12 +758,47 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           </div>
         )}
 
+        {/* Your race: where your team stands and the tile to go for next, before anything else. */}
+        {me && (
+          <section aria-label={solo ? 'Your race' : 'Your team'} className="mb-6 grid items-start gap-5 rounded-2xl border border-gold/40 bg-gold/[0.06] p-4 sm:p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="min-w-0">
+              <div className="truncate text-[11px] font-bold uppercase tracking-widest text-gold">{solo ? 'Your race' : 'Your team'} · {me.team.name}</div>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                {!curtain && <span className="text-3xl font-bold leading-none tabular-nums">{me.rank}{me.rank % 10 === 1 && me.rank % 100 !== 11 ? 'st' : me.rank % 10 === 2 && me.rank % 100 !== 12 ? 'nd' : me.rank % 10 === 3 && me.rank % 100 !== 13 ? 'rd' : 'th'}</span>}
+                {!curtain && <span className="text-sm text-text-muted">of {raceLineList.length}</span>}
+              </div>
+              <div className="mt-2 text-sm text-foreground/90 tabular-nums">{me.stepsDone} of {steps} steps done</div>
+              {!curtain && !me.finished && (
+                <div className="mt-0.5 text-xs text-text-muted">{me.behind === 0 ? 'In the lead' : `${me.behind} behind the leader`}</div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <RaceUpNext
+                graph={raceG}
+                route={me.route}
+                teamName={me.team.name}
+                tileById={tileById}
+                progressFor={progressFor}
+                racersFor={racersFor}
+                onTileClick={setSelectedTileId}
+                canPick={!!racePick.pickInfo?.canPick}
+                picking={racePick.picking}
+                onPick={racePick.pick}
+                pickError={racePick.pickError}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* The track, with the standings beside it on a wide screen and under it on a narrow one. */}
+        <div className="mb-8 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0">
         {!curtain && <RaceStatCardsRow cards={raceStatCards(raceG, raceLineList, raceViewer)} />}
 
         {/* Fullscreen on a race is a full-viewport overlay (Esc or Close), and the map scales up to
             use the room — on the page the board already fills its card. */}
         <section
-          className={fullscreen ? 'fixed inset-0 z-50 overflow-auto bg-background p-4 sm:p-6' : 'mb-8 min-w-0'}
+          className={fullscreen ? 'fixed inset-0 z-50 overflow-auto bg-background p-4 sm:p-6' : 'min-w-0'}
           role={fullscreen ? 'dialog' : undefined}
           aria-modal={fullscreen ? true : undefined}
           aria-label={fullscreen ? 'Race track, fullscreen' : undefined}
@@ -800,17 +835,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             raceLens={lensTeamId}
           />
         </section>
-
-        {(mvpToday || mvp) && (
-          <div className={`mb-8 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
-            {mvpToday && <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />}
-            {mvp && <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />}
-          </div>
-        )}
-
-        {(
-          <div className="grid gap-8 items-start lg:grid-cols-2">
-            <div className="min-w-0">
+        </div>
+        <aside className="min-w-0 space-y-6">
+          <div className="min-w-0">
               <RaceSectionTitle>{curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}</RaceSectionTitle>
               {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
               {variant === 'huge' && !curtain ? (
@@ -826,25 +853,15 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               ) : (
                 <RaceStandings lines={raceLineList} steps={steps} labelOf={labelOf} hiddenTile={(id) => isRaceHidden(tileById.get(id) ?? {})} stepProgress={raceStepProgress} teamMvps={teamMvps} eventId={event.id} viewerTeamId={raceViewer} compact={variant === 'medium'} />
               )}
-            </div>
-            <div className="min-w-0 space-y-6">
-              {me && (
-                <RaceUpNext
-                  graph={raceG}
-                  route={me.route}
-                  teamName={me.team.name}
-                  tileById={tileById}
-                  progressFor={progressFor}
-                  racersFor={racersFor}
-                  onTileClick={setSelectedTileId}
-                  canPick={!!racePick.pickInfo?.canPick}
-                  picking={racePick.picking}
-                  onPick={racePick.pick}
-                  pickError={racePick.pickError}
-                />
-              )}
-              {!curtain && <RaceGapWatch sentences={gapWatch(raceLineList, raceG)} />}
-            </div>
+          </div>
+          {!curtain && <RaceGapWatch sentences={gapWatch(raceLineList, raceG)} />}
+        </aside>
+        </div>
+
+        {(mvpToday || mvp) && (
+          <div className={`mb-8 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
+            {mvpToday && <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />}
+            {mvp && <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />}
           </div>
         )}
 

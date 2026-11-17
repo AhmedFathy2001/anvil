@@ -530,6 +530,7 @@ export default async function EventScoreboardPage({
     : null;
   const raceRouteGraph = raceView?.graph ?? null;
   const raceStandings = raceView?.standings ?? null;
+  const raceFirst = event.format === 'tilerace';
   const raceStepProgress = raceView?.stepProgress ?? {};
   const raceEmoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
   for (const f of raceView?.firsts ?? []) {
@@ -973,9 +974,14 @@ export default async function EventScoreboardPage({
             <span className="text-text-muted"> — you see them because you&apos;re staff.</span>
           </div>
         )}
-        <EventFirsts firsts={firsts} />
-        <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
-        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
+        {/* A race opens on the viewer's own race and the track; what already happened follows it. */}
+        {!raceFirst && (
+          <>
+            <EventFirsts firsts={firsts} />
+            <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
+            <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
+          </>
+        )}
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
           curtain={curtain}
@@ -1004,6 +1010,13 @@ export default async function EventScoreboardPage({
           proofTeamId={viewerTeamIds[0] ?? null}
           signedIn={!!session?.userId}
         />
+        {raceFirst && (
+          <div className="mt-8">
+            <EventFirsts firsts={firsts} />
+            <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
+            <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
+          </div>
+        )}
         {luck && <EventLuck luck={luck} />}
         </>
       )}

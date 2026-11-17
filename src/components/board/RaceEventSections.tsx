@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import ClanLink from '@/components/ClanLink';
 import { cn } from '@/lib/utils';
 import { ROADS_OPEN_NOTE, frontOpen, roadChoiceLine, type RaceGraph, type TeamRoute } from '@/lib/raceRoutes';
@@ -264,14 +264,19 @@ function ago(at: string | null, now: number): string {
   return Number.isFinite(t) ? `${hoursText(now - t)} ago` : '';
 }
 
-/** The race as it happened, newest first. */
+/** How many lines "Latest" shows before "Show all". */
+const LATEST_SHOWN = 5;
+
+/** The race as it happened, newest first: the newest few, with the rest one press away. */
 export function RaceFeedList({ items, now, onTileClick }: { items: RaceFeedItem[]; now: number | null; onTileClick?: (id: number) => void }) {
+  const [all, setAll] = useState(false);
   if (!items.length) return null;
+  const shown = all ? items : items.slice(0, LATEST_SHOWN);
   return (
     <section className="mt-8">
-      <SectionTitle aside={<span className="text-[11.5px] text-text-muted">every finish, newest first</span>}>Race feed</SectionTitle>
+      <SectionTitle aside={<span className="text-[11.5px] text-text-muted">every finish, newest first</span>}>Latest</SectionTitle>
       <ul className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border overflow-hidden">
-        {items.map((it, i) => (
+        {shown.map((it, i) => (
           <li key={`${it.tileId}-${it.team.id}-${i}`}>
             <button type="button" onClick={onTileClick ? () => onTileClick(it.tileId) : undefined} className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-card-bg-hover min-w-0">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: it.team.color }} />
@@ -281,6 +286,11 @@ export function RaceFeedList({ items, now, onTileClick }: { items: RaceFeedItem[
           </li>
         ))}
       </ul>
+      {items.length > LATEST_SHOWN && (
+        <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all} className="mt-2 min-h-11 px-1 text-sm font-medium text-gold hover:text-gold-light">
+          {all ? 'Show fewer' : `Show all ${items.length}`}
+        </button>
+      )}
     </section>
   );
 }
