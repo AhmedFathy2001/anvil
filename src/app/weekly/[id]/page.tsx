@@ -35,6 +35,12 @@ import SelfEntry from '@/components/weekly/SelfEntry';
 import { myEntry, signupOpen, weeklyFeePotGp } from '@/lib/weeklySignups';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
 import { loadHuntView } from '@/lib/itemHuntView';
+import { buildCompetitionFeed, buildHuntFeed, watchedPlaces, type FeedFilter } from '@/lib/competitionFeed';
+import CompetitionFeed, { CompetitionLatest, CompetitionTabs, WhatCounts } from '@/components/weekly/CompetitionFeed';
+import { momentsForCompetition } from '@/lib/momentsStore';
+import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
+import { withUnit } from '@/components/weekly/format';
+import { ordinal } from '@/lib/yourTeam';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,10 +110,14 @@ export async function generateMetadata({
 
 export default async function WeeklyLeaderboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { id } = await params;
+  // Two tabs on one address: Standings, and the competition's own feed (?view=feed).
+  const feedTab = (await searchParams).view === 'feed';
   // `/weekly/null` reached the query as NaN and took the render down with a 500 — a bad link is a
   // 404, not a server error. generateMetadata has always guarded this; the page never did.
   const compId = idParam(id);
@@ -165,6 +175,29 @@ export default async function WeeklyLeaderboardPage({
       session?.playerId && hunt.status !== 'completed' ? entryStatus(compId, { playerId: session.playerId }) : null,
       session?.playerId && running ? myHuntSeats(compId, session.playerId) : [],
     ]);
+    // A hunt's feed is its drops, day by day (lib/competitionFeed buildHuntFeed).
+    const huntFeed = buildHuntFeed(hunt.rows, competition.startDate);
+    if (feedTab) {
+      return (
+        <div>
+          <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
+          <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
+            ← All competitions
+          </ClanLink>
+          <div className="contents" style={accentStyle(clan.accentColor)}>
+            <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
+          </div>
+          <CompetitionTabs competitionId={compId} active="feed" />
+          <CompetitionFeed
+            days={huntFeed}
+            title="Drops in this hunt"
+            filters={[{ key: 'all', label: 'Everything' }]}
+            canFilterMine={!!hunt.me}
+            emptyNote="Nobody has a drop yet. Each one shows here as it lands."
+          />
+        </div>
+      );
+    }
     return (
       <div>
         <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
@@ -174,11 +207,13 @@ export default async function WeeklyLeaderboardPage({
         <div className="contents" style={accentStyle(clan.accentColor)}>
           <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
         </div>
+        <CompetitionTabs competitionId={compId} active="standings" />
         <CompetitionPrizes prizes={competition.prizes} hunt feePot={feePot} />
         {selfEntry}
         {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
         {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
         <HuntStandingsTable view={hunt} />
+        <CompetitionLatest days={huntFeed} href={`/weekly/${compId}?view=feed`} />
       </div>
     );
   }
@@ -206,22 +241,53 @@ export default async function WeeklyLeaderboardPage({
   // 1 of 7", "you are winning this one", medals on 0 KC) reads as a broken page rather than a lobby.
   const started = Date.parse(competition.startDate) <= Date.now();
 
-  return (
-    <div>
-      <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
+  // The competition's own feed (lib/competitionFeed). Its moments were kept to this metric's bosses
+  // or skill when they were stored; an efficiency contest counts everything, so it reads none. The
+  // standings lines need the day-by-day, so a week whose history can't be trusted has moments only.
+  const status = weeklyStatus(competition);
+  const payingPlaces = parseWeeklyPrizes(competition.prizes).places.length;
+  const feedDays = buildCompetitionFeed({
+    type: view.type,
+    days: view.days,
+    elapsed: started ? view.elapsed : 0,
+    ended: status === 'completed',
+    entries: showDaily ? view.entries : view.entries.map((e) => ({ rsn: e.rsn, isMe: e.isMe, days: [] })),
+    payingPlaces,
+    moments: view.type === 'efficiency' ? [] : await momentsForCompetition(compId, 400),
+    gainWords: (v) => withUnit(v, view.type, view.unit),
+  });
+  const feedHref = `/weekly/${compId}?view=feed`;
+  const scopeWords =
+    view.type === 'boss'
+      ? [`Kills at ${view.metricLabel}, from the start of the competition to its end.`, `The feed is kept to ${view.metricLabel}: drops, combat tasks and deaths there, by the players in this competition.`]
+      : view.type === 'skill'
+        ? [`XP gained in ${view.metricLabel}, from the start of the competition to its end.`, `The feed is kept to ${view.metricLabel}: its level milestones and its pets, by the players in this competition.`]
+        : [`Efficient hours gained (${view.metricLabel}), from the start of the competition to its end.`, 'The feed shows the standings only. Efficiency counts everything you do, so drops and deaths are left out.'];
+  const whatCounts = [
+    ...scopeWords,
+    `A place changing hands is news down to ${ordinal(watchedPlaces(payingPlaces))}. Every other move is in the standings and the daily update.`,
+    'Players who opt out are off the board and the feed.',
+  ];
+  const feedFilters: { key: FeedFilter; label: string }[] =
+    view.type === 'efficiency'
+      ? [{ key: 'all', label: 'Everything' }]
+      : [
+          { key: 'all', label: 'Everything' },
+          { key: 'standings', label: 'Standings' },
+          { key: 'drops', label: view.type === 'skill' ? 'Pets' : 'Drops' },
+          { key: 'milestones', label: 'Milestones' },
+          ...(view.type === 'boss' ? [{ key: 'deaths' as const, label: 'Deaths' }] : []),
+        ];
 
-      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
-        ← All competitions
-      </ClanLink>
-
-      {/* The header's art takes the clan's own colour (lib/accentStyle). */}
+  // The header's art takes the clan's own colour (lib/accentStyle). The same header on both tabs.
+  const hero = (
       <div className="contents" style={accentStyle(clan.accentColor)}>
       <CompetitionHero
         title={competition.title}
         type={view.type}
         metricLabel={view.metricLabel}
         unit={view.unit}
-        status={weeklyStatus(competition)}
+        status={status}
         startDate={competition.startDate}
         endDate={competition.endDate}
         iconUrl={competitionIconUrl(competition.type, competition.metric)}
@@ -237,6 +303,48 @@ export default async function WeeklyLeaderboardPage({
         totalDays={view.days.length}
       />
       </div>
+  );
+
+  if (feedTab) {
+    return (
+      <div>
+        <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
+        <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
+          ← All competitions
+        </ClanLink>
+        {hero}
+        <CompetitionTabs competitionId={compId} active="feed" />
+        {view.me && (
+          <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
+        )}
+        <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0">
+            <CompetitionFeed
+              days={feedDays}
+              title={view.type === 'boss' ? `At ${view.metricLabel}` : view.type === 'skill' ? `In ${view.metricLabel}` : 'The standings, day by day'}
+              filters={feedFilters}
+              canFilterMine={!!view.me}
+              emptyNote={started ? 'Nothing yet. Place changes, the daily update and what happens there show here.' : 'This fills in once the competition starts.'}
+            />
+          </div>
+          <div className="min-w-0 [&>div]:mt-0">
+            <WhatCounts lines={whatCounts} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
+
+      <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
+        ← All competitions
+      </ClanLink>
+
+      {hero}
+      <CompetitionTabs competitionId={compId} active="standings" />
       <CompetitionPrizes prizes={competition.prizes} feePot={feePot} />
       {selfEntry}
 
@@ -305,7 +413,10 @@ export default async function WeeklyLeaderboardPage({
             showDaily={showDaily}
           />
           <BestDrops drops={view.bestDrops} />
-          <SidePanels milestones={view.milestones} highlights={view.highlights} />
+          {/* The feed's newest lines stand where the old "Latest" list of moments was. */}
+          <CompetitionLatest days={feedDays} href={feedHref} />
+          <SidePanels milestones={view.milestones} highlights={[]} />
+          <WhatCounts lines={whatCounts} />
         </div>
       </div>
     </div>
