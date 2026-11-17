@@ -99,7 +99,11 @@ export async function POST(request: Request) {
   // 'signup' is "selected people" who select themselves: members enter from the competition's page (lib/weeklySignups).
   const selfSignup = body.hostEntrants === 'signup';
   const hostEntrants = body.hostEntrants === 'selected' || selfSignup ? 'selected' : 'all';
+  // The fee is the clan's money: the same bar as changing it later (PUT) and as setting prizes.
   const entryFee = selfSignup ? cleanEntryFee(body.entryFee) : null;
+  if (entryFee && !(await verifyFeeCollector())) {
+    return NextResponse.json({ error: 'Only a treasurer or admin can set an entry fee. Create it free, or ask one of them.' }, { status: 403 });
+  }
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
