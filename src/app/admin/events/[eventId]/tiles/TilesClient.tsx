@@ -2189,6 +2189,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             onAutoSaved={onAutoSaved}
             eventStarted={eventStarted}
             isAdmin={isAdmin}
+            unlockedLive={isEase}
             pointsMode={pointsMode}
             tierBands={tierBands}
             categorySuggestions={categorySuggestions}

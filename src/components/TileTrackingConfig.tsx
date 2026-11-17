@@ -61,6 +61,11 @@ interface Props {
   eventStarted?: boolean;
   /** Current user is an admin — gates the live-event override that unlocks frozen fields. */
   isAdmin?: boolean;
+  /**
+   * A race tile's easier option (lib/raceEase): nobody has played it until it goes live, so on a
+   * running race an admin's editor opens with the live-event lock already lifted.
+   */
+  unlockedLive?: boolean;
   pointsMode?: boolean;
   /** Admin-configured difficulty bands — drives the tier picker on the points field. */
   tierBands?: TierBand[];
@@ -819,6 +824,7 @@ function TileTrackingEditor({
   asPart = false,
   onAutoSaved,
   saveRef,
+  unlockedLive = false,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -828,7 +834,7 @@ function TileTrackingEditor({
   // into unlocking them to fix a misconfigured tile mid-event; the save is flagged as an override in
   // the tile history. `locked` is the effective "is this field frozen right now" flag the inputs use.
   const canOverride = !!eventStarted && !!isAdmin;
-  const [liveOverride, setLiveOverride] = useState(false);
+  const [liveOverride, setLiveOverride] = useState(unlockedLive);
   const locked = !!eventStarted && !(canOverride && liveOverride);
   // Lookups go to the clan's /api/admin, or /api/library in the Anvil library editor (no clan there).
   const lookupApi = useContext(AuthoringApiContext);
