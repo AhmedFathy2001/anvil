@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import AnvilMark from '@/components/AnvilMark';
@@ -8,30 +8,42 @@ import ClanLink from '@/components/ClanLink';
 import ConnectCard from '@/app/profile/ConnectCard';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
 import { clanPathOf } from '@/lib/clanScopedPaths'; // page.tsx passes clans only, never spaces
-import type { OnboardingIntent, OnboardingState, StepKey } from '@/lib/onboarding';
+import { useTouchFirst } from '@/components/useTouchFirst';
+import type { OnboardingIntent, OnboardingState } from '@/lib/onboarding';
+import type { RailKey } from '@/lib/onboardingRail';
 
 interface Props {
   state: OnboardingState;
   displayName: string;
   discordUsername: string | null;
   clans: { slug: string; name: string }[];
-  /** RSNs already linked to this person, for the character step's done state. */
+  /** RSNs already linked to this person: named in the plugin step, counted for its beacon. */
   characters: string[];
+  /** Characters the plugin saw but could not link by itself, counted as the connection beacon counts them. */
+  detectedCount?: number;
+  /** An XP check was left running, so its fold opens on arrival. */
+  xpCheckRunning?: boolean;
   /** Where they were heading when they first signed in (lib/firstLogin), or null. */
   next?: string | null;
 }
 
 /**
- * The flow. Four milestones, and the rail is the whole navigation — there is no next/back, because
+ * The flow. Three milestones, and the rail is the whole navigation — there is no next/back, because
  * a step is done when the world says so, not when somebody presses a button.
  *
- * That is also why this polls. Two of the four complete because of something that happens somewhere
+ * That is also why this polls. Two of the three complete because of something that happens somewhere
  * else entirely: an admin approves you into a clan, or the plugin reports for the first time from a
  * game client on another screen. Asking somebody to reload until it works is how a setup flow gets
  * abandoned, so the page watches instead and moves on by itself.
  *
+ * THE PLUGIN LEADS, and linking a character is not a step of its own. Installing the plugin and
+ * signing in links the character by itself, so the step after Discord is the plugin, and the
+ * 30-minute XP check sits folded under it for somebody who cannot run the plugin. It used to be the
+ * other way round: the XP check second, the plugin last, and a new person was asked to do by hand
+ * the thing the plugin does for them (lib/onboardingRail has the order and the done conditions).
+ *
  * ONE QUESTION FIRST, and it is the only thing here that is asked rather than observed. The same
- * four steps served three arrivals that want different things — somebody putting their clan on
+ * steps served three arrivals that want different things — somebody putting their clan on
  * Anvil, somebody joining the clan their friends already run, and somebody who wants neither and
  * came to track themselves — and all three were handed "Join a clan, or start one" as if founding
  * and applying were one act. The chooser splits them; everything after it is the same machinery
@@ -43,6 +55,8 @@ export default function WelcomeClient({
   discordUsername,
   clans,
   characters,
+  detectedCount = 0,
+  xpCheckRunning = false,
   next = null,
 }: Props) {
   const router = useRouter();
@@ -53,7 +67,15 @@ export default function WelcomeClient({
   const [choosing, setChoosing] = useState(false);
   // Which step's panel is open. Follows the flow, but a person can look at any of them — the rail is
   // clickable, because "what do I still have to do" is a fair question at any point.
-  const [open, setOpen] = useState<StepKey>(initial.current ?? 'plugin');
+  const [open, setOpen] = useState<RailKey>(initial.current ?? 'plugin');
+
+  // The XP check's fold. Null is "not touched": open when a check is already running (it would look
+  // lost otherwise) and on a phone, where the plugin cannot be installed and this is the one thing
+  // that can be done from here. Once somebody opens or closes it, that is what it stays.
+  const touchFirst = useTouchFirst();
+  const [manualChoice, setManualChoice] = useState<boolean | null>(null);
+  const manualOpen = manualChoice ?? (xpCheckRunning || touchFirst);
+  const manualRef = useRef<HTMLDivElement>(null);
 
   // Server state wins on every re-render: the parent re-renders when ConnectCard's beacon fires, and
   // the flow must follow the facts rather than whatever the client last believed.
@@ -64,7 +86,7 @@ export default function WelcomeClient({
   // Follow the flow forward as steps complete, but never drag somebody off a panel they chose to
   // open — only move when the panel they are on is finished with.
   useEffect(() => {
-    const step = state.steps.find((s) => s.key === open);
+    const step = state.rail.find((s) => s.key === open);
     if (step && (step.done || step.skipped) && state.current) setOpen(state.current);
   }, [state, open]);
 
@@ -85,12 +107,14 @@ export default function WelcomeClient({
     [],
   );
 
-  // Two of the four finish somewhere else entirely — a join request approved, an invite accepted, a
-  // clan created in another tab, or the plugin linking a character from a game client on another
-  // screen. Poll while either is outstanding and the tab is visible.
-  const watchingClan = state.steps.some((s) => (s.key === 'clan' || s.key === 'character') && !s.done);
+  // Steps finish somewhere else entirely — a join request approved, an invite accepted, a clan
+  // created in another tab, or the plugin reporting from a game client on another screen. Poll while
+  // any is outstanding and the tab is visible. The plugin card has its own faster beacon; this is
+  // the one that also covers the clan, and the panels where that card is not on screen.
+  const watching = state.rail.some((s) => !s.done);
+  const seen = factsOf(state);
   useEffect(() => {
-    if (!watchingClan) return;
+    if (!watching) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const tick = async () => {
@@ -101,7 +125,9 @@ export default function WelcomeClient({
           if (res.ok) {
             const next = (await res.json()) as OnboardingState;
             if (!alive) return;
-            if (next.doneCount !== state.doneCount) {
+            // The FACTS, not the count: a character linked by the XP check changes what the plugin
+            // step says without ticking anything on the rail.
+            if (factsOf(next) !== seen) {
               setState(next);
               router.refresh();
               return;
@@ -118,7 +144,7 @@ export default function WelcomeClient({
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [watchingClan, state.doneCount, router]);
+  }, [watching, seen, router]);
 
   // `markDone` false is "Finish later": leave without closing the flow, so /welcome still opens next time.
   async function finish(markDone = true) {
@@ -143,12 +169,21 @@ export default function WelcomeClient({
   /** Answering the chooser. Also opens the step that answer makes the point of the flow. */
   async function chooseIntent(intent: OnboardingIntent) {
     await post({ action: 'intent', intent });
-    setOpen(intent === 'solo' ? 'character' : 'clan');
+    setOpen(intent === 'solo' ? 'plugin' : 'clan');
   }
 
-  const current = state.steps.find((s) => s.key === open) ?? state.steps[0];
-  const index = state.steps.findIndex((s) => s.key === open);
-  const clanStep = state.steps.find((s) => s.key === 'clan');
+  /** "Verify by XP" on the plugin card: open the fold under it and bring it into view. */
+  function openManual() {
+    setManualChoice(true);
+    requestAnimationFrame(() => manualRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
+
+  const current = state.rail.find((s) => s.key === open) ?? state.rail[0];
+  const index = state.rail.findIndex((s) => s.key === open);
+  const clanStep = state.rail.find((s) => s.key === 'clan');
+  // Off the fact rather than the list: legacy `guest:` rows are accounts but not characters.
+  const hasCharacter = state.steps.find((s) => s.key === 'character')?.done ?? false;
+  const named = characters.filter((c) => !c.startsWith('guest:'));
 
   // NOT ASKED YET, and nothing done that answers it for them. Somebody who already has a clan has
   // answered it by having one, and being asked "are you starting a clan?" over the top of a clan
@@ -162,7 +197,7 @@ export default function WelcomeClient({
         next={next}
         onChoose={async (i) => {
           // The two big answers go straight to the thing they mean: no rail page in between.
-          // Only "just me" opens the rail, because linking a character is its first step.
+          // Only "just me" opens the rail, because the plugin is its first step.
           if (i === 'solo') {
             await chooseIntent(i);
             setChoosing(false);
@@ -210,7 +245,7 @@ export default function WelcomeClient({
         {next && <ContinueLink next={next} />}
       </header>
 
-      <Rail steps={state.steps} open={open} onOpen={setOpen} />
+      <Rail steps={state.rail} open={open} onOpen={setOpen} />
 
       <section className="mt-7 rounded-2xl border border-card-border bg-card-bg p-5 sm:p-7">
         <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-text-dim">
@@ -270,16 +305,16 @@ export default function WelcomeClient({
                     </>
                   )}
                 </div>
-                {state.intent !== 'owner' && characters.length === 0 && (
-                  // A clan takes a request from a linked character, and the character step is on this
-                  // page: link it here rather than finding that out on the clan's page and being sent
-                  // to Settings with no way back.
+                {state.intent !== 'owner' && !hasCharacter && (
+                  // A clan takes a request from a linked character, and the plugin step on this page
+                  // is what links one: do it here rather than finding that out on the clan's page
+                  // and being sent to Settings with no way back.
                   <p className="mt-3.5 text-[13px] text-text-muted">
                     A clan takes a request from a linked character.{' '}
-                    <button type="button" onClick={() => setOpen('character')} className="font-semibold text-gold hover:text-gold-light">
-                      Link yours here first
+                    <button type="button" onClick={() => setOpen('plugin')} className="font-semibold text-gold hover:text-gold-light">
+                      Get the plugin first
                     </button>
-                    , then come back to find the clan.
+                    : it links yours. Then come back to find the clan.
                   </p>
                 )}
                 <p className="mt-3.5 text-[13px] text-text-dim">
@@ -292,44 +327,94 @@ export default function WelcomeClient({
               </>
             ))}
 
-          {current.key === 'character' &&
+          {current.key === 'plugin' &&
             (current.done ? (
               <Done>
-                {characters.length === 1 ? (
+                The plugin is connected
+                {named.length === 1 ? (
                   <>
-                    <b className="text-foreground">{characters[0]}</b> is yours.
+                    {' '}
+                    and <b className="text-foreground">{named[0]}</b> is yours
                   </>
-                ) : (
-                  <>{characters.length} characters linked.</>
-                )}
+                ) : named.length > 1 ? (
+                  <> and {named.length} characters are linked</>
+                ) : null}
+                . It tracks you from here.
               </Done>
             ) : (
               <>
-                {/* NO CLAN NEEDED, and that is the whole change. Verifying by XP asks Hiscores
-                    whether the person holding this page can make the account gain XP — a question
-                    about them and the game, with no clan anywhere in it. Manual review is off here
-                    because it means "a moderator vouches for me" and there is no moderator to ask
-                    until they are in a clan. */}
-                <LinkAccountClient manualReview={false} />
-                <p className="mt-3.5 text-[13px] text-text-dim">
-                  Already run the plugin? It links your character on its own — skip to the last step.
-                </p>
+                {hasCharacter && (
+                  <Done>
+                    {named.length === 1 ? (
+                      <>
+                        <b className="text-foreground">{named[0]}</b> is linked.
+                      </>
+                    ) : (
+                      <>{named.length} characters linked.</>
+                    )}{' '}
+                    One thing left: the plugin.
+                  </Done>
+                )}
+                {/* A PHONE CANNOT DO THIS STEP. RuneLite runs on a computer, so say that first rather
+                    than leave somebody reading install steps for a machine they are not at, and point
+                    at what they can do from here. */}
+                {touchFirst && (
+                  <p className="mb-1 mt-3 rounded-xl border border-card-border bg-brown-dark/50 px-4 py-3 text-[13.5px] leading-relaxed text-text-muted">
+                    <b className="text-foreground">On your phone?</b> The plugin runs in RuneLite on a computer, so do this
+                    step at your PC. This page keeps your place.{' '}
+                    {hasCharacter
+                      ? 'Press Skip for now if you want to carry on. Your character stays linked.'
+                      : 'To link your character from here, use the XP check under the steps.'}
+                  </p>
+                )}
+                {/* The plugin panel is the token and the beacon, which ConnectCard already is. Rebuilding
+                    them here would be a second copy of something written and correct. */}
+                <ConnectCard
+                  welcomeTo={null}
+                  discordUsername={discordUsername}
+                  clanless
+                  linkedCount={characters.length}
+                  verifiedCount={0}
+                  detectedCount={detectedCount}
+                  connected={false}
+                  pluginMissing={hasCharacter}
+                  onVerifyByXp={openManual}
+                />
+                {/* THE FALLBACK, FOLDED. The XP check is for somebody who cannot run the plugin; it
+                    was the first thing on this page and read as the way in. Gone once a character is
+                    linked: asking for the same proof twice would be the page not knowing what it has.
+
+                    Manual review is off because it means "a moderator vouches for me" and there is
+                    no moderator to ask until they are in a clan. */}
+                {!hasCharacter && (
+                  <div ref={manualRef} className="mt-4 scroll-mt-24 rounded-xl border border-card-border">
+                    <button
+                      type="button"
+                      aria-expanded={manualOpen}
+                      onClick={() => setManualChoice(!manualOpen)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[13.5px] text-text-muted transition-colors hover:text-foreground"
+                    >
+                      <span>
+                        <b className="font-semibold text-foreground/90">Can&rsquo;t run the plugin?</b> Prove your
+                        character another way
+                      </span>
+                      <span aria-hidden className="shrink-0 text-text-dim">
+                        {manualOpen ? '–' : '+'}
+                      </span>
+                    </button>
+                    {manualOpen && (
+                      <div className="border-t border-card-border px-4 pb-4 pt-3.5">
+                        <p className="mb-3.5 text-[13px] leading-relaxed text-text-muted">
+                          Use this if you play on mobile, or can&rsquo;t install the plugin right now. It links your
+                          character. The plugin is still what tracks your drops and kills, so add it when you can.
+                        </p>
+                        <LinkAccountClient manualReview={false} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             ))}
-
-          {/* The plugin panel is the token and the beacon, which ConnectCard already is. Rebuilding
-              them here would be a second copy of something written and correct. */}
-          {current.key === 'plugin' && (
-            <ConnectCard
-              welcomeTo={null}
-              discordUsername={discordUsername}
-              linkedCount={characters.length}
-              verifiedCount={0}
-              detectedCount={0}
-              connected={state.steps.find((s) => s.key === 'plugin')?.done ?? false}
-              onVerifyByXp={() => setOpen('character')}
-            />
-          )}
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-card-border pt-5">
@@ -381,11 +466,16 @@ export default function WelcomeClient({
 /** The one line under the title, said in the terms of whatever they came to do. */
 const INTRO: Record<OnboardingIntent, string> = {
   owner:
-    'Three things and your clan is running: make it, link your character, install the plugin. After that the plugin does the work and this page never needs opening again.',
+    'Two things and your clan is running: make it, then get the Anvil plugin. The plugin links your character by itself and does the tracking from there.',
   member:
-    'Three things, once: get into your clan, link your character, install the plugin. After that the plugin fills in every board you play, in every clan you are in.',
-  solo: 'Two things, once: link your character and install the plugin. Your log, your records and your profile fill themselves in from there.',
+    'Two things, once: get the Anvil plugin, then find your clan. The plugin links your character by itself and fills in every board you play.',
+  solo: 'One thing: get the Anvil plugin. It links your character by itself, and your log, your records and your profile fill in from there.',
 };
+
+/** What the poll compares: every fact, so a change that ticks nothing on the rail is still seen. */
+function factsOf(state: OnboardingState): string {
+  return state.steps.map((s) => `${s.key}:${s.done ? 1 : 0}${s.skipped ? 's' : ''}`).join(',');
+}
 
 /** How the header names the answer, so "change" is obviously about that and not about the account. */
 const HERE_FOR: Record<OnboardingIntent, string> = {
@@ -496,17 +586,17 @@ function IntentChooser({
 }
 
 /**
- * The four milestones as one line. Clickable, and the connector between two dots fills only when the
- * step BEFORE it is done — so the rail reads as progress rather than as four unrelated lights.
+ * The milestones as one line. Clickable, and the connector between two dots fills only when the
+ * step BEFORE it is done — so the rail reads as progress rather than as unrelated lights.
  */
 function Rail({
   steps,
   open,
   onOpen,
 }: {
-  steps: OnboardingState['steps'];
-  open: StepKey;
-  onOpen: (k: StepKey) => void;
+  steps: OnboardingState['rail'];
+  open: RailKey;
+  onOpen: (k: RailKey) => void;
 }) {
   return (
     <ol className="flex items-stretch gap-1.5 sm:gap-2.5">
@@ -554,11 +644,10 @@ function Rail({
 }
 
 /** The rail has one line per step; the panel carries the full title. */
-const SHORT: Record<StepKey, string> = {
+const SHORT: Record<RailKey, string> = {
   discord: 'Discord',
-  character: 'Character',
-  clan: 'Clan',
   plugin: 'Plugin',
+  clan: 'Clan',
 };
 
 function Done({ children }: { children: React.ReactNode }) {

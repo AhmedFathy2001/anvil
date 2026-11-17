@@ -5,6 +5,7 @@ import { accounts, users } from '@/db/schema';
 import { clansOfPerson } from '@/lib/myClans';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { keepQuickEntries, withQuickSettingsDone } from '@/lib/quickSettings';
+import { railProgress, welcomeRail, type RailKey, type RailStep } from '@/lib/onboardingRail';
 
 /**
  * First run, for a person.
@@ -24,20 +25,17 @@ import { keepQuickEntries, withQuickSettingsDone } from '@/lib/quickSettings';
  *    an admin, left a clan, or set the plugin up before ever opening this page. Only INTENT is
  *    persisted: that they finished, and which steps they chose to pass on.
  *
- * 2. THE ORDER IS THE MACHINERY'S, NOT A PREFERENCE — and the machinery changed, so the order did.
- *    It first went clan-before-character, because every path that attached an account to a person ran
- *    through a SEAT: `requireClan()` at both ends of the stat-delta flow, a clan resolved from the
- *    Host on every plugin route. Offering the character step first would have opened a door that did
- *    not open.
+ * 2. A CHARACTER NEEDS NO CLAN. It once did: every path that attached an account to a person ran
+ *    through a SEAT. `lib/accountClaim` changed that — proving a character is yours is a fact about
+ *    YOU, which `accounts.verifiedAt` has said all along — so the plugin (or the XP check) links a
+ *    character for somebody in no clan at all, and linking comes before finding a clan.
  *
- *    `lib/accountClaim` is what changed it. Proving a character is yours is a fact about YOU — the
- *    schema has said so on `accounts.verifiedAt` the whole time ("proving ownership once proves it
- *    everywhere") — so the claim is now clan-free and the character step is a real first move. It is
- *    also the better one: it is the smaller ask, it is what a player came to do, and somebody who
- *    arrives with a character already linked is a more attractive applicant to the clan they then go
- *    and find.
+ * WHAT THE PAGE DRAWS IS NOT THIS LIST. `steps` are the four facts, which other pages read one at a
+ * time (lib/guidedFlowFacts) and which key the stored skip list. /welcome draws `rail`
+ * (lib/onboardingRail): three steps, with the plugin as the way a character gets linked.
  */
 
+/** The facts, and the keys of the stored skip list. Not the page's steps — see lib/onboardingRail. */
 export type StepKey = 'discord' | 'character' | 'clan' | 'plugin';
 
 /**
@@ -64,26 +62,23 @@ export function isOnboardingIntent(v: string | null | undefined): v is Onboardin
 
 export interface OnboardingStep {
   key: StepKey;
-  /** Imperative, because it is a thing to go and do. */
-  title: string;
-  /** One line under the title. */
-  blurb: string;
   done: boolean;
   /** They passed on it. Not done, but not nagged about either. */
   skipped: boolean;
-  /** Steps whose absence makes this one impossible. Empty for the ones that stand alone. */
-  needs: StepKey[];
 }
 
 export interface OnboardingState {
+  /** The four facts, for readers that ask about one of them. /welcome draws `rail` instead. */
   steps: OnboardingStep[];
+  /** What /welcome shows, in order (lib/onboardingRail). The numbers below count this. */
+  rail: RailStep[];
   /** What they said they were here for, or null when they have not been asked. */
   intent: OnboardingIntent | null;
-  /** The first step that is neither done nor skipped, or null when there is nothing left. */
-  current: StepKey | null;
+  /** The first rail step that is neither done nor skipped, or null when there is nothing left. */
+  current: RailKey | null;
   doneCount: number;
   total: number;
-  /** Every step is done or skipped. */
+  /** Every rail step is done or skipped. */
   allSettled: boolean;
   /** They pressed the finish button, or it finished itself. ISO, or null. */
   completedAt: string | null;
@@ -91,55 +86,7 @@ export interface OnboardingState {
   offer: boolean;
 }
 
-const STEP_COPY: Record<StepKey, { title: string; blurb: string; needs: StepKey[] }> = {
-  discord: {
-    title: 'Sign in with Discord',
-    blurb: 'Done — this is how Anvil knows who you are, and how your clan reaches you.',
-    needs: [],
-  },
-  character: {
-    title: 'Link your RuneScape account',
-    blurb:
-      'Prove a character is yours and it stays yours — across every clan you ever join, without proving it again.',
-    needs: [],
-  },
-  clan: {
-    title: 'Join a clan, or start one',
-    blurb: 'Boards and competitions live in a clan. Turning up with a linked character is most of an application.',
-    needs: [],
-  },
-  plugin: {
-    title: 'Let the plugin do the rest',
-    blurb: 'Install it in RuneLite once and it fills in every board you ever play, in every clan you are ever in.',
-    needs: ['character'],
-  },
-};
-
-/**
- * The clan step, said three ways.
- *
- * The step is one fact — do they hold a seat anywhere — and the three readings of it are genuinely
- * different acts: founding, applying, and declining. Only the clan step differs, because it is the
- * only one whose MEANING changes with why somebody came; a linked character and a working plugin are
- * the same thing to all three.
- */
-const CLAN_COPY: Record<OnboardingIntent, { title: string; blurb: string }> = {
-  owner: {
-    title: 'Start your clan',
-    blurb:
-      'Free, and live the moment you press the button — no approval, no payment, no waiting. You own it, and the setup wizard takes it from there.',
-  },
-  member: {
-    title: 'Find your clan',
-    blurb:
-      'Search the clan you play with and ask to join. Most take guests on approval, so a staff member sees the request and this ticks itself when they say yes.',
-  },
-  solo: {
-    title: 'A clan, if you ever want one',
-    blurb:
-      'Not needed for any of the above — your log, your records and your profile are yours. Boards and competitions are the part that lives in a clan.',
-  },
-};
+const STEP_KEYS: StepKey[] = ['discord', 'character', 'clan', 'plugin'];
 
 /** The skipped list, tolerant of anything that is not the JSON array it should be. */
 export function parseSkipped(raw: string | null | undefined): StepKey[] {
@@ -147,7 +94,7 @@ export function parseSkipped(raw: string | null | undefined): StepKey[] {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((k): k is StepKey => k in STEP_COPY);
+    return parsed.filter((k): k is StepKey => STEP_KEYS.includes(k));
   } catch {
     return [];
   }
@@ -169,7 +116,7 @@ export async function onboardingState(
   });
   const intent = isOnboardingIntent(user?.onboardingIntent) ? user.onboardingIntent : null;
 
-  // ONE read for the last two steps, off `accounts` and not off a seat.
+  // ONE read for the character and plugin facts, off `accounts` and not off a seat.
   //
   // `live_stats_at` lives on the ACCOUNT, not on the membership, because Jagex tracks accounts and
   // not memberships — it is what lets the hiscores sweep poll somebody in three clans once instead
@@ -199,31 +146,22 @@ export async function onboardingState(
 
   const skipped = new Set(parseSkipped(user?.onboardingSkipped));
 
-  const steps: OnboardingStep[] = (Object.keys(STEP_COPY) as StepKey[]).map((key) => ({
+  const steps: OnboardingStep[] = STEP_KEYS.map((key) => ({
     key,
-    ...STEP_COPY[key],
-    // Only the clan step reads differently depending on why they came — see CLAN_COPY.
-    ...(key === 'clan' && intent ? CLAN_COPY[intent] : {}),
     done: doneOf[key],
-    // A step that turned out to be done is not skipped, whatever they pressed. Somebody who skipped
-    // "join a clan" and was then added to one by an admin should see it ticked, not passed over.
-    //
-    // "Just me" IS the skip, and it is derived rather than written: saying so on the chooser must not
-    // leave a stored skip behind that outlives the answer, so that a person who later changes their
-    // mind to 'member' finds the step waiting for them rather than silently passed over.
+    // A step that turned out to be done is not skipped, whatever they pressed. "Just me" IS the clan
+    // skip, derived rather than written, so changing the answer later finds the step waiting
+    // (the same rule, at length, in lib/onboardingRail).
     skipped: (skipped.has(key) || (key === 'clan' && intent === 'solo')) && !doneOf[key],
   }));
 
-  const doneCount = steps.filter((s) => s.done).length;
-  const current = steps.find((s) => !s.done && !s.skipped)?.key ?? null;
+  const rail = welcomeRail(doneOf, skipped, intent);
 
   return {
     steps,
+    rail,
     intent,
-    current,
-    doneCount,
-    total: steps.length,
-    allSettled: current == null,
+    ...railProgress(rail),
     completedAt: user?.onboardingCompletedAt ?? null,
     offer: shouldOfferOnboarding(user?.onboardingCompletedAt ?? null, doneOf, intent),
   };
@@ -236,8 +174,8 @@ export async function onboardingState(
  * been signed in for a year with no clan and no character is in exactly the state the flow exists
  * for. What disqualifies them is having FINISHED it, or having nothing left to do.
  *
- * Deliberately does not fire for someone merely missing the last step: a person in a clan with a
- * linked character who has not installed the plugin has a working account, and redirecting them to a
+ * Deliberately does not fire for someone merely missing the plugin: a person in a clan with a
+ * linked character who has not installed it has a working account, and redirecting them to a
  * setup flow every login would be nagging, not onboarding. The profile card covers that case.
  */
 export function shouldOfferOnboarding(

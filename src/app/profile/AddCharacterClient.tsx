@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
+import { useTouchFirst } from '@/components/useTouchFirst';
 import NewPluginToken from '@/components/NewPluginToken';
 import LinkAccountClient from './LinkAccountClient';
 
@@ -21,17 +22,6 @@ import LinkAccountClient from './LinkAccountClient';
 // that works hidden under it. A clan's sign-up link opened from Discord on a phone is exactly where
 // a brand-new member lands, and "can't fill out the sign-up form" was what they saw. On a touch
 // screen the by-name path leads and the plugin folds away instead.
-
-const COARSE = '(pointer: coarse)';
-const subscribeCoarse = (cb: () => void) => {
-  const m = window.matchMedia(COARSE);
-  m.addEventListener('change', cb);
-  return () => m.removeEventListener('change', cb);
-};
-/** True on a touch-first device. False on the server and on the first paint, then corrected. */
-function useTouchFirst(): boolean {
-  return useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
-}
 
 export default function AddCharacterClient({
   first = false,
