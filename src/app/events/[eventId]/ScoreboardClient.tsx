@@ -642,7 +642,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   // watch, then the race feed — the same route everywhere, the viewer's team from the lens or the
   // viewer's own seat.
   const isRace = event.format === 'tilerace';
-  const raceViewer = isRace ? (lensTeamId ?? myTeamIds[0] ?? null) : null;
+  // The viewer's own team is the default view on every race, team races included (proofTeamId is
+  // their team when myTeamIds is only filled for solo and many-team boards).
+  const raceViewer = isRace ? (lensTeamId ?? myTeamIds[0] ?? proofTeamId ?? null) : null;
   const raceG = useMemo(() => (isRace ? raceGraph(board) : null), [isRace, board]);
   const racePick = useRacePick(isRace ? event.id : undefined, raceViewer, raceG ?? raceGraph([]));
   const raceLineList = useMemo(
@@ -744,6 +746,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     const racersFor = (tileId: number) =>
       raceLineList.filter((l) => l.team.id !== raceViewer && l.route.open.includes(tileId)).map((l) => ({ name: l.team.name, color: l.team.color }));
     const variant = raceFieldSize(teams.length);
+    // The gold bar is the viewer's own race; looking at another team through the lens shows that
+    // team's next tiles as a plain section instead.
+    const ownRace = raceViewer != null && (raceViewer === proofTeamId || myTeamIds.includes(raceViewer));
     return (
       <div>
         {draftActive && (
@@ -759,7 +764,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
         )}
 
         {/* Your race: where your team stands and the tile to go for next, before anything else. */}
-        {me && (
+        {me && ownRace && (
           <section aria-label={solo ? 'Your race' : 'Your team'} className="mb-6 grid items-start gap-5 rounded-2xl border border-gold/40 bg-gold/[0.06] p-4 sm:p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
             <div className="min-w-0">
               <div className="truncate text-[11px] font-bold uppercase tracking-widest text-gold">{solo ? 'Your race' : 'Your team'} · {me.team.name}</div>
@@ -855,6 +860,21 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               )}
           </div>
           <aside className="min-w-0 space-y-4">
+          {me && !ownRace && (
+            <RaceUpNext
+              graph={raceG}
+              route={me.route}
+              teamName={me.team.name}
+              tileById={tileById}
+              progressFor={progressFor}
+              racersFor={racersFor}
+              onTileClick={setSelectedTileId}
+              canPick={!!racePick.pickInfo?.canPick}
+              picking={racePick.picking}
+              onPick={racePick.pick}
+              pickError={racePick.pickError}
+            />
+          )}
           {!curtain && <RaceStatCardsRow stacked cards={raceStatCards(raceG, raceLineList, raceViewer)} />}
           {!curtain && <RaceGapWatch sentences={gapWatch(raceLineList, raceG)} />}
           </aside>
