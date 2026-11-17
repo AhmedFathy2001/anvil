@@ -11,6 +11,7 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
+import { rebaseEfficiencyCompetitions } from '@/lib/efficiencyRebase';
 import { processRaceEasing } from '@/lib/raceEaseTick';
 import { boardRevealIsDue } from '@/lib/eventBoardReveal';
 import { settleLadderMonths } from '@/lib/monthlyChampion';
@@ -449,6 +450,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // rotation. After the start loop above, so on the tick an event begins the "event started" post
   // lands before its first tile reveal. Never throws past its own catch.
   await processTileReveals().catch(() => {});
+  // Running efficiency competitions keep their baselines on today's hours model (lib/efficiencyRebase). Once per process.
+  await rebaseEfficiencyCompetitions().catch((err) => log.warn('event-lifecycle.efficiency-rebase-failed', { err: String(err) }));
   // Tile races with timed easing (lib/raceEase): open the next step's easier option on the interval.
   await processRaceEasing().catch((err) => log.warn('event-lifecycle.race-ease-failed', { err: String(err) }));
 

@@ -474,6 +474,16 @@ async function main() {
     }
   }
 
+  // A main is never slower than an ironman. Where the main guide has no table we can read but the
+  // ironman guide states rates (Slayer), the main table takes the ironman's wiki figures rather than
+  // our slower placeholder: a stated number beats an invented one, and it can only be conservative.
+  for (const skill of gaps.main) {
+    const iron = skills.ironman[skill];
+    if (skills.main[skill].every((b) => b.estimated) && Array.isArray(iron) && iron.some((b) => b.estimated === false)) {
+      skills.main[skill] = iron.map((b) => ({ ...b }));
+    }
+  }
+
   if (wikiOk === 0) {
     console.warn('OSRS Wiki unreachable: no request succeeded. Leaving src/data/hourRates.json and src/data/activityRates.json untouched.');
     return;

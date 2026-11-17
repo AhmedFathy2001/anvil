@@ -262,3 +262,20 @@ export function xpPerHourAt(skill: string, level: number, table: RateTable = 'ma
 export function hoursForXp(skill: string, fromXp: number, xp: number, table: RateTable = 'main'): number {
   return skillHours(table, skill, fromXp + xp) - skillHours(table, skill, fromXp);
 }
+
+const MILLI = 1000; // lib/constants EFFICIENCY_SCALE: stored hours are milli-hours
+
+/**
+ * What a running efficiency competition's stored baseline (milli-hours) becomes under today's model:
+ * null = leave it (not the old model's number, already moved, or unreadable). See lib/efficiencyRebase.
+ */
+export function rebasedBaseline(stored: number | null, snapshot: HiscoresSnapshot | null, metric: string): number | null {
+  if (stored == null || !snapshot) return null;
+  const pick = (v: { ehp: number; ehb: number }) => Math.round((metric === 'ehb' ? v.ehb : v.ehp) * MILLI);
+  const old = pick(legacyEhpEhb(snapshot));
+  const now = pick(computeEhpEhb(snapshot));
+  // A millihour of rounding either way still counts as "the old model wrote this".
+  if (Math.abs(stored - old) > 1 || now === stored) return null;
+  return now;
+}
+

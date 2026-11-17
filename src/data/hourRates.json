@@ -1018,27 +1018,21 @@
       "slayer": [
         {
           "fromLevel": 1,
-          "xpPerHour": 5000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 50,
-          "xpPerHour": 20000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 80,
-          "xpPerHour": 40000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
           "xpPerHour": 50000,
-          "source": null,
-          "estimated": true
+          "source": "Ironman Guide/Slayer",
+          "estimated": false
+        },
+        {
+          "fromLevel": 65,
+          "xpPerHour": 68000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false
+        },
+        {
+          "fromLevel": 93,
+          "xpPerHour": 70000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false
         }
       ],
       "farming": [
