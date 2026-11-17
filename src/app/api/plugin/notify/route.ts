@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { duplicateClogSlot } from '@/lib/notifyDedupe';
-import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
+import { judgeDropRequest, withNotableFacts, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanDrops, characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
@@ -235,6 +235,8 @@ export async function POST(request: Request) {
     facts = judged.facts;
     dropVerdict = judged;
   }
+  // A notable item says where it came from, its rate and the kill count whenever the site knows them.
+  if (kind === 'drop') facts = await withNotableFacts(facts, member?.accountId ?? null);
   if (kind === 'pet') facts = await withPetRarity(facts);
   // WHO POSTED IS THE TOKEN'S CHARACTER, for every kind: the `rsn` a body names is ignored and replaced
   // by the character the token resolved (its seat's name; else the poster lookup). A body name let a

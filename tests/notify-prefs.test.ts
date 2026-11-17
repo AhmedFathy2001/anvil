@@ -15,7 +15,7 @@ import {
   storedCaTier,
   tierGates,
 } from '../src/lib/notifyPrefs';
-import { deservesSpoonLine, dropRarity, isGuaranteed, isTrollDrop, judgeDrop, judgeDropFor, rareTable, type JudgeContext } from '../src/lib/notifyDrops';
+import { deservesSpoonLine, dropRarity, enrichNotable, freshSiteKc, isGuaranteed, isTrollDrop, judgeDrop, judgeDropFor, rareTable, type JudgeContext } from '../src/lib/notifyDrops';
 
 const ALL_ON = {
   rareDrops: true, deaths: true, combatAchievements: true, pvpKills: true, pets: true,
@@ -226,6 +226,65 @@ test('notable items post past every gate; earned and guaranteed ones get no spoo
   const shard = judgeDrop({ source: 'Vardorvis', sourceKind: 'npc', items: [{ id: 5, name: 'Blood shard', qty: 1, value: 0 }], notable: 'loot' }, ctx());
   assert.equal(shard?.spoon, true);
   assert.equal(judgeDrop({ items: [{ id: 5, name: 'Blood shard', qty: 1, value: 0 }], notable: 'loot' }, ctx({ prefs: { ...NOTIFY_DEFAULTS, drops: false } })), null);
+});
+
+test('a notable unlock gets its one source, the rate and the site kill count', () => {
+  const unlock = { rsn: 'Zezima', notable: 'unlock', spoon: true, source: null, kc: null, items: [{ id: 28281, name: 'Magus vestige', qty: 1, value: 0 }] };
+  const asked: string[] = [];
+  const out = enrichNotable(unlock, { nameOf: noNames, siteKc: (key) => (asked.push(key), 150) });
+  assert.equal(out.source, 'Duke Sucellus');
+  assert.equal(out.sourceKind, 'npc');
+  assert.ok(Math.abs((out.dropRate as number) - 1 / 720) < 1e-12);
+  assert.equal(out.rateRolls, 3); // the vestige lands on the third hidden roll
+  assert.equal(out.kc, 150);
+  assert.equal(out.kcAbout, true);
+  assert.deepEqual(asked, ['dukeSucellus']);
+  // Named only (no id on the unlock line): the name index finds the item.
+  const byName = enrichNotable({ ...unlock, items: [{ id: -1, name: 'Magus vestige', qty: 1, value: 0 }] }, {
+    nameOf: (id) => (id === 28281 ? 'Magus vestige' : undefined),
+    idsOf: (name) => (name === 'magus vestige' ? [28281] : undefined),
+  });
+  assert.equal(byName.source, 'Duke Sucellus');
+  assert.ok((byName.dropRate as number) > 0);
+  assert.equal(byName.kc, null); // no site reading offered: nothing invented
+  assert.equal(byName.kcAbout, undefined);
+});
+
+test('a notable unlock with several sources, or none, stays as it was', () => {
+  // Abyssal whip: several monsters drop it.
+  const whip = { notable: 'unlock', items: [{ id: 4151, name: 'Abyssal whip', qty: 1, value: 0 }] };
+  assert.deepEqual(enrichNotable(whip, { nameOf: noNames, siteKc: () => 99 }), whip);
+  const cape = { notable: 'unlock', earned: true, items: [{ id: 21295, name: 'Infernal cape', qty: 1, value: 0 }] };
+  assert.deepEqual(enrichNotable(cape, { nameOf: noNames, siteKc: () => 99 }), cape);
+  // Not a notable post at all: untouched.
+  const plain = { source: 'Duke Sucellus', sourceKind: 'npc', items: [{ id: 28281, name: 'Magus vestige', qty: 1, value: 0 }] };
+  assert.equal(enrichNotable(plain, { nameOf: noNames, siteKc: () => 99 }), plain);
+});
+
+test('a notable loot drop gets its rate; what the plugin sent is kept', () => {
+  const loot = { notable: 'loot', source: 'Duke Sucellus', sourceKind: 'npc', kc: 40, items: [{ id: 28321, name: 'Eye of the duke', qty: 1, value: 0 }] };
+  const out = enrichNotable(loot, { nameOf: noNames, siteKc: () => 999 });
+  assert.ok(Math.abs((out.dropRate as number) - 1 / 720) < 1e-12);
+  assert.equal(out.rateRolls, undefined); // an ordinary roll
+  assert.equal(out.kc, 40);
+  assert.equal(out.kcAbout, undefined);
+  assert.equal(enrichNotable({ ...loot, dropRate: 0.5 }, { nameOf: noNames }).dropRate, 0.5);
+  // Guaranteed: no rate is looked up. A raid is two hiscores rows: no site count.
+  assert.equal(enrichNotable({ ...loot, guaranteed: true }, { nameOf: noNames }).dropRate, undefined);
+  const raid = enrichNotable({ notable: 'loot', source: 'Theatre of Blood', sourceKind: 'event', items: [{ id: 25746, name: 'Sanguine dust', qty: 1, value: 0 }] }, { nameOf: noNames, siteKc: () => 412 });
+  assert.equal(raid.kc, undefined);
+  assert.equal(raid.dropRate, undefined);
+});
+
+test('the site kill count is used only when read within the last 24 hours', () => {
+  const now = Date.parse('2026-11-17T12:00:00Z');
+  // Both stored formats (lib/dbTime).
+  assert.equal(freshSiteKc({ hiscores: 140, polledAt: '2026-11-17 02:00:00', live: null, liveAt: null }, now), 140);
+  assert.equal(freshSiteKc({ hiscores: 140, polledAt: '2026-11-15T02:00:00.000Z', live: 150, liveAt: '2026-11-17T11:59:00.000Z' }, now), 150);
+  // Stale: the hiscores read and the live push are both over a day old.
+  assert.equal(freshSiteKc({ hiscores: 140, polledAt: '2026-11-16 11:00:00', live: 150, liveAt: '2026-11-15T09:00:00.000Z' }, now), null);
+  assert.equal(freshSiteKc({ hiscores: 140, polledAt: null, live: 150, liveAt: null }, now), null);
+  assert.equal(freshSiteKc({ hiscores: 0, polledAt: '2026-11-17 02:00:00', live: null, liveAt: null }, now), null);
 });
 
 test('screenshot privacy: PMs hidden by default, old rows and junk keys get the defaults', () => {

@@ -258,9 +258,71 @@ for (const [name, c] of Object.entries(cases)) {
     });
     assert.ok(out.ok, out.ok ? '' : out.error);
     // Through JSON so an `undefined` key can't hide behind deepEqual.
-    assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), legacy[name]);
+    const want = legacy[name];
+    // Intentional difference: a notable item's lucky line now needs a rate and a count behind it, and
+    // this post has no rate (the plugin used to print the line regardless).
+    if (name === 'drop.notable-loot-spoon') want.description = want.description.split('\n')[0];
+    assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), want);
   });
 }
+
+// ── Notable items: source, count, rate and luck agree with each other ───────────────────────────
+
+const fieldsOf = (facts: Record<string, unknown>) => {
+  const out = buildPluginEmbed('drop', facts, { random: () => 0 });
+  assert.ok(out.ok, out.ok ? '' : out.error);
+  return { desc: out.embed.description!, fields: Object.fromEntries((out.embed.fields ?? []).map((f) => [f.name, f.value])) };
+};
+const vestige = { id: 28281, name: 'Magus vestige', qty: 1, value: 0 };
+
+test('an unlock names its source, rate and count when it has them', () => {
+  const { desc, fields } = fieldsOf({
+    rsn: 'Zezima', notable: 'unlock', spoon: true, source: 'Duke Sucellus', sourceKind: 'npc',
+    kc: 150, kcAbout: true, dropRate: 1 / 720, rateRolls: 3, items: [vestige],
+  });
+  assert.equal(desc, 'Zezima unlocked Magus vestige from Duke Sucellus!\nSPOONED. 🥄');
+  assert.deepEqual(Object.keys(fields), ['Item', 'Drop rate', 'KC (about)', 'Luck']);
+  assert.equal(fields['Drop rate'], '`1/720`');
+  assert.equal(fields['KC (about)'], '`150`');
+  assert.match(fields.Luck, /spooned/);
+});
+
+test('a notable loot drop shows its rate, and the plugin count keeps its plain label', () => {
+  const { desc, fields } = fieldsOf({
+    rsn: 'Zezima', notable: 'loot', spoon: true, source: 'Duke Sucellus', sourceKind: 'npc', kc: 40, dropRate: 1 / 720,
+    items: [{ id: 28321, name: 'Eye of the duke', qty: 1, value: 0 }],
+  });
+  assert.equal(desc, 'Zezima received Eye of the duke from Duke Sucellus!\nSPOONED. 🥄');
+  assert.deepEqual(fields, { Item: '`Eye of the duke`', 'Drop rate': '`1/720`', KC: '`40`', Luck: '`Top 5% — spooned`' });
+});
+
+test('no lucky line on a notable item without a rate and a count, or when the numbers say otherwise', () => {
+  const bare = fieldsOf({ rsn: 'Zezima', notable: 'unlock', spoon: true, items: [vestige] });
+  assert.equal(bare.desc, 'Zezima unlocked Magus vestige!');
+  assert.deepEqual(Object.keys(bare.fields), ['Item']);
+  const noKc = fieldsOf({ rsn: 'Zezima', notable: 'unlock', spoon: true, source: 'Duke Sucellus', sourceKind: 'npc', dropRate: 1 / 720, items: [vestige] });
+  assert.equal(noKc.desc, 'Zezima unlocked Magus vestige from Duke Sucellus!');
+  assert.deepEqual(Object.keys(noKc.fields), ['Item', 'Drop rate']);
+  const noRate = fieldsOf({ rsn: 'Zezima', notable: 'loot', spoon: true, source: 'Duke Sucellus', sourceKind: 'npc', kc: 3, items: [vestige] });
+  assert.equal(noRate.desc.includes('\n'), false);
+  assert.equal(noRate.fields.Luck, undefined);
+  const dry = fieldsOf({ rsn: 'Zezima', notable: 'loot', spoon: true, source: 'Duke Sucellus', sourceKind: 'npc', kc: 3000, dropRate: 1 / 720, rateRolls: 3, items: [vestige] });
+  assert.equal(dry.desc.includes('\n'), false);
+  assert.match(dry.fields.Luck, /^`Dry/);
+  // A guaranteed notable is unchanged: the word, no luck, no line.
+  const sure = fieldsOf({ rsn: 'Zezima', notable: 'unlock', guaranteed: true, spoon: true, kc: 5, dropRate: 1 / 720, items: [vestige] });
+  assert.equal(sure.desc.includes('\n'), false);
+  assert.deepEqual(sure.fields, { Item: '`Magus vestige`', 'Drop rate': '`Guaranteed`', KC: '`5`' });
+});
+
+test('luck for an item that takes several hidden rolls', () => {
+  // One roll: unchanged. Three rolls at 1/240 each: 150 kills is far luckier than a flat 1/720 says.
+  assert.equal(luckLabel(1 / 720, 150), 'Top 19%');
+  assert.equal(luckLabel(1 / 720, 150, 3), 'Top 3% — spooned');
+  assert.equal(luckLabel(1 / 720, 2, 3), 'Top 1% — spooned'); // cannot have it before the third kill
+  assert.equal(luckLabel(1 / 720, 720, 3), null); // typical
+  assert.equal(luckLabel(1 / 720, 1700, 3), 'Dry — 97% had it by now');
+});
 
 test('a spoon line is drawn from the pool', () => {
   const out = buildPluginEmbed('drop', { spoon: true, items: [{ name: 'Item', qty: 1, value: 1 }] });

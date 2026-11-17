@@ -63,8 +63,12 @@ export interface DropFacts {
   /** RuneLite loot kind, lowercased: npc / player→"pvp" / pickpocket / event … */
   sourceKind?: string | null;
   kc?: number | null;
+  /** The count is the site's own reading, not the plugin's: it can trail the kill by one, so it reads "(about)". */
+  kcAbout?: boolean;
   /** Per-kill probability (single item only). */
   dropRate?: number | null;
+  /** The item takes this many hidden rolls (a vestige: 3); `dropRate` is the rate of the whole item. */
+  rateRolls?: number | null;
   /** The source hands this item over every kill (server dropFacts, judged by the plugin). */
   guaranteed?: boolean;
   /** A rare roll on something worthless. */
@@ -313,17 +317,31 @@ export function countLabel(source: string | null | undefined): string {
   return 'KC';
 }
 
-/** Share of players who'd already hold a drop of per-kill probability p after kc kills. */
-export function obtainedShare(p: number, kc: number): number {
+/**
+ * Share of players who'd already hold a drop of per-kill probability p after kc kills. An item that
+ * takes `rolls` hidden rolls (lib/rollTables: a vestige lands on the third) is p × rolls per roll,
+ * and held once that many have hit.
+ */
+export function obtainedShare(p: number, kc: number, rolls = 1): number {
   if (p <= 0 || kc <= 0) return 0;
+  if (rolls > 1) {
+    const q = Math.min(1, p * rolls);
+    let fewer = 0;
+    let term = (1 - q) ** kc; // P(exactly 0 hits), then 1, 2 … rolls-1
+    for (let j = 0; j < rolls && j <= kc; j++) {
+      fewer += term;
+      term = q >= 1 ? 0 : (term * (kc - j) * q) / ((j + 1) * (1 - q));
+    }
+    return Math.max(0, 1 - fewer);
+  }
   if (p >= 1) return 1;
   return -Math.expm1(kc * Math.log1p(-p));
 }
 
 /** The "Luck" field: "Top 8% — spooned", "Top 20%", "Dry — 93% had it by now", or null when typical/unknown. */
-export function luckLabel(dropRate: number | null | undefined, kc: number | null | undefined): string | null {
+export function luckLabel(dropRate: number | null | undefined, kc: number | null | undefined, rolls = 1): string | null {
   if (dropRate == null || dropRate <= 0 || kc == null || kc <= 0) return null;
-  const share = obtainedShare(dropRate, kc);
+  const share = obtainedShare(dropRate, kc, rolls);
   const pct = Math.max(1, Math.round(share * 100));
   if (share < 0.1) return `Top ${pct}% — spooned`;
   if (share < 0.35) return `Top ${pct}%`;
@@ -409,25 +427,26 @@ function dropEmbed(f: DropFacts, random: () => number): DiscordEmbed {
   if (f.notable) {
     title = f.earned ? '🏆 Earned!' : '💎 Notable drop!';
     desc = f.notable === 'unlock'
-      ? `${who(f.rsn)} unlocked ${item.name}!`
+      ? `${who(f.rsn)} unlocked ${item.name}${fromPhrase(f.source, f.sourceKind)}!`
       : `${who(f.rsn)} received ${item.name}${fromPhrase(f.source, f.sourceKind)}!`;
   } else {
     title = f.troll ? '🎣 Troll drop!' : '💰 Rare drop!';
     desc = `${who(f.rsn)}${f.troll ? ' got robbed' : ' received a valuable drop'}${fromPhrase(f.source, f.sourceKind)}.`;
   }
-  if (f.spoon && !guaranteed) desc += `\n${spoonLine(random)}`;
+  const dropRate = f.dropRate;
+  const luck = guaranteed ? null : luckLabel(dropRate, f.kc, f.rateRolls ?? 1);
+  // A notable item's lucky line has to be backed by what the post shows: a rate, a count, and luck
+  // that says spooned. (The route fills in what the site knows first: lib/notifyDropJudge.)
+  if (f.spoon && !guaranteed && (!f.notable || luck?.endsWith('spooned'))) desc += `\n${spoonLine(random)}`;
   if (f.note) desc += `\n${f.note}`;
 
   const e = base(f.rsn, title, desc, PLUGIN_COLOR.rare);
-  // A notable item was never priced against a rate — the rate field and luck are for rolls.
-  const dropRate = f.notable ? null : f.dropRate;
   e.fields = [stat('Item', itemLabel(item.name, item.qty))];
   if (item.value > 0) e.fields.push(stat('Value', `${commas(item.value)} gp`));
   // A guaranteed drop has no rate worth printing and no luck to speak of.
   if (guaranteed) e.fields.push(stat('Drop rate', 'Guaranteed'));
   else if (dropRate != null && dropRate > 0) e.fields.push(stat('Drop rate', `1/${commas(Math.round(1 / dropRate))}`));
-  if (f.kc != null && f.kc > 0) e.fields.push(stat(kcLabel, commas(f.kc)));
-  const luck = guaranteed ? null : luckLabel(dropRate, f.kc);
+  if (f.kc != null && f.kc > 0) e.fields.push(stat(f.kcAbout ? `${kcLabel} (about)` : kcLabel, commas(f.kc)));
   if (luck) e.fields.push(stat('Luck', luck));
   e.url = wikiUrl(item.name);
   if (item.id != null && item.id > 0) e.thumbnail = { url: itemIconUrl(item.id) };
@@ -668,7 +687,8 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
         kind,
         facts: {
           rsn: rsnOf(o), items, source: optStr(o, 'source'), sourceKind: optStr(o, 'sourceKind', 32),
-          kc: optInt(o, 'kc'), dropRate: optRate(o, 'dropRate'), guaranteed: flag(o, 'guaranteed'),
+          kc: optInt(o, 'kc'), kcAbout: flag(o, 'kcAbout'), dropRate: optRate(o, 'dropRate'),
+          rateRolls: optInt(o, 'rateRolls'), guaranteed: flag(o, 'guaranteed'),
           troll: flag(o, 'troll'), notable, earned: flag(o, 'earned'), spoon: flag(o, 'spoon'),
           note: optStr(o, 'note', 512), modeOnly: flag(o, 'modeOnly'),
         },
