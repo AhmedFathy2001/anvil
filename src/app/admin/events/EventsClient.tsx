@@ -922,7 +922,7 @@ function PastTable({
 }) {
   return (
     <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto overflow-y-hidden">
-      <table className="w-full text-sm">
+      <table className="stack-phone w-full text-sm">
         <thead>
           <tr className="text-[10px] uppercase tracking-wider text-text-muted/70">
             <th className="text-left font-medium px-4 py-2.5">Event</th>
@@ -985,12 +985,12 @@ function PastEventRow({
         </ClanLink>
         {event.forceEndedAt && <span className="ml-2 text-[10px] text-red-400">force-ended</span>}
       </td>
-      <td className="px-3 py-2.5 hidden sm:table-cell">
+      <td data-label="Format" className="stack-half px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-gold/10 text-gold/80 px-2 py-0.5 rounded-full">
           {eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
         </span>
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+      <td data-label="Ran" className="stack-half px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
         {event.startDate && event.endDate ? (
           <>
             <LocalTime date={event.startDate} format="date" /> — <LocalTime date={event.endDate} format="date" />
@@ -999,7 +999,7 @@ function PastEventRow({
           '—'
         )}
       </td>
-      <td className="px-3 py-2.5 text-xs">
+      <td data-label="Winner" className="px-3 py-2.5 text-xs">
         {result?.winnerTeam ? (
           <span className="text-gold">
             🥇 {result.winnerTeam}
@@ -1011,10 +1011,10 @@ function PastEventRow({
           <span className="text-text-muted/70">no result recorded</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
+      <td data-label="Players" className="stack-half px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
         {result?.players ?? 0}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right tabular-nums hidden lg:table-cell">
+      <td data-label="Payout" className="stack-half px-3 py-2.5 text-xs text-right tabular-nums hidden lg:table-cell">
         {result && result.payoutTotal > 0 ? (
           <span className={result.payoutsUnpaid > 0 ? 'text-amber-300' : 'text-text-muted'}>
             {formatGp(result.payoutTotal)}
@@ -1024,7 +1024,7 @@ function PastEventRow({
           <span className="text-text-muted/50">—</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+      <td className="stack-actions px-3 py-2.5 text-right whitespace-nowrap">
         {canManage && (
           // NOT hover-only. These were `opacity-0 group-hover:opacity-100`, which on a phone or a
           // tablet means invisible — there is no hover, and OSRS staff run events from Discord on
@@ -1073,13 +1073,13 @@ function PastWeeklyRow({
           {comp.title}
         </ClanLink>
       </td>
-      <td className="px-3 py-2.5 hidden sm:table-cell">
+      <td data-label="Format" className="stack-half px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-purple-400/10 text-purple-300/90 px-2 py-0.5 rounded-full">{badge}</span>
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+      <td data-label="Ran" className="stack-half px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
         <LocalTime date={comp.startDate} format="date" /> — <LocalTime date={comp.endDate} format="date" />
       </td>
-      <td className="px-3 py-2.5 text-xs">
+      <td data-label="Winner" className="px-3 py-2.5 text-xs">
         {result?.winner ? (
           <span className="text-gold">
             🥇 {result.winner}
@@ -1091,10 +1091,10 @@ function PastWeeklyRow({
           <span className="text-text-muted/70">no result recorded</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
+      <td data-label="Players" className="stack-half px-3 py-2.5 text-xs text-right tabular-nums text-text-muted hidden sm:table-cell">
         {result?.players ?? comp.participantCount}
       </td>
-      <td className="px-3 py-2.5 text-xs text-right text-text-muted/50 hidden lg:table-cell">—</td>
+      <td className="px-3 py-2.5 text-xs text-right text-text-muted/50 hidden lg:table-cell max-sm:!hidden">—</td>
       <td className="px-3 py-2.5" />
     </tr>
   );
@@ -1108,13 +1108,13 @@ function PastClanRow({ ev }: { ev: ClanRow }) {
           {ev.title}
         </ClanLink>
       </td>
-      <td className="px-3 py-2.5 hidden sm:table-cell">
+      <td data-label="Format" className="stack-half px-3 py-2.5 hidden sm:table-cell">
         <span className="text-xs bg-sky-400/10 text-sky-300/90 px-2 py-0.5 rounded-full">Clan event</span>
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+      <td data-label="Ran" className="stack-half px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
         <LocalTime date={ev.startDate} format="date" />
       </td>
-      <td className="px-3 py-2.5 text-xs text-text-muted/70">—</td>
+      <td className="px-3 py-2.5 text-xs text-text-muted/70 max-sm:!hidden">—</td>
       <td className="px-3 py-2.5 hidden sm:table-cell" />
       <td className="px-3 py-2.5 hidden lg:table-cell" />
       <td className="px-3 py-2.5" />

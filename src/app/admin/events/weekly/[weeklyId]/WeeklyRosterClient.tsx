@@ -394,7 +394,7 @@ export default function WeeklyRosterClient({
         />
 
         <div className="overflow-x-auto overflow-y-hidden">
-          <table className="w-full text-sm">
+          <table className={`${mode === 'baselines' ? 'stack-phone ' : ''}w-full text-sm`}>
             <thead>
               <tr className="text-[10px] uppercase tracking-wider text-text-muted/70">
                 <th className="text-left font-medium px-4 py-2">Player</th>
@@ -450,13 +450,13 @@ export default function WeeklyRosterClient({
                   </td>
 
                   {mode === 'baselines' && (
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-text-muted">
+                    <td data-label="Started at" className="stack-third px-3 py-2 text-right tabular-nums text-xs text-text-muted">
                       {editing?.id === row.participantId ? (
                         <Input
                           value={editing.value}
                           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
                           autoFocus
-                          className="w-28 border-gold px-2 py-1 text-right text-xs"
+                          className="w-28 max-sm:w-full border-gold px-2 py-1 text-right text-xs"
                         />
                       ) : (
                         weeklyStatValue(type, row.baselineValue)
@@ -464,16 +464,16 @@ export default function WeeklyRosterClient({
                     </td>
                   )}
                   {mode === 'baselines' && (
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-text-muted">
+                    <td data-label="Now" className="stack-third px-3 py-2 text-right tabular-nums text-xs text-text-muted">
                       {weeklyStatValue(type, row.currentValue)}
                     </td>
                   )}
 
-                  <td className="px-3 py-2 text-right tabular-nums text-xs">
+                  <td data-label={mode === 'baselines' ? 'Gained' : undefined} className="stack-third px-3 py-2 text-right tabular-nums text-xs">
                     {row.gained > 0 ? weeklyGain(type, row.gained) : <span className="text-text-muted/60">—</span>}
                   </td>
 
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                  <td className="stack-actions px-3 py-2 text-right whitespace-nowrap">
                     {mode === 'baselines' ? (
                       editing?.id === row.participantId ? (
                         <span className="inline-flex gap-1">
