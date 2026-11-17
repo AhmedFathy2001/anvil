@@ -22,6 +22,8 @@ import {
   timedLiveEaseIds,
   type EaseClock,
   type LifelineStatus,
+  type TeamEasePayload,
+  type TeamEaseTile,
 } from '@/lib/raceEase';
 import { raceGraph, teamRoute, type RaceGraph } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
@@ -162,16 +164,6 @@ export async function easeHiddenFromOthers(event: EaseEvent, tileId: number): Pr
 
 // ---- One team's view of a tile ----------------------------------------------------------------
 
-export interface TeamEaseTile {
-  /** Live easier options on this tile for the team, first level first. */
-  live: { id: number; label: string; rank: number }[];
-  /** Easier options written on the tile but not live for the team (the count only: what they are stays hidden). */
-  locked: number;
-  /** When the clock opens the next locked one, if timed easing is on. */
-  nextTimedAt: number | null;
-  lifeline: LifelineStatus;
-}
-
 export interface TeamEaseView {
   /** Per board tile that has easier options. */
   tiles: Map<number, TeamEaseTile>;
@@ -224,6 +216,13 @@ export async function teamEaseView(event: EaseEvent, teamId: number): Promise<Te
   return { tiles: out, lifelines: rule ? { left: Math.max(0, rule.count - spent.size), total: rule.count } : null };
 }
 
+/** teamEaseView as a client takes it (the site's GET and the plugin panel). Null with nothing to show. */
+export async function teamEasePayload(event: EaseEvent, teamId: number, canSpend: boolean): Promise<TeamEasePayload | null> {
+  const view = await teamEaseView(event, teamId);
+  if (!view) return null;
+  return { tiles: Object.fromEntries(view.tiles), lifelines: view.lifelines, canSpend, now: Date.now() };
+}
+
 // ---- Spending a lifeline ----------------------------------------------------------------------
 
 const LIFELINE_REFUSAL: Record<Exclude<LifelineStatus['state'], 'ready'>, string> = {
@@ -274,7 +273,46 @@ export async function spendLifeline(
   const opened = (after?.tiles.get(tileId)?.live ?? []).filter((o) => !before.has(o.id)).map((o) => ({ id: o.id, label: o.label }));
   // What the team already did on the easier option counts from when the tile opened: settle it now.
   void settleEasedTiles(event.id, [teamId]).catch(() => {});
+  // The team's plugins refetch (a new tile to watch), and Discord hears that a lifeline went.
+  void announceLifeline(event, teamId, tileId, rule ? Math.max(0, rule.count - mine.length) : 0, rule?.count ?? 0).catch(() => {});
   return { ok: true, opened };
+}
+
+/**
+ * A lifeline was spent: the team's plugins are told to refetch, and one post goes to the event's
+ * Discord. The post names the team and the step, never the tile or what opened: other teams may not
+ * see either yet. While standings are hidden it doesn't name the step either.
+ */
+async function announceLifeline(event: EaseEvent, teamId: number, tileId: number, left: number, total: number): Promise<void> {
+  const [{ notifyTeamTiles }, { sendEventBingoWebhook }, { standingsHidden }, { teamColorToDecimal }, { stepTitle }] = await Promise.all([
+    import('@/lib/pushNotify'),
+    import('@/lib/discord'),
+    import('@/lib/standingsVisibility'),
+    import('@/lib/discordEmbeds'),
+    import('@/lib/raceRoutes'),
+  ]);
+  notifyTeamTiles(event.id, teamId, []);
+  // clan-scope: global -- the event row came from a caller that already scoped it.
+  const full = await db.query.events.findFirst({ where: eq(events.id, event.id) });
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { name: true, color: true } });
+  if (!full || !team) return;
+  const ctx = await loadEaseContext(event);
+  const step = ctx?.graph.byId.get(tileId)?.step;
+  const where = step != null && ctx && !standingsHidden(full) ? ` on ${stepTitle(ctx.graph, step).toLowerCase()}` : '';
+  await sendEventBingoWebhook(
+    full.clanId,
+    full.id,
+    {
+      embeds: [
+        {
+          title: `${team.name} used a lifeline${where}`,
+          description: `That tile now has an easier option for them. ${left} of ${total} ${total === 1 ? 'lifeline' : 'lifelines'} left.`,
+          color: teamColorToDecimal(team.color),
+        },
+      ],
+    },
+    { post: 'reveals' },
+  );
 }
 
 /** Admin: take back a lifeline a team spent on a tile (the team gets it back). */

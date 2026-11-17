@@ -73,6 +73,8 @@ export interface BoardContext {
   feedTab?: boolean;
   /** The board's chat is on (lib/eventChat boardChatOn): offer the Chat button. */
   chatOn?: boolean;
+  /** A tile race's easier options and lifelines for the viewer's team (lib/raceEase). Null with none. */
+  ease?: import('@/lib/raceEase').TeamEasePayload | null;
 }
 
 const MANUAL: Color = '#e8b83a';

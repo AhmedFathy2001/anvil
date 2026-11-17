@@ -66,6 +66,12 @@ const it: PartialDiscordDict = {
     scoringTiles: '• **Punteggio** — un punto per casella; il punteggio di una squadra è quante ne ha completate.',
     tileRace:
       '• **Corsa a caselle** — il tabellone è un percorso ordinato. Avanzate lungo di esso; la casella più lontana è la vostra posizione.',
+    raceEase:
+      '• **Più facile col tempo** — ogni {hours} ore dall’inizio, il passo successivo riceve un’opzione più facile. Una qualsiasi delle due versioni completa la casella.',
+    raceLifelines:
+      '• **Aiuti** — {n} per squadra per tutta la corsa. Usatene uno su una casella su cui siete bloccati per aprire la sua opzione più facile. Vedete qual è solo dopo averlo usato.',
+    raceLifelinesWait:
+      ' Un aiuto funziona su una casella quando è aperta per voi da {hours} ore.',
     revealScheduled:
       '• **Aperture** — le caselle si aprono secondo un calendario deciso dallo staff. Una casella che non vedi ancora semplicemente non si è aperta.',
     revealIntervalOne: '• **Aperture** — una casella viene estratta {order} ogni {minutes} minuti.',

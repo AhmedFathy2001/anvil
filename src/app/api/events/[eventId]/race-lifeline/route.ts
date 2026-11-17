@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { teams } from '@/db/schema';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { eventForRequest } from '@/lib/eventScope';
-import { refundLifeline, spendLifeline, teamEaseView } from '@/lib/raceEaseDb';
+import { refundLifeline, spendLifeline, teamEasePayload } from '@/lib/raceEaseDb';
 import { mayPickRoad } from '@/lib/raceRoutesDb';
 
 // Tile race lifelines and easier options (events.rules.raceLifelines / raceEase, lib/raceEase).
@@ -25,7 +25,7 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 }
 
 /** May this caller act for the team (spend), and may they read its view (any member)? */
-async function teamAccess(eventId: number, teamId: number): Promise<{ read: boolean; spend: boolean; userId: number | null }> {
+async function teamAccess(eventId: number, teamId: number): Promise<{ read: boolean; spend: boolean; admin: boolean; userId: number | null }> {
   const user = await verifyUser();
   const captain = await verifyCaptain();
   const admin = await verifyAdmin();
@@ -38,7 +38,7 @@ async function teamAccess(eventId: number, teamId: number): Promise<{ read: bool
     spend = await mayPickRoad(teamId, user.userId, isMember);
     read = read || spend;
   }
-  return { read, spend, userId: user?.userId ?? null };
+  return { read, spend, admin: !!admin, userId: user?.userId ?? null };
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -54,10 +54,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const access = await teamAccess(eId, teamId);
   // A team's lifelines and what they opened are the team's own business.
   if (!access.read) return NextResponse.json(empty);
-  const view = await teamEaseView(event, teamId);
+  const view = await teamEasePayload(event, teamId, access.spend);
   if (!view) return NextResponse.json(empty);
   return NextResponse.json(
-    { tiles: Object.fromEntries(view.tiles), lifelines: view.lifelines, canSpend: access.spend, now: Date.now() },
+    { ...view, canRefund: access.admin },
     { headers: { 'Cache-Control': 'private, no-store' } },
   );
 }

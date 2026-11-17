@@ -4,12 +4,16 @@ import { raceGraph } from '../src/lib/raceRoutes.ts';
 import {
   easeOptionsByTile,
   easeRanks,
-  easeRuleLines,
   easeTick,
   easeWaitText,
   isComboPartRow,
   isEaseOption,
+  lifelineConfirmText,
+  lifelineLine,
+  lifelineSpendable,
   lifelineStatus,
+  nextTimedLine,
+  type TeamEasePayload,
   lifelineWouldOpen,
   liveEaseIds,
   tileOpenedAt,
@@ -19,7 +23,11 @@ import {
   type EaseClock,
 } from '../src/lib/raceEase.ts';
 import { nestParts, partsByParent } from '../src/lib/combo.ts';
-import { parseEventRules, validateEventRules } from '../src/lib/eventRules.ts';
+import { DEFAULT_EVENT_RULES, parseEventRules, validateEventRules } from '../src/lib/eventRules.ts';
+import { tileToCsvRow } from '../src/lib/csvTiles.ts';
+import { mechanicsLines } from '../src/lib/rulesMechanics.ts';
+import { getDiscordDict } from '../src/lib/discordI18n/index.ts';
+import type { Tile } from '../src/lib/types.ts';
 
 const H = 3_600_000;
 const START = 1_000_000_000_000;
@@ -159,16 +167,69 @@ test('the rules store both switches, drop them when off, and refuse nonsense', (
   assert.deepEqual(parseEventRules(JSON.stringify({ raceLifelines: { count: 2 } })).raceLifelines, { count: 2, afterHours: 0, opens: 'first' });
 });
 
-test('waits and rule lines read in plain words', () => {
+test('waits read in plain words', () => {
   assert.equal(easeWaitText(START + 30_000, START), 'in under a minute');
   assert.equal(easeWaitText(START + 12 * 60_000, START), 'in 12m');
   assert.equal(easeWaitText(START + 5 * H + 20 * 60_000, START), 'in 5h 20m');
   assert.equal(easeWaitText(START + 3 * H, START), 'in 3h');
-  assert.deepEqual(easeRuleLines(null, null), []);
-  const lines = easeRuleLines({ hours: 24 }, { count: 3, afterHours: 12, opens: 'first' });
-  assert.equal(lines.length, 2);
-  assert.match(lines[0], /every day after the start/);
-  assert.match(lines[1], /3 per team/);
-  assert.match(lines[1], /open to you for 12 hours/);
-  assert.match(easeRuleLines({ hours: 12 }, null)[0], /every 12 hours/);
+});
+
+test('the web board and the plugin panel say the same thing about a lifeline', () => {
+  const life = (state: 'ready' | 'wait' | 'spent' | 'not-open' | 'none-left' | 'nothing', readyAt: number | null = null) => ({ state, left: 2, total: 3, readyAt });
+  const view = (over: Partial<TeamEasePayload> = {}): TeamEasePayload => ({ tiles: {}, lifelines: { left: 2, total: 3 }, canSpend: true, now: START, ...over });
+  const tile = (state: Parameters<typeof life>[0], readyAt: number | null = null, live: { id: number; label: string; rank: number }[] = []) => ({ live, locked: live.length ? 0 : 1, nextTimedAt: null as number | null, lifeline: life(state, readyAt) });
+  assert.equal(lifelineSpendable(view(), tile('ready')), true);
+  assert.equal(lifelineSpendable(view({ canSpend: false }), tile('ready')), false);
+  assert.equal(lifelineSpendable(view(), tile('wait', START + H)), false);
+  assert.match(lifelineLine(view(), tile('ready'))!, /2 lifelines of 3 left/);
+  assert.match(lifelineLine(view({ canSpend: false }), tile('ready'))!, /Your captain can use a lifeline/);
+  assert.match(lifelineLine(view(), tile('wait', START + 5 * H))!, /works here in 5h/);
+  assert.match(lifelineLine(view(), tile('spent'))!, /used a lifeline here/);
+  assert.match(lifelineLine(view(), tile('not-open'))!, /once your team is playing it/);
+  assert.match(lifelineLine(view(), tile('none-left'))!, /no lifelines left/);
+  assert.match(lifelineLine(view(), undefined)!, /No easier option on this tile/);
+  // Already open by the clock: nothing more to say about a lifeline.
+  assert.equal(lifelineLine(view(), tile('nothing', null, [{ id: 1, label: 'Easy', rank: 1 }])), null);
+  // No lifelines on this race: silence.
+  assert.equal(lifelineLine(view({ lifelines: null }), tile('ready')), null);
+  assert.match(lifelineConfirmText(1), /one of your team’s 1 lifeline on this tile/);
+  assert.equal(nextTimedLine(view(), { ...tile('ready'), nextTimedAt: START + 8 * H }), 'An easier option opens for everyone in 8h.');
+  assert.equal(nextTimedLine(view(), { ...tile('ready'), nextTimedAt: START - 1 }), null);
+  assert.equal(nextTimedLine(view(), undefined), null);
+});
+
+test('a library row carries a tile’s easier options, without points or options of their own', () => {
+  const easy = { id: 2, eventId: 1, position: 0, label: 'Easy', tileType: 'kill', requiredAmount: 50, points: 0, parentTileId: 1, easeLevel: 1 } as unknown as Tile;
+  const hard = { id: 1, eventId: 1, position: 0, label: 'Hard', tileType: 'kill', requiredAmount: 100, points: 5, easier: [easy] } as unknown as Tile;
+  const row = tileToCsvRow(hard);
+  assert.equal(row.label, 'Hard');
+  assert.equal(row.easier?.length, 1);
+  assert.equal(row.easier![0].label, 'Easy');
+  assert.equal('points' in row.easier![0], false);
+  assert.equal('easier' in row.easier![0], false);
+  assert.equal('easier' in tileToCsvRow({ ...hard, easier: [] } as unknown as Tile), false);
+});
+
+test('the rules post names both switches, in every Discord language', async () => {
+  const english = await getDiscordDict('en');
+  const race = { format: 'tilerace', scoringMode: 'tiles' } as Parameters<typeof mechanicsLines>[1];
+  const rules = { ...DEFAULT_EVENT_RULES, raceEase: { hours: 24 }, raceLifelines: { count: 3, afterHours: 12, opens: 'first' as const } };
+  const en = mechanicsLines(english, race, rules, 0, null, { total: 0, announced: 0 });
+  assert.ok(en.some((l) => /Easier over time.*every 24h/.test(l)));
+  assert.ok(en.some((l) => /Lifelines.*3 per team.*open to you for 12h/.test(l)));
+  const noWait = mechanicsLines(english, race, { ...rules, raceLifelines: { count: 3, afterHours: 0, opens: 'first' as const } }, 0, null, { total: 0, announced: 0 });
+  assert.ok(noWait.some((l) => /Lifelines/.test(l) && !/open to you/.test(l)));
+  const off = mechanicsLines(english, race, DEFAULT_EVENT_RULES, 0, null, { total: 0, announced: 0 });
+  assert.ok(!off.some((l) => /Lifelines|Easier over time/.test(l)));
+  for (const lang of ['ar', 'da', 'de', 'es', 'fi', 'fr', 'it', 'ja', 'ko', 'nl', 'no', 'pl', 'pt-br', 'sv', 'zh-hans']) {
+    const t = await getDiscordDict(lang);
+    const lines = mechanicsLines(t, race, rules, 0, null, { total: 0, announced: 0 });
+    for (const key of ['raceEase', 'raceLifelines'] as const) {
+      const made = lines.find((l) => l.startsWith(t.rules[key].slice(0, 12)));
+      assert.ok(made, `${lang}: ${key} line missing`);
+      assert.ok(!/\{\w+\}/.test(made!), `${lang}: ${key} left a placeholder`);
+      assert.notEqual(t.rules[key], english.rules[key], `${lang}: ${key} is still English`);
+    }
+    assert.ok(lines.some((l) => l.includes('12')), `${lang}: the wait is missing`);
+  }
 });

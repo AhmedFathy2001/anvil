@@ -62,6 +62,12 @@ const zhHans: PartialDiscordDict = {
     scoringPoints: '• **计分** —— 每个格子有自己的分值；队伍得分是已完成格子的分值总和。',
     scoringTiles: '• **计分** —— 每格 1 分；队伍得分就是完成了多少格。',
     tileRace: '• **格子竞速** —— 版面是一条有顺序的赛道。你们沿着它前进；走到最远的格子就是你们的位置。',
+    raceEase:
+      '• **随时间变简单** —— 开始后每 {hours} 小时，下一步会多出一个更简单的选项。完成任意一个版本都算完成格子。',
+    raceLifelines:
+      '• **求助机会** —— 整场比赛每队 {n} 次。在卡住的格子上使用一次，即可打开它的更简单选项。使用后才能看到内容。',
+    raceLifelinesWait:
+      ' 格子对你们开放满 {hours} 小时后，才能在上面使用求助机会。',
     revealScheduled: '• **公开** —— 格子按管理组设定的时间表打开。你还看不到的格子，就是还没开。',
     revealIntervalOne: '• **公开** —— 每 {minutes} 分钟{order}抽出 1 个格子。',
     revealIntervalMany: '• **公开** —— 每 {minutes} 分钟{order}抽出 {n} 个格子。',

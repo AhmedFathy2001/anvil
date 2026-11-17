@@ -182,6 +182,11 @@ export interface TileCsvRow {
   parts?: TileCsvRow[] | null;
   /** A combo PART's weight in a 'mix' combo (null/absent = 1). */
   comboWeight?: number | null;
+  /**
+   * A race tile's EASIER OPTIONS (lib/raceEase), first level first — no spreadsheet column: each is
+   * its own row (any kind but a combo). Only a tile race keeps them on import.
+   */
+  easier?: TileCsvRow[] | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
@@ -741,6 +746,15 @@ export function tileToCsvRow(t: Tile): TileCsvRow {
         return part;
       });
     }
+  }
+  // A race tile's easier options (lib/raceEase) ride the object row the same way.
+  if (t.easier?.length) {
+    row.easier = t.easier.map((o) => {
+      const option = tileToCsvRow(o) as Record<string, unknown>;
+      delete option.points;
+      delete option.easier;
+      return option;
+    });
   }
   return row as TileCsvRow;
 }

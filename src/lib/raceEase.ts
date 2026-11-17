@@ -226,17 +226,60 @@ export function easeWaitText(at: number, now: number): string {
   return m ? `in ${h}h ${m}m` : `in ${h}h`;
 }
 
-/** The settings as one line each, for the rules post and the players' rules page. */
-export function easeRuleLines(ease: RaceEaseRule | null, lifelines: RaceLifelinesRule | null): string[] {
-  const out: string[] = [];
-  const hrs = (h: number) => (h === 1 ? 'hour' : h % 24 === 0 ? (h === 24 ? 'day' : `${h / 24} days`) : `${h} hours`);
-  if (ease) {
-    out.push(`• **Easier over time** — every ${hrs(ease.hours)} after the start, the next step gains an easier option. Either version finishes the tile.`);
-  }
-  if (lifelines) {
-    const n = lifelines.count;
-    const wait = lifelines.afterHours > 0 ? ` once that tile has been open to you for ${lifelines.afterHours === 1 ? 'an hour' : `${lifelines.afterHours} hours`}` : '';
-    out.push(`• **Lifelines** — ${n} per team for the whole race. Spend one on a tile you're stuck on${wait} to open its easier option. You only see what it is after spending.`);
-  }
-  return out;
+// ---- One team's view (the web board and the plugin panel draw the same thing) --------------------
+
+/** One board tile's easing, as one team sees it (lib/raceEaseDb teamEaseView). */
+export interface TeamEaseTile {
+  /** Live easier options on this tile for the team, first level first. */
+  live: { id: number; label: string; rank: number }[];
+  /** Easier options written on the tile but not live for the team (the count only: what they are stays hidden). */
+  locked: number;
+  /** When the clock opens the next locked one, if timed easing is on. */
+  nextTimedAt: number | null;
+  lifeline: LifelineStatus;
 }
+
+/** What a client is handed: per board tile with easier options, plus the team's lifelines. */
+export interface TeamEasePayload {
+  tiles: Record<string, TeamEaseTile>;
+  lifelines: { left: number; total: number } | null;
+  /** The viewer may spend a lifeline for the team (captain / team staff, or any member with neither). */
+  canSpend: boolean;
+  /** The server's clock when it answered: every "opens in…" is counted from it. */
+  now: number;
+  /** The viewer is an admin: may give a spent lifeline back. */
+  canRefund?: boolean;
+}
+
+export const lifelineCount = (n: number): string => `${n} ${n === 1 ? 'lifeline' : 'lifelines'}`;
+
+/** What to say about lifelines on one tile, in the players' words. Null = nothing to say. */
+export function lifelineLine(view: TeamEasePayload, tile: TeamEaseTile | undefined): string | null {
+  if (!view.lifelines) return null;
+  const { left, total } = view.lifelines;
+  const of = `${lifelineCount(left)} of ${total} left`;
+  const life = tile?.lifeline;
+  if (!tile || !life || life.state === 'nothing' || life.state === 'off') return tile?.live.length ? null : `No easier option on this tile. Your team has ${of}.`;
+  if (life.state === 'spent') return `Your team used a lifeline here. ${of[0].toUpperCase()}${of.slice(1)}.`;
+  if (life.state === 'none-left') return 'This tile has an easier option, but your team has no lifelines left.';
+  if (life.state === 'not-open') return `This tile has an easier option. A lifeline works on it once your team is playing it (${of}).`;
+  if (life.state === 'wait' && life.readyAt != null) return `This tile has an easier option. A lifeline works here ${easeWaitText(life.readyAt, view.now)} (${of}).`;
+  if (life.state === 'ready' && !view.canSpend) return `This tile has an easier option. Your captain can use a lifeline to open it (${of}).`;
+  if (life.state === 'ready') return `Opens this tile’s easier option for your team. ${of[0].toUpperCase()}${of.slice(1)}.`;
+  return null;
+}
+
+/** May the viewer press "Use a lifeline" on this tile right now? */
+export function lifelineSpendable(view: TeamEasePayload, tile: TeamEaseTile | undefined): boolean {
+  return !!view.lifelines && view.canSpend && tile?.lifeline.state === 'ready';
+}
+
+/** "An easier option opens for everyone in 8h 23m", while the clock still has one to open. Null otherwise. */
+export function nextTimedLine(view: TeamEasePayload, tile: TeamEaseTile | undefined): string | null {
+  if (!tile || tile.locked <= 0 || tile.nextTimedAt == null || tile.nextTimedAt <= view.now) return null;
+  return `${tile.live.length ? 'An easier one still' : 'An easier option'} opens for everyone ${easeWaitText(tile.nextTimedAt, view.now)}.`;
+}
+
+/** What spending asks first, on either surface. */
+export const lifelineConfirmText = (left: number): string =>
+  `Use one of your team’s ${lifelineCount(left)} on this tile? You’ll see the easier option once it’s spent, and it can’t be taken back.`;

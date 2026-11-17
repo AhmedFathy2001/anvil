@@ -66,6 +66,12 @@ const no: PartialDiscordDict = {
     scoringTiles: '• **Poeng** — ett poeng per rute; et lags poengsum er hvor mange de har fullført.',
     tileRace:
       '• **Ruteløp** — brettet er en fastsatt løype. Dere rykker fremover langs den; deres fjerneste rute er plasseringen deres.',
+    raceEase:
+      '• **Lettere med tiden** — hver {hours}. time etter start får neste trinn et lettere alternativ. Begge versjonene fullfører ruten.',
+    raceLifelines:
+      '• **Livliner** — {n} per lag for hele løpet. Bruk en på en rute dere står fast på, for å åpne det lettere alternativet. Dere ser først hva det er når den er brukt.',
+    raceLifelinesWait:
+      ' En livline virker på en rute når den har vært åpen for dere i {hours} timer.',
     revealScheduled:
       '• **Avsløringer** — ruter åpnes etter en plan satt av staff. En rute du ikke ser ennå, har rett og slett ikke åpnet.',
     revealIntervalOne: '• **Avsløringer** — én rute trekkes {order} hvert {minutes}. minutt.',

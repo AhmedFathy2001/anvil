@@ -66,6 +66,12 @@ const ptBr: PartialDiscordDict = {
     scoringTiles: '• **Pontuação** — um ponto por casa; a pontuação de um time é quantas ele fechou.',
     tileRace:
       '• **Corrida de casas** — o tabuleiro é um percurso ordenado. Vocês avançam por ele; a casa mais distante é a sua posição.',
+    raceEase:
+      '• **Mais fácil com o tempo** — a cada {hours} h após o início, o próximo passo ganha uma opção mais fácil. Qualquer uma das versões conclui a casa.',
+    raceLifelines:
+      '• **Ajudas** — {n} por equipe para a corrida inteira. Usem uma em uma casa em que estejam travados para abrir a opção mais fácil dela. Vocês só veem qual é depois de usar.',
+    raceLifelinesWait:
+      ' Uma ajuda funciona em uma casa depois que ela está aberta para vocês há {hours} h.',
     revealScheduled:
       '• **Aberturas** — as casas abrem conforme um cronograma definido pela staff. Uma casa que você ainda não vê simplesmente não abriu.',
     revealIntervalOne: '• **Aberturas** — uma casa é sorteada {order} a cada {minutes} minutos.',

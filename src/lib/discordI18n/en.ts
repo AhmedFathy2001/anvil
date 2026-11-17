@@ -81,6 +81,12 @@ export const en = {
     scoringTiles: '• **Scoring** — one point per tile; a team’s score is how many it finished.',
     tileRace:
       '• **Tile race** — the board is an ordered track. You advance along it; your furthest tile is your position.',
+    raceEase:
+      '• **Easier over time** — every {hours}h after the start, the next step gains an easier option. Either version finishes the tile.',
+    raceLifelines:
+      '• **Lifelines** — {n} per team for the whole race. Spend one on a tile you’re stuck on to open its easier option. You only see what it is after spending.',
+    raceLifelinesWait:
+      ' A lifeline works on a tile once it has been open to you for {hours}h.',
     revealScheduled:
       '• **Reveals** — tiles open on a schedule set by staff. A tile you can’t see yet simply hasn’t opened.',
     revealIntervalOne: '• **Reveals** — a tile is drawn {order} every {minutes} minutes.',

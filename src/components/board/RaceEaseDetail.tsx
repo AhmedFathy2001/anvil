@@ -3,21 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
-import { easeWaitText, type LifelineStatus } from '@/lib/raceEase';
+import { lifelineConfirmText, lifelineLine, lifelineSpendable, nextTimedLine, type TeamEasePayload } from '@/lib/raceEase';
 
-interface EaseTile {
-  live: { id: number; label: string; rank: number }[];
-  locked: number;
-  nextTimedAt: number | null;
-  lifeline: LifelineStatus;
-}
-interface EaseView {
-  tiles: Record<string, EaseTile>;
-  lifelines: { left: number; total: number } | null;
-  canSpend: boolean;
-  /** The server's clock when it answered: every "opens in…" is counted from it. */
-  now: number;
-}
+type EaseView = TeamEasePayload;
 
 /** One team's easing view of a race (GET /api/events/:id/race-lifeline), refetched after a spend. */
 export function useRaceEase(eventId: number | undefined, teamId: number | null | undefined): { view: EaseView | null; reload: () => void } {
@@ -39,8 +27,6 @@ export function useRaceEase(eventId: number | undefined, teamId: number | null |
   const reload = useCallback(() => setTick((n) => n + 1), []);
   return { view, reload };
 }
-
-const lifelineCount = (n: number) => `${n} ${n === 1 ? 'lifeline' : 'lifelines'}`;
 
 /**
  * A race tile's easier options, in its details (components/TileDetailModal), for the viewer's team:
@@ -69,7 +55,6 @@ export default function RaceEaseDetail({
   if (!view || teamId == null || eventId == null) return null;
   const tile = view.tiles[String(tileId)];
   if (!tile && !view.lifelines) return null;
-  const now = view.now;
 
   async function spend() {
     setBusy(true);
@@ -91,19 +76,29 @@ export default function RaceEaseDetail({
     }
   }
 
-  const life = tile?.lifeline;
-  const left = view.lifelines?.left ?? 0;
-  const total = view.lifelines?.total ?? 0;
-  let lifeLine: string | null = null;
-  if (view.lifelines) {
-    if (!tile || life?.state === 'nothing') lifeLine = tile?.live.length ? null : `No easier option on this tile. Your team has ${lifelineCount(left)} of ${total} left.`;
-    else if (life?.state === 'spent') lifeLine = `Your team used a lifeline here. ${lifelineCount(left)} of ${total} left.`;
-    else if (life?.state === 'none-left') lifeLine = 'This tile has an easier option, but your team has no lifelines left.';
-    else if (life?.state === 'not-open') lifeLine = `This tile has an easier option. A lifeline works on it once your team is playing it (${lifelineCount(left)} of ${total} left).`;
-    else if (life?.state === 'wait' && life.readyAt != null) lifeLine = `This tile has an easier option. A lifeline works here ${easeWaitText(life.readyAt, now)} (${lifelineCount(left)} of ${total} left).`;
-    else if (life?.state === 'ready' && !view.canSpend) lifeLine = `This tile has an easier option. Your captain can use a lifeline to open it (${lifelineCount(left)} of ${total} left).`;
+  async function giveBack() {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/race-lifeline`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, tileId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(data.error || 'Could not give the lifeline back.');
+      setJustOpened(null);
+      reload();
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   }
-  const canSpendNow = life?.state === 'ready' && view.canSpend;
+
+  const left = view.lifelines?.left ?? 0;
+  const canSpendNow = lifelineSpendable(view, tile);
+  const lifeLine = lifelineLine(view, tile);
+  const timedLine = nextTimedLine(view, tile);
   const descOf = (id: number) => optionDetails?.find((o) => o.id === id)?.description ?? null;
 
   return (
@@ -123,12 +118,8 @@ export default function RaceEaseDetail({
         </div>
       )}
       {justOpened && justOpened.length === 0 && <p className="text-xs text-text-muted">Lifeline used.</p>}
-      {tile && tile.locked > 0 && tile.nextTimedAt != null && tile.nextTimedAt > now && (
-        <p className="text-xs text-text-muted">
-          {tile.live.length ? 'An easier one still' : 'An easier option'} opens for everyone {easeWaitText(tile.nextTimedAt, now)}.
-        </p>
-      )}
-      {lifeLine && <p className="text-xs text-text-muted">{lifeLine}</p>}
+      {timedLine && <p className="text-xs text-text-muted">{timedLine}</p>}
+      {lifeLine && !canSpendNow && <p className="text-xs text-text-muted">{lifeLine}</p>}
       {canSpendNow && !confirming && (
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -138,16 +129,12 @@ export default function RaceEaseDetail({
           >
             Use a lifeline
           </button>
-          <span className="text-xs text-text-muted">
-            Opens this tile’s easier option for your team. {lifelineCount(left)} of {total} left.
-          </span>
+          <span className="text-xs text-text-muted">{lifeLine}</span>
         </div>
       )}
       {canSpendNow && confirming && (
         <div className="space-y-1.5">
-          <p className="text-xs text-foreground">
-            Use one of your team’s {lifelineCount(left)} on this tile? You’ll see the easier option once it’s spent, and it can’t be taken back.
-          </p>
+          <p className="text-xs text-foreground">{lifelineConfirmText(left)}</p>
           <div className="flex gap-2">
             <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground disabled:opacity-50">
               Keep it
@@ -156,6 +143,14 @@ export default function RaceEaseDetail({
               {busy ? 'Using…' : 'Use the lifeline'}
             </button>
           </div>
+        </div>
+      )}
+      {view.canRefund && tile?.lifeline.state === 'spent' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" disabled={busy} onClick={() => void giveBack()} className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 disabled:opacity-50">
+            {busy ? 'Giving back…' : 'Give the lifeline back'}
+          </button>
+          <span className="text-xs text-text-muted">Admin: the team gets it back, and the easier option closes again unless the clock has opened it.</span>
         </div>
       )}
       {error && <p className="text-xs text-red-300">{error}</p>}

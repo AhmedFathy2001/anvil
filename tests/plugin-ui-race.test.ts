@@ -297,3 +297,40 @@ test('roads stay open: the note, the next step up front, earlier forks listed as
   assert.ok(!plain.includes(ROADS_OPEN_NOTE));
   assert.ok(!plain.includes('Also open at earlier forks:'));
 });
+
+test('easier options: a live one reads on the tile, and a lifeline asks before it is spent', () => {
+  const life = (state: 'ready' | 'spent' | 'nothing') => ({ state, left: 2, total: 3, readyAt: null });
+  const ease = (tiles: BoardContext['ease'] extends infer E ? (E extends { tiles: infer T } ? T : never) : never, canSpend = true): BoardContext['ease'] => ({ tiles, lifelines: { left: 2, total: 3 }, canSpend, now: Date.UTC(2026, 10, 8, 12) });
+  // Team 189 has done tile 2; tile 5 is open for it.
+  const ready = racePageUi(raceBoard([2]), opts({ ...ctx(), ease: ease({ '5': { live: [], locked: 1, nextTimedAt: Date.UTC(2026, 10, 8, 20), lifeline: life('ready') } }) })) as Slot;
+  const buttons = (n: unknown) => walk(n).filter((x) => x.t === 'button').map((x) => x.label as string);
+  const tile = texts(ready.panes!['t:5']);
+  assert.ok(buttons(ready.panes!['t:5']).includes('Use a lifeline'));
+  assert.ok(tile.some((x) => /opens for everyone in 8h/.test(x)));
+  assert.ok(tile.some((x) => /2 lifelines of 3 left/.test(x)));
+  // The button leads to a page that asks; only that page posts.
+  const confirm = ready.panes!['life:5'];
+  assert.ok(confirm, 'the confirm page exists');
+  assert.ok(texts(confirm).some((x) => /can’t be taken back/.test(x)));
+  const posts = (walk(confirm) as { on?: { a?: string; act?: string; args?: Record<string, string> } }[]).filter((n) => n.on?.a === 'post');
+  assert.deepEqual(posts.map((n) => [n.on!.act, n.on!.args!.tile]), [['race-lifeline', '5']]);
+  assert.ok(!(walk(ready.panes!['t:5']) as { on?: { a?: string } }[]).some((n) => n.on?.a === 'post' && (n as { on: { act?: string } }).on.act === 'race-lifeline'));
+  assert.ok(texts(ready.panes!.main).some((x) => /Lifelines: 2 of 3 left/.test(x)));
+
+  // Not the captain: the line says who can, and there is no button or confirm page.
+  const member = racePageUi(raceBoard([2]), opts({ ...ctx(), ease: ease({ '5': { live: [], locked: 1, nextTimedAt: null, lifeline: life('ready') } }, false) })) as Slot;
+  assert.ok(!buttons(member.panes!['t:5']).includes('Use a lifeline'));
+  assert.ok(texts(member.panes!['t:5']).some((x) => /Your captain can use a lifeline/.test(x)));
+  assert.equal(member.panes!['life:5'], undefined);
+
+  // Spent: the option is named on the tile.
+  const spent = racePageUi(raceBoard([2]), opts({ ...ctx(), ease: ease({ '5': { live: [{ id: 99, label: 'Any Zulrah unique', rank: 1 }], locked: 0, nextTimedAt: null, lifeline: life('spent') } }) })) as Slot;
+  const open = texts(spent.panes!['t:5']);
+  assert.ok(open.includes('Easier option open'));
+  assert.ok(open.includes('Any Zulrah unique'));
+  assert.equal(spent.panes!['life:5'], undefined);
+
+  // No easier options on the race: the page is as it was.
+  const plain = racePageUi(raceBoard([2]), opts(ctx())) as Slot;
+  assert.ok(!texts(plain.panes!['t:5']).some((x) => /lifeline|Easier option/i.test(x)));
+});

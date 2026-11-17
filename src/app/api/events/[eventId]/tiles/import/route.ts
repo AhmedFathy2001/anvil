@@ -6,7 +6,8 @@ import { eventForRequest } from '@/lib/eventScope';
 import { planTileImport } from '@/lib/tileImportPlan';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { MAX_EASE_OPTIONS } from '@/lib/raceEase';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit } from '@/lib/tile-audit';
 import { getItemMapping, itemsByName, type MappingItem } from '@/lib/osrsItems';
@@ -83,6 +84,8 @@ interface ImportRow {
   parts?: unknown;
   /** A combo PART's weight in a 'mix' combo (lib/combo). */
   comboWeight?: unknown;
+  /** A race tile's EASIER OPTIONS (lib/raceEase), first level first: each its own row, any kind but a combo. */
+  easier?: unknown;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -695,7 +698,47 @@ export async function POST(
     }
     comboParts.set(i, partRows);
   }
-  const allPartRows = [...comboParts.values()].flat();
+  // EASIER OPTIONS (lib/raceEase): a row's `easier` list rides the same way as a combo's parts, each
+  // its own row, validated and resolved like a board row. They only mean something on a tile race and
+  // only land before it starts; anywhere else the list is left out and the tile imports without it
+  // (a race board from the library opened as a bingo is still a board).
+  const easeRows = new Map<number, ImportRow[]>();
+  for (let i = 0; i < processed; i++) {
+    const row = rows[i] as ImportRow;
+    if (!row || typeof row !== 'object' || row.easier == null) continue;
+    const list = row.easier;
+    if (!Array.isArray(list) || list.length > MAX_EASE_OPTIONS) {
+      return NextResponse.json({ error: `Row ${i + 1}: a tile takes at most ${MAX_EASE_OPTIONS} easier options.` }, { status: 400 });
+    }
+    if (event.format !== 'tilerace' || eventStarted || row.mission === true) continue;
+    const out: ImportRow[] = [];
+    for (const [k, raw] of list.entries()) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return NextResponse.json({ error: `Row ${i + 1}, easier option ${k + 1} is not an object` }, { status: 400 });
+      }
+      const option = { ...(raw as ImportRow) };
+      if (typeof option.tileType === 'string') {
+        option.tileType = option.tileType.trim().toLowerCase();
+        applyKillTypeAlias(option);
+        if (option.tileType === 'stat') option.tileType = 'standard';
+      }
+      if (option.tileType === COMBO_TILE_TYPE || option.parts != null || option.easier != null) {
+        return NextResponse.json({ error: `Row ${i + 1}, easier option ${k + 1}: an easier option can't be a combo or carry options of its own.` }, { status: 400 });
+      }
+      delete option.mission;
+      delete option.missionRules;
+      if (option.tileType === 'kills') {
+        const resolved = resolveKillsRow(option, null);
+        if (!resolved.ok) return NextResponse.json({ error: `Row ${i + 1}, easier option ${k + 1}: ${resolved.error}` }, { status: 400 });
+        out.push(resolved.row as ImportRow);
+      } else {
+        out.push(option);
+      }
+    }
+    easeRows.set(i, out);
+  }
+  // Both kinds of child row resolve their items with the board's.
+  const allPartRows = [...comboParts.values(), ...easeRows.values()].flat();
 
   // Item config is only applied pre-start (it sets the tile kind). Load the merged item mapping
   // once if any row carries items, index it by name + id, then fail loudly on any name that
@@ -801,7 +844,30 @@ export async function POST(
     }
     partDerived.set(i, derived);
   }
+  const easeDerived = new Map<number, (DerivedItemFields | null)[]>();
+  for (const [i, list] of easeRows) {
+    const derived: (DerivedItemFields | null)[] = [];
+    for (const [k, option] of list.entries()) {
+      const d = deriveItemFields(option, byName, byId);
+      const err = validateRowFields(i, option) ?? validateRowKind(i, option, BLANK_TILE, false, d);
+      if (err) return NextResponse.json({ error: `${err} (easier option ${k + 1})` }, { status: 400 });
+      derived.push(d);
+    }
+    easeDerived.set(i, derived);
+  }
+  /** A row that names its easier options replaces the ones its tile had (an empty list clears them). */
+  const writeEasier = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], rowIndex: number, parent: { id: number; position: number }) => {
+    const list = easeRows.get(rowIndex);
+    if (!list) return;
+    await tx.delete(tiles).where(and(eq(tiles.parentTileId, parent.id), isNotNull(tiles.easeLevel)));
+    for (const [k, option] of list.entries()) {
+      const fields = tileFieldsFromRow(option, true, easeDerived.get(rowIndex)![k]);
+      const label = typeof fields.label === 'string' && fields.label ? fields.label : `Easier option ${k + 1}`;
+      await tx.insert(tiles).values({ eventId: eId, position: parent.position, label, ...fields, points: 0, parentTileId: parent.id, easeLevel: k + 1 });
+    }
+  };
   const writeParts = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], rowIndex: number, parent: { id: number; position: number }) => {
+    await writeEasier(tx, rowIndex, parent);
     const partRows = comboParts.get(rowIndex);
     if (!partRows) return;
     await tx.delete(tiles).where(and(eq(tiles.parentTileId, parent.id), isNull(tiles.easeLevel)));
@@ -820,7 +886,7 @@ export async function POST(
   await db.transaction(async (tx) => {
     for (let i = 0; i < updates; i++) {
       const updateSet = tileFieldsFromRow(rows[i] as ImportRow, !eventStarted, derivedList[i]);
-      if (!comboParts.has(i) && isNoopUpdate(updateSet, targets[i] as unknown as Record<string, unknown>)) {
+      if (!comboParts.has(i) && !easeRows.has(i) && isNoopUpdate(updateSet, targets[i] as unknown as Record<string, unknown>)) {
         unchanged++;
         continue;
       }

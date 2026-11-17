@@ -66,6 +66,12 @@ const da: PartialDiscordDict = {
     scoringTiles: '• **Point** — ét point pr. felt; et holds score er, hvor mange de har klaret.',
     tileRace:
       '• **Feltræs** — brættet er en fastlagt bane. I rykker frem ad den; jeres fjerneste felt er jeres placering.',
+    raceEase:
+      '• **Lettere med tiden** — hver {hours}. time efter start får næste trin en lettere mulighed. Begge udgaver afslutter feltet.',
+    raceLifelines:
+      '• **Livliner** — {n} pr. hold til hele løbet. Brug en på et felt, I sidder fast på, for at åbne dets lettere mulighed. I ser først, hvad den er, når den er brugt.',
+    raceLifelinesWait:
+      ' En livline virker på et felt, når det har været åbent for jer i {hours} timer.',
     revealScheduled:
       '• **Afsløringer** — felter åbner efter en plan lagt af staff. Et felt, du ikke kan se endnu, er simpelthen ikke åbnet.',
     revealIntervalOne: '• **Afsløringer** — ét felt trækkes {order} hvert {minutes}. minut.',
