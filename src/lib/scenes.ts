@@ -44,5 +44,5 @@ export function sceneFor(type: 'skill' | 'boss' | string, subject: string | null
 /** As {@link sceneFor}, from a stored metric: a skill key, or a hiscores boss key ("kreeArra"; a raid's first mode). */
 export function sceneForMetric(type: 'skill' | 'boss' | string, metric: string | null | undefined): Scene | null {
   if (!metric) return null;
-  return type === 'skill' ? skillScene(metric) : type === 'boss' ? figure(bossImageForStatKey(metricKeys(metric)[0] ?? metric)) : null;
+  return type === 'skill' ? skillScene(metricKeys(metric)[0] ?? metric) : type === 'boss' ? figure(bossImageForStatKey(metricKeys(metric)[0] ?? metric)) : null;
 }

@@ -190,7 +190,8 @@ export function weeklyKind(type: string): string {
 /** The game's picture for a weekly's metric: the boss, else the skill (none for efficiency). */
 function weeklyIcon(w: ScheduleWeekly): Node | undefined {
   if (!w.metric) return undefined;
-  if (w.type === 'skill') return icon({ skill: w.metric, w: 14, h: 14, alt: 'S' });
+  // Several skills added together draw as the first: the plugin looks a skill up by its one name.
+  if (w.type === 'skill') return icon({ skill: w.metric.split(',')[0].trim(), w: 14, h: 14, alt: 'S' });
   if (w.type === 'boss') return icon({ boss: w.metric, w: 16, h: 16, alt: 'B' });
   // An item hunt: the item or pet it hunts.
   if (w.type === 'hunt' && w.iconItem) return icon({ item: w.iconItem, w: 16, h: 16 });

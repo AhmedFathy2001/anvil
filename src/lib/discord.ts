@@ -2130,7 +2130,8 @@ function weeklyThumbnail(type: string, metric: string, hunt?: WeeklyHuntPost | n
   // An item hunt shows the item or pet it hunts.
   if (hunt) return hunt.iconUrl ? { thumbnail: { url: discordAssetUrl(hunt.iconUrl) } } : {};
   if (type === 'skill') {
-    const url = skillIconUrl(metric);
+    // Several skills added together show the first.
+    const url = skillIconUrl(metricKeys(metric)[0] ?? metric);
     return url ? { thumbnail: { url: discordAssetUrl(url) } } : {};
   }
   if (type === 'boss') {

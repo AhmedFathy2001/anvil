@@ -36,6 +36,8 @@ interface Comp {
   startDate: string;
   endDate: string;
   status: string;
+  /** "Selected people": only the names added on Participants race. */
+  selectedOnly?: boolean;
 }
 
 /**
@@ -143,7 +145,11 @@ export default function WeeklyHomeClient({
             <ReadyRow
               done={counts.participants > 0}
               title={counts.participants > 0 ? `${counts.participants} people entered` : 'Nobody entered yet'}
-              detail="Everyone on the roster is swept in automatically when the competition is created."
+              detail={
+                comp.selectedOnly
+                  ? 'This one is for selected people. Add the people who race on Participants.'
+                  : 'Everyone on the roster is swept in automatically when the competition is created.'
+              }
               href={`${base}/participants`}
               action="Roster"
             />

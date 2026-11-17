@@ -17,7 +17,7 @@ import { setWeeklyPool } from '@/lib/coffer';
 import { enrollAllPlayers } from '@/lib/weekly';
 import { announceCompetitionStart } from '@/lib/competitionTeamsPosts';
 import { competitionMode } from '@/lib/competitionTeams';
-import { autoBalanceTeams, carryOverTeamSetup } from '@/lib/competitionTeamsDb';
+import { autoBalanceTeams, carryOverSelectedEntrants, carryOverTeamSetup } from '@/lib/competitionTeamsDb';
 import { parseWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 import { defaultWeeklyTitle, nextMetric, nextWindow, parseRepeat, successorClaim, successorMarkerState, type RepeatConfig } from '@/lib/weeklyRepeatPlan';
 import { log } from '@/lib/logger';
@@ -104,6 +104,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               prizes: prev.prizes,
               mode: prev.mode,
               teamLateJoin: prev.teamLateJoin,
+              // "Selected people" stays selected: without this the next week went back to sweeping
+              // the whole roster in, and the organiser's list lasted exactly one week.
+              hostEntrants: prev.hostEntrants,
             })
             .returning();
           const kept = await tx
@@ -132,6 +135,8 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
 
       // Same format as last week: teams carried over (then re-balanced), clans re-invited.
       await carryOverTeamSetup(prev, comp);
+      // ...and with the same selected people, where the organiser picked them (a no-op otherwise).
+      await carryOverSelectedEntrants(prev, comp);
       await enrollAllPlayers(comp.id);
       if (competitionMode(comp.mode) === 'teams') await autoBalanceTeams(comp).catch(() => null);
       if (status === 'active') {
