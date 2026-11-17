@@ -29,6 +29,8 @@ export interface TrialCardProps {
   /** "$14.99", charged today, and then every `every`. */
   chargeToday: string;
   every: 'month' | 'year';
+  /** "$5.49": what comes back for the unused trial days when they pay today (lib/trialRefund); null when that is off. */
+  refundBack?: string | null;
   /** POST here records "Remind me when the trial ends"; null hides it. */
   remindUrl: string | null;
   remindRequested: boolean;
@@ -109,7 +111,9 @@ export default function TrialCard(p: TrialCardProps) {
       {p.href && (
         <p className="mt-2 text-[12.5px] leading-relaxed text-text-muted">
           {p.phase === 'running'
-            ? `Paying now starts your paid ${p.every} today: you'll be charged ${p.chargeToday}, then ${p.chargeToday} every ${p.every}. Your trial runs until ${day} (${left} left); to use all of it, subscribe on the day. We'll remind you 3 days before.`
+            ? p.refundBack
+              ? `Paying now starts your paid ${p.every} today: you'll be charged ${p.chargeToday} and get ${p.refundBack} back to your card for the ${left} of trial you didn't use. After that it is ${p.chargeToday} every ${p.every}.`
+              : `Paying now starts your paid ${p.every} today: you'll be charged ${p.chargeToday}, then ${p.chargeToday} every ${p.every}. Your trial runs until ${day} (${left} left); to use all of it, subscribe on the day. We'll remind you 3 days before.`
             : `You'll be charged ${p.chargeToday} the day you subscribe, then every ${p.every}.`}
         </p>
       )}
