@@ -1721,6 +1721,8 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   entryFee: integer('entry_fee'),
   /** Settled entry fees go into the clan coffer and are paid out on top of the prize ladder (lib/weeklyPrizes feePlaces). */
   feesToPrizes: boolean('fees_to_prizes').notNull().default(false),
+  /** Hold the prizes while anyone in a paying place still owes their entry fee (lib/weeklyPrizeSettle). */
+  feeGatesPrize: boolean('fee_gates_prize').notNull().default(true),
   /**
    * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
    * where each one counts from, the rule, and what the standings show beside the count. `metric`

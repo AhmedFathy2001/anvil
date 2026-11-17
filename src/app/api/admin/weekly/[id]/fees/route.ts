@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyAdmin, verifyAdminOrModerator, verifyFeeCollector, verifyUser } from '@/lib/auth';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { competitionForRequest } from '@/lib/eventScope';
-import { moveWeeklyFee, weeklyFeePotGp, weeklyFeeSheet, type WeeklyFeeAction } from '@/lib/weeklySignups';
+import { moveWeeklyFee, prizesWaitOnFees, weeklyFeePotGp, weeklyFeeSheet, type WeeklyFeeAction } from '@/lib/weeklySignups';
 
 /**
  * A competition's entry fees (lib/weeklySignups): the sheet, and one move on one entrant's fee.
@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const comp = await competitionForRequest(request, parseInt((await params).id, 10));
   if (!comp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ entryFee: comp.entryFee, selfSignup: comp.selfSignup, feesToPrizes: comp.feesToPrizes, potGp: await weeklyFeePotGp(comp.id), ...(await weeklyFeeSheet(comp)) });
+  return NextResponse.json({ entryFee: comp.entryFee, selfSignup: comp.selfSignup, feesToPrizes: comp.feesToPrizes, prizesWaiting: await prizesWaitOnFees(comp), potGp: await weeklyFeePotGp(comp.id), ...(await weeklyFeeSheet(comp)) });
 }
 
 const ACTIONS: WeeklyFeeAction[] = ['collect', 'confirm', 'reset', 'waive'];
@@ -39,5 +39,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!comp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const r = await moveWeeklyFee(comp, body.participantId, action, user.userId);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
-  return NextResponse.json({ ok: true, potGp: await weeklyFeePotGp(comp.id), ...(await weeklyFeeSheet(comp)) });
+  return NextResponse.json({ ok: true, prizesWaiting: await prizesWaitOnFees(comp), potGp: await weeklyFeePotGp(comp.id), ...(await weeklyFeeSheet(comp)) });
 }

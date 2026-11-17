@@ -111,6 +111,7 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               selfSignup: prev.selfSignup,
               entryFee: prev.entryFee,
               feesToPrizes: prev.feesToPrizes,
+              feeGatesPrize: prev.feeGatesPrize,
             })
             .returning();
           const kept = await tx
