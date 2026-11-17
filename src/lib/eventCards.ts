@@ -246,6 +246,7 @@ export async function loadEventCards(
   // A tile race is ordered by the route, not by tiles claimed: first to finish, then steps done, then
   // who reached that step first (lib/raceRoutesDb raceStandingsForEvent, the event page's own order).
   // A branching board has more tiles than steps, so "most tiles" named the wrong leader.
+  // The route's length is the board's size: like the tile count, it stays back until the reveal.
   const raceTop = new Map<number, NonNullable<EventCard['top']>>();
   for (const event of shown) {
     if (event.format !== 'tilerace' || !event.startDate || upcoming.some((e) => e.id === event.id)) continue;
@@ -254,7 +255,7 @@ export async function loadEventCards(
     const first = race?.standings.find((r) => r.rank === 1 && r.stepsDone > 0);
     if (!race || !first) continue;
     const [team] = await db.select({ name: teams.name, color: teams.color }).from(teams).where(eq(teams.id, first.teamId)).limit(1);
-    if (team) raceTop.set(event.id, { name: team.name, color: team.color, score: first.stepsDone, total: race.steps, unit: 'steps' });
+    if (team) raceTop.set(event.id, { name: team.name, color: team.color, score: first.stepsDone, total: event.tilesRevealed || past.some((e) => e.id === event.id) ? race.steps : 0, unit: 'steps' });
   }
 
   return shown.map((event) => {
