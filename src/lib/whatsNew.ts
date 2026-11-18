@@ -80,6 +80,19 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-18-efficient-hours',
+    date: '2026-11-18',
+    title: 'Hours at an efficient pace',
+    body: 'Hours for every boss and skill are now counted at an efficient pace, so nobody is credited more time than they played. Your hours will read lower than before, on your profile, the Members page and efficiency competitions.',
+    links: [{ label: 'Members', href: '/c/{clan}/members' }],
+  },
+  {
+    id: '2026-11-18-pet-drop-reading',
+    date: '2026-11-18',
+    title: 'What you were on when it dropped',
+    body: 'A pet or drop in a single-skill or single-boss competition now shows the XP or kill count it landed on, in the feed and the recap.',
+  },
+  {
     id: '2026-11-18-competition-recap-feed',
     date: '2026-11-18',
     title: 'A feed and a recap for every competition',
