@@ -131,6 +131,21 @@ export interface WeeklyScope {
   metric: string;
 }
 
+/**
+ * What the player was on when a pet or drop landed in a competition: their XP in a skill week, their
+ * kill count in a boss week. Only a competition over ONE skill or boss can say: with several, the
+ * site does not know which the drop belongs to. `reading` is the site's live reading of the member,
+ * keyed like the competition's metric. Pure.
+ */
+export function weeklyReading(weekly: WeeklyScope | undefined, reading: Record<string, number>): { xp: number | null; kc: number | null } | null {
+  if (!weekly || weekly.type === 'efficiency') return null;
+  const keys = weekly.metric.split(',').map((k) => k.trim()).filter(Boolean);
+  if (keys.length !== 1) return null;
+  const value = reading[keys[0]];
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  return weekly.type === 'skill' ? { xp: Math.round(value), kc: null } : { xp: null, kc: Math.round(value) };
+}
+
 export interface EventScope {
   id: number;
   /** Scheduled/actual event start. Used to reject a client backlog captured before the whistle. */

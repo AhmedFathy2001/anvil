@@ -11,6 +11,7 @@ import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
+import { liveStatsForMembers } from '@/lib/liveStats';
 import { MILESTONE_KIND, type MilestoneFacts } from '@/lib/milestoneMoments';
 import {
   ACHIEVEMENT_KINDS,
@@ -26,6 +27,7 @@ import {
   type Observation,
   type PlannedMoment,
   type WeeklyScope,
+  weeklyReading,
 } from '@/lib/moments';
 
 /**
@@ -44,6 +46,8 @@ const MIN_LOOT_SETTING_KEY = 'moments_min_loot_gp';
 export const CLAN_MIN_LOOT_SETTING_KEY = 'moments_clan_min_loot_gp';
 export const CLAN_MIN_CA_TIER_SETTING_KEY = 'moments_clan_min_ca_tier';
 export const CLAN_DEATHS_SETTING_KEY = 'moments_clan_deaths';
+
+const DROP_KINDS = new Set(['pet', 'unique', 'loot']);
 
 export interface ActiveScopes {
   weeklies: WeeklyScope[];
@@ -322,9 +326,18 @@ export async function recordMoments(
   }
   if (planned.length === 0) return { stored: 0, matched: 0, inserted: [] };
 
+  // A pet or drop in a competition says what the player was on when it landed (lib/moments
+  // weeklyReading): their XP in a skill week, their kill count in a boss week the plugin sent none for.
+  // Read once, from the site's live reading of the member, and only when a competition row needs it.
+  const weeklyById = new Map(scopes.weeklies.map((w) => [w.id, w]));
+  const needsReading = planned.some((r) => r.weeklyCompetitionId != null && DROP_KINDS.has(r.kind));
+  const reading = needsReading ? ((await liveStatsForMembers([member.clanMemberId]).catch(() => null))?.get(member.clanMemberId) ?? {}) : {};
+
   let stored = 0;
   const inserted: StoredMoment[] = [];
   for (const row of planned) {
+    const at = !mode && row.weeklyCompetitionId != null && DROP_KINDS.has(row.kind) ? weeklyReading(weeklyById.get(row.weeklyCompetitionId), reading) : null;
+    const kc = row.kc ?? at?.kc ?? null;
     // An achievement happens once, so it is one row for the clan feed whichever scope kept it: the
     // clan's own copy (':clan') is skipped when a board or week already holds it, and a board's or
     // week's when the clan already has it — a 99 reported during a week and replayed after it ended
@@ -347,7 +360,8 @@ export async function recordMoments(
         valueGp: row.valueGp,
         source: row.source,
         sourceKind: row.sourceKind,
-        kc: row.kc,
+        kc,
+        statXp: at?.xp ?? null,
         rarityDenominator: row.rarityDenominator,
         tier: row.tier,
         worldMode: mode?.key ?? null,
@@ -609,6 +623,7 @@ const MOMENT_COLUMNS = {
   valueGp: moments.valueGp,
   source: moments.source,
   kc: moments.kc,
+  statXp: moments.statXp,
   rarityDenominator: moments.rarityDenominator,
   tier: moments.tier,
   worldMode: moments.worldMode,
@@ -629,6 +644,8 @@ export interface MomentRow {
   valueGp: number | null;
   source: string | null;
   kc: number | null;
+  /** XP in the competition's skill when it landed (skill weeks only). */
+  statXp?: number | null;
   rarityDenominator: number | null;
   /** Combat tasks only — the feed line leads with it. */
   tier: string | null;

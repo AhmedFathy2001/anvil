@@ -26,6 +26,7 @@ export interface RecapDrop {
   source: string | null;
   rarity: number | null;
   kc: number | null;
+  xp: number | null;
   /** 'YYYY-MM-DD' */
   day: string;
   pet: boolean;
@@ -184,6 +185,7 @@ export function buildCompetitionRecap(input: {
     source: m.source,
     rarity: m.rarityDenominator,
     kc: m.kc,
+    xp: m.statXp ?? null,
     day: m.occurredAt.slice(0, 10),
     pet: m.kind === 'pet',
   });
