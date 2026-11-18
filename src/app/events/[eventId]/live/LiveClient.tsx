@@ -650,7 +650,7 @@ function FeedPane({
               <div className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-text-muted">{day.label}</div>
               <ul className="divide-y divide-card-border/60">
                 {day.rows.map((r) => (
-                  <FeedRowItem key={r.id} row={r} now={now} reactions={feed.reactions} />
+                  <FeedRowItem key={r.id} row={r} reactions={feed.reactions} />
                 ))}
               </ul>
             </div>
@@ -700,6 +700,11 @@ function feedDays(rows: LiveFeedRow[], now: number): { label: string; rows: Live
   return out;
 }
 
+const timeOnly = (iso: string) => {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? '' : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const KIND_TAG: Record<string, { label: string; cls: string }> = {
   tile: { label: 'Tile', cls: 'border-gold/40 text-gold-light' },
   pet: { label: 'Pet', cls: 'border-sky-400/40 text-sky-300' },
@@ -718,7 +723,7 @@ function feedSentence(row: LiveFeedRow): string {
   return row.title.charAt(0).toLowerCase() + row.title.slice(1);
 }
 
-function FeedRowItem({ row, now, reactions }: { row: LiveFeedRow; now: number; reactions: LiveFeedState['reactions'] }) {
+function FeedRowItem({ row, reactions }: { row: LiveFeedRow; reactions: LiveFeedState['reactions'] }) {
   const chips = row.momentId != null ? reactions?.byMoment[row.momentId] : undefined;
   const tag = KIND_TAG[row.kind] ?? MILESTONE_TAG;
   // On a players board a team is one person, so the team tag would only repeat the name.
@@ -737,7 +742,8 @@ function FeedRowItem({ row, now, reactions }: { row: LiveFeedRow; now: number; r
           <MomentReactions key={JSON.stringify(chips)} momentId={row.momentId} chips={chips} canReact={reactions.canReact} target={reactions.target} />
         )}
       </div>
-      <span className="shrink-0 font-mono text-[10.5px] text-text-muted">{clockLabel(row.at, now)}</span>
+      {/* The day is the group's heading, so the row carries the time alone. */}
+      <span className="shrink-0 font-mono text-[10.5px] text-text-muted">{timeOnly(row.at)}</span>
     </li>
   );
 }
