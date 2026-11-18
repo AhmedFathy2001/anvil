@@ -56,6 +56,8 @@ export interface FeedMoment {
   valueGp: number | null;
   tier?: string | null;
   kc: number | null;
+  /** XP in the competition's skill when it landed (skill weeks). */
+  statXp?: number | null;
   rarityDenominator: number | null;
   occurredAt: string;
 }
@@ -80,6 +82,7 @@ function momentDetail(m: FeedMoment): string | null {
   const bits: string[] = [];
   if (m.rarityDenominator && m.rarityDenominator >= 100) bits.push(`1 in ${m.rarityDenominator.toLocaleString()}`);
   if (m.kc && m.kc > 0) bits.push(`${m.kc.toLocaleString()} KC`);
+  if (m.statXp && m.statXp > 0) bits.push(`at ${m.statXp.toLocaleString()} XP`);
   if (m.valueGp && m.valueGp >= 1_000_000) bits.push(`${(m.valueGp / 1_000_000).toFixed(1)}M`);
   return bits.length > 0 ? bits.join(' · ') : null;
 }

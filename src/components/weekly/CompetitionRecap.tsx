@@ -182,7 +182,7 @@ export function RecapDeaths({ board, metricLabel }: { board: NonNullable<Competi
 }
 
 function DropLine({ d }: { d: RecapDrop }) {
-  const detail = [d.rarity && d.rarity >= 100 ? `1 in ${d.rarity.toLocaleString()}` : null, d.kc ? `${d.kc.toLocaleString()} KC` : null].filter(Boolean).join(' · ');
+  const detail = [d.rarity && d.rarity >= 100 ? `1 in ${d.rarity.toLocaleString()}` : null, d.kc ? `${d.kc.toLocaleString()} KC` : null, d.xp ? `at ${d.xp.toLocaleString()} XP` : null].filter(Boolean).join(' · ');
   return (
     <li className="flex items-baseline justify-between gap-3 border-t border-card-border/60 py-2 text-sm">
       <span className="min-w-0">
