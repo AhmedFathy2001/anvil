@@ -1,3 +1,7 @@
+import EventFirsts from '@/components/events/EventFirsts';
+import { firstsForViewer } from '@/lib/eventFirstsView';
+import { getEventLuck } from '@/lib/eventLuck';
+import EventLuck from '../EventLuck';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import { clientEvent } from '@/lib/clientRows';
 import EventApiHost from '@/components/EventApiHost';
@@ -32,6 +36,7 @@ async function viewerRows(eventId: number): Promise<number[]> {
     .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, seats.map((r) => r.id))));
   return rows.map((r) => r.id);
 }
+
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +107,7 @@ export default async function EventStatsPage({
     );
   }
 
+  const [firsts, luck] = await Promise.all([firstsForViewer(event).catch(() => []), getEventLuck(id).catch(() => null)]);
   const days = Array.from({ length: data.event.dayCount }, (_, i) => i + 1).filter((d) => startMs + (d - 1) * 86_400_000 <= data.event.nowMs);
   const chip = (href: string, label: string, active: boolean) => (
     <ClanLink
@@ -126,6 +132,13 @@ export default async function EventStatsPage({
         )}
       </nav>
       <StatsDashboard data={data} viewerIds={mine} />
+      {/* Firsts and luck moved here from the Board tab: facts about the whole event, beside its numbers. */}
+      {firsts.length > 0 && (
+        <div className="mt-8">
+          <EventFirsts firsts={firsts} />
+        </div>
+      )}
+      {luck && <EventLuck luck={luck} />}
     </div>
   );
 }

@@ -3597,6 +3597,9 @@ export const moments = pgTable('moments', {
   sourceKind: text('source_kind'),
   /** Killcount at the moment, when the client knew it. What makes a spoon measurable. */
   kc: integer('kc'),
+  // The player's XP in the competition's skill when this landed (a skilling pet in a skill week), from
+  // the site's live reading. Null for everything else and for rows from before this was recorded.
+  statXp: integer('stat_xp'),
   /** 1-in-N, priced HERE from the shipped drop dataset — never trusted from the client. */
   rarityDenominator: integer('rarity_denominator'),
   /**

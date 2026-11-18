@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { eventTimeState, formatExactTime, type EventPhase } from '@/lib/eventTime';
 import ClanCrest from '@/components/ClanCrest';
 import { useRouter } from 'next/navigation';
+import { ordinal } from '@/lib/yourTeam';
 import FinalHourCountdown, { FINAL_HOUR_MS, FINAL_HOUR_GO_MS } from '@/components/FinalHourCountdown';
 
 interface Props {
@@ -30,6 +31,8 @@ interface Props {
   placementPrizes: number[];
   /** The board needs a starting shot — the final-hour countdown walks through the steps. */
   startProof?: boolean;
+  /** A players board: every entry is one person, so the count says players. */
+  solo?: boolean;
   /**
    * The start time came but the board can't start (no teams, a draft still running): the cron keeps
    * pushing startDate two minutes ahead (lib/eventLifecycle START_HOLD_MS), so a countdown would
@@ -56,9 +59,6 @@ function compactGp(n: number): string {
   return String(n);
 }
 
-function medal(place: number): string {
-  return place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `#${place}`;
-}
 
 const STATUS: Record<EventPhase, { label: string; dot: string; text: string }> = {
   active: { label: 'Live', dot: 'bg-accent-green-light', text: 'text-accent-green-light' },
@@ -89,6 +89,7 @@ export default function EventHero({
   placementPrizes,
   startHeld = false,
   startProof = false,
+  solo = false,
 }: Props) {
   // Client-only clock — null until mounted so SSR and first render agree (no hydration mismatch).
   const [now, setNow] = useState<number | null>(null);
@@ -174,9 +175,9 @@ export default function EventHero({
           <ClanCrest
             name={hostName || name}
             logoUrl={iconUrl}
-            size={64}
-            rounded="rounded-2xl"
-            className="shrink-0 text-2xl shadow-lg shadow-black/30"
+            size={72}
+            rounded="rounded-[18px]"
+            className="shrink-0 text-2xl shadow-lg shadow-black/30 ring-[3px] ring-gold"
           />
           <div className="min-w-0">
             {/* The status derives from the client clock, so keep its row height reserved and only
@@ -189,18 +190,20 @@ export default function EventHero({
                 </span>
               )}
             </div>
-            <h1 className="break-words text-2xl font-extrabold leading-tight text-gold sm:text-3xl">{name}</h1>
+            <h1 className="break-words text-2xl font-bold leading-tight text-gold sm:text-[26px]">{name}</h1>
             {hostedBy && <p className="mt-1 text-sm text-text-muted">Hosted by {hostedBy}</p>}
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-          <span className="rounded-full bg-gold/15 px-2 py-0.5 font-medium text-gold">{shapeBadge}</span>
+          <span className="rounded-md border border-gold/40 px-2 py-0.5 font-medium text-gold-light">{shapeBadge}</span>
           {pointsOnBoard !== null && (
-            <span className="rounded-full bg-purple-500/15 px-2 py-0.5 font-medium text-purple-300">
+            <span className="rounded-md border border-purple-400/40 px-2 py-0.5 font-medium text-purple-300">
               {pointsOnBoard.toLocaleString()} pts on the board
             </span>
           )}
-          <span>{teamsCount} team{teamsCount !== 1 ? 's' : ''}</span>
+          <span className="rounded-md border border-card-border px-2 py-0.5 text-foreground/80">
+            {solo ? `${teamsCount.toLocaleString()} player${teamsCount !== 1 ? 's' : ''}, each on their own` : `${teamsCount} team${teamsCount !== 1 ? 's' : ''}`}
+          </span>
         </div>
 
         {/* The two focal points — reward and urgency. */}
@@ -208,11 +211,18 @@ export default function EventHero({
           {hasPrize && (
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">Prize pool</div>
-              <div className="mt-1 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-3xl font-black leading-none tracking-tight text-transparent tabular-nums sm:text-4xl">
+              <div className="mt-1 font-mono text-2xl font-bold leading-none text-gold-light tabular-nums sm:text-[26px]">
                 {prizePool.toLocaleString()}
-                <span className="ml-1.5 align-baseline text-lg font-bold text-gold sm:text-xl">gp</span>
+                <span className="ml-1.5 text-base font-bold text-gold">gp</span>
               </div>
-              {prizeBreakdown && <div className="mt-2 text-xs text-text-muted">{prizeBreakdown}</div>}
+              {/* The ladder in one line, where the separate "Prizes on the line" strip was. */}
+              {prizes.length > 0 ? (
+                <div className="mt-2 text-xs text-foreground/80" title={prizeBreakdown ?? undefined}>
+                  {prizes.map((amt, i) => `${ordinal(i + 1)} ${compactGp(amt)}`).join(' · ')}
+                </div>
+              ) : (
+                prizeBreakdown && <div className="mt-2 text-xs text-text-muted">{prizeBreakdown}</div>
+              )}
             </div>
           )}
 
@@ -235,25 +245,6 @@ export default function EventHero({
       </div>
       </div>
 
-        {/* Prizes on the line — the reward per placement, under both columns. */}
-        {prizes.length > 0 && (
-          <div className="relative border-t border-card-border px-4 py-4 sm:px-6">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-gold/60">
-              Prizes on the line
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {prizes.map((amt, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gold/20 bg-gold/5 px-3 py-1.5 text-sm"
-                >
-                  <span aria-hidden>{medal(i + 1)}</span>
-                  <span className="font-semibold text-gold tabular-nums">{compactGp(amt)}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
     </div>
   );
 }
@@ -292,26 +283,14 @@ function CountdownBlock({ now, phase, target, openEnded = false, startedAt = nul
 
   const { days, hours, mins, secs } = countParts(target - now);
   const label = phase === 'upcoming' ? 'Starts in' : 'Ends in';
-  const segments = [
-    ...(days > 0 ? [{ value: days, unit: 'Days' }] : []),
-    { value: hours, unit: 'Hrs' },
-    { value: mins, unit: 'Min' },
-    { value: secs, unit: 'Sec' },
-  ];
+  const two = (n: number) => String(n).padStart(2, '0');
+  // One line, as the design has it: days down to minutes, and seconds only inside the last day.
+  const clock = days > 0 ? `${days}d ${two(hours)}h ${two(mins)}m` : `${two(hours)}h ${two(mins)}m ${two(secs)}s`;
 
   return (
     <div>
       <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">{label}</div>
-      <div className="mt-1.5 flex items-start gap-2 sm:gap-2.5">
-        {segments.map((s) => (
-          <div key={s.unit} className="flex flex-col items-center">
-            <span className="tabular-nums rounded-lg border border-gold/15 bg-black/25 px-2 py-1 text-xl font-bold text-foreground min-w-[2.5rem] sm:px-2.5 sm:py-1.5 sm:text-2xl sm:min-w-[3rem]">
-              {String(s.value).padStart(2, '0')}
-            </span>
-            <span className="mt-1 text-[10px] uppercase tracking-wide text-text-muted">{s.unit}</span>
-          </div>
-        ))}
-      </div>
+      <div className="mt-1 font-mono text-2xl font-bold leading-none text-foreground tabular-nums sm:text-[26px]">{clock}</div>
       {target !== null && <div className="mt-2 text-xs text-text-muted">{formatExactTime(target)}</div>}
     </div>
   );

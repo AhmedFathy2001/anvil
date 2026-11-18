@@ -22,7 +22,7 @@ import { dueSlotCount } from '@/lib/missionSchedule';
 import { dayKeyFields, localDayKey } from '@/lib/zonedTime';
 import { notifyTilesRevealed, notifyBountyClaim, notifyMissionPrize } from '@/lib/discord';
 import { log } from '@/lib/logger';
-import { captureRevealStats } from '@/lib/revealStatsCapture';
+import { captureCloseStats, captureRevealStats } from '@/lib/revealStatsCapture';
 import { pushReveals } from '@/lib/revealPush';
 import { missionPool } from '@/lib/missionRamp';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -107,6 +107,8 @@ async function revealPass(event: EventRow, rules: EventRules, now: string, event
           .set({ closedAt: at })
           .where(and(eq(tiles.id, t.id), isNull(tiles.closedAt)));
         t.closedAt = at; // keep the in-memory pass consistent
+        // From here the tile counts nothing more for the teams that did not take it.
+        await captureCloseStats([t.id]);
       }
     }
   }
@@ -180,6 +182,7 @@ async function revealPass(event: EventRow, rules: EventRules, now: string, event
         .update(tiles)
         .set({ closedAt: now })
         .where(and(inArray(tiles.id, oldest.map((t) => t.id)), isNull(tiles.closedAt)));
+      await captureCloseStats(oldest.map((t) => t.id));
       log.info('reveal-engine.rotate-expire', {
         eventId: event.id,
         expired: oldest.length,
@@ -419,6 +422,7 @@ async function closeExpiredAndClaimedMissions(
       .set({ closedAt: closeAt })
       .where(and(eq(tiles.id, t.id), isNull(tiles.closedAt)))
       .returning({ id: tiles.id });
+    if (done.length > 0) await captureCloseStats([t.id]);
     if (done.length > 0 && claimed && !prizeAnnounced.has(t.id)) {
       void announceBountyClaim(event.clanId, event.id, event.name, { id: t.id, label: t.label, points: t.points }, t.id);
     }
@@ -482,6 +486,7 @@ export async function closeMissionTileNow(eventId: number, tileId: number): Prom
     .set({ closedAt: new Date().toISOString() })
     .where(and(eq(tiles.id, tile.id), isNull(tiles.closedAt)))
     .returning({ id: tiles.id });
+  if (done.length > 0) await captureCloseStats([tile.id]);
   return done.length > 0;
 }
 
@@ -527,6 +532,7 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
     .where(and(eq(tiles.id, tileId), isNull(tiles.closedAt)))
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
   if (closed.length > 0) {
+    await captureCloseStats([tileId]);
     await syncPartRevealState(event.id).catch(() => {});
     void announceBountyClaim(event.clanId, event.id, event.name, closed[0], tileId);
   }

@@ -5,6 +5,7 @@ import { requireOwnerPage } from '@/lib/ownerAccess';
 import { ownerOverview, CONVERSION_KINDS, type ConversionKind } from '@/lib/analyticsAttribution';
 import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
 import { analyticsOverview, type DailyPoint } from '@/lib/analyticsRead';
+import { pluginUsersNow } from '@/lib/pluginUsersRead';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
 import { unusedFeatures, type FeatureUsage } from '@/lib/featureRegistry';
 import ScrollStrip from '@/components/ScrollStrip';
@@ -27,7 +28,8 @@ export default async function StaffAnalyticsPage({
   // OWNER ONLY, checked here and on /api/staff/analytics — not just by the shell, which lets support in.
   if (!(await requireOwnerPage())) notFound();
   const days = parseWindow((await searchParams).days);
-  const [a, o] = await Promise.all([analyticsOverview(days), ownerOverview(days)]);
+  const [a, o, plugin] = await Promise.all([analyticsOverview(days), ownerOverview(days), pluginUsersNow()]);
+  const versionTotal = plugin.versions.reduce((n, v) => n + v.accounts, 0);
 
   return (
     <div>
@@ -309,6 +311,51 @@ export default async function StaffAnalyticsPage({
             />
           )}
         </Card>
+      </Section>
+
+      <Section title="Plugin users">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <Card>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Playing now', sub: 'pushed in the last 10 min', v: plugin.now },
+                { label: 'Last hour', sub: 'accounts', v: plugin.hour },
+                { label: 'Last 24 hours', sub: 'accounts', v: plugin.day },
+              ].map((x) => (
+                <div key={x.label}>
+                  <div className="text-2xl font-semibold tabular-nums text-gold">{x.v.toLocaleString()}</div>
+                  <div className="mt-1 text-sm">{x.label}</div>
+                  <div className="text-xs text-text-muted">{x.sub}</div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-text-muted">
+              Counted from stat pushes, so someone logged in and standing still is not in &ldquo;now&rdquo;.
+            </p>
+            <h3 className="mt-5 text-sm font-semibold">Plugin versions, last 7 days</h3>
+            {plugin.versions.length === 0 ? (
+              <Empty />
+            ) : (
+              <RankTable
+                head={['Version', 'Accounts', 'Share']}
+                rows={plugin.versions.map((v) => [v.version, v.accounts, `${Math.round((v.accounts / Math.max(1, versionTotal)) * 100)}%`])}
+                max={Math.max(...plugin.versions.map((v) => v.accounts))}
+              />
+            )}
+          </Card>
+          <Card>
+            <h3 className="text-sm font-semibold">By clan, last 24 hours</h3>
+            {plugin.clans.length === 0 ? (
+              <Empty />
+            ) : (
+              <RankTable
+                head={['Clan', 'Now', 'Last hour', 'Last 24h']}
+                rows={plugin.clans.map((c) => [c.name, c.now, c.hour, c.day])}
+                max={Math.max(...plugin.clans.map((c) => c.day))}
+              />
+            )}
+          </Card>
+        </div>
       </Section>
 
       <Section title="Plugin features">
