@@ -26,7 +26,7 @@ export default function LocalTime({ date, format = 'datetime', className }: Prop
         result = formatExactTime(typeof date === 'string' ? parseStamp(date) ?? d.getTime() : d.getTime());
         break;
       case 'time':
-        result = d.toLocaleTimeString();
+        result = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
         break;
       default:
         result = d.toLocaleString();

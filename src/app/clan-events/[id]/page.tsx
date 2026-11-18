@@ -87,7 +87,7 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
             {(ev.world || ev.location || ev.host) && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {ev.world && <span className={chip}>World {ev.world}</span>}
-                {ev.location && <span className={chip}>{ev.location}</span>}
+                {!ev.world && ev.location && <span className={chip}>{ev.location}</span>}
                 {ev.host && <span className={chip}>Hosted by {ev.host}</span>}
               </div>
             )}
@@ -120,7 +120,7 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
         </section>
       )}
 
-      <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className={`mt-4 grid items-start gap-4 ${ev.goingNames.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : ''}`}>
         <section aria-label="Details" className={card}>
           <h2 className={heading}>
             <span className="h-5 w-1 bg-gold" />
