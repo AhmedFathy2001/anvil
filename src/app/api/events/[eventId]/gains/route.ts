@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { readableEventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { completions, eventParticipants, tiles } from '@/db/schema';
+import { completions, eventParticipants, events, tiles } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
 import { computeGain, effectiveValue, isMilestoneBasis, parseContributionSnapshot, snapshotValue } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { eventEndedAtMs } from '@/lib/eventEnd';
 import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { ttlMemo } from '@/lib/ttlMemo';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -67,7 +68,14 @@ async function computeGains(eId: number, teamIdFilter: string | null) {
 
   // Real-time plugin overlay, keyed by clan member (shared with weekly). Effective current =
   // max(hiscores, live) so a tile reflects a fresh kill / training burst before the sweep catches up.
-  const memberLive = await liveStatsForMembers(eventPlayers.map((p) => p.clanMemberId));
+  //
+  // ONLY WHILE THE EVENT RUNS (as lib/statStandings): the overlay is what a member has right now, so
+  // on a finished event it kept adding every kill made since. A team that lost a tile in October
+  // showed 154 KC on it in November. Once the event is over the stored reads stand.
+  // clan-scope: global -- the caller already scoped this event id.
+  const eventRow = await db.query.events.findFirst({ where: eq(events.id, eId), columns: { startDate: true, endDate: true, forceEndedAt: true } });
+  const over = eventRow != null && eventEndedAtMs(eventRow) != null;
+  const memberLive = over ? new Map<number, Record<string, number>>() : await liveStatsForMembers(eventPlayers.map((p) => p.clanMemberId));
 
   const result: {
     playerId: number;

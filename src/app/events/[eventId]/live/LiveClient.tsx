@@ -733,8 +733,10 @@ function FeedRowItem({ row, reactions }: { row: LiveFeedRow; reactions: LiveFeed
       <RowIcon icon={row.icon} tint={row.titleColor} />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <span className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-wide ${tag.cls}`}>{tag.label}</span>
-        <span className="min-w-0">
-          <InkName name={row.who} ink={row.ink} color={row.whoColor} className="font-semibold" /> <span className="text-foreground/90">{feedSentence(row)}</span>
+        {/* Centred on one line: a name with a tenure badge is taller than the words after it. */}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <InkName name={row.who} ink={row.ink} color={row.whoColor} className="font-semibold" />
+          <span className="min-w-0 text-foreground/90">{feedSentence(row)}</span>
         </span>
         <Tag tag={team} />
         {row.value && <span className="shrink-0 font-mono text-xs text-gold">{row.value}</span>}

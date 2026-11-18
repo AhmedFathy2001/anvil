@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "generatedAt": "2026-11-08T19:52:51.204Z",
   "source": "OSRS Wiki (oldschool.runescape.wiki): money-making guides via the Bucket API for kills per hour; skill training guides via the parse API for XP per hour. Each rate names its page in `source`; `estimated: true` marks our own conservative fill for gaps.",
   "coverage": {
@@ -60,155 +60,163 @@
       "attack": [
         {
           "fromLevel": 1,
+          "fromXp": 0,
           "xpPerHour": 15000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
           "fromLevel": 40,
-          "xpPerHour": 45000,
+          "fromXp": 37224,
+          "xpPerHour": 38000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 80000,
+          "fromLevel": 49,
+          "fromXp": 100000,
+          "xpPerHour": 55000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 90,
-          "xpPerHour": 100000,
+          "fromLevel": 73,
+          "fromXp": 1000000,
+          "xpPerHour": 65000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 75,
+          "fromXp": 1210421,
+          "xpPerHour": 315000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 505000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "strength": [
         {
           "fromLevel": 1,
+          "fromXp": 0,
           "xpPerHour": 15000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
           "fromLevel": 40,
-          "xpPerHour": 45000,
+          "fromXp": 37224,
+          "xpPerHour": 38000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 80000,
+          "fromLevel": 45,
+          "fromXp": 61512,
+          "xpPerHour": 145000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 90,
-          "xpPerHour": 100000,
+          "fromLevel": 65,
+          "fromXp": 449428,
+          "xpPerHour": 245000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 80,
+          "fromXp": 1986068,
+          "xpPerHour": 300000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 92,
+          "fromXp": 6517253,
+          "xpPerHour": 335000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 415000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "defence": [
         {
           "fromLevel": 1,
-          "xpPerHour": 15000,
+          "fromXp": 0,
+          "xpPerHour": 420000,
           "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 45000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 70,
-          "xpPerHour": 80000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
-          "xpPerHour": 100000,
-          "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "ranged": [
         {
           "fromLevel": 1,
-          "xpPerHour": 20000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 60000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 45,
-          "xpPerHour": 290000,
+          "fromXp": 0,
+          "xpPerHour": 250000,
           "source": "Pay-to-play Ranged training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 55,
-          "xpPerHour": 360000,
+          "fromLevel": 92,
+          "fromXp": 6517253,
+          "xpPerHour": 330000,
           "source": "Pay-to-play Ranged training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 65,
-          "xpPerHour": 470000,
-          "source": "Pay-to-play Ranged training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 75,
-          "xpPerHour": 570000,
-          "source": "Pay-to-play Ranged training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 85,
-          "xpPerHour": 640000,
-          "source": "Pay-to-play Ranged training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 95,
-          "xpPerHour": 710000,
-          "source": "Pay-to-play Ranged training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 740000,
+          "fromXp": 13034431,
+          "xpPerHour": 1190000,
           "source": "Pay-to-play Ranged training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "prayer": [
         {
           "fromLevel": 1,
-          "xpPerHour": 50000,
+          "fromXp": 0,
+          "xpPerHour": 1670000,
           "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 43,
-          "xpPerHour": 200000,
-          "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
           "fromLevel": 70,
-          "xpPerHour": 400000,
+          "fromXp": 737627,
+          "xpPerHour": 2000000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "magic": [
@@ -270,143 +278,157 @@
       "cooking": [
         {
           "fromLevel": 1,
-          "xpPerHour": 30000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 10,
-          "xpPerHour": 147000,
+          "fromXp": 0,
+          "xpPerHour": 172800,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 20,
-          "xpPerHour": 207000,
-          "source": "Pay-to-play Cooking training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 29,
-          "xpPerHour": 241000,
-          "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 30,
-          "xpPerHour": 464000,
+          "fromXp": 13363,
+          "xpPerHour": 519100,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 40,
-          "xpPerHour": 534000,
+          "fromXp": 37224,
+          "xpPerHour": 591600,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 50,
-          "xpPerHour": 605000,
+          "fromXp": 101333,
+          "xpPerHour": 663600,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 60,
-          "xpPerHour": 672000,
+          "fromXp": 273742,
+          "xpPerHour": 735700,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 70,
-          "xpPerHour": 742000,
+          "fromXp": 737627,
+          "xpPerHour": 808000,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 80,
-          "xpPerHour": 813000,
+          "fromXp": 1986068,
+          "xpPerHour": 880400,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 90,
-          "xpPerHour": 883000,
+          "fromXp": 5346332,
+          "xpPerHour": 948100,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 950000,
+          "fromXp": 13034431,
+          "xpPerHour": 980000,
           "source": "Pay-to-play Cooking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "woodcutting": [
         {
           "fromLevel": 1,
-          "xpPerHour": 17000,
+          "fromXp": 0,
+          "xpPerHour": 29000,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 15,
-          "xpPerHour": 40000,
+          "fromXp": 2411,
+          "xpPerHour": 56000,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 74000,
-          "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 35,
-          "xpPerHour": 93000,
+          "fromXp": 22406,
+          "xpPerHour": 93174,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 41,
-          "xpPerHour": 115000,
+          "fromXp": 41171,
+          "xpPerHour": 114728,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 50,
-          "xpPerHour": 126000,
+          "fromLevel": 51,
+          "fromXp": 111945,
+          "xpPerHour": 127339,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 61,
-          "xpPerHour": 173000,
+          "fromXp": 302288,
+          "xpPerHour": 172507,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 71,
-          "xpPerHour": 194000,
+          "fromXp": 814445,
+          "xpPerHour": 194022,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 80,
-          "xpPerHour": 208000,
+          "fromXp": 1986068,
+          "xpPerHour": 207636,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 90,
-          "xpPerHour": 222000,
+          "fromXp": 5346332,
+          "xpPerHour": 221977,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
+          "fromXp": 13034431,
           "xpPerHour": 235000,
           "source": "Pay-to-play Woodcutting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "fletching": [
@@ -432,809 +454,861 @@
       "fishing": [
         {
           "fromLevel": 1,
-          "xpPerHour": 10000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 20,
-          "xpPerHour": 13000,
+          "fromXp": 0,
+          "xpPerHour": 29200,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 30,
-          "xpPerHour": 25000,
+          "fromXp": 14612,
+          "xpPerHour": 46592,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 35,
-          "xpPerHour": 30000,
+          "fromLevel": 47,
+          "fromXp": 75127,
+          "xpPerHour": 84686,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 50,
-          "xpPerHour": 60700,
+          "fromXp": 106046,
+          "xpPerHour": 97867,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 58,
+          "fromXp": 229685,
+          "xpPerHour": 112877,
+          "source": "Pay-to-play Fishing training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 61,
-          "xpPerHour": 69600,
+          "fromXp": 302288,
+          "xpPerHour": 128082,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 71,
-          "xpPerHour": 78400,
+          "fromLevel": 67,
+          "fromXp": 593234,
+          "xpPerHour": 139313,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 78,
-          "xpPerHour": 109000,
+          "fromLevel": 70,
+          "fromXp": 737627,
+          "xpPerHour": 132800,
           "source": "Pay-to-play Fishing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 85,
-          "xpPerHour": 116000,
-          "source": "Pay-to-play Fishing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 90,
-          "xpPerHour": 122000,
-          "source": "Pay-to-play Fishing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 95,
-          "xpPerHour": 127000,
-          "source": "Pay-to-play Fishing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 99,
-          "xpPerHour": 130000,
-          "source": "Pay-to-play Fishing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "firemaking": [
         {
           "fromLevel": 1,
-          "xpPerHour": 74250,
+          "fromXp": 0,
+          "xpPerHour": 73700,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 107000,
-          "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 35,
-          "xpPerHour": 138000,
+          "fromXp": 22406,
+          "xpPerHour": 138900,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 42,
-          "xpPerHour": 185625,
+          "fromXp": 45529,
+          "xpPerHour": 184250,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 45,
-          "xpPerHour": 200475,
+          "fromXp": 61512,
+          "xpPerHour": 198990,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 50,
-          "xpPerHour": 233887,
+          "fromXp": 101333,
+          "xpPerHour": 403745,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 60,
-          "xpPerHour": 300712,
+          "fromXp": 273742,
+          "xpPerHour": 551169,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 75,
-          "xpPerHour": 451143,
+          "fromXp": 1210421,
+          "xpPerHour": 775388,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 90,
-          "xpPerHour": 519750,
+          "fromXp": 5346332,
+          "xpPerHour": 872198,
           "source": "Pay-to-play Firemaking training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 789944,
+          "source": "Pay-to-play Firemaking training",
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "crafting": [
         {
           "fromLevel": 1,
-          "xpPerHour": 30625,
+          "fromXp": 0,
+          "xpPerHour": 37000,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 4,
-          "xpPerHour": 33250,
+          "fromLevel": 20,
+          "fromXp": 4470,
+          "xpPerHour": 139000,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 12,
-          "xpPerHour": 43750,
+          "fromLevel": 27,
+          "fromXp": 9730,
+          "xpPerHour": 187650,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 33,
-          "xpPerHour": 61250,
+          "fromLevel": 34,
+          "fromXp": 20224,
+          "xpPerHour": 236300,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 42,
-          "xpPerHour": 74375,
+          "fromLevel": 43,
+          "fromXp": 50339,
+          "xpPerHour": 298850,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 46,
-          "xpPerHour": 91875,
+          "fromLevel": 63,
+          "fromXp": 368599,
+          "xpPerHour": 335230,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 49,
-          "xpPerHour": 96250,
+          "fromLevel": 71,
+          "fromXp": 814445,
+          "xpPerHour": 378490,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 83,
-          "xpPerHour": 165000,
+          "fromLevel": 77,
+          "fromXp": 1475581,
+          "xpPerHour": 421740,
           "source": "Pay-to-play Crafting training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 84,
+          "fromXp": 2951373,
+          "xpPerHour": 465000,
+          "source": "Pay-to-play Crafting training",
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "smithing": [
         {
           "fromLevel": 1,
-          "xpPerHour": 13900,
+          "fromXp": 0,
+          "xpPerHour": 46500,
           "source": "Pay-to-play Smithing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 5,
-          "xpPerHour": 25700,
+          "fromLevel": 40,
+          "fromXp": 37224,
+          "xpPerHour": 475000,
           "source": "Pay-to-play Smithing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 9,
-          "xpPerHour": 36200,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 505000,
           "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 18,
-          "xpPerHour": 52100,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 24,
-          "xpPerHour": 72300,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 33,
-          "xpPerHour": 104200,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 39,
-          "xpPerHour": 108500,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 48,
-          "xpPerHour": 144000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 68,
-          "xpPerHour": 200000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 88,
-          "xpPerHour": 240000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "mining": [
         {
           "fromLevel": 1,
-          "xpPerHour": 10000,
-          "estimated": true,
-          "source": null
+          "fromXp": 0,
+          "xpPerHour": 20000,
+          "source": "Pay-to-play Mining training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 10,
-          "xpPerHour": 24000,
+          "fromLevel": 39,
+          "fromXp": 35025,
+          "xpPerHour": 50600,
           "source": "Pay-to-play Mining training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 15,
-          "xpPerHour": 45000,
+          "fromLevel": 63,
+          "fromXp": 393485,
+          "xpPerHour": 106540,
           "source": "Pay-to-play Mining training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 30,
-          "xpPerHour": 62000,
+          "fromLevel": 75,
+          "fromXp": 1210421,
+          "xpPerHour": 112166,
           "source": "Pay-to-play Mining training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 40,
-          "xpPerHour": 89000,
+          "fromLevel": 85,
+          "fromXp": 3258594,
+          "xpPerHour": 116760,
           "source": "Pay-to-play Mining training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 45,
-          "xpPerHour": 120000,
+          "fromLevel": 95,
+          "fromXp": 8771558,
+          "xpPerHour": 119438,
           "source": "Pay-to-play Mining training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
+          "fromXp": 13034431,
           "xpPerHour": 126000,
           "source": "Pay-to-play Mining training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "herblore": [
         {
           "fromLevel": 1,
-          "xpPerHour": 30000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 3,
-          "xpPerHour": 62500,
+          "fromXp": 0,
+          "xpPerHour": 11100,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 5,
-          "xpPerHour": 93750,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 12,
-          "xpPerHour": 125000,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 22,
-          "xpPerHour": 156250,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 26,
-          "xpPerHour": 168750,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 187500,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 34,
-          "xpPerHour": 200000,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 36,
-          "xpPerHour": 210000,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 38,
+          "fromLevel": 25,
+          "fromXp": 8025,
           "xpPerHour": 218750,
           "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 45,
-          "xpPerHour": 250000,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 48,
-          "xpPerHour": 265750,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 50,
-          "xpPerHour": 281250,
-          "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 52,
+          "fromXp": 123660,
           "xpPerHour": 293750,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 53,
-          "xpPerHour": 300000,
+          "fromLevel": 55,
+          "fromXp": 166636,
+          "xpPerHour": 312500,
           "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 54,
-          "xpPerHour": 330000,
-          "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 62,
-          "xpPerHour": 351250,
-          "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 63,
-          "xpPerHour": 356000,
+          "fromXp": 368599,
+          "xpPerHour": 356250,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 66,
+          "fromXp": 496254,
           "xpPerHour": 375000,
           "source": "Herblore training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 67,
-          "xpPerHour": 385000,
-          "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 69,
+          "fromXp": 668051,
           "xpPerHour": 393750,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 72,
+          "fromXp": 899257,
           "xpPerHour": 406250,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 76,
+          "fromXp": 1336443,
           "xpPerHour": 431250,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 78,
-          "xpPerHour": 437500,
+          "fromLevel": 77,
+          "fromXp": 1475581,
+          "xpPerHour": 535500,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 81,
-          "xpPerHour": 462500,
+          "fromLevel": 84,
+          "fromXp": 2951373,
+          "xpPerHour": 577500,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 85,
-          "xpPerHour": 522500,
+          "fromLevel": 87,
+          "fromXp": 3972294,
+          "xpPerHour": 630000,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 89,
-          "xpPerHour": 563750,
+          "fromLevel": 98,
+          "fromXp": 11805606,
+          "xpPerHour": 840000,
           "source": "Herblore training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "agility": [
         {
           "fromLevel": 1,
-          "xpPerHour": 9000,
+          "fromXp": 0,
+          "xpPerHour": 15100,
           "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 20,
-          "xpPerHour": 11000,
+          "fromLevel": 47,
+          "fromXp": 75127,
+          "xpPerHour": 35000,
           "source": "Agility training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 14000,
-          "source": "Agility training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 50,
-          "xpPerHour": 29000,
-          "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 52,
+          "fromXp": 123660,
           "xpPerHour": 45000,
           "source": "Agility training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 60,
-          "xpPerHour": 50000,
-          "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 62,
+          "fromXp": 333804,
           "xpPerHour": 56300,
           "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 72,
+          "fromXp": 899257,
           "xpPerHour": 68900,
           "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 77,
+          "fromLevel": 82,
+          "fromXp": 2421087,
           "xpPerHour": 79700,
           "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 87,
-          "xpPerHour": 98500,
+          "fromLevel": 92,
+          "fromXp": 6517253,
+          "xpPerHour": 102000,
           "source": "Agility training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "thieving": [
         {
           "fromLevel": 1,
+          "fromXp": 0,
           "xpPerHour": 15000,
-          "estimated": true,
-          "source": null
+          "source": "Thieving training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 45,
-          "xpPerHour": 99000,
+          "fromXp": 61512,
+          "xpPerHour": 80000,
           "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 49,
-          "xpPerHour": 150000,
+          "fromXp": 91721,
+          "xpPerHour": 241906,
           "source": "Thieving training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 55,
-          "xpPerHour": 163000,
-          "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 60,
-          "xpPerHour": 174000,
+          "fromXp": 295315,
+          "xpPerHour": 279597,
           "source": "Thieving training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 65,
-          "xpPerHour": 230000,
-          "source": "Thieving training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 70,
-          "xpPerHour": 236000,
-          "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 75,
-          "xpPerHour": 242000,
+          "fromXp": 1319012,
+          "xpPerHour": 333283,
           "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 80,
-          "xpPerHour": 247000,
+          "fromLevel": 88,
+          "fromXp": 4799743,
+          "xpPerHour": 370532,
           "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 85,
-          "xpPerHour": 252000,
+          "fromLevel": 97,
+          "fromXp": 10966391,
+          "xpPerHour": 363882,
           "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 90,
-          "xpPerHour": 257000,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 370169,
           "source": "Thieving training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 91,
-          "xpPerHour": 270000,
-          "source": "Thieving training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "slayer": [
         {
           "fromLevel": 1,
-          "xpPerHour": 50000,
+          "fromXp": 0,
+          "xpPerHour": 5000,
           "source": "Ironman Guide/Slayer",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 40,
+          "fromXp": 37224,
+          "xpPerHour": 12000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 50,
+          "fromXp": 101333,
+          "xpPerHour": 40000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 65,
-          "xpPerHour": 68000,
+          "fromXp": 449428,
+          "xpPerHour": 74250,
           "source": "Ironman Guide/Slayer",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 80,
+          "fromXp": 1986068,
+          "xpPerHour": 79000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 85,
+          "fromXp": 3258594,
+          "xpPerHour": 86500,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 87000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 93,
-          "xpPerHour": 70000,
+          "fromXp": 7195629,
+          "xpPerHour": 93000,
           "source": "Ironman Guide/Slayer",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 105800,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "farming": [
         {
           "fromLevel": 1,
-          "xpPerHour": 15000,
+          "fromXp": 0,
+          "xpPerHour": 16000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 35,
-          "xpPerHour": 60000,
+          "fromLevel": 38,
+          "fromXp": 32500,
+          "xpPerHour": 304000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 150000,
+          "fromLevel": 45,
+          "fromXp": 61512,
+          "xpPerHour": 506000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 55,
+          "fromXp": 166636,
+          "xpPerHour": 719000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 60,
+          "fromXp": 273742,
+          "xpPerHour": 1083000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 68,
+          "fromXp": 605032,
+          "xpPerHour": 1362000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 75,
+          "fromXp": 1210421,
+          "xpPerHour": 1896000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 81,
+          "fromXp": 2192818,
+          "xpPerHour": 2314000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
         },
         {
           "fromLevel": 85,
-          "xpPerHour": 200000,
+          "fromXp": 3258594,
+          "xpPerHour": 2475000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 2500000,
+          "source": null,
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "runecraft": [
         {
           "fromLevel": 1,
-          "xpPerHour": 8000,
-          "estimated": true,
-          "source": null
+          "fromXp": 0,
+          "xpPerHour": 13600,
+          "source": "Pay-to-play Runecraft training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 6,
-          "xpPerHour": 38334,
+          "fromLevel": 38,
+          "fromXp": 33210,
+          "xpPerHour": 45000,
           "source": "Pay-to-play Runecraft training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 13,
-          "xpPerHour": 41942,
-          "source": "Pay-to-play Runecraft training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 23,
-          "xpPerHour": 43200,
-          "source": "Pay-to-play Runecraft training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 25,
-          "xpPerHour": 51362,
-          "source": "Pay-to-play Runecraft training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 50,
-          "xpPerHour": 61303,
-          "source": "Pay-to-play Runecraft training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 75,
-          "xpPerHour": 77614,
+          "fromXp": 1210421,
+          "xpPerHour": 75400,
           "source": "Pay-to-play Runecraft training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 85,
-          "xpPerHour": 100752,
+          "fromXp": 3258594,
+          "xpPerHour": 106100,
           "source": "Pay-to-play Runecraft training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 102060,
+          "fromXp": 13034431,
+          "xpPerHour": 162000,
           "source": "Pay-to-play Runecraft training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "hunter": [
         {
           "fromLevel": 1,
-          "xpPerHour": 10000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 40000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 60,
-          "xpPerHour": 51000,
+          "fromXp": 0,
+          "xpPerHour": 30000,
           "source": "Hunter training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 65,
-          "xpPerHour": 59000,
+          "fromLevel": 14,
+          "fromXp": 2107,
+          "xpPerHour": 83000,
           "source": "Hunter training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 24,
+          "fromXp": 7028,
+          "xpPerHour": 110000,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 34,
+          "fromXp": 20224,
+          "xpPerHour": 138000,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 44,
+          "fromXp": 55649,
+          "xpPerHour": 215112,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 49,
+          "fromXp": 91721,
+          "xpPerHour": 268770,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 36,
+          "fromXp": 24886,
+          "xpPerHour": 293310,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 62,
+          "fromXp": 343551,
+          "xpPerHour": 322424,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 70,
-          "xpPerHour": 66000,
+          "fromXp": 737627,
+          "xpPerHour": 350697,
           "source": "Hunter training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 72,
-          "xpPerHour": 160000,
+          "fromXp": 933979,
+          "xpPerHour": 265000,
           "source": "Hunter training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 91,
-          "xpPerHour": 195000,
-          "source": "Hunter training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 99,
-          "xpPerHour": 250000,
-          "source": "Hunter training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "construction": [
         {
           "fromLevel": 1,
-          "xpPerHour": 72500,
+          "fromXp": 0,
+          "xpPerHour": 54700,
           "source": "Construction training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 8,
-          "xpPerHour": 150000,
+          "fromLevel": 33,
+          "fromXp": 18247,
+          "xpPerHour": 450000,
           "source": "Construction training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 23,
-          "xpPerHour": 225000,
+          "fromLevel": 52,
+          "fromXp": 123660,
+          "xpPerHour": 950000,
           "source": "Construction training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 41,
-          "xpPerHour": 350000,
+          "fromLevel": 77,
+          "fromXp": 1475581,
+          "xpPerHour": 1070000,
           "source": "Construction training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 53,
-          "xpPerHour": 400000,
-          "source": "Construction training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 75,
-          "xpPerHour": 437500,
-          "source": "Construction training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 84,
-          "xpPerHour": 475000,
-          "source": "Construction training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "sailing": [
         {
-          "fromLevel": 1,
-          "xpPerHour": 10000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 24519,
-          "source": "Sailing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 55,
-          "xpPerHour": 88923,
-          "source": "Sailing training",
-          "estimated": false
-        },
-        {
           "fromLevel": 72,
-          "xpPerHour": 184369,
+          "fromXp": 899257,
+          "xpPerHour": 205000,
           "source": "Sailing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 240000,
+          "source": "Sailing training",
+          "estimated": false,
+          "pace": "efficient"
         }
       ]
     },
@@ -1242,155 +1316,99 @@
       "attack": [
         {
           "fromLevel": 1,
-          "xpPerHour": 12000,
+          "fromXp": 0,
+          "xpPerHour": 186400,
           "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 36000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 70,
-          "xpPerHour": 64000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
-          "xpPerHour": 80000,
-          "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "strength": [
         {
           "fromLevel": 1,
-          "xpPerHour": 12000,
+          "fromXp": 0,
+          "xpPerHour": 300000,
           "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 36000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 70,
-          "xpPerHour": 64000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
-          "xpPerHour": 80000,
-          "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "defence": [
         {
           "fromLevel": 1,
-          "xpPerHour": 12000,
+          "fromXp": 0,
+          "xpPerHour": 768000,
           "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 36000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 70,
-          "xpPerHour": 64000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
-          "xpPerHour": 80000,
-          "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "ranged": [
         {
           "fromLevel": 1,
-          "xpPerHour": 16000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 48000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 45,
-          "xpPerHour": 232000,
+          "fromXp": 0,
+          "xpPerHour": 17000,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 55,
-          "xpPerHour": 288000,
+          "fromLevel": 57,
+          "fromXp": 203254,
+          "xpPerHour": 565900,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 65,
-          "xpPerHour": 376000,
+          "fromXp": 449428,
+          "xpPerHour": 842800,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 75,
-          "xpPerHour": 456000,
+          "fromLevel": 70,
+          "fromXp": 737627,
+          "xpPerHour": 1123600,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 85,
-          "xpPerHour": 512000,
+          "fromLevel": 80,
+          "fromXp": 1986068,
+          "xpPerHour": 1310100,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 95,
-          "xpPerHour": 568000,
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 1489400,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 592000,
+          "fromXp": 13034431,
+          "xpPerHour": 1560900,
           "source": "Pay-to-play Ranged training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "prayer": [
         {
           "fromLevel": 1,
-          "xpPerHour": 40000,
+          "fromXp": 0,
+          "xpPerHour": 175900,
           "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 43,
-          "xpPerHour": 160000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 70,
-          "xpPerHour": 320000,
-          "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "magic": [
@@ -1452,75 +1470,75 @@
       "cooking": [
         {
           "fromLevel": 1,
-          "xpPerHour": 24000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 10,
-          "xpPerHour": 118000,
+          "fromXp": 0,
+          "xpPerHour": 74300,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 20,
-          "xpPerHour": 166000,
-          "source": "Pay-to-play Cooking training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 29,
-          "xpPerHour": 193000,
-          "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 30,
-          "xpPerHour": 371000,
+          "fromXp": 13363,
+          "xpPerHour": 232200,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 40,
-          "xpPerHour": 427000,
+          "fromXp": 37224,
+          "xpPerHour": 264800,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 50,
-          "xpPerHour": 484000,
+          "fromXp": 101333,
+          "xpPerHour": 297400,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 60,
-          "xpPerHour": 538000,
+          "fromXp": 273742,
+          "xpPerHour": 330000,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 70,
-          "xpPerHour": 594000,
+          "fromXp": 737627,
+          "xpPerHour": 362600,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 80,
-          "xpPerHour": 650000,
+          "fromXp": 1986068,
+          "xpPerHour": 395200,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 90,
-          "xpPerHour": 706000,
+          "fromXp": 5346332,
+          "xpPerHour": 425600,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 760000,
+          "fromXp": 13034431,
+          "xpPerHour": 440000,
           "source": "Pay-to-play Cooking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "woodcutting": [
@@ -1594,711 +1612,667 @@
       "fletching": [
         {
           "fromLevel": 1,
-          "xpPerHour": 58500,
+          "fromXp": 0,
+          "xpPerHour": 1524300,
           "source": "Ironman Guide/Fletching",
-          "estimated": false
-        },
-        {
-          "fromLevel": 15,
-          "xpPerHour": 112500,
-          "source": "Ironman Guide/Fletching",
-          "estimated": false
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 225000,
-          "source": "Ironman Guide/Fletching",
-          "estimated": false
-        },
-        {
-          "fromLevel": 45,
-          "xpPerHour": 337500,
-          "source": "Ironman Guide/Fletching",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "fishing": [
         {
           "fromLevel": 1,
-          "xpPerHour": 10000,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 22500,
-          "estimated": true,
-          "source": null
-        },
-        {
-          "fromLevel": 65,
-          "xpPerHour": 22500,
+          "fromXp": 0,
+          "xpPerHour": 15000,
           "source": "Ironman Guide/Fishing",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 35,
+          "fromXp": 22406,
+          "xpPerHour": 32000,
+          "source": "Ironman Guide/Fishing",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 61,
+          "fromXp": 302288,
+          "xpPerHour": 67200,
+          "source": "Ironman Guide/Fishing",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 70,
-          "xpPerHour": 24200,
+          "fromXp": 737627,
+          "xpPerHour": 115500,
           "source": "Ironman Guide/Fishing",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 78,
-          "xpPerHour": 109000,
+          "fromLevel": 84,
+          "fromXp": 2951373,
+          "xpPerHour": 126400,
           "source": "Ironman Guide/Fishing",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 85,
-          "xpPerHour": 116000,
+          "fromLevel": 91,
+          "fromXp": 5902831,
+          "xpPerHour": 133800,
           "source": "Ironman Guide/Fishing",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 90,
-          "xpPerHour": 122000,
+          "fromLevel": 97,
+          "fromXp": 10692629,
+          "xpPerHour": 138300,
           "source": "Ironman Guide/Fishing",
-          "estimated": false
-        },
-        {
-          "fromLevel": 95,
-          "xpPerHour": 127000,
-          "source": "Ironman Guide/Fishing",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 130000,
+          "fromXp": 13034431,
+          "xpPerHour": 141800,
           "source": "Ironman Guide/Fishing",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "firemaking": [
         {
           "fromLevel": 1,
-          "xpPerHour": 59000,
+          "fromXp": 0,
+          "xpPerHour": 45000,
           "source": "Pay-to-play Firemaking training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 86000,
-          "source": "Pay-to-play Firemaking training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 35,
-          "xpPerHour": 110000,
-          "source": "Pay-to-play Firemaking training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 42,
-          "xpPerHour": 149000,
-          "source": "Pay-to-play Firemaking training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 45,
-          "xpPerHour": 160000,
-          "source": "Pay-to-play Firemaking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 50,
-          "xpPerHour": 187000,
+          "fromXp": 101333,
+          "xpPerHour": 233900,
           "source": "Pay-to-play Firemaking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 60,
-          "xpPerHour": 241000,
+          "fromXp": 273742,
+          "xpPerHour": 274800,
           "source": "Pay-to-play Firemaking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 75,
-          "xpPerHour": 361000,
+          "fromLevel": 70,
+          "fromXp": 737627,
+          "xpPerHour": 317100,
           "source": "Pay-to-play Firemaking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 80,
+          "fromXp": 1986068,
+          "xpPerHour": 359300,
+          "source": "Pay-to-play Firemaking training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 90,
-          "xpPerHour": 416000,
+          "fromXp": 5346332,
+          "xpPerHour": 398800,
           "source": "Pay-to-play Firemaking training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 462400,
+          "source": "Pay-to-play Firemaking training",
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "crafting": [
         {
           "fromLevel": 1,
-          "xpPerHour": 25000,
+          "fromXp": 0,
+          "xpPerHour": 50000,
           "source": "Pay-to-play Crafting training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 4,
-          "xpPerHour": 27000,
+          "fromLevel": 62,
+          "fromXp": 333804,
+          "xpPerHour": 347700,
           "source": "Pay-to-play Crafting training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 12,
-          "xpPerHour": 35000,
+          "fromLevel": 85,
+          "fromXp": 3539592,
+          "xpPerHour": 260100,
           "source": "Pay-to-play Crafting training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 33,
-          "xpPerHour": 49000,
+          "fromLevel": 87,
+          "fromXp": 3972294,
+          "xpPerHour": 331100,
           "source": "Pay-to-play Crafting training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 42,
-          "xpPerHour": 60000,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 207200,
           "source": "Pay-to-play Crafting training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 46,
-          "xpPerHour": 74000,
-          "source": "Pay-to-play Crafting training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 49,
-          "xpPerHour": 77000,
-          "source": "Pay-to-play Crafting training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 83,
-          "xpPerHour": 132000,
-          "source": "Pay-to-play Crafting training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "smithing": [
         {
           "fromLevel": 1,
-          "xpPerHour": 11000,
+          "fromXp": 0,
+          "xpPerHour": 72800,
           "source": "Pay-to-play Smithing training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 5,
-          "xpPerHour": 21000,
+          "fromLevel": 60,
+          "fromXp": 273742,
+          "xpPerHour": 350000,
           "source": "Pay-to-play Smithing training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 9,
-          "xpPerHour": 29000,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 375000,
           "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 18,
-          "xpPerHour": 42000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 24,
-          "xpPerHour": 58000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 33,
-          "xpPerHour": 83000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 39,
-          "xpPerHour": 87000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 48,
-          "xpPerHour": 115000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 68,
-          "xpPerHour": 160000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 88,
-          "xpPerHour": 192000,
-          "source": "Pay-to-play Smithing training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "mining": [
         {
           "fromLevel": 1,
-          "xpPerHour": 8000,
-          "source": null,
-          "estimated": true
+          "fromXp": 0,
+          "xpPerHour": 25000,
+          "source": "Pay-to-play Mining training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 10,
-          "xpPerHour": 19000,
+          "fromLevel": 37,
+          "fromXp": 27473,
+          "xpPerHour": 70600,
           "source": "Pay-to-play Mining training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 15,
-          "xpPerHour": 36000,
+          "fromLevel": 54,
+          "fromXp": 150872,
+          "xpPerHour": 72600,
           "source": "Pay-to-play Mining training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 30,
-          "xpPerHour": 50000,
+          "fromLevel": 60,
+          "fromXp": 273742,
+          "xpPerHour": 17000,
           "source": "Pay-to-play Mining training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 40,
-          "xpPerHour": 71000,
+          "fromLevel": 75,
+          "fromXp": 1283073,
+          "xpPerHour": 99600,
           "source": "Pay-to-play Mining training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 45,
-          "xpPerHour": 96000,
+          "fromLevel": 85,
+          "fromXp": 3258594,
+          "xpPerHour": 45200,
           "source": "Pay-to-play Mining training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 88,
+          "fromXp": 4385776,
+          "xpPerHour": 108700,
+          "source": "Pay-to-play Mining training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 97,
+          "fromXp": 11441686,
+          "xpPerHour": 90200,
+          "source": "Pay-to-play Mining training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 101000,
+          "fromXp": 13034431,
+          "xpPerHour": 125000,
           "source": "Pay-to-play Mining training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "herblore": [
         {
           "fromLevel": 1,
-          "xpPerHour": 24000,
-          "source": null,
-          "estimated": true
+          "fromXp": 0,
+          "xpPerHour": 70000,
+          "source": "Herblore training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 3,
-          "xpPerHour": 50000,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 76000,
           "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 5,
-          "xpPerHour": 75000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 12,
-          "xpPerHour": 100000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 22,
-          "xpPerHour": 125000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 26,
-          "xpPerHour": 135000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 150000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 34,
-          "xpPerHour": 160000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 36,
-          "xpPerHour": 168000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 38,
-          "xpPerHour": 175000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 45,
-          "xpPerHour": 200000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 48,
-          "xpPerHour": 213000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 50,
-          "xpPerHour": 225000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 52,
-          "xpPerHour": 235000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 53,
-          "xpPerHour": 240000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 54,
-          "xpPerHour": 264000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 62,
-          "xpPerHour": 281000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 63,
-          "xpPerHour": 285000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 66,
-          "xpPerHour": 300000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 67,
-          "xpPerHour": 308000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 69,
-          "xpPerHour": 315000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 72,
-          "xpPerHour": 325000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 76,
-          "xpPerHour": 345000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 78,
-          "xpPerHour": 350000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 81,
-          "xpPerHour": 370000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 85,
-          "xpPerHour": 418000,
-          "source": "Herblore training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 89,
-          "xpPerHour": 451000,
-          "source": "Herblore training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "agility": [
         {
           "fromLevel": 1,
-          "xpPerHour": 8000,
-          "estimated": true,
-          "source": null
+          "fromXp": 0,
+          "xpPerHour": 10000,
+          "source": "Ironman Guide/Agility",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 40,
-          "xpPerHour": 30000,
-          "estimated": true,
-          "source": null
+          "fromLevel": 45,
+          "fromXp": 61512,
+          "xpPerHour": 45000,
+          "source": "Ironman Guide/Agility",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 52,
-          "xpPerHour": 30000,
+          "fromXp": 123660,
+          "xpPerHour": 45000,
           "source": "Ironman Guide/Agility",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 62,
-          "xpPerHour": 40000,
+          "fromXp": 333804,
+          "xpPerHour": 56300,
           "source": "Ironman Guide/Agility",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 72,
-          "xpPerHour": 63000,
+          "fromXp": 899257,
+          "xpPerHour": 66700,
           "source": "Ironman Guide/Agility",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 77,
-          "xpPerHour": 73000,
+          "fromLevel": 74,
+          "fromXp": 1152279,
+          "xpPerHour": 69700,
           "source": "Ironman Guide/Agility",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 87,
-          "xpPerHour": 90000,
+          "fromLevel": 82,
+          "fromXp": 2421087,
+          "xpPerHour": 76600,
           "source": "Ironman Guide/Agility",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 92,
+          "fromXp": 6517253,
+          "xpPerHour": 93300,
+          "source": "Ironman Guide/Agility",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 97600,
+          "source": "Ironman Guide/Agility",
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "thieving": [
         {
           "fromLevel": 1,
-          "xpPerHour": 12000,
-          "source": null,
-          "estimated": true
+          "fromXp": 0,
+          "xpPerHour": 26000,
+          "source": "Thieving training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 45,
-          "xpPerHour": 79000,
+          "fromXp": 61512,
+          "xpPerHour": 80000,
           "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 49,
-          "xpPerHour": 120000,
+          "fromXp": 91721,
+          "xpPerHour": 193200,
           "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 55,
-          "xpPerHour": 130000,
+          "fromLevel": 59,
+          "fromXp": 247886,
+          "xpPerHour": 219700,
           "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 60,
-          "xpPerHour": 139000,
+          "fromLevel": 69,
+          "fromXp": 668051,
+          "xpPerHour": 246200,
           "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 65,
-          "xpPerHour": 184000,
+          "fromLevel": 79,
+          "fromXp": 1798808,
+          "xpPerHour": 272700,
           "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 189000,
+          "fromLevel": 89,
+          "fromXp": 4842295,
+          "xpPerHour": 299200,
           "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 75,
-          "xpPerHour": 194000,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 381200,
           "source": "Thieving training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 80,
-          "xpPerHour": 198000,
-          "source": "Thieving training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 85,
-          "xpPerHour": 202000,
-          "source": "Thieving training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 90,
-          "xpPerHour": 206000,
-          "source": "Thieving training",
-          "estimated": true
-        },
-        {
-          "fromLevel": 91,
-          "xpPerHour": 216000,
-          "source": "Thieving training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "slayer": [
         {
           "fromLevel": 1,
-          "xpPerHour": 50000,
+          "fromXp": 0,
+          "xpPerHour": 5156,
           "source": "Ironman Guide/Slayer",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 50,
+          "fromXp": 101333,
+          "xpPerHour": 16000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 60,
+          "fromXp": 273742,
+          "xpPerHour": 21000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 65,
-          "xpPerHour": 68000,
+          "fromXp": 449428,
+          "xpPerHour": 23500,
           "source": "Ironman Guide/Slayer",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 75,
+          "fromXp": 1210421,
+          "xpPerHour": 24200,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 80,
+          "fromXp": 1986068,
+          "xpPerHour": 27000,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 85,
+          "fromXp": 3258594,
+          "xpPerHour": 33800,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 93,
-          "xpPerHour": 70000,
+          "fromXp": 7195629,
+          "xpPerHour": 34500,
           "source": "Ironman Guide/Slayer",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 81500,
+          "source": "Ironman Guide/Slayer",
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "farming": [
         {
           "fromLevel": 1,
-          "xpPerHour": 12000,
+          "fromXp": 0,
+          "xpPerHour": 500000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 35,
-          "xpPerHour": 48000,
+          "fromLevel": 54,
+          "fromXp": 150872,
+          "xpPerHour": 66000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 120000,
+          "fromLevel": 64,
+          "fromXp": 407015,
+          "xpPerHour": 2000000,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 85,
-          "xpPerHour": 160000,
+          "fromLevel": 99,
+          "fromXp": 13034431,
+          "xpPerHour": 3445600,
           "source": null,
-          "estimated": true
+          "estimated": true,
+          "pace": "efficient"
         }
       ],
       "runecraft": [
         {
           "fromLevel": 1,
-          "xpPerHour": 8000,
-          "estimated": true,
-          "source": null
+          "fromXp": 0,
+          "xpPerHour": 16000,
+          "source": "Ironman Guide/Runecraft",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 40,
-          "xpPerHour": 25000,
+          "fromLevel": 39,
+          "fromXp": 33648,
+          "xpPerHour": 84600,
           "source": "Ironman Guide/Runecraft",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 50,
-          "xpPerHour": 40000,
+          "fromXp": 101333,
+          "xpPerHour": 99600,
           "source": "Ironman Guide/Runecraft",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 75,
-          "xpPerHour": 50000,
+          "fromXp": 1210421,
+          "xpPerHour": 70000,
           "source": "Ironman Guide/Runecraft",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 85,
-          "xpPerHour": 65000,
+          "fromXp": 3258594,
+          "xpPerHour": 115000,
           "source": "Ironman Guide/Runecraft",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 119100,
+          "source": "Ironman Guide/Runecraft",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 70000,
+          "fromXp": 13034431,
+          "xpPerHour": 80100,
           "source": "Ironman Guide/Runecraft",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "hunter": [
         {
           "fromLevel": 1,
-          "xpPerHour": 8000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 40,
-          "xpPerHour": 32000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 60,
-          "xpPerHour": 41000,
+          "fromXp": 0,
+          "xpPerHour": 136800,
           "source": "Hunter training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 65,
-          "xpPerHour": 47000,
+          "fromLevel": 49,
+          "fromXp": 91721,
+          "xpPerHour": 192000,
           "source": "Hunter training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 70,
-          "xpPerHour": 53000,
+          "fromLevel": 69,
+          "fromXp": 668051,
+          "xpPerHour": 84400,
           "source": "Hunter training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 72,
-          "xpPerHour": 128000,
+          "fromLevel": 75,
+          "fromXp": 1210421,
+          "xpPerHour": 192000,
           "source": "Hunter training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         },
         {
-          "fromLevel": 91,
-          "xpPerHour": 156000,
+          "fromLevel": 80,
+          "fromXp": 1986068,
+          "xpPerHour": 156900,
           "source": "Hunter training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 82,
+          "fromXp": 2421087,
+          "xpPerHour": 207900,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 241000,
+          "source": "Hunter training",
+          "estimated": false,
+          "pace": "efficient"
         },
         {
           "fromLevel": 99,
-          "xpPerHour": 200000,
+          "fromXp": 13034431,
+          "xpPerHour": 255000,
           "source": "Hunter training",
-          "estimated": true
+          "estimated": false,
+          "pace": "efficient"
         }
       ],
       "construction": [
@@ -2347,28 +2321,20 @@
       ],
       "sailing": [
         {
-          "fromLevel": 1,
-          "xpPerHour": 10000,
-          "source": null,
-          "estimated": true
-        },
-        {
-          "fromLevel": 30,
-          "xpPerHour": 24519,
-          "source": "Sailing training",
-          "estimated": false
-        },
-        {
-          "fromLevel": 55,
-          "xpPerHour": 88923,
-          "source": "Sailing training",
-          "estimated": false
-        },
-        {
           "fromLevel": 72,
-          "xpPerHour": 184369,
+          "fromXp": 899257,
+          "xpPerHour": 205000,
           "source": "Sailing training",
-          "estimated": false
+          "estimated": false,
+          "pace": "efficient"
+        },
+        {
+          "fromLevel": 90,
+          "fromXp": 5346332,
+          "xpPerHour": 240000,
+          "source": "Sailing training",
+          "estimated": false,
+          "pace": "efficient"
         }
       ]
     }
@@ -2376,34 +2342,40 @@
   "bosses": {
     "main": {
       "abyssalSire": {
-        "killsPerHour": 39,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing the Abyssal Sire",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "alchemicalHydra": {
-        "killsPerHour": 25,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing the Alchemical Hydra",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "amoxliatl": {
-        "killsPerHour": 40,
+        "killsPerHour": 85,
         "source": "Money making guide/Killing Amoxliatl",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "araxxor": {
-        "killsPerHour": 39,
+        "killsPerHour": 40,
         "source": "Money making guide/Killing Araxxor",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "artio": {
-        "killsPerHour": 52,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing Artio",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "barrows": {
-        "killsPerHour": 12,
+        "killsPerHour": 22,
         "source": "Money making guide/Barrows",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "bryophyta": {
         "killsPerHour": 20,
@@ -2411,274 +2383,328 @@
         "estimated": true
       },
       "callisto": {
-        "killsPerHour": 25,
+        "killsPerHour": 142,
         "source": "Money making guide/Killing Callisto",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "calvarion": {
         "killsPerHour": 55,
         "source": "Money making guide/Killing Calvar'ion",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "cerberus": {
-        "killsPerHour": 50,
+        "killsPerHour": 65,
         "source": "Money making guide/Killing Cerberus",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXeric": {
-        "killsPerHour": 3,
+        "killsPerHour": 3.5,
         "source": "Money making guide/Chambers of Xeric (Normal Mode)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXericChallengeMode": {
-        "killsPerHour": 1.7,
+        "killsPerHour": 3,
         "source": "Money making guide/Chambers of Xeric (Challenge Mode)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosElemental": {
-        "killsPerHour": 60,
+        "killsPerHour": 120,
         "source": "Money making guide/Killing Chaos Elemental",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosFanatic": {
-        "killsPerHour": 60,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing the Chaos Fanatic",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "commanderZilyana": {
-        "killsPerHour": 27,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing Commander Zilyana",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "corporealBeast": {
-        "killsPerHour": 10,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing the Corporeal Beast",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "corruptedGauntlet": {
-        "killsPerHour": 6,
+        "killsPerHour": 7.2,
         "source": "Money making guide/Completing The Corrupted Gauntlet",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "crazyArchaeologist": {
-        "killsPerHour": 27,
+        "killsPerHour": 75,
         "source": "Money making guide/Killing the Crazy archaeologist",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothRex": {
-        "killsPerHour": 28,
+        "killsPerHour": 105,
         "source": "Money making guide/Killing Dagannoth Kings (Rex only)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothPrime": {
-        "killsPerHour": 25,
+        "killsPerHour": 105,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothSupreme": {
-        "killsPerHour": 25,
+        "killsPerHour": 105,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "doomOfMokhaiotl": {
-        "killsPerHour": 6,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing the Doom of Mokhaiotl (Delve 1-8)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dukeSucellus": {
-        "killsPerHour": 34,
+        "killsPerHour": 39,
         "source": "Money making guide/Killing Duke Sucellus",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "fracturedArchive": {
-        "killsPerHour": 3,
+        "killsPerHour": 3.5,
         "source": "Money making guide/The Fractured Archive (Trio)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "gauntlet": {
-        "killsPerHour": 7,
+        "killsPerHour": 10,
         "source": "Money making guide/Completing The Gauntlet",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "generalGraardor": {
-        "killsPerHour": 27,
+        "killsPerHour": 58,
         "source": "Money making guide/Killing General Graardor",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "giantMole": {
-        "killsPerHour": 85,
+        "killsPerHour": 125,
         "source": "Money making guide/Killing the Giant Mole (Twisted bow)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "grotesqueGuardians": {
-        "killsPerHour": 24,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing the Grotesque Guardians",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "hueycoatl": {
-        "killsPerHour": 7,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing Hueycoatl (Solo)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kalphiteQueen": {
-        "killsPerHour": 22,
+        "killsPerHour": 55,
         "source": "Money making guide/Killing the Kalphite Queen",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kingBlackDragon": {
-        "killsPerHour": 30,
+        "killsPerHour": 130,
         "source": "Money making guide/Killing the King Black Dragon",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kraken": {
-        "killsPerHour": 60,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing the Kraken",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kreeArra": {
-        "killsPerHour": 27,
+        "killsPerHour": 40,
         "source": "Money making guide/Killing Kree'arra",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "krilTsutsaroth": {
-        "killsPerHour": 26,
+        "killsPerHour": 65,
         "source": "Money making guide/Killing K'ril Tsutsaroth",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "leviathan": {
-        "killsPerHour": 24,
+        "killsPerHour": 31,
         "source": "Money making guide/Killing The Leviathan",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "lunarChests": {
-        "killsPerHour": 10,
+        "killsPerHour": 18,
         "source": "Money making guide/Moons of Peril",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "madAngel": {
-        "killsPerHour": 40,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing the Mad Angel",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "maggotKing": {
-        "killsPerHour": 25,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing the Maggot King",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "nex": {
-        "killsPerHour": 10,
+        "killsPerHour": 23.5,
         "source": "Money making guide/Killing Nex (Team)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "nightmare": {
-        "killsPerHour": 12,
+        "killsPerHour": 14,
         "source": "Money making guide/Killing The Nightmare",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "phantomMuspah": {
-        "killsPerHour": 25,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing Phantom Muspah (Twisted bow)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "phosanisNightmare": {
-        "killsPerHour": 9.5,
+        "killsPerHour": 9.6,
         "source": "Money making guide/Killing Phosani's Nightmare",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "sarachnis": {
-        "killsPerHour": 30,
+        "killsPerHour": 110,
         "source": "Money making guide/Killing Sarachnis",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "scorpia": {
-        "killsPerHour": 72,
+        "killsPerHour": 130,
         "source": "Money making guide/Killing Scorpia",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "scurrius": {
-        "killsPerHour": 40,
+        "killsPerHour": 70,
         "source": "Money making guide/Killing Scurrius",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "solHeredit": {
-        "killsPerHour": 2.5,
+        "killsPerHour": 2.7,
         "source": "Money making guide/Completing the Fortis Colosseum (Wave 12)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "spindel": {
-        "killsPerHour": 60,
+        "killsPerHour": 55,
         "source": "Money making guide/Killing Spindel",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "theatreOfBlood": {
-        "killsPerHour": 3,
+        "killsPerHour": 3.2,
         "source": "Money making guide/Theatre of Blood",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "thermonuclearSmokeDevil": {
-        "killsPerHour": 80,
+        "killsPerHour": 150,
         "source": "Money making guide/Killing the Thermonuclear smoke devil",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "tombsOfAmascutExpertMode": {
-        "killsPerHour": 1.75,
+        "killsPerHour": 3,
         "source": "Money making guide/Tombs of Amascut (Expert)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "vardorvis": {
-        "killsPerHour": 32,
+        "killsPerHour": 39,
         "source": "Money making guide/Killing Vardorvis",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "venenatis": {
-        "killsPerHour": 26,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing Venenatis",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "vetion": {
-        "killsPerHour": 37,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing Vet'ion",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "vorkath": {
-        "killsPerHour": 30,
+        "killsPerHour": 34,
         "source": "Money making guide/Killing Vorkath (Dragon hunter lance)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "whisperer": {
-        "killsPerHour": 20,
+        "killsPerHour": 22,
         "source": "Money making guide/Killing The Whisperer",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "yama": {
-        "killsPerHour": 10,
+        "killsPerHour": 18,
         "source": "Money making guide/Killing Yama (solo)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "zulrah": {
-        "killsPerHour": 20,
+        "killsPerHour": 46,
         "source": "Money making guide/Killing Zulrah",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "brutus": {
-        "killsPerHour": 20,
+        "killsPerHour": 250,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "derangedArchaeologist": {
-        "killsPerHour": 40,
+        "killsPerHour": 80,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "hespori": {
-        "killsPerHour": 25,
+        "killsPerHour": 60,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "mimic": {
-        "killsPerHour": 4,
+        "killsPerHour": 60,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "obor": {
         "killsPerHour": 20,
@@ -2686,19 +2712,22 @@
         "estimated": true
       },
       "royalTitans": {
-        "killsPerHour": 15,
+        "killsPerHour": 55,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "shellbaneGryphon": {
-        "killsPerHour": 20,
+        "killsPerHour": 95,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "skotizo": {
-        "killsPerHour": 15,
+        "killsPerHour": 45,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tempoross": {
         "killsPerHour": 4,
@@ -2706,24 +2735,28 @@
         "estimated": true
       },
       "theatreOfBloodHardMode": {
-        "killsPerHour": 1.5,
+        "killsPerHour": 3,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tombsOfAmascut": {
-        "killsPerHour": 2.5,
+        "killsPerHour": 3.7,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tzKalZuk": {
-        "killsPerHour": 0.5,
-        "source": null,
-        "estimated": true
-      },
-      "tzTokJad": {
         "killsPerHour": 1,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
+      },
+      "tzTokJad": {
+        "killsPerHour": 2.5,
+        "source": null,
+        "estimated": true,
+        "pace": "efficient"
       },
       "wintertodt": {
         "killsPerHour": 5,
@@ -2738,34 +2771,40 @@
     },
     "ironman": {
       "abyssalSire": {
-        "killsPerHour": 31.2,
+        "killsPerHour": 44,
         "source": "Money making guide/Killing the Abyssal Sire",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "alchemicalHydra": {
-        "killsPerHour": 20,
+        "killsPerHour": 29,
         "source": "Money making guide/Killing the Alchemical Hydra",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "amoxliatl": {
-        "killsPerHour": 32,
+        "killsPerHour": 71,
         "source": "Money making guide/Killing Amoxliatl",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "araxxor": {
-        "killsPerHour": 31.2,
+        "killsPerHour": 38,
         "source": "Money making guide/Killing Araxxor",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "artio": {
-        "killsPerHour": 41.6,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing Artio",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "barrows": {
-        "killsPerHour": 9.6,
+        "killsPerHour": 22,
         "source": "Money making guide/Barrows",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "bryophyta": {
         "killsPerHour": 16,
@@ -2773,274 +2812,328 @@
         "estimated": true
       },
       "callisto": {
-        "killsPerHour": 20,
+        "killsPerHour": 142,
         "source": "Money making guide/Killing Callisto",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "calvarion": {
-        "killsPerHour": 44,
+        "killsPerHour": 45,
         "source": "Money making guide/Killing Calvar'ion",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "cerberus": {
-        "killsPerHour": 40,
+        "killsPerHour": 54,
         "source": "Money making guide/Killing Cerberus",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXeric": {
-        "killsPerHour": 2.4,
+        "killsPerHour": 3.5,
         "source": "Money making guide/Chambers of Xeric (Normal Mode)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXericChallengeMode": {
-        "killsPerHour": 1.36,
+        "killsPerHour": 3,
         "source": "Money making guide/Chambers of Xeric (Challenge Mode)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosElemental": {
         "killsPerHour": 48,
         "source": "Money making guide/Killing Chaos Elemental",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosFanatic": {
-        "killsPerHour": 48,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing the Chaos Fanatic",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "commanderZilyana": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing Commander Zilyana",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "corporealBeast": {
-        "killsPerHour": 8,
+        "killsPerHour": 10,
         "source": "Money making guide/Killing the Corporeal Beast",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "corruptedGauntlet": {
-        "killsPerHour": 4.8,
+        "killsPerHour": 7.2,
         "source": "Money making guide/Completing The Corrupted Gauntlet",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "crazyArchaeologist": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 95,
         "source": "Money making guide/Killing the Crazy archaeologist",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothRex": {
-        "killsPerHour": 22.4,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing Dagannoth Kings (Rex only)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothPrime": {
-        "killsPerHour": 20,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothSupreme": {
-        "killsPerHour": 20,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "doomOfMokhaiotl": {
-        "killsPerHour": 4.8,
+        "killsPerHour": 18,
         "source": "Money making guide/Killing the Doom of Mokhaiotl (Delve 1-8)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dukeSucellus": {
-        "killsPerHour": 27.2,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing Duke Sucellus",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "fracturedArchive": {
-        "killsPerHour": 2.4,
+        "killsPerHour": 3.5,
         "source": "Money making guide/The Fractured Archive (Trio)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "gauntlet": {
-        "killsPerHour": 5.6,
+        "killsPerHour": 10,
         "source": "Money making guide/Completing The Gauntlet",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "generalGraardor": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 31,
         "source": "Money making guide/Killing General Graardor",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "giantMole": {
-        "killsPerHour": 68,
+        "killsPerHour": 97,
         "source": "Money making guide/Killing the Giant Mole (Twisted bow)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "grotesqueGuardians": {
-        "killsPerHour": 19.2,
+        "killsPerHour": 34,
         "source": "Money making guide/Killing the Grotesque Guardians",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "hueycoatl": {
-        "killsPerHour": 5.6,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing Hueycoatl (Solo)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kalphiteQueen": {
-        "killsPerHour": 17.6,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing the Kalphite Queen",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kingBlackDragon": {
-        "killsPerHour": 24,
+        "killsPerHour": 75,
         "source": "Money making guide/Killing the King Black Dragon",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kraken": {
-        "killsPerHour": 48,
+        "killsPerHour": 90,
         "source": "Money making guide/Killing the Kraken",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kreeArra": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing Kree'arra",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "krilTsutsaroth": {
-        "killsPerHour": 20.8,
+        "killsPerHour": 32,
         "source": "Money making guide/Killing K'ril Tsutsaroth",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "leviathan": {
-        "killsPerHour": 19.2,
+        "killsPerHour": 27,
         "source": "Money making guide/Killing The Leviathan",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "lunarChests": {
-        "killsPerHour": 8,
+        "killsPerHour": 18,
         "source": "Money making guide/Moons of Peril",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "madAngel": {
-        "killsPerHour": 32,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing the Mad Angel",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "maggotKing": {
-        "killsPerHour": 20,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing the Maggot King",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "nex": {
-        "killsPerHour": 8,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing Nex (Team)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "nightmare": {
-        "killsPerHour": 9.6,
+        "killsPerHour": 11,
         "source": "Money making guide/Killing The Nightmare",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "phantomMuspah": {
-        "killsPerHour": 20,
+        "killsPerHour": 27,
         "source": "Money making guide/Killing Phantom Muspah (Twisted bow)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "phosanisNightmare": {
-        "killsPerHour": 7.6,
+        "killsPerHour": 9.3,
         "source": "Money making guide/Killing Phosani's Nightmare",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "sarachnis": {
-        "killsPerHour": 24,
+        "killsPerHour": 67,
         "source": "Money making guide/Killing Sarachnis",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "scorpia": {
-        "killsPerHour": 57.6,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing Scorpia",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "scurrius": {
-        "killsPerHour": 32,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing Scurrius",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "solHeredit": {
-        "killsPerHour": 2,
+        "killsPerHour": 2.7,
         "source": "Money making guide/Completing the Fortis Colosseum (Wave 12)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "spindel": {
-        "killsPerHour": 48,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing Spindel",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "theatreOfBlood": {
-        "killsPerHour": 2.4,
+        "killsPerHour": 3.2,
         "source": "Money making guide/Theatre of Blood",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "thermonuclearSmokeDevil": {
-        "killsPerHour": 64,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing the Thermonuclear smoke devil",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tombsOfAmascutExpertMode": {
-        "killsPerHour": 1.4,
+        "killsPerHour": 3,
         "source": "Money making guide/Tombs of Amascut (Expert)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "vardorvis": {
-        "killsPerHour": 25.6,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing Vardorvis",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "venenatis": {
-        "killsPerHour": 20.8,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing Venenatis",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "vetion": {
-        "killsPerHour": 29.6,
+        "killsPerHour": 39,
         "source": "Money making guide/Killing Vet'ion",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "vorkath": {
-        "killsPerHour": 22,
+        "killsPerHour": 34,
         "source": "Money making guide/Killing Vorkath (Toxic blowpipe)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "whisperer": {
-        "killsPerHour": 16,
+        "killsPerHour": 21,
         "source": "Money making guide/Killing The Whisperer",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "yama": {
-        "killsPerHour": 8,
+        "killsPerHour": 18,
         "source": "Money making guide/Killing Yama (solo)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "zulrah": {
-        "killsPerHour": 16,
+        "killsPerHour": 42,
         "source": "Money making guide/Killing Zulrah",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "brutus": {
-        "killsPerHour": 16,
+        "killsPerHour": 250,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "derangedArchaeologist": {
-        "killsPerHour": 32,
+        "killsPerHour": 95,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "hespori": {
-        "killsPerHour": 20,
+        "killsPerHour": 50,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "mimic": {
-        "killsPerHour": 3.2,
+        "killsPerHour": 50,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "obor": {
         "killsPerHour": 16,
@@ -3048,19 +3141,22 @@
         "estimated": true
       },
       "royalTitans": {
-        "killsPerHour": 12,
+        "killsPerHour": 55,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "shellbaneGryphon": {
-        "killsPerHour": 16,
+        "killsPerHour": 95,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "skotizo": {
-        "killsPerHour": 12,
+        "killsPerHour": 38,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tempoross": {
         "killsPerHour": 3.2,
@@ -3068,24 +3164,28 @@
         "estimated": true
       },
       "theatreOfBloodHardMode": {
-        "killsPerHour": 1.2,
+        "killsPerHour": 3,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tombsOfAmascut": {
-        "killsPerHour": 2,
+        "killsPerHour": 3.7,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tzKalZuk": {
-        "killsPerHour": 0.4,
+        "killsPerHour": 1,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "tzTokJad": {
-        "killsPerHour": 0.8,
+        "killsPerHour": 2.2,
         "source": null,
-        "estimated": true
+        "estimated": true,
+        "pace": "efficient"
       },
       "wintertodt": {
         "killsPerHour": 4,
@@ -3098,5 +3198,227 @@
         "estimated": true
       }
     }
+  },
+  "zeroTime": {
+    "main": [
+      "fletching",
+      "hitpoints",
+      "magic"
+    ],
+    "ironman": [
+      "construction",
+      "hitpoints",
+      "magic",
+      "woodcutting"
+    ]
+  },
+  "bonuses": {
+    "main": [
+      {
+        "from": "defence",
+        "to": "ranged",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 1.25
+      },
+      {
+        "from": "defence",
+        "to": "prayer",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 0.154
+      },
+      {
+        "from": "firemaking",
+        "to": "thieving",
+        "startXp": 13034431,
+        "endXp": 200000000,
+        "ratio": 0.8443
+      },
+      {
+        "from": "mining",
+        "to": "smithing",
+        "startXp": 1210421,
+        "endXp": 200000000,
+        "ratio": 0.08
+      },
+      {
+        "from": "agility",
+        "to": "herblore",
+        "startXp": 6517253,
+        "endXp": 200000000,
+        "ratio": 0.6485
+      },
+      {
+        "from": "slayer",
+        "to": "attack",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 1.0
+      },
+      {
+        "from": "slayer",
+        "to": "strength",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 1.0
+      },
+      {
+        "from": "slayer",
+        "to": "defence",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 0.493
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 0,
+        "endXp": 1986068,
+        "ratio": 0.3299
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 1986068,
+        "endXp": 3258594,
+        "ratio": 0.2494
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 3258594,
+        "endXp": 5346332,
+        "ratio": 0.1896
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 5346332,
+        "endXp": 7195629,
+        "ratio": 0.174
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 7195629,
+        "endXp": 13034431,
+        "ratio": 0.1521
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 13034431,
+        "endXp": 200000000,
+        "ratio": 0.11
+      },
+      {
+        "from": "slayer",
+        "to": "prayer",
+        "startXp": 0,
+        "endXp": 1986068,
+        "ratio": 0.0673
+      },
+      {
+        "from": "slayer",
+        "to": "prayer",
+        "startXp": 1986068,
+        "endXp": 3258594,
+        "ratio": 0.0824
+      },
+      {
+        "from": "slayer",
+        "to": "prayer",
+        "startXp": 3258594,
+        "endXp": 5346332,
+        "ratio": 0.11917
+      },
+      {
+        "from": "slayer",
+        "to": "prayer",
+        "startXp": 5346332,
+        "endXp": 7195629,
+        "ratio": 0.21689
+      },
+      {
+        "from": "slayer",
+        "to": "prayer",
+        "startXp": 7195629,
+        "endXp": 13034431,
+        "ratio": 0.18914
+      },
+      {
+        "from": "slayer",
+        "to": "prayer",
+        "startXp": 13034431,
+        "endXp": 200000000,
+        "ratio": 0.21605
+      },
+      {
+        "from": "hunter",
+        "to": "fishing",
+        "startXp": 933979,
+        "endXp": 200000000,
+        "ratio": 0.75862069443
+      }
+    ],
+    "ironman": [
+      {
+        "from": "fishing",
+        "to": "strength",
+        "startXp": 737627,
+        "endXp": 200000000,
+        "ratio": 0.0885
+      },
+      {
+        "from": "fishing",
+        "to": "cooking",
+        "startXp": 737627,
+        "endXp": 200000000,
+        "ratio": 0.1192
+      },
+      {
+        "from": "fishing",
+        "to": "agility",
+        "startXp": 737627,
+        "endXp": 13034431,
+        "ratio": 0.0885
+      },
+      {
+        "from": "fishing",
+        "to": "agility",
+        "startXp": 13034431,
+        "endXp": 200000000,
+        "ratio": 0.0885
+      },
+      {
+        "from": "slayer",
+        "to": "defence",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 1.0
+      },
+      {
+        "from": "slayer",
+        "to": "attack",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 1.0
+      },
+      {
+        "from": "slayer",
+        "to": "strength",
+        "startXp": 0,
+        "endXp": 200000000,
+        "ratio": 0.9115
+      },
+      {
+        "from": "slayer",
+        "to": "ranged",
+        "startXp": 13034431,
+        "endXp": 200000000,
+        "ratio": 0.055
+      }
+    ]
   }
 }

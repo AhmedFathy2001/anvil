@@ -22,7 +22,7 @@
 
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import type { Milestone } from '@/lib/statHistory';
-import { bossKillsPerHour, computeEhpEhb, rateTableFor, xpPerHourAt, type RateTable } from '@/lib/efficiency';
+import { bossKillsPerHour, computeEhpEhb, guideXpPerHourAt, rateTableFor, type RateTable } from '@/lib/efficiency';
 import { SKILLS } from '@/lib/constants';
 import { totalXpOf } from '@/lib/totalXpMilestones';
 
@@ -69,7 +69,7 @@ const kcOf = (s: HiscoresSnapshot | null, boss: string) => Math.max(0, s?.bosses
 export function bestXpPerHour(skill: string, table: RateTable): number | null {
   let best: number | null = null;
   for (let level = 1; level <= 99; level++) {
-    const r = xpPerHourAt(skill, level, table);
+    const r = guideXpPerHourAt(skill, level, table);
     if (r != null && r > 0 && (best == null || r > best)) best = r;
   }
   return best;
