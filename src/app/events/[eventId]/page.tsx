@@ -973,9 +973,7 @@ export default async function EventScoreboardPage({
             <span className="text-text-muted"> — you see them because you&apos;re staff.</span>
           </div>
         )}
-        <EventFirsts firsts={firsts} />
-        <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
-        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
+        {/* Every board opens on the viewer's own team and the board; what already happened follows it. */}
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
           curtain={curtain}
@@ -1004,6 +1002,11 @@ export default async function EventScoreboardPage({
           proofTeamId={viewerTeamIds[0] ?? null}
           signedIn={!!session?.userId}
         />
+        <div className="mt-8">
+          <EventFirsts firsts={firsts} />
+          <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
+          <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
+        </div>
         {luck && <EventLuck luck={luck} />}
         </>
       )}

@@ -154,45 +154,46 @@ export default function EventHero({
       {/* Forge heat — a soft gold glow rising from the base, behind the content. */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_115%,rgba(212,175,55,0.14),transparent_70%)]" />
 
-      {/* The banner, or without one a thin tinted strip, so the icon always has an edge to sit on. */}
-      {bannerUrl ? (
-        // Always 3:1 — no height cap, which cropped a 3:1 upload on wide screens and cut off what the
-        // admin's preview showed. Off-shape uploads crop around the admin's chosen focus.
-        <div className="relative aspect-[3/1] w-full overflow-hidden border-b border-gold/20">
+      {/* Wide screens: the banner sits beside the title at about half the width, so the whole 3:1
+          picture shows without taking the first screen. Narrow screens: full width above it. */}
+      <div className={bannerUrl ? 'lg:flex lg:items-center' : ''}>
+      {bannerUrl && (
+        // Always 3:1, never height-capped: a cap cropped a 3:1 upload and cut off what the admin's
+        // preview showed. Off-shape uploads crop around the admin's chosen focus.
+        <div className="relative aspect-[3/1] w-full shrink-0 overflow-hidden border-b border-gold/20 lg:my-5 lg:ml-5 lg:w-[46%] lg:max-w-[640px] lg:rounded-xl lg:border">
           <MotionImg
             src={bannerUrl}
             className="h-full w-full object-cover"
             style={{ objectPosition: `50% ${bannerPosition ?? 50}%` }}
           />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card-bg/80 via-transparent to-transparent" />
         </div>
-      ) : (
-        <div className="h-11 w-full bg-gradient-to-r from-gold/20 via-gold/5 to-transparent sm:h-20" />
       )}
 
-      <div className="relative px-4 pb-4 sm:px-8 sm:pb-8">
-        <div className="-mt-8 mb-3 sm:-mt-10">
+      <div className="relative min-w-0 flex-1 p-4 sm:p-6">
+        <div className="flex items-center gap-3 sm:gap-4">
           <ClanCrest
             name={hostName || name}
             logoUrl={iconUrl}
-            size={72}
+            size={64}
             rounded="rounded-2xl"
-            className="border-2 border-card-bg text-2xl shadow-lg shadow-black/30"
+            className="shrink-0 text-2xl shadow-lg shadow-black/30"
           />
+          <div className="min-w-0">
+            {/* The status derives from the client clock, so keep its row height reserved and only
+                fill it once mounted — otherwise a live event would flash "Draft" on first paint. */}
+            <div className="mb-1 flex h-4 items-center text-[11px] font-semibold uppercase tracking-widest">
+              {now !== null && (
+                <span className={`flex items-center gap-1.5 ${status.text}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${status.dot} ${phase === 'active' ? 'animate-pulse' : ''}`} />
+                  {status.label}
+                </span>
+              )}
+            </div>
+            <h1 className="break-words text-2xl font-extrabold leading-tight text-gold sm:text-3xl">{name}</h1>
+            {hostedBy && <p className="mt-1 text-sm text-text-muted">Hosted by {hostedBy}</p>}
+          </div>
         </div>
-        {/* Identity. The status derives from the client clock, so keep its row height reserved and
-            only fill it once mounted — otherwise a live event would flash "Draft" on first paint. */}
-        <div className="mb-2 flex h-4 items-center text-[11px] font-semibold uppercase tracking-widest">
-          {now !== null && (
-            <span className={`flex items-center gap-1.5 ${status.text}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${status.dot} ${phase === 'active' ? 'animate-pulse' : ''}`} />
-              {status.label}
-            </span>
-          )}
-        </div>
-        <h1 className="break-words text-2xl font-extrabold leading-tight text-gold sm:text-4xl">{name}</h1>
-        {hostedBy && <p className="mt-1 text-sm text-text-muted">Hosted by {hostedBy}</p>}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-medium text-gold">{shapeBadge}</span>
           {pointsOnBoard !== null && (
             <span className="rounded-full bg-purple-500/15 px-2 py-0.5 font-medium text-purple-300">
@@ -203,13 +204,13 @@ export default function EventHero({
         </div>
 
         {/* The two focal points — reward and urgency. */}
-        <div className={`mt-3 grid gap-4 sm:mt-6 sm:gap-6 ${hasPrize ? 'sm:grid-cols-2 sm:divide-x sm:divide-card-border' : ''}`}>
+        <div className={`mt-4 grid gap-4 sm:gap-6 ${hasPrize ? 'sm:grid-cols-2 sm:divide-x sm:divide-card-border' : ''}`}>
           {hasPrize && (
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-widest text-gold/60">Prize pool</div>
-              <div className="mt-1 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-4xl font-black leading-none tracking-tight text-transparent tabular-nums sm:text-6xl">
+              <div className="mt-1 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-3xl font-black leading-none tracking-tight text-transparent tabular-nums sm:text-4xl">
                 {prizePool.toLocaleString()}
-                <span className="ml-1.5 align-baseline text-xl font-bold text-gold sm:text-3xl">gp</span>
+                <span className="ml-1.5 align-baseline text-lg font-bold text-gold sm:text-xl">gp</span>
               </div>
               {prizeBreakdown && <div className="mt-2 text-xs text-text-muted">{prizeBreakdown}</div>}
             </div>
@@ -231,9 +232,12 @@ export default function EventHero({
           </div>
         </div>
 
-        {/* Prizes on the line — the reward per placement. */}
+      </div>
+      </div>
+
+        {/* Prizes on the line — the reward per placement, under both columns. */}
         {prizes.length > 0 && (
-          <div className="mt-6 border-t border-card-border pt-4">
+          <div className="relative border-t border-card-border px-4 py-4 sm:px-6">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-gold/60">
               Prizes on the line
             </div>
@@ -250,7 +254,6 @@ export default function EventHero({
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }
@@ -302,7 +305,7 @@ function CountdownBlock({ now, phase, target, openEnded = false, startedAt = nul
       <div className="mt-1.5 flex items-start gap-2 sm:gap-2.5">
         {segments.map((s) => (
           <div key={s.unit} className="flex flex-col items-center">
-            <span className="tabular-nums rounded-lg border border-gold/15 bg-black/25 px-2 py-1 text-xl font-bold text-foreground min-w-[2.5rem] sm:px-2.5 sm:py-1.5 sm:text-4xl sm:min-w-[3.5rem]">
+            <span className="tabular-nums rounded-lg border border-gold/15 bg-black/25 px-2 py-1 text-xl font-bold text-foreground min-w-[2.5rem] sm:px-2.5 sm:py-1.5 sm:text-2xl sm:min-w-[3rem]">
               {String(s.value).padStart(2, '0')}
             </span>
             <span className="mt-1 text-[10px] uppercase tracking-wide text-text-muted">{s.unit}</span>
