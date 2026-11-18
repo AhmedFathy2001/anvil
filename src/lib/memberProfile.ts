@@ -668,7 +668,12 @@ export async function getClanAnalytics(
   // The directory still lists everyone — this narrows what COUNTS, not what is shown.
   const members = opts.countGuests ? allSeats : allSeats.filter((m) => !m.isGuest);
   const sinceYear = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
-  const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  // Seven day keys, today included: `now − 7 days` reached back to an eighth, so the card read a
+  // day more than the roster's 7d column beside it.
+  const since7 = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+  // No account plays more than a day in a day. A first sighting that books a whole account's history
+  // onto one day, or a kill rate that is far too slow, would otherwise top the week on its own.
+  const dayCap = 24 * EFFICIENCY_SCALE;
 
   // SCOPED TO THIS CLAN'S ACCOUNTS. member_daily_stats is keyed by the global account, so without
   // this the SUM below added every clan's gains onto one clan's pulse chart and active count — the
@@ -682,8 +687,8 @@ export async function getClanAnalytics(
     : await db
         .select({
           day: memberDailyStats.day,
-          ehp: sql<number>`SUM(${memberDailyStats.ehpMilliGained})`,
-          ehb: sql<number>`SUM(${memberDailyStats.ehbMilliGained})`,
+          ehp: sql<number>`SUM(LEAST(${memberDailyStats.ehpMilliGained}, ${dayCap}))`,
+          ehb: sql<number>`SUM(LEAST(${memberDailyStats.ehbMilliGained}, ${dayCap} - LEAST(${memberDailyStats.ehpMilliGained}, ${dayCap})))`,
         })
         .from(memberDailyStats)
         .where(and(gte(memberDailyStats.day, sinceYear), inArray(memberDailyStats.accountId, accountIds)))
@@ -696,7 +701,7 @@ export async function getClanAnalytics(
     : await db
         .select({
           accountId: memberDailyStats.accountId,
-          hours: sql<number>`SUM(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained})`,
+          hours: sql<number>`SUM(LEAST(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained}, ${dayCap}))`,
           // Today's slice of the same scan — one aggregate instead of a second round trip.
           todayHours: sql<number>`SUM(CASE WHEN ${memberDailyStats.day} = ${today} THEN ${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained} ELSE 0 END)`,
         })

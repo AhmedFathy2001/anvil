@@ -163,12 +163,12 @@ export default function ClanPulse({
         {/* ── Podium ─────────────────────────────────────────────────────────────────────────── */}
         <div className="border border-card-border rounded-xl bg-card-bg p-4">
           <div className="text-[11px] uppercase tracking-widest text-text-muted">
-            This week · hours forged
+            Last 7 days · hours forged
           </div>
 
           {podium.length === 0 ? (
             <p className="text-sm text-text-muted py-10 text-center">
-              Nobody has gained hours yet this week.
+              Nobody has gained hours in the last 7 days.
             </p>
           ) : (
             <>

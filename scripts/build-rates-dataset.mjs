@@ -169,7 +169,8 @@ const BOSS_SOURCES = {
  * prepared player manages. These are OUR estimates and are flagged as such.
  */
 const FALLBACK_KPH = {
-  brutus: 20,
+  // 20 an hour read a 541-kill day as 27 hours; players clear one in about 45 seconds, kill after kill.
+  brutus: 80,
   // The wiki's guide counts gathering each mossy key (about one kill an hour); kills are counted at the fight's own pace, like Obor.
   bryophyta: 20,
   derangedArchaeologist: 40,
