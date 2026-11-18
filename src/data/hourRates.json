@@ -2661,7 +2661,7 @@
         "estimated": false
       },
       "brutus": {
-        "killsPerHour": 80,
+        "killsPerHour": 150,
         "source": null,
         "estimated": true
       },
@@ -3023,7 +3023,7 @@
         "estimated": true
       },
       "brutus": {
-        "killsPerHour": 64,
+        "killsPerHour": 120,
         "source": null,
         "estimated": true
       },
