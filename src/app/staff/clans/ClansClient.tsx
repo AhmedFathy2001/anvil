@@ -12,7 +12,7 @@ import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { billingStatus, liveness } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
-import ShowMoreButton from '@/components/ShowMoreButton';
+import { HEALTH_ORDER, inClanView, type ClanHealth, type ClanView } from '@/lib/clanHealth';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
 
@@ -28,15 +28,59 @@ const STATUS_STYLE: Record<string, string> = {
  * Editing in the row rather than behind a detail page: there are four fields, and the operator is
  * nearly always comparing clans at the moment they change one.
  */
-/** Clans drawn before "Show more"; the filter box still looks through all of them. */
-const CLAN_CHUNK = 25;
+/** Clans to a page; the views, filters and search look through all of them. */
+const PAGE = 25;
+
+/** A clan's health (lib/clanHealth) with the two facts the list shows beside it. */
+export type ClanHealthRow = ClanHealth & { plugin7d: number; lastActiveAt: string | null; billing: string };
+
+const VIEWS: { key: ClanView; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'attention', label: 'Needs attention' },
+  { key: 'trial', label: 'Trial ending' },
+  { key: 'paying', label: 'Paying' },
+  { key: 'quiet', label: 'Going quiet' },
+  { key: 'stuck', label: 'Never ran an event' },
+  { key: 'over', label: 'Over their plan' },
+];
+
+const HEALTH_STYLE: Record<string, string> = {
+  broken: 'border-red-400/40 text-red-300',
+  stuck: 'border-sky-400/40 text-sky-300',
+  quiet: 'border-amber-400/40 text-amber-300',
+  new: 'border-card-border text-gray-300',
+  steady: 'border-card-border text-gray-300',
+  thriving: 'border-emerald-400/40 text-emerald-300',
+};
+
+type ClanSort = 'attention' | 'active' | 'newest' | 'members' | 'plugin' | 'name';
+const SORTS: { value: ClanSort; label: string }[] = [
+  { value: 'attention', label: 'Needs attention first' },
+  { value: 'active', label: 'Last active' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'members', label: 'Most members' },
+  { value: 'plugin', label: 'Most on the plugin' },
+  { value: 'name', label: 'Name' },
+];
+
+/** "today", "3d ago", "never": how long since anyone was seen in a clan. */
+function sinceLabel(at: string | null, now: number): string {
+  if (!at) return 'never';
+  const t = Date.parse(at.includes('T') ? at : `${at.replace(' ', 'T')}Z`);
+  if (Number.isNaN(t)) return 'never';
+  const d = Math.floor((now - t) / 86_400_000);
+  return d <= 0 ? 'today' : `${d}d ago`;
+}
 
 export default function ClansClient({
   clans,
+  health,
   canWrite,
   grants,
 }: {
   clans: ClanRow[];
+  /** By clan id (lib/clanHealth), worked out on the server. */
+  health: Record<number, ClanHealthRow>;
   canWrite: boolean;
   grants: ActAsGrant[];
 }) {
@@ -45,7 +89,10 @@ export default function ClansClient({
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [limit, setLimit] = useState(CLAN_CHUNK);
+  const [view, setView] = useState<ClanView>('all');
+  const [plan, setPlan] = useState('');
+  const [sort, setSort] = useState<ClanSort>('attention');
+  const [page, setPage] = useState(0);
   // Which clan's "act as" form is open. Null means none — this is never a default-on state.
   const [acting, setActing] = useState<number | null>(null);
   const [reason, setReason] = useState('');
@@ -219,7 +266,7 @@ export default function ClansClient({
   }
 
   const needle = q.trim().toLowerCase();
-  const shown = needle
+  const matched = needle
     ? clans.filter((c) =>
         // The contact email is in here because it is the one string an operator reliably HAS when a
         // customer writes in — the mail says nothing about a slug.
@@ -239,6 +286,36 @@ export default function ClansClient({
       )
     : clans;
   const now = Date.now();
+  const plans = [...new Set(clans.map((c) => c.plan || 'free'))].sort();
+  const viewCount = (v: ClanView) => clans.filter((c) => health[c.id] && inClanView(v, health[c.id], health[c.id].billing)).length;
+  const rank = (c: ClanRow) => {
+    const h = health[c.id];
+    // Worst health first; within one label a flagged clan (trial ending, over its plan) leads.
+    return h ? HEALTH_ORDER.indexOf(h.key) * 2 - (h.flags.length > 0 ? 1 : 0) : 99;
+  };
+  const stamp = (v: string | null | undefined) => (v ? Date.parse(v.includes('T') ? v : `${v.replace(' ', 'T')}Z`) || 0 : 0);
+  const filtered = matched
+    .filter((c) => !health[c.id] || inClanView(view, health[c.id], health[c.id].billing))
+    .filter((c) => !plan || (c.plan || 'free') === plan)
+    .sort((a, b) => {
+      switch (sort) {
+        case 'active':
+          return stamp(health[b.id]?.lastActiveAt) - stamp(health[a.id]?.lastActiveAt);
+        case 'newest':
+          return stamp(b.createdAt) - stamp(a.createdAt);
+        case 'members':
+          return b.members - a.members;
+        case 'plugin':
+          return (health[b.id]?.plugin7d ?? 0) - (health[a.id]?.plugin7d ?? 0);
+        case 'name':
+          return a.name.localeCompare(b.name);
+        default:
+          return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      }
+    });
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const at = Math.min(page, pages - 1);
+  const shown = filtered.slice(at * PAGE, at * PAGE + PAGE);
 
   return (
     <div>
@@ -248,18 +325,55 @@ export default function ClansClient({
         </div>
       )}
 
-      <Input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Filter by name, slug, address, owner or email…"
-        className="mb-4 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
-      />
+      {/* The questions asked of this list, one click each; the counts are over every clan. */}
+      <div role="group" aria-label="Views" className="mb-3 flex flex-wrap gap-2">
+        {VIEWS.map((v) => (
+          <button
+            key={v.key}
+            type="button"
+            aria-pressed={view === v.key}
+            onClick={() => {
+              setView(v.key);
+              setPage(0);
+            }}
+            className={`min-h-10 rounded-full border px-3 text-sm transition-colors ${
+              view === v.key ? 'border-gold/60 bg-gold/10 font-semibold text-gold-light' : 'border-card-border text-gray-300 hover:border-gold/40'
+            }`}
+          >
+            {v.label} <span className="tabular-nums text-text-muted">{viewCount(v.key)}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(0);
+          }}
+          placeholder="Search by name, slug, address, owner or email…"
+          className="min-w-0 flex-1 basis-64 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
+        />
+        <Select
+          ariaLabel="Plan"
+          className="w-auto min-w-36"
+          value={plan}
+          onChange={(v) => {
+            setPlan(v);
+            setPage(0);
+          }}
+          options={[{ value: '', label: 'Any plan' }, ...plans.map((p) => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))]}
+        />
+        <Select ariaLabel="Sort" className="w-auto min-w-52" value={sort} onChange={(v) => setSort(v as ClanSort)} options={SORTS} />
+      </div>
 
       <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
         <table className="stack-phone w-full min-w-[68rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="px-4 py-3">Clan</th>
+              <th className="px-4 py-3">Health</th>
               <th className="px-4 py-3">Owner</th>
               <th className="px-4 py-3">Created</th>
               <th className="px-4 py-3">Subscription</th>
@@ -274,7 +388,7 @@ export default function ClansClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-card-border">
-            {shown.slice(0, limit).map((c) => (
+            {shown.map((c) => (
               <tr key={c.id} className={busy === c.id ? 'opacity-50' : undefined}>
                 <td className="px-4 py-3">
                   {/* The NAME opens this clan's operator page — the question you arrive with is
@@ -308,6 +422,23 @@ export default function ClansClient({
                       </button>
                     )}
                   </div>
+                </td>
+                <td data-label="Health" className="px-4 py-3">
+                  {health[c.id] ? (
+                    <div className="max-w-56">
+                      <span className={`inline-block whitespace-nowrap rounded border px-2 py-0.5 text-[11px] font-bold ${HEALTH_STYLE[health[c.id].key]}`}>
+                        {health[c.id].label}
+                      </span>
+                      {health[c.id].flags.includes('trial-ending') && <span className="ml-1.5 text-[11px] font-semibold text-amber-300">trial ending</span>}
+                      {health[c.id].flags.includes('over-plan') && <span className="ml-1.5 text-[11px] font-semibold text-amber-300">over plan</span>}
+                      <div className="mt-1 text-xs text-gray-400">{health[c.id].reason}</div>
+                      <div className="mt-0.5 text-xs text-text-muted">
+                        {health[c.id].plugin7d} on the plugin, 7d · active {sinceLabel(health[c.id].lastActiveAt, now)}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-text-muted">unknown</span>
+                  )}
                 </td>
                 <td data-label="Owner" className="px-4 py-3 text-gray-300">
                   {c.owner ? (
@@ -522,7 +653,23 @@ export default function ClansClient({
         </table>
       </div>
 
-      <ShowMoreButton total={shown.length} shown={limit} chunk={CLAN_CHUNK} onMore={() => setLimit((n) => n + CLAN_CHUNK)} className="mt-3" />
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
+        <span>
+          {filtered.length === 0
+            ? 'No clans match.'
+            : `${at * PAGE + 1} to ${Math.min(filtered.length, at * PAGE + PAGE)} of ${filtered.length}${filtered.length < clans.length ? ` (${clans.length} clans in all)` : ''}`}
+        </span>
+        {pages > 1 && (
+          <span className="flex gap-2">
+            <button type="button" disabled={at === 0} onClick={() => setPage(at - 1)} className="min-h-10 rounded-lg border border-card-border px-3 text-gray-200 disabled:opacity-40">
+              Previous
+            </button>
+            <button type="button" disabled={at >= pages - 1} onClick={() => setPage(at + 1)} className="min-h-10 rounded-lg border border-card-border px-3 text-gray-200 disabled:opacity-40">
+              Next
+            </button>
+          </span>
+        )}
+      </div>
       {shown.length === 0 && <p className="mt-4 text-sm text-gray-500">No clan matches that.</p>}
     </div>
   );

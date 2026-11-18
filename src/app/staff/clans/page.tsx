@@ -1,3 +1,6 @@
+import { clanHealth } from '@/lib/clanHealth';
+import { clanActivity } from '@/lib/clanHealthDb';
+import { billingStatus } from '@/lib/clanBilling';
 import { notFound } from 'next/navigation';
 
 import { operatorEmail } from '@/lib/staffSight';
@@ -9,7 +12,7 @@ import { db } from '@/db';
 import { clans as clansTable } from '@/db/schema';
 import { foundViaLabel } from '@/lib/noticeRules';
 import { count, desc, isNotNull } from 'drizzle-orm';
-import ClansClient from './ClansClient';
+import ClansClient, { type ClanHealthRow } from './ClansClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +22,9 @@ export default async function StaffClansPage() {
   const actor = await requirePlatformPage('support');
   if (!actor) notFound();
 
-  const [clans, grants, sources] = await Promise.all([
+  const [clans, activity, grants, sources] = await Promise.all([
     allClans(),
+    clanActivity().catch(() => new Map()),
     myLiveGrants(actor.user.userId),
     // "Where did you find Anvil?" answers, most common first (asked on /clans/new).
     // clan-scope: global -- a platform-wide tally.
@@ -31,6 +35,35 @@ export default async function StaffClansPage() {
       .groupBy(clansTable.foundVia)
       .orderBy(desc(count())),
   ]);
+
+  // How each clan is doing (lib/clanHealth), judged here so the list can filter and sort by it.
+  const now = Date.now();
+  const health: Record<number, ClanHealthRow> = {};
+  for (const c of clans) {
+    const a = activity.get(c.id);
+    const b = billingStatus(c, now);
+    health[c.id] = {
+      ...clanHealth(
+        {
+          createdAt: c.createdAt,
+          members: c.members,
+          memberCap: c.memberCap,
+          plugin7d: a?.plugin7d ?? 0,
+          pluginPrev7d: a?.pluginPrev7d ?? 0,
+          eventsTotal: c.events + (a?.competitions ?? 0),
+          running: a?.running ?? 0,
+          scheduled: a?.scheduled ?? 0,
+          lastActiveAt: a?.lastActiveAt ?? null,
+          billing: b.state,
+          billingDaysLeft: b.daysLeft,
+        },
+        now,
+      ),
+      plugin7d: a?.plugin7d ?? 0,
+      lastActiveAt: a?.lastActiveAt ?? null,
+      billing: b.state,
+    };
+  }
 
   return (
     <div>
@@ -52,6 +85,7 @@ export default async function StaffClansPage() {
       )}
       <div className="mt-6">
         <ClansClient
+          health={health}
           // Owner and billing emails are whole for the top platform role only (lib/staffSight).
           clans={clans.map((c) => ({
             ...c,
