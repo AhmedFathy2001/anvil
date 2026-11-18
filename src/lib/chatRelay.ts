@@ -67,7 +67,7 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
   const guestClan = guestKey
     ? await db.query.clans.findFirst({ where: sql`lower(trim(${clans.inGameName})) = ${guestKey}`, columns: { id: true } }).catch(() => null)
     : null;
-  const barred = guestClan && guestClan.id !== seat?.clanId ? await isBannedFromClan(guestClan.id, account.playerId).catch(() => true) : false;
+  const barred = guestClan && guestClan.id !== seat?.clanId ? account.playerId == null || (await isBannedFromClan(guestClan.id, account.playerId).catch(() => true)) : false;
   const guestClanId = guestClan && guestClan.id !== seat?.clanId && !barred ? guestClan.id : null;
   return { ...(guestClanId != null ? { guestClanId } : {}), name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };
 }
