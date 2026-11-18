@@ -6,6 +6,7 @@ import { ownerOverview, CONVERSION_KINDS, type ConversionKind } from '@/lib/anal
 import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
 import { analyticsOverview, type DailyPoint } from '@/lib/analyticsRead';
 import { pluginUsersNow } from '@/lib/pluginUsersRead';
+import MessageOwnerButton from '../_components/MessageOwnerButton';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
 import { unusedFeatures, type FeatureUsage } from '@/lib/featureRegistry';
 import ScrollStrip from '@/components/ScrollStrip';
@@ -226,6 +227,7 @@ export default async function StaffAnalyticsPage({
                     {JOURNEY_COLS.map(([, label]) => (
                       <th key={label} className="py-1.5 pr-3 font-medium">{label}</th>
                     ))}
+                    <th className="py-1.5 font-medium">Stopped at</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -240,6 +242,19 @@ export default async function StaffAnalyticsPage({
                           {c.steps[key] ? c.steps[key]!.slice(0, 10) : 'not yet'}
                         </td>
                       ))}
+                      {/* The first step it has not taken, with the note to its owner one click away. */}
+                      <td className="py-1.5 text-xs">
+                        {(() => {
+                          const stop = JOURNEY_COLS.find(([key]) => !c.steps[key]);
+                          if (!stop) return <span className="text-emerald-400">all done</span>;
+                          return (
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-amber-300">{stop[1]}</span>
+                              <MessageOwnerButton clanId={c.id} clanName={c.name} why={`It looks like setup stopped at "${stop[1]}"`} />
+                            </span>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
