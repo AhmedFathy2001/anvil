@@ -52,6 +52,18 @@ export default function LiveClient({
 }) {
   const dialog = useDialog();
   const [tab, setTab] = useState<Tab>(initialTab);
+  // A wide screen shows the feed and the chat side by side, so reacting to something does not mean
+  // leaving it; a phone keeps one at a time behind the Feed | Chat switch.
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const showFeed = wide || tab === 'feed';
+  const showChat = wide || tab === 'chat';
   const [seat, setSeat] = useState<number | null>(seats[0]?.id ?? null);
 
   const [feed, setFeed] = useState<LiveFeedState | null>(null);
@@ -113,15 +125,15 @@ export default function LiveClient({
 
   // The open tab loads when it opens, and again whenever its filter, channel or seat changes.
   useEffect(() => {
-    if (tab !== 'feed') return;
+    if (!showFeed) return;
     const t = setTimeout(() => void loadFeed(filter, count), 0);
     return () => clearTimeout(t);
-  }, [tab, filter, count, loadFeed]);
+  }, [showFeed, filter, count, loadFeed]);
   useEffect(() => {
-    if (tab !== 'chat' || !chatOpen) return;
+    if (!showChat || !chatOpen) return;
     const t = setTimeout(() => void loadChat(where), 0);
     return () => clearTimeout(t);
-  }, [tab, where, chatOpen, loadChat]);
+  }, [showChat, where, chatOpen, loadChat]);
 
   // Keep the tab in the address, so a link (or the plugin's "open on the website") lands on it.
   useEffect(() => {
@@ -143,9 +155,9 @@ export default function LiveClient({
   // collapsing, chips), and the website's lists are built by the site (lib/liveData), so applying
   // them here would be a second copy of that logic — and a refetch keeps the curtain's rules where
   // they are. While the socket is down the page polls every few seconds; nothing at all while hidden.
-  const latest = useRef({ tab, filter, count, where, loadFeed, loadChat });
+  const latest = useRef({ showFeed, showChat, filter, count, where, loadFeed, loadChat });
   useEffect(() => {
-    latest.current = { tab, filter, count, where, loadFeed, loadChat };
+    latest.current = { showFeed, showChat, filter, count, where, loadFeed, loadChat };
   });
   const marks = useRef<{ c: string | null; f: string | null; etag: string | null }>({ c: null, f: null, etag: null });
   /** Drops the socket and dials again with a fresh ticket (after "Only my team's chat" changes its rooms). */
@@ -173,8 +185,8 @@ export default function LiveClient({
         const was = marks.current;
         const now = latest.current;
         // The first answer only seeds the marks: the open tab has just loaded.
-        if (was.c != null && was.c !== p.c && now.tab === 'chat' && chatOpen) void now.loadChat(now.where);
-        if (was.f != null && was.f !== p.f && now.tab === 'feed') void now.loadFeed(now.filter, now.count);
+        if (was.c != null && was.c !== p.c && now.showChat && chatOpen) void now.loadChat(now.where);
+        if (was.f != null && was.f !== p.f && now.showFeed) void now.loadFeed(now.filter, now.count);
         marks.current = { ...marks.current, c: p.c, f: p.f };
       } catch {
         /* the next tick tries again */
@@ -380,31 +392,19 @@ export default function LiveClient({
     await loadChat(where);
   }
 
-  return (
-    <div className="space-y-4">
-      {seats.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-text-muted">Speaking as</span>
-          <Select
-            className="min-w-0 flex-1 sm:max-w-xs"
-            ariaLabel="Which of your characters is speaking"
-            value={String(seat ?? '')}
-            onChange={(v) => setSeat(Number(v))}
-            options={seats.map((s) => ({ value: String(s.id), label: s.team ? `${s.name} · ${s.team}` : s.name }))}
-          />
-        </div>
-      )}
-
-      <Segments
-        label="Feed or chat"
-        items={[
-          { key: 'feed', label: 'Feed', on: tab === 'feed' },
-          { key: 'chat', label: 'Chat', on: tab === 'chat' },
-        ]}
-        onPick={(k) => setTab(k as Tab)}
+  const speakingAs = seats.length > 1 && (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-text-muted">Speaking as</span>
+      <Select
+        className="min-w-0 flex-1 sm:max-w-xs"
+        ariaLabel="Which of your characters is speaking"
+        value={String(seat ?? '')}
+        onChange={(v) => setSeat(Number(v))}
+        options={seats.map((s) => ({ value: String(s.id), label: s.team ? `${s.name} · ${s.team}` : s.name }))}
       />
-
-      {tab === 'feed' ? (
+    </div>
+  );
+  const feedPane = (
         <FeedPane
           now={now}
           feed={feed}
@@ -424,11 +424,12 @@ export default function LiveClient({
             setLoadingMore(false);
           }}
         />
-      ) : !chatOpen ? (
-        <Card>
-          <p className="px-4 py-8 text-center text-sm text-text-muted">{chat?.closedWhy ?? 'Chat is off for this event.'}</p>
-        </Card>
-      ) : (
+  );
+  const chatPane = !chatOpen ? (
+    <Card>
+      <p className="px-4 py-8 text-center text-sm text-text-muted">{chat?.closedWhy ?? 'Chat is off for this event.'}</p>
+    </Card>
+  ) : (
         <ChatPane
           now={now}
           chat={chat}
@@ -449,7 +450,33 @@ export default function LiveClient({
             return error;
           }}
         />
-      )}
+  );
+
+  // Wide: one feed with the chat beside it. The chat column stays in view while the feed scrolls.
+  if (wide) {
+    return (
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-w-0">{feedPane}</div>
+        <div className="sticky top-20 min-w-0 space-y-3">
+          {speakingAs}
+          {chatPane}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {speakingAs}
+      <Segments
+        label="Feed or chat"
+        items={[
+          { key: 'feed', label: 'Feed', on: tab === 'feed' },
+          { key: 'chat', label: 'Chat', on: tab === 'chat' },
+        ]}
+        onPick={(k) => setTab(k as Tab)}
+      />
+      {tab === 'feed' ? feedPane : chatPane}
     </div>
   );
 }
@@ -600,7 +627,7 @@ function FeedPane({
 }) {
   return (
     <Card>
-      <SectionBar title="Live" right={<span className="text-xs text-text-muted">drops, pets and finished tiles from every team</span>} />
+      <SectionBar title="Feed" right={<span className="text-xs text-text-muted">finished tiles, drops, deaths and milestones, newest first</span>} />
       {feed && (
         <div className="flex flex-wrap gap-1.5 px-4 pb-3">
           {feed.filters.map((f) => (
@@ -617,11 +644,18 @@ function FeedPane({
       {!feed && !error && <p className="px-4 py-8 text-center text-sm text-text-muted">Loading…</p>}
       {feed && feed.rows.length === 0 && <p className="border-t border-card-border px-4 py-8 text-center text-sm text-text-muted">{feed.empty}</p>}
       {feed && feed.rows.length > 0 && (
-        <ul className="divide-y divide-card-border border-t border-card-border">
-          {feed.rows.map((r) => (
-            <FeedRowItem key={r.id} row={r} now={now} reactions={feed.reactions} />
+        <div className="border-t border-card-border">
+          {feedDays(feed.rows, now).map((day) => (
+            <div key={day.label}>
+              <div className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-text-muted">{day.label}</div>
+              <ul className="divide-y divide-card-border/60">
+                {day.rows.map((r) => (
+                  <FeedRowItem key={r.id} row={r} now={now} reactions={feed.reactions} />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
       {feed?.more && (
         <div className="border-t border-card-border p-3">
@@ -647,29 +681,63 @@ function RetryButton({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/** The rows under "Today", "Yesterday" and then a date, in the reader's own timezone. */
+function feedDays(rows: LiveFeedRow[], now: number): { label: string; rows: LiveFeedRow[] }[] {
+  const startOf = (t: number) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const today = startOf(now || Date.now());
+  const out: { label: string; rows: LiveFeedRow[] }[] = [];
+  for (const r of rows) {
+    const t = Date.parse(r.at);
+    const day = Number.isNaN(t) ? today : startOf(t);
+    const label = day === today ? 'Today' : day === today - 86_400_000 ? 'Yesterday' : new Date(day).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const last = out[out.length - 1];
+    if (last && last.label === label) last.rows.push(r);
+    else out.push({ label, rows: [r] });
+  }
+  return out;
+}
+
+const KIND_TAG: Record<string, { label: string; cls: string }> = {
+  tile: { label: 'Tile', cls: 'border-gold/40 text-gold-light' },
+  pet: { label: 'Pet', cls: 'border-sky-400/40 text-sky-300' },
+  unique: { label: 'Drop', cls: 'border-sky-400/40 text-sky-300' },
+  loot: { label: 'Drop', cls: 'border-sky-400/40 text-sky-300' },
+  clog: { label: 'Log', cls: 'border-sky-400/40 text-sky-300' },
+  death: { label: 'Death', cls: 'border-red-400/40 text-red-300' },
+};
+const MILESTONE_TAG = { label: 'Milestone', cls: 'border-accent-green/40 text-accent-green' };
+
+/** The row's title as the rest of a sentence after the name: "got Dragon pickaxe", "died to Vorkath". */
+function feedSentence(row: LiveFeedRow): string {
+  if (row.kind === 'tile') return `finished ${row.title}`;
+  if (row.kind === 'pet' || row.kind === 'unique' || row.kind === 'loot') return `got ${row.title}`;
+  if (row.kind === 'clog') return `logged ${row.title}`;
+  return row.title.charAt(0).toLowerCase() + row.title.slice(1);
+}
+
 function FeedRowItem({ row, now, reactions }: { row: LiveFeedRow; now: number; reactions: LiveFeedState['reactions'] }) {
   const chips = row.momentId != null ? reactions?.byMoment[row.momentId] : undefined;
+  const tag = KIND_TAG[row.kind] ?? MILESTONE_TAG;
+  // On a players board a team is one person, so the team tag would only repeat the name.
+  const team = row.tag && row.tag.label.trim().toLowerCase() !== row.who.trim().toLowerCase() ? row.tag : null;
   return (
-    <li className={`flex items-start gap-3 px-4 py-2.5 ${row.mine ? 'border-l-2 border-l-gold/70 bg-gold/[0.03]' : ''}`}>
+    <li className={`flex items-center gap-3 px-4 py-2 ${row.mine ? 'border-l-2 border-l-gold/70 bg-gold/[0.03]' : ''}`}>
       <RowIcon icon={row.icon} tint={row.titleColor} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className={`min-w-0 flex-1 truncate text-sm font-medium ${row.titleColor ? '' : 'text-foreground'}`} style={row.titleColor ? { color: row.titleColor } : undefined}>
-            {row.title}
-          </span>
-          {row.value && <span className="shrink-0 font-mono text-xs text-gold">{row.value}</span>}
-        </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-text-muted">
-          <InkName name={row.who} ink={row.ink} color={row.whoColor} className={row.ink || row.whoColor ? '' : '!text-text-muted'} />
-          <Tag tag={row.tag} />
-          <span className="ml-auto shrink-0 font-mono text-[10.5px]">{clockLabel(row.at, now)}</span>
-        </div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <span className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-bold uppercase tracking-wide ${tag.cls}`}>{tag.label}</span>
+        <span className="min-w-0">
+          <InkName name={row.who} ink={row.ink} color={row.whoColor} className="font-semibold" /> <span className="text-foreground/90">{feedSentence(row)}</span>
+        </span>
+        <Tag tag={team} />
+        {row.value && <span className="shrink-0 font-mono text-xs text-gold">{row.value}</span>}
         {chips && reactions && row.momentId != null && (
-          <div className="mt-1.5">
-            <MomentReactions key={JSON.stringify(chips)} momentId={row.momentId} chips={chips} canReact={reactions.canReact} target={reactions.target} />
-          </div>
+          <MomentReactions key={JSON.stringify(chips)} momentId={row.momentId} chips={chips} canReact={reactions.canReact} target={reactions.target} />
         )}
       </div>
+      <span className="shrink-0 font-mono text-[10.5px] text-text-muted">{clockLabel(row.at, now)}</span>
     </li>
   );
 }
