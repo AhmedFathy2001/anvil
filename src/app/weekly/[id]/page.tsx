@@ -41,6 +41,8 @@ import { momentsForCompetition } from '@/lib/momentsStore';
 import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import { withUnit } from '@/components/weekly/format';
 import { ordinal } from '@/lib/yourTeam';
+import { buildCompetitionRecap, huntLuck } from '@/lib/competitionRecap';
+import { LuckFacts, RecapDeaths, RecapLuck, RecapNumbers, RecapYourWeek } from '@/components/weekly/CompetitionRecap';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,7 +119,8 @@ export default async function WeeklyLeaderboardPage({
 }) {
   const { id } = await params;
   // Two tabs on one address: Standings, and the competition's own feed (?view=feed).
-  const feedTab = (await searchParams).view === 'feed';
+  const viewParam = (await searchParams).view;
+  const feedTab = viewParam === 'feed';
   // `/weekly/null` reached the query as NaN and took the render down with a 500 — a bad link is a
   // 404, not a server error. generateMetadata has always guarded this; the page never did.
   const compId = idParam(id);
@@ -212,6 +215,11 @@ export default async function WeeklyLeaderboardPage({
         {selfEntry}
         {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
         {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
+        {hunt.status === 'completed' && hunt.statUnit === 'kills' && (
+          <div className="mb-5">
+            <LuckFacts {...huntLuck(hunt.rows)} />
+          </div>
+        )}
         <HuntStandingsTable view={hunt} />
         <CompetitionLatest days={huntFeed} href={`/weekly/${compId}?view=feed`} />
       </div>
@@ -246,14 +254,17 @@ export default async function WeeklyLeaderboardPage({
   // standings lines need the day-by-day, so a week whose history can't be trusted has moments only.
   const status = weeklyStatus(competition);
   const payingPlaces = parseWeeklyPrizes(competition.prizes).places.length;
+  // A finished week's recap counts every death, so it reads further back than the feed needs to.
+  const ended = status === 'completed';
+  const compMoments = view.type === 'efficiency' ? [] : await momentsForCompetition(compId, ended ? 3000 : 400);
   const feedDays = buildCompetitionFeed({
     type: view.type,
     days: view.days,
     elapsed: started ? view.elapsed : 0,
-    ended: status === 'completed',
+    ended,
     entries: showDaily ? view.entries : view.entries.map((e) => ({ rsn: e.rsn, isMe: e.isMe, days: [] })),
     payingPlaces,
-    moments: view.type === 'efficiency' ? [] : await momentsForCompetition(compId, 400),
+    moments: compMoments,
     gainWords: (v) => withUnit(v, view.type, view.unit),
   });
   const feedHref = `/weekly/${compId}?view=feed`;
@@ -313,7 +324,7 @@ export default async function WeeklyLeaderboardPage({
           ← All competitions
         </ClanLink>
         {hero}
-        <CompetitionTabs competitionId={compId} active="feed" />
+        <CompetitionTabs competitionId={compId} active="feed" recap={ended} />
         {view.me && (
           <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
         )}
@@ -335,6 +346,57 @@ export default async function WeeklyLeaderboardPage({
     );
   }
 
+  // Once it has ended the page opens on the recap; the standings as they were are one tab over.
+  if (ended && viewParam !== 'standings') {
+    const recap = buildCompetitionRecap({ type: view.type, days: view.days, daily: showDaily, entries: view.entries, moments: compMoments });
+    return (
+      <div>
+        <ClanLink href="/events" className="mb-3 inline-block text-sm text-text-muted transition-colors hover:text-gold max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">
+          ← All competitions
+        </ClanLink>
+        {hero}
+        <CompetitionTabs competitionId={compId} active="recap" recap />
+        <CompetitionPrizes prizes={competition.prizes} feePot={feePot} />
+        {view.me && recap.mine && (
+          <RecapYourWeek
+            rsn={view.me.entry.rsn}
+            rank={view.me.rank}
+            of={view.entries.length}
+            gained={view.me.entry.gained}
+            mine={recap.mine}
+            days={view.days}
+            type={view.type}
+            unit={view.unit}
+          />
+        )}
+        <Podium entries={view.entries} days={view.days} elapsed={view.elapsed} type={view.type} unit={view.unit} showShape={showDaily} />
+        <RecapNumbers recap={recap} clanTotal={view.clanTotal} days={view.days} type={view.type} unit={view.unit} />
+        <div className="grid items-start gap-7 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="min-w-0">
+            {recap.deathBoard && <RecapDeaths board={recap.deathBoard} metricLabel={view.metricLabel} />}
+            {recap.luck && (
+              <RecapLuck
+                luck={recap.luck}
+                total={recap.drops}
+                pets={view.type === 'skill'}
+                feedHref={
+                  <ClanLink href={feedHref} className="text-gold hover:text-gold-light">
+                    All {recap.drops} in the feed
+                  </ClanLink>
+                }
+              />
+            )}
+            <CompetitionAwards awards={view.awards} />
+          </div>
+          <div className="min-w-0">
+            <Board entries={view.entries} elapsed={view.elapsed} type={view.type} unit={view.unit} showDaily={showDaily} />
+            <SidePanels milestones={view.milestones} highlights={[]} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <LiveRefresher url={`/api/weekly/${compId}/pulse`} />
@@ -344,7 +406,7 @@ export default async function WeeklyLeaderboardPage({
       </ClanLink>
 
       {hero}
-      <CompetitionTabs competitionId={compId} active="standings" />
+      <CompetitionTabs competitionId={compId} active="standings" recap={ended} />
       <CompetitionPrizes prizes={competition.prizes} feePot={feePot} />
       {selfEntry}
 

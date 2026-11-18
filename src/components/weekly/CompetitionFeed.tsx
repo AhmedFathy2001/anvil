@@ -121,9 +121,12 @@ export function CompetitionLatest({ days, href, limit = 5 }: { days: Competition
   );
 }
 
-/** Standings and Feed: a competition has no rules page and no chat, so these are its only two. */
-export function CompetitionTabs({ competitionId, active }: { competitionId: number; active: 'standings' | 'feed' }) {
-  const tab = (key: 'standings' | 'feed', label: string, href: string) => (
+/**
+ * Standings and Feed: a competition has no rules page and no chat, so these are its only two while
+ * it runs. Once it has ended a Recap tab leads, and the page opens on it.
+ */
+export function CompetitionTabs({ competitionId, active, recap = false }: { competitionId: number; active: 'recap' | 'standings' | 'feed'; recap?: boolean }) {
+  const tab = (key: 'recap' | 'standings' | 'feed', label: string, href: string) => (
     <ClanLink
       href={href}
       aria-current={active === key ? 'page' : undefined}
@@ -136,7 +139,8 @@ export function CompetitionTabs({ competitionId, active }: { competitionId: numb
   );
   return (
     <nav aria-label="Competition sections" className="mb-5 flex flex-wrap gap-1 border-b border-card-border">
-      {tab('standings', 'Standings', `/weekly/${competitionId}`)}
+      {recap && tab('recap', 'Recap', `/weekly/${competitionId}`)}
+      {tab('standings', 'Standings', recap ? `/weekly/${competitionId}?view=standings` : `/weekly/${competitionId}`)}
       {tab('feed', 'Feed', `/weekly/${competitionId}?view=feed`)}
     </nav>
   );
