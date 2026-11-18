@@ -80,6 +80,61 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-18-competition-recap-feed',
+    date: '2026-11-18',
+    title: 'A feed and a recap for every competition',
+    body: 'Each competition has a Feed tab kept to its own bosses or skill: drops, deaths and changes at the top. When it ends, a Recap shows your week, who died where and who got lucky.',
+    links: [{ label: 'Competitions', href: '/c/{clan}/events' }],
+  },
+  {
+    id: '2026-11-18-event-page-your-team',
+    date: '2026-11-18',
+    title: 'Event pages start with your team',
+    body: 'An event page now opens on your team’s place and the tiles closest to done, with the board and standings side by side. Clan events got the same layout.',
+    links: [{ label: 'Events', href: '/c/{clan}/events' }],
+  },
+  {
+    id: '2026-11-18-competition-signups',
+    date: '2026-11-18',
+    title: 'Sign yourself up for a competition',
+    body: 'When your clan lets people sign up, you can enter your own character from the competition’s page any time until it ends. Some competitions have an entry fee, paid in game.',
+    links: [{ label: 'Competitions', href: '/c/{clan}/events' }],
+  },
+  {
+    id: '2026-11-18-competition-options',
+    date: '2026-11-18',
+    title: 'More ways to run a competition',
+    body: 'Take sign-ups and entry fees, count up to ten bosses or skills in one weekly, or run an item hunt. Fees can go into the prizes, and Discord gets a daily update and halfway standings.',
+    audience: ['clanStaff'],
+  },
+  {
+    id: '2026-11-18-race-lifelines',
+    date: '2026-11-18',
+    title: 'Easier options and lifelines in a tile race',
+    body: 'Give a race tile an easier option. It can open for everyone as time passes, or for one team when it spends a lifeline. The road editor also saves drafts now.',
+    audience: ['clanStaff'],
+  },
+  {
+    id: '2026-11-18-quick-add-voice',
+    date: '2026-11-18',
+    title: 'Speak your tile list',
+    body: 'Quick add can listen while you read out your tiles, and a tile can be named on its own line: "25 rumours called Rumour mill".',
+    audience: ['clanStaff'],
+  },
+  {
+    id: '2026-11-18-drop-posts',
+    date: '2026-11-18',
+    title: 'Drop posts with the numbers',
+    body: 'Notable drop posts in Discord now say where the drop came from, the kill count and the drop rate when they are known.',
+  },
+  {
+    id: '2026-11-18-members-luck-hours',
+    date: '2026-11-18',
+    title: 'Luck this week, and fairer hours',
+    body: 'The Members page shows luck for this week or all time, and hours are counted more accurately for Slayer, minigame bosses and Sailing.',
+    links: [{ label: 'Members', href: '/c/{clan}/members' }],
+  },
+  {
     id: '2026-11-11-feed-chat-page',
     date: '2026-11-11',
     title: 'Follow an event from your phone',
