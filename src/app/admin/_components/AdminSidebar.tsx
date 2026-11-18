@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
-import { clanFetch } from '@/lib/clanFetch';
+import { useRouter } from 'next/navigation';
+import { CHANGED_EVENT, clanFetch } from '@/lib/clanFetch';
 import { Sprite, type SpriteName } from '@/components/ItemSlot';
 import { SettingsSearchTrigger } from './AdminSettingsSearch';
 import SupporterName from '@/components/SupporterName';
@@ -153,6 +154,42 @@ function useLiveBadges(feed: string | undefined, here: string): Record<string, n
   return live;
 }
 
+/**
+ * Keeps the rail's own counts true. They come from the layout, which the server does not draw again
+ * when the page beside it saves something, so they are asked for again just after any change made on
+ * the page, and when the tab is looked at again. Waits while a field is being typed in, so the
+ * refresh never lands in the middle of an edit.
+ */
+function useFreshRail(): void {
+  const router = useRouter();
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let last = 0;
+    const typing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+    };
+    const run = () => {
+      if (typing()) return arm(1500);
+      last = Date.now();
+      router.refresh();
+    };
+    const arm = (ms: number) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, ms);
+    };
+    const onChanged = () => arm(600);
+    const onVisible = () => document.visibilityState === 'visible' && Date.now() - last > 20_000 && arm(300);
+    window.addEventListener(CHANGED_EVENT, onChanged);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener(CHANGED_EVENT, onChanged);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [router]);
+}
+
 function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
@@ -161,6 +198,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
   const live = useLiveBadges(badgeFeed, here);
+  useFreshRail();
   // The phone drawer is open only for the page it was opened on, so any navigation closes it.
   const [openFor, setOpenFor] = useState<string | null>(null);
   const mobileOpen = openFor === here;

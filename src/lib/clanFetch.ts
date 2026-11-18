@@ -52,6 +52,16 @@ export function clanUrl(path: string): string {
   return withClanPrefix(prefixFor(path), path);
 }
 
+/** Fired on `window` after a request that CHANGES something comes back: counts drawn elsewhere may be stale. */
+export const CHANGED_EVENT = 'anvil:changed';
+
 export function clanFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(clanUrl(path), init);
+  const res = fetch(clanUrl(path), init);
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (typeof window !== 'undefined' && method !== 'GET' && method !== 'HEAD') {
+    // The rail beside the page (AdminSidebar) is drawn by a layout that does not render again when
+    // the page saves something, so "3 unpaid" sat there after a prize was marked paid.
+    void res.then((r) => r.ok && window.dispatchEvent(new Event(CHANGED_EVENT)), () => {});
+  }
+  return res;
 }
