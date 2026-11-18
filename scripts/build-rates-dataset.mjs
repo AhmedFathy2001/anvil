@@ -169,9 +169,9 @@ const BOSS_SOURCES = {
  * prepared player manages. These are OUR estimates and are flagged as such.
  */
 const FALLBACK_KPH = {
-  // 20 an hour read a 541-kill day as 27 hours. A kill takes about 10 seconds (the owner's figure);
-  // with the respawn that is taken as 24 seconds a kill.
-  brutus: 150,
+  // 20 an hour read a 541-kill day as 27 hours. A kill takes about 10 seconds (the owner's figure) and
+  // the wiki gives a 7.8 second respawn when the cowbell amulet is rung: about 18 seconds a kill.
+  brutus: 200,
   // The wiki's guide counts gathering each mossy key (about one kill an hour); kills are counted at the fight's own pace, like Obor.
   bryophyta: 20,
   derangedArchaeologist: 40,
