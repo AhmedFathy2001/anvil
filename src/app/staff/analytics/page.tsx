@@ -12,6 +12,15 @@ import ScrollStrip from '@/components/ScrollStrip';
 
 export const dynamic = 'force-dynamic';
 
+type AnalyticsTab = 'adoption' | 'journeys' | 'growth' | 'plugin' | 'traffic';
+const ANALYTICS_TABS: { key: AnalyticsTab; label: string }[] = [
+  { key: 'adoption', label: 'Adoption' },
+  { key: 'journeys', label: 'Journeys' },
+  { key: 'growth', label: 'Growth' },
+  { key: 'plugin', label: 'Plugin' },
+  { key: 'traffic', label: 'Traffic & sources' },
+];
+
 /**
  * How Anvil is used, across every clan.
  *
@@ -23,13 +32,17 @@ export const dynamic = 'force-dynamic';
 export default async function StaffAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string }>;
+  searchParams: Promise<{ days?: string; tab?: string }>;
 }) {
   // OWNER ONLY, checked here and on /api/staff/analytics — not just by the shell, which lets support in.
   if (!(await requireOwnerPage())) notFound();
-  const days = parseWindow((await searchParams).days);
+  const sp = await searchParams;
+  const days = parseWindow(sp.days);
+  const tab: AnalyticsTab = ANALYTICS_TABS.some((t) => t.key === sp.tab) ? (sp.tab as AnalyticsTab) : 'adoption';
   const [a, o, plugin] = await Promise.all([analyticsOverview(days), ownerOverview(days), pluginUsersNow()]);
   const versionTotal = plugin.versions.reduce((n, v) => n + v.accounts, 0);
+  // Every clan on Anvil: what "N of M clans use it" is out of.
+  const clanTotal = a.clanActivity.length;
 
   return (
     <div>
@@ -45,7 +58,7 @@ export default async function StaffAnalyticsPage({
           {WINDOWS.map((w) => (
             <ClanLink
               key={w}
-              href={`/staff/analytics?days=${w}`}
+              href={`/staff/analytics?tab=${tab}&days=${w}`}
               className={`rounded-lg border px-3 py-1.5 ${
                 w === days ? 'border-gold/40 bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:text-gold'
               }`}
@@ -56,6 +69,199 @@ export default async function StaffAnalyticsPage({
         </nav>
       </header>
 
+      {/* One long page was five questions; each is a tab now, under the same window. */}
+      <nav aria-label="Analytics sections" className="mb-5 flex gap-1 overflow-x-auto border-b border-card-border">
+        {ANALYTICS_TABS.map((t) => (
+          <ClanLink
+            key={t.key}
+            href={`/staff/analytics?tab=${t.key}&days=${days}`}
+            aria-current={tab === t.key ? 'page' : undefined}
+            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors ${
+              tab === t.key ? 'border-gold text-gold-light' : 'border-transparent text-text-muted hover:text-foreground'
+            }`}
+          >
+            {t.label}
+          </ClanLink>
+        ))}
+      </nav>
+
+      {tab === 'adoption' && (
+        <>
+      <Section title="Who uses what">
+        <Card>
+          <p className="mb-3 text-xs text-text-muted">
+            Counted by the clans and people using a feature in the last 30 days, never by how often it fired: a kill tile
+            files a submission for every kill, so one busy board can fire thousands of times and still be one clan. Sorted by
+            clans. Proof submission is left out: every board needs it.
+          </p>
+          <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-text-muted">
+                <tr>
+                  <th className="py-1.5 pr-4 font-medium">Feature</th>
+                  <th className="py-1.5 pr-3 font-medium">Clans using it</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">People</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Against the 30 days before</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Last used</th>
+                  <th className="py-1.5 text-right font-medium text-text-muted/70">Times fired, 30d</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...a.features]
+                  .filter((f) => f.lastUsed !== null)
+                  .sort((x, y) => y.clans - x.clans || y.people - x.people || x.label.localeCompare(y.label))
+                  .map((f) => (
+                    <tr key={f.key} className="border-t border-card-border">
+                      <td className="py-1.5 pr-4 text-gray-200">
+                        {f.label}
+                        <span className="ml-2 text-xs text-text-muted">{f.group}</span>
+                      </td>
+                      <td className="py-1.5 pr-3">
+                        <span className="mr-2 inline-block h-2 w-24 overflow-hidden rounded-full bg-white/[0.06] align-middle">
+                          <span className="block h-full rounded-full bg-gold" style={{ width: `${Math.min(100, Math.round((f.clans / Math.max(1, clanTotal)) * 100))}%` }} />
+                        </span>
+                        <span className="tabular-nums">
+                          {f.clans.toLocaleString()} of {clanTotal.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{f.people.toLocaleString()}</td>
+                      <td className={`py-1.5 pr-3 text-right tabular-nums ${trendTone(f)}`}>{trendText(f)}</td>
+                      <td className="py-1.5 pr-3 text-right text-xs text-text-muted">{f.lastUsed}</td>
+                      <td className="py-1.5 text-right text-xs tabular-nums text-text-muted/70">{f.uses30.toLocaleString()}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </ScrollStrip>
+          {a.features.every((f) => f.lastUsed === null) && <Empty />}
+          {unusedFeatures(a.features).length > 0 && (
+            <div className="mt-4 border-t border-card-border pt-3">
+              <div className="text-xs font-medium text-text-muted">Built, and nobody has used it in 90 days</div>
+              <p className="mt-1 text-sm text-amber-400">{unusedFeatures(a.features).map((f) => f.label).join(' · ')}</p>
+            </div>
+          )}
+        </Card>
+      </Section>
+
+      <Section title="Clans by activity">
+        <Card>
+          <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-text-muted">
+                <tr>
+                  <th className="py-2 pr-4 font-medium">Clan</th>
+                  <th className="py-2 pr-4 font-medium">Last active</th>
+                  <th className="py-2 pr-4 text-right font-medium">Views 7d</th>
+                  <th className="py-2 pr-4 text-right font-medium">Actions 7d</th>
+                  <th className="py-2 pr-4 text-right font-medium">People 7d</th>
+                  <th className="py-2 text-right font-medium">Plugin 7d</th>
+                </tr>
+              </thead>
+              <tbody>
+                {a.clanActivity.map((c) => {
+                  const quietDays = c.quietDays;
+                  return (
+                    <tr key={c.id} className={`border-t border-card-border ${c.status !== 'active' ? 'opacity-60' : ''}`}>
+                      <td className="py-2 pr-4">
+                        <ClanLink href={`/staff/clans/${c.id}`} className="text-gold-light hover:text-gold">
+                          {c.name}
+                        </ClanLink>
+                        <span className="ml-2 text-xs text-text-muted">
+                          {c.plan ?? 'free'}
+                          {c.status !== 'active' ? ` · ${c.status}` : ''}
+                        </span>
+                      </td>
+                      <td className={`py-2 pr-4 ${quietDays != null && quietDays >= 7 ? 'text-amber-400' : 'text-gray-300'}`}>
+                        {quietDays == null ? <span className="text-text-muted">never</span> : quietDays === 0 ? 'today' : `${quietDays}d ago`}
+                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{c.views7d.toLocaleString()}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{c.actions7d.toLocaleString()}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums">{c.activeUsers7d.toLocaleString()}</td>
+                      <td className="py-2 text-right tabular-nums">{c.pluginUsers7d.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ScrollStrip>
+        </Card>
+      </Section>
+        </>
+      )}
+
+      {tab === 'journeys' && (
+        <>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Section title="Clan owner journey">
+          <Funnel rows={o.clanOwner} actor={`clans created in the last ${days} days`} />
+        </Section>
+        <Section title="Player journey">
+          <Funnel rows={o.player} actor={`people who signed in during the last ${days} days`} />
+        </Section>
+        <Section title="Supporter">
+          <Funnel rows={o.supporter} actor="views of /supporter" />
+        </Section>
+        <Section title="Invite links">
+          <Funnel rows={o.invite} actor="invite links opened" />
+        </Section>
+        <Section title="New event">
+          <Funnel rows={a.newEventFlow} actor={`clans that opened the format picker in the last ${days} days`} />
+        </Section>
+        <Section title="First event">
+          <Funnel rows={a.firstEventFlow} actor={`clans created in the last ${days} days, from their own records`} />
+        </Section>
+      </div>
+
+      <Section title="Clan owner journey, per clan">
+        <Card>
+          {o.clanJourney.length === 0 ? (
+            <Empty />
+          ) : (
+            <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-text-muted">
+                  <tr>
+                    <th className="py-1.5 pr-4 font-medium">Clan</th>
+                    <th className="py-1.5 pr-3 font-medium">Created</th>
+                    {JOURNEY_COLS.map(([, label]) => (
+                      <th key={label} className="py-1.5 pr-3 font-medium">{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {o.clanJourney.map((c) => (
+                    <tr key={c.id} className="border-t border-card-border">
+                      <td className="py-1.5 pr-4">
+                        <ClanLink href={`/staff/clans/${c.id}`} className="text-gold-light hover:text-gold">{c.name}</ClanLink>
+                      </td>
+                      <td className="py-1.5 pr-3 text-xs text-text-muted">{c.created.slice(0, 10)}</td>
+                      {JOURNEY_COLS.map(([key]) => (
+                        <td key={key} className={`py-1.5 pr-3 text-xs ${c.steps[key] ? 'text-gray-200' : 'text-amber-400'}`}>
+                          {c.steps[key] ? c.steps[key]!.slice(0, 10) : 'not yet'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollStrip>
+          )}
+        </Card>
+      </Section>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Section title="Clan onboarding">
+          <Funnel rows={a.clanFunnel} actor={`clans created in the last ${days} days`} />
+        </Section>
+        <Section title="Member onboarding">
+          <Funnel rows={a.memberFunnel} actor={`people who first signed in during the last ${days} days`} />
+        </Section>
+      </div>
+        </>
+      )}
+
+      {tab === 'growth' && (
+        <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Visitors" sub="tab sessions" v={a.headline.visitors} />
         <Stat label="Signed-in users" sub="DAU / WAU / MAU" v={a.headline.users} />
@@ -78,53 +284,109 @@ export default async function StaffAnalyticsPage({
         </Card>
       </Section>
 
-      <Section title="Feature use">
+      <Section title="Latest conversions">
         <Card>
-          <p className="mb-3 text-xs text-text-muted">
-            Last 30 days whatever the window above, from page views, actions and plugin panel views. Trend is the last 30
-            days against the 30 before. Proof submission is left out: every board needs it.
-          </p>
-          <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-text-muted">
-                <tr>
-                  <th className="py-1.5 pr-4 font-medium">Feature</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Clans</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">People</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Uses 7d</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Uses 30d</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Trend</th>
-                  <th className="py-1.5 text-right font-medium">Last used</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.features.filter((f) => f.lastUsed !== null).map((f) => (
-                  <tr key={f.key} className="border-t border-card-border">
-                    <td className="py-1.5 pr-4 text-gray-200">
-                      {f.label}
-                      <span className="ml-2 text-xs text-text-muted">{f.group}</span>
-                    </td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.clans.toLocaleString()}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.people.toLocaleString()}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.uses7.toLocaleString()}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.uses30.toLocaleString()}</td>
-                    <td className={`py-1.5 pr-3 text-right tabular-nums ${trendTone(f)}`}>{trendText(f)}</td>
-                    <td className="py-1.5 text-right text-xs text-text-muted">{f.lastUsed}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollStrip>
-          {a.features.every((f) => f.lastUsed === null) && <Empty />}
-          {unusedFeatures(a.features).length > 0 && (
-            <div className="mt-4 border-t border-card-border pt-3">
-              <div className="text-xs font-medium text-text-muted">Not used in 90 days</div>
-              <p className="mt-1 text-sm text-amber-400">{unusedFeatures(a.features).map((f) => f.label).join(' · ')}</p>
-            </div>
+          {o.latest.length === 0 ? (
+            <Empty />
+          ) : (
+            <ul className="divide-y divide-card-border text-sm">
+              {o.latest.map((c, i) => (
+                <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5">
+                  <span className="text-gray-200">
+                    {KIND_LABEL[c.kind] ?? c.kind}
+                    {c.clan ? <span className="ml-2 text-text-muted">{c.clan}</span> : null}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {sourceLabel(c.source)} · {c.ts.slice(0, 16)} UTC
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
       </Section>
 
+      <Section title="Discord joins">
+        <Card>
+          {a.discordJoins.length === 0 ? (
+            <Empty />
+          ) : (
+            <RankTable
+              head={['Clan · where', 'Clicks', 'Signed in']}
+              rows={a.discordJoins.map((r) => [`${r.clan} · ${r.src}`, r.clicks, r.people])}
+              max={a.discordJoins[0].clicks}
+            />
+          )}
+        </Card>
+      </Section>
+        </>
+      )}
+
+      {tab === 'plugin' && (
+        <>
+      <Section title="Plugin users">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <Card>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Playing now', sub: 'pushed in the last 10 min', v: plugin.now },
+                { label: 'Last hour', sub: 'accounts', v: plugin.hour },
+                { label: 'Last 24 hours', sub: 'accounts', v: plugin.day },
+              ].map((x) => (
+                <div key={x.label}>
+                  <div className="text-2xl font-semibold tabular-nums text-gold">{x.v.toLocaleString()}</div>
+                  <div className="mt-1 text-sm">{x.label}</div>
+                  <div className="text-xs text-text-muted">{x.sub}</div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-text-muted">
+              Counted from stat pushes, so someone logged in and standing still is not in &ldquo;now&rdquo;.
+            </p>
+            <h3 className="mt-5 text-sm font-semibold">Plugin versions, last 7 days</h3>
+            {plugin.versions.length === 0 ? (
+              <Empty />
+            ) : (
+              <RankTable
+                head={['Version', 'Accounts', 'Share']}
+                rows={plugin.versions.map((v) => [v.version, v.accounts, `${Math.round((v.accounts / Math.max(1, versionTotal)) * 100)}%`])}
+                max={Math.max(...plugin.versions.map((v) => v.accounts))}
+              />
+            )}
+          </Card>
+          <Card>
+            <h3 className="text-sm font-semibold">By clan, last 24 hours</h3>
+            {plugin.clans.length === 0 ? (
+              <Empty />
+            ) : (
+              <RankTable
+                head={['Clan', 'Now', 'Last hour', 'Last 24h']}
+                rows={plugin.clans.map((c) => [c.name, c.now, c.hour, c.day])}
+                max={Math.max(...plugin.clans.map((c) => c.day))}
+              />
+            )}
+          </Card>
+        </div>
+      </Section>
+
+      <Section title="Plugin features">
+        <Card>
+          {a.pluginRoutes.length === 0 ? (
+            <Empty />
+          ) : (
+            <RankTable
+              head={['Plugin path', 'Account-days', 'Accounts', 'Clans']}
+              rows={a.pluginRoutes.map((r) => [r.name, r.accountDays, r.accounts, r.clans])}
+              max={Math.max(...a.pluginRoutes.map((r) => r.accountDays))}
+            />
+          )}
+        </Card>
+      </Section>
+        </>
+      )}
+
+      {tab === 'traffic' && (
+        <>
       <div className="grid gap-6 xl:grid-cols-2">
         <Section title="Top pages">
           <Card>
@@ -218,212 +480,8 @@ export default async function StaffAnalyticsPage({
           )}
         </Card>
       </Section>
-
-      <Section title="Latest conversions">
-        <Card>
-          {o.latest.length === 0 ? (
-            <Empty />
-          ) : (
-            <ul className="divide-y divide-card-border text-sm">
-              {o.latest.map((c, i) => (
-                <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5">
-                  <span className="text-gray-200">
-                    {KIND_LABEL[c.kind] ?? c.kind}
-                    {c.clan ? <span className="ml-2 text-text-muted">{c.clan}</span> : null}
-                  </span>
-                  <span className="text-xs text-text-muted">
-                    {sourceLabel(c.source)} · {c.ts.slice(0, 16)} UTC
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </Section>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Section title="Clan owner journey">
-          <Funnel rows={o.clanOwner} actor={`clans created in the last ${days} days`} />
-        </Section>
-        <Section title="Player journey">
-          <Funnel rows={o.player} actor={`people who signed in during the last ${days} days`} />
-        </Section>
-        <Section title="Supporter">
-          <Funnel rows={o.supporter} actor="views of /supporter" />
-        </Section>
-        <Section title="Invite links">
-          <Funnel rows={o.invite} actor="invite links opened" />
-        </Section>
-        <Section title="New event">
-          <Funnel rows={a.newEventFlow} actor={`clans that opened the format picker in the last ${days} days`} />
-        </Section>
-        <Section title="First event">
-          <Funnel rows={a.firstEventFlow} actor={`clans created in the last ${days} days, from their own records`} />
-        </Section>
-      </div>
-
-      <Section title="Clan owner journey, per clan">
-        <Card>
-          {o.clanJourney.length === 0 ? (
-            <Empty />
-          ) : (
-            <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs text-text-muted">
-                  <tr>
-                    <th className="py-1.5 pr-4 font-medium">Clan</th>
-                    <th className="py-1.5 pr-3 font-medium">Created</th>
-                    {JOURNEY_COLS.map(([, label]) => (
-                      <th key={label} className="py-1.5 pr-3 font-medium">{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {o.clanJourney.map((c) => (
-                    <tr key={c.id} className="border-t border-card-border">
-                      <td className="py-1.5 pr-4">
-                        <ClanLink href={`/staff/clans/${c.id}`} className="text-gold-light hover:text-gold">{c.name}</ClanLink>
-                      </td>
-                      <td className="py-1.5 pr-3 text-xs text-text-muted">{c.created.slice(0, 10)}</td>
-                      {JOURNEY_COLS.map(([key]) => (
-                        <td key={key} className={`py-1.5 pr-3 text-xs ${c.steps[key] ? 'text-gray-200' : 'text-amber-400'}`}>
-                          {c.steps[key] ? c.steps[key]!.slice(0, 10) : 'not yet'}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollStrip>
-          )}
-        </Card>
-      </Section>
-
-      <Section title="Discord joins">
-        <Card>
-          {a.discordJoins.length === 0 ? (
-            <Empty />
-          ) : (
-            <RankTable
-              head={['Clan · where', 'Clicks', 'Signed in']}
-              rows={a.discordJoins.map((r) => [`${r.clan} · ${r.src}`, r.clicks, r.people])}
-              max={a.discordJoins[0].clicks}
-            />
-          )}
-        </Card>
-      </Section>
-
-      <Section title="Plugin users">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-          <Card>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'Playing now', sub: 'pushed in the last 10 min', v: plugin.now },
-                { label: 'Last hour', sub: 'accounts', v: plugin.hour },
-                { label: 'Last 24 hours', sub: 'accounts', v: plugin.day },
-              ].map((x) => (
-                <div key={x.label}>
-                  <div className="text-2xl font-semibold tabular-nums text-gold">{x.v.toLocaleString()}</div>
-                  <div className="mt-1 text-sm">{x.label}</div>
-                  <div className="text-xs text-text-muted">{x.sub}</div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-text-muted">
-              Counted from stat pushes, so someone logged in and standing still is not in &ldquo;now&rdquo;.
-            </p>
-            <h3 className="mt-5 text-sm font-semibold">Plugin versions, last 7 days</h3>
-            {plugin.versions.length === 0 ? (
-              <Empty />
-            ) : (
-              <RankTable
-                head={['Version', 'Accounts', 'Share']}
-                rows={plugin.versions.map((v) => [v.version, v.accounts, `${Math.round((v.accounts / Math.max(1, versionTotal)) * 100)}%`])}
-                max={Math.max(...plugin.versions.map((v) => v.accounts))}
-              />
-            )}
-          </Card>
-          <Card>
-            <h3 className="text-sm font-semibold">By clan, last 24 hours</h3>
-            {plugin.clans.length === 0 ? (
-              <Empty />
-            ) : (
-              <RankTable
-                head={['Clan', 'Now', 'Last hour', 'Last 24h']}
-                rows={plugin.clans.map((c) => [c.name, c.now, c.hour, c.day])}
-                max={Math.max(...plugin.clans.map((c) => c.day))}
-              />
-            )}
-          </Card>
-        </div>
-      </Section>
-
-      <Section title="Plugin features">
-        <Card>
-          {a.pluginRoutes.length === 0 ? (
-            <Empty />
-          ) : (
-            <RankTable
-              head={['Plugin path', 'Account-days', 'Accounts', 'Clans']}
-              rows={a.pluginRoutes.map((r) => [r.name, r.accountDays, r.accounts, r.clans])}
-              max={Math.max(...a.pluginRoutes.map((r) => r.accountDays))}
-            />
-          )}
-        </Card>
-      </Section>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Section title="Clan onboarding">
-          <Funnel rows={a.clanFunnel} actor={`clans created in the last ${days} days`} />
-        </Section>
-        <Section title="Member onboarding">
-          <Funnel rows={a.memberFunnel} actor={`people who first signed in during the last ${days} days`} />
-        </Section>
-      </div>
-
-      <Section title="Clans by activity">
-        <Card>
-          <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs text-text-muted">
-                <tr>
-                  <th className="py-2 pr-4 font-medium">Clan</th>
-                  <th className="py-2 pr-4 font-medium">Last active</th>
-                  <th className="py-2 pr-4 text-right font-medium">Views 7d</th>
-                  <th className="py-2 pr-4 text-right font-medium">Actions 7d</th>
-                  <th className="py-2 pr-4 text-right font-medium">People 7d</th>
-                  <th className="py-2 text-right font-medium">Plugin 7d</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.clanActivity.map((c) => {
-                  const quietDays = c.quietDays;
-                  return (
-                    <tr key={c.id} className={`border-t border-card-border ${c.status !== 'active' ? 'opacity-60' : ''}`}>
-                      <td className="py-2 pr-4">
-                        <ClanLink href={`/staff/clans/${c.id}`} className="text-gold-light hover:text-gold">
-                          {c.name}
-                        </ClanLink>
-                        <span className="ml-2 text-xs text-text-muted">
-                          {c.plan ?? 'free'}
-                          {c.status !== 'active' ? ` · ${c.status}` : ''}
-                        </span>
-                      </td>
-                      <td className={`py-2 pr-4 ${quietDays != null && quietDays >= 7 ? 'text-amber-400' : 'text-gray-300'}`}>
-                        {quietDays == null ? <span className="text-text-muted">never</span> : quietDays === 0 ? 'today' : `${quietDays}d ago`}
-                      </td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{c.views7d.toLocaleString()}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{c.actions7d.toLocaleString()}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{c.activeUsers7d.toLocaleString()}</td>
-                      <td className="py-2 text-right tabular-nums">{c.pluginUsers7d.toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ScrollStrip>
-        </Card>
-      </Section>
+        </>
+      )}
     </div>
   );
 }
