@@ -8,6 +8,7 @@ import { hasPlatformRole } from '@/lib/clanRoles';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
+import { FALLBACK_TABLES, lacksMainStats, withModeStats } from '@/lib/modeStatsCard';
 import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
 import { rateLimit } from '@/lib/rate-limit';
 import { mediaForCharacter } from '@/lib/profileMedia';
@@ -47,14 +48,35 @@ export type CardLookup =
 export async function lookupPlayerCard(request: Request, rsn: string): Promise<CardLookup> {
   if (!rsn || rsn.length > 12) return { kind: 'missing' };
   const character = await apexCharacter(rsn, await viewerPlayerId(request));
-  if (character) return { kind: 'card', card: await loadPanelPlayerCard(character) };
+  if (character) {
+    const card = await loadPanelPlayerCard(character);
+    if (!lacksMainStats(card)) return { kind: 'card', card };
+    // Nothing on the main game: it may be a game-mode save. The same per-address limit as any other
+    // read that can reach Jagex; over it, or with nothing found, the card goes out as it is.
+    const limit = await rateLimit(request, 'player-card-lookup', { limit: 30, windowMs: 60_000 });
+    return { kind: 'card', card: limit.ok ? await modeStatsOver(card) : card };
+  }
 
   const limit = await rateLimit(request, 'player-card-lookup', { limit: 30, windowMs: 60_000 });
   if (!limit.ok) return { kind: 'limited', retryAfterSec: Math.max(1, Math.ceil((limit.reset - Date.now()) / 1000)) };
   const result = await publicHiscoresCard(rsn);
-  if (result.kind === 'card') return { kind: 'card', card: result.card };
+  if (result.kind === 'card') return { kind: 'card', card: lacksMainStats(result.card) ? await modeStatsOver(result.card) : result.card };
   if (result.kind === 'busy') return { kind: 'busy', retryAfterSec: result.retryAfterSec };
+  // Not on the main table at all: a mode-only name still gets a card, built from its mode table.
+  for (const from of FALLBACK_TABLES) {
+    const mode = await publicHiscoresCard(rsn, { table: from.table }).catch(() => null);
+    if (mode?.kind === 'card') return { kind: 'card', card: withModeStats(mode.card, mode.card, from) };
+  }
   return { kind: 'missing' };
+}
+
+/** `card` with a game-mode table's numbers over it, when the name is on one; else `card` unchanged. */
+async function modeStatsOver(card: PlayerCard): Promise<PlayerCard> {
+  for (const from of FALLBACK_TABLES) {
+    const mode = await publicHiscoresCard(card.rsn, { table: from.table }).catch(() => null);
+    if (mode?.kind === 'card' && !lacksMainStats(mode.card)) return withModeStats(card, mode.card, from);
+  }
+  return card;
 }
 
 export async function loadPanelPlayerCard(character: ApexCharacter): Promise<PlayerCard> {

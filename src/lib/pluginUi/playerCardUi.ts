@@ -264,6 +264,7 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, 
     muted(who, { font: 'small', ...clanOn }),
   ];
   if (!anvil && c.fetchedAt) inner.push(muted('', { at: c.fetchedAt, font: 'small' }));
+  if (c.statsFrom) inner.push(text(`${c.statsFrom.label} stats`, 'brand', { font: 'small', tip: `Nothing on the main hiscores for this name: these are from ${c.statsFrom.label}` }));
   if (totals.length) inner.push(text(totals.join(' · '), 'white'));
   if (own && anvil && c.clog && c.clog.total > 0) {
     const pct = percent(c.clog.obtained, c.clog.total);
