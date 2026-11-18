@@ -254,6 +254,12 @@ function PersonCard({
   );
 }
 
+const SUPPORTER_STYLE: Record<string, string> = {
+  patron: 'border-gold/50 text-gold-light',
+  champion: 'border-sky-400/40 text-sky-300',
+  supporter: 'border-card-border text-gray-200',
+};
+
 export default function PeopleClient({
   initialQuery,
   results,
@@ -273,6 +279,7 @@ export default function PeopleClient({
     accounts: string;
     banned: string;
     multiClan: boolean;
+    supporter: string;
     sort: PeopleSort;
   };
   clans: { id: number; name: string }[];
@@ -314,6 +321,7 @@ export default function PeopleClient({
       accounts: filters.accounts,
       banned: filters.banned,
       multi: filters.multiClan,
+      supporter: filters.supporter,
       sort: filters.sort,
       ...next,
     };
@@ -339,6 +347,7 @@ export default function PeopleClient({
       accounts: '',
       banned: '',
       multi: false,
+      supporter: '',
       sort: 'connected',
       page: null,
     });
@@ -351,6 +360,7 @@ export default function PeopleClient({
     filters.accounts ||
     filters.banned ||
     filters.multiClan ||
+    filters.supporter ||
     filters.sort !== 'connected',
   );
 
@@ -441,10 +451,25 @@ export default function PeopleClient({
           className="w-full"
         />
         <Select
+          value={filters.supporter}
+          onChange={(v) => go({ supporter: v, page: null })}
+          options={[
+            { value: '', label: 'Supporter or not' },
+            { value: 'any', label: 'Any Supporter' },
+            { value: 'supporter', label: 'Supporter tier' },
+            { value: 'champion', label: 'Champion' },
+            { value: 'patron', label: 'Patron' },
+            { value: 'none', label: 'Not a Supporter' },
+          ]}
+          ariaLabel="Supporter tier"
+          className="w-full"
+        />
+        <Select
           value={filters.sort}
           onChange={(v) => go({ sort: v, page: null })}
           options={[
             { value: 'connected', label: 'Most connected' },
+            { value: 'seen', label: 'Last seen playing' },
             { value: 'name_asc', label: 'Name A–Z' },
             { value: 'name_desc', label: 'Name Z–A' },
             { value: 'newest', label: 'Newest people' },
@@ -487,6 +512,9 @@ export default function PeopleClient({
                   </th>
                   <th className="px-2 sm:px-4 py-2.5 text-right">Clans</th>
                   <th className="px-2 sm:px-4 py-2.5">Login</th>
+                  <th className="px-2 sm:px-4 py-2.5">Supporter</th>
+                  <th className="px-2 sm:px-4 py-2.5">Plugin</th>
+                  <th className="px-2 sm:px-4 py-2.5">Last seen</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
@@ -505,11 +533,30 @@ export default function PeopleClient({
                     <td className="px-2 sm:px-4 py-2.5 text-right tabular-nums">{row.accounts}</td>
                     <td className="px-2 sm:px-4 py-2.5 text-right tabular-nums">{row.clans}</td>
                     <td className="px-2 sm:px-4 py-2.5 text-xs text-gray-400">{row.hasLogin ? 'Discord' : '—'}</td>
+                    <td className="px-2 sm:px-4 py-2.5 text-xs">
+                      {row.supporter ? (
+                        <>
+                          <span className={`inline-block rounded border px-1.5 py-0.5 font-bold ${SUPPORTER_STYLE[row.supporter.tier] ?? 'border-card-border text-gray-300'}`}>
+                            {row.supporter.tier.charAt(0).toUpperCase() + row.supporter.tier.slice(1)}
+                          </span>
+                          <div className="mt-0.5 text-text-muted">
+                            {row.supporter.how === 'paid' ? 'paid' : row.supporter.how === 'gift' ? 'a gift' : 'staff gift'}
+                            {row.supporter.endsAt ? ` · ${row.supporter.how === 'paid' ? 'renews' : 'ends'} ${row.supporter.endsAt.slice(0, 10)}` : ''}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-gray-600">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 sm:px-4 py-2.5 text-xs text-gray-400">{row.pluginVersion ?? <span className="text-gray-600">never</span>}</td>
+                    <td className="px-2 sm:px-4 py-2.5 text-xs text-gray-400" title={row.lastSeenAt ?? undefined}>
+                      {row.lastSeenAt ? row.lastSeenAt.slice(0, 10) : <span className="text-gray-600">—</span>}
+                    </td>
                   </tr>
                 ))}
                 {browse.rows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
                       Nobody matches those filters.
                     </td>
                   </tr>

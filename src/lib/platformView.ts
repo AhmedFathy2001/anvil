@@ -776,6 +776,11 @@ export interface PeopleBrowseRow {
   clans: number;
   hasLogin: boolean;
   banned: boolean;
+  /** Their Supporter tier in force (the best one), how they hold it, and when it ends. */
+  supporter: { tier: string; how: 'paid' | 'gift' | 'staff'; endsAt: string | null } | null;
+  /** The newest plugin build any of their characters was seen on, and when any was last playing. */
+  pluginVersion: string | null;
+  lastSeenAt: string | null;
 }
 
 export interface PeopleBrowseFilters {
@@ -789,6 +794,8 @@ export interface PeopleBrowseFilters {
   banned?: 'yes' | 'no' | null;
   /** Only people who hold seats in more than one clan. */
   multiClan?: boolean;
+  /** 'any' = any Supporter tier in force, a tier's own id, or 'none'. */
+  supporter?: string | null;
   sort?: PeopleSort;
 }
 
@@ -799,7 +806,8 @@ export type PeopleSort =
   | 'newest'
   | 'oldest'
   | 'accounts_desc'
-  | 'clans_desc';
+  | 'clans_desc'
+  | 'seen';
 
 export const PEOPLE_SORTS: readonly PeopleSort[] = [
   'connected',
@@ -809,6 +817,7 @@ export const PEOPLE_SORTS: readonly PeopleSort[] = [
   'oldest',
   'accounts_desc',
   'clans_desc',
+  'seen',
 ] as const;
 
 export const PEOPLE_PAGE_SIZE = 25;
@@ -821,6 +830,25 @@ export const PEOPLE_PAGE_SIZE = 25;
 // subquery's own table. It only qualifies inside `.where()`, which is why the filters worked and the
 // page did not: `column reference "id" is ambiguous`, 500, on /staff/people.
 const PLAYER_ID = sql.raw('"players"."id"');
+
+export const SUPPORTER_FILTERS = ['any', 'supporter', 'champion', 'patron', 'none'] as const;
+
+/**
+ * A Supporter membership still in force (lib/supporter, lib/supporterGifts): active, cancelling
+ * inside the term that was paid for, or a gift ('granted') that has not run out. `tier` narrows it to one tier. Correlates on the person being listed.
+ */
+function supporterInForce(alias: string, tier?: string) {
+  const a = sql.raw(alias);
+  const now = new Date().toISOString();
+  return sql`exists (
+    select 1 from supporter_subscriptions ${a} join users ${sql.raw(`${alias}_u`)} on ${sql.raw(`${alias}_u`)}.id = ${a}.user_id
+     where ${sql.raw(`${alias}_u`)}.player_id = ${PLAYER_ID}
+       and (${a}.status = 'active'
+            or (${a}.status = 'cancelling' and replace(coalesce(${a}.current_period_end, ''), ' ', 'T') > ${now})
+            or (${a}.status = 'granted' and (${a}.current_period_end is null or replace(${a}.current_period_end, ' ', 'T') > ${now})))
+       ${tier ? sql`and ${a}.tier = ${tier}` : sql``}
+  )`;
+}
 
 export async function browsePeople(
   filters: PeopleBrowseFilters = {},
@@ -872,6 +900,15 @@ export async function browsePeople(
           ? sql`${players.banned} = false`
           : sql`true`
     }
+    and ${
+      filters.supporter === 'none'
+        ? sql`not ${supporterInForce('sup_f')}`
+        : filters.supporter === 'any'
+          ? supporterInForce('sup_f')
+          : filters.supporter
+            ? supporterInForce('sup_f', filters.supporter)
+            : sql`true`
+    }
     and ${filters.multiClan ? sql`(
       select count(distinct m3.clan_id) from ${clanMemberships} m3
         join ${accounts} a3 on a3.id = m3.account_id
@@ -897,6 +934,8 @@ export async function browsePeople(
      where sort_account.player_id = ${PLAYER_ID} and sort_membership.left_at is null and sort_membership.kind <> 'event'
   )`;
   const nameOrder = sql`lower(coalesce(${players.displayName}, ''))`;
+  // When any of their characters last pushed from the plugin (accounts.live_stats_at).
+  const lastSeen = sql<string | null>`(select max(seen_a.live_stats_at) from ${accounts} seen_a where seen_a.player_id = ${PLAYER_ID})`;
   const sort = filters.sort ?? 'connected';
   const requestedOrder = (() => {
     switch (sort) {
@@ -906,6 +945,7 @@ export async function browsePeople(
       case 'oldest': return [asc(players.createdAt), asc(players.id)];
       case 'accounts_desc': return [desc(accountCount), desc(clanCount), asc(nameOrder), asc(players.id)];
       case 'clans_desc': return [desc(clanCount), desc(accountCount), asc(nameOrder), asc(players.id)];
+      case 'seen': return [sql`${lastSeen} desc nulls last`, asc(nameOrder), asc(players.id)];
       default: return [desc(clanCount), desc(accountCount), asc(nameOrder), asc(players.id)];
     }
   })();
@@ -932,6 +972,22 @@ export async function browsePeople(
          where a5.player_id = ${PLAYER_ID} and m4.left_at is null and m4.kind <> 'event'
       )`,
       hasLogin: sql<boolean>`exists (select 1 from ${users} u3 where u3.player_id = ${PLAYER_ID})`,
+      // The best membership in force, as "tier|recurrence|period end": one subquery, split below.
+      supporter: sql<string | null>`(
+        select ss.tier || '|' || coalesce(ss.recurrence, '') || '|' || coalesce(ss.current_period_end, '')
+          from supporter_subscriptions ss join ${users} su on su.id = ss.user_id
+         where su.player_id = ${PLAYER_ID}
+           and (ss.status = 'active'
+                or (ss.status = 'cancelling' and replace(coalesce(ss.current_period_end, ''), ' ', 'T') > ${new Date().toISOString()})
+                or (ss.status = 'granted' and (ss.current_period_end is null or replace(ss.current_period_end, ' ', 'T') > ${new Date().toISOString()})))
+         order by case ss.tier when 'patron' then 0 when 'champion' then 1 else 2 end
+         limit 1
+      )`,
+      pluginVersion: sql<string | null>`(
+        select ps.plugin_version from account_plugin_seen ps join ${accounts} pa on pa.id = ps.account_id
+         where pa.player_id = ${PLAYER_ID} order by ps.seen_at desc limit 1
+      )`,
+      lastSeenAt: lastSeen,
     })
     .from(players)
     .where(where)
@@ -940,7 +996,17 @@ export async function browsePeople(
     .offset((safePage - 1) * PEOPLE_PAGE_SIZE);
 
   return {
-    rows: rows.map((r) => ({ ...r, accounts: Number(r.accounts), clans: Number(r.clans), banned: !!r.banned })),
+    rows: rows.map((r) => {
+      const [tier, recurrence, endsAt] = (r.supporter ?? '').split('|');
+      return {
+        ...r,
+        accounts: Number(r.accounts),
+        clans: Number(r.clans),
+        banned: !!r.banned,
+        // 'gift' is a staff gift, 'gift-paid' one somebody bought; anything else is their own membership.
+        supporter: tier ? { tier, how: recurrence === 'gift' ? ('staff' as const) : recurrence === 'gift-paid' ? ('gift' as const) : ('paid' as const), endsAt: endsAt || null } : null,
+      };
+    }),
     total: Number(total),
     page: safePage,
     pages,
