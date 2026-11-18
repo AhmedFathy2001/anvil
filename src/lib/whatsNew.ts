@@ -80,6 +80,47 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-18-easier-joining',
+    date: '2026-11-18',
+    title: 'Joining takes one page',
+    body: 'Name your character on the sign-up or apply page and prove it with the plugin, an XP check, or a staff vouch. Invite links seat you and sign you up with one Join button.',
+  },
+  {
+    id: '2026-11-18-your-data',
+    date: '2026-11-18',
+    title: 'Download your data or delete your account',
+    body: 'Settings has a Your data section: download everything Anvil holds about you, or delete your account.',
+    links: [{ label: 'Your data', href: '/settings/account', account: true }],
+  },
+  {
+    id: '2026-11-18-phone-pass',
+    date: '2026-11-18',
+    title: 'Better on a phone',
+    body: 'A scrollable menu, larger tap targets, readable tile names, and the board first on event pages. Admin lists turn into cards on small screens.',
+  },
+  {
+    id: '2026-11-18-board-touches',
+    date: '2026-11-18',
+    title: 'Small things on the board',
+    body: 'Hover a tile to see the count and who on your team is going for it. A toast shows when a team completes a line, and one "You’re in" list on the events page shows everything you are playing with where you stand.',
+    links: [{ label: 'Events', href: '/c/{clan}/events' }],
+  },
+  {
+    id: '2026-11-18-guides-on-page',
+    date: '2026-11-18',
+    title: 'Guides that walk you through it',
+    body: 'A run-an-event guide sits on every event admin page, with a new-owner guide on the dashboard and setup wizard and a moderator guide. They show the next step and link straight to it.',
+    audience: ['clanStaff'],
+  },
+  {
+    id: '2026-11-18-admission-paths',
+    date: '2026-11-18',
+    title: 'See how each person got in',
+    body: 'Roster and team rows show whether a character was proven by the plugin, an XP check or a staff vouch, with an "Awaiting vouch" filter. A vouch from staff completes what was held for that person.',
+    audience: ['clanStaff'],
+    links: [{ label: 'Members', href: '/c/{clan}/members' }],
+  },
+  {
     id: '2026-11-18-anvil-chat-fixes',
     date: '2026-11-18',
     title: 'Anvil chat fixes',
