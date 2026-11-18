@@ -80,6 +80,13 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-18-anvil-chat-fixes',
+    date: '2026-11-18',
+    title: 'Anvil chat fixes',
+    body: 'The Anvil icon stays on the line it belongs to, relayed clan lines keep the sender’s rank icon, and the chat and clan lists no longer flicker. Restart RuneLite to get the update.',
+    audience: ['pluginUser'],
+  },
+  {
     id: '2026-11-18-item-hunt',
     date: '2026-11-18',
     title: 'Item hunt: a new kind of competition',
@@ -109,8 +116,8 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     id: '2026-11-18-event-page-your-team',
     date: '2026-11-18',
-    title: 'Event pages start with your team',
-    body: 'An event page now opens on your team’s place and the tiles closest to done, with the board and standings side by side. Clan events got the same layout.',
+    title: 'Redesigned event pages',
+    body: 'Event, competition and clan event pages have a new layout. Each opens on your own team and the tiles closest to done, with the board and standings side by side, a short Latest strip, and the full feed beside the chat on Feed & chat.',
     links: [{ label: 'Events', href: '/c/{clan}/events' }],
   },
   {
