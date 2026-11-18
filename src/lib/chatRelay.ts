@@ -4,8 +4,9 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, promoReports, users } from '@/db/schema';
+import { accounts, clanMemberships, clans, promoReports, users } from '@/db/schema';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { isBannedFromClan } from '@/lib/clanBans';
 import { cleanName } from '@/lib/eventChatRules';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
@@ -44,14 +45,31 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
   const played = playedCharacter(request);
   if (!character || !played) return null;
   // clan-scope: global -- the caller's own character, by the id resolvePluginCharacter just proved is theirs
-  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, character.accountId), columns: { rsn: true, rsnNormalized: true, accountType: true } });
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, character.accountId), columns: { rsn: true, rsnNormalized: true, accountType: true, playerId: true } });
   if (!account || account.rsnNormalized !== normalizeRsn(played.rsn)) return null;
   // clan-scope: global -- the one clan the caller's own character is a member of (one member seat per account)
   const seat = await db.query.clanMemberships.findFirst({
     where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)),
     columns: { clanId: true },
   });
-  return { name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };
+  // The guest clan it says it sits in, when that is a clan on Anvil. Its guests and members share one
+  // in-game channel, so the relay joins the two up (lib/push/relay `across`): whoever is physically
+  // guesting hears the clan's Anvil chat and is heard, with or without a seat on the site.
+  //
+  // WHAT THIS RESTS ON (Ahmed's call, 2026-11-19): the guest clan is the client's own word, like the
+  // world and the friends chat. An honest client only shows a line whose sender is in its channel,
+  // so a wrong room shows nothing; a MODIFIED client could name a clan and read what its members say
+  // in Anvil chat. That is what any player can already do in game by joining the guest channel. The
+  // one thing the game would stop and this must too: a person the clan has banned on Anvil is never
+  // joined. Verifying presence itself needs a member's client to vouch, which is a plugin change.
+  const guestKey = fcOwner(guest);
+  // clan-scope: global -- a clan looked up by the in-game name the caller's own client reports sitting in
+  const guestClan = guestKey
+    ? await db.query.clans.findFirst({ where: sql`lower(trim(${clans.inGameName})) = ${guestKey}`, columns: { id: true } }).catch(() => null)
+    : null;
+  const barred = guestClan && guestClan.id !== seat?.clanId ? account.playerId == null || (await isBannedFromClan(guestClan.id, account.playerId).catch(() => true)) : false;
+  const guestClanId = guestClan && guestClan.id !== seat?.clanId && !barred ? guestClan.id : null;
+  return { ...(guestClanId != null ? { guestClanId } : {}), name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };
 }
 
 export interface RelayReport {

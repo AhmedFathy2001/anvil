@@ -22,7 +22,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { publicHiscoresCache } from '@/db/schema';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn } from '@/lib/auth';
-import { fetchSnapshotWithRetry, type HiscoresSnapshot, type SnapshotFetch } from '@/lib/hiscores';
+import { fetchModeSnapshot, fetchSnapshotWithRetry, type HiscoresSnapshot, type SnapshotFetch } from '@/lib/hiscores';
 import { profileFromSnapshot } from '@/lib/memberProfile';
 import { shapePlayerCard, type PlayerCard } from '@/lib/playerCardShape';
 import { isPublicHiscoresFresh, type PublicHiscoresOutcome } from '@/lib/publicHiscoresPolicy';
@@ -41,6 +41,11 @@ export interface PublicHiscoresDeps {
   /** Take one unit of the global lookup budget; false = over budget. */
   acquire?: () => Promise<boolean>;
   now?: () => number;
+  /**
+   * Read a game-mode table instead of the main one (lib/modeHiscores, e.g. 'hardcore_mains'). The
+   * answer is cached beside the main one under its own key, with the same budget and the same TTLs.
+   */
+  table?: string;
 }
 
 /** Two lookups a second across the whole app — well under what the sweep itself spends. */
@@ -59,10 +64,12 @@ export async function publicHiscoresCard(rsn: string, deps: PublicHiscoresDeps =
   const key = normalizeRsn(clean);
   if (!key || !isPlausibleRsn(clean)) return { kind: 'unranked' };
 
-  const pending = inflight.get(key);
+  // A mode table's answer lives under "<table>:<name>": ':' is in no name, so it can never be one.
+  const cacheKey = deps.table ? `${deps.table}:${key}` : key;
+  const pending = inflight.get(cacheKey);
   if (pending) return pending;
-  const run = lookup(clean, key, deps).finally(() => inflight.delete(key));
-  inflight.set(key, run);
+  const run = lookup(clean, cacheKey, deps).finally(() => inflight.delete(cacheKey));
+  inflight.set(cacheKey, run);
   return run;
 }
 
@@ -76,7 +83,8 @@ async function lookup(rsn: string, key: string, deps: PublicHiscoresDeps): Promi
   const stale = cached ? fromCache(cached) : null;
   if (!(await (deps.acquire ?? acquireGlobal)())) return stale ?? { kind: 'busy', retryAfterSec: 2 };
 
-  const res = await (deps.fetch ?? fetchSnapshotWithRetry)(rsn);
+  const table = deps.table;
+  const res = await (deps.fetch ?? (table ? (name: string) => fetchModeSnapshot(name, table) : fetchSnapshotWithRetry))(rsn);
   // A blip is not an answer: nothing is written, so the next lookup tries again.
   if (res.kind === 'transient') return stale ?? { kind: 'busy', retryAfterSec: 30 };
 

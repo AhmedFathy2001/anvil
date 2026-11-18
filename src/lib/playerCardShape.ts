@@ -128,6 +128,12 @@ export interface PlayerCard {
    * the plugin should say so rather than show those sections as empty.
    */
   source?: 'hiscores';
+  /**
+   * Set when the numbers on this card (levels, kills, totals) are NOT the main game's: the name has
+   * nothing there and they were read from this game-mode table instead (lib/modeStatsCard). The card
+   * says so, so a Hardcore Worlds save is never taken for a main-game one.
+   */
+  statsFrom?: { table: string; label: string; at: string };
   /** With source 'hiscores': when that lookup was made (it is cached, so it can trail by minutes). */
   fetchedAt?: string;
 }

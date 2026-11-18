@@ -119,6 +119,27 @@ export async function fetchSnapshotWithRetry(rsn: string): Promise<SnapshotFetch
   return { kind: 'transient' };
 }
 
+/**
+ * One read of a GAME-MODE table (lib/modeHiscores: Hardcore Worlds and the like), tagged like
+ * `fetchSnapshotWithRetry`. The hiscores library only knows the tables it shipped with, so this asks
+ * the same public endpoint directly and reads the body with the same parser. One try: the caller is
+ * a lookup someone is waiting on, and a blip is simply tried again on the next one.
+ */
+export async function fetchModeSnapshot(rsn: string, table: string): Promise<SnapshotFetch> {
+  const clean = sanitizeRsn(rsn);
+  if (!/^[a-z_]+$/.test(table)) return { kind: 'unranked' };
+  const url = `https://secure.runescape.com/m=hiscore_oldschool_${table}/index_lite.json?player=${encodeURIComponent(clean)}`;
+  try {
+    const res = await withTimeout(fetch(url, { cache: 'no-store' }), HISCORES_TIMEOUT_MS, `hiscores(${table}:${clean})`);
+    if (res.status === 404) return { kind: 'unranked' };
+    if (!res.ok) return { kind: 'transient' };
+    return { kind: 'value', snapshot: parseHiscoresBody(await res.json()) };
+  } catch (err) {
+    log.warn('hiscores.mode.fail', { rsn: clean, table }, err);
+    return { kind: 'transient' };
+  }
+}
+
 // Fetches a player's full Hiscores snapshot. Returns null on failure (404, timeout,
 // rate-limit) so callers can decide whether to retry, fail soft, or surface to the user.
 export async function fetchHiscoresSnapshot(rsn: string): Promise<HiscoresSnapshot | null> {
