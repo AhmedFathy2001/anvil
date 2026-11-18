@@ -1,3 +1,4 @@
+import { isEventOver } from '@/lib/eventLock';
 import { db } from '@/db';
 import { events, teams, tiles, eventParticipants, completions, submissions, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
@@ -254,7 +255,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
   // Current stats = hiscores raised by the live plugin overlay (a plugin user's hiscores copy lags hours).
-  const statsNowById = await effectiveStatsForPlayers(eventPlayers);
+  const statsNowById = await effectiveStatsForPlayers(eventPlayers, isEventOver(event));
 
   // Does this board ask about clues at all? A "most caskets" award on a board with no clue tile is
   // a fact about who happened to be doing clues that fortnight, not about the event — so the award

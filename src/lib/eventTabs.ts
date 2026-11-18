@@ -5,7 +5,7 @@ import type { ScopedEvent } from '@/lib/eventScope';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
 
 /** Which of the event's pages the viewer gets a tab for (components/events/EventTabs). */
-export type EventTabsData = { stats: boolean; live: boolean; moderate: boolean; unread: boolean };
+export type EventTabsData = { stats: boolean; live: boolean; moderate: boolean; unread: boolean; /** Chat lines after their read marker, across the channels they can read. */ unreadCount: number };
 
 /**
  * The event tab bar's tabs for one viewer, shared by the event page and its Stats, Feed & chat and
@@ -34,11 +34,13 @@ export async function eventTabsFor(
   const live = !!access?.member;
 
   let unread = false;
+  let unreadCount = 0;
   if (live && access?.open && opts.userId && opts.active !== 'live') {
     const channels: ChatChannel[] = ['all', 'announce'];
     if (!access.solo && access.teamId != null) channels.unshift(`team:${access.teamId}`);
     const counts = await chatUnread(access, opts.userId, channels).catch(() => new Map<ChatChannel, number>());
-    unread = [...counts.values()].some((n) => n > 0);
+    unreadCount = [...counts.values()].reduce((n, c) => n + c, 0);
+    unread = unreadCount > 0;
   }
 
   return {
@@ -46,5 +48,6 @@ export async function eventTabsFor(
     live,
     moderate: !opts.apiPrefix && event.chatEnabled && !!access?.staff,
     unread,
+    unreadCount,
   };
 }

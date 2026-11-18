@@ -1,10 +1,10 @@
 'use client';
 
 import { raceGraph, raceFieldSize, raceRouteOpts } from '@/lib/raceRoutes';
-import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/lib/raceSummary';
+import { gapWatch, orderLinesBy, raceLines, raceStatCards } from '@/lib/raceSummary';
 import { isRaceHidden } from '@/lib/raceHideAhead';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
-import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
+import { RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
@@ -37,7 +37,6 @@ import RevealSchedule from '@/components/board/RevealSchedule';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import type { EventMvp, TeamMvp } from '@/lib/memberBreakdown';
-import MvpHighlight from '@/components/MvpHighlight';
 import { clanFetch } from '@/lib/clanFetch';
 import { prefetchTileDialog, tileProofUrl, useTileData } from '@/lib/tileData';
 import type { TileNeedsLike } from '@/lib/tileRequirements';
@@ -883,15 +882,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           </aside>
         </div>
 
-        {(mvpToday || mvp) && (
-          <div className={`mb-8 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
-            {mvpToday && <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />}
-            {mvp && <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />}
-          </div>
-        )}
-
-        {!curtain && <RaceFeedList items={raceFeed(raceG, teams, completions, labelOf)} now={raceNow} onTileClick={setSelectedTileId} />}
-
         {tileModal}
       </div>
     );
@@ -1329,17 +1319,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           </div>
         )}
       </div>
-
-      {(mvpToday || mvp) && (
-        <div className={`mt-8 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
-          {mvpToday && (
-            <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />
-          )}
-          {mvp && (
-            <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />
-          )}
-        </div>
-      )}
 
       {/* Read-only tile detail — the same rich modal members and captains see, now shown to
           public/logged-out viewers. Cross-team submission proof is withheld (submissions=[]);

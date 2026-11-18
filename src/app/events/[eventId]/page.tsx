@@ -2,7 +2,7 @@ import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { discordStartHref } from '@/lib/discordStart';
 import SignInReceives from '@/components/SignInReceives';
 import { clientEvent } from '@/lib/clientRows';
-import { HIDDEN_RACE_TILE_LABEL, isRaceHidden } from '@/lib/raceHideAhead';
+import { isRaceHidden } from '@/lib/raceHideAhead';
 import { raceViewData } from '@/lib/raceSummary';
 import { raceRouteOpts } from '@/lib/raceRoutes';
 import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
@@ -42,14 +42,13 @@ import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import StartProofCard from '@/components/StartProofCard';
 import { startProofState } from '@/lib/startProof';
-import EventFirsts from '@/components/events/EventFirsts';
-import { loadEventFirsts } from '@/lib/eventFirsts';
+import EventLatest from '@/components/events/EventLatest';
+import { buildEventLatest } from '@/lib/eventLatest';
+import { raceFeed } from '@/lib/raceSummary';
 import MomentsFeed from '@/components/MomentsFeed';
 import HighlightsStrip from '@/components/HighlightsStrip';
 import ReportButton from '@/components/ReportButton';
 import { highlightsForEvent, linksByMoment } from '@/lib/highlights/store';
-import { getEventLuck } from '@/lib/eventLuck';
-import EventLuck from './EventLuck';
 import { eventFeed } from '@/lib/momentsStore';
 import { collapseMomentRuns } from '@/lib/feedRuns';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
@@ -174,9 +173,6 @@ export default async function EventScoreboardPage({
   // "Hide tiles past the next step" (lib/raceHideAhead): the tiles past this viewer's team's next
   // step arrive as locked "?" cells — same id and place on the map, no content.
   const eventTiles = await maskRaceTilesForSession(event, nestParts(allTileRows));
-  const raceHiddenLabels = new Set(
-    allTileRows.filter((t) => eventTiles.some((c) => c.id === t.id && isRaceHidden(c))).map((t) => t.label),
-  );
   // The board's rules (mechanics + the host's rulebook) — the same words every clan's Discord gets.
   const rulesFacts = await loadRulesFacts(id).catch(() => null);
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
@@ -463,12 +459,6 @@ export default async function EventScoreboardPage({
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
   // (hidden count, next reveal time) are safe to share and feed the board's countdown banner.
   const rules = parseEventRules(event.rules);
-  // The board's firsts — read in claim order, so they're a fact about the event rather than a
-  // recomputation of the standings.
-  // Hidden standings: the firsts name whichever team got there first, so they wait for the reveal.
-  const firsts = (curtain ? [] : await loadEventFirsts(event.id, event.startDate))
-    // A first on a tile this viewer can't see yet says who, not what.
-    .map((f) => (raceHiddenLabels.has(f.tileLabel) ? { ...f, tileLabel: HIDDEN_RACE_TILE_LABEL } : f));
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
   // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
@@ -492,12 +482,6 @@ export default async function EventScoreboardPage({
   // GZ / Sad / Sit under each (lib/siteReactions): counts for anyone who sees the row, who gave them
   // (and a press) for the board's players and the host's staff, as in the plugin's Feed.
   const momentReactions = eventMoments.length ? await siteReactions(eventMoments, { eventId: event.id, hostClanId: event.clanId }, session?.userId ?? null) : undefined;
-  // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.
-  // Cross-team by construction (luckiest / unluckiest across the whole board) — held while hidden.
-  const luck =
-    !curtain && event.startDate && Date.parse(event.startDate) <= Date.now()
-      ? await getEventLuck(event.id).catch(() => null)
-      : null;
   const boardTiles = visibleTiles(rules, eventTiles);
   // A TILE RACE's own data — built from the VISIBLE board only (this viewer's boardTiles) and the
   // completions on it, so a hidden tile's label, a hidden mission or an unopened slot can't leak
@@ -507,7 +491,7 @@ export default async function EventScoreboardPage({
         visibleBoardTiles: boardTiles,
         teams: safeTeams,
         completions: eventCompletions,
-        withFirsts: !curtain,
+        withFirsts: false,
         // Each team's count on the step it's on ("Step 3 of 5 · 2/5"), read from the unmasked rows so a
         // locked "?" still counts — the number shows, the tile's name never does. The curtain holds.
         progressOf: (teamId, tileId) => {
@@ -531,10 +515,6 @@ export default async function EventScoreboardPage({
   const raceRouteGraph = raceView?.graph ?? null;
   const raceStandings = raceView?.standings ?? null;
   const raceStepProgress = raceView?.stepProgress ?? {};
-  const raceEmoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
-  for (const f of raceView?.firsts ?? []) {
-    firsts.push({ key: `race-${f.key}`, emoji: raceEmoji[f.key], title: f.title, blurb: f.title, who: f.team.name, teamName: f.team.name, teamColor: f.team.color, tileLabel: f.detail, at: f.at ?? '' });
-  }
   // Board tiles only: a mission hidden until its drop isn't even a number in "N still hidden".
   const hiddenTileCount = hasRevealPolicy(rules)
     ? eventTiles.filter((t) => !isMissionTile(t)).length - visibleTiles(rules, eventTiles).filter((t) => !isMissionTile(t)).length
@@ -592,6 +572,28 @@ export default async function EventScoreboardPage({
 
   // Hero props: shape/points badge and the advertised prize-per-placement structure (public).
   const pointsMode = isPointsMode(event.scoringMode);
+  // The tab bar and the Latest strip point at the same pages, so the tabs are worked out once.
+  const eventTabs = await eventTabsFor(event, { userId: session?.userId ?? null, apiPrefix, active: 'board', access: viewerChat, curtained: !!curtain });
+  const mvpScore = (m: { points: number; tasks: number }) => (pointsMode ? `${m.points.toLocaleString()} pts` : `${m.tasks} ${m.tasks === 1 ? 'task' : 'tasks'}`);
+  // Latest: the newest finished tiles and moments in one short list (lib/eventLatest). Both are
+  // already this viewer's to see: completions and moments were filtered above, tile labels masked.
+  const latestTeam = new Map(safeTeams.map((t) => [t.id, t.name]));
+  const latestLabel = new Map(boardTiles.map((t) => [t.id, t.label]));
+  const latestLabelOf = (tileId: number) => latestLabel.get(tileId) ?? 'a tile';
+  const latestLines = buildEventLatest({
+    race: !!raceRouteGraph,
+    finishes: raceRouteGraph
+      ? raceFeed(raceRouteGraph, safeTeams, eventCompletions, latestLabelOf, 5).map((f, i) => {
+          const [label, where] = f.line.split(' — ');
+          return { id: `${f.tileId}-${f.team.id}-${i}`, who: f.team.name, label, where: where ?? null, at: f.at };
+        })
+      : [...eventCompletions]
+          .filter((c) => latestLabel.has(c.tileId) && latestTeam.has(c.teamId))
+          .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
+          .slice(0, 5)
+          .map((c) => ({ id: c.id, who: latestTeam.get(c.teamId)!, label: latestLabelOf(c.tileId), where: null, at: c.completedAt })),
+    moments: eventMoments,
+  });
   // Missions are excluded: they're a bonus dropped mid-event from their own pool, so counting them
   // here would move the advertised board total the moment one is announced (see lib/eventRules).
   const requiredTiles = scoredBoardTiles(eventTiles).filter((t) => !t.optional);
@@ -755,6 +757,7 @@ export default async function EventScoreboardPage({
           ]),
         )}
       />}
+      {/* (tabs are worked out once: the Latest strip links to the same pages the bar shows) */}
       <EventHero
         name={event.name}
         iconUrl={eventIconUrl(event, hostClan)}
@@ -775,11 +778,12 @@ export default async function EventScoreboardPage({
         placementPrizes={placementPrizes}
         startProof={!!parseEventRules(event.rules).startProof}
         startHeld={event.startHoldNotified === 1 && !event.startNotified}
+        solo={soloBoard}
       />
       <EventTabs
         eventId={event.id}
         active="board"
-        tabs={await eventTabsFor(event, { userId: session?.userId ?? null, apiPrefix, active: 'board', access: viewerChat, curtained: !!curtain })}
+        tabs={eventTabs}
         rules={rulesFacts ? <EventRulesCard facts={rulesFacts} /> : null}
         rulesOpen={showRules}
       />
@@ -1002,12 +1006,23 @@ export default async function EventScoreboardPage({
           proofTeamId={viewerTeamIds[0] ?? null}
           signedIn={!!session?.userId}
         />
+        <EventLatest
+          lines={latestLines}
+          feedHref={eventTabs.live ? `/events/${event.id}/live` : null}
+          statsHref={eventTabs.stats ? `/events/${event.id}/stats` : null}
+          mvps={[
+            ...(mvpToday ? [{ label: 'MVP of the day', name: mvpToday.name, score: mvpScore(mvpToday) }] : []),
+            ...(mvp ? [{ label: 'Event MVP', name: mvp.name, score: mvpScore(mvp) }] : []),
+          ]}
+        >
+          {/* No Feed & chat tab for this viewer (not on the board): the moments stay within reach here. */}
+          {!eventTabs.live && eventMoments.length > 5 ? (
+            <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
+          ) : null}
+        </EventLatest>
         <div className="mt-8">
-          <EventFirsts firsts={firsts} />
           <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
-          <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} looks={momentLooks} />
         </div>
-        {luck && <EventLuck luck={luck} />}
         </>
       )}
       {/* A co-host clan's players can suggest tiles when the host opened that to everyone in it. */}

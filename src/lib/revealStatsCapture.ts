@@ -5,7 +5,7 @@ import { statKeys } from '@/lib/tileKinds';
 import { computeGainFromJson, effectiveValue, jsonStatValue } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { eventHasStarted } from '@/lib/completionGate';
-import type { RevealStats } from '@/lib/revealStats';
+import { CLOSE_KEY, gainSinceReveal, parseRevealStats, type RevealStats } from '@/lib/revealStats';
 import { log } from '@/lib/logger';
 import { parseEventRules } from '@/lib/eventRules';
 import { countedModes, statGainWithModes } from '@/lib/modeStats';
@@ -163,4 +163,60 @@ export async function clearRaceOpenStats(eventId: number, teamId: number, tileId
     .update(tiles)
     .set({ revealStats: sql`NULLIF((COALESCE(${tiles.revealStats}, '{}')::jsonb ${sql.join(ids.map((id) => sql`- ${id}::text`), sql` `)})::text, '{}')` })
     .where(and(inArray(tiles.id, tileIds), isNotNull(tiles.revealStats)));
+}
+
+/**
+ * Keep each player's gain on a tile as it stood when the tile closed (lib/revealStats closeGains),
+ * so the tile stops counting for the teams that did not finish it. Call it right after stamping
+ * `closedAt`. Written once: a tile that already has a close record keeps it. Best-effort like the
+ * announce capture: a failure must never undo the close, so it logs and returns.
+ */
+export async function captureCloseStats(tileIds: number[]): Promise<void> {
+  if (tileIds.length === 0) return;
+  try {
+    const statTiles = await db
+      .select({ id: tiles.id, eventId: tiles.eventId, trackedStat: tiles.trackedStat, statType: tiles.statType, revealStats: tiles.revealStats })
+      .from(tiles)
+      .where(and(inArray(tiles.id, tileIds), isNotNull(tiles.trackedStat), isNotNull(tiles.statType), isNotNull(tiles.closedAt)));
+    for (const eventId of new Set(statTiles.map((t) => t.eventId))) {
+      // clan-scope: global -- the event id came from tile rows the caller already scoped.
+      const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+      if (!event) continue;
+      const players = await db
+        .select({
+          id: eventParticipants.id,
+          clanMemberId: eventParticipants.clanMemberId,
+          statsSnapshot: eventParticipants.statsSnapshot,
+          cachedStats: eventParticipants.cachedStats,
+          frozenAt: eventParticipants.frozenAt,
+          frozenStats: eventParticipants.frozenStats,
+          modeStats: eventParticipants.modeStats,
+        })
+        .from(eventParticipants)
+        .where(eq(eventParticipants.eventId, eventId));
+      const live = await liveStatsForMembers(players.map((p) => p.clanMemberId));
+      const modes = countedModes(parseEventRules(event.rules));
+      for (const tile of statTiles.filter((t) => t.eventId === eventId)) {
+        const reveal = parseRevealStats(tile.revealStats);
+        if (reveal && CLOSE_KEY in reveal) continue;
+        const keys = statKeys(tile.trackedStat);
+        const close: Record<string, number> = {};
+        for (const p of players) {
+          const current = p.frozenAt ? p.frozenStats : p.cachedStats;
+          const plug = p.frozenAt ? {} : (p.clanMemberId != null && live.get(p.clanMemberId)) || {};
+          const gain = p.frozenAt
+            ? computeGainFromJson(p.statsSnapshot, current, plug, keys, tile.statType!)
+            : statGainWithModes(p.statsSnapshot, current, plug, keys, tile.statType!, p.modeStats, modes);
+          close[p.id] = gainSinceReveal(gain, reveal, p.id);
+        }
+        // Merged in SQL, and only where no close record exists yet, so two closers cannot disagree.
+        await db
+          .update(tiles)
+          .set({ revealStats: sql`(COALESCE(${tiles.revealStats}, '{}')::jsonb || ${JSON.stringify({ [CLOSE_KEY]: close })}::jsonb)::text` })
+          .where(and(eq(tiles.id, tile.id), sql`NOT (COALESCE(${tiles.revealStats}, '{}')::jsonb ? ${CLOSE_KEY})`));
+      }
+    }
+  } catch (error) {
+    log.warn('close-stats.capture-fail', { tileIds }, error);
+  }
 }

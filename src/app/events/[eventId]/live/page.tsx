@@ -36,7 +36,7 @@ export default async function EventLivePage({
   const member = !!live?.access?.member;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-6xl">
       <EventApiHost eventId={id} prefix={apiPrefix} />
       <EventPageHeader event={clientEvent(event)} apiPrefix={apiPrefix} active="live" title="Feed & chat" access={live?.access ?? null} />
       {member && live ? (

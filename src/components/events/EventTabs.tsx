@@ -8,7 +8,7 @@ import type { EventTabsData } from '@/lib/eventTabs';
 type Active = 'board' | 'stats' | 'live' | 'chat';
 
 /**
- * The event's own pages as one tab bar: Board, Stats, Feed & chat, Rules, and Moderate on the far
+ * The event's own pages as one tab bar: Board, Feed & chat, Stats, Rules, and Moderate on the far
  * right for chat staff. The same bar sits on the event page and on its Stats, Feed & chat and
  * Moderate pages (which tabs show: lib/eventTabs eventTabsFor), so people move between them.
  *
@@ -67,19 +67,21 @@ export default function EventTabs({
             Board
           </ClanLink>
         )}
-        {tabs.stats && (
-          <ClanLink prefetch={false} href={`${base}/stats`} className={active === 'stats' ? on : idle} aria-current={active === 'stats' ? 'page' : undefined}>
-            <Icon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
-            Stats
-          </ClanLink>
-        )}
         {tabs.live && (
           <ClanLink prefetch={false} href={`${base}/live`} className={active === 'live' ? on : idle} aria-current={active === 'live' ? 'page' : undefined}>
             <Icon d="M4 5h16v11H9l-5 4z" />
             Feed &amp; chat
             {tabs.unread && (
-              <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" role="img" aria-label="new messages" />
+              <span className="rounded-full bg-accent-green/15 px-1.5 py-px text-[11px] font-semibold text-accent-green-light">
+                {tabs.unreadCount > 99 ? '99+' : tabs.unreadCount} new
+              </span>
             )}
+          </ClanLink>
+        )}
+        {tabs.stats && (
+          <ClanLink prefetch={false} href={`${base}/stats`} className={active === 'stats' ? on : idle} aria-current={active === 'stats' ? 'page' : undefined}>
+            <Icon d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+            Stats
           </ClanLink>
         )}
         {rules ? (
