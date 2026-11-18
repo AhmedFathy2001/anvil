@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
+import { clanFetch } from '@/lib/clanFetch';
 import { Sprite, type SpriteName } from '@/components/ItemSlot';
 import { SettingsSearchTrigger } from './AdminSettingsSearch';
 import SupporterName from '@/components/SupporterName';
@@ -73,6 +74,12 @@ interface Props {
   guideLabel?: string;
   /** Show the "Search settings" trigger (the dialog itself is mounted by the admin layout). */
   search?: boolean;
+  /**
+   * An address that answers `{ [href]: count }`: the badges are then kept live from it, over the ones
+   * the items came with. The layout that builds this rail renders once, so a count it was drawn with
+   * stayed until a full reload, after the queue behind it had been cleared.
+   */
+  badgeFeed?: string;
 }
 
 /** /admin/events/12, /admin/events/weekly/3 — a specific event, which brings its own rail. */
@@ -91,13 +98,69 @@ function isActive(here: string, item: SidebarItem): boolean {
   );
 }
 
+/** An item's badge: the live count for its link when the feed has one, else what it came with. */
+function badgeOf(item: SidebarItem, live: Record<string, number> | null): number | string | undefined {
+  const n = live?.[item.href];
+  return typeof n === 'number' ? n : item.badge;
+}
+
+/**
+ * The feed's counts, read when the page changes, when the tab is looked at again, every half minute,
+ * and just after any staff request finishes (clearing a queue is one), so a badge follows what was
+ * done without a reload. Null until the first answer: the items' own badges show meanwhile.
+ */
+function useLiveBadges(feed: string | undefined, here: string): Record<string, number> | null {
+  const [live, setLive] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (!feed) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const read = async () => {
+      try {
+        const res = await clanFetch(feed, { cache: 'no-store' });
+        if (!res.ok || stopped) return;
+        setLive((await res.json()) as Record<string, number>);
+      } catch {
+        /* the next read tries again */
+      }
+    };
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void read(), 500);
+    };
+    void read();
+    const every = setInterval(() => document.visibilityState === 'visible' && void read(), 30_000);
+    const onVisible = () => document.visibilityState === 'visible' && soon();
+    document.addEventListener('visibilitychange', onVisible);
+    // Another request to the staff API just finished: whatever it did may have moved a count.
+    let watch: PerformanceObserver | null = null;
+    try {
+      watch = new PerformanceObserver((list) => {
+        if (list.getEntries().some((e) => e.name.includes('/api/staff/') && !e.name.includes(feed))) soon();
+      });
+      watch.observe({ type: 'resource', buffered: false });
+    } catch {
+      /* no observer in this browser: the half-minute read still runs */
+    }
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      clearInterval(every);
+      document.removeEventListener('visibilitychange', onVisible);
+      watch?.disconnect();
+    };
+  }, [feed, here]);
+  return live;
+}
+
 function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
 
-export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref, guideLabel = 'Admin guide', search }: Props) {
+export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref, guideLabel = 'Admin guide', search, badgeFeed }: Props) {
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
+  const live = useLiveBadges(badgeFeed, here);
   // The phone drawer is open only for the page it was opened on, so any navigation closes it.
   const [openFor, setOpenFor] = useState<string | null>(null);
   const mobileOpen = openFor === here;
@@ -202,7 +265,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                             )}
                             <span className="truncate">{item.label}</span>
                           </span>
-                          {item.badge != null && item.badge !== 0 && item.badge !== '' && (
+                          {badgeOf(item, live) != null && badgeOf(item, live) !== 0 && badgeOf(item, live) !== '' && (
                             <span
                               className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full whitespace-nowrap ${
                                 item.attn
@@ -210,7 +273,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                                   : 'bg-white/[0.06] text-text-muted'
                               }`}
                             >
-                              {item.badge}
+                              {badgeOf(item, live)}
                             </span>
                           )}
                           {/* Room for the chevron, which sits over the row's right edge. */}

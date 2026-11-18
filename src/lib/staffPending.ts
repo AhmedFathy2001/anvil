@@ -89,8 +89,12 @@ async function compute(): Promise<StaffPending> {
 const TTL_MS = 60_000;
 let memo: { at: number; value: Promise<StaffPending> } | null = null;
 
-export function staffPending(): Promise<StaffPending> {
-  if (memo && Date.now() - memo.at < TTL_MS) return memo.value;
+/**
+ * `maxAgeMs` is how old an answer the caller will take. Pages take a minute; the rail's own live
+ * read (api/staff/pending) takes a few seconds, so clearing a queue shows on its badge at once.
+ */
+export function staffPending(maxAgeMs: number = TTL_MS): Promise<StaffPending> {
+  if (memo && Date.now() - memo.at < maxAgeMs) return memo.value;
   const value = compute();
   memo = { at: Date.now(), value };
   value.catch(() => {
@@ -114,4 +118,20 @@ export function pendingSummary(p: StaffPending): string {
     [p.sharedWebhooks, 'shared webhooks'],
   ];
   return parts.filter(([n]) => n > 0).map(([n, l]) => `${n} ${l}`).join(' · ') || 'Nothing waiting';
+}
+
+/**
+ * The rail's badges, by the link that wears each (app/staff/layout.tsx). One place, so the server's
+ * first paint and the live read that follows it (api/staff/pending) can never disagree.
+ */
+export function staffBadges(p: StaffPending): Record<string, number> {
+  return {
+    '/staff': p.nameDisputes,
+    '/staff/clans': p.billing,
+    '/staff/feedback': p.feedback,
+    '/staff/reports': p.reports + p.promoReports,
+    '/staff/ownership': p.ownershipTransfers + p.sharedWebhooks,
+    '/staff/errors': p.errors,
+    '/staff/guides': p.guideProposals + p.libraryProposals,
+  };
 }
