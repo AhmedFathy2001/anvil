@@ -2719,25 +2719,25 @@
       "brutus": {
         "killsPerHour": 250,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "derangedArchaeologist": {
         "killsPerHour": 80,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "hespori": {
         "killsPerHour": 60,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "mimic": {
         "killsPerHour": 60,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "obor": {
@@ -2748,19 +2748,19 @@
       "royalTitans": {
         "killsPerHour": 55,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "shellbaneGryphon": {
         "killsPerHour": 95,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "skotizo": {
         "killsPerHour": 45,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tempoross": {
@@ -2771,25 +2771,25 @@
       "theatreOfBloodHardMode": {
         "killsPerHour": 3,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tombsOfAmascut": {
         "killsPerHour": 3.7,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tzKalZuk": {
         "killsPerHour": 1,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tzTokJad": {
         "killsPerHour": 2.5,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "wintertodt": {
@@ -3148,25 +3148,25 @@
       "brutus": {
         "killsPerHour": 250,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "derangedArchaeologist": {
         "killsPerHour": 95,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "hespori": {
         "killsPerHour": 50,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "mimic": {
         "killsPerHour": 50,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "obor": {
@@ -3177,19 +3177,19 @@
       "royalTitans": {
         "killsPerHour": 55,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "shellbaneGryphon": {
         "killsPerHour": 95,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "skotizo": {
         "killsPerHour": 38,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tempoross": {
@@ -3200,25 +3200,25 @@
       "theatreOfBloodHardMode": {
         "killsPerHour": 3,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tombsOfAmascut": {
         "killsPerHour": 3.7,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tzKalZuk": {
         "killsPerHour": 1,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "tzTokJad": {
         "killsPerHour": 2.2,
         "source": null,
-        "estimated": false,
+        "estimated": true,
         "pace": "efficient"
       },
       "wintertodt": {

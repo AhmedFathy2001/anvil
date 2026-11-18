@@ -473,7 +473,7 @@ async function main() {
   for (const kind of ['main', 'ironman']) {
     for (const [boss, rate] of Object.entries(efficient[kind] ?? {})) {
       // The source stays the wiki page the boss is read from (lib/clogRarity links it); only the pace changes.
-      if (bosses[kind][boss]) bosses[kind][boss] = { killsPerHour: rate, source: bosses[kind][boss].source, estimated: false, pace: 'efficient' };
+      if (bosses[kind][boss]) bosses[kind][boss] = { killsPerHour: rate, source: bosses[kind][boss].source, estimated: !bosses[kind][boss].source, pace: 'efficient' };
     }
   }
 
