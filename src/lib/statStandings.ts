@@ -8,6 +8,7 @@ import { statKeys, statLabel } from '@/lib/tileKinds';
 import { jsonStatValue, effectiveValue, computeGainFromJson, parseContributionSnapshot } from '@/lib/statTracking';
 import { closeGains, gainAtClose, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { raceGraph, rankRaceTeams } from '@/lib/raceRoutes';
 import { eventEndedAtMs, startedAfterEnd } from '@/lib/eventEnd';
 import { countedModes, modeReadingIssues, statGainWithModes, type ModeReadingIssue } from '@/lib/modeStats';
 import { worldModeDef } from '@/lib/worldModes';
@@ -225,7 +226,7 @@ export interface TeamStanding {
 export async function getTeamStandings(eventId: number, scoringMode: string): Promise<TeamStanding[]> {
   const [eventRow, eventTeams, allEventTiles] = await Promise.all([
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true } }),
+    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true, format: true } }),
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     // Board cells only (combo parts never score — lib/combo).
     db.select().from(tiles).where(eventBoardTiles(eventId)),
@@ -246,7 +247,16 @@ export async function getTeamStandings(eventId: number, scoringMode: string): Pr
     }).map((s) => [s.teamId, s]),
   );
 
-  return eventTeams
-    .map((team) => ({ ...scores.get(team.id)!, name: team.name, color: team.color }))
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  const standings = eventTeams.map((team) => ({ ...scores.get(team.id)!, name: team.name, color: team.color }));
+
+  // A TILE RACE IS RANKED BY THE RACE (lib/raceRoutes rankRaceTeams): the finisher, then steps done,
+  // then WHO GOT THERE FIRST. Sorting by score and then name put 1p Sweet above Steeldeck on the admin
+  // standings and the prize rows, when Steeldeck had reached step 5 a day earlier and the event page
+  // and the results post said so. Every caller of this list (prizes, Wrapped, the overlay, the
+  // Discord commands) pays or prints by its order, so the order is settled here once.
+  if (eventRow?.format === 'tilerace') {
+    const order = new Map(rankRaceTeams(raceGraph(allEventTiles), eventTeams, eventCompletions).map((r, i) => [r.teamId, i]));
+    return standings.sort((a, b) => (order.get(a.teamId) ?? 1e9) - (order.get(b.teamId) ?? 1e9));
+  }
+  return standings.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }
