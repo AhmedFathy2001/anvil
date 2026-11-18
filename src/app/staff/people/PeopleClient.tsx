@@ -333,6 +333,14 @@ export default function PeopleClient({
     router.push(`/staff/people?${p.toString()}`);
   }
 
+  /** The list as filtered and sorted now, as a file (api/staff/people/export). */
+  function exportHref(): string {
+    const p = new URLSearchParams();
+    const now: Record<string, string | boolean> = { q, clan: filters.clanId, login: filters.login, accounts: filters.accounts, banned: filters.banned, multi: filters.multiClan, supporter: filters.supporter, sort: filters.sort };
+    for (const [k, v] of Object.entries(now)) if (v !== '' && v !== false) p.set(k, String(v));
+    return `/api/staff/people/export?${p.toString()}`;
+  }
+
   function search(e: React.FormEvent) {
     e.preventDefault();
     go({ page: null });
@@ -495,9 +503,14 @@ export default function PeopleClient({
       </div>
 
       <div className="mt-5">
-        <div className="mb-2 text-xs text-gray-500">
-          {browse.total.toLocaleString()} {browse.total === 1 ? 'person' : 'people'}
-          {browse.pages > 1 && ` · page ${browse.page} of ${browse.pages}`}
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+          <span>
+            {browse.total.toLocaleString()} {browse.total === 1 ? 'person' : 'people'}
+            {browse.pages > 1 && ` · page ${browse.page} of ${browse.pages}`}
+          </span>
+          <a href={exportHref()} className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold">
+            Download these as a spreadsheet
+          </a>
         </div>
 
         {!initialQuery ? (

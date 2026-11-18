@@ -25,6 +25,8 @@ export interface ClanHealthFacts {
   /** lib/clanBilling billingStatus state, and the days left where it has any. */
   billing: string;
   billingDaysLeft: number | null;
+  /** It saved a Discord server and Anvil's bot is not in it (lib/botGuilds). */
+  botMissing?: boolean;
 }
 
 export interface ClanHealth {
@@ -75,6 +77,7 @@ export function clanHealth(f: ClanHealthFacts, now: number = Date.now()): ClanHe
   const idle = daysSince(f.lastActiveAt, now);
 
   if (f.billing === 'lapsed') return done('broken', 'Its payment did not go through');
+  if (f.botMissing) return done('broken', 'The Anvil bot is not in the Discord server it saved');
   if (f.eventsTotal === 0) {
     if (age <= STUCK_AFTER_DAYS) return done('new', `Joined ${age === 0 ? 'today' : `${days(age)} ago`}, no event yet`);
     flags.push('no-event');

@@ -12,7 +12,9 @@ import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { billingStatus, liveness } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
-import { HEALTH_ORDER, inClanView, type ClanHealth, type ClanView } from '@/lib/clanHealth';
+import { HEALTH_ORDER, inClanView, type ClanView } from '@/lib/clanHealth';
+import type { ClanHealthRow } from '@/lib/clanHealthDb';
+import MessageOwnerButton from '../_components/MessageOwnerButton';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
 
@@ -31,8 +33,6 @@ const STATUS_STYLE: Record<string, string> = {
 /** Clans to a page; the views, filters and search look through all of them. */
 const PAGE = 25;
 
-/** A clan's health (lib/clanHealth) with the two facts the list shows beside it. */
-export type ClanHealthRow = ClanHealth & { plugin7d: number; lastActiveAt: string | null; billing: string };
 
 const VIEWS: { key: ClanView; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -366,6 +366,10 @@ export default function ClansClient({
           options={[{ value: '', label: 'Any plan' }, ...plans.map((p) => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))]}
         />
         <Select ariaLabel="Sort" className="w-auto min-w-52" value={sort} onChange={(v) => setSort(v as ClanSort)} options={SORTS} />
+        {/* Every clan, whatever is filtered here: a file is for working on the whole list elsewhere. */}
+        <a href="/api/staff/clans/export" className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold">
+          Download as a spreadsheet
+        </a>
       </div>
 
       <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
@@ -435,6 +439,10 @@ export default function ClansClient({
                       <div className="mt-0.5 text-xs text-text-muted">
                         {health[c.id].plugin7d} on the plugin, 7d · active {sinceLabel(health[c.id].lastActiveAt, now)}
                       </div>
+                      {/* A clan that needs a look gets the note to its owner one click away. */}
+                      {canWrite && c.owner && inClanView('attention', health[c.id], health[c.id].billing) && (
+                        <MessageOwnerButton clanId={c.id} clanName={c.name} why={health[c.id].reason} className="mt-2" />
+                      )}
                     </div>
                   ) : (
                     <span className="text-xs text-text-muted">unknown</span>

@@ -1,6 +1,10 @@
 import { sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { clanServers, type ClanServers } from '@/lib/botGuilds';
+import { billingStatus } from '@/lib/clanBilling';
+import { clanHealth, type ClanHealth } from '@/lib/clanHealth';
+import { allClans, type ClanRow } from '@/lib/platformView';
 
 // The facts lib/clanHealth judges a clan by that the clan row does not carry: who was on the plugin
 // this week and last, what is running and what is still to come, and when anyone was last seen.
@@ -83,4 +87,49 @@ export async function clanActivity(now: number = Date.now()): Promise<Map<number
     a.competitions = num(r.total);
   }
   return out;
+}
+
+/** A clan's health (lib/clanHealth) with the facts the staff pages show beside it. */
+export type ClanHealthRow = ClanHealth & { plugin7d: number; lastActiveAt: string | null; billing: string; running: number };
+
+/**
+ * Every clan with how it is doing: the one read behind the staff clans list, its export and the
+ * Today page, so the three can never judge a clan differently.
+ */
+export async function clansWithHealth(now: number = Date.now()): Promise<{ clans: ClanRow[]; health: Record<number, ClanHealthRow>; servers: ClanServers }> {
+  const [clans, activity, servers] = await Promise.all([
+    allClans(),
+    clanActivity(now).catch(() => new Map<number, ClanActivity>()),
+    clanServers().catch((): ClanServers => ({ known: false, servers: [], missing: [] })),
+  ]);
+  const botMissing = new Set(servers.missing.map((m) => m.id));
+  const health: Record<number, ClanHealthRow> = {};
+  for (const c of clans) {
+    const a = activity.get(c.id);
+    const b = billingStatus(c, now);
+    health[c.id] = {
+      ...clanHealth(
+        {
+          createdAt: c.createdAt,
+          members: c.members,
+          memberCap: c.memberCap,
+          plugin7d: a?.plugin7d ?? 0,
+          pluginPrev7d: a?.pluginPrev7d ?? 0,
+          eventsTotal: c.events + (a?.competitions ?? 0),
+          running: a?.running ?? 0,
+          scheduled: a?.scheduled ?? 0,
+          lastActiveAt: a?.lastActiveAt ?? null,
+          billing: b.state,
+          billingDaysLeft: b.daysLeft,
+          botMissing: botMissing.has(c.id),
+        },
+        now,
+      ),
+      plugin7d: a?.plugin7d ?? 0,
+      lastActiveAt: a?.lastActiveAt ?? null,
+      billing: b.state,
+      running: a?.running ?? 0,
+    };
+  }
+  return { clans, health, servers };
 }

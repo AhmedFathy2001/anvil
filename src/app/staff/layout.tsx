@@ -90,7 +90,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff', label: 'Overview', icon: '◎', badge: badge['/staff'], attn: true },
         // Billing that wants a look: overdue, cancelling, or a trial ending this week. Ghost clans
         // (in-game clans not on Anvil yet) are a tab of the same section.
-        { href: '/staff/clans', label: 'Clans', icon: '🏰', badge: badge['/staff/clans'], attn: true, matchPrefix: true, alsoMatch: ['/staff/ghost-clans'] },
+        { href: '/staff/clans', label: 'Clans', icon: '🏰', badge: badge['/staff/clans'], attn: true, matchPrefix: true, alsoMatch: ['/staff/ghost-clans', '/staff/servers'] },
         { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
         // Money is platform root's alone (lib/ownerAccess); everyone paying, by tier, is its second tab.
         // Without root the subscriptions list stands by itself.
@@ -139,7 +139,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   ];
 
   const sections: StaffSection[] = [
-    { exact: true, tabs: [{ href: '/staff/clans', label: 'On Anvil' }, { href: '/staff/ghost-clans', label: 'Ghost clans' }] },
+    { exact: true, tabs: [{ href: '/staff/clans', label: 'On Anvil' }, { href: '/staff/ghost-clans', label: 'Ghost clans' }, { href: '/staff/servers', label: 'Discord servers' }] },
     ...(isRoot ? [{ tabs: [{ href: '/staff/money', label: 'Money' }, { href: '/staff/subscriptions', label: 'Subscriptions' }] }] : []),
     {
       tabs: [

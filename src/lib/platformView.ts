@@ -853,6 +853,8 @@ function supporterInForce(alias: string, tier?: string) {
 export async function browsePeople(
   filters: PeopleBrowseFilters = {},
   page = 1,
+  /** Rows to a page; the export asks for the whole filtered list in one. */
+  pageSize: number = PEOPLE_PAGE_SIZE,
 ): Promise<{ rows: PeopleBrowseRow[]; total: number; page: number; pages: number }> {
   const q = filters.q?.trim().toLowerCase() ?? '';
   const like = `%${q}%`;
@@ -922,7 +924,7 @@ export async function browsePeople(
     .from(players)
     .where(where);
 
-  const pages = Math.max(1, Math.ceil(Number(total) / PEOPLE_PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(Number(total) / pageSize));
   const safePage = Math.min(Math.max(1, page), pages);
 
   const accountCount = sql<number>`(
@@ -992,8 +994,8 @@ export async function browsePeople(
     .from(players)
     .where(where)
     .orderBy(...exactMatchOrder, ...requestedOrder)
-    .limit(PEOPLE_PAGE_SIZE)
-    .offset((safePage - 1) * PEOPLE_PAGE_SIZE);
+    .limit(pageSize)
+    .offset((safePage - 1) * pageSize);
 
   return {
     rows: rows.map((r) => {
