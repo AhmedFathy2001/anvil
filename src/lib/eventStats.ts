@@ -1,4 +1,4 @@
-import { isEventOver } from '@/lib/eventLock';
+import { eventEndedAtMs } from '@/lib/eventEnd';
 import { loadRaceVeil, raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceTileHidden } from '@/lib/raceHideAhead';
 import { db } from '@/db';
@@ -232,7 +232,7 @@ export async function getEventStats(
       /* a garbled row is a gap */
     }
   }
-  const statsNow = await effectiveStatsForPlayers(eventPlayers, isEventOver(event));
+  const statsNow = await effectiveStatsForPlayers(eventPlayers, eventEndedAtMs(event, nowMs) != null);
   const live = new Map(eventPlayers.map((p) => [p.id, hourTuple(p, statsNow.get(p.id))]));
   const liveFrom = Math.min(nowMs, effectiveEnd);
   /** Every player's tuple at `ms`: zeroes at the start, live at/after now (or the end), a row on an hour, else null. */
