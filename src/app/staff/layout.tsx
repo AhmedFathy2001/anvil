@@ -87,7 +87,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     {
       label: 'Platform',
       items: [
-        { href: '/staff', label: 'Overview', icon: '◎', badge: badge['/staff'], attn: true },
+        { href: '/staff', label: 'Today', icon: '◎', badge: badge['/staff'], attn: true },
         // Billing that wants a look: overdue, cancelling, or a trial ending this week. Ghost clans
         // (in-game clans not on Anvil yet) are a tab of the same section.
         { href: '/staff/clans', label: 'Clans', icon: '🏰', badge: badge['/staff/clans'], attn: true, matchPrefix: true, alsoMatch: ['/staff/ghost-clans', '/staff/servers'] },

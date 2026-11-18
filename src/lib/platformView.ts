@@ -831,6 +831,20 @@ export const PEOPLE_PAGE_SIZE = 25;
 // page did not: `column reference "id" is ambiguous`, 500, on /staff/people.
 const PLAYER_ID = sql.raw('"players"."id"');
 
+/** People holding a Supporter tier in force right now: paid, cancelling inside the term, or a live gift. */
+export async function supportersInForce(now: number = Date.now()): Promise<number> {
+  const iso = new Date(now).toISOString();
+  // clan-scope: global -- Supporter belongs to the login, never to a clan.
+  const res = await db.execute(sql`
+    select count(distinct ss.user_id)::int as n from supporter_subscriptions ss
+     where ss.status = 'active'
+        or (ss.status = 'cancelling' and replace(coalesce(ss.current_period_end, ''), ' ', 'T') > ${iso})
+        or (ss.status = 'granted' and (ss.current_period_end is null or replace(ss.current_period_end, ' ', 'T') > ${iso}))
+  `);
+  const rows = ((res as unknown as { rows?: { n: number }[] }).rows ?? (res as unknown as { n: number }[])) as { n: number }[];
+  return Number(rows[0]?.n ?? 0);
+}
+
 export const SUPPORTER_FILTERS = ['any', 'supporter', 'champion', 'patron', 'none'] as const;
 
 /**
