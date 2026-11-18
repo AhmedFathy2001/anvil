@@ -319,6 +319,20 @@ export function xpPerHourAt(skill: string, level: number, table: RateTable = 'ma
   return rate ?? bands[0]?.rate ?? null;
 }
 
+/**
+ * XP per hour at a level on the training guides' tables (the rates before the efficient pace). For
+ * judging whether a jump between two readings is believable (lib/milestoneGate): an efficient rate
+ * is time spent, and a farm run or a prayer session pays out far faster by the clock than a skill
+ * trained continuously does, so it would wave through jumps nobody makes.
+ */
+export function guideXpPerHourAt(skill: string, level: number, table: RateTable = 'main'): number | null {
+  const bands = xpBands(table, skill, PREVIOUS_RATES);
+  const at = level <= 1 ? 0 : xpForLevel(level);
+  let rate: number | null = null;
+  for (const b of bands) if (b.startXp <= at) rate = b.rate;
+  return rate ?? bands[0]?.rate ?? null;
+}
+
 /** Hours to gain `xp` in a skill starting from `fromXp` at the band rates. */
 export function hoursForXp(skill: string, fromXp: number, xp: number, table: RateTable = 'main'): number {
   return skillHours(table, skill, fromXp + xp) - skillHours(table, skill, fromXp);
