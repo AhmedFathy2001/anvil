@@ -62,8 +62,10 @@ export function parseStatKeyTimes(json: string | null | undefined): Record<strin
  */
 export async function effectiveStatsForPlayers(
   players: Array<Pick<typeof eventParticipants.$inferSelect, 'id' | 'clanMemberId' | 'statsSnapshot' | 'cachedStats' | 'frozenAt' | 'frozenStats'>>,
+  /** The event is over: the stored reads stand, without what the member has gained since. */
+  over = false,
 ): Promise<Map<number, string | null>> {
-  const live = await liveStatsForMembers(players.map((p) => p.clanMemberId));
+  const live = over ? new Map<number, Record<string, number>>() : await liveStatsForMembers(players.map((p) => p.clanMemberId));
   const out = new Map<number, string | null>();
   for (const p of players) {
     if (p.frozenAt) {

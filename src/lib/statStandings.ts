@@ -6,8 +6,9 @@ import { parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { statKeys, statLabel } from '@/lib/tileKinds';
 import { jsonStatValue, effectiveValue, computeGainFromJson, parseContributionSnapshot } from '@/lib/statTracking';
-import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
+import { closeGains, gainAtClose, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { eventEndedAtMs, startedAfterEnd } from '@/lib/eventEnd';
 import { countedModes, modeReadingIssues, statGainWithModes, type ModeReadingIssue } from '@/lib/modeStats';
 import { worldModeDef } from '@/lib/worldModes';
 
@@ -68,7 +69,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
     // clan-scope: global -- the caller already scoped this event id.
-    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true } }),
+    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true, startDate: true, endDate: true, forceEndedAt: true } }),
   ]);
   // Game modes this board counts (rules.worldModes) — scored off the row's mode readings (lib/modeStats).
   const modes = countedModes(parseEventRules(eventRow?.rules));
@@ -80,7 +81,12 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
   // Only drafted players (on a team) are tracked for stat gains.
   const drafted = eventPlayers.filter((p) => p.teamId !== null);
   // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
-  const memberLive = await liveStatsForMembers(drafted.map((p) => p.clanMemberId));
+  //
+  // ONLY WHILE THE EVENT RUNS. The overlay is what a member has right now, not what the event
+  // captured, so on a finished event it kept adding every kill made since: a team that lost a tile in
+  // October showed 154 KC on it in November. Once the event is over the numbers are the stored ones.
+  const endMs = eventRow ? eventEndedAtMs(eventRow) : null;
+  const memberLive = endMs != null ? new Map<number, Record<string, number>>() : await liveStatsForMembers(drafted.map((p) => p.clanMemberId));
 
   // Completed stat tiles carry a frozen per-member split. Once a (team, tile) is done we display each
   // member's contribution from that snapshot rather than the live gain, so a finished tile stops
@@ -116,9 +122,16 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
     const keys = statKeys(tile.trackedStat);
     // A mission counts from its announce, not the event start (lib/revealStats).
     const reveal = parseRevealStats(tile.revealStats);
+    // A closed tile counts nothing after it closed (lib/revealStats closeGains).
+    const close = tile.closedAt ? closeGains(tile.revealStats) : null;
     const rows: StatStandingPlayer[] = drafted
       .map((p) => {
         const baseline = readStat(p.statsSnapshot, tile.statType!, keys);
+        // Their starting line was only read after the event had ended (added late, then a stats pull
+        // on the reopened event): nothing they have gained since belongs to this event.
+        if (startedAfterEnd(p.snapshotAt, endMs)) {
+          return { playerId: p.id, name: p.name, teamId: p.teamId, baseline, current: baseline, gained: 0, hasBaseline: !!p.statsSnapshot };
+        }
         // If this player's team already completed the tile, freeze the display at the snapshotted gain.
         const frozen = p.teamId != null ? frozenByTeamTile.get(`${p.teamId}-${tile.id}`) : undefined;
         if (frozen) {
@@ -144,7 +157,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
             baseline,
             current,
             // Same rule while benched: no starting point, nothing attributable.
-            gained: gainSinceReveal(computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!), reveal, p.id),
+            gained: gainAtClose(gainSinceReveal(computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!), reveal, p.id), close, p.id),
             hasBaseline: !!p.statsSnapshot,
           };
         }
@@ -171,7 +184,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
           // missing snapshot reads as a baseline of zero, so the gain becomes the whole account.
           // It also clamps PER KEY, matching what actually scores — subtracting the summed totals
           // let a composite tile net one key's drop against another's rise.
-          gained: gainSinceReveal(statGainWithModes(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!, p.modeStats, modes), reveal, p.id),
+          gained: gainAtClose(gainSinceReveal(statGainWithModes(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!, p.modeStats, modes), reveal, p.id), close, p.id),
           hasBaseline: !!p.statsSnapshot,
           ...notesFor(p.modeStats, keys, tile.statType!),
         };

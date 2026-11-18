@@ -38,3 +38,27 @@ export function eligibleSinceReveal(stats: RevealStats | null, participantId: nu
   const at = stats?.[participantId];
   return !at || at.l < goal;
 }
+
+/**
+ * A CLOSED TILE STOPS COUNTING. Once a mission's timer runs out, or somebody else takes a
+ * first-come tile, nothing a team does afterwards belongs to it. The completing team is frozen by
+ * its completion; everyone else is frozen here: when the tile closes, each player's gain on it at
+ * that moment is kept beside the announce capture (lib/revealStatsCapture captureCloseStats), under
+ * one reserved key so the per-player entries above are untouched:
+ *   { "_close": { [participantId]: gainAtClose } }
+ * A tile closed before this existed has no record and reads as before.
+ */
+export const CLOSE_KEY = '_close';
+
+export function closeGains(json: string | null | undefined): Record<string, number> | null {
+  const parsed = parseRevealStats(json) as (Record<string, unknown> & { [CLOSE_KEY]?: unknown }) | null;
+  const at = parsed?.[CLOSE_KEY];
+  return at && typeof at === 'object' ? (at as Record<string, number>) : null;
+}
+
+/** A player's gain on a tile, held at what it was when the tile closed. */
+export function gainAtClose(gain: number, close: Record<string, number> | null, participantId: number): number {
+  const at = close?.[participantId];
+  // A player with no entry joined after it closed: nothing of theirs counts on it.
+  return close == null ? gain : typeof at === 'number' ? Math.min(gain, at) : 0;
+}

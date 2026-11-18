@@ -26,18 +26,23 @@ const RACE_EMOJI: Record<string, string> = { 'off-the-line': '🏁', junction: '
  * decided the standings are not curtained for this viewer.
  */
 export async function firstsForViewer(event: FirstsEvent): Promise<EventFirst[]> {
+  // Nothing before the board is revealed: a first names a tile.
+  if (!event.tilesRevealed) return [];
   const rows = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
   const board = await maskRaceTilesForSession(event, nestParts(rows));
-  const hidden = new Set(rows.filter((t) => board.some((c) => c.id === t.id && isRaceHidden(c))).map((t) => t.label));
-  const firsts = (await loadEventFirsts(event.id, event.startDate)).map((f) => (hidden.has(f.tileLabel) ? { ...f, tileLabel: HIDDEN_RACE_TILE_LABEL } : f));
-  if (event.format !== 'tilerace' || !event.tilesRevealed || rows.length === 0) return firsts;
+  // What this viewer may read: the revealed tiles, minus the ones a race still hides from them.
+  const visible = visibleTiles(parseEventRules(event.rules), board);
+  const readable = new Set(visible.filter((t) => !isRaceHidden(t)).map((t) => t.label));
+  // A first on a tile they cannot see yet says who, not what.
+  const firsts = (await loadEventFirsts(event.id, event.startDate)).map((f) => (readable.has(f.tileLabel) ? f : { ...f, tileLabel: HIDDEN_RACE_TILE_LABEL }));
+  if (event.format !== 'tilerace' || rows.length === 0) return firsts;
 
   const [eventTeams, done] = await Promise.all([
     db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, event.id)),
     db.select({ teamId: completions.teamId, tileId: completions.tileId, completedAt: completions.completedAt }).from(completions).where(inArray(completions.tileId, rows.map((t) => t.id))),
   ]);
   const race = raceViewData({
-    visibleBoardTiles: visibleTiles(parseEventRules(event.rules), board),
+    visibleBoardTiles: visible,
     teams: eventTeams,
     completions: done.filter((c) => eventActivityIsValid(event, c.completedAt)),
     withFirsts: true,
