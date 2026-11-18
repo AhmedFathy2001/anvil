@@ -47,6 +47,11 @@ export interface RelayIdentity {
   fc?: string | null;
   /** The guest clan it sits in (standardised), or null: the guest room. */
   guest?: string | null;
+  /**
+   * That guest clan's id, when it is a clan on Anvil (matched by its in-game name). Its guests and its
+   * members are in ONE in-game channel, so the two rooms are joined up: see `across`.
+   */
+  guestClanId?: number | null;
 }
 
 export interface RelayClient {
@@ -124,7 +129,9 @@ export class RelayHub {
     const fc = fcOwner(client.who.fc);
     if (fc) this.join(m, `fc:${fc}`);
     const guest = fcOwner(client.who.guest);
-    if (guest) this.join(m, `guest:${guest}`);
+    // A guest of a clan that is on Anvil sits in that clan's guest room by ID, which is what lets the
+    // clan's members and its guests hear each other; any other guest clan is a room by name.
+    if (guest) this.join(m, client.who.guestClanId != null ? `gclan:${client.who.guestClanId}` : `guest:${guest}`);
     this.join(m, `pm:${presenceName(client.who.name)}`);
     // Presence: who else in these rooms has the relay on (they opted in; nobody else is ever named),
     // and to each of them, that this character is here now.
@@ -153,7 +160,7 @@ export class RelayHub {
   /** Everyone sharing a room with this member, once each, itself left out. */
   private around(m: Member): Set<Member> {
     const out = new Set<Member>();
-    for (const r of m.rooms) for (const o of this.rooms.get(r) ?? []) if (o !== m) out.add(o);
+    for (const r of m.rooms) for (const side of [r, across(r)]) for (const o of (side ? this.rooms.get(side) : null) ?? []) if (o !== m) out.add(o);
     return out;
   }
 
@@ -172,7 +179,7 @@ export class RelayHub {
     if (typeof x !== 'string' || x.length > RELAY_MAX * 2) return 'bad';
     // A PM's room is its recipient's own (only if they have a relay socket); the rest, the sender's.
     const room = c === 'pm' ? (typeof to === 'string' && this.rooms.has(`pm:${presenceName(to)}`) ? `pm:${presenceName(to)}` : null)
-      : [...m.rooms].find((r) => r.startsWith(c === 'public' ? 'world:' : `${c}:`));
+      : [...m.rooms].find((r) => (c === 'guest' ? r.startsWith('guest:') || r.startsWith('gclan:') : r.startsWith(c === 'public' ? 'world:' : `${c}:`)));
     if (!room) return 'no-room';
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
     const raw = checkBody(x, { staff: false, keepRuns: true });
@@ -190,7 +197,7 @@ export class RelayHub {
     m.last.set(repeat, at);
     m.sent.push(at);
     const who = m.client.who;
-    const text = JSON.stringify({
+    const line = (c: string) => JSON.stringify({
       t: 'relay',
       c,
       n: who.name,
@@ -204,7 +211,16 @@ export class RelayHub {
     });
     // Never back to the sending character (its own client already shows the line), but a person's OTHER
     // characters are other players in game: their clients get it like anyone's.
+    const text = line(c);
     for (const o of this.rooms.get(room) ?? []) if (o !== m && o.client.who.name !== who.name) o.client.send(text);
+    // The same in-game channel from the other side: a member's clan line is a guest clan line to the
+    // clan's guests, and a guest's line is a clan line to its members. Sent (and signed) as the
+    // channel the reader is in, which is the one their client checks the sender against.
+    const other = across(room);
+    if (other && this.rooms.has(other)) {
+      const flipped = line(c === 'clan' ? 'guest' : 'clan');
+      for (const o of this.rooms.get(other) ?? []) if (o !== m && o.client.who.name !== who.name) o.client.send(flipped);
+    }
     return null;
   }
 
@@ -226,6 +242,13 @@ export class RelayHub {
   roomSize(room: string): number {
     return this.rooms.get(room)?.size ?? 0;
   }
+}
+
+/** A clan's member room and its guest room are one in-game channel: each one's other side, else null. */
+function across(room: string): string | null {
+  if (room.startsWith('clan:')) return `gclan:${room.slice(5)}`;
+  if (room.startsWith('gclan:')) return `clan:${room.slice(6)}`;
+  return null;
 }
 
 /** A friends chat owner or a clan name as a room key: name characters, lower case; null when it can't be one. */

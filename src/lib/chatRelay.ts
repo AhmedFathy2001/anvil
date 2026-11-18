@@ -4,7 +4,7 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, promoReports, users } from '@/db/schema';
+import { accounts, clanMemberships, clans, promoReports, users } from '@/db/schema';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { cleanName } from '@/lib/eventChatRules';
 import { log } from '@/lib/logger';
@@ -51,7 +51,16 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
     where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)),
     columns: { clanId: true },
   });
-  return { name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };
+  // The guest clan it says it sits in, when that is a clan on Anvil: its guests and members share one
+  // in-game channel, so the relay joins the two up (lib/push/relay `across`). Self-reported like the
+  // name itself, and safe the same way: a client only shows a line whose sender is in its own channel.
+  const guestKey = fcOwner(guest);
+  // clan-scope: global -- a clan looked up by the in-game name the caller's own client reports sitting in
+  const guestClan = guestKey
+    ? await db.query.clans.findFirst({ where: sql`lower(trim(${clans.inGameName})) = ${guestKey}`, columns: { id: true } }).catch(() => null)
+    : null;
+  const guestClanId = guestClan && guestClan.id !== seat?.clanId ? guestClan.id : null;
+  return { ...(guestClanId != null ? { guestClanId } : {}), name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };
 }
 
 export interface RelayReport {
