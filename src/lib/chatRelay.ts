@@ -51,8 +51,8 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
     where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)),
     columns: { clanId: true },
   });
-  // The guest clan it says it sits in, when that is a clan on Anvil AND this character holds a seat
-  // there (a guest seat, on Anvil's own books). Its guests and members share one in-game channel, so
+  // The guest clan it says it sits in, when that is a clan on Anvil AND this character holds a GUEST seat
+  // there on Anvil's own books (an event-only seat opens one event, not the clan's chat). Its guests and members share one in-game channel, so
   // the relay joins the two up (lib/push/relay `across`). The name alone is never enough: it is
   // self-reported, and joining on it would hand a clan's chat to anyone who typed its name.
   const guestKey = fcOwner(guest);
@@ -63,7 +63,7 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
   // clan-scope: explicit -- the caller's own seat in exactly that clan
   const guestSeat = guestClan && guestClan.id !== seat?.clanId
     ? await db.query.clanMemberships.findFirst({
-        where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.clanId, guestClan.id), isNull(clanMemberships.leftAt)),
+        where: and(eq(clanMemberships.accountId, character.accountId), eq(clanMemberships.clanId, guestClan.id), eq(clanMemberships.kind, 'guest'), isNull(clanMemberships.leftAt)),
         columns: { id: true },
       }).catch(() => null)
     : null;
