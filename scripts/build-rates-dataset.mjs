@@ -47,7 +47,7 @@ const USER_AGENT = 'AnvilBot/1.0 (+https://anvilosrs.com)';
 const PAUSE_MS = 1200;
 
 /** Bump when the JSON shape changes. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -538,6 +538,27 @@ async function main() {
     },
   };
 
+  // Skills at an efficient pace too (src/data/efficientSkillRates.json): rates by XP reached, standing
+  // over the training guides' bands, with the skills that take no time of their own and the XP one
+  // skill hands another. The source stays the wiki page the guide bands named.
+  const efficientSkills = readJson(resolve(ROOT, 'src/data/efficientSkillRates.json')) ?? {};
+  const xpForLevel = (level) => {
+    let points = 0;
+    for (let n = 1; n < level; n++) points += Math.floor(n + 300 * Math.pow(2, n / 7));
+    return Math.floor(points / 4);
+  };
+  const levelAt = (xp) => {
+    let level = 1;
+    for (let l = 2; l <= 99; l++) if (xp >= xpForLevel(l)) level = l;
+    return level;
+  };
+  for (const kind of ['main', 'ironman']) {
+    for (const [skill, methods] of Object.entries(efficientSkills.methods?.[kind] ?? {})) {
+      const source = (skills[kind][skill] ?? skills.main[skill] ?? []).find((b) => b.source)?.source ?? null;
+      skills[kind][skill] = methods.map(([fromXp, xpPerHour]) => ({ fromLevel: levelAt(fromXp), fromXp, xpPerHour, source, estimated: !source, pace: 'efficient' }));
+    }
+  }
+
   const out = {
     version: SCHEMA_VERSION,
     source: 'OSRS Wiki (oldschool.runescape.wiki): money-making guides via the Bucket API for kills per hour; skill training guides via the parse API for XP per hour. Each rate names its page in `source`; `estimated: true` marks our own conservative fill for gaps.',
@@ -545,6 +566,8 @@ async function main() {
     gaps,
     skills,
     bosses,
+    zeroTime: efficientSkills.zeroTime ?? {},
+    bonuses: efficientSkills.bonuses ?? {},
   };
   writeDataset(HOUR_RATES_PATH, out, hourPrev);
 
