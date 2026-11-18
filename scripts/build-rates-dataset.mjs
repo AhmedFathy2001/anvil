@@ -466,6 +466,17 @@ async function main() {
     bosses.ironman[boss] = { killsPerHour: round2(v * IRONMAN_FACTOR), source: null, estimated: true };
   }
 
+  // Hours are kills over the rate, so the rate has to be the pace a boss can actually be killed at:
+  // a guide's relaxed trip (banking, travel, mid gear) credits more hours than anyone played. Where
+  // src/data/efficientBossRates.json has an efficient pace it stands over the guide's number.
+  const efficient = readJson(resolve(ROOT, 'src/data/efficientBossRates.json')) ?? {};
+  for (const kind of ['main', 'ironman']) {
+    for (const [boss, rate] of Object.entries(efficient[kind] ?? {})) {
+      // The source stays the wiki page the boss is read from (lib/clogRarity links it); only the pace changes.
+      if (bosses[kind][boss]) bosses[kind][boss] = { killsPerHour: rate, source: bosses[kind][boss].source, estimated: false, pace: 'efficient' };
+    }
+  }
+
   const skills = { main: {}, ironman: {} };
   const gaps = { main: [], ironman: [] };
   for (const skill of Object.keys(SKILL_PAGES)) {

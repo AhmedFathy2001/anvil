@@ -2376,34 +2376,40 @@
   "bosses": {
     "main": {
       "abyssalSire": {
-        "killsPerHour": 39,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing the Abyssal Sire",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "alchemicalHydra": {
-        "killsPerHour": 25,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing the Alchemical Hydra",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "amoxliatl": {
-        "killsPerHour": 40,
+        "killsPerHour": 85,
         "source": "Money making guide/Killing Amoxliatl",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "araxxor": {
-        "killsPerHour": 39,
+        "killsPerHour": 40,
         "source": "Money making guide/Killing Araxxor",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "artio": {
-        "killsPerHour": 52,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing Artio",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "barrows": {
-        "killsPerHour": 12,
+        "killsPerHour": 22,
         "source": "Money making guide/Barrows",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "bryophyta": {
         "killsPerHour": 20,
@@ -2411,274 +2417,328 @@
         "estimated": true
       },
       "callisto": {
-        "killsPerHour": 25,
+        "killsPerHour": 142,
         "source": "Money making guide/Killing Callisto",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "calvarion": {
         "killsPerHour": 55,
         "source": "Money making guide/Killing Calvar'ion",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "cerberus": {
-        "killsPerHour": 50,
+        "killsPerHour": 65,
         "source": "Money making guide/Killing Cerberus",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXeric": {
-        "killsPerHour": 3,
+        "killsPerHour": 3.5,
         "source": "Money making guide/Chambers of Xeric (Normal Mode)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXericChallengeMode": {
-        "killsPerHour": 1.7,
+        "killsPerHour": 3,
         "source": "Money making guide/Chambers of Xeric (Challenge Mode)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosElemental": {
-        "killsPerHour": 60,
+        "killsPerHour": 120,
         "source": "Money making guide/Killing Chaos Elemental",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosFanatic": {
-        "killsPerHour": 60,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing the Chaos Fanatic",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "commanderZilyana": {
-        "killsPerHour": 27,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing Commander Zilyana",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "corporealBeast": {
-        "killsPerHour": 10,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing the Corporeal Beast",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "corruptedGauntlet": {
-        "killsPerHour": 6,
+        "killsPerHour": 7.2,
         "source": "Money making guide/Completing The Corrupted Gauntlet",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "crazyArchaeologist": {
-        "killsPerHour": 27,
+        "killsPerHour": 75,
         "source": "Money making guide/Killing the Crazy archaeologist",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothRex": {
-        "killsPerHour": 28,
+        "killsPerHour": 105,
         "source": "Money making guide/Killing Dagannoth Kings (Rex only)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothPrime": {
-        "killsPerHour": 25,
+        "killsPerHour": 105,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothSupreme": {
-        "killsPerHour": 25,
+        "killsPerHour": 105,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "doomOfMokhaiotl": {
-        "killsPerHour": 6,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing the Doom of Mokhaiotl (Delve 1-8)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "dukeSucellus": {
-        "killsPerHour": 34,
+        "killsPerHour": 39,
         "source": "Money making guide/Killing Duke Sucellus",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "fracturedArchive": {
-        "killsPerHour": 3,
+        "killsPerHour": 3.5,
         "source": "Money making guide/The Fractured Archive (Trio)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "gauntlet": {
-        "killsPerHour": 7,
+        "killsPerHour": 10,
         "source": "Money making guide/Completing The Gauntlet",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "generalGraardor": {
-        "killsPerHour": 27,
+        "killsPerHour": 58,
         "source": "Money making guide/Killing General Graardor",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "giantMole": {
-        "killsPerHour": 85,
+        "killsPerHour": 125,
         "source": "Money making guide/Killing the Giant Mole (Twisted bow)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "grotesqueGuardians": {
-        "killsPerHour": 24,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing the Grotesque Guardians",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "hueycoatl": {
-        "killsPerHour": 7,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing Hueycoatl (Solo)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kalphiteQueen": {
-        "killsPerHour": 22,
+        "killsPerHour": 55,
         "source": "Money making guide/Killing the Kalphite Queen",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kingBlackDragon": {
-        "killsPerHour": 30,
+        "killsPerHour": 130,
         "source": "Money making guide/Killing the King Black Dragon",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kraken": {
-        "killsPerHour": 60,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing the Kraken",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "kreeArra": {
-        "killsPerHour": 27,
+        "killsPerHour": 40,
         "source": "Money making guide/Killing Kree'arra",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "krilTsutsaroth": {
-        "killsPerHour": 26,
+        "killsPerHour": 65,
         "source": "Money making guide/Killing K'ril Tsutsaroth",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "leviathan": {
-        "killsPerHour": 24,
+        "killsPerHour": 31,
         "source": "Money making guide/Killing The Leviathan",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "lunarChests": {
-        "killsPerHour": 10,
+        "killsPerHour": 18,
         "source": "Money making guide/Moons of Peril",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "madAngel": {
-        "killsPerHour": 40,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing the Mad Angel",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "maggotKing": {
-        "killsPerHour": 25,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing the Maggot King",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "nex": {
-        "killsPerHour": 10,
+        "killsPerHour": 23.5,
         "source": "Money making guide/Killing Nex (Team)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "nightmare": {
-        "killsPerHour": 12,
+        "killsPerHour": 14,
         "source": "Money making guide/Killing The Nightmare",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "phantomMuspah": {
-        "killsPerHour": 25,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing Phantom Muspah (Twisted bow)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "phosanisNightmare": {
-        "killsPerHour": 9.5,
+        "killsPerHour": 9.6,
         "source": "Money making guide/Killing Phosani's Nightmare",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "sarachnis": {
-        "killsPerHour": 30,
+        "killsPerHour": 110,
         "source": "Money making guide/Killing Sarachnis",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "scorpia": {
-        "killsPerHour": 72,
+        "killsPerHour": 130,
         "source": "Money making guide/Killing Scorpia",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "scurrius": {
-        "killsPerHour": 40,
+        "killsPerHour": 70,
         "source": "Money making guide/Killing Scurrius",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "solHeredit": {
-        "killsPerHour": 2.5,
+        "killsPerHour": 2.7,
         "source": "Money making guide/Completing the Fortis Colosseum (Wave 12)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "spindel": {
-        "killsPerHour": 60,
+        "killsPerHour": 55,
         "source": "Money making guide/Killing Spindel",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "theatreOfBlood": {
-        "killsPerHour": 3,
+        "killsPerHour": 3.2,
         "source": "Money making guide/Theatre of Blood",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "thermonuclearSmokeDevil": {
-        "killsPerHour": 80,
+        "killsPerHour": 150,
         "source": "Money making guide/Killing the Thermonuclear smoke devil",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "tombsOfAmascutExpertMode": {
-        "killsPerHour": 1.75,
+        "killsPerHour": 3,
         "source": "Money making guide/Tombs of Amascut (Expert)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "vardorvis": {
-        "killsPerHour": 32,
+        "killsPerHour": 39,
         "source": "Money making guide/Killing Vardorvis",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "venenatis": {
-        "killsPerHour": 26,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing Venenatis",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "vetion": {
-        "killsPerHour": 37,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing Vet'ion",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "vorkath": {
-        "killsPerHour": 30,
+        "killsPerHour": 34,
         "source": "Money making guide/Killing Vorkath (Dragon hunter lance)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "whisperer": {
-        "killsPerHour": 20,
+        "killsPerHour": 22,
         "source": "Money making guide/Killing The Whisperer",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "yama": {
-        "killsPerHour": 10,
+        "killsPerHour": 18,
         "source": "Money making guide/Killing Yama (solo)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "zulrah": {
-        "killsPerHour": 20,
+        "killsPerHour": 46,
         "source": "Money making guide/Killing Zulrah",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "brutus": {
-        "killsPerHour": 200,
+        "killsPerHour": 250,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "derangedArchaeologist": {
-        "killsPerHour": 40,
+        "killsPerHour": 80,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "hespori": {
-        "killsPerHour": 25,
+        "killsPerHour": 60,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "mimic": {
-        "killsPerHour": 4,
+        "killsPerHour": 60,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "obor": {
         "killsPerHour": 20,
@@ -2686,19 +2746,22 @@
         "estimated": true
       },
       "royalTitans": {
-        "killsPerHour": 15,
+        "killsPerHour": 55,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "shellbaneGryphon": {
-        "killsPerHour": 20,
+        "killsPerHour": 95,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "skotizo": {
-        "killsPerHour": 15,
+        "killsPerHour": 45,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tempoross": {
         "killsPerHour": 4,
@@ -2706,24 +2769,28 @@
         "estimated": true
       },
       "theatreOfBloodHardMode": {
-        "killsPerHour": 1.5,
+        "killsPerHour": 3,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tombsOfAmascut": {
-        "killsPerHour": 2.5,
+        "killsPerHour": 3.7,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tzKalZuk": {
-        "killsPerHour": 0.5,
-        "source": null,
-        "estimated": true
-      },
-      "tzTokJad": {
         "killsPerHour": 1,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
+      },
+      "tzTokJad": {
+        "killsPerHour": 2.5,
+        "source": null,
+        "estimated": false,
+        "pace": "efficient"
       },
       "wintertodt": {
         "killsPerHour": 5,
@@ -2738,34 +2805,40 @@
     },
     "ironman": {
       "abyssalSire": {
-        "killsPerHour": 31.2,
+        "killsPerHour": 44,
         "source": "Money making guide/Killing the Abyssal Sire",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "alchemicalHydra": {
-        "killsPerHour": 20,
+        "killsPerHour": 29,
         "source": "Money making guide/Killing the Alchemical Hydra",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "amoxliatl": {
-        "killsPerHour": 32,
+        "killsPerHour": 71,
         "source": "Money making guide/Killing Amoxliatl",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "araxxor": {
-        "killsPerHour": 31.2,
+        "killsPerHour": 38,
         "source": "Money making guide/Killing Araxxor",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "artio": {
-        "killsPerHour": 41.6,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing Artio",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "barrows": {
-        "killsPerHour": 9.6,
+        "killsPerHour": 22,
         "source": "Money making guide/Barrows",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "bryophyta": {
         "killsPerHour": 16,
@@ -2773,274 +2846,328 @@
         "estimated": true
       },
       "callisto": {
-        "killsPerHour": 20,
+        "killsPerHour": 142,
         "source": "Money making guide/Killing Callisto",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "calvarion": {
-        "killsPerHour": 44,
+        "killsPerHour": 45,
         "source": "Money making guide/Killing Calvar'ion",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "cerberus": {
-        "killsPerHour": 40,
+        "killsPerHour": 54,
         "source": "Money making guide/Killing Cerberus",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXeric": {
-        "killsPerHour": 2.4,
+        "killsPerHour": 3.5,
         "source": "Money making guide/Chambers of Xeric (Normal Mode)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chambersOfXericChallengeMode": {
-        "killsPerHour": 1.36,
+        "killsPerHour": 3,
         "source": "Money making guide/Chambers of Xeric (Challenge Mode)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosElemental": {
         "killsPerHour": 48,
         "source": "Money making guide/Killing Chaos Elemental",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "chaosFanatic": {
-        "killsPerHour": 48,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing the Chaos Fanatic",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "commanderZilyana": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing Commander Zilyana",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "corporealBeast": {
-        "killsPerHour": 8,
+        "killsPerHour": 10,
         "source": "Money making guide/Killing the Corporeal Beast",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "corruptedGauntlet": {
-        "killsPerHour": 4.8,
+        "killsPerHour": 7.2,
         "source": "Money making guide/Completing The Corrupted Gauntlet",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "crazyArchaeologist": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 95,
         "source": "Money making guide/Killing the Crazy archaeologist",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothRex": {
-        "killsPerHour": 22.4,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing Dagannoth Kings (Rex only)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothPrime": {
-        "killsPerHour": 20,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dagannothSupreme": {
-        "killsPerHour": 20,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing Dagannoth Kings (Solo tribrid)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "doomOfMokhaiotl": {
-        "killsPerHour": 4.8,
+        "killsPerHour": 18,
         "source": "Money making guide/Killing the Doom of Mokhaiotl (Delve 1-8)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "dukeSucellus": {
-        "killsPerHour": 27.2,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing Duke Sucellus",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "fracturedArchive": {
-        "killsPerHour": 2.4,
+        "killsPerHour": 3.5,
         "source": "Money making guide/The Fractured Archive (Trio)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "gauntlet": {
-        "killsPerHour": 5.6,
+        "killsPerHour": 10,
         "source": "Money making guide/Completing The Gauntlet",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "generalGraardor": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 31,
         "source": "Money making guide/Killing General Graardor",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "giantMole": {
-        "killsPerHour": 68,
+        "killsPerHour": 97,
         "source": "Money making guide/Killing the Giant Mole (Twisted bow)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "grotesqueGuardians": {
-        "killsPerHour": 19.2,
+        "killsPerHour": 34,
         "source": "Money making guide/Killing the Grotesque Guardians",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "hueycoatl": {
-        "killsPerHour": 5.6,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing Hueycoatl (Solo)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kalphiteQueen": {
-        "killsPerHour": 17.6,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing the Kalphite Queen",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kingBlackDragon": {
-        "killsPerHour": 24,
+        "killsPerHour": 75,
         "source": "Money making guide/Killing the King Black Dragon",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kraken": {
-        "killsPerHour": 48,
+        "killsPerHour": 90,
         "source": "Money making guide/Killing the Kraken",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "kreeArra": {
-        "killsPerHour": 21.6,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing Kree'arra",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "krilTsutsaroth": {
-        "killsPerHour": 20.8,
+        "killsPerHour": 32,
         "source": "Money making guide/Killing K'ril Tsutsaroth",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "leviathan": {
-        "killsPerHour": 19.2,
+        "killsPerHour": 27,
         "source": "Money making guide/Killing The Leviathan",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "lunarChests": {
-        "killsPerHour": 8,
+        "killsPerHour": 18,
         "source": "Money making guide/Moons of Peril",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "madAngel": {
-        "killsPerHour": 32,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing the Mad Angel",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "maggotKing": {
-        "killsPerHour": 20,
+        "killsPerHour": 30,
         "source": "Money making guide/Killing the Maggot King",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "nex": {
-        "killsPerHour": 8,
+        "killsPerHour": 20,
         "source": "Money making guide/Killing Nex (Team)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "nightmare": {
-        "killsPerHour": 9.6,
+        "killsPerHour": 11,
         "source": "Money making guide/Killing The Nightmare",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "phantomMuspah": {
-        "killsPerHour": 20,
+        "killsPerHour": 27,
         "source": "Money making guide/Killing Phantom Muspah (Twisted bow)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "phosanisNightmare": {
-        "killsPerHour": 7.6,
+        "killsPerHour": 9.3,
         "source": "Money making guide/Killing Phosani's Nightmare",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "sarachnis": {
-        "killsPerHour": 24,
+        "killsPerHour": 67,
         "source": "Money making guide/Killing Sarachnis",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "scorpia": {
-        "killsPerHour": 57.6,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing Scorpia",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "scurrius": {
-        "killsPerHour": 32,
+        "killsPerHour": 60,
         "source": "Money making guide/Killing Scurrius",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "solHeredit": {
-        "killsPerHour": 2,
+        "killsPerHour": 2.7,
         "source": "Money making guide/Completing the Fortis Colosseum (Wave 12)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "spindel": {
-        "killsPerHour": 48,
+        "killsPerHour": 50,
         "source": "Money making guide/Killing Spindel",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "theatreOfBlood": {
-        "killsPerHour": 2.4,
+        "killsPerHour": 3.2,
         "source": "Money making guide/Theatre of Blood",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "thermonuclearSmokeDevil": {
-        "killsPerHour": 64,
+        "killsPerHour": 100,
         "source": "Money making guide/Killing the Thermonuclear smoke devil",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tombsOfAmascutExpertMode": {
-        "killsPerHour": 1.4,
+        "killsPerHour": 3,
         "source": "Money making guide/Tombs of Amascut (Expert)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "vardorvis": {
-        "killsPerHour": 25.6,
+        "killsPerHour": 37,
         "source": "Money making guide/Killing Vardorvis",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "venenatis": {
-        "killsPerHour": 20.8,
+        "killsPerHour": 80,
         "source": "Money making guide/Killing Venenatis",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "vetion": {
-        "killsPerHour": 29.6,
+        "killsPerHour": 39,
         "source": "Money making guide/Killing Vet'ion",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "vorkath": {
-        "killsPerHour": 22,
+        "killsPerHour": 34,
         "source": "Money making guide/Killing Vorkath (Toxic blowpipe)",
-        "estimated": false
+        "estimated": false,
+        "pace": "efficient"
       },
       "whisperer": {
-        "killsPerHour": 16,
+        "killsPerHour": 21,
         "source": "Money making guide/Killing The Whisperer",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "yama": {
-        "killsPerHour": 8,
+        "killsPerHour": 18,
         "source": "Money making guide/Killing Yama (solo)",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "zulrah": {
-        "killsPerHour": 16,
+        "killsPerHour": 42,
         "source": "Money making guide/Killing Zulrah",
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "brutus": {
-        "killsPerHour": 160,
+        "killsPerHour": 250,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "derangedArchaeologist": {
-        "killsPerHour": 32,
+        "killsPerHour": 95,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "hespori": {
-        "killsPerHour": 20,
+        "killsPerHour": 50,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "mimic": {
-        "killsPerHour": 3.2,
+        "killsPerHour": 50,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "obor": {
         "killsPerHour": 16,
@@ -3048,19 +3175,22 @@
         "estimated": true
       },
       "royalTitans": {
-        "killsPerHour": 12,
+        "killsPerHour": 55,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "shellbaneGryphon": {
-        "killsPerHour": 16,
+        "killsPerHour": 95,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "skotizo": {
-        "killsPerHour": 12,
+        "killsPerHour": 38,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tempoross": {
         "killsPerHour": 3.2,
@@ -3068,24 +3198,28 @@
         "estimated": true
       },
       "theatreOfBloodHardMode": {
-        "killsPerHour": 1.2,
+        "killsPerHour": 3,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tombsOfAmascut": {
-        "killsPerHour": 2,
+        "killsPerHour": 3.7,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tzKalZuk": {
-        "killsPerHour": 0.4,
+        "killsPerHour": 1,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "tzTokJad": {
-        "killsPerHour": 0.8,
+        "killsPerHour": 2.2,
         "source": null,
-        "estimated": true
+        "estimated": false,
+        "pace": "efficient"
       },
       "wintertodt": {
         "killsPerHour": 4,
