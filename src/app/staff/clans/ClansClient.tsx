@@ -369,7 +369,7 @@ export default function ClansClient({
       </div>
 
       <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
-        <table className="stack-phone w-full min-w-[68rem] text-sm">
+        <table className="stack-phone w-full min-w-[82rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="px-4 py-3">Clan</th>
@@ -425,7 +425,7 @@ export default function ClansClient({
                 </td>
                 <td data-label="Health" className="px-4 py-3">
                   {health[c.id] ? (
-                    <div className="max-w-56">
+                    <div className="w-60 max-sm:w-auto">
                       <span className={`inline-block whitespace-nowrap rounded border px-2 py-0.5 text-[11px] font-bold ${HEALTH_STYLE[health[c.id].key]}`}>
                         {health[c.id].label}
                       </span>
