@@ -377,7 +377,15 @@ export function rankRaceTeams(
     const mine = completions.filter((c) => c.teamId === t.id);
     const r = teamRoute(graph, mine.map((c) => c.tileId));
     const last = r.path[r.path.length - 1];
-    const reachedAt = last == null ? null : mine.find((c) => c.tileId === last)?.completedAt ?? null;
+    // WHEN THEY FIRST GOT THERE: the earliest finish among their tiles on the furthest step. Not "the
+    // path tile's own stamp": a team that reaches step 5 and then goes back for another tile on step 4,
+    // or finishes a second tile on step 5, reached step 5 when it first did, and stays there.
+    const furthest = last == null ? null : graph.byId.get(last)?.step ?? null;
+    const stamps = furthest == null
+      ? []
+      : mine.filter((c) => graph.byId.get(c.tileId)?.step === furthest && c.completedAt).map((c) => c.completedAt as string);
+    const at = (v: string) => Date.parse(v.includes('T') ? v : `${v.replace(' ', 'T')}Z`) || Number.POSITIVE_INFINITY;
+    const reachedAt = stamps.length > 0 ? stamps.reduce((a, b) => (at(b) < at(a) ? b : a)) : last == null ? null : mine.find((c) => c.tileId === last)?.completedAt ?? null;
     return { teamId: t.id, name: t.name ?? '', stepsDone: r.stepsDone, finished: r.finished, reachedAt };
   });
   const time = (s: string | null) => (s == null ? Number.POSITIVE_INFINITY : Date.parse(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`) || Number.POSITIVE_INFINITY);
