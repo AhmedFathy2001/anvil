@@ -80,6 +80,13 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    id: '2026-11-18-item-hunt',
+    date: '2026-11-18',
+    title: 'Item hunt: a new kind of competition',
+    body: 'The clan races for a drop: a pet, a unique, anything you pick. The first one wins, or whoever gets the most by the end. Drops count on their own through the plugin, or with a screenshot your staff approve.',
+    links: [{ label: 'Competitions', href: '/c/{clan}/events' }],
+  },
+  {
     id: '2026-11-18-efficient-hours',
     date: '2026-11-18',
     title: 'Hours at an efficient pace',
@@ -117,7 +124,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     id: '2026-11-18-competition-options',
     date: '2026-11-18',
     title: 'More ways to run a competition',
-    body: 'Take sign-ups and entry fees, count up to ten bosses or skills in one weekly, or run an item hunt. Fees can go into the prizes, and Discord gets a daily update and halfway standings.',
+    body: 'Take sign-ups and entry fees, count up to ten bosses or skills in one weekly, or run an item hunt for a drop. Fees can go into the prizes, and Discord gets a daily update and halfway standings.',
     audience: ['clanStaff'],
   },
   {
