@@ -228,3 +228,32 @@ test('guest clan room like friends chat, capitalised like clan; a PM reaches onl
   assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'Nobody Here', x: 'hello?' }), 'no-room');
   assert.equal(hub.receive(a, { t: 'say', c: 'pm', x: 'no one' }), 'no-room');
 });
+
+test('a clan on Anvil: its guests and its members hear each other, each in their own channel', () => {
+  const hub = new RelayHub(key);
+  const member = client(1, 'Mem', 7);
+  const guest = { ...client(2, 'Gus'), who: { name: 'Gus', icon: null, clanId: 9, world: null, guest: 'the afk spot', guestClanId: 7 } };
+  const otherGuest = { ...client(3, 'Gia'), who: { name: 'Gia', icon: null, clanId: null, world: null, guest: 'the afk spot', guestClanId: 7 } };
+  const stranger = client(4, 'Str', 9);
+  for (const c of [member, guest, otherGuest, stranger]) hub.add(c);
+  assert.equal(hub.receive(member, { t: 'say', c: 'clan', x: 'hello all' }), null);
+  assert.deepEqual([guest.got[0].c, guest.got[0].x, otherGuest.got[0].c], ['guest', 'Hello all', 'guest']);
+  assert.equal(hub.receive(guest, { t: 'say', c: 'guest', x: 'hi from a guest' }), null);
+  assert.deepEqual([member.got[0].c, member.got[0].x], ['clan', 'Hi from a guest']);
+  assert.equal(otherGuest.got[1].c, 'guest');
+  // Signed as the channel it arrives in, so a report of it checks out.
+  const l = member.got[0] as { c: string; n: string; x: string; at: number; k: string; u: number };
+  assert.equal(lineSigned(key, l.u, l.n, l.c, l.x, l.at, l.k), true);
+  // The guest's OWN clan line goes to its own clan only.
+  assert.equal(hub.receive(guest, { t: 'say', c: 'clan', x: 'own clan' }), null);
+  assert.equal(stranger.got.length, 1);
+  assert.equal(member.got.length, 1);
+  // Presence crosses too.
+  assert.ok(member.seen.some((s) => (s.n as string[] | string).includes('gus')));
+});
+
+test('the guest clan id rides the ticket', () => {
+  const k = ticketKey('s');
+  const { ticket } = signTicket({ userId: 1, eventIds: [], teamId: null, relay: { name: 'Gus', icon: null, clanId: null, world: 301, fc: null, guest: 'the afk spot', guestClanId: 7 } }, k, 0);
+  assert.equal(verifyTicket(ticket, k, 1)?.relay?.guestClanId, 7);
+});
