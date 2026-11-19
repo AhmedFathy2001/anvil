@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  DAY, activeSubs, aggregate, boostLevelValueCents, estimateHistory, maskEmail, monthlyCents, mrr, periodsAt, pipelineCents,
+  DAY, activeSubs, unchargedSubs, aggregate, boostLevelValueCents, estimateHistory, maskEmail, monthlyCents, mrr, periodsAt, pipelineCents,
   supporterConverted, trialStatus, trialValueCents, upcomingRenewals, validTrialDays, type MoneyEvent,
 } from '../src/lib/moneyRules.ts';
 import { ledgerRow } from '../src/lib/moneyLedgerRules.ts';
@@ -83,22 +83,23 @@ test('estimated history: one charge per period until it ended, only before the l
   assert.equal(estimateHistory([sup({ status: 'granted', recurrence: 'gift' })], [], NOW, NOW).length, 0, 'gifts earn nothing');
 });
 
-test('active subscriptions and MRR: yearly is a twelfth, ledger prices beat the catalogue, cancelling is at risk', () => {
-  const rows = [sup(), sup({ id: 2, tier: 'patron', recurrence: 'yearly', gumroadSubscriptionId: 'sub2' }), sup({ id: 3, status: 'cancelling', tier: 'supporter', gumroadSubscriptionId: 'sub3' }), sup({ id: 4, status: 'ended' })];
-  const prices = new Map([['sub1', { cents: 250, currency: 'usd', recurrence: 'monthly' }]]);
+test('active subscriptions and MRR: only real charges count; yearly is a twelfth; cancelling is at risk', () => {
+  const rows = [sup(), sup({ id: 2, tier: 'patron', recurrence: 'yearly', gumroadSubscriptionId: 'sub2' }), sup({ id: 3, status: 'cancelling', tier: 'supporter', gumroadSubscriptionId: 'sub3' }), sup({ id: 4, status: 'ended' }), sup({ id: 5, tier: 'patron', recurrence: 'yearly', gumroadSubscriptionId: 'trial-or-gift' })];
+  const prices = new Map([['sub1', { cents: 250, currency: 'usd', recurrence: 'monthly' }], ['sub2', { cents: 5000, currency: 'usd', recurrence: 'yearly' }], ['sub3', { cents: 100, currency: 'usd', recurrence: 'monthly' }]]);
   const subs = activeSubs(rows, [], prices, NOW);
-  assert.equal(subs.length, 3);
+  assert.equal(subs.length, 3, 'the one with no charge on the ledger is not a paid subscription');
   const m = mrr(subs);
-  // 250 (ledger) + 5000/12=417 + 100
   assert.equal(m.total.usd.cents, 250 + 417 + 100);
-  assert.equal(m.total.usd.estimated, 417 + 100);
+  assert.equal(m.total.usd.estimated, 0);
   assert.equal(m.atRisk.usd, 100);
   assert.equal(monthlyCents(5000, 'yearly'), 417);
+  assert.equal(unchargedSubs(rows, [], prices), 1);
+  assert.equal(activeSubs(rows, [], new Map(), NOW).length, 0, 'no ledger, no revenue');
 });
 
 test('clans: a free trial is pipeline not revenue; paid, not cancelling clans renew within 30 days', () => {
   const clan = (o: object) => ({ id: 1, name: 'Alpha', kind: 'clan', plan: 'silver', status: 'active', priceUsd: 6.99, free: false, gumroadSubscriptionId: 's', currentPeriodEnd: new Date(NOW + 5 * DAY).toISOString(), cancelAtPeriodEnd: false, trialEndsAt: null, ...o });
-  const subs = activeSubs([], [clan({}), clan({ id: 2, trialEndsAt: new Date(NOW + DAY).toISOString() }), clan({ id: 3, status: 'suspended' }), clan({ id: 4, free: true })], new Map(), NOW);
+  const subs = activeSubs([], [clan({}), clan({ id: 2, trialEndsAt: new Date(NOW + DAY).toISOString() }), clan({ id: 3, status: 'suspended' }), clan({ id: 4, free: true })], new Map([['s', { cents: 699, currency: 'usd', recurrence: 'monthly' }]]), NOW);
   assert.equal(subs.length, 1);
   assert.equal(subs[0].cents, 699);
   assert.equal(upcomingRenewals(subs, NOW).length, 1);

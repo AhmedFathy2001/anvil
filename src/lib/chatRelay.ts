@@ -4,9 +4,10 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, promoReports, users } from '@/db/schema';
+import { accounts, clanMemberships, promoReports, users } from '@/db/schema';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { isBannedFromClan } from '@/lib/clanBans';
+import { verifiedClanIdForGameName } from '@/lib/gameClans';
 import { cleanName } from '@/lib/eventChatRules';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
@@ -63,10 +64,9 @@ export async function relayIdentity(request: Request, world: number | null, fc: 
   // one thing the game would stop and this must too: a person the clan has banned on Anvil is never
   // joined. Verifying presence itself needs a member's client to vouch, which is a plugin change.
   const guestKey = fcOwner(guest);
-  // clan-scope: global -- a clan looked up by the in-game name the caller's own client reports sitting in
-  const guestClan = guestKey
-    ? await db.query.clans.findFirst({ where: sql`lower(trim(${clans.inGameName})) = ${guestKey}`, columns: { id: true } }).catch(() => null)
-    : null;
+  // Only a clan that has VERIFIED that in-game name, and only when exactly one has (lib/gameClans).
+  const guestClanFound = guestKey ? await verifiedClanIdForGameName(guestKey).catch(() => null) : null;
+  const guestClan = guestClanFound != null ? { id: guestClanFound } : null;
   const barred = guestClan && guestClan.id !== seat?.clanId ? account.playerId == null || (await isBannedFromClan(guestClan.id, account.playerId).catch(() => true)) : false;
   const guestClanId = guestClan && guestClan.id !== seat?.clanId && !barred ? guestClan.id : null;
   return { ...(guestClanId != null ? { guestClanId } : {}), name: sanitizeRsn(account.rsn), icon: accountIcon(account.accountType), clanId: seat?.clanId ?? null, world: world != null && Number.isInteger(world) && world > 0 && world < 10_000 ? world : null, ...(fcOwner(fc) ? { fc: fcOwner(fc) } : {}), ...(fcOwner(guest) ? { guest: fcOwner(guest) } : {}) };

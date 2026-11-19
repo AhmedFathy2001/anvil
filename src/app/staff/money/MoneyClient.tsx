@@ -161,8 +161,8 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
       <p className="mb-6 text-sm text-gray-400">
         Owner only. Read from stored rows; nothing here calls Gumroad.
         {money.ledgerSince
-          ? <> Exact figures start {day(money.ledgerSince)} (when the ledger began); earlier history is estimated from catalogue prices.</>
-          : <> No ledger rows yet, so every figure is estimated from catalogue prices until the next Gumroad notification arrives.</>}
+          ? <> Real charges only, as Gumroad reported them, from {day(money.ledgerSince)} (when the ledger began). Free trials, staff gifts and anything else with no charge count for nothing.</>
+          : <> No charges recorded yet. Free trials, staff gifts and anything else with no charge count for nothing.</>}
         {' '}Currencies are never added together.
       </p>
 
@@ -192,8 +192,9 @@ export default function MoneyClient({ money, trials }: { money: Money; trials: T
 
       <Section title="Subscriptions">
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className={card}><div className="text-sm text-gray-400">Active subscriptions</div><div className="text-2xl text-white">{money.activeCount}</div>
-            <div className="mt-1 text-xs text-gray-500">{money.activeBy.map((a) => `${a.label}: ${a.count}`).join(' · ')}</div></div>
+          <div className={card}><div className="text-sm text-gray-400">Paid subscriptions</div><div className="text-2xl text-white">{money.activeCount}</div>
+            <div className="mt-1 text-xs text-gray-500">{money.activeBy.map((a) => `${a.label}: ${a.count}`).join(' · ')}</div>
+            {money.unchargedCount > 0 && <div className="mt-1 text-xs text-gray-500">Not counted: {money.unchargedCount} running with no charge on record (trial, gift or test)</div>}</div>
           <div className={card}><div className="text-sm text-gray-400">Monthly recurring revenue</div>
             {Object.entries(money.mrr).map(([c, v]) => <div key={c} className="text-2xl text-gold">{fmt(v.cents, c)}{v.estimated > 0 && EST}</div>)}
             {!Object.keys(money.mrr).length && <div className="text-2xl text-gray-500">{fmt(0, 'usd')}</div>}

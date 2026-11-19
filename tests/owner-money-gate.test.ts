@@ -29,11 +29,13 @@ test('the pages 404 for anyone but root, and the nav links are drawn only for ro
   assert.match(page, /requireOwnerPage\(\)/);
   assert.match(page, /if \(!actor\) notFound\(\)/);
   const layout = readFileSync('src/app/staff/layout.tsx', 'utf8');
-  assert.match(layout, /isRoot \? \[\{ href: '\/staff\/money'/);
+  // The rail link and the Money/Subscriptions tab pair, each drawn only for root.
+  assert.match(layout, /isRoot\s*\? \{ href: '\/staff\/money'/);
+  assert.match(layout, /isRoot \? \[\{ tabs: \[\{ href: '\/staff\/money'/);
   assert.match(layout, /isRoot \? \[\{ href: '\/staff\/analytics'/);
   assert.match(readFileSync('src/app/staff/analytics/page.tsx', 'utf8'), /requireOwnerPage\(\)/);
   const sidebarLinks = layout.match(/\/staff\/money/g) ?? [];
-  assert.equal(sidebarLinks.length, 1, 'only one place renders the link');
+  assert.equal(sidebarLinks.length, 2, 'the rail link and its tab, nowhere else');
 });
 
 test('the guard is platform root: the clan owner flag alone gets nothing', () => {
@@ -48,6 +50,8 @@ test('no amount or buyer email is reachable outside the owner surface', () => {
   const hits: string[] = [];
   for (const f of walk('src').filter((x) => /\.(ts|tsx)$/.test(x))) {
     if (f.startsWith('src/app/staff/money') || f.startsWith('src/app/api/staff/money') || users.includes(f) || f === 'src/lib/moneyLedger.ts' || f === 'src/lib/moneyLedgerRules.ts') continue;
+    // Account deletion removes a person's ledger rows by their email and subscription ids: it deletes, and shows nothing.
+    if (f === 'src/lib/erasePerson.ts') continue;
     const src = readFileSync(f, 'utf8');
     if (/from '@\/lib\/(money|ownerTrials)'/.test(src) || /billingLedger/.test(src) && f !== 'src/db/schema.ts') hits.push(f);
   }
