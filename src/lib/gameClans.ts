@@ -119,6 +119,22 @@ async function anvilClansByKey(keys: string[]): Promise<Map<string, AnvilClanRef
   return out;
 }
 
+/**
+ * The ONE clan on Anvil that has VERIFIED this in-game name, or null: an unverified name is anyone's
+ * to type into their settings, and two clans holding the same one settle nothing.
+ */
+export async function verifiedClanIdForGameName(rawName: string): Promise<number | null> {
+  const key = gameClanKey(rawName);
+  if (!key) return null;
+  // clan-scope: global -- matching an in-game name to WHICHEVER clan verified it
+  const rows = await db
+    .select({ id: clans.id })
+    .from(clans)
+    .where(and(isNotNull(clans.ingameNameVerifiedAt), sql`lower(trim(regexp_replace(${clans.inGameName}, '[\\s_\\u00a0]+', ' ', 'g'))) = ${key}`))
+    .limit(2);
+  return rows.length === 1 ? rows[0].id : null;
+}
+
 export type CharacterGameClan = {
   name: string;
   key: string;

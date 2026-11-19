@@ -7,7 +7,7 @@ import { db } from '@/db';
 import { billingLedger, clans, supporterSubscriptions } from '@/db/schema';
 import { billingTierOf } from '@/lib/billingCatalog';
 import {
-  DAY, PRODUCT_LABEL, activeSubs, estimateHistory, maskEmail, mrr, periodsAt, splitByProduct, upcomingRenewals,
+  DAY, PRODUCT_LABEL, activeSubs, unchargedSubs, maskEmail, mrr, periodsAt, splitByProduct, upcomingRenewals,
   type ClanRow, type LedgerPrice, type MoneyEvent, type ProductKey, type SupporterRow,
 } from '@/lib/moneyRules';
 
@@ -70,7 +70,9 @@ export async function loadMoney(now = Date.now()) {
   ]);
   const real = ledger.map(ledgerEvent).filter((e): e is MoneyEvent => e !== null);
   const firstLedger = ledger.length ? ledger[0].occurredAt.getTime() : Infinity;
-  const events = [...estimateHistory(supporters, clanRows, firstLedger, now), ...real];
+  // REAL TRANSACTIONS ONLY (Ahmed, 2026-11-19): what Gumroad told us was charged. No catalogue-price
+  // guesses for time before the ledger, which counted trials and staff gifts as sales.
+  const events = real;
 
   const lastPrice = new Map<string, LedgerPrice>();
   for (const r of ledger) {
@@ -105,6 +107,7 @@ export async function loadMoney(now = Date.now()) {
       last30: splitByProduct(events, now - 30 * DAY, now + 1),
     },
     activeCount: subs.length,
+    unchargedCount: unchargedSubs(supporters, clanRows, lastPrice),
     activeBy: (['supporter', 'hosted', 'creator'] as ProductKey[]).map((p) => ({ product: p, label: PRODUCT_LABEL[p], count: subs.filter((s) => s.product === p).length })),
     mrr: rec.total,
     mrrAtRisk: rec.atRisk,

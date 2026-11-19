@@ -188,7 +188,12 @@ export interface Sub {
   cancelling: boolean; renewsAt: number | null; estimated: boolean;
 }
 
-/** Active paid subscriptions, priced from their last real charge when the ledger has one, else the catalogue. */
+/**
+ * Active subscriptions SOMEBODY ACTUALLY PAID FOR: only those with a real charge on the ledger, priced
+ * at that charge. A subscription with none is a free trial, a 100%-off staff gift or a test, and is
+ * not revenue however it is labelled; it is counted apart (`unchargedSubs`), never priced from the
+ * catalogue.
+ */
 export function activeSubs(supporters: SupporterRow[], clanRows: ClanRow[], lastPrice: Map<string, LedgerPrice>, now: number): Sub[] {
   const out: Sub[] = [];
   for (const r of supporters) {
@@ -196,7 +201,8 @@ export function activeSubs(supporters: SupporterRow[], clanRows: ClanRow[], last
     if (!isPaidSupporter(r)) continue;
     const led = r.gumroadSubscriptionId ? lastPrice.get(r.gumroadSubscriptionId) : undefined;
     const cat = supporterPriceCents(r.tier, r.recurrence);
-    const cents = led?.cents ?? cat;
+    if (!led) continue;
+    const cents = led.cents ?? cat;
     if (cents == null) continue;
     out.push({ key: `s${r.id}`, product: 'supporter', label: SUPPORTER_TIERS[r.tier as SupporterTierId]?.name ?? r.tier, cents, currency: led?.currency ?? 'usd', recurrence: led?.recurrence ?? r.recurrence, cancelling: r.status === 'cancelling', renewsAt: nz(parseStamp(r.currentPeriodEnd)), estimated: !led });
   }
@@ -205,13 +211,21 @@ export function activeSubs(supporters: SupporterRow[], clanRows: ClanRow[], last
     const trialEnd = parseStamp(c.trialEndsAt);
     if (!Number.isNaN(trialEnd) && trialEnd > now) continue; // still a free trial: pipeline, not revenue
     const led = lastPrice.get(c.gumroadSubscriptionId);
-    const cents = led?.cents ?? (c.priceUsd != null ? usdCents(c.priceUsd) : null);
+    if (!led) continue;
+    const cents = led.cents ?? (c.priceUsd != null ? usdCents(c.priceUsd) : null);
     if (cents == null) continue;
     out.push({ key: `c${c.id}`, product: c.kind === 'creator' ? 'creator' : 'hosted', label: c.name, cents, currency: led?.currency ?? 'usd', recurrence: led?.recurrence ?? 'monthly', cancelling: c.cancelAtPeriodEnd, renewsAt: nz(parseStamp(c.currentPeriodEnd)), estimated: !led || !led.recurrence });
   }
   return out;
 }
 const nz = (n: number) => (Number.isNaN(n) ? null : n);
+
+/** Running subscriptions with no real charge behind them: trials, staff gifts through checkout, tests. */
+export function unchargedSubs(supporters: SupporterRow[], clanRows: ClanRow[], lastPrice: Map<string, LedgerPrice>): number {
+  const s = supporters.filter((r) => (r.status === 'active' || r.status === 'cancelling') && isPaidSupporter(r) && !(r.gumroadSubscriptionId && lastPrice.has(r.gumroadSubscriptionId))).length;
+  const c = clanRows.filter((r) => !r.free && !!r.gumroadSubscriptionId && r.status !== 'suspended' && !lastPrice.has(r.gumroadSubscriptionId)).length;
+  return s + c;
+}
 
 export function mrr(subs: Sub[]): { total: Record<string, { cents: number; estimated: number }>; atRisk: Record<string, number> } {
   const total: Record<string, { cents: number; estimated: number }> = {};

@@ -1,3 +1,4 @@
+import { clansWithHealth } from '@/lib/clanHealthDb';
 import { notFound } from 'next/navigation';
 
 import { operatorEmail } from '@/lib/staffSight';
@@ -19,8 +20,9 @@ export default async function StaffClansPage() {
   const actor = await requirePlatformPage('support');
   if (!actor) notFound();
 
-  const [clans, grants, sources] = await Promise.all([
-    allClans(),
+  const [{ clans, health }, grants, sources] = await Promise.all([
+    // Every clan with how it is doing (lib/clanHealthDb): the list filters and sorts by it.
+    clansWithHealth(),
     myLiveGrants(actor.user.userId),
     // "Where did you find Anvil?" answers, most common first (asked on /clans/new).
     // clan-scope: global -- a platform-wide tally.
@@ -52,6 +54,7 @@ export default async function StaffClansPage() {
       )}
       <div className="mt-6">
         <ClansClient
+          health={health}
           // Owner and billing emails are whole for the top platform role only (lib/staffSight).
           clans={clans.map((c) => ({
             ...c,

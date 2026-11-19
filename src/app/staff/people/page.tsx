@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 
-import { allClans, browsePeople, PEOPLE_SORTS, personDetail, type PeopleSort } from '@/lib/platformView';
+import { allClans, browsePeople, PEOPLE_SORTS, personDetail, SUPPORTER_FILTERS, type PeopleSort } from '@/lib/platformView';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import PeopleClient from './PeopleClient';
@@ -21,6 +21,7 @@ export default async function StaffPeoplePage({
     multi?: string;
     sort?: string;
     page?: string;
+    supporter?: string;
   }>;
 }) {
   const actor = await requirePlatformPage('support');
@@ -38,6 +39,7 @@ export default async function StaffPeoplePage({
     // Accept the old checkbox URL as well as the new three-state filter.
     banned: sp.banned === 'yes' || sp.banned === 'no' ? sp.banned : sp.banned === 'true' ? 'yes' : '',
     multiClan: sp.multi === 'true',
+    supporter: (SUPPORTER_FILTERS as readonly string[]).includes(sp.supporter ?? '') ? (sp.supporter as string) : '',
     sort,
   };
 
@@ -52,6 +54,7 @@ export default async function StaffPeoplePage({
         accounts: filters.accounts === 'yes' || filters.accounts === 'no' ? filters.accounts : null,
         banned: filters.banned === 'yes' || filters.banned === 'no' ? filters.banned : null,
         multiClan: filters.multiClan,
+        supporter: filters.supporter || null,
         sort,
       },
       Number(sp.page) || 1,
