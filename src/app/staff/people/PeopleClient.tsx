@@ -508,6 +508,7 @@ export default function PeopleClient({
             {browse.total.toLocaleString()} {browse.total === 1 ? 'person' : 'people'}
             {browse.pages > 1 && ` · page ${browse.page} of ${browse.pages}`}
           </span>
+          {/* eslint-disable-next-line clan-scope/clan-prefix -- the staff export route on the apex, built here; never a clan path */}
           <a href={exportHref()} className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold">
             Download these as a spreadsheet
           </a>

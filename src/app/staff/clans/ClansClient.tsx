@@ -367,6 +367,7 @@ export default function ClansClient({
         />
         <Select ariaLabel="Sort" className="w-auto min-w-52" value={sort} onChange={(v) => setSort(v as ClanSort)} options={SORTS} />
         {/* Every clan, whatever is filtered here: a file is for working on the whole list elsewhere. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a file download from an API route on the apex, not a page to navigate to */}
         <a href="/api/staff/clans/export" className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold">
           Download as a spreadsheet
         </a>
