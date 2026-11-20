@@ -1052,6 +1052,15 @@ const DETAILS: readonly SettingEntry[] = [
     fallbackAnchor: 'discord-feed-rareDrops-filters',
   },
   {
+    id: 'discord-drop-big',
+    label: 'Post big drops whatever their rarity',
+    description: 'A second rule: drops worth at least this post on value alone, even when the first rule asks for value and rarity. Blank = off.',
+    keywords: ['big', 'value', 'gp', 'rarity', 'both', 'and', 'or', 'venator', 'second rule', 'drops'],
+    href: `${DISCORD}#setting-drop_big_value`,
+    section: `${S.feeds} → Rare drops`,
+    fallbackAnchor: 'discord-feed-rareDrops-filters',
+  },
+  {
     id: 'discord-drop-floor',
     label: 'Hard floor on drop rarity',
     description: 'Optional: a rarity members cannot go looser than in your channels. Blank = no hard floor.',

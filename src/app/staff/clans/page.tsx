@@ -12,6 +12,7 @@ import { foundViaLabel } from '@/lib/noticeRules';
 import { count, desc, isNotNull } from 'drizzle-orm';
 import { runningPlanTrials } from '@/lib/planTrials';
 import { tierNameOf } from '@/lib/planTrialRules';
+import { lastOwnerMessages } from '@/lib/staffMessage';
 import ClansClient from './ClansClient';
 
 export const dynamic = 'force-dynamic';
@@ -67,6 +68,7 @@ export default async function StaffClansPage() {
         <ClansClient
           health={health}
           trials={trials}
+          lastSent={await lastOwnerMessages(clans.map((c) => c.id))}
           // Owner and billing emails are whole for the top platform role only (lib/staffSight).
           clans={clans.map((c) => ({
             ...c,

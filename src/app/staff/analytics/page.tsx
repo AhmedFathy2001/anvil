@@ -8,6 +8,7 @@ import { analyticsOverview, clanSources, type DailyPoint } from '@/lib/analytics
 import { foundViaLabel } from '@/lib/noticeRules';
 import { pluginUsersNow } from '@/lib/pluginUsersRead';
 import MessageOwnerButton from '../_components/MessageOwnerButton';
+import { lastOwnerMessages } from '@/lib/staffMessage';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
 import { clanChange, featureGrid, sourcesThatStay, unusedFeatures } from '@/lib/featureRegistry';
 import ScrollStrip from '@/components/ScrollStrip';
@@ -44,6 +45,7 @@ export default async function StaffAnalyticsPage({
   const [a, o, plugin, sourceRows] = await Promise.all([analyticsOverview(days), ownerOverview(days), pluginUsersNow(), clanSources().catch(() => [])]);
   const grid = featureGrid(a.features, a.clanActivity.filter((c) => c.status === 'active'));
   const activeNow = new Set(a.clanActivity.filter((c) => c.pluginUsers7d > 0).map((c) => c.id));
+  const lastSent = tab === 'journeys' ? await lastOwnerMessages(o.clanJourney.map((c) => c.id)) : {};
   const sources = sourcesThatStay(sourceRows.map((c) => ({ foundVia: c.foundVia, events: c.events, activeNow: activeNow.has(c.id) })), foundViaLabel);
   const versionTotal = plugin.versions.reduce((n, v) => n + v.accounts, 0);
   // Every clan on Anvil: what "N of M clans use it" is out of.
@@ -297,7 +299,7 @@ export default async function StaffAnalyticsPage({
                           return (
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="text-amber-300">{stop[1]}</span>
-                              <MessageOwnerButton clanId={c.id} clanName={c.name} why={`It looks like setup stopped at "${stop[1]}"`} />
+                              <MessageOwnerButton clanId={c.id} clanName={c.name} why={`It looks like setup stopped at "${stop[1]}"`} last={lastSent[c.id] ?? null} />
                             </span>
                           );
                         })()}

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans, clanStaff, users } from '@/db/schema';
@@ -76,4 +76,34 @@ export async function messageClanOwner(clanId: number, actorUserId: number, text
     .values({ clanId, eventType: 'staff_message_owner', actorUserId, newValue: JSON.stringify({ to: owner.userId, via: 'discord' }), notes: body })
     .catch(() => {});
   return { ok: true, via: 'discord' };
+}
+
+export interface LastOwnerMessage {
+  /** UTC `YYYY-MM-DD HH:MM:SS`, as clan_audit_log stores it. */
+  at: string;
+  via: StaffMessageVia;
+}
+
+/** The last staff note to each of these clans' owners, from the clans' logs, so "sent" survives a reload. */
+export async function lastOwnerMessages(clanIds: number[]): Promise<Record<number, LastOwnerMessage>> {
+  if (clanIds.length === 0) return {};
+  // clan-scope: global -- a platform operator's own sends, read back for the clans on one staff page.
+  const rows = await db
+    .select({ clanId: clanAuditLog.clanId, at: clanAuditLog.occurredAt, value: clanAuditLog.newValue })
+    .from(clanAuditLog)
+    .where(and(inArray(clanAuditLog.clanId, clanIds), eq(clanAuditLog.eventType, 'staff_message_owner')))
+    .orderBy(desc(clanAuditLog.id))
+    .catch(() => []);
+  const out: Record<number, LastOwnerMessage> = {};
+  for (const r of rows) {
+    if (r.clanId == null || out[r.clanId]) continue;
+    let via: StaffMessageVia = 'discord';
+    try {
+      via = (JSON.parse(r.value ?? '{}') as { via?: string }).via === 'email' ? 'email' : 'discord';
+    } catch {
+      /* an older row: a DM */
+    }
+    out[r.clanId] = { at: String(r.at), via };
+  }
+  return out;
 }

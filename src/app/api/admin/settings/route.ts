@@ -64,6 +64,8 @@ const EXPOSED_KEYS = [
   'drop_default_rarity',
   // 'and' = members' drops need the value AND the rarity; blank = either.
   'drop_default_mode',
+  // Rule 2: drops worth at least this (gp) post whatever their rarity. Blank = off.
+  'drop_big_value',
   // The clan's default tiers for members' combat-task, quest and diary posts (lib/notifyPrefs tierGates).
   'ca_default_tier',
   'quest_default_tier',

@@ -192,3 +192,55 @@ test('a drop below the clan gate but above a webhook filter reaches only that we
   assert.equal(keepDropDestinations(urls, rich).size, 3);
   assert.equal(keepDropDestinations(urls, null).size, 3);
 });
+
+test('rule 2: a drop worth the big value posts whatever its rarity, under a both-rule it fails', () => {
+  // The clan's rule: 1m AND 1 in 128, or 10m on value alone.
+  const rules = clan({ value: 1_000_000, rarity: 128, mode: 'and', big: 10_000_000 });
+  const shard = { id: 4, name: 'Venator shard', qty: 1, value: 15_000_000 };
+  const midCommon = { id: 5, name: 'Mid common', qty: 1, value: 2_000_000 };
+  assert.ok(judgeDrop(zulrah([shard]), ctx({ clan: rules })), 'over 10m posts though not rare enough');
+  assert.equal(judgeDrop(zulrah([midCommon]), ctx({ clan: rules })), null, 'over 1m but common, under 10m: no');
+  assert.equal(judgeDrop(zulrah([shard]), ctx({ clan: { ...rules, big: null } })), null, 'without rule 2 the shard fails the both-rule');
+  assert.equal(dropGates(NOTIFY_DEFAULTS, rules).big, 10_000_000, 'members follow the clan rule 2 by default');
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, dropBig: 0 }, rules).big, 0, 'a member can turn it off for themselves');
+});
+
+test("on the clan's channels the clan's rules AND the member's must pass; their own webhooks follow only theirs", () => {
+  const rules = clan({ value: 5_000_000, rarity: 0, mode: null });
+  const item = { id: 6, name: 'Two mil', qty: 1, value: 2_000_000 };
+  // The member loosened to 1m: their own webhook takes it, the clan's channel does not.
+  const loose = ctx({ clan: rules, prefs: { ...NOTIFY_DEFAULTS, dropMin: 1_000_000, rarity: 0 } });
+  const v = judgeDropFor(zulrah([item]), loose, [{ id: 1, minValue: null, minRarity: null, mode: null }]);
+  assert.ok(v);
+  assert.equal(v.clan, false);
+  assert.deepEqual(v.hooks, [1]);
+  // The member tightened to 50m: nothing posts to the clan though the clan's 5m would.
+  const tight = ctx({ clan: rules, prefs: { ...NOTIFY_DEFAULTS, dropMin: 50_000_000, rarity: 0 } });
+  assert.equal(judgeDropFor(zulrah([{ ...item, value: 10_000_000 }]), tight, []), null);
+});
+
+test("a member's own always-post item goes to their webhooks, not the clan's channel", () => {
+  const own = { source: 'Vorkath', sourceKind: 'npc', notable: 'loot' as const, items: [{ id: 7, name: 'Dragon warhammer', qty: 1, value: 30_000_000 }] };
+  const c = ctx({ clanAlways: new Set(['jar of decay']) });
+  const v = judgeDropFor(own, c, [{ id: 1, minValue: null, minRarity: null, mode: null }]);
+  assert.ok(v);
+  assert.equal(v.clan, false);
+  assert.deepEqual(v.hooks, [1]);
+  const theirs = judgeDropFor({ ...own, items: [{ id: 8, name: 'Jar of decay', qty: 1, value: 4_000 }] }, c, []);
+  assert.equal(theirs?.clan, true);
+});
+
+test("a member's own always-post list is kept tidy", async () => {
+  const { normalizeItemNames } = await import('../src/lib/notifyPrefs');
+  assert.deepEqual(normalizeItemNames([' Dragon  warhammer ', 'dragon warhammer', 3, '', 'Olmlet']), ['Dragon warhammer', 'Olmlet']);
+  assert.equal(normalizeItemNames(Array.from({ length: 80 }, (_, i) => `Item ${i}`)).length, 50);
+});
+
+test("rule 2 can't be set below Anvil's value minimum, and a guest clan never gets less than it", () => {
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, dropBig: 1 }).big, 1_000_000, 'a member typing 1 gp gets the 1m minimum');
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, dropBig: 1 }, clan({ big: 200_000 })).big, 200_000, 'as loose as their own clan chose');
+  const cheap = { id: 9, name: 'Cheap', qty: 1, value: 300_000 };
+  const v = judgeDropFor(zulrah([cheap]), ctx({ clan: clan({ value: 100_000, big: 200_000 }) }), []);
+  assert.ok(v && v.clan, 'their own clan takes it');
+  assert.equal(v?.shared, false, 'a clan they only guest in does not');
+});

@@ -189,6 +189,8 @@ export interface JudgeContext {
   mode: { dropMinValue: number | null; dropRarityFloor: number | null; dropBoth?: boolean } | null | undefined;
   guaranteed: GuaranteedDrops | null | undefined;
   nameOf: (id: number) => string | undefined;
+  /** The clan's always-post list, lower case. Absent: every always-post item is the clan's. */
+  clanAlways?: Set<string>;
 }
 
 /**
@@ -267,9 +269,11 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: D
       const p = dropRarity(c.sourceKind, c.source, it, ctx.nameOf);
       if (p != null && p > 0 && lte(p, 1 / rarityGate)) rate = p;
     }
-    if (!dropPasses(combine, valueGate, known ? rarityGate : 0, valueOk, rate != null)) continue;
+    // RULE 2: worth at least `big` posts whatever its rarity (a 15m shard under a 1m-and-1/128 rule).
+    const bigOk = gates.big > 0 && it.value >= gates.big;
+    if (!bigOk && !dropPasses(combine, valueGate, known ? rarityGate : 0, valueOk, rate != null)) continue;
     qualifying.push({ ...it, rate });
-    modeOnly &&= !dropPasses(
+    modeOnly &&= !bigOk && !dropPasses(
       gates.mode,
       mainValue,
       known ? mainRarity : 0,
@@ -392,6 +396,9 @@ export interface DropVerdict {
  */
 export function judgeDropFor(c: DropCandidate, ctx: JudgeContext, hooks: HookDropFilter[]): DropVerdict | null {
   const person = judgeDrop(c, ctx);
+  // THE CLAN'S CHANNELS: the clan's own rules AND the person's must both pass (Ahmed, 2026-11-20), so
+  // a member's numbers can only post less there. Their own webhooks below follow their own rules alone.
+  const clanOk = !!person && clanTakes(c, ctx);
   const base = dropGates(ctx.prefs, ctx.clan);
   const ids: number[] = [];
   let facts = person;
@@ -405,9 +412,21 @@ export function judgeDropFor(c: DropCandidate, ctx: JudgeContext, hooks: HookDro
     ids.push(h.id);
     facts ??= own;
   }
-  const strict = { ...base, value: base.value > 0 ? Math.max(DROP_MINIMUMS.value, base.value) : 0, rarity: base.rarity > 0 ? Math.max(DROP_MINIMUMS.rarity, base.rarity) : 0 };
-  const shared = !!person && (c.notable != null || c.key === true || (strict.value === base.value && strict.rarity === base.rarity) || !!judgeDrop(c, ctx, strict));
-  return facts ? { facts, clan: !!person, shared, hooks: ids } : null;
+  const strict = { ...base, value: base.value > 0 ? Math.max(DROP_MINIMUMS.value, base.value) : 0, rarity: base.rarity > 0 ? Math.max(DROP_MINIMUMS.rarity, base.rarity) : 0, big: base.big > 0 ? Math.max(DROP_MINIMUMS.value, base.big) : 0 };
+  const sharedOk = strict.value === base.value && strict.rarity === base.rarity && strict.big === base.big;
+  const shared = !!person && (c.notable != null || c.key === true || sharedOk || !!judgeDrop(c, ctx, strict));
+  return facts ? { facts, clan: clanOk, shared, hooks: ids } : null;
+}
+
+/** Would the clan's own rules (no personal numbers) post this? An always-post item only from the clan's list. */
+function clanTakes(c: DropCandidate, ctx: JudgeContext): boolean {
+  if (c.notable === 'loot' && ctx.clanAlways) {
+    // An item on the person's own list and not the clan's posts to their own webhooks only.
+    const it = c.items[0];
+    return !!it && ctx.clanAlways.has(it.name.trim().toLowerCase());
+  }
+  if (c.notable || c.key) return true;
+  return !!judgeDrop(c, ctx, dropGates({ dropMin: null, rarity: null, dropMode: null, dropBig: null }, ctx.clan));
 }
 
 /**

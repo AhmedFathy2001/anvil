@@ -9,6 +9,7 @@ import { requirePlatformPage } from '@/lib/platformAccess';
 import { pluginUsersNow } from '@/lib/pluginUsersRead';
 import { applyDismissed, buildDecisions, type DecisionTone } from '@/lib/staffDecisions';
 import { readDismissed } from '@/lib/staffDismissed';
+import { lastOwnerMessages } from '@/lib/staffMessage';
 import DismissDecision from './_components/DismissDecision';
 import { staffPending } from '@/lib/staffPending';
 import MessageOwnerButton from './_components/MessageOwnerButton';
@@ -94,6 +95,7 @@ export default async function StaffOverview() {
     versions: plugin?.versions ?? [],
   });
   const { open: decisions, hidden: hiddenDecisions } = applyDismissed(allDecisions, dismissed);
+  const lastSent = await lastOwnerMessages([...new Set(decisions.flatMap((d) => d.clans.map((c) => c.id)))]);
   const activeThisWeek = active.filter((c) => (health[c.id]?.plugin7d ?? 0) > 0).length;
   const paying = active.filter((c) => ['active', 'cancelling'].includes(health[c.id]?.billing ?? '')).length;
   const waiting: [string, number, string][] = [
@@ -143,7 +145,7 @@ export default async function StaffOverview() {
                           </ClanLink>
                           <span className="text-text-muted"> · {c.why}</span>
                         </span>
-                        {canWrite && c.hasOwner && <MessageOwnerButton clanId={c.id} clanName={c.name} why={c.why} welcome={c.welcome} />}
+                        {canWrite && c.hasOwner && <MessageOwnerButton clanId={c.id} clanName={c.name} why={c.why} welcome={c.welcome} last={lastSent[c.id] ?? null} />}
                       </li>
                     ))}
                   </ul>

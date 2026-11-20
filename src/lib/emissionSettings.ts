@@ -58,6 +58,8 @@ export interface DropDefaultRow {
   value: number;
   rarity: number;
   mode: 'or' | 'and';
+  /** Rule 2 the character follows: worth at least this posts whatever its rarity; 0 = off. */
+  big: number;
   /** The tiers this character follows until the person picks their own (lib/notifyPrefs tierGates). */
   ca: string;
   quests: string;
@@ -208,7 +210,7 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
         .map(async (a) => {
           const clan = a.memberClan ? { ...(await getClanDropDefaults(a.memberClan.clanId)), hardFloor: null } : NO_CLAN_DROPS;
           const g = dropGates({ dropMin: null, rarity: null }, clan);
-          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode, ...tierGates({ ca: null, quests: null, diaryTier: null }, clan), floors: { ca: clan.ca != null, quests: clan.quests != null, diaryTier: clan.diaryTier != null } };
+          return { rsn: a.rsn, clanName: a.memberClan?.name ?? null, value: g.value, rarity: g.rarity, mode: g.mode, big: g.big, ...tierGates({ ca: null, quests: null, diaryTier: null }, clan), floors: { ca: clan.ca != null, quests: clan.quests != null, diaryTier: clan.diaryTier != null } };
         }),
     ),
   };

@@ -52,6 +52,13 @@ export interface NotifyPrefs {
   rarity: number | null;
   /** How the two combine: 'or' (either one) or 'and' (both). NULL = inherit the clan's, else 'or'. */
   dropMode: DropMode | null;
+  /**
+   * RULE 2: also post drops worth at least this, whatever their rarity (the 15m shard on a 1-in-128
+   * 'both' rule). 0 = off; NULL = inherit the clan's, else off.
+   */
+  dropBig: number | null;
+  /** Items this person always posts, by name, on top of the clan's list. Their own webhooks only. */
+  alwaysItems: string[];
   /** Post a loot key whose contents total at least this; 0 = off. */
   keyMin: number;
   pets: boolean;
@@ -111,6 +118,8 @@ export const NOTIFY_DEFAULTS: NotifyPrefs = {
   dropMin: null,
   rarity: null,
   dropMode: null,
+  dropBig: null,
+  alwaysItems: [],
   keyMin: 1_000_000,
   pets: true,
   deaths: true,
@@ -147,6 +156,8 @@ export function normalizeNotifyPrefs(raw: unknown): NotifyPrefs {
     dropMin: gpOrInherit(o.dropMin),
     rarity: gpOrInherit(o.rarity),
     dropMode: isDropMode(o.dropMode) ? o.dropMode : null,
+    dropBig: gpOrInherit(o.dropBig),
+    alwaysItems: normalizeItemNames(o.alwaysItems),
     keyMin: gp(o.keyMin, d.keyMin),
     pets: bool(o.pets, d.pets),
     deaths: bool(o.deaths, d.deaths),
@@ -162,6 +173,24 @@ export function normalizeNotifyPrefs(raw: unknown): NotifyPrefs {
     hide: normalizeShotHide(o.hide),
     announce: normalizePersonalKinds(o.announce),
   };
+}
+
+/** A person's own always-post list: trimmed names, case-insensitively unique, at most 50. */
+export const MAX_ALWAYS_ITEMS = 50;
+export function normalizeItemNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const name = v.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= MAX_ALWAYS_ITEMS) break;
+  }
+  return out;
 }
 
 /** Anything → a complete ShotHide; each missing or junk key keeps its default. */
@@ -218,6 +247,8 @@ export interface ClanDropSettings {
   rarity: number | null;
   /** How its members' two thresholds combine by default; null = either ('or'). */
   mode: DropMode | null;
+  /** Rule 2's default: worth at least this posts whatever its rarity. Null/0 = off. */
+  big?: number | null;
   hardFloor: number | null;
   /** The clan's default tiers for its members' combat-task, quest and diary posts; absent/null = Anvil's. */
   ca?: CaTier | null;
@@ -261,6 +292,8 @@ export interface DropGates {
   rarity: number;
   /** 'or': a drop posts on value OR rarity. 'and': it needs both (a threshold that is off isn't required). */
   mode: DropMode;
+  /** Rule 2: worth at least this posts whatever its rarity; 0 = off. */
+  big: number;
   valueSource: DropSource;
   raritySource: DropSource;
   modeSource: DropSource;
@@ -272,7 +305,7 @@ export interface DropGates {
  * numbers stay clamped (value at least 1m, rarity at least 1/1000; 0 = off) so a shared channel can't be
  * spammed, and the clan's hard floor still lifts the rarity gate (off stays off).
  */
-export function dropGates(p: Pick<NotifyPrefs, 'dropMin' | 'rarity'> & { dropMode?: DropMode | null }, clan: ClanDropSettings = NO_CLAN_DROPS): DropGates {
+export function dropGates(p: Pick<NotifyPrefs, 'dropMin' | 'rarity'> & { dropMode?: DropMode | null; dropBig?: number | null }, clan: ClanDropSettings = NO_CLAN_DROPS): DropGates {
   const clanValue = clan.value != null && clan.value > 0 ? clan.value : null;
   const clanRarity = clan.rarity != null && clan.rarity > 0 ? clan.rarity : null;
   const valueSource: DropSource = p.dropMin != null ? 'custom' : clanValue != null ? 'clan' : 'platform';
@@ -289,6 +322,12 @@ export function dropGates(p: Pick<NotifyPrefs, 'dropMin' | 'rarity'> & { dropMod
     value: value <= 0 ? 0 : Math.max(minValue, value),
     rarity: rarity <= 0 ? 0 : Math.max(minRarity, rarity, hard),
     mode: p.dropMode ?? clan.mode ?? PLATFORM_DROP_DEFAULTS.mode,
+    // As loose as the clan's own rule 2 or Anvil's value minimum, whichever is looser: never 1 gp.
+    big: (() => {
+      const clanBig = clan.big != null && clan.big > 0 ? clan.big : null;
+      const big = p.dropBig ?? clanBig ?? 0;
+      return big <= 0 ? 0 : p.dropBig != null ? Math.max(Math.min(DROP_MINIMUMS.value, clanBig ?? Infinity), big) : big;
+    })(),
     valueSource,
     raritySource,
     modeSource,
@@ -312,6 +351,7 @@ export function hookGates(base: DropGates, h: Pick<HookDropFilter, 'minValue' | 
     value: h.minValue != null ? Math.max(1, h.minValue) : base.value,
     rarity: h.minRarity != null ? Math.max(1, h.minRarity) : base.rarity,
     mode: h.mode ?? base.mode,
+    big: base.big,
     valueSource: base.valueSource,
     raritySource: base.raritySource,
     modeSource: base.modeSource,
