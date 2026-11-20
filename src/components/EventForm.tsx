@@ -1641,7 +1641,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   <SpecRow label="Tiles to author" value="none — it scores itself" />
                   <SpecRow
                     label="Scoring"
-                    value={isHunt ? (hunt.rule === 'first' ? 'first to get the drop' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
+                    value={isHunt ? (hunt.rule === 'first' ? 'first to get the drop' : hunt.rule === 'points' ? 'most points by the end' : 'most drops by the end') : weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
                   <SpecRow label="Who's in" value={selectedOnly ? 'only the people you add' : includeGuests ? 'roster + guests' : 'full members only'} />

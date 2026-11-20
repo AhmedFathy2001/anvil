@@ -18,7 +18,10 @@ import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
 import { itemIconUrl } from '@/lib/tileIcons';
 
-export type HuntRule = 'first' | 'most';
+export type HuntRule = 'first' | 'most' | 'points';
+/** Points hunts: does a second drop of the same item score again, or only each player's first? */
+export type HuntRepeat = 'every' | 'first';
+export const MAX_ITEM_POINTS = 1000;
 export type HuntCountMode = 'drops' | 'quantity';
 export type HuntConfirm = 'staff' | 'auto';
 /**
@@ -51,6 +54,8 @@ export interface HuntItem {
   sources: string[];
   /** 'drops' counts each drop once; 'quantity' adds up the stack (stackables). */
   count: HuntCountMode;
+  /** Rule 'points': what one drop (or one piece, under 'quantity') of it scores. Absent = 1. */
+  points?: number;
 }
 
 export interface HuntConfig {
@@ -65,6 +70,8 @@ export interface HuntConfig {
    */
   petIds?: number[];
   rule: HuntRule;
+  /** Rule 'points': 'first' = only each player's first drop of each item scores. Absent = every drop. */
+  repeat?: HuntRepeat;
   /** How it ends: at the end date, or as soon as enough drops have landed. Staff can always end it by hand. */
   ends: HuntEnding;
   /**
@@ -130,8 +137,9 @@ export function huntFromInput(
 ): { ok: true; config: HuntConfig } | { ok: false; error: string } {
   const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
   const target = body.target === 'pets' ? 'pets' : 'items';
-  const rule: HuntRule = body.rule === 'most' ? 'most' : body.rule === 'first' ? 'first' : (null as never);
-  if (!rule) return { ok: false, error: 'Pick the rule: first to get it, or most by the end.' };
+  const rule: HuntRule = body.rule === 'most' ? 'most' : body.rule === 'first' ? 'first' : body.rule === 'points' ? 'points' : (null as never);
+  if (!rule) return { ok: false, error: 'Pick the rule: first to get it, most by the end, or most points.' };
+  if (rule === 'points' && target === 'pets') return { ok: false, error: 'Points are for item hunts: pick most by the end for pets.' };
 
   const items: HuntItem[] = [];
   let petGroup: string | null = null;
@@ -170,7 +178,8 @@ export function huntFromInput(
       if (!opts.lenient && sources.length === 0 && it.anySource !== true) {
         return { ok: false, error: `Choose where ${name} counts from: one or more sources, or any source.` };
       }
-      items.push({ id, name, sources, count: it.count === 'quantity' ? 'quantity' : 'drops' });
+      const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
+      items.push({ id, name, sources, count: it.count === 'quantity' ? 'quantity' : 'drops', ...(rule === 'points' ? { points: Math.min(MAX_ITEM_POINTS, Math.max(1, pts)) } : {}) });
     }
     if (items.length === 0) return { ok: false, error: 'Pick at least one item to hunt.' };
   }
@@ -194,6 +203,7 @@ export function huntFromInput(
       petGroup,
       ...(petIds ? { petIds } : {}),
       rule,
+      ...(rule === 'points' && body.repeat === 'first' ? { repeat: 'first' as const } : {}),
       ...huntSettingsFromInput(body),
       killsOf,
       xpSkill,
@@ -210,7 +220,7 @@ export function huntKindWord(config: HuntConfig | null): string {
 }
 
 export function huntRuleWords(config: HuntConfig | null): string {
-  return config?.rule === 'most' ? 'most by the end' : 'first to get it';
+  return config?.rule === 'points' ? 'most points by the end' : config?.rule === 'most' ? 'most by the end' : 'first to get it';
 }
 
 function sourcesWords(sources: string[]): string {
@@ -556,11 +566,30 @@ export interface HuntRow {
 
 export const huntRsnKey = (rsn: string) => norm(rsn);
 
-/** How much one drop adds under the item's own count mode. */
+/** How much one drop adds under the item's own count mode. "End after N drops" counts with this. */
 export function dropWeight(config: HuntConfig, drop: Pick<HuntDrop, 'itemId' | 'quantity'>): number {
   if (config.target === 'pets') return 1;
   const item = config.items.find((it) => it.id === drop.itemId);
   return item?.count === 'quantity' ? Math.max(1, drop.quantity) : 1;
+}
+
+/** What one drop puts on the standings: its count, times the item's points on a points hunt. */
+export function dropScore(config: HuntConfig, drop: Pick<HuntDrop, 'itemId' | 'quantity'>): number {
+  const n = dropWeight(config, drop);
+  if (config.rule !== 'points') return n;
+  return n * (config.items.find((it) => it.id === drop.itemId)?.points ?? 1);
+}
+
+/** A points hunt that scores each item once: a player's drops less the repeats, oldest kept. */
+function scoringDrops(config: HuntConfig, mine: HuntDrop[]): HuntDrop[] {
+  if (config.rule !== 'points' || config.repeat !== 'first') return mine;
+  const seen = new Set<number | string>();
+  return mine.filter((d) => {
+    const k = d.itemId ?? d.itemName ?? '';
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 /**
@@ -716,8 +745,9 @@ export function rankHunt(
 
   const rows = entrants.map((e): HuntRow => {
     const mine = byRsn.get(huntRsnKey(e.rsn)) ?? [];
+    const scoring = scoringDrops(config, mine);
     let count = 0;
-    for (const d of mine) count += dropWeight(config, d);
+    for (const d of scoring) count += dropScore(config, d);
     return {
       rsn: e.rsn,
       rank: 0,
@@ -726,7 +756,7 @@ export function rankHunt(
       firstAt: mine[0]?.occurredAt ?? null,
       lastAt: mine[mine.length - 1]?.occurredAt ?? null,
       // Drops are oldest first, so the last one is the one that brought the total to where it is.
-      reachedAt: mine[mine.length - 1]?.occurredAt ?? null,
+      reachedAt: scoring[scoring.length - 1]?.occurredAt ?? null,
       statGain: e.statGain,
     };
   });
@@ -737,7 +767,7 @@ export function rankHunt(
     const bIn = b.count > 0;
     if (aIn !== bIn) return aIn ? -1 : 1;
     if (aIn && bIn) {
-      if (config.rule === 'most') return b.count - a.count || t(a.reachedAt) - t(b.reachedAt) || a.rsn.localeCompare(b.rsn);
+      if (config.rule !== 'first') return b.count - a.count || t(a.reachedAt) - t(b.reachedAt) || a.rsn.localeCompare(b.rsn);
       return t(a.firstAt) - t(b.firstAt) || a.rsn.localeCompare(b.rsn);
     }
     return (b.statGain ?? 0) - (a.statGain ?? 0) || a.rsn.localeCompare(b.rsn);

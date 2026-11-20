@@ -1,4 +1,5 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
+import type { HuntRule } from '@/lib/itemHunt';
 import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
 import { racePostVeil, type RacePostVeil } from '@/lib/raceHideAheadDb';
@@ -2219,11 +2220,14 @@ export interface WeeklyGroupPost {
 export interface WeeklyHuntPost {
   kind: string;
   line: string;
-  rule: 'first' | 'most';
+  rule: HuntRule;
   iconUrl: string | null;
 }
 
 const dropsWord = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'drop' : 'drops'}`;
+const pointsWord = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'point' : 'points'}`;
+/** What a hunt's count is: points on a points hunt, drops on any other. */
+const huntWord = (hunt: WeeklyHuntPost, n: number) => (hunt.rule === 'points' ? pointsWord(n) : dropsWord(n));
 
 function weeklyGroupField(type: string, g: WeeklyGroupPost, label: string) {
   const fmt = (n: number) => (type === 'efficiency' ? formatEfficiencyHours(Math.round(n)) : Math.round(n).toLocaleString());
@@ -2293,8 +2297,8 @@ export function bestDropsField(lines: string[] | null | undefined) {
 
 const weeklyMedal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`);
 /** "+1,234,567 XP", "+12.5 hours", "3 drops": a weekly amount with its unit. */
-function weeklyAmount(type: string, n: number, hunt: boolean): string {
-  if (hunt) return dropsWord(n);
+function weeklyAmount(type: string, n: number, hunt: boolean | WeeklyHuntPost | null | undefined): string {
+  if (hunt) return hunt === true ? dropsWord(n) : huntWord(hunt, n);
   if (type === 'efficiency') return `+${formatEfficiencyHours(n)} hours`;
   return `+${n.toLocaleString()} ${type === 'skill' ? 'XP' : 'KC'}`;
 }
@@ -2318,7 +2322,7 @@ export async function notifyWeeklyDaily(params: {
   hunt?: WeeklyHuntPost | null;
 }): Promise<boolean> {
   const { type, title, metric, hunt } = params;
-  const isHunt = !!hunt;
+  const isHunt = hunt ?? false;
   const top = params.lines.filter((l) => l.total > 0).slice(0, 5);
   const text = top
     .map((l) => {
@@ -2369,7 +2373,7 @@ export async function notifyWeeklyHalfway(params: {
         ? `Halfway there — **${top.rsn}** leads. Ends ${discordTime(endDate, 'R')}.`
         : `Halfway there and nobody is on the board yet. Ends ${discordTime(endDate, 'R')}.`,
       color: EMBED_COLOR.gold,
-      fields: rows.length ? [field('Standings so far', rows.map((s, i) => `${weeklyMedal(i)} **${s.rsn}** — ${weeklyAmount(type, s.gained, !!params.hunt)}`).join('\n'), false)] : [],
+      fields: rows.length ? [field('Standings so far', rows.map((s, i) => `${weeklyMedal(i)} **${s.rsn}** — ${weeklyAmount(type, s.gained, params.hunt)}`).join('\n'), false)] : [],
     };
     return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
   }
@@ -2421,7 +2425,7 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
     .slice(0, 10)
     .map((s, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-      return hunt ? `${medal} **${s.rsn}** — ${dropsWord(s.gained)}` : `${medal} **${s.rsn}** — +${fmt(s.gained)}`;
+      return hunt ? `${medal} **${s.rsn}** — ${huntWord(hunt, s.gained)}` : `${medal} **${s.rsn}** — +${fmt(s.gained)}`;
     })
     .join('\n');
 
@@ -2434,7 +2438,7 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
         (winner
           ? hunt.rule === 'first'
             ? `🥇 **${winner.rsn}** got it first.`
-            : `🥇 **${winner.rsn}** takes it with **${dropsWord(winner.gained)}**.`
+            : `🥇 **${winner.rsn}** takes it with **${huntWord(hunt, winner.gained)}**.`
           : 'It has ended and nobody got one.')
       : winner
         ? `🥇 **${winner.rsn}** takes it with **+${fmt(winner.gained)}** ${unit}.`
