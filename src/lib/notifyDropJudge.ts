@@ -68,6 +68,8 @@ export async function judgeDropRequest(
     mode,
     guaranteed: settings.facts?.guaranteed,
     nameOf: names.nameOf,
+    // The clan's own list: an item only on the person's list posts to their own webhooks, not here.
+    clanAlways: new Set((settings.alwaysNotifyItems ?? []).map((n: string) => n.trim().toLowerCase())),
   }, hooks);
 }
 

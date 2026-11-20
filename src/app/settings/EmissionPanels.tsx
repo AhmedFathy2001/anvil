@@ -1,5 +1,6 @@
 'use client';
 
+import ChipsInput from '@/components/ChipsInput';
 import { useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
@@ -690,6 +691,28 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
           disabled={busy}
           onChange={(m) => save({ dropMode: m })}
         />
+        <DropThresholdRow
+          title="Or post drops worth at least"
+          hint="A second rule: drops worth this much post whatever their rarity, even when the rules above ask for both (0 = off). On your clan's channels its own rules apply too, so yours can only post less there."
+          custom={p.dropBig}
+          defaults={view.dropDefaults.map((d) => ({ ...d, shown: d.big }))}
+          fallback={0}
+          format={(n) => (n > 0 ? formatGp(n) : 'off')}
+          min={1}
+          disabled={busy}
+          ariaLabel="Post drops worth at least, whatever their rarity"
+          onCommit={(n) => save({ dropBig: n })}
+        />
+        <PrefRow title="Always post these items" hint="On top of your clan's list. These post to your own webhooks only; your clan's channels take its own list.">
+          <ChipsInput
+            value={p.alwaysItems}
+            onChange={(items) => save({ alwaysItems: items })}
+            placeholder="Add an item, e.g. Dragon warhammer"
+            ariaLabel="Items you always post"
+            maxTagLength={60}
+            className="w-full sm:w-96"
+          />
+        </PrefRow>
         <PrefRow title="Loot key value" hint="Post a loot key whose contents total at least this, in gp (0 = off).">
           <CommitNumber value={p.keyMin} min={1} disabled={busy} ariaLabel="Loot key value" onCommit={(n) => save({ keyMin: n })} />
         </PrefRow>

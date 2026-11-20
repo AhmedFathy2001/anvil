@@ -239,7 +239,9 @@ export async function GET(request: Request) {
       // switches, floors applied. Capability 'notify-prefs'; the plugin reads only this.
       const played = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
       const clanDrops = await characterClanDrops(played?.accountId ?? null, clan.id, dropRarityFloor);
-      body.me = pluginMe(await getNotifyPrefs(userOnly.userId), body.notify as never, clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId), await characterClanKinds(played?.accountId ?? null, clan.id, worldModeOf(request)?.key));
+      const myPrefs = await getNotifyPrefs(userOnly.userId);
+      body.me = pluginMe(myPrefs, body.notify as never, clanDrops, body.modeThresholds as never, await dropHookFilters(userOnly.userId), await characterClanKinds(played?.accountId ?? null, clan.id, worldModeOf(request)?.key));
+      withOwnAlwaysItems(body as unknown as Record<string, unknown>, myPrefs.alwaysItems);
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
       // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
       // login screen beyond what the launcher hint already names.
@@ -288,6 +290,7 @@ export async function GET(request: Request) {
     const clanDrops = await characterClanDrops(auth.accountId, clan.id, (b.dropRarityFloor as number | undefined) ?? null);
     b.notify = await modeAwareNotifyFlags(request, clan.id, b.notify as Record<string, boolean>);
     b.me = pluginMe(prefs, b.notify as never, clanDrops, b.modeThresholds as never, auth.userId != null ? await dropHookFilters(auth.userId) : [], await characterClanKinds(auth.accountId, clan.id, worldModeOf(request)?.key));
+    withOwnAlwaysItems(b, prefs.alwaysItems);
   }
   // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
   // an older one would file board B's tiles against board A, so it keeps exactly today's answer.
@@ -303,4 +306,15 @@ export async function GET(request: Request) {
   await markQuietWorld(request, built.body as unknown as Record<string, unknown>);
   // `tiles` last: the counts of every board folded in above (lib/pluginTileCounts).
   return jsonWithEtag(request, withTileCounts(built.body));
+}
+
+/**
+ * The plugin flags an always-post item by the list it is handed, so a person's own items join the
+ * clan's here. The site then sends one only to their own webhooks (lib/notifyDrops clanTakes).
+ */
+function withOwnAlwaysItems(body: Record<string, unknown>, own: string[]): void {
+  if (own.length === 0) return;
+  const list = Array.isArray(body.alwaysNotifyItems) ? (body.alwaysNotifyItems as string[]) : [];
+  const seen = new Set(list.map((n) => n.trim().toLowerCase()));
+  body.alwaysNotifyItems = [...list, ...own.filter((n) => !seen.has(n.trim().toLowerCase()))];
 }

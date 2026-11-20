@@ -745,6 +745,8 @@ export const DROP_DEFAULT_VALUE_SETTING_KEY = 'drop_default_value';
 export const DROP_DEFAULT_RARITY_SETTING_KEY = 'drop_default_rarity';
 /** 'and' = members' drops need the value AND the rarity; anything else = either (the default). */
 export const DROP_DEFAULT_MODE_SETTING_KEY = 'drop_default_mode';
+/** Rule 2: drops worth at least this post whatever their rarity. Blank = off. */
+export const DROP_BIG_VALUE_SETTING_KEY = 'drop_big_value';
 
 /** A stored number as a clamped integer, or null when unset / not positive. */
 export const settingNumber = (raw: string | null | undefined, min: number): number | null => {
@@ -767,7 +769,7 @@ export async function getClanKindDefaults(clanId: number): Promise<ClanKinds> {
 }
 
 export async function getClanDropDefaults(clanId: number): Promise<ClanDropSettings> {
-  const [value, rarity, floor, mode, ca, quests, diaryTier] = await Promise.all([
+  const [value, rarity, floor, mode, ca, quests, diaryTier, big] = await Promise.all([
     getSetting(clanId, DROP_DEFAULT_VALUE_SETTING_KEY),
     getSetting(clanId, DROP_DEFAULT_RARITY_SETTING_KEY),
     getSetting(clanId, DROP_RARITY_FLOOR_SETTING_KEY),
@@ -775,9 +777,10 @@ export async function getClanDropDefaults(clanId: number): Promise<ClanDropSetti
     getSetting(clanId, 'ca_default_tier'),
     getSetting(clanId, 'quest_default_tier'),
     getSetting(clanId, 'diary_default_tier'),
+    getSetting(clanId, DROP_BIG_VALUE_SETTING_KEY),
   ]);
   // The defaults are the clan's own call (1 gp, 1 in 1 if it likes); only the hard floor keeps a minimum.
-  return { value: settingNumber(value, 1), rarity: settingNumber(rarity, 1), mode: mode === 'and' ? 'and' : null, hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity), ca: storedCaTier(ca), quests: storedQuestTier(quests), diaryTier: storedDiaryTier(diaryTier) };
+  return { value: settingNumber(value, 1), rarity: settingNumber(rarity, 1), mode: mode === 'and' ? 'and' : null, big: settingNumber(big, 1), hardFloor: settingNumber(floor, DROP_MINIMUMS.rarity), ca: storedCaTier(ca), quests: storedQuestTier(quests), diaryTier: storedDiaryTier(diaryTier) };
 }
 
 // --- Clan naming ----------------------------------------------------------------------------

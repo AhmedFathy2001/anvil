@@ -220,6 +220,12 @@ export default function DiscordSettings({
                 />
                 <DropModeToggle />
                 <PlainSetting
+                  settingKey="drop_big_value"
+                  label="Or post drops worth at least (gp), whatever their rarity"
+                  placeholder="off"
+                  helpText="A second rule, for when drops need the value AND the rarity above: a drop worth this much posts on value alone, so a 15m Venator shard posts even under a 1 in 128 rule it doesn't meet. Blank = off. Your members follow it unless they set their own."
+                />
+                <PlainSetting
                   settingKey="drop_rarity_floor"
                   label="Hard floor: never post drops more common than 1 in… (optional)"
                   placeholder="none"
