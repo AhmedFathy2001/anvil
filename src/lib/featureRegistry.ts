@@ -196,6 +196,16 @@ export interface FeatureUsage {
   trend: number | null;
   /** `YYYY-MM-DD` of the most recent use inside the rows given, or null. */
   lastUsed: string | null;
+  /**
+   * The period these are counted over, in days (`uses30`/`prev30` keep their names, but are this
+   * period and the one before it). `clans`/`people` are the period's too.
+   */
+  period: number;
+  /** Clans that used it in the period before, and how many of those used it again in this one. */
+  prevClans: number;
+  kept: number;
+  /** The clans using it this period, for the by-clan grid. */
+  clanIds: number[];
 }
 
 const DAY_MS = 86_400_000;
@@ -216,10 +226,11 @@ export function trendOf(current: number, previous: number): number | null {
  * still listed, with zeros and no last-used day, so the "not used in 90 days" list can name it.
  * Rows older than 90 days are ignored. Unranked features (proof submission) never appear.
  */
-export function rankFeatures(rows: Iterable<UsageRow>, now: Date = new Date(), features: readonly FeatureDef[] = FEATURES): FeatureUsage[] {
+export function rankFeatures(rows: Iterable<UsageRow>, now: Date = new Date(), features: readonly FeatureDef[] = FEATURES, period = 30): FeatureUsage[] {
   const m = buildMatcher(features);
   const acc = features.map(() => ({
     clans: new Set<number>(),
+    prevClans: new Set<number>(),
     people: new Set<string>(),
     uses7: 0,
     uses30: 0,
@@ -230,16 +241,19 @@ export function rankFeatures(rows: Iterable<UsageRow>, now: Date = new Date(), f
     const i = featureOf(m, row);
     if (i === null || features[i].ranked === false) continue;
     const age = ageInDays(row.day, now);
-    if (age < 0 || age >= 90) continue;
+    if (age < 0 || age >= Math.max(90, period * 2)) continue;
     const a = acc[i];
-    if (a.last === null || row.day > a.last) a.last = row.day;
+    if (age < 90 && (a.last === null || row.day > a.last)) a.last = row.day;
     if (age < 7) a.uses7 += row.n;
-    if (age < 30) {
+    if (age < period) {
       a.uses30 += row.n;
       if (row.clanId != null) a.clans.add(row.clanId);
       if (row.userId != null) a.people.add(`u${row.userId}`);
       else if (row.accountId != null) a.people.add(`a${row.accountId}`);
-    } else if (age < 60) a.prev30 += row.n;
+    } else if (age < period * 2) {
+      a.prev30 += row.n;
+      if (row.clanId != null) a.prevClans.add(row.clanId);
+    }
   }
   return features
     .map((f, i): FeatureUsage => {
@@ -255,6 +269,10 @@ export function rankFeatures(rows: Iterable<UsageRow>, now: Date = new Date(), f
         prev30: a.prev30,
         trend: trendOf(a.uses30, a.prev30),
         lastUsed: a.last,
+        period,
+        prevClans: a.prevClans.size,
+        kept: [...a.prevClans].filter((c) => a.clans.has(c)).length,
+        clanIds: [...a.clans],
       };
     })
     .filter((_, i) => features[i].ranked !== false)
@@ -264,4 +282,46 @@ export function rankFeatures(rows: Iterable<UsageRow>, now: Date = new Date(), f
 /** Features with no use in the last 90 days of the rows given. */
 export function unusedFeatures(usage: FeatureUsage[]): FeatureUsage[] {
   return usage.filter((u) => u.lastUsed === null);
+}
+
+/** "2 more clans" / "1 fewer clan" / "no change" / "new": this period's clans against the one before. */
+export function clanChange(f: Pick<FeatureUsage, 'clans' | 'prevClans'>): { text: string; tone: 'up' | 'down' | 'flat' } {
+  const d = f.clans - f.prevClans;
+  if (d === 0) return { text: f.clans === 0 ? '—' : 'no change', tone: 'flat' };
+  if (f.prevClans === 0) return { text: 'new', tone: 'up' };
+  const n = Math.abs(d);
+  return { text: `${n} ${d > 0 ? 'more' : 'fewer'} ${n === 1 ? 'clan' : 'clans'}`, tone: d > 0 ? 'up' : 'down' };
+}
+
+/**
+ * Which clans use which features: the `top` most adopted features as columns, a row per clan that
+ * uses any of them, the clan using the most first. Spots the clan on one feature that could use more.
+ */
+export function featureGrid(usage: FeatureUsage[], clans: { id: number; name: string }[], top = 6): { features: { key: string; label: string }[]; rows: { id: number; name: string; uses: boolean[]; count: number }[] } {
+  const features = [...usage].filter((f) => f.clans > 0).sort((a, b) => b.clans - a.clans || a.label.localeCompare(b.label)).slice(0, top);
+  const sets = features.map((f) => new Set(f.clanIds));
+  const rows = clans
+    .map((c) => {
+      const uses = sets.map((s) => s.has(c.id));
+      return { id: c.id, name: c.name, uses, count: uses.filter(Boolean).length };
+    })
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  return { features: features.map((f) => ({ key: f.key, label: f.label })), rows };
+}
+
+/** Where clans say they found Anvil, against what they did next. Most clans first; unanswered last. */
+export function sourcesThatStay(clans: { foundVia: string | null; events: number; activeNow: boolean }[], label: (id: string) => string | null): { key: string; label: string; clans: number; ranEvent: number; activeNow: number }[] {
+  const by = new Map<string, { clans: number; ranEvent: number; activeNow: number }>();
+  for (const c of clans) {
+    const k = c.foundVia && label(c.foundVia) ? c.foundVia : '';
+    const b = by.get(k) ?? { clans: 0, ranEvent: 0, activeNow: 0 };
+    b.clans += 1;
+    if (c.events > 0) b.ranEvent += 1;
+    if (c.activeNow) b.activeNow += 1;
+    by.set(k, b);
+  }
+  return [...by.entries()]
+    .map(([k, b]) => ({ key: k || 'unanswered', label: k ? (label(k) as string) : 'Did not say', ...b }))
+    .sort((a, b) => Number(a.key === 'unanswered') - Number(b.key === 'unanswered') || b.clans - a.clans || a.label.localeCompare(b.label));
 }

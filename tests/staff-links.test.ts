@@ -79,3 +79,15 @@ test('every platform role except none opens the platform surface', () => {
     assert.equal(showsPlatformLink(role), role !== 'none', role);
   }
 });
+
+test('a Supporter row: how it was come by, and whether it gives its tier now', async () => {
+  process.env.DATABASE_URL ??= 'postgres://x:x@localhost:5432/x';
+  const { supporterHow, membershipInForce } = await import('../src/lib/platformView.ts');
+  assert.deepEqual(['gift', 'gift-paid', 'invite', 'yearly', null].map(supporterHow), ['staff', 'gift', 'invite', 'paid', 'paid']);
+  const now = '2026-11-20T00:00:00.000Z';
+  assert.equal(membershipInForce({ status: 'active', currentPeriodEnd: null }, now), true);
+  assert.equal(membershipInForce({ status: 'granted', currentPeriodEnd: null }, now), true);
+  assert.equal(membershipInForce({ status: 'granted', currentPeriodEnd: '2026-11-19 10:00:00' }, now), false);
+  assert.equal(membershipInForce({ status: 'ended', currentPeriodEnd: '2026-12-01T00:00:00.000Z' }, now), true, 'cancelled but still inside the paid term');
+  assert.equal(membershipInForce({ status: 'refunded', currentPeriodEnd: '2026-12-01T00:00:00.000Z' }, now), false);
+});

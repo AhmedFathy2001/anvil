@@ -1,7 +1,7 @@
 'use client';
 
 import { isWholeEmail } from '@/lib/staffSight';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ClanRow } from '@/lib/platformView';
@@ -93,6 +93,8 @@ export default function ClansClient({
   const [plan, setPlan] = useState('');
   const [sort, setSort] = useState<ClanSort>('attention');
   const [page, setPage] = useState(0);
+  /** The one clan whose controls are open under its row. */
+  const [manage, setManage] = useState<number | null>(null);
   // Which clan's "act as" form is open. Null means none — this is never a default-on state.
   const [acting, setActing] = useState<number | null>(null);
   const [reason, setReason] = useState('');
@@ -374,27 +376,24 @@ export default function ClansClient({
       </div>
 
       <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
-        <table className="stack-phone w-full min-w-[82rem] text-sm">
+        <table className="stack-phone w-full min-w-[64rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="px-4 py-3">Clan</th>
-              <th className="px-4 py-3">Health</th>
-              <th className="px-4 py-3">Owner</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3">Subscription</th>
-              <th className="px-4 py-3">Last sync</th>
-              <th className="px-4 py-3 text-right">Members</th>
-              <th className="px-4 py-3 text-right">Guests</th>
-              <th className="px-4 py-3 text-right">Events</th>
-              <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Seat cap</th>
-              {canWrite && <th className="px-4 py-3">Access</th>}
+              <th className="px-4 py-3">Health</th>
+              <th className="px-4 py-3 text-right">Members</th>
+              <th className="px-4 py-3">On the plugin, 7d</th>
+              <th className="px-4 py-3 text-right">Events run</th>
+              <th className="px-4 py-3">Last active</th>
+              <th className="px-4 py-3">Why it is here</th>
+              <th className="px-4 py-3" aria-label="Actions" />
             </tr>
           </thead>
           <tbody className="divide-y divide-card-border">
             {shown.map((c) => (
-              <tr key={c.id} className={busy === c.id ? 'opacity-50' : undefined}>
+              <Fragment key={c.id}>
+              <tr className={busy === c.id ? 'opacity-50' : undefined}>
                 <td className="px-4 py-3">
                   {/* The NAME opens this clan's operator page — the question you arrive with is
                       almost always about one of them. The host below still goes to the clan's own
@@ -427,29 +426,73 @@ export default function ClansClient({
                       </button>
                     )}
                   </div>
+                  <div className="mt-1 text-xs text-text-muted">
+                    {c.owner ? `owner ${c.owner}` : 'no owner'} · joined {c.createdAt ? c.createdAt.slice(0, 10) : '—'}
+                  </div>
                 </td>
-                <td data-label="Health" className="px-4 py-3">
-                  {health[c.id] ? (
-                    <div className="w-60 max-sm:w-auto">
-                      <span className={`inline-block whitespace-nowrap rounded border px-2 py-0.5 text-[11px] font-bold ${HEALTH_STYLE[health[c.id].key]}`}>
-                        {health[c.id].label}
-                      </span>
-                      {health[c.id].flags.includes('trial-ending') && <span className="ml-1.5 text-[11px] font-semibold text-amber-300">trial ending</span>}
-                      {health[c.id].flags.includes('over-plan') && <span className="ml-1.5 text-[11px] font-semibold text-amber-300">over plan</span>}
-                      <div className="mt-1 text-xs text-gray-400">{health[c.id].reason}</div>
-                      <div className="mt-0.5 text-xs text-text-muted">
-                        {health[c.id].plugin7d} on the plugin, 7d · active {sinceLabel(health[c.id].lastActiveAt, now)}
-                      </div>
-                      {/* A clan that needs a look gets the note to its owner one click away. */}
-                      {canWrite && c.owner && inClanView('attention', health[c.id], health[c.id].billing) && (
-                        <MessageOwnerButton clanId={c.id} clanName={c.name} why={health[c.id].reason} className="mt-2" />
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-text-muted">unknown</span>
-                  )}
-                </td>
-                <td data-label="Owner" className="px-4 py-3 text-gray-300">
+                {(() => {
+                  const b = billingStatus(c, now);
+                  const h = health[c.id];
+                  const share = h && c.members > 0 ? Math.min(100, Math.round((h.plugin7d / c.members) * 100)) : 0;
+                  const over = c.memberCap != null && c.members > c.memberCap;
+                  return (
+                    <>
+                      <td data-label="Plan" className="stack-third px-4 py-3">
+                        <div className="capitalize text-gray-200">{c.plan || 'free'}</div>
+                        <div className={`text-xs ${b.state === 'lapsed' ? 'text-accent-red' : b.attention ? 'text-yellow-400' : 'text-text-muted'}`}>{b.label}</div>
+                      </td>
+                      <td data-label="Health" className="stack-third px-4 py-3">
+                        {h ? (
+                          <>
+                            <span className={`inline-block whitespace-nowrap rounded border px-2 py-0.5 text-[11px] font-bold ${HEALTH_STYLE[h.key]}`}>{h.label}</span>
+                            {h.flags.includes('trial-ending') && <div className="mt-1 text-[11px] font-semibold text-amber-300">trial ending</div>}
+                            {h.flags.includes('over-plan') && <div className="mt-1 text-[11px] font-semibold text-amber-300">over plan</div>}
+                          </>
+                        ) : (
+                          <span className="text-xs text-text-muted">unknown</span>
+                        )}
+                      </td>
+                      <td data-label="Members" className={`stack-third px-4 py-3 text-right tabular-nums ${over ? 'text-amber-300' : ''}`}>
+                        {c.members}
+                        {over && <span className="text-xs"> of {c.memberCap}</span>}
+                      </td>
+                      <td data-label="On the plugin, 7d" className="stack-third px-4 py-3">
+                        <span className="mr-2 inline-block h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.06] align-middle">
+                          <span className="block h-full rounded-full bg-gold" style={{ width: `${share}%` }} />
+                        </span>
+                        <span className="tabular-nums">{h ? h.plugin7d : '—'}</span>
+                      </td>
+                      <td data-label="Events run" className="stack-third px-4 py-3 text-right tabular-nums">{c.events}</td>
+                      <td data-label="Last active" className="stack-third px-4 py-3 text-gray-300">{h ? sinceLabel(h.lastActiveAt, now) : '—'}</td>
+                      <td data-label="Why it is here" className="px-4 py-3 text-xs text-gray-300">
+                        <div className="max-w-[18rem]">{h?.reason ?? ''}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {canWrite && c.owner && h && inClanView('attention', h, h.billing) && <MessageOwnerButton clanId={c.id} clanName={c.name} why={h.reason} />}
+                          <button
+                            type="button"
+                            onClick={() => setManage(manage === c.id ? null : c.id)}
+                            aria-expanded={manage === c.id}
+                            className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold"
+                          >
+                            {manage === c.id ? 'Close' : 'Manage'}
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  );
+                })()}
+              </tr>
+              {manage === c.id && (
+                <tr className={busy === c.id ? 'opacity-50' : undefined}>
+                  {/* Everything that CHANGES the clan, and how to reach its owner: out of the row, where
+                      twelve columns of it hid the four that say how the clan is doing. */}
+                  <td colSpan={9} className="border-t border-card-border/60 bg-black/20 px-4 py-4">
+                    <div className="grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Owner</div>
+                      <div className="text-gray-300">
                   {c.owner ? (
                     /* THE NAME WAS ALL THIS SAID, which is the one thing you cannot contact somebody
                        with. The profile link opens a DM-able Discord profile; the email is the
@@ -518,42 +561,10 @@ export default function ClansClient({
                       )}
                     </span>
                   )}
-                </td>
-                <td data-label="Created" className="stack-third px-4 py-3 text-xs text-gray-400" title={c.createdAt}>
-                  {/* Two timestamp formats live in these columns and only the date prefix means the
-                      same thing in both (lib/dbTime) — so the date prefix is what is shown. */}
-                  {c.createdAt ? c.createdAt.slice(0, 10) : '—'}
-                </td>
-                {(() => {
-                  const b = billingStatus(c, now);
-                  const l = liveness(c, now);
-                  return (
-                    <>
-                      <td data-label="Subscription" className="stack-third px-4 py-3">
-                        <span
-                          className={`text-xs ${
-                            b.state === 'lapsed'
-                              ? 'text-accent-red'
-                              : b.attention
-                                ? 'text-yellow-400'
-                                : 'text-gray-400'
-                          }`}
-                        >
-                          {b.label}
-                        </span>
-                      </td>
-                      <td data-label="Last sync" className="stack-third px-4 py-3">
-                        <span className={`text-xs tabular-nums ${l.quiet ? 'text-yellow-400' : 'text-gray-400'}`}>
-                          {l.syncDays == null ? 'never' : l.syncDays === 0 ? 'today' : `${l.syncDays}d`}
-                        </span>
-                      </td>
-                    </>
-                  );
-                })()}
-                <td data-label="Members" className="stack-third px-4 py-3 text-right tabular-nums">{c.members}</td>
-                <td data-label="Guests" className="stack-third px-4 py-3 text-right tabular-nums text-gray-400">{c.guests}</td>
-                <td data-label="Events" className="stack-third px-4 py-3 text-right tabular-nums">{c.events}</td>
-                <td data-label="Status" className="stack-half px-4 py-3">
+                      </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Status</div>
                   {canWrite ? (
                     <Select
                       value={c.status}
@@ -566,8 +577,9 @@ export default function ClansClient({
                   ) : (
                     <span className={`text-xs ${STATUS_STYLE[c.status] ?? ''}`}>{c.status}</span>
                   )}
-                </td>
-                <td data-label="Plan" className="stack-half px-4 py-3">
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Plan</div>
                   {canWrite ? (
                     <Select
                       value={c.plan}
@@ -581,13 +593,9 @@ export default function ClansClient({
                   ) : (
                     <span className="text-xs text-gray-300">{c.plan}</span>
                   )}
-                </td>
-                {/* The cap the PLAN implies is only a starting point. A clan mid-migration, one being
-                    let off while something is fixed, or one on a deal that is not a tier all need a
-                    number the price list does not have — so this overrides it, and empty means no cap
-                    at all rather than a cap of nothing. Changing the plan resets it unless the same
-                    request says otherwise, which is why this sends only the cap. */}
-                <td data-label="Seat cap" className="stack-half px-4 py-3">
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Seat cap</div>
                   {canWrite ? (
                     <CapCell
                       cap={c.memberCap}
@@ -598,9 +606,20 @@ export default function ClansClient({
                   ) : (
                     <span className="text-xs text-gray-300">{c.memberCap ?? 'none'}</span>
                   )}
-                </td>
-                {canWrite && (
-                  <td data-label="Access" className="stack-half px-4 py-3">
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Roster</div>
+                        <div className="text-gray-300">
+                          {c.members} members · {c.guests} guests · last sync{' '}
+                          {(() => {
+                            const l = liveness(c, now);
+                            return <span className={l.quiet ? 'text-yellow-400' : ''}>{l.syncDays == null ? 'never' : l.syncDays === 0 ? 'today' : `${l.syncDays}d ago`}</span>;
+                          })()}
+                        </div>
+                      </div>
+                      {canWrite && (
+                      <div className="min-w-0">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Access</div>
                     {liveByClan.has(c.id) ? (
                       <button
                         onClick={() => handBack(liveByClan.get(c.id)!.id, c.id)}
@@ -654,9 +673,13 @@ export default function ClansClient({
                         Act as…
                       </button>
                     )}
+                      </div>
+                      )}
+                    </div>
                   </td>
-                )}
-              </tr>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

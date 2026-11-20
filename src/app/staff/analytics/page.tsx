@@ -4,11 +4,12 @@ import { notFound } from 'next/navigation';
 import { requireOwnerPage } from '@/lib/ownerAccess';
 import { ownerOverview, CONVERSION_KINDS, type ConversionKind } from '@/lib/analyticsAttribution';
 import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
-import { analyticsOverview, type DailyPoint } from '@/lib/analyticsRead';
+import { analyticsOverview, clanSources, type DailyPoint } from '@/lib/analyticsRead';
+import { foundViaLabel } from '@/lib/noticeRules';
 import { pluginUsersNow } from '@/lib/pluginUsersRead';
 import MessageOwnerButton from '../_components/MessageOwnerButton';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
-import { unusedFeatures, type FeatureUsage } from '@/lib/featureRegistry';
+import { clanChange, featureGrid, sourcesThatStay, unusedFeatures } from '@/lib/featureRegistry';
 import ScrollStrip from '@/components/ScrollStrip';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,10 @@ export default async function StaffAnalyticsPage({
   const sp = await searchParams;
   const days = parseWindow(sp.days);
   const tab: AnalyticsTab = ANALYTICS_TABS.some((t) => t.key === sp.tab) ? (sp.tab as AnalyticsTab) : 'adoption';
-  const [a, o, plugin] = await Promise.all([analyticsOverview(days), ownerOverview(days), pluginUsersNow()]);
+  const [a, o, plugin, sourceRows] = await Promise.all([analyticsOverview(days), ownerOverview(days), pluginUsersNow(), clanSources().catch(() => [])]);
+  const grid = featureGrid(a.features, a.clanActivity.filter((c) => c.status === 'active'));
+  const activeNow = new Set(a.clanActivity.filter((c) => c.pluginUsers7d > 0).map((c) => c.id));
+  const sources = sourcesThatStay(sourceRows.map((c) => ({ foundVia: c.foundVia, events: c.events, activeNow: activeNow.has(c.id) })), foundViaLabel);
   const versionTotal = plugin.versions.reduce((n, v) => n + v.accounts, 0);
   // Every clan on Anvil: what "N of M clans use it" is out of.
   const clanTotal = a.clanActivity.length;
@@ -91,7 +95,7 @@ export default async function StaffAnalyticsPage({
       <Section title="Who uses what">
         <Card>
           <p className="mb-3 text-xs text-text-muted">
-            Counted by the clans and people using a feature in the last 30 days, never by how often it fired: a kill tile
+            Counted by the clans and people using a feature in the last {days} days (the window chosen above), never by how often it fired: a kill tile
             files a submission for every kill, so one busy board can fire thousands of times and still be one clan. Sorted by
             clans. Proof submission is left out: every board needs it.
           </p>
@@ -102,9 +106,10 @@ export default async function StaffAnalyticsPage({
                   <th className="py-1.5 pr-4 font-medium">Feature</th>
                   <th className="py-1.5 pr-3 font-medium">Clans using it</th>
                   <th className="py-1.5 pr-3 text-right font-medium">People</th>
-                  <th className="py-1.5 pr-3 text-right font-medium">Against the 30 days before</th>
+                  <th className="py-1.5 pr-3 font-medium">Against the {days} days before</th>
+                  <th className="py-1.5 pr-3 font-medium">Kept using it</th>
                   <th className="py-1.5 pr-3 text-right font-medium">Last used</th>
-                  <th className="py-1.5 text-right font-medium text-text-muted/70">Times fired, 30d</th>
+                  <th className="py-1.5 text-right font-medium text-text-muted/70">Times fired, {days}d</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,7 +131,10 @@ export default async function StaffAnalyticsPage({
                         </span>
                       </td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">{f.people.toLocaleString()}</td>
-                      <td className={`py-1.5 pr-3 text-right tabular-nums ${trendTone(f)}`}>{trendText(f)}</td>
+                      <td className={`py-1.5 pr-3 ${CHANGE_TONE[clanChange(f).tone]}`}>{clanChange(f).text}</td>
+                      <td className="py-1.5 pr-3 tabular-nums text-gray-300">
+                        {f.prevClans > 0 ? `${f.kept} of ${f.prevClans}` : <span className="text-text-muted">n/a</span>}
+                      </td>
                       <td className="py-1.5 pr-3 text-right text-xs text-text-muted">{f.lastUsed}</td>
                       <td className="py-1.5 text-right text-xs tabular-nums text-text-muted/70">{f.uses30.toLocaleString()}</td>
                     </tr>
@@ -140,6 +148,45 @@ export default async function StaffAnalyticsPage({
               <div className="text-xs font-medium text-text-muted">Built, and nobody has used it in 90 days</div>
               <p className="mt-1 text-sm text-amber-400">{unusedFeatures(a.features).map((f) => f.label).join(' · ')}</p>
             </div>
+          )}
+        </Card>
+      </Section>
+
+      <Section title="By clan">
+        <Card>
+          <p className="mb-3 text-xs text-text-muted">
+            The {grid.features.length} most adopted features, and which clans used each in the last {days} days. A clan on one
+            of them is the one to show the others to.
+          </p>
+          {grid.rows.length === 0 ? (
+            <Empty />
+          ) : (
+            <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-text-muted">
+                  <tr>
+                    <th className="py-1.5 pr-4 font-medium">Clan</th>
+                    {grid.features.map((f) => (
+                      <th key={f.key} className="py-1.5 pr-3 font-medium">{f.label}</th>
+                    ))}
+                    <th className="py-1.5 text-right font-medium">Uses</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grid.rows.map((r) => (
+                    <tr key={r.id} className="border-t border-card-border">
+                      <td className="py-1.5 pr-4">
+                        <ClanLink href={`/staff/clans/${r.id}`} className="text-gold-light hover:text-gold">{r.name}</ClanLink>
+                      </td>
+                      {r.uses.map((u, i) => (
+                        <td key={grid.features[i].key} className={`py-1.5 pr-3 ${u ? 'text-emerald-400' : 'text-text-muted/60'}`}>{u ? 'yes' : 'no'}</td>
+                      ))}
+                      <td className="py-1.5 text-right tabular-nums text-gray-300">{r.count} of {grid.features.length}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollStrip>
           )}
         </Card>
       </Section>
@@ -255,6 +302,41 @@ export default async function StaffAnalyticsPage({
                           );
                         })()}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollStrip>
+          )}
+        </Card>
+      </Section>
+
+      <Section title="Which sources bring clans that stay">
+        <Card>
+          <p className="mb-3 text-xs text-text-muted">
+            The answer each owner gave to &ldquo;Where did you find Anvil?&rdquo;, against what the clan did next. Every active
+            clan, whenever it was created.
+          </p>
+          {sources.length === 0 ? (
+            <Empty />
+          ) : (
+            <ScrollStrip as="div" className="overflow-x-auto overflow-y-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-text-muted">
+                  <tr>
+                    <th className="py-1.5 pr-4 font-medium">Found Anvil through</th>
+                    <th className="py-1.5 pr-3 text-right font-medium">Clans</th>
+                    <th className="py-1.5 pr-3 text-right font-medium">Made an event</th>
+                    <th className="py-1.5 text-right font-medium">Players on the plugin this week</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map((s) => (
+                    <tr key={s.key} className="border-t border-card-border">
+                      <td className={`py-1.5 pr-4 ${s.key === 'unanswered' ? 'text-text-muted' : 'text-gray-200'}`}>{s.label}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{s.clans}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{s.ranEvent} of {s.clans}</td>
+                      <td className="py-1.5 text-right tabular-nums">{s.activeNow} of {s.clans}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -510,8 +592,7 @@ const KIND_LABEL: Record<ConversionKind, string> = {
 };
 const JOURNEY_COLS: [string, string][] = [['discord', 'Discord'], ['roster', 'Roster'], ['event', 'First event'], ['started', 'Started']];
 
-const trendText = (f: FeatureUsage) => (f.trend === null ? (f.uses30 > 0 ? 'new' : '—') : `${f.trend >= 0 ? '+' : ''}${Math.round(f.trend * 100)}%`);
-const trendTone = (f: FeatureUsage) => (f.trend === null ? 'text-text-muted' : f.trend < 0 ? 'text-amber-400' : 'text-gray-200');
+const CHANGE_TONE = { up: 'text-emerald-400', down: 'text-amber-400', flat: 'text-text-muted' } as const;
 
 const sum = (s: DailyPoint[]) => s.reduce((n, p) => n + p.count, 0);
 const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : '—');

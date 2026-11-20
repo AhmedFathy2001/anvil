@@ -90,6 +90,34 @@ function PersonCard({
         <p className="mt-2 text-sm text-red-300">Reason: {person.bannedReason}</p>
       )}
 
+      {/* What they hold and how they came by it, before anything else: it is the first thing asked
+          about a person who writes in. Past memberships stay listed, dimmed. */}
+      {person.supporter && person.supporter.length > 0 && (
+        <div className="mt-3">
+          <div className="mb-1.5 text-xs uppercase tracking-wide text-gray-500">Supporter</div>
+          <ul className="space-y-1 text-sm">
+            {person.supporter.map((m, i) => (
+              <li key={i} className={`flex flex-wrap items-baseline gap-x-2 ${m.inForce ? '' : 'opacity-60'}`}>
+                <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] font-bold ${m.inForce ? (SUPPORTER_STYLE[m.tier] ?? 'border-card-border text-gray-200') : 'border-card-border text-gray-400'}`}>
+                  {m.tier.charAt(0).toUpperCase() + m.tier.slice(1)}
+                </span>
+                <span className="text-gray-300">
+                  {m.how === 'paid' ? `paid${m.recurrence ? ` ${m.recurrence}` : ''}` : m.how === 'gift' ? 'a gift someone bought' : m.how === 'staff' ? 'staff gift' : 'invite time'}
+                </span>
+                <span className="text-xs text-text-muted">
+                  since {m.startedAt.slice(0, 10)}
+                  {m.inForce
+                    ? m.endsAt
+                      ? ` · ${m.how === 'paid' && m.status === 'active' ? 'renews' : 'ends'} ${m.endsAt.slice(0, 10)}`
+                      : ' · no end date'
+                    : ` · ${m.status === 'refunded' ? 'refunded' : 'ended'} ${(m.endedAt ?? m.endsAt ?? '').slice(0, 10)}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
           <div className="mb-1.5 text-xs uppercase tracking-wide text-gray-500">

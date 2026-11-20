@@ -13,10 +13,10 @@
 //     and a main plus an alt is genuinely two seats.
 //   - `leftAt IS NULL` everywhere: a clan's size is who is there now, not who ever was.
 
-import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, not, or, sql } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, ne, inArray, isNull, like, not, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, supporterSubscriptions, users, weeklyCompetitions } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 import { subscriptionFacts } from '@/lib/clanBilling';
 import { LAB_CLAN_SLUG, LAB_DUMMY_LOGIN } from '@/lib/labRules';
@@ -301,6 +301,38 @@ export interface PersonHit {
   /** May write the Anvil guide library (users.platform_guide_editor). */
   platformGuideEditor: boolean;
   userId: number | null;
+  /**
+   * Every Supporter membership this person has held, newest first: the tier, how they got it (paid,
+   * a gift somebody bought, staff time), when it began and when it ends or ended, and whether it is
+   * in force now. Absent on a row built without it.
+   */
+  supporter?: PersonSupporter[];
+}
+
+export interface PersonSupporter {
+  tier: string;
+  how: 'paid' | 'gift' | 'staff' | 'invite';
+  recurrence: string | null;
+  status: string;
+  startedAt: string;
+  /** The end of the paid or gifted period; null = no end date. */
+  endsAt: string | null;
+  endedAt: string | null;
+  inForce: boolean;
+}
+
+/** How a Supporter row was come by, from its recurrence (lib/supporter). Pure. */
+export function supporterHow(recurrence: string | null): PersonSupporter['how'] {
+  return recurrence === 'gift' ? 'staff' : recurrence === 'gift-paid' ? 'gift' : recurrence === 'invite' ? 'invite' : 'paid';
+}
+
+/** Is this row giving its tier right now? The same rule the list's filter uses. Pure. */
+export function membershipInForce(r: { status: string; currentPeriodEnd: string | null }, nowIso: string): boolean {
+  const end = r.currentPeriodEnd ? r.currentPeriodEnd.replace(' ', 'T') : null;
+  if (r.status === 'active' || r.status === 'cancelling') return true;
+  if (r.status === 'granted') return end == null || end > nowIso;
+  if (r.status === 'ended') return end != null && end > nowIso;
+  return false;
 }
 
 /**
@@ -401,6 +433,15 @@ export async function personDetail(playerId: number): Promise<PersonHit | null> 
       .orderBy(clans.name),
     db.query.users.findFirst({ where: eq(users.playerId, playerId) }),
   ]);
+  // clan-scope: global -- a membership belongs to a person's login, not to a clan
+  const memberships = await db
+    .select({ tier: supporterSubscriptions.tier, status: supporterSubscriptions.status, recurrence: supporterSubscriptions.recurrence, startedAt: supporterSubscriptions.startedAt, currentPeriodEnd: supporterSubscriptions.currentPeriodEnd, endedAt: supporterSubscriptions.endedAt })
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
+    .where(and(eq(users.playerId, playerId), ne(supporterSubscriptions.status, 'queued')))
+    .orderBy(desc(supporterSubscriptions.startedAt))
+    .catch(() => []);
+  const nowIso = new Date().toISOString();
 
   return {
     playerId,
@@ -418,6 +459,7 @@ export async function personDetail(playerId: number): Promise<PersonHit | null> 
     platformRole: login?.platformRole ?? 'none',
     platformGuideEditor: login?.platformGuideEditor === true,
     userId: login?.id ?? null,
+    supporter: memberships.map((m) => ({ tier: m.tier, how: supporterHow(m.recurrence), recurrence: m.recurrence, status: m.status, startedAt: m.startedAt, endsAt: m.currentPeriodEnd, endedAt: m.endedAt, inForce: membershipInForce(m, nowIso) })),
   };
 }
 

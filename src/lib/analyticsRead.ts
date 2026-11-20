@@ -320,7 +320,7 @@ async function clanActivity(): Promise<ClanActivityRow[]> {
  * distinct clans and people can be counted in `rankFeatures` (pure, tested) rather than in SQL that
  * could not tell one feature's actions from another's.
  */
-async function featureUsage(): Promise<FeatureUsage[]> {
+async function featureUsage(period: number): Promise<FeatureUsage[]> {
   const names = registryNames();
   const pageMatch = [
     ...names.exact.map((p) => sql`name = ${p}`),
@@ -341,7 +341,7 @@ async function featureUsage(): Promise<FeatureUsage[]> {
     select kind, name, props->>'fmt' as fmt, props->>'type' as type, props->>'kind' as tile_kind,
            clan_id, user_id, account_id, left(ts, 10) as day, count(*) as n
       from analytics_events
-     where ts >= ${windowStart(90)}
+     where ts >= ${windowStart(Math.max(90, period * 2))}
        and (kind = 'action'
             or (kind = 'plugin' and name in (${sql.join(names.plugin.map((p) => sql`${p}`), sql`, `)}))
             or (kind = 'page' and (${sql.join(pageMatch, sql` or `)})))
@@ -359,7 +359,7 @@ async function featureUsage(): Promise<FeatureUsage[]> {
     day: x.day,
     n: num(x.n),
   }));
-  return rankFeatures(usage);
+  return rankFeatures(usage, new Date(), undefined, period);
 }
 
 /**
@@ -444,6 +444,17 @@ async function firstEventFlow(days: number): Promise<FunnelRow[]> {
   );
 }
 
+/** Every active clan with where it said it found Anvil and how many events it has made (lib/featureRegistry sourcesThatStay). */
+export async function clanSources(): Promise<{ id: number; foundVia: string | null; events: number }[]> {
+  const r = await rows<{ id: number; found_via: string | null; events: number }>(sql`
+    select c.id, c.found_via,
+           (select count(*) from events e where e.clan_id = c.id) + (select count(*) from weekly_competitions w where w.clan_id = c.id) as events
+      from clans c
+     where c.status = 'active'
+  `);
+  return r.map((x) => ({ id: num(x.id), foundVia: x.found_via, events: num(x.events) }));
+}
+
 export async function analyticsOverview(days: number): Promise<AnalyticsOverview> {
   const from = windowStart(days);
   const [head, series, routes, actions, plugin, conv, cf, mf, clans, joins, features, newEvent, firstEvent] = await Promise.all([
@@ -457,7 +468,7 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     memberFunnel(days),
     clanActivity(),
     discordJoins(from),
-    featureUsage(),
+    featureUsage(days),
     newEventFlow(days),
     firstEventFlow(days),
   ]);

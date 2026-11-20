@@ -323,3 +323,24 @@ test('first event: per clan, each counted as far as its first missing step', () 
   assert.deepEqual(rows.map((r) => r.count), [5, 3, 2, 2, 2, 2, 1]);
   assert.equal(worstStep(rows)?.key, 'started');
 });
+
+test('feature counts follow the period: clans against the period before, and who kept using it', async () => {
+  const { clanChange, featureGrid, sourcesThatStay } = await import('../src/lib/featureRegistry.ts');
+  const day = (ago: number) => new Date(NOW.getTime() - ago * 86_400_000).toISOString().slice(0, 10);
+  const rows = [
+    row({ name: 'weekly.joined', clanId: 1, day: day(2) }),
+    row({ name: 'weekly.joined', clanId: 2, day: day(3) }),
+    row({ name: 'weekly.joined', clanId: 1, day: day(10) }),
+    row({ name: 'weekly.joined', clanId: 3, day: day(12) }),
+  ];
+  const week = rankFeatures(rows, NOW, undefined, 7).find((f) => f.uses30 > 0)!;
+  assert.deepEqual([week.period, week.clans, week.prevClans, week.kept], [7, 2, 2, 1]);
+  assert.deepEqual(clanChange(week), { text: 'no change', tone: 'flat' });
+  assert.deepEqual(clanChange({ clans: 3, prevClans: 1 }), { text: '2 more clans', tone: 'up' });
+  assert.deepEqual(clanChange({ clans: 1, prevClans: 2 }), { text: '1 fewer clan', tone: 'down' });
+  assert.deepEqual(clanChange({ clans: 2, prevClans: 0 }), { text: 'new', tone: 'up' });
+  const grid = featureGrid(rankFeatures(rows, NOW, undefined, 7), [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 9, name: 'Unused' }]);
+  assert.deepEqual(grid.rows.map((r) => [r.name, r.count]), [['A', 1], ['B', 1]]);
+  const src = sourcesThatStay([{ foundVia: 'reddit', events: 2, activeNow: true }, { foundVia: 'reddit', events: 0, activeNow: false }, { foundVia: null, events: 1, activeNow: false }, { foundVia: 'made-up', events: 0, activeNow: false }], (id) => (id === 'reddit' ? 'Reddit' : null));
+  assert.deepEqual(src, [{ key: 'reddit', label: 'Reddit', clans: 2, ranEvent: 1, activeNow: 1 }, { key: 'unanswered', label: 'Did not say', clans: 2, ranEvent: 1, activeNow: 0 }]);
+});
