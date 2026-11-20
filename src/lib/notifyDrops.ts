@@ -412,8 +412,9 @@ export function judgeDropFor(c: DropCandidate, ctx: JudgeContext, hooks: HookDro
     ids.push(h.id);
     facts ??= own;
   }
-  const strict = { ...base, value: base.value > 0 ? Math.max(DROP_MINIMUMS.value, base.value) : 0, rarity: base.rarity > 0 ? Math.max(DROP_MINIMUMS.rarity, base.rarity) : 0 };
-  const shared = !!person && (c.notable != null || c.key === true || (strict.value === base.value && strict.rarity === base.rarity) || !!judgeDrop(c, ctx, strict));
+  const strict = { ...base, value: base.value > 0 ? Math.max(DROP_MINIMUMS.value, base.value) : 0, rarity: base.rarity > 0 ? Math.max(DROP_MINIMUMS.rarity, base.rarity) : 0, big: base.big > 0 ? Math.max(DROP_MINIMUMS.value, base.big) : 0 };
+  const sharedOk = strict.value === base.value && strict.rarity === base.rarity && strict.big === base.big;
+  const shared = !!person && (c.notable != null || c.key === true || sharedOk || !!judgeDrop(c, ctx, strict));
   return facts ? { facts, clan: clanOk, shared, hooks: ids } : null;
 }
 

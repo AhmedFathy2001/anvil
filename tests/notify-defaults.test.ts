@@ -235,3 +235,12 @@ test("a member's own always-post list is kept tidy", async () => {
   assert.deepEqual(normalizeItemNames([' Dragon  warhammer ', 'dragon warhammer', 3, '', 'Olmlet']), ['Dragon warhammer', 'Olmlet']);
   assert.equal(normalizeItemNames(Array.from({ length: 80 }, (_, i) => `Item ${i}`)).length, 50);
 });
+
+test("rule 2 can't be set below Anvil's value minimum, and a guest clan never gets less than it", () => {
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, dropBig: 1 }).big, 1_000_000, 'a member typing 1 gp gets the 1m minimum');
+  assert.equal(dropGates({ ...NOTIFY_DEFAULTS, dropBig: 1 }, clan({ big: 200_000 })).big, 200_000, 'as loose as their own clan chose');
+  const cheap = { id: 9, name: 'Cheap', qty: 1, value: 300_000 };
+  const v = judgeDropFor(zulrah([cheap]), ctx({ clan: clan({ value: 100_000, big: 200_000 }) }), []);
+  assert.ok(v && v.clan, 'their own clan takes it');
+  assert.equal(v?.shared, false, 'a clan they only guest in does not');
+});

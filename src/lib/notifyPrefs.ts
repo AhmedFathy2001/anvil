@@ -322,7 +322,12 @@ export function dropGates(p: Pick<NotifyPrefs, 'dropMin' | 'rarity'> & { dropMod
     value: value <= 0 ? 0 : Math.max(minValue, value),
     rarity: rarity <= 0 ? 0 : Math.max(minRarity, rarity, hard),
     mode: p.dropMode ?? clan.mode ?? PLATFORM_DROP_DEFAULTS.mode,
-    big: Math.max(0, p.dropBig ?? (clan.big != null && clan.big > 0 ? clan.big : 0)),
+    // As loose as the clan's own rule 2 or Anvil's value minimum, whichever is looser: never 1 gp.
+    big: (() => {
+      const clanBig = clan.big != null && clan.big > 0 ? clan.big : null;
+      const big = p.dropBig ?? clanBig ?? 0;
+      return big <= 0 ? 0 : p.dropBig != null ? Math.max(Math.min(DROP_MINIMUMS.value, clanBig ?? Infinity), big) : big;
+    })(),
     valueSource,
     raritySource,
     modeSource,
