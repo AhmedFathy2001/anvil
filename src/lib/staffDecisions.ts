@@ -12,6 +12,8 @@ export interface DecisionClan {
   why: string;
   /** Has an owner on record to write to. */
   hasOwner: boolean;
+  /** The note to its owner is a welcome, not a problem. */
+  welcome?: boolean;
 }
 
 export interface Decision {
@@ -25,6 +27,8 @@ export interface Decision {
   /** Where to go to act on it, when it is not one clan. */
   href?: string;
   hrefLabel?: string;
+  /** How big it is (clans named, errors open…): a dismissed line returns when this grows. */
+  size: number;
 }
 
 export interface DecisionClanInput {
@@ -43,6 +47,40 @@ export interface DecisionClanInput {
   botMissing: boolean;
   /** Has run an event and has players on the plugin: the signs a trial converts. */
   engaged: boolean;
+  /** Whole days since it was created; null when unknown. */
+  ageDays: number | null;
+}
+
+/** A clan is "new" on Today for this long: the window in which a hello from a person lands best. */
+export const NEW_CLAN_DAYS = 14;
+
+/**
+ * Dismissed lines, as `{ key: size when dismissed }`. A line stays hidden while it is no bigger than
+ * that, and comes back the moment it grows: one more clan stuck, more errors open.
+ */
+export type Dismissed = Record<string, number>;
+
+export function parseDismissed(raw: string | null | undefined): Dismissed {
+  try {
+    const o = JSON.parse(raw ?? '{}') as unknown;
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    const out: Dismissed = {};
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && /^[a-z-]{1,40}$/.test(k)) out[k] = v;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function applyDismissed(decisions: Decision[], dismissed: Dismissed): { open: Decision[]; hidden: number } {
+  const open = decisions.filter((d) => !(d.key in dismissed) || d.size > dismissed[d.key]);
+  return { open, hidden: decisions.length - open.length };
+}
+
+/** `dismissed` with lines that no longer exist dropped, so a line that went away and returns is shown. */
+export function pruneDismissed(decisions: Decision[], dismissed: Dismissed): Dismissed {
+  const live = new Set(decisions.map((d) => d.key));
+  return Object.fromEntries(Object.entries(dismissed).filter(([k]) => live.has(k)));
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -57,8 +95,8 @@ export function buildDecisions(input: {
   const out: Decision[] = [];
   const pick = (test: (c: DecisionClanInput) => boolean, why: (c: DecisionClanInput) => string): DecisionClan[] =>
     input.clans.filter(test).map((c) => ({ id: c.id, name: c.name, why: why(c), hasOwner: c.hasOwner }));
-  const add = (d: Omit<Decision, 'clans'> & { clans: DecisionClan[] }) => {
-    if (d.clans.length > 0 || d.href) out.push(d);
+  const add = (d: Omit<Decision, 'clans' | 'size'> & { clans: DecisionClan[]; size?: number }) => {
+    if (d.clans.length > 0 || d.href) out.push({ ...d, size: d.size ?? d.clans.length });
   };
 
   const noBot = pick((c) => c.botMissing, () => 'The Anvil bot is not in the Discord server it saved');
@@ -103,6 +141,18 @@ export function buildDecisions(input: {
   const unverified = pick((c) => !c.verified && !c.creator && c.hasOwner, () => 'Nobody has proved the in-game clan is theirs');
   add({ key: 'unverified', tone: 'stuck', tag: 'Unverified', title: `${plural(unverified.length, 'clan is', 'clans are')} unverified`, detail: 'It cannot sync a roster until an owner-rank character does, or you verify it by hand.', clans: unverified });
 
+  // NEW CLANS: not a problem, a moment. An owner who hears from a person in the first days is the
+  // one who writes back when something does not work, instead of quietly leaving.
+  const fresh = input.clans
+    .filter((c) => c.ageDays != null && c.ageDays <= NEW_CLAN_DAYS && c.hasOwner)
+    .sort((a, b) => (a.ageDays ?? 0) - (b.ageDays ?? 0))
+    .map((c) => ({ id: c.id, name: c.name, hasOwner: true, welcome: true, why: `${c.creator ? 'Creator space, created' : 'Created'} ${c.ageDays === 0 ? 'today' : `${plural(c.ageDays ?? 0, 'day', 'days')} ago`}${c.engaged ? ', already running with players on the plugin' : ''}` }));
+  // Creator spaces are made the same way and their owners are just as new: named for what they are.
+  const freshSpaces = input.clans.filter((c) => c.creator && c.ageDays != null && c.ageDays <= NEW_CLAN_DAYS && c.hasOwner).length;
+  const freshClans = fresh.length - freshSpaces;
+  const freshWhat = [freshClans > 0 ? plural(freshClans, 'clan', 'clans') : null, freshSpaces > 0 ? plural(freshSpaces, 'creator space', 'creator spaces') : null].filter(Boolean).join(' and ');
+  add({ key: 'new-clans', tone: 'info', tag: 'New', title: `${freshWhat} ${fresh.length === 1 ? 'was' : 'were'} created in the last ${NEW_CLAN_DAYS} days`, detail: 'Say hello while it is new. The draft is a welcome; edit it before it goes.', clans: fresh, size: Math.max(0, ...fresh.map((c) => c.id)) });
+
   // The plugin: only worth a line while most players are still on an older build.
   const total = input.versions.reduce((n, v) => n + v.accounts, 0);
   const newest = input.versions[0];
@@ -116,10 +166,11 @@ export function buildDecisions(input: {
       clans: [],
       href: '/staff/analytics?tab=plugin',
       hrefLabel: 'Version spread',
+      size: total - newest.accounts,
     });
   }
   if (input.errors > 0) {
-    out.push({ key: 'errors', tone: 'info', tag: 'Errors', title: `${plural(input.errors, 'error is', 'errors are')} unresolved`, detail: 'Grouped by cause on the Errors page.', clans: [], href: '/staff/errors', hrefLabel: 'Open errors' });
+    out.push({ key: 'errors', tone: 'info', tag: 'Errors', title: `${plural(input.errors, 'error is', 'errors are')} unresolved`, detail: 'Grouped by cause on the Errors page.', clans: [], size: input.errors, href: '/staff/errors', hrefLabel: 'Open errors' });
   }
   return out.sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone));
 }

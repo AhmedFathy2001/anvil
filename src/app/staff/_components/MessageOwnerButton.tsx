@@ -15,16 +15,19 @@ export default function MessageOwnerButton({
   clanId,
   clanName,
   why,
+  welcome = false,
   className = '',
 }: {
   clanId: number;
   clanName: string;
   /** The reason the clan is being looked at, to open the draft with. */
   why: string | null;
+  /** A hello to a clan that has just been made, in place of the note about a problem. */
+  welcome?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const first = ownerMessageDraft(clanName, why);
+  const first = ownerMessageDraft(clanName, why, welcome);
   const [text, setText] = useState(first);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export default function MessageOwnerButton({
         }}
         className={`min-h-10 whitespace-nowrap rounded-lg border border-card-border px-3 text-sm text-gray-200 transition-colors hover:border-gold/50 hover:text-gold ${className}`}
       >
-        {sent ? 'Sent · message again' : 'Message owner'}
+        {sent ? 'Sent · message again' : welcome ? 'Say hello' : 'Message owner'}
       </button>
       {open && (
         <DialogFrame

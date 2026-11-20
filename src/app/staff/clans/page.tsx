@@ -10,6 +10,8 @@ import { db } from '@/db';
 import { clans as clansTable } from '@/db/schema';
 import { foundViaLabel } from '@/lib/noticeRules';
 import { count, desc, isNotNull } from 'drizzle-orm';
+import { runningPlanTrials } from '@/lib/planTrials';
+import { tierNameOf } from '@/lib/planTrialRules';
 import ClansClient from './ClansClient';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +36,15 @@ export default async function StaffClansPage() {
       .orderBy(desc(count())),
   ]);
 
+  // A FREE TRIAL OF A HIGHER PLAN changes what the clan can do without changing the plan it is on
+  // record as paying for, so the list said "Free" for a space running on Gold. Shown beside the plan.
+  const running = await runningPlanTrials(clans.map((c) => c.id)).catch(() => new Map<number, { tier: string; endsAt: number }>());
+  const trials: Record<number, { name: string; endsAt: number }> = {};
+  for (const c of clans) {
+    const t = running.get(c.id);
+    if (t) trials[c.id] = { name: tierNameOf(c.kind, t.tier), endsAt: t.endsAt };
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold">Clans</h1>
@@ -55,6 +66,7 @@ export default async function StaffClansPage() {
       <div className="mt-6">
         <ClansClient
           health={health}
+          trials={trials}
           // Owner and billing emails are whole for the top platform role only (lib/staffSight).
           clans={clans.map((c) => ({
             ...c,

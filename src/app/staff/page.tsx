@@ -7,7 +7,9 @@ import { clansWithHealth } from '@/lib/clanHealthDb';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { pluginUsersNow } from '@/lib/pluginUsersRead';
-import { buildDecisions, type DecisionTone } from '@/lib/staffDecisions';
+import { applyDismissed, buildDecisions, type DecisionTone } from '@/lib/staffDecisions';
+import { readDismissed } from '@/lib/staffDismissed';
+import DismissDecision from './_components/DismissDecision';
 import { staffPending } from '@/lib/staffPending';
 import MessageOwnerButton from './_components/MessageOwnerButton';
 import ClanLink from '@/components/ClanLink';
@@ -51,7 +53,7 @@ export default async function StaffOverview() {
   if (!actor) notFound();
   const canWrite = hasPlatformRole(actor.role, 'staff');
   const now = Date.now();
-  const [t, multi, collisions, { clans, health, servers }, pending, plugin, supporters] = await Promise.all([
+  const [t, multi, collisions, { clans, health, servers }, pending, plugin, supporters, dismissed] = await Promise.all([
     platformTotals(),
     multiClanPeople(10),
     nameCollisions(),
@@ -59,6 +61,7 @@ export default async function StaffOverview() {
     staffPending(),
     pluginUsersNow(now).catch(() => null),
     supportersInForce(now).catch(() => null),
+    readDismissed(),
   ]);
 
   // WHAT IS WAITING ON A PERSON, as opposed to what the numbers say. Every one of these is a state a
@@ -67,7 +70,7 @@ export default async function StaffOverview() {
   // part that is a tool (lib/staffDecisions: worst first, each with the clans it is about and why).
   const active = clans.filter((c) => c.status === 'active');
   const botMissing = new Set(servers.missing.map((m) => m.id));
-  const decisions = buildDecisions({
+  const allDecisions = buildDecisions({
     clans: active.map((c) => {
       const h = health[c.id];
       return {
@@ -84,11 +87,13 @@ export default async function StaffOverview() {
         billingLabel: billingStatus(c, now).label,
         botMissing: botMissing.has(c.id),
         engaged: c.events > 0 && (h?.plugin7d ?? 0) > 0,
+        ageDays: c.createdAt && !Number.isNaN(Date.parse(c.createdAt.slice(0, 10))) ? Math.max(0, Math.floor((now - Date.parse(c.createdAt.slice(0, 10))) / 86_400_000)) : null,
       };
     }),
     errors: pending.errors,
     versions: plugin?.versions ?? [],
   });
+  const { open: decisions, hidden: hiddenDecisions } = applyDismissed(allDecisions, dismissed);
   const activeThisWeek = active.filter((c) => (health[c.id]?.plugin7d ?? 0) > 0).length;
   const paying = active.filter((c) => ['active', 'cancelling'].includes(health[c.id]?.billing ?? '')).length;
   const waiting: [string, number, string][] = [
@@ -120,9 +125,12 @@ export default async function StaffOverview() {
           <div className="rounded-xl border border-card-border bg-card-bg">
             {decisions.map((d) => (
               <div key={d.key} className="border-t border-card-border px-4 py-4 first:border-t-0">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${DECISION_TONE[d.tone]}`}>{d.tag}</span>
-                  <h3 className="text-[15px] font-semibold">{d.title}</h3>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${DECISION_TONE[d.tone]}`}>{d.tag}</span>
+                    <h3 className="text-[15px] font-semibold">{d.title}</h3>
+                  </div>
+                  {canWrite && <DismissDecision decisionKey={d.key} size={d.size} />}
                 </div>
                 <p className="mt-1 text-sm text-gray-300">{d.detail}</p>
                 {d.clans.length > 0 && (
@@ -135,7 +143,7 @@ export default async function StaffOverview() {
                           </ClanLink>
                           <span className="text-text-muted"> · {c.why}</span>
                         </span>
-                        {canWrite && c.hasOwner && <MessageOwnerButton clanId={c.id} clanName={c.name} why={c.why} />}
+                        {canWrite && c.hasOwner && <MessageOwnerButton clanId={c.id} clanName={c.name} why={c.why} welcome={c.welcome} />}
                       </li>
                     ))}
                   </ul>
@@ -150,6 +158,13 @@ export default async function StaffOverview() {
           </div>
         )}
       </Section>
+
+      {hiddenDecisions > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-text-muted">
+          <span>{hiddenDecisions} dismissed. Each comes back by itself if it gets bigger.</span>
+          {canWrite && <DismissDecision restore />}
+        </p>
+      )}
 
       <Section title="Waiting on you">
         <div className="grid gap-x-8 gap-y-1 rounded-xl border border-card-border bg-card-bg px-4 py-3 sm:grid-cols-2">
