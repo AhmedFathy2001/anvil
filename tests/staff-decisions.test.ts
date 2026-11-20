@@ -50,6 +50,10 @@ test('new clans get a hello, newest first, and only with an owner to write to', 
   const line = d.find((x) => x.key === 'new-clans')!;
   assert.deepEqual(line.clans.map((c) => [c.name, c.welcome]), [['Today', true], ['Week', true]]);
   assert.match(line.clans[0].why, /^Created today/);
+  assert.equal(line.title, '2 clans were created in the last 14 days');
+  const mixed = build([clan({ id: 7, ageDays: 0 }), clan({ id: 9, name: 'Stream', ageDays: 2, creator: true })]).find((x) => x.key === 'new-clans')!;
+  assert.equal(mixed.title, '1 clan and 1 creator space were created in the last 14 days');
+  assert.match(mixed.clans[1].why, /^Creator space, created 2 days ago/);
   assert.match(ownerMessageDraft('Today', null, true), /welcome to Anvil/);
   assert.doesNotMatch(ownerMessageDraft('Today', 'x', true), /writing about/);
 });

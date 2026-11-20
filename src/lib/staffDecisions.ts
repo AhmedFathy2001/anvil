@@ -146,8 +146,12 @@ export function buildDecisions(input: {
   const fresh = input.clans
     .filter((c) => c.ageDays != null && c.ageDays <= NEW_CLAN_DAYS && c.hasOwner)
     .sort((a, b) => (a.ageDays ?? 0) - (b.ageDays ?? 0))
-    .map((c) => ({ id: c.id, name: c.name, hasOwner: true, welcome: true, why: `${c.ageDays === 0 ? 'Created today' : `Created ${plural(c.ageDays ?? 0, 'day', 'days')} ago`}${c.engaged ? ', already running with players on the plugin' : ''}` }));
-  add({ key: 'new-clans', tone: 'info', tag: 'New', title: `${plural(fresh.length, 'clan was', 'clans were')} created in the last ${NEW_CLAN_DAYS} days`, detail: 'Say hello while it is new. The draft is a welcome; edit it before it goes.', clans: fresh, size: Math.max(0, ...fresh.map((c) => c.id)) });
+    .map((c) => ({ id: c.id, name: c.name, hasOwner: true, welcome: true, why: `${c.creator ? 'Creator space, created' : 'Created'} ${c.ageDays === 0 ? 'today' : `${plural(c.ageDays ?? 0, 'day', 'days')} ago`}${c.engaged ? ', already running with players on the plugin' : ''}` }));
+  // Creator spaces are made the same way and their owners are just as new: named for what they are.
+  const freshSpaces = input.clans.filter((c) => c.creator && c.ageDays != null && c.ageDays <= NEW_CLAN_DAYS && c.hasOwner).length;
+  const freshClans = fresh.length - freshSpaces;
+  const freshWhat = [freshClans > 0 ? plural(freshClans, 'clan', 'clans') : null, freshSpaces > 0 ? plural(freshSpaces, 'creator space', 'creator spaces') : null].filter(Boolean).join(' and ');
+  add({ key: 'new-clans', tone: 'info', tag: 'New', title: `${freshWhat} ${fresh.length === 1 ? 'was' : 'were'} created in the last ${NEW_CLAN_DAYS} days`, detail: 'Say hello while it is new. The draft is a welcome; edit it before it goes.', clans: fresh, size: Math.max(0, ...fresh.map((c) => c.id)) });
 
   // The plugin: only worth a line while most players are still on an older build.
   const total = input.versions.reduce((n, v) => n + v.accounts, 0);

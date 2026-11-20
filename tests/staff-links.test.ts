@@ -84,6 +84,8 @@ test('a Supporter row: how it was come by, and whether it gives its tier now', a
   process.env.DATABASE_URL ??= 'postgres://x:x@localhost:5432/x';
   const { supporterHow, membershipInForce } = await import('../src/lib/platformView.ts');
   assert.deepEqual(['gift', 'gift-paid', 'invite', 'yearly', null].map(supporterHow), ['staff', 'gift', 'invite', 'paid', 'paid']);
+  assert.equal(supporterHow(null, 'granted'), 'staff', 'a granted row with no recurrence was never paid for');
+  assert.equal(supporterHow('gift-paid', 'granted'), 'gift');
   const now = '2026-11-20T00:00:00.000Z';
   assert.equal(membershipInForce({ status: 'active', currentPeriodEnd: null }, now), true);
   assert.equal(membershipInForce({ status: 'granted', currentPeriodEnd: null }, now), true);

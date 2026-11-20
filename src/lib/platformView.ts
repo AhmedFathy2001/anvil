@@ -322,7 +322,9 @@ export interface PersonSupporter {
 }
 
 /** How a Supporter row was come by, from its recurrence (lib/supporter). Pure. */
-export function supporterHow(recurrence: string | null): PersonSupporter['how'] {
+export function supporterHow(recurrence: string | null, status?: string): PersonSupporter['how'] {
+  // A granted row nobody bought is staff time, whatever its recurrence says (older ones carry none).
+  if (status === 'granted' && recurrence !== 'gift-paid' && recurrence !== 'invite') return 'staff';
   return recurrence === 'gift' ? 'staff' : recurrence === 'gift-paid' ? 'gift' : recurrence === 'invite' ? 'invite' : 'paid';
 }
 
@@ -459,7 +461,7 @@ export async function personDetail(playerId: number): Promise<PersonHit | null> 
     platformRole: login?.platformRole ?? 'none',
     platformGuideEditor: login?.platformGuideEditor === true,
     userId: login?.id ?? null,
-    supporter: memberships.map((m) => ({ tier: m.tier, how: supporterHow(m.recurrence), recurrence: m.recurrence, status: m.status, startedAt: m.startedAt, endsAt: m.currentPeriodEnd, endedAt: m.endedAt, inForce: membershipInForce(m, nowIso) })),
+    supporter: memberships.map((m) => ({ tier: m.tier, how: supporterHow(m.recurrence, m.status), recurrence: m.recurrence, status: m.status, startedAt: m.startedAt, endsAt: m.currentPeriodEnd, endedAt: m.endedAt, inForce: membershipInForce(m, nowIso) })),
   };
 }
 

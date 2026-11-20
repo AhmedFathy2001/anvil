@@ -376,25 +376,25 @@ export default function ClansClient({
       </div>
 
       <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
-        <table className="stack-phone w-full min-w-[64rem] text-sm">
+        <table className="stack-phone w-full min-w-[54rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>
-              <th className="px-4 py-3">Clan</th>
-              <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Health</th>
-              <th className="px-4 py-3 text-right">Members</th>
-              <th className="px-4 py-3">On the plugin, 7d</th>
-              <th className="px-4 py-3 text-right">Events run</th>
-              <th className="px-4 py-3">Last active</th>
-              <th className="px-4 py-3">Why it is here</th>
-              <th className="px-4 py-3" aria-label="Actions" />
+              <th className="px-3 py-3">Clan</th>
+              <th className="px-3 py-3">Plan</th>
+              <th className="px-3 py-3">Health</th>
+              <th className="px-3 py-3 text-right">Members</th>
+              <th className="px-3 py-3">On the plugin, 7d</th>
+              <th className="px-3 py-3 text-right">Events run</th>
+              <th className="px-3 py-3">Last active</th>
+              <th className="px-3 py-3">Why it is here</th>
+              <th className="px-3 py-3" aria-label="Actions" />
             </tr>
           </thead>
           <tbody className="divide-y divide-card-border">
             {shown.map((c) => (
               <Fragment key={c.id}>
               <tr className={busy === c.id ? 'opacity-50' : undefined}>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3">
                   {/* The NAME opens this clan's operator page — the question you arrive with is
                       almost always about one of them. The host below still goes to the clan's own
                       site, which is the other thing you sometimes want. */}
@@ -437,11 +437,11 @@ export default function ClansClient({
                   const over = c.memberCap != null && c.members > c.memberCap;
                   return (
                     <>
-                      <td data-label="Plan" className="stack-third px-4 py-3">
-                        <div className="capitalize text-gray-200">{c.plan || 'free'}</div>
+                      <td data-label="Plan" className="stack-third px-3 py-3">
+                        <div className="capitalize text-gray-200">{(c.plan || 'free').replace(/_/g, ' ')}</div>
                         <div className={`text-xs ${b.state === 'lapsed' ? 'text-accent-red' : b.attention ? 'text-yellow-400' : 'text-text-muted'}`}>{b.label}</div>
                       </td>
-                      <td data-label="Health" className="stack-third px-4 py-3">
+                      <td data-label="Health" className="stack-third px-3 py-3">
                         {h ? (
                           <>
                             <span className={`inline-block whitespace-nowrap rounded border px-2 py-0.5 text-[11px] font-bold ${HEALTH_STYLE[h.key]}`}>{h.label}</span>
@@ -452,29 +452,29 @@ export default function ClansClient({
                           <span className="text-xs text-text-muted">unknown</span>
                         )}
                       </td>
-                      <td data-label="Members" className={`stack-third px-4 py-3 text-right tabular-nums ${over ? 'text-amber-300' : ''}`}>
+                      <td data-label="Members" className={`stack-third px-3 py-3 text-right tabular-nums ${over ? 'text-amber-300' : ''}`}>
                         {c.members}
                         {over && <span className="text-xs"> of {c.memberCap}</span>}
                       </td>
-                      <td data-label="On the plugin, 7d" className="stack-third px-4 py-3">
+                      <td data-label="On the plugin, 7d" className="stack-third px-3 py-3">
                         <span className="mr-2 inline-block h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.06] align-middle">
                           <span className="block h-full rounded-full bg-gold" style={{ width: `${share}%` }} />
                         </span>
                         <span className="tabular-nums">{h ? h.plugin7d : '—'}</span>
                       </td>
-                      <td data-label="Events run" className="stack-third px-4 py-3 text-right tabular-nums">{c.events}</td>
-                      <td data-label="Last active" className="stack-third px-4 py-3 text-gray-300">{h ? sinceLabel(h.lastActiveAt, now) : '—'}</td>
-                      <td data-label="Why it is here" className="px-4 py-3 text-xs text-gray-300">
-                        <div className="max-w-[18rem]">{h?.reason ?? ''}</div>
+                      <td data-label="Events run" className="stack-third px-3 py-3 text-right tabular-nums">{c.events}</td>
+                      <td data-label="Last active" className="stack-third px-3 py-3 text-gray-300">{h ? sinceLabel(h.lastActiveAt, now) : '—'}</td>
+                      <td data-label="Why it is here" className="px-3 py-3 text-xs text-gray-300">
+                        <div className="min-w-[9rem] max-w-[16rem]">{h?.reason ?? ''}</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                      <td className="px-3 py-3">
+                        <div className="flex flex-col items-stretch gap-1.5">
                           {canWrite && c.owner && h && inClanView('attention', h, h.billing) && <MessageOwnerButton clanId={c.id} clanName={c.name} why={h.reason} />}
                           <button
                             type="button"
                             onClick={() => setManage(manage === c.id ? null : c.id)}
                             aria-expanded={manage === c.id}
-                            className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold"
+                            className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg border border-card-border px-3 text-sm text-gray-200 hover:border-gold/50 hover:text-gold"
                           >
                             {manage === c.id ? 'Close' : 'Manage'}
                           </button>
