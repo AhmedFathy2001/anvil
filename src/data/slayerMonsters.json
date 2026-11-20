@@ -1,9 +1,9 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Special:Bucket/infobox_monster",
-  "generatedAt": "2026-11-03",
+  "generatedAt": "2026-11-20",
   "note": "Slayer task groups and their monsters. Names are in-game names (wiki disambiguation stripped), which is what a kill tile matches against. Rebuild with `npm run data:slayer`.",
   "categoryCount": 121,
-  "monsterCount": 649,
+  "monsterCount": 652,
   "categories": [
     {
       "label": "Aberrant Spectres",
@@ -227,6 +227,11 @@
           "name": "Twisted Banshee",
           "slayerLevel": 15,
           "combatLevel": 89
+        },
+        {
+          "name": "Ancient Banshee",
+          "slayerLevel": 15,
+          "combatLevel": 113
         },
         {
           "name": "Bloodthirsty twisted banshee",
@@ -1097,6 +1102,11 @@
           "name": "Crushing hand",
           "slayerLevel": 5,
           "combatLevel": 45
+        },
+        {
+          "name": "Skeletal Hand",
+          "slayerLevel": 5,
+          "combatLevel": 71
         }
       ]
     },
@@ -1657,6 +1667,11 @@
           "name": "Goblin guard",
           "slayerLevel": null,
           "combatLevel": 42
+        },
+        {
+          "name": "Goblin meat tenderiser",
+          "slayerLevel": null,
+          "combatLevel": 50
         },
         {
           "name": "Snailfeet",
@@ -3601,7 +3616,7 @@
       ]
     },
     {
-      "label": "Vampyres'\"`UNIQ--ref-00000020-QINU`\"'",
+      "label": "Vampyres'\"`UNIQ--ref-00000078-QINU`\"'",
       "monsters": [
         {
           "name": "Vanstrom Klause",
