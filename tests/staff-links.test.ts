@@ -83,7 +83,7 @@ test('every platform role except none opens the platform surface', () => {
 test('a Supporter row: how it was come by, and whether it gives its tier now', async () => {
   process.env.DATABASE_URL ??= 'postgres://x:x@localhost:5432/x';
   const { supporterHow, membershipInForce } = await import('../src/lib/platformView.ts');
-  assert.deepEqual(['gift', 'gift-paid', 'invite', 'yearly', null].map(supporterHow), ['staff', 'gift', 'invite', 'paid', 'paid']);
+  assert.deepEqual(['gift', 'gift-paid', 'invite', 'yearly', null].map((r) => supporterHow(r)), ['staff', 'gift', 'invite', 'paid', 'paid']);
   assert.equal(supporterHow(null, 'granted'), 'staff', 'a granted row with no recurrence was never paid for');
   assert.equal(supporterHow('gift-paid', 'granted'), 'gift');
   const now = '2026-11-20T00:00:00.000Z';
