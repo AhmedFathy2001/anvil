@@ -16,3 +16,11 @@ test('a staff note renders as escaped paragraphs, with line breaks kept', () => 
   assert.ok(html.includes('New paragraph &amp; more.'));
   assert.ok(text.includes('New paragraph'));
 });
+
+test('the button label and link are escaped by the layout itself', () => {
+  const { html, text } = renderEmail({ preheader: 'x', heading: 'x', lines: [], cta: { label: 'Open <img src=x onerror=alert(1)>', url: 'https://anvilosrs.com/c/a?x="b"' } });
+  assert.ok(!html.includes('<img src=x'));
+  assert.ok(html.includes('Open &lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(html.includes('href="https://anvilosrs.com/c/a?x=&quot;b&quot;"'));
+  assert.ok(text.includes('Open <img src=x onerror=alert(1)>'), 'the plain-text copy keeps it as typed');
+});

@@ -31,12 +31,15 @@ export interface EmailContent {
   heading: string;
   /** Body paragraphs. May contain safe inline HTML (e.g. <strong>). */
   lines: string[];
+  /** Plain text, both: renderEmail escapes them. */
   cta?: { label: string; url: string };
   /** Small print under the CTA (plain text). */
   footnote?: string;
 }
 
 const stripTags = (s: string) => s.replace(/<[^>]+>/g, '');
+/** The button's label and link are plain text, escaped here so no caller can put markup in them (a clan name can hold anything). */
+const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 
 /** Render a branded email → { html, text }. Pass the result straight to sendMail(). */
 export function renderEmail(c: EmailContent): { html: string; text: string } {
@@ -48,9 +51,9 @@ export function renderEmail(c: EmailContent): { html: string; text: string } {
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 2px;">
         <tr>
           <td align="center" bgcolor="${C.gold}" style="border-radius:10px;background-image:linear-gradient(100deg,${C.goldBright} 0%,${C.ember} 100%);">
-            <a href="${c.cta.url}" target="_blank" rel="noopener noreferrer"
+            <a href="${esc(c.cta.url)}" target="_blank" rel="noopener noreferrer"
                style="display:inline-block;padding:14px 30px;font-family:${FONT};font-size:15px;font-weight:700;line-height:1;color:${C.btnText};text-decoration:none;border-radius:10px;">
-              ${c.cta.label}
+              ${esc(c.cta.label)}
             </a>
           </td>
         </tr>
@@ -60,7 +63,7 @@ export function renderEmail(c: EmailContent): { html: string; text: string } {
   const rawLink = c.cta
     ? `<p style="margin:16px 0 0;font-family:${FONT};font-size:12px;line-height:1.5;color:${C.faint};">
          Button not working? Paste this into your browser:<br>
-         <a href="${c.cta.url}" target="_blank" rel="noopener noreferrer" style="color:${C.gold};word-break:break-all;">${c.cta.url}</a>
+         <a href="${esc(c.cta.url)}" target="_blank" rel="noopener noreferrer" style="color:${C.gold};word-break:break-all;">${esc(c.cta.url)}</a>
        </p>`
     : '';
 
