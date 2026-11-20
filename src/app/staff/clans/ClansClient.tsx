@@ -75,12 +75,15 @@ function sinceLabel(at: string | null, now: number): string {
 export default function ClansClient({
   clans,
   health,
+  trials = {},
   canWrite,
   grants,
 }: {
   clans: ClanRow[];
   /** By clan id (lib/clanHealth), worked out on the server. */
   health: Record<number, ClanHealthRow>;
+  /** Clans on a free trial of a higher plan right now: its name and when it ends. */
+  trials?: Record<number, { name: string; endsAt: number }>;
   canWrite: boolean;
   grants: ActAsGrant[];
 }) {
@@ -407,7 +410,9 @@ export default function ClansClient({
                     </a>
                   </div>
                   <div className="mt-1 flex items-center gap-1.5 text-xs">
-                    {c.verified ? (
+                    {c.kind === 'creator' ? (
+                      <span className="text-text-muted" title="A creator space has no in-game clan to prove">creator space</span>
+                    ) : c.verified ? (
                       <span className="text-emerald-400" title={`Verified as "${c.inGameName}" in game`}>
                         ✓ {c.inGameName}
                       </span>
@@ -416,7 +421,7 @@ export default function ClansClient({
                         unverified{c.inGameName ? ` · claims "${c.inGameName}"` : ''}
                       </span>
                     )}
-                    {canWrite && (
+                    {canWrite && c.kind !== 'creator' && (
                       <button
                         onClick={() => (c.verified ? unverifyClan(c.id) : verifyClan(c.id, c.inGameName ?? ''))}
                         disabled={busy != null}
@@ -438,7 +443,14 @@ export default function ClansClient({
                   return (
                     <>
                       <td data-label="Plan" className="stack-third px-3 py-3">
-                        <div className="capitalize text-gray-200">{(c.plan || 'free').replace(/_/g, ' ')}</div>
+                        {trials[c.id] ? (
+                          <>
+                            <div className="text-sky-300">{trials[c.id].name} trial</div>
+                            <div className="text-xs text-text-muted">ends {new Date(trials[c.id].endsAt).toISOString().slice(0, 10)} · pays for {(c.plan || 'free').replace(/_/g, ' ')}</div>
+                          </>
+                        ) : (
+                          <div className="capitalize text-gray-200">{(c.plan || 'free').replace(/_/g, ' ')}</div>
+                        )}
                         <div className={`text-xs ${b.state === 'lapsed' ? 'text-accent-red' : b.attention ? 'text-yellow-400' : 'text-text-muted'}`}>{b.label}</div>
                       </td>
                       <td data-label="Health" className="stack-third px-3 py-3">
