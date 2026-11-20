@@ -16,6 +16,7 @@ export default function MessageOwnerButton({
   clanName,
   why,
   welcome = false,
+  last = null,
   className = '',
 }: {
   clanId: number;
@@ -24,6 +25,8 @@ export default function MessageOwnerButton({
   why: string | null;
   /** A hello to a clan that has just been made, in place of the note about a problem. */
   welcome?: boolean;
+  /** The last note sent to this owner (lib/staffMessage lastOwnerMessages), so it shows after a reload. */
+  last?: { at: string; via: 'discord' | 'email' } | null;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -32,8 +35,9 @@ export default function MessageOwnerButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<null | 'discord' | 'email'>(null);
+  const shown = sent ? { via: sent, when: 'just now' } : last ? { via: last.via, when: sentAgo(last.at) } : null;
 
-  async function send(close: () => void, via: 'discord' | 'email') {
+  async function send(via: 'discord' | 'email') {
     setBusy(true);
     setError(null);
     const res = await clanFetch(`/api/staff/clans/${clanId}/message`, {
@@ -44,8 +48,9 @@ export default function MessageOwnerButton({
     setBusy(false);
     if (!res.ok) return setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not send that.');
     setSent(via);
+    // Closed directly, not through the guarded close: that asks "discard what you typed?" while the
+    // text differs from the draft, which after a send it always does.
     setOpen(false);
-    close();
   }
 
   return (
@@ -59,7 +64,7 @@ export default function MessageOwnerButton({
         }}
         className={`min-h-10 whitespace-nowrap rounded-lg border border-card-border px-3 text-sm text-gray-200 transition-colors hover:border-gold/50 hover:text-gold ${className}`}
       >
-        {sent ? `Sent by ${sent === 'email' ? 'email' : 'Discord'} · again` : welcome ? 'Say hello' : 'Message owner'}
+        {shown ? `Sent by ${shown.via === 'email' ? 'email' : 'Discord'} ${shown.when} · again` : welcome ? 'Say hello' : 'Message owner'}
       </button>
       {open && (
         <DialogFrame
@@ -92,7 +97,7 @@ export default function MessageOwnerButton({
                 <button
                   type="button"
                   disabled={busy || !text.trim()}
-                  onClick={() => void send(close, 'email')}
+                  onClick={() => void send('email')}
                   className="min-h-10 rounded-lg border border-card-border px-4 text-sm text-gray-200 hover:border-gold/50 hover:text-gold disabled:opacity-50"
                 >
                   Send by email
@@ -100,7 +105,7 @@ export default function MessageOwnerButton({
                 <button
                   type="button"
                   disabled={busy || !text.trim()}
-                  onClick={() => void send(close, 'discord')}
+                  onClick={() => void send('discord')}
                   className="min-h-10 rounded-lg bg-gold px-4 text-sm font-bold text-brown-dark hover:bg-gold-light disabled:opacity-50"
                 >
                   {busy ? 'Sending…' : 'Send on Discord'}
@@ -112,4 +117,12 @@ export default function MessageOwnerButton({
       )}
     </>
   );
+}
+
+/** "2h ago" / "3d ago" from a stored UTC stamp. */
+function sentAgo(at: string): string {
+  const ms = Date.parse(at.includes('T') ? at : `${at.replace(' ', 'T')}Z`);
+  if (Number.isNaN(ms)) return '';
+  const min = Math.max(0, Math.round((Date.now() - ms) / 60_000));
+  return min < 60 ? `${Math.max(1, min)}m ago` : min < 48 * 60 ? `${Math.round(min / 60)}h ago` : `${Math.round(min / 1440)}d ago`;
 }

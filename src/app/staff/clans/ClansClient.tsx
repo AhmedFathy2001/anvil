@@ -76,6 +76,7 @@ export default function ClansClient({
   clans,
   health,
   trials = {},
+  lastSent = {},
   canWrite,
   grants,
 }: {
@@ -84,6 +85,8 @@ export default function ClansClient({
   health: Record<number, ClanHealthRow>;
   /** Clans on a free trial of a higher plan right now: its name and when it ends. */
   trials?: Record<number, { name: string; endsAt: number }>;
+  /** The last staff note to each owner, so "sent" survives a reload. */
+  lastSent?: Record<number, { at: string; via: 'discord' | 'email' }>;
   canWrite: boolean;
   grants: ActAsGrant[];
 }) {
@@ -481,7 +484,7 @@ export default function ClansClient({
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col items-stretch gap-1.5">
-                          {canWrite && c.owner && h && inClanView('attention', h, h.billing) && <MessageOwnerButton clanId={c.id} clanName={c.name} why={h.reason} />}
+                          {canWrite && c.owner && h && inClanView('attention', h, h.billing) && <MessageOwnerButton clanId={c.id} clanName={c.name} why={h.reason} last={lastSent[c.id] ?? null} />}
                           <button
                             type="button"
                             onClick={() => setManage(manage === c.id ? null : c.id)}
