@@ -10,7 +10,7 @@ import Select from '@/components/Select';
 import ThingIcon from '@/components/ThingIcon';
 import { clanFetch } from '@/lib/clanFetch';
 import { BOSSES, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
-import { MAX_ENDING_DROPS, MAX_HUNT_ITEMS, MAX_PET_KILL_BOSSES, type HuntConfirm, type HuntCountMode, type HuntEnding, type HuntRule, killsOfForItems, petKills } from '@/lib/itemHunt';
+import { MAX_ENDING_DROPS, MAX_HUNT_ITEMS, MAX_ITEM_POINTS, MAX_PET_KILL_BOSSES, type HuntConfirm, type HuntCountMode, type HuntEnding, type HuntRule, killsOfForItems, petKills } from '@/lib/itemHunt';
 import NumberInput from '@/components/NumberInput';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { itemIconUrl } from '@/lib/tileIcons';
@@ -28,6 +28,8 @@ export interface HuntFormItem {
   sources: string[];
   anySource: boolean;
   count: HuntCountMode;
+  /** Rule 'points': what one drop (or piece, counting the quantity) scores. */
+  points: number;
 }
 
 export interface HuntFormValue {
@@ -39,6 +41,8 @@ export interface HuntFormValue {
   /** Pet hunts: show kills at the pets' bosses, when there is such a number to show (petKills). */
   petKillsShown: boolean;
   rule: HuntRule;
+  /** Rule 'points': 'first' scores only each player's first drop of each item. */
+  repeat: 'every' | 'first';
   ends: HuntEnding;
   confirm: HuntConfirm;
   /** "Any source" item hunts only: a boss whose kills the standings show. '' = none. */
@@ -47,7 +51,7 @@ export interface HuntFormValue {
   xpSkill: string;
 }
 
-export const DEFAULT_HUNT: HuntFormValue = { target: 'items', items: [], petGroup: 'all', petIds: null, petKillsShown: true, rule: 'first', ends: { kind: 'date' }, confirm: 'staff', killsOf: '', xpSkill: '' };
+export const DEFAULT_HUNT: HuntFormValue = { target: 'items', items: [], petGroup: 'all', petIds: null, petKillsShown: true, rule: 'first', repeat: 'every', ends: { kind: 'date' }, confirm: 'staff', killsOf: '', xpSkill: '' };
 
 /** The pets a pet hunt on the form counts right now: the group, less the ones unticked. */
 export function huntFormPets(v: HuntFormValue): { id: number; name: string }[] {
@@ -63,10 +67,11 @@ export function huntPayload(v: HuntFormValue) {
   const killsOf = v.target === 'pets' ? (v.petKillsShown ? petKills(huntFormPets(v)).killsOf : null) : v.killsOf || null;
   return {
     target: v.target,
-    items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.anySource ? [] : it.sources, anySource: it.anySource, count: it.count })),
+    items: v.items.map((it) => ({ id: it.id, name: it.name, sources: it.anySource ? [] : it.sources, anySource: it.anySource, count: it.count, points: it.points })),
     petGroup: v.petGroup,
     ...(v.target === 'pets' && v.petIds ? { petIds: v.petIds } : {}),
-    rule: v.rule,
+    rule: v.target === 'pets' && v.rule === 'points' ? 'most' : v.rule,
+    ...(v.rule === 'points' ? { repeat: v.repeat } : {}),
     ends: v.ends,
     confirm: v.confirm,
     killsOf,
@@ -142,7 +147,7 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
   /** Picked by name: one source is that source, several means the organiser has to choose. */
   function addByName(item: SearchItem) {
     if (has(item.id) || full) return;
-    set({ items: [...value.items, { id: item.id, name: item.name, known: item.sources, sources: item.sources.length === 1 ? [...item.sources] : [], anySource: false, count: 'drops' }] });
+    set({ items: [...value.items, { id: item.id, name: item.name, known: item.sources, sources: item.sources.length === 1 ? [...item.sources] : [], anySource: false, count: 'drops', points: 1 }] });
     setQuery('');
     setOpen(false);
   }
@@ -150,7 +155,7 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
   /** Picked while browsing a boss's drops: it counts from that boss. */
   function addFromBoss(boss: string, item: { id: number; name: string }) {
     if (has(item.id) || full) return;
-    set({ items: [...value.items, { id: item.id, name: item.name, known: [boss], sources: [boss], anySource: false, count: 'drops' }] });
+    set({ items: [...value.items, { id: item.id, name: item.name, known: [boss], sources: [boss], anySource: false, count: 'drops', points: 1 }] });
   }
 
   const group = PET_GROUPS.find((g) => g.key === value.petGroup) ?? PET_GROUPS[0];
@@ -360,6 +365,13 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
                         />
                       </div>
                     )}
+                    {value.rule === 'points' && (
+                      <label className="mt-2.5 flex items-center gap-2 text-sm">
+                        <span className="text-foreground/70">Worth</span>
+                        <NumberInput value={it.points} onChange={(v) => setItem(it.id, { points: v })} min={1} max={MAX_ITEM_POINTS} fallback={1} className="w-20" aria-label={`Points for ${it.name}`} />
+                        <span className="text-text-muted">{it.count === 'quantity' ? 'points each' : it.points === 1 ? 'point' : 'points'}</span>
+                      </label>
+                    )}
                     <div className="mt-2.5 max-w-xs">
                       <Select
                         value={it.count}
@@ -385,6 +397,7 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
           {([
             ['first', 'First to get it', 'Whoever lands it first wins. Others are listed in the order they got it.'],
             ['most', 'Most by the end', 'The highest count when it ends wins. A tie goes to whoever got there first.'],
+            ...(value.target === 'items' ? ([['points', 'Most points by the end', 'Each item is worth the points you give it. A tie goes to whoever got there first.']] as const) : []),
           ] as const).map(([key, label, blurb]) => (
             <label key={key} className={`flex cursor-pointer gap-2.5 text-sm rounded-lg border p-3 ${value.rule === key ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
               <Radio name="hunt-rule" checked={value.rule === key} onChange={() => set({ rule: key })} />
@@ -396,6 +409,27 @@ export default function HuntFields({ value, onChange }: { value: HuntFormValue; 
           ))}
         </div>
       </div>
+
+      {value.rule === 'points' && value.target === 'items' && (
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-foreground/70">A second drop of the same item</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {([
+              ['every', 'Scores again', 'Three of an item worth 2 is 6 points.'],
+              ['first', "Only each player's first one scores", 'Three of an item worth 2 is 2 points: rewards getting a spread.'],
+            ] as const).map(([key, label, blurb]) => (
+              <label key={key} className={`flex cursor-pointer gap-2.5 text-sm rounded-lg border p-3 ${value.repeat === key ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-brown-dark/30'}`}>
+                <Radio name="hunt-repeat" checked={value.repeat === key} onChange={() => set({ repeat: key })} />
+                <span>
+                  <span className="block text-sm font-medium">{label}</span>
+                  <span className="block text-xs text-text-muted">{blurb}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-text-muted">An item counted by quantity scores its points for each piece in the stack; one counted by drop scores once per drop. &ldquo;End after N drops&rdquo; still counts drops.</p>
+        </div>
+      )}
 
       <HuntEndingFields ends={value.ends} confirm={value.confirm} onChange={(patch) => set(patch)} />
 

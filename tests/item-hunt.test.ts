@@ -589,3 +589,43 @@ test('many bosses are named shortly beside the standings', () => {
   assert.equal(huntStatLabel(pets('raids', { killsOf: petKills(groupPets('raids')).killsOf })), 'Chambers of Xeric + Theatre of Blood + Tombs of Amascut');
   assert.equal(huntStatLabel(pets('dt2', { killsOf: petKills(groupPets('dt2')).killsOf })), 'Duke Sucellus, Vardorvis and 2 more');
 });
+
+test('points hunt: each item scores its points, a tie goes to whoever reached it first', () => {
+  const TBOW = 20997, OLM = 20851, ARC = 21079;
+  const cfg = base({
+    rule: 'points',
+    items: [
+      { id: TBOW, name: 'Twisted bow', sources: [], count: 'drops', points: 25 },
+      { id: OLM, name: 'Olmlet', sources: [], count: 'drops', points: 10 },
+      { id: ARC, name: 'Arcane prayer scroll', sources: [], count: 'drops', points: 2 },
+    ],
+    killsOf: null,
+  });
+  const d = (rsn: string, h: number, id: number, name: string) => drop(rsn, h, { itemId: id, itemName: name });
+  const rows = rankHunt(cfg, entrants('Arcs', 'Olm', 'Bow', 'Late'), [
+    d('Arcs', 1, ARC, 'Arcane prayer scroll'), d('Arcs', 2, ARC, 'Arcane prayer scroll'), d('Arcs', 3, ARC, 'Arcane prayer scroll'),
+    d('Olm', 4, OLM, 'Olmlet'),
+    d('Bow', 5, TBOW, 'Twisted bow'),
+    d('Late', 6, OLM, 'Olmlet'),
+  ], window);
+  assert.deepEqual(rows.map((r) => [r.rsn, r.count]), [['Bow', 25], ['Olm', 10], ['Late', 10], ['Arcs', 6]]);
+  // Only each player's first of each item: three scrolls are worth one.
+  const once = rankHunt({ ...cfg, repeat: 'first' }, entrants('Arcs'), [d('Arcs', 1, ARC, 'Arcane prayer scroll'), d('Arcs', 2, ARC, 'Arcane prayer scroll')], window);
+  assert.equal(once[0].count, 2);
+  // "End after N drops" still counts drops: two drops end a 2-drop hunt whatever their points.
+  const ending = endingDrop({ ...cfg, ends: { kind: 'drops', n: 2, by: 'all' } }, [d('Bow', 1, TBOW, 'Twisted bow'), d('Olm', 2, OLM, 'Olmlet')], window);
+  assert.equal(ending?.at, at(2));
+});
+
+test('points hunt: the form is checked and stored', () => {
+  const ok = huntFromInput({ target: 'items', rule: 'points', repeat: 'first', items: [{ id: 1, name: 'Bow', anySource: true, points: 5000 }, { id: 2, name: 'Scroll', anySource: true }], ends: { kind: 'date' } });
+  assert.ok(ok.ok);
+  if (!ok.ok) return;
+  assert.deepEqual(ok.config.items.map((i) => i.points), [1000, 1], 'capped at 1,000 and 1 by default');
+  assert.equal(ok.config.repeat, 'first');
+  assert.equal(parseHunt(serializeHunt(ok.config))?.rule, 'points', 'survives storing');
+  const pets = huntFromInput({ target: 'pets', rule: 'points', petGroup: 'all', ends: { kind: 'date' } });
+  assert.equal(pets.ok, false, 'points are for item hunts');
+  const most = huntFromInput({ target: 'items', rule: 'most', repeat: 'first', items: [{ id: 1, name: 'Bow', anySource: true, points: 5 }], ends: { kind: 'date' } });
+  assert.ok(most.ok && most.config.items[0].points === undefined && most.config.repeat === undefined, 'a most-drops hunt keeps no points');
+});

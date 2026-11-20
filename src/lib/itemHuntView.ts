@@ -8,6 +8,8 @@ import { itemObtainInfo } from '@/lib/itemObtain';
 import {
   type HuntConfig,
   dropOriginWords,
+  dropScore,
+  type HuntRule,
   dropStatWords,
   huntEndingWords,
   huntIconUrl,
@@ -37,6 +39,8 @@ export interface HuntViewDrop {
   /** The hunt would end on this drop, and staff have not confirmed it yet. */
   awaiting: boolean;
   screenshotUrl: string | null;
+  /** What it put on a points hunt's standings: 0 for a repeat that scores nothing; null on other hunts. */
+  score: number | null;
 }
 
 /** One entrant's kills (or XP) at each boss or skill of a hunt counted over several, named for a person. */
@@ -78,7 +82,11 @@ export interface HuntView {
   kindWord: string;
   /** "Uncut onyx from Zulrah · most by the end" */
   line: string;
-  rule: 'first' | 'most';
+  rule: HuntRule;
+  /** A points hunt: each item and what it scores, for the line under the title. */
+  points: { name: string; points: number }[] | null;
+  /** A points hunt: only each player's first drop of each item scores. */
+  firstOfEach: boolean;
   endingWords: string;
   confirm: 'staff' | 'auto';
   status: 'upcoming' | 'active' | 'completed';
@@ -129,7 +137,8 @@ export function buildHuntView(
     statParts: stat && r.statGain != null ? splitOf(stat.type, partsOf.get(r.rsn), r.statGain) : null,
     firstAt: r.firstAt,
     lastAt: r.lastAt,
-    drops: r.drops.map((d) => ({
+    drops: r.drops.map((d, i) => ({
+      score: config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
       itemId: d.itemId,
       itemName: d.itemName,
@@ -149,6 +158,8 @@ export function buildHuntView(
     kindWord: huntKindWord(config),
     line: huntLine(config, comp.metric),
     rule: config.rule,
+    points: config.rule === 'points' ? config.items.map((it) => ({ name: it.name, points: it.points ?? 1 })) : null,
+    firstOfEach: config.rule === 'points' && config.repeat === 'first',
     endingWords: huntEndingWords(config.ends),
     confirm: config.confirm,
     status: weeklyStatus(comp),

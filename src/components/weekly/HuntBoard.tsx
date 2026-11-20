@@ -34,6 +34,11 @@ function statGainWords(row: HuntViewRow, view: HuntView): string | null {
 function DropLine({ drop, showItem }: { drop: HuntViewDrop; showItem: boolean }) {
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-text-muted">
+      {drop.score != null && (
+        <span className={`font-mono font-bold tabular-nums ${drop.score > 0 ? 'text-emerald-400' : 'text-text-muted'}`} title={drop.score > 0 ? undefined : 'A repeat: only the first of each item scores'}>
+          +{drop.score.toLocaleString()}
+        </span>
+      )}
       {showItem && (
         <span className="flex items-center gap-1.5 text-foreground/90">
           <ThingIcon src={drop.itemId != null ? itemIconUrl(drop.itemId) : null} alt="" size={18} />
@@ -90,7 +95,7 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
         </span>
         <span className="shrink-0 text-right">
           <span className={`block font-mono text-lg font-bold leading-none tabular-nums ${has ? 'text-gold-light' : 'text-text-muted'}`}>{row.count.toLocaleString()}</span>
-          <span className="block text-[10px] uppercase tracking-wider text-text-muted">{view.rule === 'first' && has ? 'got it' : row.count === 1 ? 'drop' : 'drops'}</span>
+          <span className="block text-[10px] uppercase tracking-wider text-text-muted">{view.rule === 'first' && has ? 'got it' : view.rule === 'points' ? (row.count === 1 ? 'point' : 'points') : row.count === 1 ? 'drop' : 'drops'}</span>
         </span>
       </div>
       {row.drops.length > 0 && (
@@ -112,7 +117,7 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
         <span className="h-5 w-1 rounded-full bg-gold" />
         Standings
         <span className="text-xs font-normal text-text-muted">
-          {view.rows.length} entered · {view.rule === 'first' ? 'in the order they got it' : 'most drops first'}
+          {view.rows.length} entered · {view.rule === 'first' ? 'in the order they got it' : view.rule === 'points' ? 'most points first' : 'most drops first'}
           {view.statLabel && view.statUnit === 'kills' && ` · kills at ${view.statLabel} since the start`}
         </span>
       </h2>
@@ -400,6 +405,16 @@ export function HuntHero({ title, view, startDate, endDate }: { title: string; v
             <p className="mt-1.5 break-words text-sm text-foreground/90">
               <span className="font-semibold">{view.kindWord}:</span> {view.line}
             </p>
+            {view.points && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                {view.points.map((p) => (
+                  <span key={p.name} className="rounded-full border border-card-border px-2.5 py-0.5 text-foreground/90">
+                    {p.name} <b className="tabular-nums text-gold-light">{p.points.toLocaleString()}</b>
+                  </span>
+                ))}
+                {view.firstOfEach && <span className="px-1 py-0.5 text-text-muted">only each player&rsquo;s first of each item scores</span>}
+              </div>
+            )}
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">
                 <LocalTime date={startDate} format="short" /> – <LocalTime date={endDate} format="short" />
@@ -434,7 +449,7 @@ export function HuntHero({ title, view, startDate, endDate }: { title: string; v
                   </>
                 ) : (
                   <>
-                    {top.count.toLocaleString()} {top.count === 1 ? 'drop' : 'drops'}
+                    {top.count.toLocaleString()} {view.rule === 'points' ? (top.count === 1 ? 'point' : 'points') : top.count === 1 ? 'drop' : 'drops'}
                   </>
                 )}
               </div>
