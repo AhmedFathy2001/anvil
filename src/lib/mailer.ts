@@ -61,6 +61,8 @@ export interface MailInput {
   subject: string;
   text: string;
   html: string;
+  /** Where a reply goes, when not to MAIL_FROM (a no-reply sender). */
+  replyTo?: string;
 }
 
 /** Send one email. True when SES / the SMTP server accepted it; never throws. */
@@ -75,6 +77,7 @@ export async function sendMail(mail: MailInput): Promise<boolean> {
         body: JSON.stringify({
           FromEmailAddress: from,
           Destination: { ToAddresses: [mail.to] },
+          ...(mail.replyTo ? { ReplyToAddresses: [mail.replyTo] } : {}),
           ...(configSet ? { ConfigurationSetName: configSet } : {}),
           Content: {
             Simple: {

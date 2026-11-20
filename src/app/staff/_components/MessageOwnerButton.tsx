@@ -31,19 +31,19 @@ export default function MessageOwnerButton({
   const [text, setText] = useState(first);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState<null | 'discord' | 'email'>(null);
 
-  async function send(close: () => void) {
+  async function send(close: () => void, via: 'discord' | 'email') {
     setBusy(true);
     setError(null);
     const res = await clanFetch(`/api/staff/clans/${clanId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, via }),
     });
     setBusy(false);
     if (!res.ok) return setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not send that.');
-    setSent(true);
+    setSent(via);
     setOpen(false);
     close();
   }
@@ -59,7 +59,7 @@ export default function MessageOwnerButton({
         }}
         className={`min-h-10 whitespace-nowrap rounded-lg border border-card-border px-3 text-sm text-gray-200 transition-colors hover:border-gold/50 hover:text-gold ${className}`}
       >
-        {sent ? 'Sent · message again' : welcome ? 'Say hello' : 'Message owner'}
+        {sent ? `Sent by ${sent === 'email' ? 'email' : 'Discord'} · again` : welcome ? 'Say hello' : 'Message owner'}
       </button>
       {open && (
         <DialogFrame
@@ -72,7 +72,7 @@ export default function MessageOwnerButton({
           {(close) => (
             <>
               <h2 className="text-lg font-bold">Message the owner of {clanName}</h2>
-              <p className="mt-1 text-sm text-text-muted">Sent as a Discord DM from the Anvil bot. Replies come back to the bot&rsquo;s DMs, so say where to reach you if you want an answer elsewhere.</p>
+              <p className="mt-1 text-sm text-text-muted">Send it as a Discord DM from the Anvil bot, or by email when their DMs are closed. A DM reply comes back to the bot&rsquo;s DMs, so say where to reach you if you want an answer elsewhere.</p>
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -92,10 +92,18 @@ export default function MessageOwnerButton({
                 <button
                   type="button"
                   disabled={busy || !text.trim()}
-                  onClick={() => void send(close)}
+                  onClick={() => void send(close, 'email')}
+                  className="min-h-10 rounded-lg border border-card-border px-4 text-sm text-gray-200 hover:border-gold/50 hover:text-gold disabled:opacity-50"
+                >
+                  Send by email
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || !text.trim()}
+                  onClick={() => void send(close, 'discord')}
                   className="min-h-10 rounded-lg bg-gold px-4 text-sm font-bold text-brown-dark hover:bg-gold-light disabled:opacity-50"
                 >
-                  {busy ? 'Sending…' : 'Send'}
+                  {busy ? 'Sending…' : 'Send on Discord'}
                 </button>
               </div>
             </>
