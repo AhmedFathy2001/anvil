@@ -10,6 +10,7 @@
 // recorded, never moved by the site. Somebody who has not paid is still on the board, marked as
 // owing, so staff decide what an unpaid entry means; nothing is hidden or removed on a timer.
 
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -133,6 +134,8 @@ async function syncFeeCoffer(comp: Competition, row: Participant, actorUserId: n
     note: shouldBeIn ? `Entry fee: ${row.rsn}, ${comp.title}` : `Entry fee taken back out: ${row.rsn}, ${comp.title}`,
     // Taking back a fee that was credited is a correction of the books, not a spend.
     force: true,
+    // Into the pot its prizes are paid from (a Hardcore Worlds competition's fees are HCW gp).
+    currency: parsePrizeCurrency(comp.prizeCurrency),
   });
   await syncPotHold(comp, actorUserId);
 }
@@ -149,7 +152,7 @@ export async function syncPotHold(comp: Competition, actorUserId: number | null)
   if (existing?.status === 'paid') return;
   const amount = totalPrizeGp(parseWeeklyPrizes(comp.prizes)) + (await weeklyFeePotGp(comp.id));
   const hold = existing ? existing.status === 'reserved' : true;
-  const args = { clanId: comp.clanId, competitionId: comp.id, amount, userId: actorUserId && actorUserId > 0 ? actorUserId : null };
+  const args = { clanId: comp.clanId, competitionId: comp.id, amount, userId: actorUserId && actorUserId > 0 ? actorUserId : null, currency: parsePrizeCurrency(comp.prizeCurrency) };
   const held = await setWeeklyPool({ ...args, hold });
   // Not enough free gp to hold it (the coffer was spent elsewhere): record it unheld rather than lose track of it.
   if (!held.ok && hold) await setWeeklyPool({ ...args, hold: false });

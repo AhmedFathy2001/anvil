@@ -31,6 +31,8 @@ async function heldBy(tx: Tx, clanId: number, actorKey: string): Promise<number>
         eq(cofferEntries.clanId, clanId),
         eq(cofferEntries.kind, 'withdrawal'),
         eq(cofferEntries.status, 'approved'),
+        // The in-game coffer is the main game's: a Hardcore Worlds pot's rows are never matched here.
+        eq(cofferEntries.currency, 'gp'),
         sql`lower(regexp_replace(${cofferEntries.rsn}, '[[:space:]_]+', ' ', 'g')) = ${actorKey}`,
       ),
     );

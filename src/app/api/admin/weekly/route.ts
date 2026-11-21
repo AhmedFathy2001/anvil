@@ -1,3 +1,5 @@
+import { getSetting } from '@/lib/settings';
+import { checkCountsOn, HCW_COFFER_SETTING_KEY, prizeCurrencyFor } from '@/lib/competitionGame';
 import { cleanEntryFee } from '@/lib/weeklySignups';
 import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
@@ -169,6 +171,12 @@ export async function POST(request: Request) {
   else if (endDate <= now) status = 'completed';
 
   const clan = await requireClan();
+  // Which game counts (lib/competitionGame): the main game unless the form says otherwise. A skill or
+  // boss competition needs a mode with hiscores to be scored from.
+  const counts = checkCountsOn(body.countsOn, type);
+  if (!counts.ok) return NextResponse.json({ error: counts.error }, { status: 400 });
+  // HCW gp only from a clan that keeps a Hardcore Worlds coffer, on a competition that counts it.
+  const prizeCurrency = prizeCurrencyFor(body.prizeCurrency, counts.value, (await getSetting(clan.id, HCW_COFFER_SETTING_KEY)) === '1');
   const result = await db.insert(weeklyCompetitions).values({
     clanId: clan.id,
     type,
@@ -192,6 +200,8 @@ export async function POST(request: Request) {
     // On unless it was switched off: a winner who still owes holds the prizes (lib/weeklyPrizeSettle).
     feeGatesPrize: body.feeGatesPrize !== false,
     hunt: huntJson,
+    countsOn: counts.value,
+    prizeCurrency,
   }).returning();
 
   const comp = result[0];
@@ -215,6 +225,7 @@ export async function POST(request: Request) {
         amount: total,
         hold: prizeHold !== false,
         userId: user.userId > 0 ? user.userId : null,
+        currency: prizeCurrency,
       });
       if (!pool.ok) {
         await setWeeklyPool({
@@ -223,6 +234,7 @@ export async function POST(request: Request) {
           amount: total,
           hold: false,
           userId: user.userId > 0 ? user.userId : null,
+          currency: prizeCurrency,
         });
       } else {
         prizesHeld = pool.entry?.status === 'reserved';

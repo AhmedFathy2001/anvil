@@ -1,3 +1,4 @@
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 import { weeklyFeePotGp } from '@/lib/weeklySignups';
 import { and, eq, isNull } from 'drizzle-orm';
 
@@ -142,6 +143,7 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
       clanMemberId: winner.clanMemberId,
       rsn: winner.rsn,
       note,
+      currency: parsePrizeCurrency(comp.prizeCurrency),
     });
     // A null row means the place was already taken by a concurrent pass — not a failure to pay.
     if (!row) continue;

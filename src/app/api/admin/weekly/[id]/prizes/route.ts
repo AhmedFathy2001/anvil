@@ -1,3 +1,4 @@
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 import { weeklyFeePotGp } from '@/lib/weeklySignups';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
@@ -28,7 +29,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const comp = await competitionForRequest(request, compId);
   if (!comp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const [balance, pool] = await Promise.all([getCofferBalance(comp.clanId), getWeeklyPool(compId)]);
+  const [balance, pool] = await Promise.all([getCofferBalance(comp.clanId, parsePrizeCurrency(comp.prizeCurrency)), getWeeklyPool(compId)]);
   return NextResponse.json({
     prizes: parseWeeklyPrizes(comp.prizes),
     settledAt: comp.prizesSettledAt,
@@ -88,6 +89,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     amount: total,
     hold,
     userId: session.userId,
+    currency: parsePrizeCurrency(comp.prizeCurrency),
   });
   if (!pool.ok) return NextResponse.json({ error: pool.error }, { status: 400 });
 
@@ -96,6 +98,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     .set({ prizes: serializeWeeklyPrizes(prizes) })
     .where(eq(weeklyCompetitions.id, compId));
 
-  const balance = await getCofferBalance(comp.clanId);
+  const balance = await getCofferBalance(comp.clanId, parsePrizeCurrency(comp.prizeCurrency));
   return NextResponse.json({ prizes, total, balance, held: pool.entry?.status === 'reserved' });
 }
