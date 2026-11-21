@@ -257,3 +257,23 @@ test('the guest clan id rides the ticket', () => {
   const { ticket } = signTicket({ userId: 1, eventIds: [], teamId: null, relay: { name: 'Gus', icon: null, clanId: null, world: 301, fc: null, guest: 'the afk spot', guestClanId: 7 } }, k, 0);
   assert.equal(verifyTicket(ticket, k, 1)?.relay?.guestClanId, 7);
 });
+
+test('a PM needs no shared channel: both sides learn the other is here, and hear when they go', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Dead Person', null, 310);
+  const b = client(2, 'Anvil Plugin', null, 420);
+  const said: Record<string, Record<string, unknown>[]> = { a: [], b: [] };
+  a.send = (m: string) => said.a.push(JSON.parse(m));
+  b.send = (m: string) => said.b.push(JSON.parse(m));
+  hub.add(a);
+  const closeB = hub.add(b);
+  assert.equal(said.a.length + said.b.length, 0, 'no shared room: nobody is named on joining');
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'Anvil_Plugin', x: 'Test2' }), null);
+  assert.deepEqual(said.b.map((m) => m.t), ['relay', 'here']);
+  assert.deepEqual(said.b[1].n, ['dead person'], 'the recipient can reply');
+  assert.deepEqual(said.a.at(-1), { t: 'here', n: ['anvil plugin'] }, 'the sender sees them connected');
+  closeB();
+  assert.deepEqual(said.a.at(-1), { t: 'gone', n: 'anvil plugin' }, 'a PM partner hears them go');
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'Anvil Plugin', x: 'still there?' }), 'no-room');
+  assert.deepEqual(said.a.at(-1), { t: 'gone', n: 'anvil plugin' });
+});

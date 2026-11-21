@@ -20,7 +20,9 @@ import { checkBody } from '../eventChatRules.ts';
 //                        chat member list, so nobody's names are uploaded and a wrong room shows nothing.
 //   guest:<clan> guest clan — the clan the plugin says it guests in (`?guest=`), checked the same way.
 //   pm:<name>   private messages — every relay socket sits in its own character's room, so a PM
-//                        ({"t":"say","c":"pm","to":name}) reaches only that character's sockets, if any.
+//                        ({"t":"say","c":"pm","to":name}) reaches only that character's sockets, if any,
+//                        whatever channels the two share. The sender then hears whether the name is
+//                        connected ("here"/"gone") and the recipient that the sender is, so either can reply.
 // GIM is not relayed: Anvil keeps no GIM groups, and a group named by the client could be anyone's.
 // Out, to the room minus the sender's own sockets:
 //   {"t":"relay","c":…,"n":"Name","nm":"<img=2>Name","x":text,"xh":escaped,"at":ms,"u":user,"k":sig}
@@ -99,6 +101,8 @@ interface Member {
   rooms: Set<string>;
   sent: number[];
   last: Map<string, number>;
+  /** Those it has traded PMs with: told when it goes, like the rooms it shares. */
+  talked: Set<Member>;
 }
 
 export class RelayHub {
@@ -120,7 +124,7 @@ export class RelayHub {
 
   /** A relay socket opened: into its ticket's clan and world rooms. */
   add(client: RelayClient): () => void {
-    const m: Member = { client, rooms: new Set(), sent: [], last: new Map() };
+    const m: Member = { client, rooms: new Set(), sent: [], last: new Map(), talked: new Set() };
     this.members.set(client, m);
     if (client.who.clanId != null) this.join(m, `clan:${client.who.clanId}`);
     // A world holds 2,000 players; a room far past that is somebody's script, not a world.
@@ -147,6 +151,8 @@ export class RelayHub {
     if (here.size) client.send(JSON.stringify({ t: 'here', n: [...here] }));
     return () => {
       const around = this.around(m);
+      for (const o of m.talked) if (o !== m && this.members.has(o.client)) around.add(o);
+      for (const o of this.members.values()) o.talked.delete(m);
       for (const r of [...m.rooms]) this.leave(m, r);
       this.members.delete(client);
       // Gone only once no socket of this character is left beside them (a re-ticket opens its new one first).
@@ -180,7 +186,11 @@ export class RelayHub {
     // A PM's room is its recipient's own (only if they have a relay socket); the rest, the sender's.
     const room = c === 'pm' ? (typeof to === 'string' && this.rooms.has(`pm:${presenceName(to)}`) ? `pm:${presenceName(to)}` : null)
       : [...m.rooms].find((r) => (c === 'guest' ? r.startsWith('guest:') || r.startsWith('gclan:') : r.startsWith(c === 'public' ? 'world:' : `${c}:`)));
-    if (!room) return 'no-room';
+    if (!room) {
+      // Nobody of that name is connected: the sender's client stops counting them as here.
+      if (c === 'pm' && typeof to === 'string' && presenceName(to)) m.client.send(JSON.stringify({ t: 'gone', n: presenceName(to) }));
+      return 'no-room';
+    }
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
     const raw = checkBody(x, { staff: false, keepRuns: true });
     if (!raw.ok || raw.body.length > RELAY_MAX) return 'filtered';
@@ -213,6 +223,17 @@ export class RelayHub {
     // characters are other players in game: their clients get it like anyone's.
     const text = line(c);
     for (const o of this.rooms.get(room) ?? []) if (o !== m && o.client.who.name !== who.name) o.client.send(text);
+    if (c === 'pm') {
+      // A PM needs no shared channel: each side now knows the other is connected, so either can reply.
+      const me = presenceName(who.name);
+      for (const o of this.rooms.get(room) ?? []) {
+        if (o === m || presenceName(o.client.who.name) === me) continue;
+        o.client.send(JSON.stringify({ t: 'here', n: [me] }));
+        m.talked.add(o);
+        o.talked.add(m);
+      }
+      m.client.send(JSON.stringify({ t: 'here', n: [room.slice(3)] }));
+    }
     // The same in-game channel from the other side: a member's clan line is a guest clan line to the
     // clan's guests, and a guest's line is a clan line to its members. Sent (and signed) as the
     // channel the reader is in, which is the one their client checks the sender against.
