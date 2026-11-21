@@ -306,3 +306,34 @@ test('asking about names is limited', () => {
   const names = Array.from({ length: 50 }, (_, i) => `name ${i}`);
   assert.equal(hub.receive(a, { t: 'who', n: names }), 'rate');
 });
+
+test('a world names nobody; a clan does; someone hiding is only shown where the game would show them', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Looker', null, 301);
+  const b = client(2, 'Hider', null, 301);
+  const c = client(3, 'Clanmate', 5, 999);
+  const d = client(4, 'Clanmate Two', 5, 998);
+  const said: Record<string, Record<string, unknown>[]> = { a: [], b: [], c: [] };
+  a.send = (m: string) => said.a.push(JSON.parse(m));
+  b.send = (m: string) => said.b.push(JSON.parse(m));
+  c.send = (m: string) => said.c.push(JSON.parse(m));
+  hub.add(a);
+  hub.add(b);
+  hub.add(c);
+  hub.add(d);
+  assert.equal(said.a.length, 0, 'same world: not named');
+  assert.deepEqual(said.c.at(-1), { t: 'here', n: ['clanmate two'] }, 'same clan: named');
+  // Public lines still reach the world (each client shows them only from someone on its screen).
+  assert.equal(hub.receive(b, { t: 'say', c: 'public', x: 'hi' }), null);
+  assert.equal(said.a.at(-1)?.t, 'relay');
+  // Private Off: asked about, their own client decides (it says yes only if the asker is on its screen).
+  hub.receive(b, { t: 'pm', m: 'off' });
+  hub.receive(a, { t: 'who', n: ['Hider'] });
+  assert.deepEqual(said.b.at(-1), { t: 'ask', n: 'looker' });
+  assert.equal(said.a.at(-1)?.t, 'relay', 'nothing told yet');
+  hub.receive(b, { t: 'ok', n: 'looker' });
+  assert.deepEqual(said.a.at(-1), { t: 'here', n: ['hider'] });
+  // A clanmate asked about is simply here.
+  hub.receive(c, { t: 'who', n: ['Clanmate Two'] });
+  assert.deepEqual(said.c.at(-1), { t: 'here', n: ['clanmate two'] });
+});
