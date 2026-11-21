@@ -9,6 +9,8 @@ import Select from '@/components/Select';
 import DateRangeField from '@/components/DateRangeField';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
+import { CountsOnChoice, PrizeCurrencyChoice } from '@/components/weekly/CompetitionGameFields';
+import { countsHardcore, countsOnLabel, parsePrizeCurrency, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
 
 /**
  * Renaming, re-dating and deleting a competition — from the competition.
@@ -179,6 +181,142 @@ export default function WeeklySettingsPanel({
           </p>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * Which game a competition counts, and what its prizes are paid in (lib/competitionGame).
+ *
+ * Its own card with its own save: the game is only changeable before the start (scores are read
+ * from the tables it names, so a change mid-race would compare one save's start with another's
+ * finish), and the currency is a treasurer's call. Mixing either into the name-and-dates save would
+ * make a moderator's rename fail over money it never touched.
+ */
+export function WeeklyGamePanel({
+  competitionId,
+  type,
+  countsOn: storedCounts,
+  prizeCurrency: storedCurrencyRaw,
+  beforeStart,
+  pots,
+  canSetCurrency,
+  settled,
+}: {
+  competitionId: number;
+  type: string;
+  countsOn: string;
+  prizeCurrency: string;
+  /** The start is still ahead (or unset): the only time the game may change. */
+  beforeStart: boolean;
+  /** The clan keeps a Hardcore Worlds coffer, with what each pot has free. Null = it doesn't. */
+  pots: { mainAvailable: number; hcwAvailable: number } | null;
+  /** Treasurer or admin: the API refuses anyone else a currency change. */
+  canSetCurrency: boolean;
+  /** Prizes already settled: the currency is history from then on. */
+  settled: boolean;
+}) {
+  const router = useRouter();
+  const storedCurrency = parsePrizeCurrency(storedCurrencyRaw);
+  const [saved, setSaved] = useState({ countsOn: storedCounts, currency: storedCurrency });
+  const [countsOn, setCountsOn] = useState(storedCounts);
+  const [currencyPick, setCurrencyPick] = useState<PrizeCurrency | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // What the server would store: a game that no longer counts Hardcore Worlds pays main gp, the same
+  // rule the API applies, so the screen says it before the save does.
+  const currency = prizeCurrencyFor(currencyPick ?? saved.currency, countsOn, pots !== null);
+  const dirty = countsOn !== saved.countsOn || currency !== saved.currency;
+  useUnsavedChanges(dirty);
+  const showCurrency = pots !== null && countsHardcore(countsOn);
+
+  async function save() {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await clanFetch(`/api/admin/weekly/${competitionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        // Only what changed: an unchanged game is never re-checked against the start.
+        body: JSON.stringify({
+          ...(countsOn !== saved.countsOn ? { countsOn } : {}),
+          ...(currency !== saved.currency ? { prizeCurrency: currency } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || 'Could not save that.' });
+        return;
+      }
+      const next = { countsOn: typeof data.countsOn === 'string' ? data.countsOn : countsOn, currency: parsePrizeCurrency(data.prizeCurrency ?? currency) };
+      setSaved(next);
+      setCountsOn(next.countsOn);
+      setCurrencyPick(null);
+      setMessage({ type: 'success', text: 'Saved.' });
+      router.refresh();
+    } catch {
+      setMessage({ type: 'error', text: 'Could not save that.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section id="weekly-game" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
+      <h2 className="mb-4 flex items-center gap-2 font-semibold">
+        <span className="h-5 w-1 rounded-full bg-gold" />
+        Which game counts
+      </h2>
+
+      <div className="space-y-4">
+        <div>
+          <CountsOnChoice value={countsOn} onChange={setCountsOn} type={type} disabled={!beforeStart || saving} />
+          {!beforeStart && (
+            <p className="mt-1.5 text-xs text-text-muted">
+              It has started, so this stays {countsOnLabel(saved.countsOn)}: the scores already count from those hiscores.
+            </p>
+          )}
+        </div>
+
+        {showCurrency && pots && (
+          <div>
+            <PrizeCurrencyChoice
+              value={currency}
+              onChange={setCurrencyPick}
+              mainAvailable={pots.mainAvailable}
+              hcwAvailable={pots.hcwAvailable}
+              disabled={!canSetCurrency || settled || saving}
+            />
+            <p className="mt-1.5 text-xs text-text-muted">
+              {settled
+                ? 'The prizes are settled, so what they were paid in stays as it is.'
+                : canSetCurrency
+                  ? 'Any gp this ladder holds moves into the other pot when you save.'
+                  : 'A treasurer or admin decides what the prizes are paid in.'}
+            </p>
+          </div>
+        )}
+        {/* Switching away from Hardcore Worlds takes HCW gp with it: say so before it happens. */}
+        {!showCurrency && saved.currency === 'hcw' && (
+          <p className="text-xs text-text-muted">The prizes move back to main game gp when you save.</p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !dirty}
+            className="rounded-lg bg-gold px-4 py-1.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-40"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <UnsavedIndicator dirty={dirty && !saving} />
+          {message && (message.type === 'error' || !dirty) && (
+            <span className={`text-xs ${message.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>{message.text}</span>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

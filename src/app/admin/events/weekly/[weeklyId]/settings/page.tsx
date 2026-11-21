@@ -10,7 +10,11 @@ import { requireClan } from '@/lib/clanContext';
 import { getWeeklyRow } from '@/lib/weeklyWorkspace';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
-import WeeklySettingsPanel from '../WeeklySettingsPanel';
+import WeeklySettingsPanel, { WeeklyGamePanel } from '../WeeklySettingsPanel';
+import { getSetting } from '@/lib/settings';
+import { getCofferBalance } from '@/lib/coffer';
+import { HCW_COFFER_SETTING_KEY } from '@/lib/competitionGame';
+import { parseStamp } from '@/lib/dbTime';
 import WeeklyRepeatToggle from '../WeeklyRepeatToggle';
 import { getWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
@@ -38,6 +42,14 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
   const hunt = comp.type === 'hunt' ? parseHunt(comp.hunt) : null;
   const session = await verifyUser();
   const repeat = await getWeeklyRepeat(clan.id, comp.id);
+  // "Paid in" is only offered where the clan keeps a Hardcore Worlds coffer; then both pots' balances.
+  const hcwCoffer = (await getSetting(clan.id, HCW_COFFER_SETTING_KEY)) === '1';
+  const pots = hcwCoffer
+    ? await Promise.all([getCofferBalance(clan.id, 'gp'), getCofferBalance(clan.id, 'hcw')]).then(([main, hcw]) => ({ mainAvailable: main.available, hcwAvailable: hcw.available }))
+    : null;
+  // The API's own rule for changing the game: the start is still ahead (or not set).
+  const start = parseStamp(comp.startDate);
+  const beforeStart = start === null || start > Date.now();
   // "SOTW: Agility" → "Agility", for the rotation sentence.
   const rotationLabels = (repeat?.rotation ?? []).map((m) => defaultWeeklyTitle(comp.type, m).split(': ').slice(1).join(': '));
 
@@ -49,6 +61,16 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
     <WeeklySignupPanel competitionId={comp.id} selfSignup={comp.selfSignup} entryFee={comp.entryFee} feesToPrizes={comp.feesToPrizes} feeGatesPrize={comp.feeGatesPrize} ended={comp.status === 'completed'} canSetFee={atLeast(session?.role, 'treasurer')} />
     {hunt && <HuntSettingsPanel competitionId={comp.id} initial={{ ends: hunt.ends, confirm: hunt.confirm }} finished={comp.status === 'completed'} />}
     <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
+    <WeeklyGamePanel
+      competitionId={comp.id}
+      type={comp.type}
+      countsOn={comp.countsOn}
+      prizeCurrency={comp.prizeCurrency}
+      beforeStart={beforeStart}
+      pots={pots}
+      canSetCurrency={atLeast(session?.role, 'treasurer')}
+      settled={Boolean(comp.prizesSettledAt)}
+    />
     <WeeklySettingsPanel
       comp={{
         id: comp.id,

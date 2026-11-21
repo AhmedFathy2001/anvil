@@ -3,6 +3,9 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import EventForm from '@/components/EventForm';
 import ClanLink from '@/components/ClanLink';
 import { creatorAway } from '@/lib/creatorGuard';
+import { getSetting } from '@/lib/settings';
+import { getCofferBalance } from '@/lib/coffer';
+import { HCW_COFFER_SETTING_KEY } from '@/lib/competitionGame';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +33,13 @@ export default async function NewCompetitionPage() {
   // In-game clans only (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
   await creatorAway('/admin/weekly');
   const clan = await requireClan();
-  const clanName = await getClanDisplayName(clan.id, '');
+  // The two prize pots, so the form can offer "Paid in: Hardcore Worlds gp" where the clan keeps one.
+  const [clanName, hcwSetting, mainPot, hcwPot] = await Promise.all([
+    getClanDisplayName(clan.id, ''),
+    getSetting(clan.id, HCW_COFFER_SETTING_KEY),
+    getCofferBalance(clan.id, 'gp'),
+    getCofferBalance(clan.id, 'hcw'),
+  ]);
 
   return (
     <div>
@@ -52,7 +61,11 @@ export default async function NewCompetitionPage() {
       <div className="max-w-4xl rounded-xl border border-card-border bg-card-bg p-6 shadow-lg shadow-black/20">
         {/* Prizes are set on the competition itself once it exists, from its own workspace — that is
             a treasurer's decision and it is the only place the coffer balance is in front of you. */}
-        <EventForm weeklyOnly suggestedName={clanName ? `${clanName} SOTW` : ''} />
+        <EventForm
+          weeklyOnly
+          suggestedName={clanName ? `${clanName} SOTW` : ''}
+          prizePots={{ hcwCoffer: hcwSetting === '1', mainAvailable: mainPot.available, hcwAvailable: hcwPot.available }}
+        />
       </div>
     </div>
   );

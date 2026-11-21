@@ -12,6 +12,7 @@ import { buildHuntView } from '@/lib/itemHuntView';
 import { huntStat } from '@/lib/itemHunt';
 import { SKILL_LABELS } from '@/lib/constants';
 import { idParam } from '@/lib/routeIds';
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,8 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
   const [standings, counts, balance, hasCoffer, feeCollector, pool] = await Promise.all([
     getWeeklyStandings(id),
     getWeeklyCounts(id),
-    getCofferBalance(clan.id),
+    // The pot this competition's prizes come out of (main gp, or the Hardcore Worlds coffer).
+    getCofferBalance(clan.id, parsePrizeCurrency(comp.prizeCurrency)),
     clanHasCoffer(clan.id),
     verifyFeeCollector(),
     getWeeklyPool(id),
