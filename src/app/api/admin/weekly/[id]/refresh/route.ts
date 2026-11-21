@@ -1,3 +1,4 @@
+import { countsWorld } from '@/lib/competitionGame';
 import { NextResponse } from 'next/server';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator } from '@/lib/auth';
@@ -61,7 +62,11 @@ export async function POST(
   if (!stat) return NextResponse.json({ updated: 0, total: 0, markedUnranked: 0, errors: [] });
   const compType: CompetitionType = stat.type;
 
+  // This reads the main game's hiscores: a mode-only competition, and a Hardcore Worlds character in a
+  // mixed one, are read off their own table by the sweep instead (lib/weeklyModeScores).
+  const mainCounts = countsWorld(comp[0].countsOn, null);
   for (const p of participants) {
+    if (!mainCounts || p.hiscoresTable || p.stoppedAt) continue;
     try {
       const result = await fetchParticipantStat(p.rsn, compType, stat.metric);
       const nowIso = new Date().toISOString();

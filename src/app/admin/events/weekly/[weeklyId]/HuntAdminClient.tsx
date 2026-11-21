@@ -58,7 +58,7 @@ export default function HuntAdminClient({
   entrants: { id: number; rsn: string }[];
   /** The top of the standings in words, for the "End now" confirm. */
   asItStands: string[];
-  prizes: { initial: WeeklyPrizes; cofferAvailable: number; held: boolean; settledAt: string | null; canEdit: boolean; hasCoffer: boolean };
+  prizes: { initial: WeeklyPrizes; cofferAvailable: number; held: boolean; settledAt: string | null; canEdit: boolean; hasCoffer: boolean; hcw?: boolean };
   /** The hunt has finished and its prizes are waiting on unconfirmed drops. */
   prizesWaiting: boolean;
 }) {
@@ -224,6 +224,7 @@ export default function HuntAdminClient({
           settledAt={prizes.settledAt}
           canEdit={prizes.canEdit}
           hasCoffer={prizes.hasCoffer}
+          hcw={prizes.hcw}
         />
         {prizes.initial.places.length > 0 && (
           <p className="mt-2 text-xs text-text-muted">

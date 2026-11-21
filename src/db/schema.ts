@@ -1724,6 +1724,14 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   /** Hold the prizes while anyone in a paying place still owes their entry fee (lib/weeklyPrizeSettle). */
   feeGatesPrize: boolean('fee_gates_prize').notNull().default(true),
   /**
+   * Which game counts (lib/competitionGame): 'main' (the main game, the default), 'main+hardcore' (main
+   * game and Hardcore Worlds characters together: same rates), or one mode key from lib/worldModes on
+   * its own ('hardcore', 'leagues', 'deadman', …): only that mode's worlds and hiscores count.
+   */
+  countsOn: text('counts_on').notNull().default('main'),
+  /** What the prizes are paid in: 'gp' (the main game coffer) or 'hcw' (the clan's Hardcore Worlds coffer). */
+  prizeCurrency: text('prize_currency').notNull().default('gp'),
+  /**
    * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
    * where each one counts from, the rule, and what the standings show beside the count. `metric`
    * then holds the targets as words. Null on every other kind.
@@ -1820,6 +1828,12 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   // The player opted out of THIS competition. The row stays (so the roster sweep doesn't put them
   // back) but they are off every board and headcount; opting back in clears it.
   optedOut: boolean('opted_out').notNull().default(false),
+  // The hiscores table this character is scored from (lib/modeHiscores names, e.g. 'hardcore_mains');
+  // null = the main game's. Set when the character is first read, then fixed for the competition.
+  hiscoresTable: text('hiscores_table'),
+  // When the character left the save it was scored on (a Hardcore Worlds death: reset or converted to
+  // the main game). It keeps what it gained up to then and scores nothing after.
+  stoppedAt: text('stopped_at'),
   // A sign-up's entry fee (lib/weeklySignups), in an event fee's states (lib/feeRules):
   // null status = no fee; else 'pending' | 'collected' | 'confirmed'.
   enteredByUserId: integer('entered_by_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -3904,6 +3918,8 @@ export const cofferEntries = pgTable('coffer_entries', {
   place: integer('place'),
   // Storage URL of a proof screenshot (donation evidence, or the treasurer's payment shot).
   proofBlobUrl: text('proof_blob_url'),
+  /** Which pot: 'gp' (the main game coffer) or 'hcw' (a Hardcore Worlds coffer staff keep by hand). */
+  currency: text('currency').notNull().default('gp'),
   note: text('note'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (t) => [

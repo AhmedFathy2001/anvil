@@ -13,6 +13,17 @@ import { rateLimitByKey } from '@/lib/rate-limit';
 import { findRosterSeats, seatsOwnedBy } from '@/lib/roster';
 import { isClanMediaUrl } from '@/lib/storage';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { getSetting } from '@/lib/settings';
+import { HCW_COFFER_SETTING_KEY, type PrizeCurrency } from '@/lib/competitionGame';
+
+/** 'hcw' only while the clan keeps a Hardcore Worlds coffer; null means refuse. Anything unset is the main pot. */
+async function pickPot(clanId: number, raw: unknown): Promise<PrizeCurrency | null> {
+  if (raw == null || raw === '' || raw === 'gp') return 'gp';
+  if (raw !== 'hcw') return null;
+  return (await getSetting(clanId, HCW_COFFER_SETTING_KEY)) === '1' ? 'hcw' : null;
+}
+
+const NO_HCW = 'This clan does not keep a Hardcore Worlds coffer.';
 
 /**
  * The clan coffer, from a member's side: what is in the pot, who put it there, and the form for
@@ -24,17 +35,20 @@ import { refuseForCreatorSpace } from '@/lib/creatorGuard';
  * member said something, and the only cost of a lie is a staffer's rejection.
  */
 
-export async function GET() {
+export async function GET(request: Request) {
   const clan = await requireClan();
+  const currency = await pickPot(clan.id, new URL(request.url).searchParams.get('currency'));
+  if (!currency) return NextResponse.json({ error: NO_HCW }, { status: 400 });
   // This read takes no session to answer, so the amounts are for anyone and the names are for
   // people inside the clan (lib/cofferView).
   const insider = await viewerIsClanInsider(clan.id);
   const [balance, donors, recent] = await Promise.all([
-    getCofferBalance(clan.id),
-    topDonors(clan.id, 10).then((rows) => donorBoard(rows, insider)),
-    listCofferEntries({ clanId: clan.id, statuses: ['approved', 'paid', 'reserved'], limit: 25 }),
+    getCofferBalance(clan.id, currency),
+    topDonors(clan.id, 10, currency).then((rows) => donorBoard(rows, insider)),
+    listCofferEntries({ clanId: clan.id, statuses: ['approved', 'paid', 'reserved'], limit: 25, currency }),
   ]);
   return NextResponse.json({
+    currency,
     balance,
     donors,
     // Amounts and names only: the ledger's notes and proof links are staff-side.
@@ -68,7 +82,10 @@ export async function POST(request: Request) {
     note?: unknown;
     proofUrl?: unknown;
     seatId?: unknown;
+    currency?: unknown;
   } | null;
+  const currency = await pickPot(clan.id, body?.currency);
+  if (!currency) return NextResponse.json({ error: NO_HCW }, { status: 400 });
   const amount = Math.floor(Number(body?.amount));
   if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ error: 'Enter how much you donated.' }, { status: 400 });
@@ -104,6 +121,7 @@ export async function POST(request: Request) {
     createdByUserId: session.userId,
     proofBlobUrl: proofUrl,
     note: typeof body?.note === 'string' ? body.note.slice(0, 500) : null,
+    currency,
   });
   track('coffer.donated', { clanId: clan.id, userId: session.userId });
   return NextResponse.json({ entry: { id: entry.id, amount: entry.amount, status: entry.status } });

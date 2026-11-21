@@ -1499,6 +1499,13 @@
       "when": 1794981221800,
       "tag": "0276_moment_stat_xp",
       "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1795270000000,
+      "tag": "0277_competition_game",
+      "breakpoints": true
     }
   ]
 }

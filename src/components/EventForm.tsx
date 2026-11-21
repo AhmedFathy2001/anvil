@@ -26,6 +26,8 @@ import { PET_GROUPS } from '@/lib/petGroups';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
 import { useDirtyForm, useUnsavedChanges } from '@/components/UnsavedChanges';
+import { CountsOnChoice, PrizeCurrencyChoice, countsOnSummary } from '@/components/weekly/CompetitionGameFields';
+import { MAIN, checkCountsOn, countsHardcore, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
 import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
 interface EventFormProps {
@@ -63,6 +65,12 @@ interface EventFormProps {
   /** Empty stretch from the schedule's "Fill the gap" (validated days): the dates start filled in. */
   gapPrefill?: { start: string; end: string | null } | null;
   choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' | 'hunt'; placement?: 'solo' };
+  /**
+   * The clan's two prize pots (lib/coffer), read by the page. `hcwCoffer` is the clan setting that it
+   * keeps a Hardcore Worlds coffer at all; without it every prize is main game gp and "Paid in" is
+   * never asked. Unset = no HCW coffer.
+   */
+  prizePots?: { hcwCoffer: boolean; mainAvailable: number; hcwAvailable: number };
 }
 
 /**
@@ -177,7 +185,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, gapPrefill = null, onDirtyChange, guardLeave = false }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice, gapPrefill = null, onDirtyChange, guardLeave = false, prizePots }: EventFormProps) {
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
@@ -276,6 +284,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [feesToPrizes, setFeesToPrizes] = useState(true);
   /** A winner who still owes their fee holds the prizes until staff sort it. */
   const [feeGatesPrize, setFeeGatesPrize] = useState(true);
+  // Which game counts (lib/competitionGame): the main game unless the organiser says otherwise.
+  const [countsOn, setCountsOn] = useState<string>(MAIN);
+  // The organiser's own "Paid in" pick, or null for the default. What is sent goes through
+  // prizeCurrencyFor, so switching the game away from Hardcore Worlds quietly falls back to main gp.
+  const [prizeCurrencyPick, setPrizeCurrencyPick] = useState<PrizeCurrency | null>(null);
+  const hcwCoffer = Boolean(prizePots?.hcwCoffer);
+  const prizeCurrency = prizeCurrencyFor(prizeCurrencyPick, countsOn, hcwCoffer);
   // Solo, teams or clan vs clan (lib/competitionTeams).
   const [weeklyMode, setWeeklyMode] = useState<WeeklyModeValue>(DEFAULT_WEEKLY_MODE);
   // "Repeat every week" (lib/weeklyRepeat): on by default — a weekly that has to be re-made by hand
@@ -297,7 +312,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
       decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
       multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
-      weeklyType, weeklyMetric, hunt, includeGuests, hostEntrants, entryFeeText, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+      weeklyType, weeklyMetric, hunt, countsOn, prizeCurrencyPick, includeGuests, hostEntrants, entryFeeText, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
     },
     { guard: false },
   );
@@ -528,6 +543,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           return;
         }
       }
+      // The same check the server makes, so a mode picked for a hunt and kept after switching to a
+      // skill competition is caught here, in the form's words, before anything is created.
+      const counts = checkCountsOn(countsOn, weeklyType);
+      if (!counts.ok) {
+        setError(counts.error);
+        return;
+      }
       setLoading(true);
       try {
         const res = await clanFetch('/api/admin/weekly', {
@@ -544,6 +566,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             // Selected people: nothing sweeps the roster in, so the guest switch has nothing to act on.
             includeGuests: selectedOnly ? false : includeGuests,
             hostEntrants,
+            countsOn: counts.value,
+            prizeCurrency,
             ...(signupEntry && entryFeeGp ? { entryFee: entryFeeGp, feesToPrizes, feeGatesPrize } : {}),
             // A hunt is everyone for themselves: no teams, no clan sides.
             mode: isHunt ? 'solo' : weeklyMode.mode,
@@ -1117,6 +1141,21 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   </div>
                 )}
               </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground/70 mb-1.5">Which game counts</label>
+                <CountsOnChoice value={countsOn} onChange={setCountsOn} type={weeklyType} />
+              </div>
+              {/* Only a clan that keeps a Hardcore Worlds coffer can pay in HCW gp, and only on a
+                  competition its Hardcore Worlds players can win. The ladder itself is set on the
+                  competition's page once it exists. */}
+              {hcwCoffer && countsHardcore(countsOn) && prizePots && (
+                <div>
+                  <PrizeCurrencyChoice value={prizeCurrency} onChange={setPrizeCurrencyPick} mainAvailable={prizePots.mainAvailable} hcwAvailable={prizePots.hcwAvailable} />
+                  <p className="mt-1.5 text-xs text-text-muted">
+                    The prizes come out of this pot. You set them on the competition&apos;s page straight after.
+                  </p>
+                </div>
+              )}
               {!selectedOnly && (
                 <Checkbox checked={includeGuests} onChange={setIncludeGuests} label={isHunt ? 'Guests hunt too' : 'Guests race too'} className="text-sm text-foreground/80" />
               )}
@@ -1645,6 +1684,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
                   <SpecRow label="Who's in" value={selectedOnly ? 'only the people you add' : includeGuests ? 'roster + guests' : 'full members only'} />
+                  <SpecRow label="Counts on" value={countsOnSummary(countsOn, weeklyType).countsOn} />
+                  <SpecRow label="Scored from" value={countsOnSummary(countsOn, weeklyType).scoredFrom} />
+                  {prizeCurrency === 'hcw' && <SpecRow label="Prizes" value="Hardcore Worlds gp, from the HCW coffer" />}
                   <SpecRow label="Sign-up" value={selectedOnly ? 'none — you add them' : 'none — entered at start'} />
                 </dl>
 

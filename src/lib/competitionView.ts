@@ -27,6 +27,7 @@ import {
   type DailyRow,
 } from '@/lib/competitionInsights';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
+import { isHardcoreEntrant, MAIN } from '@/lib/competitionGame';
 
 /**
  * Everything the competition page renders, assembled once on the server.
@@ -62,6 +63,10 @@ export interface CompetitionEntry {
   /** Baseline looks stale (weekly_participants.flagged) — say so rather than rank a bad number. */
   flagged: boolean;
   flagReason: string | null;
+  /** A Hardcore Worlds character, scored from those hiscores (lib/competitionGame isHardcoreEntrant). */
+  hcw: boolean;
+  /** A Hardcore Worlds character that died mid-way: keeps what it gained, scores nothing more. */
+  stopped: boolean;
   isMe: boolean;
 }
 
@@ -194,6 +199,8 @@ export async function buildCompetitionView(
     startDate: string;
     endDate: string;
     status: string;
+    /** Which game counts (lib/competitionGame); absent = the main game. */
+    countsOn?: string | null;
   },
   viewerMemberIds: number[] = [],
   now: Date = new Date(),
@@ -249,6 +256,8 @@ export async function buildCompetitionView(
   const series = buildSeries(board.map((b) => b.rsn), dailyRows, days, type, metric);
   const seriesByRsn = new Map(series.map((s) => [s.rsn, s]));
   const flagByRsn = new Map(participants.map((p) => [p.rsn, { flagged: !!p.flagged, reason: p.flagReason ?? null }]));
+  const countsOn = competition.countsOn ?? MAIN;
+  const gameByRsn = new Map(participants.map((p) => [p.rsn, { hcw: isHardcoreEntrant(p.hiscoresTable, countsOn), stopped: p.stoppedAt != null }]));
   const myRsns = new Set(
     participants.filter((p) => p.clanMemberId != null && viewerMemberIds.includes(p.clanMemberId)).map((p) => p.rsn),
   );
@@ -299,6 +308,8 @@ export async function buildCompetitionView(
       trackable: trackableRsns.has(b.rsn),
       flagged: flag?.flagged ?? false,
       flagReason: flag?.reason ?? null,
+      hcw: gameByRsn.get(b.rsn)?.hcw ?? false,
+      stopped: gameByRsn.get(b.rsn)?.stopped ?? false,
       isMe: myRsns.has(b.rsn),
     };
   });

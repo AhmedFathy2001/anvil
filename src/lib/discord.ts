@@ -25,6 +25,7 @@ import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { SKILLS, formatEfficiencyHours, metricKeys, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
+import { MAIN, countsOnLabel, currencyWords, parseCountsOn, type PrizeCurrency } from '@/lib/competitionGame';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import { discordAssetUrl } from '@/lib/seo';
@@ -2250,6 +2251,14 @@ interface WeeklyStartParams {
   /** Teams / clan-vs-clan line-up. Absent on a solo competition. */
   groups?: WeeklyGroupPost | null;
   hunt?: WeeklyHuntPost | null;
+  /** Which game counts (lib/competitionGame); named only when it isn't the main game. */
+  countsOn?: string | null;
+}
+
+/** A "Counts" field for a competition that isn't plain main-game play; none otherwise. */
+function countsOnField(countsOn: string | null | undefined) {
+  const c = parseCountsOn(countsOn);
+  return c === MAIN ? [] : [field('Counts', countsOnLabel(c))];
 }
 
 export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
@@ -2270,6 +2279,7 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     fields: [
       // Exact end time + a live countdown that ticks down in everyone's client.
       field('Ends', `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`),
+      ...countsOnField(params.countsOn),
       ...(params.groups ? [weeklyGroupField(type, params.groups, params.groups.mode === 'clans' ? 'Clans racing' : 'Teams')] : []),
     ],
   };
@@ -2405,6 +2415,11 @@ interface WeeklyResultsParams {
   hunt?: WeeklyHuntPost | null;
   /** The competition's best drops, best first, one line each (lib/bestDrops bestDropLine). At most three are shown. */
   bestDrops?: string[] | null;
+  /** Which game counted (lib/competitionGame); named only when it isn't the main game. */
+  countsOn?: string | null;
+  /** What each winner takes, by the name as it appears in `standings`; set only for HCW gp prizes. */
+  prizes?: { rsn: string; gp: number }[] | null;
+  prizeCurrency?: PrizeCurrency;
 }
 
 // Fired when a weekly competition ends — announces the winner and the final standings (top 10).
@@ -2421,11 +2436,14 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
   const fmt = (gained: number) =>
     type === 'efficiency' ? formatEfficiencyHours(gained) : gained.toLocaleString();
 
+  // "· wins 4m HCW gp" after a winner's line, when the post was handed what each one takes.
+  const won = new Map((params.prizes ?? []).map((p) => [p.rsn, p.gp]));
+  const wins = (rsn: string) => (won.get(rsn) ? ` · wins ${formatGp(won.get(rsn)!)} ${currencyWords(params.prizeCurrency ?? 'gp')}` : '');
   const standingsText = standings
     .slice(0, 10)
     .map((s, i) => {
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-      return hunt ? `${medal} **${s.rsn}** — ${huntWord(hunt, s.gained)}` : `${medal} **${s.rsn}** — +${fmt(s.gained)}`;
+      return (hunt ? `${medal} **${s.rsn}** — ${huntWord(hunt, s.gained)}` : `${medal} **${s.rsn}** — +${fmt(s.gained)}`) + wins(s.rsn);
     })
     .join('\n');
 
@@ -2463,6 +2481,7 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
   // switch for weekly posts covers it; there is no separate one.
   const best = bestDropsField(params.bestDrops);
   if (best) embed.fields = [...(embed.fields ?? []), best];
+  embed.fields = [...(embed.fields ?? []), ...countsOnField(params.countsOn)];
 
   return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }

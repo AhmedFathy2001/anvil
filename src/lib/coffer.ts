@@ -1,3 +1,4 @@
+import type { PrizeCurrency } from '@/lib/competitionGame';
 import { db } from '@/db';
 import { cofferEntries, clanRoster, type CofferEntry } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
@@ -26,7 +27,7 @@ export * from '@/lib/cofferMath';
  * The clan's balance, summed in the database. Called on every mission claim and on every coffer
  * surface, so it is one grouped query rather than a table scan in JS.
  */
-export async function getCofferBalance(clanId: number): Promise<CofferBalance> {
+export async function getCofferBalance(clanId: number, currency: PrizeCurrency = 'gp'): Promise<CofferBalance> {
   // clan-scope: takes the clan id its caller already settled.
   const rows = await db
     .select({
@@ -35,7 +36,8 @@ export async function getCofferBalance(clanId: number): Promise<CofferBalance> {
       total: sql<number>`coalesce(sum(${cofferEntries.amount}), 0)`,
     })
     .from(cofferEntries)
-    .where(eq(cofferEntries.clanId, clanId))
+    // One pot at a time: the main game's gp and a Hardcore Worlds coffer never add up.
+    .where(and(eq(cofferEntries.clanId, clanId), eq(cofferEntries.currency, currency)))
     .groupBy(cofferEntries.kind, cofferEntries.status);
   return foldBalance(rows.map((r) => ({ kind: r.kind, status: r.status, total: Number(r.total) })));
 }
@@ -55,6 +57,8 @@ export async function fileDonation(args: {
   createdByUserId: number | null;
   proofBlobUrl?: string | null;
   note?: string | null;
+  /** Which pot it went into (a Hardcore Worlds donation is HCW gp). */
+  currency?: PrizeCurrency;
 }): Promise<CofferEntry> {
   const amount = Math.max(1, Math.floor(args.amount));
   const [row] = await db
@@ -69,6 +73,7 @@ export async function fileDonation(args: {
       createdByUserId: args.createdByUserId,
       proofBlobUrl: args.proofBlobUrl ?? null,
       note: args.note ?? null,
+      currency: args.currency ?? 'gp',
     })
     .returning();
   announce(args.clanId, row);
@@ -123,6 +128,7 @@ export async function recordDonations(args: {
   donors: { clanMemberId: number | null; rsn: string | null; amount: number }[];
   userId: number | null;
   note?: string | null;
+  currency?: PrizeCurrency;
 }): Promise<CofferEntry[]> {
   const donors = args.donors
     .map((d) => ({ ...d, amount: Math.floor(d.amount) }))
@@ -145,6 +151,7 @@ export async function recordDonations(args: {
         settledByUserId: args.userId,
         settledAt: now,
         note: shared ?? null,
+        currency: args.currency ?? 'gp',
       })),
     )
     .returning();
@@ -178,18 +185,21 @@ export async function recordAdjustment(args: {
   note?: string | null;
   /** Record it even though it takes the coffer below zero. See the note above. */
   force?: boolean;
+  currency?: PrizeCurrency;
 }): Promise<AdjustmentResult> {
   const amount = Math.trunc(args.amount);
+  const currency = args.currency ?? 'gp';
   if (amount < 0 && !args.force) {
-    const balance = await getCofferBalance(args.clanId);
+    const balance = await getCofferBalance(args.clanId, currency);
+    const pot = currency === 'hcw' ? 'Hardcore Worlds coffer' : 'coffer';
     if (-amount > balance.available) {
       return {
         ok: false,
         wouldLeave: balance.available + amount,
         error:
           balance.reserved > 0
-            ? `The coffer has ${balance.available.toLocaleString()} gp free to spend — the rest of the ${balance.confirmed.toLocaleString()} is already promised. Cancel or pay those first.`
-            : `The coffer only has ${balance.available.toLocaleString()} gp. It cannot go below zero.`,
+            ? `The ${pot} has ${balance.available.toLocaleString()} gp free to spend — the rest of the ${balance.confirmed.toLocaleString()} is already promised. Cancel or pay those first.`
+            : `The ${pot} only has ${balance.available.toLocaleString()} gp. It cannot go below zero.`,
       };
     }
   }
@@ -204,6 +214,7 @@ export async function recordAdjustment(args: {
       settledByUserId: args.userId,
       settledAt: new Date().toISOString(),
       note: args.note ?? null,
+      currency,
     })
     .returning();
   announce(args.clanId, row);
@@ -290,9 +301,12 @@ export async function reserveWeeklyAward(args: {
   clanMemberId: number | null;
   rsn: string | null;
   note?: string | null;
+  /** The pot the competition pays from (weekly_competitions.prize_currency). */
+  currency?: PrizeCurrency;
 }): Promise<CofferEntry | null> {
   const amount = Math.max(0, Math.floor(args.amount));
   if (amount <= 0) return null;
+  const currency = args.currency ?? 'gp';
   const existing = await db.query.cofferEntries.findFirst({
     where: and(
       eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId),
@@ -303,7 +317,7 @@ export async function reserveWeeklyAward(args: {
   // Short pot: the row is still written, as `unfunded`. A clan that promised gp and could not pay
   // should carry that on its ledger — dropping the row instead would leave the winner with nothing
   // and no record that anything was ever owed.
-  const balance = await getCofferBalance(args.clanId);
+  const balance = await getCofferBalance(args.clanId, currency);
   const funded = balance.available >= amount;
   try {
     const [row] = await db
@@ -318,6 +332,7 @@ export async function reserveWeeklyAward(args: {
         clanMemberId: args.clanMemberId,
         rsn: args.rsn,
         note: args.note ?? null,
+        currency,
       })
       .returning();
     announce(args.clanId, row);
@@ -547,9 +562,18 @@ export async function setWeeklyPool(args: {
   hold: boolean;
   userId: number | null;
   note?: string | null;
+  /** The pot the ladder is held in (weekly_competitions.prize_currency). */
+  currency?: PrizeCurrency;
 }): Promise<SetPoolResult> {
   const amount = Math.max(0, Math.floor(args.amount));
-  const existing = await getWeeklyPool(args.competitionId);
+  const currency = args.currency ?? 'gp';
+  let existing = await getWeeklyPool(args.competitionId);
+  // The ladder moved to the other pot (main gp ↔ HCW gp): the old hold goes back where it came from,
+  // and the new one is made in the right pot below.
+  if (existing && existing.currency !== currency && existing.status !== 'paid') {
+    await releaseWeeklyPool(args.competitionId, args.userId);
+    existing = null;
+  }
   if (existing?.status === 'paid') {
     return { ok: false, error: 'That prize money has already been paid out. Record a change as an adjustment instead.' };
   }
@@ -561,11 +585,11 @@ export async function setWeeklyPool(args: {
   // Only the gp this hold is asking for ON TOP of what it already holds has to be affordable — its
   // own money is not competing with itself. See setEventPool, which this mirrors deliberately.
   if (args.hold && amount > held) {
-    const balance = await getCofferBalance(args.clanId);
+    const balance = await getCofferBalance(args.clanId, currency);
     if (balance.available < amount - held) {
       return {
         ok: false,
-        error: `The coffer only has ${balance.available.toLocaleString()} gp available. Save it without holding if you mean to fund it later.`,
+        error: `The ${currency === 'hcw' ? 'Hardcore Worlds coffer' : 'coffer'} only has ${balance.available.toLocaleString()} gp available. Save it without holding if you mean to fund it later.`,
       };
     }
   }
@@ -603,6 +627,7 @@ export async function setWeeklyPool(args: {
       weeklyCompetitionId: args.competitionId,
       createdByUserId: args.userId,
       note: args.note ?? null,
+      currency,
     })
     .returning();
   announce(args.clanId, row);
@@ -678,8 +703,10 @@ export async function listCofferEntries(args: {
   statuses?: string[];
   limit?: number;
   all?: boolean;
+  /** Which pot's rows (main game gp unless asked). */
+  currency?: PrizeCurrency;
 }): Promise<CofferLedgerRow[]> {
-  const where = [eq(cofferEntries.clanId, args.clanId)];
+  const where = [eq(cofferEntries.clanId, args.clanId), eq(cofferEntries.currency, args.currency ?? 'gp')];
   if (args.kinds?.length) where.push(inArray(cofferEntries.kind, args.kinds));
   if (args.statuses?.length) where.push(inArray(cofferEntries.status, args.statuses));
   // clan-scope: global -- the ledger rows are already this clan's (filtered below); the roster join
@@ -696,7 +723,7 @@ export async function listCofferEntries(args: {
 }
 
 /** Still owed and paid out, summed in the database over every row (lib/cofferMath foldMoneyOut). */
-export async function getCofferMoneyOut(clanId: number): Promise<CofferMoneyOut> {
+export async function getCofferMoneyOut(clanId: number, currency: PrizeCurrency = 'gp'): Promise<CofferMoneyOut> {
   // clan-scope: takes the clan id its caller already settled.
   const rows = await db
     .select({
@@ -709,6 +736,7 @@ export async function getCofferMoneyOut(clanId: number): Promise<CofferMoneyOut>
     .where(
       and(
         eq(cofferEntries.clanId, clanId),
+        eq(cofferEntries.currency, currency),
         or(inArray(cofferEntries.kind, ['award', 'pool']), and(eq(cofferEntries.kind, 'adjustment'), lt(cofferEntries.amount, 0))),
       ),
     )
@@ -717,7 +745,7 @@ export async function getCofferMoneyOut(clanId: number): Promise<CofferMoneyOut>
 }
 
 /** Who has put the most in. Approved donations only — a pending claim is not a contribution yet. */
-export async function topDonors(clanId: number, limit = 10): Promise<{ rsn: string; total: number }[]> {
+export async function topDonors(clanId: number, limit = 10, currency: PrizeCurrency = 'gp'): Promise<{ rsn: string; total: number }[]> {
   // clan-scope: global -- as above: the donations are filtered to this clan, and the join only
   // resolves the name of a seat one of them already names.
   const rows = await db
@@ -727,7 +755,7 @@ export async function topDonors(clanId: number, limit = 10): Promise<{ rsn: stri
     })
     .from(cofferEntries)
     .leftJoin(clanRoster, eq(cofferEntries.clanMemberId, clanRoster.id))
-    .where(and(eq(cofferEntries.clanId, clanId), eq(cofferEntries.kind, 'donation'), eq(cofferEntries.status, 'approved')))
+    .where(and(eq(cofferEntries.clanId, clanId), eq(cofferEntries.currency, currency), eq(cofferEntries.kind, 'donation'), eq(cofferEntries.status, 'approved')))
     .groupBy(sql`coalesce(${clanRoster.rsn}, ${cofferEntries.rsn}, 'Anonymous')`)
     .orderBy(sql`sum(${cofferEntries.amount}) desc`)
     .limit(Math.min(50, Math.max(1, limit)));

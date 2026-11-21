@@ -31,6 +31,8 @@ import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
 import BestDrops from '@/components/weekly/BestDrops';
 import CompetitionPrizes from '@/components/weekly/CompetitionPrizes';
+import { MixedGameNote } from '@/components/weekly/GameTags';
+import { MAIN_AND_HARDCORE, parseCountsOn } from '@/lib/competitionGame';
 import SelfEntry from '@/components/weekly/SelfEntry';
 import { myEntry, signupOpen, weeklyFeePotGp } from '@/lib/weeklySignups';
 import { HuntClaim, HuntHero, HuntStandingsTable } from '@/components/weekly/HuntBoard';
@@ -188,7 +190,7 @@ export default async function WeeklyLeaderboardPage({
             ← All competitions
           </ClanLink>
           <div className="contents" style={accentStyle(clan.accentColor)}>
-            <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
+            <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} countsOn={competition.countsOn} />
           </div>
           <CompetitionTabs competitionId={compId} active="feed" />
           <CompetitionFeed
@@ -208,10 +210,10 @@ export default async function WeeklyLeaderboardPage({
           ← All competitions
         </ClanLink>
         <div className="contents" style={accentStyle(clan.accentColor)}>
-          <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} />
+          <HuntHero title={competition.title} view={hunt} startDate={competition.startDate} endDate={competition.endDate} countsOn={competition.countsOn} />
         </div>
         <CompetitionTabs competitionId={compId} active="standings" />
-        <CompetitionPrizes prizes={competition.prizes} hunt feePot={feePot} />
+        <CompetitionPrizes prizes={competition.prizes} currency={competition.prizeCurrency} hunt feePot={feePot} />
         {selfEntry}
         {huntEntry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={huntEntry.optedOut} />}
         {seats.length > 0 && <HuntClaim competitionId={compId} proof={hunt.proof} characters={seats} />}
@@ -229,6 +231,10 @@ export default async function WeeklyLeaderboardPage({
   const view = await buildCompetitionView(competition, myMemberIds);
   const groups = mode === 'solo' ? null : await buildGroupStandings(competition, { memberIds: myMemberIds });
   const myRsns = new Set(view.entries.filter((e) => e.isMe).map((e) => e.rsn.toLowerCase()));
+  // The team lists tag HCW and fallen characters off the individual board, so the two never disagree.
+  const tagsOf = new Map(view.entries.map((e) => [e.rsn.toLowerCase(), { hcw: e.hcw, stopped: e.stopped }]));
+  // Main game + Hardcore Worlds is the one setting where two kinds of character share a board.
+  const mixedGame = parseCountsOn(competition.countsOn) === MAIN_AND_HARDCORE;
   // "You're in · Opt out" — every competition, any clan's side. Opted-out players are off the board.
   const entry = session?.playerId && weeklyStatus(competition) !== 'completed' ? await entryStatus(compId, { playerId: session.playerId }) : null;
 
@@ -312,6 +318,7 @@ export default async function WeeklyLeaderboardPage({
         previous={view.previous}
         elapsed={view.elapsed}
         totalDays={view.days.length}
+        countsOn={competition.countsOn}
       />
       </div>
   );
@@ -356,7 +363,7 @@ export default async function WeeklyLeaderboardPage({
         </ClanLink>
         {hero}
         <CompetitionTabs competitionId={compId} active="recap" recap />
-        <CompetitionPrizes prizes={competition.prizes} feePot={feePot} />
+        <CompetitionPrizes prizes={competition.prizes} currency={competition.prizeCurrency} feePot={feePot} />
         {view.me && recap.mine && (
           <RecapYourWeek
             rsn={view.me.entry.rsn}
@@ -407,7 +414,7 @@ export default async function WeeklyLeaderboardPage({
 
       {hero}
       <CompetitionTabs competitionId={compId} active="standings" recap={ended} />
-      <CompetitionPrizes prizes={competition.prizes} feePot={feePot} />
+      <CompetitionPrizes prizes={competition.prizes} currency={competition.prizeCurrency} feePot={feePot} />
       {selfEntry}
 
       {view.me && (
@@ -416,7 +423,7 @@ export default async function WeeklyLeaderboardPage({
 
       {entry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={entry.optedOut} />}
 
-      {groups && <GroupStandings view={groups} type={view.type} unit={view.unit} myRsns={myRsns} />}
+      {groups && <GroupStandings view={groups} type={view.type} unit={view.unit} myRsns={myRsns} tagsOf={tagsOf} />}
 
       <Podium
         entries={view.entries}
@@ -474,6 +481,7 @@ export default async function WeeklyLeaderboardPage({
             unit={view.unit}
             showDaily={showDaily}
           />
+          {mixedGame && <MixedGameNote />}
           <BestDrops drops={view.bestDrops} />
           {/* The feed's newest lines stand where the old "Latest" list of moments was. */}
           <CompetitionLatest days={feedDays} href={feedHref} />

@@ -1,4 +1,5 @@
 import { competitionHighlights, huntPanelSubs } from '@/lib/competitionHighlights';
+import { isHardcoreEntrant } from '@/lib/competitionGame';
 import { huntStandings } from '@/lib/itemHuntDb';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
@@ -104,6 +105,9 @@ export async function GET(request: Request) {
     gained: Math.max(0, e.gained),
     // Places climbed since the UTC day began; null when unchanged or not yet recorded.
     move: rankMove(since?.get(weeklyRsnKey(e.rsn)), i + 1),
+    // A Hardcore Worlds character gets its "HCW" mark, and one that died there says so (lib/competitionGame).
+    ...(isHardcoreEntrant(e.hiscoresTable, comp.countsOn) ? { tag: 'HCW' } : {}),
+    ...(e.stoppedAt ? { stopped: true } : {}),
   });
   const entries = board.slice(0, MAX_ENTRIES).map(row);
   const wanted = weeklyRsnKey(searchParams.get('rsn'));

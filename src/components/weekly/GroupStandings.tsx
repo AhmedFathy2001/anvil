@@ -1,6 +1,7 @@
 import type { CompetitionType } from '@/lib/competitionInsights';
 import type { GroupStandingsView } from '@/lib/competitionTeamsDb';
 import { exactValue, shortValue } from '@/components/weekly/format';
+import { EntrantTags } from '@/components/weekly/GameTags';
 
 /**
  * Team / clan standings for a team or clan-vs-clan competition (lib/competitionTeams). Shown above
@@ -13,12 +14,15 @@ export default function GroupStandings({
   type,
   unit,
   myRsns,
+  tagsOf,
 }: {
   view: GroupStandingsView;
   type: CompetitionType;
   unit: string;
   /** The viewer's own RSNs (lower-cased) — marks "you" inside the expanded list. */
   myRsns: Set<string>;
+  /** Lower-cased RSN → its HCW / fell marks, read off the individual board so the two agree. */
+  tagsOf?: Map<string, { hcw: boolean; stopped: boolean }>;
 }) {
   const noun = view.mode === 'clans' ? 'Clan' : 'Team';
   const leaderTotal = Math.max(view.groups[0]?.total ?? 0, 1);
@@ -97,6 +101,7 @@ export default function GroupStandings({
                           <span className="text-center font-mono text-xs text-text-muted">{e.rank}</span>
                           <span className="truncate text-foreground">
                             {e.rsn}
+                            <EntrantTags {...tagsOf?.get(e.rsn.toLowerCase())} />
                             {me && <span className="ml-1.5 text-xs text-accent-green-light">you</span>}
                           </span>
                           <span className="font-mono text-accent-green-light">+{exactValue(e.gained, type)}</span>

@@ -16,6 +16,9 @@ import ItemSlot from '@/components/ItemSlot';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { parseGapPrefill, type GapPrefill } from '@/lib/gapPrefill';
+import { getSetting } from '@/lib/settings';
+import { getCofferBalance } from '@/lib/coffer';
+import { HCW_COFFER_SETTING_KEY } from '@/lib/competitionGame';
 import { FORMAT_CARDS, FORMAT_GROUP_BLURB, findFormat, type FormatCard } from '@/lib/formatCatalog';
 
 export const dynamic = 'force-dynamic';
@@ -68,6 +71,13 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
     db.select().from(eventPresets).where(eq(eventPresets.clanId, clan.id)).orderBy(desc(eventPresets.createdAt)),
   ]);
   const suggestedName = suggestEventName(clanName, ec?.c ?? 0);
+  // A weekly competition may pay its prizes from the clan's Hardcore Worlds coffer: the form needs to
+  // know the clan keeps one, and what each pot has free. A board never asks, so it never reads them.
+  const prizePots = chosen.choice.weekly
+    ? await Promise.all([getSetting(clan.id, HCW_COFFER_SETTING_KEY), getCofferBalance(clan.id, 'gp'), getCofferBalance(clan.id, 'hcw')]).then(
+        ([setting, main, hcw]) => ({ hcwCoffer: setting === '1', mainAvailable: main.available, hcwAvailable: hcw.available }),
+      )
+    : undefined;
 
   // Turn saved templates into gallery presets. Their captured tile CSV is parsed back into
   // rows/labels here so applying one seeds the board through the same import pipeline a
@@ -119,6 +129,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
           creator={creator}
           gapPrefill={gap}
           guardLeave
+          prizePots={prizePots}
         />
       </div>
     </div>

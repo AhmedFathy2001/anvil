@@ -26,6 +26,8 @@ import { notifyTeamTiles } from '@/lib/pushNotify';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
 import { parseEventRules } from '@/lib/eventRules';
 import { mergeModePush } from '@/lib/modeStats';
+import { countsWorld } from '@/lib/competitionGame';
+import { creditWeeklyModePush } from '@/lib/weeklyModeScores';
 import type { WorldMode } from '@/lib/worldModes';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
@@ -182,7 +184,8 @@ export async function POST(request: Request) {
     // debounced 15s client-side, so a competition that just started is picked up within one cycle.
     const activeComps = (
       await ttlMemo(`active-weekly-metrics:${clan.id}`, () => getActiveWeeklyMetrics(clan.id), 15_000)
-    ).filter((c) => metricKeys(c.metric).some((k) => updatedKeys.has(k)));
+    // A push from the main game moves only competitions that count it (lib/competitionGame).
+    ).filter((c) => countsWorld(c.countsOn ?? 'main', null) && metricKeys(c.metric).some((k) => updatedKeys.has(k)));
     // This member's seat in every matching comp, in one read.
     const seats = activeComps.length === 0 ? [] : await db
       .select()
@@ -196,6 +199,8 @@ export async function POST(request: Request) {
     for (const comp of activeComps) {
       const participant = seatByComp.get(comp.id);
       if (!participant) continue; // not enrolled yet — the lifecycle cron enrolls + the sweep baselines
+      // Scored off a mode's table (a Hardcore Worlds character), or out of the race since a death.
+      if (participant.hiscoresTable || participant.stoppedAt) continue;
       // A raid across its modes needs every mode in the overlay to be whole; otherwise the sweep has it.
       // The live overlay alone when it holds every key; otherwise each key's freshest count, the
       // stored hiscores under the keys the plugin has not pushed (a pet hunt over two bosses when
@@ -280,6 +285,11 @@ async function modePush(
   const pushed = readPushed(body);
 
   const nowIso = new Date().toISOString();
+  // Competitions that count this mode move live, like the main game's (lib/weeklyModeScores).
+  const weeklyMoved = lab.sessionEventId != null ? 0 : await creditWeeklyModePush({ clanId, clanMemberId: member.clanMemberId, modeKey: mode.key, pushed, nowIso }).catch((e) => {
+    log.warn('weekly-mode.push-failed', { error: (e as Error).message });
+    return 0;
+  });
   // clan-scope: this clan -- boards the connected clan hosts or co-hosts (lib/auth pluginParticipantScope).
   const rows = await db
     .select({
@@ -304,7 +314,10 @@ async function modePush(
       eventHasStarted(r) &&
       parseEventRules(r.rules).worldModes.includes(mode.key),
   );
-  if (boards.length === 0) return lab.sessionEventId != null ? NextResponse.json({ ok: true, lab: true, completed: labCompleted(lab.applied) }) : worldModeIgnored(request)!;
+  if (boards.length === 0) {
+    if (lab.sessionEventId != null) return NextResponse.json({ ok: true, lab: true, completed: labCompleted(lab.applied) });
+    return weeklyMoved > 0 ? NextResponse.json({ ok: true, updated: weeklyMoved, mode: mode.label, completed: [] }) : worldModeIgnored(request)!;
+  }
   if (Object.keys(pushed).length === 0) return NextResponse.json({ ok: true, updated: 0, mode: mode.label, completed: [] });
 
   const updatedKeys = new Set(Object.keys(pushed));

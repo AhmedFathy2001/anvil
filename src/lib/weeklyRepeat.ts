@@ -7,6 +7,7 @@
 // Turning repeat off on the current competition stops the series: the successor is made from the
 // latest one, and only when it still says repeat.
 
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 import { parseHunt, serializeHunt } from '@/lib/itemHunt';
 import { and, eq, isNull, like } from 'drizzle-orm';
 
@@ -112,6 +113,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               entryFee: prev.entryFee,
               feesToPrizes: prev.feesToPrizes,
               feeGatesPrize: prev.feeGatesPrize,
+              // Which game counts and what it pays in carry over: a Hardcore Worlds week stays one.
+              countsOn: prev.countsOn,
+              prizeCurrency: prev.prizeCurrency,
             })
             .returning();
           const kept = await tx
@@ -134,8 +138,9 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
       // exactly as creating it by hand does.
       const total = prev.prizes ? totalPrizeGp(parseWeeklyPrizes(prev.prizes)) : 0;
       if (total > 0) {
-        const held = await setWeeklyPool({ clanId: prev.clanId, competitionId: comp.id, amount: total, hold: true, userId: null });
-        if (!held.ok) await setWeeklyPool({ clanId: prev.clanId, competitionId: comp.id, amount: total, hold: false, userId: null });
+        const currency = parsePrizeCurrency(prev.prizeCurrency);
+        const held = await setWeeklyPool({ clanId: prev.clanId, competitionId: comp.id, amount: total, hold: true, userId: null, currency });
+        if (!held.ok) await setWeeklyPool({ clanId: prev.clanId, competitionId: comp.id, amount: total, hold: false, userId: null, currency });
       }
 
       // Same format as last week: teams carried over (then re-balanced), clans re-invited.

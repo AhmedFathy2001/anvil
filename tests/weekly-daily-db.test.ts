@@ -155,3 +155,36 @@ test('a solo weekly posts its halfway standings once, unless the clan turned tha
   await P.announceHalfwayIfDue(off.comp, Date.now(), () => R.weeklyBoard(off.comp.id));
   assert.equal(postsFor(off.clan.id).length, 0);
 });
+
+test('a main game + Hardcore Worlds weekly names the game, tags HCW characters and says HCW gp', async () => {
+  const { clan, comp } = await clanWithWeekly({ startedHoursAgo: 80, endsInHours: 60 });
+  const [mixed] = await db
+    .update(s.weeklyCompetitions)
+    .set({ countsOn: 'main+hardcore', prizeCurrency: 'hcw', prizes: JSON.stringify({ places: [{ gp: 4_000_000 }, { gp: 2_000_000 }] }) })
+    .where(eq(s.weeklyCompetitions.id, comp.id))
+    .returning();
+  await db.update(s.weeklyParticipants).set({ hiscoresTable: 'hardcore_mains' }).where(eq(s.weeklyParticipants.rsnNormalized, 'bravo'));
+
+  await P.announceHalfwayIfDue(mixed, Date.now(), () => R.weeklyBoard(comp.id));
+  const halfway = postsFor(clan.id)[0];
+  assert.match(halfway.embed.fields?.[0].value ?? '', /\*\*Alpha\*\* — \+500,000 XP\n🥈 \*\*Bravo \(HCW\)\*\* — \+300,000 XP$/);
+
+  await P.announceCompetitionStart(mixed);
+  const start = postsFor(clan.id)[1];
+  assert.equal(start.embed.fields?.find((f) => f.name === 'Counts')?.value, 'Main game + Hardcore Worlds');
+
+  await P.announceCompetitionResults(mixed, [{ rsn: 'Alpha', gained: 500_000 }, { rsn: 'Bravo', gained: 300_000 }]);
+  const results = postsFor(clan.id)[2];
+  const standings = results.embed.fields?.find((f) => f.name === 'Final standings')?.value ?? '';
+  assert.match(standings, /🥇 \*\*Alpha\*\* — \+500,000 · wins 4(\.0)?m HCW gp/i);
+  assert.match(standings, /🥈 \*\*Bravo \(HCW\)\*\* — \+300,000 · wins 2(\.0)?m HCW gp/i);
+  assert.equal(results.embed.fields?.find((f) => f.name === 'Counts')?.value, 'Main game + Hardcore Worlds');
+});
+
+test('a main game weekly posts no game, no tags and no prize line, as before', async () => {
+  const { clan, comp } = await clanWithWeekly({ startedHoursAgo: 80, endsInHours: 60 });
+  await P.announceCompetitionResults(comp, [{ rsn: 'Alpha', gained: 500_000 }]);
+  const results = postsFor(clan.id)[0];
+  assert.ok(!JSON.stringify(results.embed).includes('HCW'));
+  assert.ok(!results.embed.fields?.some((f) => f.name === 'Counts'));
+});

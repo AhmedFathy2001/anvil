@@ -6,6 +6,24 @@ import { shortValue } from './format';
 import type { CompetitionType } from '@/lib/competitionInsights';
 import type { Scene } from '@/lib/scenes';
 import SceneBackdrop from '@/components/SceneBackdrop';
+import { countsOnIcon, countsOnLabel, MAIN, parseCountsOn } from '@/lib/competitionGame';
+
+/**
+ * Which game counts, when it isn't the plain main game: a competition made before modes existed
+ * keeps the header it always had. Shared with the item hunt's header (components/weekly/HuntBoard).
+ */
+export function CountsOnChip({ countsOn }: { countsOn?: string | null }) {
+  const c = parseCountsOn(countsOn);
+  if (c === MAIN) return null;
+  const icon = countsOnIcon(c);
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-green/35 bg-accent-green/10 px-2.5 py-0.5 text-accent-green-light">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {icon && <img src={icon} alt="" aria-hidden className="h-3.5 w-3.5 object-contain" />}
+      {countsOnLabel(c)}
+    </span>
+  );
+}
 
 /**
  * The competition's header.
@@ -37,6 +55,8 @@ interface Props {
   previous: { title: string; total: number; deltaPct: number } | null;
   elapsed: number;
   totalDays: number;
+  /** Which game counts (lib/competitionGame); absent or 'main' shows nothing. */
+  countsOn?: string | null;
 }
 
 function parts(ms: number) {
@@ -48,7 +68,7 @@ const TYPE_WORD: Record<CompetitionType, string> = { skill: 'Skill', boss: 'Boss
 
 export default function CompetitionHero({
   title, type, metricLabel, unit, status, startDate, endDate, iconUrl, scene,
-  clanTotal, todayTotal, scoring, entered, leader, projected, previous, elapsed, totalDays,
+  clanTotal, todayTotal, scoring, entered, leader, projected, previous, elapsed, totalDays, countsOn,
 }: Props) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -93,6 +113,7 @@ export default function CompetitionHero({
                 {TYPE_WORD[type]}: {metricLabel}
               </span>
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">{range}</span>
+              <CountsOnChip countsOn={countsOn} />
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">
                 {scoredOfEntered(scoring, entered)}
               </span>

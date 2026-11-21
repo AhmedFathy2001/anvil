@@ -27,6 +27,7 @@
 // (readMetricFromSnapshot → effectiveValue → applyWeeklyValue, plus the competition's player
 // snapshot).
 
+import { countsWorld } from '@/lib/competitionGame';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, eventParticipants, events, hiscoresFetches, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
@@ -498,6 +499,9 @@ async function captureWeeklyOne(comp: CompRow, row: WeeklyRow, owner: 'site' | '
   // An item hunt with no stat beside its drops has no starting line to take (lib/weeklyMetric).
   const stat = competitionStat(comp);
   if (!stat) return true;
+  // The main game's table is not this seat's: a mode-only competition, or a Hardcore Worlds character,
+  // takes its starting line off its own table (lib/weeklyModeScores), straight away in the competition lane.
+  if (!countsWorld(comp.countsOn, null) || row.hiscoresTable || row.stoppedAt) return true;
   const read = await readSeat(row.rsn, row.clanMemberId, null, owner, { competitionId: comp.id, participantId: row.id });
   // A miss stamps lastUpdated, exactly as the sweep does on one — which is also what lets the roster
   // say "couldn't read" after a restart (weeklyStartingStatsStatus).

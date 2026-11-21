@@ -1,5 +1,7 @@
 import { formatGp } from '@/lib/adminEventsFormat';
 import { feePlaces, parseWeeklyPrizes } from '@/lib/weeklyPrizes';
+import { currencyWords, HCW_PRIZE_TITLE, parsePrizeCurrency } from '@/lib/competitionGame';
+import { HcwIcon } from './GameTags';
 
 const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
 
@@ -11,12 +13,16 @@ export default function CompetitionPrizes({
   prizes,
   hunt = false,
   feePot = null,
+  currency = null,
 }: {
   prizes: string | null;
   hunt?: boolean;
   /** Entry fees added to the prizes: the gp in so far and the fee each, or null when this competition does not do that. */
   feePot?: { gp: number; each: number | null } | null;
+  /** weekly_competitions.prize_currency: 'hcw' pays from the clan's Hardcore Worlds coffer. */
+  currency?: string | null;
 }) {
+  const hcw = parsePrizeCurrency(currency) === 'hcw';
   const ladder = parseWeeklyPrizes(prizes);
   const places = feePlaces(ladder.places, feePot?.gp ?? 0).filter((p) => p.gp > 0);
   if (places.length === 0 && !feePot) return null;
@@ -30,11 +36,21 @@ export default function CompetitionPrizes({
     <section className="my-4 rounded-xl border border-gold/30 bg-gold/[0.05] px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-sm font-semibold text-gold">Prizes</h2>
-        {places.length > 1 && <span className="text-xs text-text-muted">{formatGp(total)} gp in all, paid from the clan coffer</span>}
+        {/* HCW gp says so even for one place: the pot it comes from is the news. */}
+        {(places.length > 1 || (hcw && places.length > 0)) && (
+          <span className="text-xs text-text-muted">
+            {formatGp(total)} {currencyWords(hcw ? 'hcw' : 'gp')} in all, paid from the clan{hcw ? "'s Hardcore Worlds coffer" : ' coffer'}
+          </span>
+        )}
       </div>
       <ul className="mt-2 flex flex-wrap gap-2">
         {places.map((p, i) => (
-          <li key={i} className={`rounded-lg border px-3 py-1.5 text-sm ${i === 0 ? 'border-gold/50 bg-gold/10' : 'border-card-border bg-card-bg'}`}>
+          <li
+            key={i}
+            className={`rounded-lg border px-3 py-1.5 text-sm ${hcw ? 'inline-flex items-center gap-1.5' : ''} ${i === 0 ? 'border-gold/50 bg-gold/10' : 'border-card-border bg-card-bg'}`}
+            title={hcw ? HCW_PRIZE_TITLE : undefined}
+          >
+            {hcw && <HcwIcon className="h-3.5 w-3.5" />}
             <span className="text-text-muted">{ORDINALS[i] ?? `${i + 1}th`}</span>{' '}
             <span className={`font-semibold tabular-nums ${i === 0 ? 'text-gold' : 'text-foreground'}`}>{formatGp(p.gp)} gp</span>
           </li>

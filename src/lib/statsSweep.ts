@@ -1,3 +1,4 @@
+import { countsWorld } from '@/lib/competitionGame';
 import { afterRaceCompletion, ensureRaceBaselines, branchingRaceWin } from '@/lib/raceRoutesDb';
 import { saveStatSnapshot, updateAccount } from '@/lib/roster';
 import { emitCompletionRow } from '@/lib/panelRows';
@@ -271,6 +272,9 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
     // drops, and one with none has nothing to sweep (lib/weeklyMetric competitionStat).
     const stat = competitionStat(comp);
     if (!stat) continue;
+    // This pass reads the MAIN GAME's hiscores. A competition on one mode alone is read from that
+    // mode's table instead (lib/weeklyModeScores), so it takes nothing from here.
+    if (!countsWorld(comp.countsOn, null)) continue;
     // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
     const participants = await db
       .select({
@@ -289,6 +293,10 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           or(isNull(weeklyParticipants.clanMemberId), eq(clanRoster.status, 'active')),
           // Opted out of this competition: nothing to track.
           eq(weeklyParticipants.optedOut, false),
+          // A Hardcore Worlds character (or any one pinned to a mode's table) is scored from that table,
+          // and one that left its save mid-competition scores nothing more (lib/weeklyModeScores).
+          isNull(weeklyParticipants.hiscoresTable),
+          isNull(weeklyParticipants.stoppedAt),
         ),
       )
       .orderBy(asc(weeklyParticipants.lastUpdated));

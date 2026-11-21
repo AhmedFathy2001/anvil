@@ -22,6 +22,7 @@ import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 import { clanSeat } from '@/lib/seatScope';
 import { streamedEvent } from '@/lib/creatorSpaces';
 import { ALWAYS_NOTIFY_LIST_KEY, effectiveAlwaysNotify } from '@/lib/alwaysNotify';
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -88,6 +89,8 @@ export interface ScheduleWeekly {
   iconItem?: number;
   /** Coffer prizes in gp, first place first (lib/weeklyPrizes). Absent when it pays nothing. */
   prizeGp?: number[];
+  /** 'hcw': the prizes are paid in Hardcore Worlds gp, from the clan's Hardcore Worlds coffer. Absent = main game gp. */
+  prizeCurrency?: 'hcw';
 }
 
 export interface PluginSchedule {
@@ -296,6 +299,7 @@ export async function buildSchedule(
       metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
       ...huntIconItem(w),
       ...weeklyPrizeGp(w.prizes),
+      ...(parsePrizeCurrency(w.prizeCurrency) === 'hcw' ? { prizeCurrency: 'hcw' as const } : {}),
       status: weeklyStatus(w),
       startDate: w.startDate,
       endDate: w.endDate,
@@ -500,6 +504,8 @@ export interface ActiveWeeklyMetric {
   endDate?: string;
   /** Set on an item hunt: its targets in words. `type` and `metric` are then the stat it shows beside its drops. */
   hunt?: string;
+  /** Which game counts, when it isn't the main game alone (lib/competitionGame). */
+  countsOn?: string;
 }
 
 // EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
@@ -522,7 +528,7 @@ export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeek
   // plugin pushes that live too; a hunt with no stat has nothing to push and is left out.
   return rows.flatMap((c) => {
     const stat = competitionStat(c);
-    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}) }] : [];
+    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}), ...(c.countsOn !== 'main' ? { countsOn: c.countsOn } : {}) }] : [];
   });
 }
 

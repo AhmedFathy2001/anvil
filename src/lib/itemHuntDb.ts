@@ -14,6 +14,7 @@
 // alone never ends a hunt and never pays a prize: both wait for staff (recordHuntReports,
 // decideHuntDrop, huntPrizeBoard).
 
+import { countsWorld } from '@/lib/competitionGame';
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -205,9 +206,12 @@ export async function recordHuntReports(
   clanId: number,
   reports: HuntReport[],
   now: Date = new Date(),
+  /** The game mode the drops came from (lib/worldModes key); null = the main game. */
+  modeKey: string | null = null,
 ): Promise<number> {
   if (reports.length === 0) return 0;
-  const hunts = await activeHunts(clanId, now.getTime());
+  // Only the hunts that count this world: the main game, or the mode a hunt is set to (lib/competitionGame).
+  const hunts = (await activeHunts(clanId, now.getTime())).filter((h) => countsWorld(h.comp.countsOn, modeKey));
   if (hunts.length === 0) return 0;
   // clan-scope: this clan -- the member's own seat in this clan's running hunts.
   const seats = await db
@@ -218,6 +222,8 @@ export async function recordHuntReports(
         inArray(weeklyParticipants.competitionId, hunts.map((h) => h.comp.id)),
         eq(weeklyParticipants.clanMemberId, member.clanMemberId),
         eq(weeklyParticipants.optedOut, false),
+        // A Hardcore Worlds character that died mid-hunt keeps what it found and finds nothing more.
+        isNull(weeklyParticipants.stoppedAt),
       ),
     );
   let stored = 0;

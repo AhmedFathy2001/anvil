@@ -12,6 +12,7 @@ import { buildHuntView } from '@/lib/itemHuntView';
 import { huntStat } from '@/lib/itemHunt';
 import { SKILL_LABELS } from '@/lib/constants';
 import { idParam } from '@/lib/routeIds';
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,8 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
   const [standings, counts, balance, hasCoffer, feeCollector, pool] = await Promise.all([
     getWeeklyStandings(id),
     getWeeklyCounts(id),
-    getCofferBalance(clan.id),
+    // The pot this competition's prizes come out of (main gp, or the Hardcore Worlds coffer).
+    getCofferBalance(clan.id, parsePrizeCurrency(comp.prizeCurrency)),
     clanHasCoffer(clan.id),
     verifyFeeCollector(),
     getWeeklyPool(id),
@@ -96,7 +98,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         attention={attention}
         entrants={hunt.participants.map((p) => ({ id: p.id, rsn: p.rsn })).sort((a, b) => a.rsn.localeCompare(b.rsn))}
         asItStands={asItStands}
-        prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer }}
+        prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer, hcw: comp.prizeCurrency === 'hcw' }}
         prizesWaiting={comp.status === 'completed' && !comp.prizesSettledAt && prizeHolds.length > 0}
       />
     );
@@ -120,6 +122,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
       prizes={{
         initial: prizes,
         cofferAvailable: balance.available + held,
+        hcw: comp.prizeCurrency === 'hcw',
         held: held > 0,
         settledAt: comp.prizesSettledAt,
         canEdit: Boolean(feeCollector),

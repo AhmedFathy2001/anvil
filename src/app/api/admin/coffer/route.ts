@@ -8,6 +8,8 @@ import { rosterClanSeat } from '@/lib/seatScope';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getCofferBalance, listCofferEntries, recordAdjustment, recordDonations } from '@/lib/coffer';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { getSetting, setSetting } from '@/lib/settings';
+import { HCW_COFFER_SETTING_KEY, type PrizeCurrency } from '@/lib/competitionGame';
 
 /**
  * The staff side of the coffer: the whole ledger, and the one write that isn't a reaction to
@@ -17,15 +19,52 @@ import { refuseForCreatorSpace } from '@/lib/creatorGuard';
  * because it is the same job: this is the clan's money, and rank alone has never conferred it.
  */
 
-export async function GET() {
+async function hcwCofferOn(clanId: number): Promise<boolean> {
+  return (await getSetting(clanId, HCW_COFFER_SETTING_KEY)) === '1';
+}
+
+/**
+ * Which pot a request is about. 'hcw' only while the clan keeps a Hardcore Worlds coffer: switched
+ * off, that pot is hidden everywhere, so nothing should be able to write to it either.
+ */
+async function pickPot(clanId: number, raw: unknown): Promise<{ pot: PrizeCurrency } | { refused: NextResponse }> {
+  if (raw == null || raw === '' || raw === 'gp') return { pot: 'gp' };
+  if (raw !== 'hcw') return { refused: NextResponse.json({ error: 'Unknown coffer.' }, { status: 400 }) };
+  if (!(await hcwCofferOn(clanId))) {
+    return { refused: NextResponse.json({ error: 'This clan does not keep a Hardcore Worlds coffer.' }, { status: 400 }) };
+  }
+  return { pot: 'hcw' };
+}
+
+export async function GET(request: Request) {
   const session = await verifyFeeCollector();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
+  const picked = await pickPot(clan.id, new URL(request.url).searchParams.get('currency'));
+  if ('refused' in picked) return picked.refused;
   const [balance, entries] = await Promise.all([
-    getCofferBalance(clan.id),
-    listCofferEntries({ clanId: clan.id, limit: 200 }),
+    getCofferBalance(clan.id, picked.pot),
+    listCofferEntries({ clanId: clan.id, limit: 200, currency: picked.pot }),
   ]);
-  return NextResponse.json({ balance, entries });
+  return NextResponse.json({ balance, entries, currency: picked.pot });
+}
+
+/**
+ * Switching the Hardcore Worlds coffer on or off. Off only hides it: the pot's rows stay, so
+ * turning it back on finds the same balance.
+ */
+export async function PUT(request: Request) {
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
+  const session = await verifyFeeCollector();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const clan = await requireClan();
+  const body = (await request.json().catch(() => null)) as { hcwCoffer?: unknown } | null;
+  if (typeof body?.hcwCoffer !== 'boolean') {
+    return NextResponse.json({ error: 'Say whether to keep a Hardcore Worlds coffer.' }, { status: 400 });
+  }
+  await setSetting(clan.id, HCW_COFFER_SETTING_KEY, body.hcwCoffer ? '1' : '0');
+  return NextResponse.json({ hcwCoffer: body.hcwCoffer });
 }
 
 export async function POST(request: Request) {
@@ -41,7 +80,11 @@ export async function POST(request: Request) {
     note?: unknown;
     donors?: unknown;
     force?: unknown;
+    currency?: unknown;
   } | null;
+  const picked = await pickPot(clan.id, body?.currency);
+  if ('refused' in picked) return picked.refused;
+  const currency = picked.pot;
 
   // Named donors: a gift the treasurer is recording on somebody's behalf, one row each so the
   // top-donor list can thank them individually. Everything below stays the anonymous movement.
@@ -83,6 +126,7 @@ export async function POST(request: Request) {
       donors,
       userId: session.userId,
       note: typeof body.note === 'string' ? body.note.slice(0, 500) : null,
+      currency,
     });
     return NextResponse.json({ entries });
   }
@@ -106,6 +150,7 @@ export async function POST(request: Request) {
     userId: session.userId,
     note: typeof body?.note === 'string' ? body.note.slice(0, 500) : null,
     force: body?.force === true,
+    currency,
   });
   if (!result.ok) {
     return NextResponse.json(
