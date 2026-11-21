@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   checkCountsOn,
+  cleanPingRole,
   countsHardcore,
   countsOnLabel,
   countsWorld,
@@ -77,4 +78,13 @@ test('which entrants are Hardcore Worlds characters', () => {
   assert.ok(isHardcoreEntrant('hardcore_mains', 'main+hardcore'));
   assert.ok(isHardcoreEntrant(null, 'hardcore'), 'every entrant of a Hardcore-Worlds-only competition');
   assert.ok(!isHardcoreEntrant(null, 'leagues'));
+});
+
+test('a competition pings only a real Discord role id', () => {
+  assert.equal(cleanPingRole('123456789012345678'), '123456789012345678');
+  assert.equal(cleanPingRole('everyone'), null);
+  assert.equal(cleanPingRole('@everyone'), null);
+  assert.equal(cleanPingRole('<@&123456789012345678>'), null);
+  assert.equal(cleanPingRole(''), null);
+  assert.equal(cleanPingRole(123456789012345678), null);
 });

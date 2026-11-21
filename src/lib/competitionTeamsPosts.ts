@@ -63,8 +63,7 @@ function tagHardcore<T extends { rsn: string }>(rows: T[], hcw: Set<string>): T[
  * results post names it. The same ladder the settle pass pays (lib/weeklyPrizeSettle). Null on a
  * main-game gp competition, whose post stays as it was.
  */
-async function hcwPrizes(comp: Comp, standings: { rsn: string; gained: number }[]): Promise<{ rsn: string; gp: number }[] | null> {
-  if (parsePrizeCurrency(comp.prizeCurrency) !== 'hcw') return null;
+async function prizeWinnings(comp: Comp, standings: { rsn: string; gained: number }[]): Promise<{ rsn: string; gp: number }[] | null> {
   const ladder = parseWeeklyPrizes(comp.prizes);
   const prizes = { ...ladder, places: feePlaces(ladder.places, comp.feesToPrizes ? await weeklyFeePotGp(comp.id) : 0) };
   const won = new Map<string, number>();
@@ -101,6 +100,8 @@ export async function announceCompetitionStart(comp: Comp): Promise<void> {
         groups: groups ? { ...groups, you: t.you } : null,
         hunt: huntPost(comp),
         countsOn: comp.countsOn,
+        // The role is one in the HOST clan's server: a partner clan's channel gets the post without it.
+        pingRoleId: comp.pingOnStart && t.clanId === comp.clanId ? comp.pingRoleId : null,
       });
     } catch (err) {
       log.warn('weekly.notify-start-fail', { competitionId: comp.id, clanId: t.clanId }, err);
@@ -113,7 +114,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
   const bestDrops = await resultsBestDrops(comp, standings).catch(() => [] as string[]);
   // Prizes are matched on the plain names, then both carry the HCW tag.
   const hcw = await hardcoreKeys(comp);
-  const prizes = await hcwPrizes(comp, standings).catch(() => null);
+  const prizes = await prizeWinnings(comp, standings).catch(() => null);
   for (const t of await targets(comp)) {
     try {
       await notifyWeeklyResults({
@@ -128,6 +129,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
         countsOn: comp.countsOn,
         prizes: prizes ? tagHardcore(prizes, hcw) : null,
         prizeCurrency: parsePrizeCurrency(comp.prizeCurrency),
+        pingRoleId: comp.pingOnEnd && t.clanId === comp.clanId ? comp.pingRoleId : null,
       });
     } catch (err) {
       log.warn('weekly.notify-results-fail', { competitionId: comp.id, clanId: t.clanId }, err);

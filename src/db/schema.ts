@@ -1731,6 +1731,10 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   countsOn: text('counts_on').notNull().default('main'),
   /** What the prizes are paid in: 'gp' (the main game coffer) or 'hcw' (the clan's Hardcore Worlds coffer). */
   prizeCurrency: text('prize_currency').notNull().default('gp'),
+  /** A Discord role the start and/or results post pings (a role id from the clan's server); null = no ping. */
+  pingRoleId: text('ping_role_id'),
+  pingOnStart: boolean('ping_on_start').notNull().default(false),
+  pingOnEnd: boolean('ping_on_end').notNull().default(false),
   /**
    * Item hunt only (type 'hunt'): the hunt's rules as JSON, lib/itemHunt HuntConfig. The targets,
    * where each one counts from, the rule, and what the standings show beside the count. `metric`

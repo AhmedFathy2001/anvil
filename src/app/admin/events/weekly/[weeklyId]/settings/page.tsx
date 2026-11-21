@@ -11,6 +11,7 @@ import { getWeeklyRow } from '@/lib/weeklyWorkspace';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import WeeklySettingsPanel, { WeeklyGamePanel } from '../WeeklySettingsPanel';
+import { WeeklyPingPanel } from '@/components/weekly/CompetitionPingFields';
 import { getSetting } from '@/lib/settings';
 import { getCofferBalance } from '@/lib/coffer';
 import { HCW_COFFER_SETTING_KEY } from '@/lib/competitionGame';
@@ -71,6 +72,7 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
       canSetCurrency={atLeast(session?.role, 'treasurer')}
       settled={Boolean(comp.prizesSettledAt)}
     />
+    <WeeklyPingPanel competitionId={comp.id} initial={{ roleId: comp.pingRoleId ?? '', onStart: comp.pingOnStart, onEnd: comp.pingOnEnd }} />
     <WeeklySettingsPanel
       comp={{
         id: comp.id,
