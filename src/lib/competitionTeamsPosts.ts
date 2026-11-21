@@ -17,6 +17,10 @@ import { BEST_DROPS_IN_RESULTS, bestDropLine, rankBestDrops } from '@/lib/bestDr
 import { bestDropMoments } from '@/lib/momentsStore';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import { log } from '@/lib/logger';
+import { getEffectiveParticipants } from '@/lib/weekly';
+import { MAIN, isHardcoreEntrant, parseCountsOn, parsePrizeCurrency } from '@/lib/competitionGame';
+import { feePlaces, parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
+import { weeklyFeePotGp } from '@/lib/weeklySignups';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
 
@@ -36,6 +40,36 @@ async function resultsBestDrops(comp: Comp, standings: { rsn: string }[]): Promi
   const onBoard = new Set(standings.map((s) => weeklyRsnKey(s.rsn)));
   const ranked = rankBestDrops((await bestDropMoments(comp.id)).filter((m) => onBoard.has(weeklyRsnKey(m.rsn))));
   return ranked.slice(0, BEST_DROPS_IN_RESULTS).map(bestDropLine);
+}
+
+/**
+ * The names of this competition's Hardcore Worlds characters (rsn keys). Empty, and no read at all,
+ * on a main-game competition, so those posts read exactly as they always have.
+ */
+async function hardcoreKeys(comp: Comp): Promise<Set<string>> {
+  if (parseCountsOn(comp.countsOn) === MAIN) return new Set();
+  const rows = await getEffectiveParticipants(comp.id);
+  return new Set(rows.filter((p) => isHardcoreEntrant(p.hiscoresTable, comp.countsOn)).map((p) => weeklyRsnKey(p.rsn)));
+}
+
+/** "Name (HCW)" for a Hardcore Worlds character, so a mixed board says which game each one plays. */
+function tagHardcore<T extends { rsn: string }>(rows: T[], hcw: Set<string>): T[] {
+  if (hcw.size === 0) return rows;
+  return rows.map((r) => (hcw.has(weeklyRsnKey(r.rsn)) ? { ...r, rsn: `${r.rsn} (HCW)` } : r));
+}
+
+/**
+ * What each winner takes, for a competition paid in Hardcore Worlds gp: that pot is the news, so the
+ * results post names it. The same ladder the settle pass pays (lib/weeklyPrizeSettle). Null on a
+ * main-game gp competition, whose post stays as it was.
+ */
+async function hcwPrizes(comp: Comp, standings: { rsn: string; gained: number }[]): Promise<{ rsn: string; gp: number }[] | null> {
+  if (parsePrizeCurrency(comp.prizeCurrency) !== 'hcw') return null;
+  const ladder = parseWeeklyPrizes(comp.prizes);
+  const prizes = { ...ladder, places: feePlaces(ladder.places, comp.feesToPrizes ? await weeklyFeePotGp(comp.id) : 0) };
+  const won = new Map<string, number>();
+  for (const w of winnersFor(prizes, standings.map((s) => ({ ...s, clanMemberId: null })))) won.set(w.rsn, (won.get(w.rsn) ?? 0) + w.gp);
+  return [...won].map(([rsn, gp]) => ({ rsn, gp }));
 }
 
 async function groupPost(comp: Comp): Promise<WeeklyGroupPost | null> {
@@ -66,6 +100,7 @@ export async function announceCompetitionStart(comp: Comp): Promise<void> {
         endDate: comp.endDate,
         groups: groups ? { ...groups, you: t.you } : null,
         hunt: huntPost(comp),
+        countsOn: comp.countsOn,
       });
     } catch (err) {
       log.warn('weekly.notify-start-fail', { competitionId: comp.id, clanId: t.clanId }, err);
@@ -76,6 +111,9 @@ export async function announceCompetitionStart(comp: Comp): Promise<void> {
 export async function announceCompetitionResults(comp: Comp, standings: { rsn: string; gained: number }[]): Promise<void> {
   const groups = await groupPost(comp);
   const bestDrops = await resultsBestDrops(comp, standings).catch(() => [] as string[]);
+  // Prizes are matched on the plain names, then both carry the HCW tag.
+  const hcw = await hardcoreKeys(comp);
+  const prizes = await hcwPrizes(comp, standings).catch(() => null);
   for (const t of await targets(comp)) {
     try {
       await notifyWeeklyResults({
@@ -83,10 +121,13 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
         type: comp.type,
         title: comp.title,
         metric: comp.metric,
-        standings,
+        standings: tagHardcore(standings, hcw),
         groups: groups ? { ...groups, you: t.you } : null,
         hunt: huntPost(comp),
         bestDrops,
+        countsOn: comp.countsOn,
+        prizes: prizes ? tagHardcore(prizes, hcw) : null,
+        prizeCurrency: parsePrizeCurrency(comp.prizeCurrency),
       });
     } catch (err) {
       log.warn('weekly.notify-results-fail', { competitionId: comp.id, clanId: t.clanId }, err);
@@ -113,7 +154,7 @@ export async function announceHalfwayIfDue(comp: Comp, nowMs = Date.now(), board
   if (!claimed.length) return false;
   const groups = solo ? null : await groupPost(comp);
   if (!solo && !groups) return false;
-  const standings = solo && board ? await board() : [];
+  const standings = solo && board ? tagHardcore(await board(), await hardcoreKeys(comp)) : [];
   for (const t of await targets(comp)) {
     try {
       if (!switchOn(await getSetting(t.clanId, WEEKLY_HALFWAY_KEY))) continue;
@@ -148,8 +189,10 @@ export async function announceCompetitionDay(
 ): Promise<boolean> {
   try {
     if (comp.status !== 'active' || !dailyWindowOpen(comp.startDate, comp.endDate, nowMs)) return false;
-    const lines = dailyLines(board, prev, weeklyRsnKey);
-    if (!lines || !dayWorthPosting(lines)) return false;
+    const plain = dailyLines(board, prev, weeklyRsnKey);
+    if (!plain || !dayWorthPosting(plain)) return false;
+    // Tagged after the lines are worked out: the day's starting ranks are keyed by the plain name.
+    const lines = tagHardcore(plain, await hardcoreKeys(comp));
     const groups = await groupPost(comp);
     const dayNumber = Math.max(1, Math.round((nowMs - Date.parse(comp.startDate)) / 86_400_000));
     let sent = false;

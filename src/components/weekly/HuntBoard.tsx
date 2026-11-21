@@ -15,6 +15,8 @@ import { clanFetch } from '@/lib/clanFetch';
 import { SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { HuntView, HuntViewDrop, HuntViewRow } from '@/lib/itemHuntView';
 import { itemIconUrl } from '@/lib/tileIcons';
+import { EntrantTags } from './GameTags';
+import { CountsOnChip } from './CompetitionHero';
 
 /**
  * An item hunt's own page: who has the drop, when they got it and at what kill count, and how many
@@ -78,6 +80,7 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">
             {row.rsn}
+            <EntrantTags hcw={row.hcw} stopped={row.stopped} />
             {row.isMe && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-accent-green-light">you</span>}
           </span>
           {stat && <span className={`block text-xs ${!has && (row.statGain ?? 0) > 0 ? 'text-amber-300/90' : 'text-text-muted'}`}>{stat}</span>}
@@ -382,7 +385,7 @@ export function HuntClaim({ competitionId, proof, characters }: { competitionId:
 }
 
 /** The hunt's header: what is hunted and by which rule, where it stands, and who has it. */
-export function HuntHero({ title, view, startDate, endDate }: { title: string; view: HuntView; startDate: string; endDate: string }) {
+export function HuntHero({ title, view, startDate, endDate, countsOn }: { title: string; view: HuntView; startDate: string; endDate: string; countsOn?: string | null }) {
   const ended = view.status === 'completed';
   const upcoming = view.status === 'upcoming';
   const top = view.rows[0]?.count > 0 ? view.rows[0] : null;
@@ -420,6 +423,7 @@ export function HuntHero({ title, view, startDate, endDate }: { title: string; v
                 <LocalTime date={startDate} format="short" /> – <LocalTime date={endDate} format="short" />
               </span>
               {!ended && <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">ends {view.endingWords}</span>}
+              <CountsOnChip countsOn={countsOn} />
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">
                 {view.rows.length} entered · no sign-up
               </span>

@@ -22,6 +22,7 @@ import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 import { clanSeat } from '@/lib/seatScope';
 import { streamedEvent } from '@/lib/creatorSpaces';
 import { ALWAYS_NOTIFY_LIST_KEY, effectiveAlwaysNotify } from '@/lib/alwaysNotify';
+import { parsePrizeCurrency } from '@/lib/competitionGame';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -88,6 +89,8 @@ export interface ScheduleWeekly {
   iconItem?: number;
   /** Coffer prizes in gp, first place first (lib/weeklyPrizes). Absent when it pays nothing. */
   prizeGp?: number[];
+  /** 'hcw': the prizes are paid in Hardcore Worlds gp, from the clan's Hardcore Worlds coffer. Absent = main game gp. */
+  prizeCurrency?: 'hcw';
 }
 
 export interface PluginSchedule {
@@ -296,6 +299,7 @@ export async function buildSchedule(
       metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
       ...huntIconItem(w),
       ...weeklyPrizeGp(w.prizes),
+      ...(parsePrizeCurrency(w.prizeCurrency) === 'hcw' ? { prizeCurrency: 'hcw' as const } : {}),
       status: weeklyStatus(w),
       startDate: w.startDate,
       endDate: w.endDate,

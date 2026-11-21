@@ -724,7 +724,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
         const url = new URL(request.url);
         url.search = `?id=${w.id}${me ? `&rsn=${encodeURIComponent(me.rsn)}` : ''}`;
         const r = await weeklyRoute(new Request(url, { headers: request.headers }));
-        type Row = { rank: number; rsn: string; gained: number; move?: number | null; sub?: string | null };
+        type Row = { rank: number; rsn: string; gained: number; move?: number | null; sub?: string | null; tag?: string | null; stopped?: boolean };
         return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null; groups?: WeeklyGroupsPayload | null; highlights?: PanelHighlights | null }) : null] as const;
       }),
     ),

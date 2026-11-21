@@ -124,3 +124,16 @@ export function currencyWords(c: PrizeCurrency): string {
 
 /** The tooltip on the Hardcore Worlds icon beside a prize. */
 export const HCW_PRIZE_TITLE = 'Paid in Hardcore Worlds gp';
+
+/**
+ * Whether an entrant is a Hardcore Worlds character: the table it was pinned to, else the one the
+ * competition reads first (so every entrant of a Hardcore-Worlds-only competition is one).
+ */
+export function isHardcoreEntrant(table: string | null | undefined, countsOn: string): boolean {
+  return (table ?? firstTable(countsOn)) === HARDCORE_TABLE;
+}
+
+/** The tooltip on an entrant's HCW tag. */
+export const HCW_ENTRANT_TITLE = 'Hardcore Worlds character, scored from the Hardcore Worlds hiscores';
+/** The tooltip on a Hardcore Worlds character that died mid-competition. */
+export const FELL_TITLE = 'Died on Hardcore Worlds: keeps what it gained, scores nothing more';

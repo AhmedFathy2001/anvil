@@ -3,6 +3,7 @@
 import type { CompetitionType } from '@/lib/competitionInsights';
 import type { CompetitionEntry, CompetitionHighlight, CompetitionMilestone } from '@/lib/competitionView';
 import { dateLabel, exactValue, shortValue } from './format';
+import { EntrantTags } from './GameTags';
 
 /**
  * The standings, the viewer's own place in them, and the week's superlatives.
@@ -56,6 +57,7 @@ export function YouStrip({
       <div className="min-w-0">
         <div className="flex items-center gap-2 font-semibold">
           <span className="truncate">{entry.rsn}</span>
+          <EntrantTags hcw={entry.hcw} stopped={entry.stopped} />
           {showDaily &&
             (entry.today > 0 ? (
               <span className="font-mono text-[11px] font-bold text-accent-green-light">▲ {shortValue(entry.today, type)} today</span>
@@ -159,6 +161,7 @@ export function Podium({
             </div>
             <div className={`mt-2 break-words font-extrabold leading-tight ${first ? 'text-xl text-gold-light sm:text-2xl' : 'text-lg'}`}>
               {e.rsn}
+              <EntrantTags hcw={e.hcw} stopped={e.stopped} />
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
               <span className={`font-mono font-bold leading-none tabular-nums ${first ? 'text-4xl text-gold-light' : i === 1 ? 'text-3xl text-[#cfd3d8]' : 'text-3xl text-[#c8916a]'}`}>
@@ -249,6 +252,7 @@ export function Board({
               </span>
               <span className="min-w-0 truncate text-sm font-medium">
                 {e.rsn}
+                <EntrantTags hcw={e.hcw} stopped={e.stopped} />
                 {e.flagged && (
                   <span className="ml-1.5 text-[11px] text-amber-300" title={e.flagReason ?? 'Their starting stats look off — an admin should check them'}>
                     ⚠

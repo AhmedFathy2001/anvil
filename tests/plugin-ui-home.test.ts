@@ -552,3 +552,25 @@ test('a weekly with prizes lists them on its page, and one without has no prize 
   const free = JSON.stringify(__weeklyPageForTest(w, Date.parse('2026-11-17T12:00:00Z')));
   assert.ok(!free.includes('"Prizes"'));
 });
+
+test('a weekly paid in Hardcore Worlds gp says so on its prize card, and tags HCW entrants', async () => {
+  const { __weeklyPageForTest } = await import('../src/lib/pluginUi/homeUi.ts');
+  const w = { id: 9, title: 'SOTW', type: 'skill', metric: 'woodcutting', metricLabel: 'Woodcutting', status: 'upcoming', startDate: '2026-11-21T20:00:00Z', endDate: '2026-11-28T20:00:00Z' };
+  const hcw = JSON.stringify(__weeklyPageForTest({ ...w, prizeGp: [4_000_000, 2_000_000], prizeCurrency: 'hcw' }, Date.parse('2026-11-17T12:00:00Z')));
+  assert.match(hcw, /6(\.0)?m HCW gp in all/i);
+  assert.match(hcw, /4(\.0)?m HCW gp/i);
+  assert.match(hcw, /Paid in Hardcore Worlds gp/);
+  const gp = JSON.stringify(__weeklyPageForTest({ ...w, prizeGp: [4_000_000] }, Date.parse('2026-11-17T12:00:00Z')));
+  assert.ok(!gp.includes('HCW'), 'a main game prize reads as before');
+
+  const live = { ...w, id: 3, status: 'active' };
+  const top = [
+    { rank: 1, rsn: 'hyperi0n', gained: 5000, self: false },
+    { rank: 2, rsn: 'Anvil Plugin', gained: 4000, self: false, tag: 'HCW' },
+    { rank: 3, rsn: 'Drenvox', gained: 3000, self: false, tag: 'HCW', stopped: true },
+  ];
+  const ui = eventUi(base(liveCfg({ panel: { weeklies: [live] } }), { weekly: new Map([[3, { total: 3, top, you: null }]]) }), 'weekly:3')!;
+  const all = texts(ui);
+  assert.ok(all.includes('HCW') && all.includes('HCW fell'));
+  assert.equal(all.filter((t) => t.startsWith('HCW')).length, 2, 'only the Hardcore Worlds characters are tagged');
+});

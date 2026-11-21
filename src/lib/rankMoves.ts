@@ -51,7 +51,13 @@ export async function weeklyBoard(competitionId: number) {
   // An item hunt ranks by its drops (lib/itemHuntDb competitionBoard), not by a gain.
   // clan-scope: global -- one competition by the id the caller already resolved.
   const [comp] = await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, competitionId));
-  return comp?.type === 'hunt' ? competitionBoard(comp, rows) : computeLeaderboard(rows);
+  const board = comp?.type === 'hunt' ? await competitionBoard(comp, rows) : computeLeaderboard(rows);
+  // Which hiscores each row is scored from and whether it fell (lib/competitionGame), carried so
+  // the panel and the halfway post can tag a Hardcore Worlds character without a second read.
+  return board.map((e) => {
+    const p = byRsn.get(weeklyRsnKey(e.rsn));
+    return { ...e, hiscoresTable: p?.hiscoresTable ?? null, stoppedAt: p?.stoppedAt ?? null };
+  });
 }
 
 /** `{ rsnKey: rank }` of a ranked weekly board. */

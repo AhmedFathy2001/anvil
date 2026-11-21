@@ -8,6 +8,7 @@ import {
   countsWorld,
   fallbackTable,
   firstTable,
+  isHardcoreEntrant,
   parseCountsOn,
   prizeCurrencyFor,
   tableTag,
@@ -68,4 +69,12 @@ test('prizes are HCW gp only with a Hardcore Worlds coffer and Hardcore Worlds c
   assert.equal(prizeCurrencyFor(undefined, 'main+hardcore', true), 'gp', 'mixed defaults to main game gp');
   assert.equal(prizeCurrencyFor(undefined, 'hardcore', true), 'hcw', 'Hardcore Worlds only starts on HCW gp');
   assert.equal(prizeCurrencyFor('gp', 'hardcore', true), 'gp');
+});
+
+test('which entrants are Hardcore Worlds characters', () => {
+  assert.ok(!isHardcoreEntrant(null, 'main'));
+  assert.ok(!isHardcoreEntrant(null, 'main+hardcore'), 'a mixed competition starts on the main table');
+  assert.ok(isHardcoreEntrant('hardcore_mains', 'main+hardcore'));
+  assert.ok(isHardcoreEntrant(null, 'hardcore'), 'every entrant of a Hardcore-Worlds-only competition');
+  assert.ok(!isHardcoreEntrant(null, 'leagues'));
 });

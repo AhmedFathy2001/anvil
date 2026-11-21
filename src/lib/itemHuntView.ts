@@ -22,6 +22,7 @@ import {
 } from '@/lib/itemHunt';
 import { huntStandings, type HuntStandings } from '@/lib/itemHuntDb';
 import { weeklyStatus } from '@/lib/weeklyStage';
+import { isHardcoreEntrant, MAIN } from '@/lib/competitionGame';
 
 export interface HuntViewDrop {
   id: number;
@@ -67,6 +68,9 @@ export interface HuntViewRow {
   drops: HuntViewDrop[];
   firstAt: string | null;
   lastAt: string | null;
+  /** A Hardcore Worlds character (lib/competitionGame isHardcoreEntrant), and one that died mid-way. */
+  hcw: boolean;
+  stopped: boolean;
 }
 
 /** One target a manual proof can be for, with the sources it may name. */
@@ -117,7 +121,7 @@ export function proofTargets(config: HuntConfig): HuntProofTarget[] {
 }
 
 export function buildHuntView(
-  comp: { metric: string; startDate: string; endDate: string; status: string },
+  comp: { metric: string; startDate: string; endDate: string; status: string; countsOn?: string | null },
   standings: HuntStandings,
   viewerMemberIds: number[] = [],
 ): HuntView {
@@ -127,6 +131,9 @@ export function buildHuntView(
   const baselined = new Map(standings.participants.map((p) => [p.rsn, p.baselineValue != null]));
   const partsOf = new Map(standings.participants.map((p) => [p.rsn, { baseline: p.baselineParts, current: p.currentParts }]));
   const awaitingIds = new Set(standings.awaiting.map((d) => d.id));
+  const gameOf = new Map(
+    standings.participants.map((p) => [p.rsn, { hcw: isHardcoreEntrant(p.hiscoresTable, comp.countsOn ?? MAIN), stopped: p.stoppedAt != null }]),
+  );
   const rows: HuntViewRow[] = standings.rows.map((r) => ({
     rank: r.rank,
     rsn: r.rsn,
@@ -137,6 +144,8 @@ export function buildHuntView(
     statParts: stat && r.statGain != null ? splitOf(stat.type, partsOf.get(r.rsn), r.statGain) : null,
     firstAt: r.firstAt,
     lastAt: r.lastAt,
+    hcw: gameOf.get(r.rsn)?.hcw ?? false,
+    stopped: gameOf.get(r.rsn)?.stopped ?? false,
     drops: r.drops.map((d, i) => ({
       score: config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
@@ -177,7 +186,7 @@ export function buildHuntView(
 }
 
 export async function loadHuntView(
-  comp: { id: number; type: string; metric: string; hunt?: string | null; startDate: string; endDate: string; status: string },
+  comp: { id: number; type: string; metric: string; hunt?: string | null; startDate: string; endDate: string; status: string; countsOn?: string | null },
   viewerMemberIds: number[] = [],
 ): Promise<HuntView | null> {
   const standings = await huntStandings(comp);

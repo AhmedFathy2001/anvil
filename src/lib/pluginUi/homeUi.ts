@@ -12,6 +12,7 @@ import type { BoardSummary } from '@/lib/pluginBoards';
 
 import { type Action, type Color, type Node, button, col, count, eventName, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
 import { missionTileState } from '@/lib/tileState';
+import { FELL_TITLE, HCW_ENTRANT_TITLE, HCW_PRIZE_TITLE } from '@/lib/competitionGame';
 import { boardFeedLinks } from './feedUi';
 import type { Board as RaceBoard, BoardContext } from './boardUi';
 import { racePageUi } from './raceUi';
@@ -100,6 +101,10 @@ export interface WeeklyStanding {
   sub?: string | null;
   /** Places climbed since the UTC day began (lib/rankMoves); null = unchanged or unknown. */
   move?: number | null;
+  /** 'HCW': a Hardcore Worlds character (lib/competitionGame tableTag). Absent on the main game. */
+  tag?: string | null;
+  /** A Hardcore Worlds character that died mid-way: keeps what it gained, scores nothing more. */
+  stopped?: boolean;
 }
 
 /** Everything the tab draws, gathered by the view. */
@@ -1161,9 +1166,16 @@ function weeklyPrizeCard(w: ScheduleWeekly): Node | null {
   const gp = w.prizeGp ?? [];
   if (!gp.length) return null;
   const pot = gp.reduce((a, b) => a + b, 0);
+  // Paid from the clan's Hardcore Worlds coffer: the panel can't draw the game's icon (icon nodes
+  // take game sprites, not pictures), so the amounts say "HCW gp" and the tooltip says the rest.
+  const hcw = w.prizeCurrency === 'hcw';
+  const tip = hcw ? { tip: HCW_PRIZE_TITLE } : {};
+  const total = gp.length > 1 ? `${formatGp(pot)}${hcw ? ' HCW gp' : ''} in all` : hcw ? 'HCW gp' : null;
   return section([
-    row(title('Prizes'), undefined, gp.length > 1 ? muted(`${formatGp(pot)} in all`) : undefined),
-    ...gp.map((n, i) => row(text(ORDINAL[i] ?? `${i + 1}th`, i === 0 ? GOLD : SOFT), undefined, text(formatGp(n), i === 0 ? GOLD : 'white', { font: i === 0 ? 'bold' : 'regular' }))),
+    row(title('Prizes'), undefined, total ? muted(total, tip) : undefined),
+    ...gp.map((n, i) =>
+      row(text(ORDINAL[i] ?? `${i + 1}th`, i === 0 ? GOLD : SOFT), undefined, text(hcw ? `${formatGp(n)} HCW gp` : formatGp(n), i === 0 ? GOLD : 'white', { font: i === 0 ? 'bold' : 'regular', ...tip })),
+    ),
   ]);
 }
 
@@ -1229,7 +1241,11 @@ function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {
   const ink: Color = r.self ? GOLD : SOFT;
   // A hunt counts drops, which are not a gain: "2 drops", not "+2 drops".
   const figure = w.type === 'hunt' ? weeklyGain(w, r.gained) : `+${weeklyGain(w, r.gained)}`;
-  const line = row(withMove(row(text(String(r.rank), ink, { w: 26 }), text(clip(r.rsn, 14), ink, { tip: r.rsn, who: r.rsn }), undefined, { gap: 2 }), r.move), undefined, text(figure, r.self ? GOLD : FAINT, { align: 'r' }), { gap: 6 });
+  // A Hardcore Worlds character, or one that died there: a short mark after the name, which gives
+  // up a little of the name's room so the row stays one line.
+  const mark = r.tag ? small(r.stopped ? `${r.tag} fell` : r.tag, CORAL, { tip: r.stopped ? FELL_TITLE : HCW_ENTRANT_TITLE }) : r.stopped ? small('fell', FAINT, { tip: FELL_TITLE }) : undefined;
+  const name = text(clip(r.rsn, mark ? 11 : 14), ink, { tip: r.rsn, who: r.rsn });
+  const line = row(withMove(row(text(String(r.rank), ink, { w: 26 }), mark ? row(name, undefined, mark, { gap: 3 }) : name, undefined, { gap: 2 }), r.move), undefined, text(figure, r.self ? GOLD : FAINT, { align: 'r' }), { gap: 6 });
   // The dim line sits under the name, past the rank column.
   return r.sub ? col([line, row(undefined, small(clip(r.sub, 30), FAINT, { tip: r.sub }), undefined, { inset: 28 })], { gap: 1 }) : line;
 }

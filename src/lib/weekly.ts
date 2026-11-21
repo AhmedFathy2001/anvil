@@ -617,6 +617,10 @@ export async function getEffectiveParticipants(competitionId: number) {
       accountId: clanRoster.accountId,
       flagged: weeklyParticipants.flagged,
       flagReason: weeklyParticipants.flagReason,
+      // Which hiscores a character is scored from (null = the main game's) and whether a Hardcore
+      // Worlds character died mid-way, so boards and posts can tag it (lib/competitionGame).
+      hiscoresTable: weeklyParticipants.hiscoresTable,
+      stoppedAt: weeklyParticipants.stoppedAt,
     })
     .from(weeklyParticipants)
     .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
