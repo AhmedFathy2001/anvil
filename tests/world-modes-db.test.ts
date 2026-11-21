@@ -111,7 +111,7 @@ test("a mode's own thresholds: unset follows the main game, saved values read ba
   assert.equal(await store.pluginModeThresholds(req('DEADMAN'), who), null, 'a mode with nothing set');
   assert.deepEqual(await store.pluginModeThresholds(req('HARDCORE_MAIN,MEMBERS'), who), {
     key: 'hardcore',
-    label: 'Hardcore',
+    label: 'Hardcore Worlds',
     dropRarityFloor: 128,
     dropMinValue: 10_000,
     levelRules: levels,

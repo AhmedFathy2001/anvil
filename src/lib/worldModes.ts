@@ -79,7 +79,7 @@ export const WORLD_MODES: readonly WorldModeDef[] = [
   },
   { key: 'deadman', label: 'Deadman', icon: `${WIKI}Deadman_world_icon.png`, activity: /deadman/i, flags: (t) => t.has('DEADMAN'), events: { modeMilestone: 'Emblems, chests and breaches' } },
   { key: 'leagues', label: 'Leagues', icon: `${WIKI}Leagues_icon.png`, activity: /\bleagues?\b/i, flags: (t) => t.has('SEASONAL'), events: LEAGUE_EVENTS },
-  { key: 'hardcore', label: 'Hardcore', icon: null, activity: /\bhardcore\b/i, flags: (t) => t.has('HARDCORE_MAIN') },
+  { key: 'hardcore', label: 'Hardcore Worlds', icon: `${WIKI}Hardcore_Worlds_icon.png`, activity: /\bhardcore\b/i, flags: (t) => t.has('HARDCORE_MAIN') },
   { key: 'fresh-start', label: 'Fresh Start', icon: `${WIKI}Fresh_Start_Worlds_icon.png`, activity: /fresh\s*start/i, flags: (t) => t.has('FRESH_START_WORLD') },
   { key: 'tournament', label: 'Tournament', icon: `${WIKI}Tournament_world_icon.png`, flags: (t) => t.has('TOURNAMENT_WORLD') },
   { key: 'beta', label: 'Beta', icon: `${WIKI}Beta_world_icon.png`, flags: (t) => t.has('BETA_WORLD') },
@@ -90,7 +90,7 @@ export function worldModeDef(key: string): WorldModeDef | undefined {
   return BY_KEY.get(key);
 }
 
-/** The words for a stored mode key ("hardcore" → "Hardcore"), or null for the main game. A mode newer than the catalogue reads as its key. */
+/** The words for a stored mode key ("hardcore" → "Hardcore Worlds"), or null for the main game. A mode newer than the catalogue reads as its key. */
 export function modeTag(key: string | null | undefined): string | null {
   return key ? (BY_KEY.get(key)?.label ?? key.replace(/-/g, ' ')) : null;
 }
