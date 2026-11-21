@@ -8,6 +8,7 @@ import { log } from '@/lib/logger';
 import { modeHiscoresTable, type ModeFetchMode } from '@/lib/modeHiscores';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { competitionStat, effectiveMetricParts, effectiveMetricValue, liveMetricValue } from '@/lib/weeklyMetric';
+import { weeklyStatus } from '@/lib/weeklyStage';
 import { HCW_PROBE_EVERY_MS, modeReadWanted, planModeRead, type ModeRead, type WeeklyModeRow } from '@/lib/weeklyModePlan';
 
 export type { ModeRead, WeeklyModeRow } from '@/lib/weeklyModePlan';
@@ -165,22 +166,29 @@ export async function creditWeeklyModePush(args: {
   const table = modeHiscoresTable(args.modeKey);
   if (!table || Object.keys(args.pushed).length === 0) return 0;
   // clan-scope: this clan -- the live competitions of the clan the plugin is connected to, and only this seat in them.
+  // The same bars as a main-game push (api/plugin/stats): the seat is an ACTIVE roster member (an
+  // unranked or banned seat is the sweep's business), and the competition is running right now, not
+  // just marked active by a cron that hasn't caught up with its end.
   const seats = await db
     .select({ p: weeklyParticipants, c: weeklyCompetitions })
     .from(weeklyParticipants)
     .innerJoin(weeklyCompetitions, eq(weeklyCompetitions.id, weeklyParticipants.competitionId))
+    .innerJoin(clanRoster, eq(clanRoster.id, weeklyParticipants.clanMemberId))
     .where(
       and(
         eq(weeklyCompetitions.clanId, args.clanId),
         eq(weeklyCompetitions.status, 'active'),
         ne(weeklyCompetitions.countsOn, MAIN),
         eq(weeklyParticipants.clanMemberId, args.clanMemberId),
+        eq(clanRoster.status, 'active'),
         eq(weeklyParticipants.optedOut, false),
         isNull(weeklyParticipants.stoppedAt),
       ),
     );
+  const nowMs = Date.parse(args.nowIso);
   let moved = 0;
   for (const { p, c } of seats) {
+    if (weeklyStatus(c, nowMs) !== 'active') continue;
     if (!countsWorld(c.countsOn, args.modeKey)) continue;
     if ((p.hiscoresTable ?? firstTable(c.countsOn)) !== table) continue;
     const stat = competitionStat(c);
