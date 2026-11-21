@@ -20,7 +20,19 @@ import { checkBody } from '../eventChatRules.ts';
 //                        chat member list, so nobody's names are uploaded and a wrong room shows nothing.
 //   guest:<clan> guest clan — the clan the plugin says it guests in (`?guest=`), checked the same way.
 //   pm:<name>   private messages — every relay socket sits in its own character's room, so a PM
-//                        ({"t":"say","c":"pm","to":name}) reaches only that character's sockets, if any.
+//                        ({"t":"say","c":"pm","to":name}) reaches only that character's sockets, if any,
+//                        whatever channels the two share, and only as the recipient's own private chat
+//                        setting lets it: On anyone, Friends their friends (their client checks), Off nobody.
+// Presence ("here"/"gone") never says more than the game would: someone hiding as offline stays so.
+// Clan, guest clan and friends chat rooms name their members (the game lists them to the channel). A
+// world room names nobody: it spans a whole world, and the game shows only the players around you.
+// Past those channels, a player's own private chat setting decides. A plugin says its setting ({"t":"pm","m":
+// "on"|"friends"|"off"}; until it does, PMs still reach it (its client filters them as ever) but nobody
+// is told it is connected) and asks about names ({"t":"who","n":[names]}: its client asks
+// only of players the game already shows it: on screen or online on its friends list). On: answered
+// "here". Friends or Off: the named player's client is asked ({"t":"ask","n":asker}) and answers
+// {"t":"ok","n":asker} only when the game shows it to the asker anyway: the asker is on its screen, or
+// is its friend while it is on Friends. Not said (an older plugin): never answered. Who was told so hears "gone" when it leaves or tightens the setting.
 // GIM is not relayed: Anvil keeps no GIM groups, and a group named by the client could be anyone's.
 // Out, to the room minus the sender's own sockets:
 //   {"t":"relay","c":…,"n":"Name","nm":"<img=2>Name","x":text,"xh":escaped,"at":ms,"u":user,"k":sig}
@@ -99,7 +111,19 @@ interface Member {
   rooms: Set<string>;
   sent: number[];
   last: Map<string, number>;
+  /** Its own private chat setting; null until the plugin says (an older plugin never does). */
+  pm: PmMode | null;
+  /** Who it has been shown to outside shared rooms: told when it goes. */
+  seenBy: Set<Member>;
+  /** Who asked about it while it is on Friends, waiting for its client's answer. */
+  asked: Set<Member>;
+  /** When it last asked about names, for the limit. */
+  whoAt: number[];
 }
+
+export type PmMode = 'on' | 'friends' | 'off';
+/** Names a plugin may ask about per window: a friends list's worth opening menus, not a sweep. */
+export const WHO_BURST = 40;
 
 export class RelayHub {
   private readonly key: Buffer;
@@ -120,7 +144,7 @@ export class RelayHub {
 
   /** A relay socket opened: into its ticket's clan and world rooms. */
   add(client: RelayClient): () => void {
-    const m: Member = { client, rooms: new Set(), sent: [], last: new Map() };
+    const m: Member = { client, rooms: new Set(), sent: [], last: new Map(), pm: null, seenBy: new Set(), asked: new Set(), whoAt: [] };
     this.members.set(client, m);
     if (client.who.clanId != null) this.join(m, `clan:${client.who.clanId}`);
     // A world holds 2,000 players; a room far past that is somebody's script, not a world.
@@ -147,8 +171,13 @@ export class RelayHub {
     if (here.size) client.send(JSON.stringify({ t: 'here', n: [...here] }));
     return () => {
       const around = this.around(m);
+      for (const o of m.seenBy) if (this.members.has(o.client)) around.add(o);
       for (const r of [...m.rooms]) this.leave(m, r);
       this.members.delete(client);
+      for (const o of this.members.values()) {
+        o.seenBy.delete(m);
+        o.asked.delete(m);
+      }
       // Gone only once no socket of this character is left beside them (a re-ticket opens its new one first).
       for (const o of around) {
         if (presenceName(o.client.who.name) === me) return;
@@ -157,10 +186,10 @@ export class RelayHub {
     };
   }
 
-  /** Everyone sharing a room with this member, once each, itself left out. */
+  /** Everyone sharing a channel with this member (not just a world), once each, itself left out. */
   private around(m: Member): Set<Member> {
     const out = new Set<Member>();
-    for (const r of m.rooms) for (const side of [r, across(r)]) for (const o of (side ? this.rooms.get(side) : null) ?? []) if (o !== m) out.add(o);
+    for (const r of m.rooms) if (!r.startsWith('world:')) for (const side of [r, across(r)]) for (const o of (side ? this.rooms.get(side) : null) ?? []) if (o !== m) out.add(o);
     return out;
   }
 
@@ -169,8 +198,69 @@ export class RelayHub {
     const m = this.members.get(client);
     if (!m || !raw || typeof raw !== 'object') return 'bad';
     const msg = raw as Record<string, unknown>;
+    if (msg.t === 'pm') return this.setPm(m, msg.m);
+    if (msg.t === 'who') return this.who(m, msg.n);
+    if (msg.t === 'ok') return this.ok(m, msg.n);
     if (msg.t !== 'say') return 'bad';
     return this.say(m, msg.c, msg.x, msg.to);
+  }
+
+  /** Its private chat setting. Tightened, whoever it was shown to past a shared channel hears it is gone. */
+  private setPm(m: Member, mode: unknown): string | null {
+    if (mode !== 'on' && mode !== 'friends' && mode !== 'off') return 'bad';
+    const was = m.pm;
+    m.pm = mode;
+    if (mode === was || mode === 'on') return null;
+    m.asked.clear();
+    const me = presenceName(m.client.who.name);
+    const shared = this.around(m);
+    for (const o of m.seenBy) if (!shared.has(o)) o.client.send(JSON.stringify({ t: 'gone', n: me }));
+    m.seenBy.clear();
+    return null;
+  }
+
+  /** Names it wants to know about: answered as each one's private chat setting allows. */
+  private who(m: Member, names: unknown): string | null {
+    if (!Array.isArray(names)) return 'bad';
+    const at = this.now();
+    m.whoAt = m.whoAt.filter((t) => t > at - RELAY_WINDOW_MS);
+    const asker = presenceName(m.client.who.name);
+    const shared = this.around(m);
+    for (const raw of names) {
+      if (m.whoAt.length >= WHO_BURST) return 'rate';
+      if (typeof raw !== 'string' || raw.length > 20) continue;
+      m.whoAt.push(at);
+      const name = presenceName(raw);
+      if (!name || name === asker) continue;
+      for (const o of this.rooms.get(`pm:${name}`) ?? []) {
+        if (shared.has(o)) m.client.send(JSON.stringify({ t: 'here', n: [name] }));
+        else if (o.pm === 'on') this.show(o, m);
+        else if (o.pm != null && !o.asked.has(m)) {
+          o.asked.add(m);
+          o.client.send(JSON.stringify({ t: 'ask', n: asker }));
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Its client's answer: the game shows it to that asker anyway. Only an open question is answered. */
+  private ok(m: Member, name: unknown): string | null {
+    if (typeof name !== 'string') return 'bad';
+    const want = presenceName(name);
+    for (const o of [...m.asked]) {
+      if (presenceName(o.client.who.name) !== want) continue;
+      m.asked.delete(o);
+      if (this.members.has(o.client)) this.show(m, o);
+    }
+    return null;
+  }
+
+  /** Tell `to` that `m` is connected, and remember to tell it when that stops. */
+  private show(m: Member, to: Member): void {
+    if (m === to) return;
+    m.seenBy.add(to);
+    to.client.send(JSON.stringify({ t: 'here', n: [presenceName(m.client.who.name)] }));
   }
 
   private say(m: Member, c: unknown, x: unknown, to: unknown): string | null {
@@ -178,7 +268,7 @@ export class RelayHub {
     if (c !== 'public' && c !== 'clan' && c !== 'fc' && c !== 'guest' && c !== 'pm') return 'bad';
     if (typeof x !== 'string' || x.length > RELAY_MAX * 2) return 'bad';
     // A PM's room is its recipient's own (only if they have a relay socket); the rest, the sender's.
-    const room = c === 'pm' ? (typeof to === 'string' && this.rooms.has(`pm:${presenceName(to)}`) ? `pm:${presenceName(to)}` : null)
+    const room = c === 'pm' ? (typeof to === 'string' && [...(this.rooms.get(`pm:${presenceName(to)}`) ?? [])].some((o) => o.pm !== 'off') ? `pm:${presenceName(to)}` : null)
       : [...m.rooms].find((r) => (c === 'guest' ? r.startsWith('guest:') || r.startsWith('gclan:') : r.startsWith(c === 'public' ? 'world:' : `${c}:`)));
     if (!room) return 'no-room';
     // Event chat's own filter: no links, no gold adverts, no markup (lib/eventChatRules checkBody).
@@ -212,7 +302,12 @@ export class RelayHub {
     // Never back to the sending character (its own client already shows the line), but a person's OTHER
     // characters are other players in game: their clients get it like anyone's.
     const text = line(c);
-    for (const o of this.rooms.get(room) ?? []) if (o !== m && o.client.who.name !== who.name) o.client.send(text);
+    for (const o of this.rooms.get(room) ?? []) {
+      if (o === m || o.client.who.name === who.name || (c === 'pm' && o.pm === 'off')) continue;
+      o.client.send(text);
+      // Whoever PMs someone has shown themselves to them: the recipient can reply.
+      if (c === 'pm') this.show(m, o);
+    }
     // The same in-game channel from the other side: a member's clan line is a guest clan line to the
     // clan's guests, and a guest's line is a clan line to its members. Sent (and signed) as the
     // channel the reader is in, which is the one their client checks the sender against.

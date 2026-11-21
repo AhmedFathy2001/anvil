@@ -257,3 +257,83 @@ test('the guest clan id rides the ticket', () => {
   const { ticket } = signTicket({ userId: 1, eventIds: [], teamId: null, relay: { name: 'Gus', icon: null, clanId: null, world: 301, fc: null, guest: 'the afk spot', guestClanId: 7 } }, k, 0);
   assert.equal(verifyTicket(ticket, k, 1)?.relay?.guestClanId, 7);
 });
+
+test('presence past shared rooms follows the named player\'s own private chat setting', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Dead Person', null, 310);
+  const b = client(2, 'Anvil Plugin', null, 308);
+  const said: Record<string, Record<string, unknown>[]> = { a: [], b: [] };
+  a.send = (m: string) => said.a.push(JSON.parse(m));
+  b.send = (m: string) => said.b.push(JSON.parse(m));
+  hub.add(a);
+  const closeB = hub.add(b);
+  assert.equal(said.a.length + said.b.length, 0, 'no shared room: nobody is named on joining');
+  // Not said yet (an older plugin): asked about, nothing is told.
+  hub.receive(a, { t: 'who', n: ['Anvil_Plugin'] });
+  assert.equal(said.a.length + said.b.length, 0);
+  // Off: never answered, and a PM to them goes nowhere.
+  hub.receive(b, { t: 'pm', m: 'off' });
+  hub.receive(a, { t: 'who', n: ['Anvil Plugin'] });
+  assert.equal(said.a.length, 0);
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'Anvil Plugin', x: 'hello?' }), 'no-room');
+  // Friends: their client is asked, and only its answer tells the asker.
+  hub.receive(b, { t: 'pm', m: 'friends' });
+  hub.receive(a, { t: 'who', n: ['Anvil Plugin'] });
+  assert.deepEqual(said.b.at(-1), { t: 'ask', n: 'dead person' });
+  assert.equal(said.a.length, 0);
+  assert.equal(hub.receive(b, { t: 'ok', n: 'Someone Else' }), null);
+  assert.equal(said.a.length, 0, 'an answer nobody asked for tells nobody');
+  hub.receive(b, { t: 'ok', n: 'dead person' });
+  assert.deepEqual(said.a.at(-1), { t: 'here', n: ['anvil plugin'] });
+  // Tightened to Off: the asker hears they're gone.
+  hub.receive(b, { t: 'pm', m: 'off' });
+  assert.deepEqual(said.a.at(-1), { t: 'gone', n: 'anvil plugin' });
+  // On: answered straight away; a PM goes through and the recipient can reply.
+  hub.receive(b, { t: 'pm', m: 'on' });
+  hub.receive(a, { t: 'who', n: ['Anvil Plugin'] });
+  assert.deepEqual(said.a.at(-1), { t: 'here', n: ['anvil plugin'] });
+  assert.equal(hub.receive(a, { t: 'say', c: 'pm', to: 'Anvil Plugin', x: 'Test2' }), null);
+  assert.equal(said.b.at(-2)?.t, 'relay');
+  assert.deepEqual(said.b.at(-1), { t: 'here', n: ['dead person'] });
+  closeB();
+  assert.deepEqual(said.a.at(-1), { t: 'gone', n: 'anvil plugin' }, 'who was told hears them go');
+});
+
+test('asking about names is limited', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Asker');
+  hub.add(a);
+  const names = Array.from({ length: 50 }, (_, i) => `name ${i}`);
+  assert.equal(hub.receive(a, { t: 'who', n: names }), 'rate');
+});
+
+test('a world names nobody; a clan does; someone hiding is only shown where the game would show them', () => {
+  const hub = new RelayHub(key, () => 1);
+  const a = client(1, 'Looker', null, 301);
+  const b = client(2, 'Hider', null, 301);
+  const c = client(3, 'Clanmate', 5, 999);
+  const d = client(4, 'Clanmate Two', 5, 998);
+  const said: Record<string, Record<string, unknown>[]> = { a: [], b: [], c: [] };
+  a.send = (m: string) => said.a.push(JSON.parse(m));
+  b.send = (m: string) => said.b.push(JSON.parse(m));
+  c.send = (m: string) => said.c.push(JSON.parse(m));
+  hub.add(a);
+  hub.add(b);
+  hub.add(c);
+  hub.add(d);
+  assert.equal(said.a.length, 0, 'same world: not named');
+  assert.deepEqual(said.c.at(-1), { t: 'here', n: ['clanmate two'] }, 'same clan: named');
+  // Public lines still reach the world (each client shows them only from someone on its screen).
+  assert.equal(hub.receive(b, { t: 'say', c: 'public', x: 'hi' }), null);
+  assert.equal(said.a.at(-1)?.t, 'relay');
+  // Private Off: asked about, their own client decides (it says yes only if the asker is on its screen).
+  hub.receive(b, { t: 'pm', m: 'off' });
+  hub.receive(a, { t: 'who', n: ['Hider'] });
+  assert.deepEqual(said.b.at(-1), { t: 'ask', n: 'looker' });
+  assert.equal(said.a.at(-1)?.t, 'relay', 'nothing told yet');
+  hub.receive(b, { t: 'ok', n: 'looker' });
+  assert.deepEqual(said.a.at(-1), { t: 'here', n: ['hider'] });
+  // A clanmate asked about is simply here.
+  hub.receive(c, { t: 'who', n: ['Clanmate Two'] });
+  assert.deepEqual(said.c.at(-1), { t: 'here', n: ['clanmate two'] });
+});
