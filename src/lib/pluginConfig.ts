@@ -500,6 +500,8 @@ export interface ActiveWeeklyMetric {
   endDate?: string;
   /** Set on an item hunt: its targets in words. `type` and `metric` are then the stat it shows beside its drops. */
   hunt?: string;
+  /** Which game counts, when it isn't the main game alone (lib/competitionGame). */
+  countsOn?: string;
 }
 
 // EVERY live weekly competition's tracked metric IN THIS CLAN — a SOTW and a BOTW can run at once,
@@ -522,7 +524,7 @@ export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeek
   // plugin pushes that live too; a hunt with no stat has nothing to push and is left out.
   return rows.flatMap((c) => {
     const stat = competitionStat(c);
-    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}) }] : [];
+    return stat ? [{ id: c.id, type: stat.type, metric: stat.metric, startDate: c.startDate, endDate: c.endDate, ...(c.type === 'hunt' ? { hunt: c.metric } : {}), ...(c.countsOn !== 'main' ? { countsOn: c.countsOn } : {}) }] : [];
   });
 }
 

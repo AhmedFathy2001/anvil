@@ -2,11 +2,12 @@ import { and, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, hiscoresFetches, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
-import { firstTable, HARDCORE_TABLE, MAIN } from '@/lib/competitionGame';
+import { countsWorld, firstTable, HARDCORE_TABLE, MAIN } from '@/lib/competitionGame';
+import { metricKeys } from '@/lib/constants';
 import { log } from '@/lib/logger';
-import type { ModeFetchMode } from '@/lib/modeHiscores';
+import { modeHiscoresTable, type ModeFetchMode } from '@/lib/modeHiscores';
 import { applyWeeklyValue } from '@/lib/weekly';
-import { competitionStat, effectiveMetricParts, effectiveMetricValue } from '@/lib/weeklyMetric';
+import { competitionStat, effectiveMetricParts, effectiveMetricValue, liveMetricValue } from '@/lib/weeklyMetric';
 import { HCW_PROBE_EVERY_MS, modeReadWanted, planModeRead, type ModeRead, type WeeklyModeRow } from '@/lib/weeklyModePlan';
 
 export type { ModeRead, WeeklyModeRow } from '@/lib/weeklyModePlan';
@@ -146,4 +147,61 @@ export async function weeklyModeDue(nowMs: number): Promise<{ rsn: string; rsnKe
     if (!prev || want.priority < prev.priority) due.set(k, { rsn: row.rsn, rsnKey, mode: want.table, priority: want.priority });
   }
   return [...due.values()];
+}
+
+/**
+ * A plugin's live push from a mode world (lib/worldModeRequest): moves the competitions that count
+ * that mode, for this character's seat when it is scored on that mode's table (pinned, or a
+ * competition on that mode alone). Never a first capture: the starting line comes off the table, as
+ * the main game's does. Returns how many seats moved.
+ */
+export async function creditWeeklyModePush(args: {
+  clanId: number;
+  clanMemberId: number;
+  modeKey: string;
+  pushed: Record<string, number>;
+  nowIso: string;
+}): Promise<number> {
+  const table = modeHiscoresTable(args.modeKey);
+  if (!table || Object.keys(args.pushed).length === 0) return 0;
+  // clan-scope: this clan -- the live competitions of the clan the plugin is connected to, and only this seat in them.
+  const seats = await db
+    .select({ p: weeklyParticipants, c: weeklyCompetitions })
+    .from(weeklyParticipants)
+    .innerJoin(weeklyCompetitions, eq(weeklyCompetitions.id, weeklyParticipants.competitionId))
+    .where(
+      and(
+        eq(weeklyCompetitions.clanId, args.clanId),
+        eq(weeklyCompetitions.status, 'active'),
+        ne(weeklyCompetitions.countsOn, MAIN),
+        eq(weeklyParticipants.clanMemberId, args.clanMemberId),
+        eq(weeklyParticipants.optedOut, false),
+        isNull(weeklyParticipants.stoppedAt),
+      ),
+    );
+  let moved = 0;
+  for (const { p, c } of seats) {
+    if (!countsWorld(c.countsOn, args.modeKey)) continue;
+    if ((p.hiscoresTable ?? firstTable(c.countsOn)) !== table) continue;
+    const stat = competitionStat(c);
+    if (!stat) continue;
+    const value = liveMetricValue(stat.type, stat.metric, args.pushed);
+    if (value == null) continue;
+    const keys = stat.type === 'efficiency' ? [] : metricKeys(stat.metric);
+    const out = await applyWeeklyValue({
+      parts: keys.length > 1 ? Object.fromEntries(keys.map((k) => [k, args.pushed[k]])) : null,
+      participantId: p.id,
+      type: stat.type,
+      metric: stat.metric,
+      value,
+      baselineValue: p.baselineValue,
+      currentValue: p.currentValue,
+      lastUpdated: p.lastUpdated,
+      allowFirstCapture: false,
+      competitionStartIso: c.startDate,
+      now: args.nowIso,
+    });
+    if (out.outcome === 'updated') moved++;
+  }
+  return moved;
 }
