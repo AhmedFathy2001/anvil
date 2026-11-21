@@ -11,6 +11,7 @@ import { log } from '@/lib/logger';
 import { MODE_FETCH_MODES, modeHiscoresTable, type ModeFetchMode } from '@/lib/modeHiscores';
 import { applyModeRead, modeKeyStatType, modeReadDue, modeReadingIssues, parseModeStats } from '@/lib/modeStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
+import { applyWeeklyModeReads, weeklyModeDue } from '@/lib/weeklyModeScores';
 import { statKeys } from '@/lib/tileKinds';
 
 // Reads of the game-mode world hiscores tables (lib/modeHiscores), queued through the same fetch
@@ -151,6 +152,14 @@ export async function drainModeFetches(now: Date = new Date()): Promise<ModeDrai
     });
   }
 
+  // Competitions scored off a mode's table take the same reads (lib/weeklyModeScores).
+  let weeklyMoved = 0;
+  try {
+    weeklyMoved = await applyWeeklyModeReads(reads, now);
+  } catch (e) {
+    log.warn('weekly-mode.apply-failed', { error: (e as Error).message });
+  }
+
   // 2. Fold each read into every live row of that character that counts a mode the table serves.
   let applied = 0;
   const touched = new Map<string, { eventId: number; teamId: number; keys: Set<string> }>();
@@ -250,6 +259,16 @@ export async function drainModeFetches(now: Date = new Date()): Promise<ModeDrai
       if (!prev || priority < prev.priority) due.set(k, { rsn: row.rsn, rsnKey, mode: table, priority });
     }
   }
+  // And what competitions want read (the starting lines in the competition lane).
+  try {
+    for (const w of await weeklyModeDue(nowMs)) {
+      const k = `${w.rsnKey}|${w.mode}`;
+      const prev = due.get(k);
+      if (!prev || w.priority < prev.priority) due.set(k, w);
+    }
+  } catch (e) {
+    log.warn('weekly-mode.due-failed', { error: (e as Error).message });
+  }
   // An older Forge answers these tables without a request, but still spends a rate token on each.
   // While it has done so in the last hour, offer a single canary read rather than a batch, so the
   // shared budget isn't spent on answers that say nothing.
@@ -290,5 +309,5 @@ export async function drainModeFetches(now: Date = new Date()): Promise<ModeDrai
         );
     }
   }
-  return { read: results.length, applied, unsupported, queued };
+  return { read: results.length, applied: applied + weeklyMoved, unsupported, queued };
 }
