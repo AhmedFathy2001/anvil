@@ -191,14 +191,15 @@ export async function recordAdjustment(args: {
   const currency = args.currency ?? 'gp';
   if (amount < 0 && !args.force) {
     const balance = await getCofferBalance(args.clanId, currency);
+    const pot = currency === 'hcw' ? 'Hardcore Worlds coffer' : 'coffer';
     if (-amount > balance.available) {
       return {
         ok: false,
         wouldLeave: balance.available + amount,
         error:
           balance.reserved > 0
-            ? `The coffer has ${balance.available.toLocaleString()} gp free to spend — the rest of the ${balance.confirmed.toLocaleString()} is already promised. Cancel or pay those first.`
-            : `The coffer only has ${balance.available.toLocaleString()} gp. It cannot go below zero.`,
+            ? `The ${pot} has ${balance.available.toLocaleString()} gp free to spend — the rest of the ${balance.confirmed.toLocaleString()} is already promised. Cancel or pay those first.`
+            : `The ${pot} only has ${balance.available.toLocaleString()} gp. It cannot go below zero.`,
       };
     }
   }

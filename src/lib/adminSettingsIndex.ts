@@ -343,6 +343,16 @@ const PAGES: readonly SettingEntry[] = [
     feature: 'coffer',
   },
   {
+    id: 'coffer-hcw',
+    label: 'Keep a Hardcore Worlds coffer',
+    description: 'A second pot, in HCW gp, that staff keep by hand. Off, every prize is paid from the main game coffer.',
+    keywords: ['hardcore', 'hcw', 'hardcore worlds', 'second coffer', 'coffer', 'gp', 'pot'],
+    href: '/admin/coffer#coffer-hcw',
+    section: 'Money → Coffer',
+    minRole: 'treasurer',
+    feature: 'coffer',
+  },
+  {
     id: 'fees',
     label: 'Sign-up fees',
     description: 'Who has paid to enter each event: remind the unpaid, confirm collected fees, close a board out.',

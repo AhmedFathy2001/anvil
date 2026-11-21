@@ -13,6 +13,9 @@ import LocalTime from '@/components/LocalTime';
 import { parseStamp } from '@/lib/dbTime';
 import type { CofferBalance, CofferMoneyOut } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
+import Checkbox from '@/components/Checkbox';
+import { currencyWords, type PrizeCurrency } from '@/lib/competitionGame';
+import CofferPotTabs from '@/app/coffer/CofferPotTabs';
 
 /**
  * The coffer, from the treasurer's chair.
@@ -29,6 +32,8 @@ export interface DonorSeat {
 }
 
 export default function CofferClient({
+  pot,
+  hcwCoffer,
   balance,
   entries,
   waiting,
@@ -36,6 +41,10 @@ export default function CofferClient({
   roster,
   physicalState,
 }: {
+  /** Which pot this page is showing: the main game coffer, or the Hardcore Worlds one. */
+  pot: PrizeCurrency;
+  /** Whether the clan keeps a Hardcore Worlds coffer at all (the tabs and the switch below). */
+  hcwCoffer: boolean;
   balance: CofferBalance;
   /** The newest movements, for the ledger list. */
   entries: CofferLedgerRow[];
@@ -63,6 +72,32 @@ export default function CofferClient({
   const [donationTotal, setDonationTotal] = useState('');
   const [donationNote, setDonationNote] = useState('');
   const [recording, setRecording] = useState(false);
+  const [savingHcw, setSavingHcw] = useState(false);
+
+  const hcw = pot === 'hcw';
+  const unit = currencyWords(pot);
+
+  async function setHcwCoffer(on: boolean) {
+    setSavingHcw(true);
+    setMsg('');
+    try {
+      const res = await clanFetch('/api/admin/coffer', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hcwCoffer: on }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg(data.error || 'That did not go through.');
+        return;
+      }
+      // Switched off while looking at it: back to the main pot, which is the only one left.
+      if (!on && hcw) router.replace(window.location.pathname, { scroll: false });
+      else router.refresh();
+    } finally {
+      setSavingHcw(false);
+    }
+  }
 
   const chosen = roster.filter((r) => r.id in shares);
   const matches = donorSearch.trim()
@@ -111,7 +146,7 @@ export default function CofferClient({
       const res = await clanFetch('/api/admin/coffer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ donors, note: donationNote || null }),
+        body: JSON.stringify({ donors, note: donationNote || null, currency: pot }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -181,7 +216,7 @@ export default function CofferClient({
       const res = await clanFetch('/api/admin/coffer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: parsed * direction, note: adjustNote || null, force }),
+        body: JSON.stringify({ amount: parsed * direction, note: adjustNote || null, force, currency: pot }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -196,8 +231,8 @@ export default function CofferClient({
       // the refusal is offered back as a choice, with the balance it would create named in it.
       if (data.needsConfirm) {
         const ok = await confirm({
-          title: 'Take the coffer below zero?',
-          body: `${data.error} Recording it anyway leaves the coffer at ${formatGp(data.wouldLeave)} — a debt the clan owes, shown to everyone who opens this page.`,
+          title: hcw ? 'Take the Hardcore Worlds coffer below zero?' : 'Take the coffer below zero?',
+          body: `${data.error} Recording it anyway leaves the coffer at ${formatGp(data.wouldLeave)} ${unit} — a debt the clan owes, shown to everyone who opens this page.`,
           confirmLabel: 'Record it anyway',
           tone: 'danger',
         });
@@ -212,43 +247,64 @@ export default function CofferClient({
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
-        <span className="w-1 h-6 bg-gold rounded-full" />
-        Coffer
-        <GuideLink href="/guide/coffer">How the coffer works</GuideLink>
-      </h1>
-      <p className="text-sm text-text-muted mb-5">
-        The pot event and mission prizes are paid from. Members report what they hand in; nothing counts
-        until you say it happened.
-      </p>
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+        <div>
+          <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
+            <span className="w-1 h-6 bg-gold rounded-full" />
+            Coffer
+            <GuideLink href="/guide/coffer">How the coffer works</GuideLink>
+          </h1>
+          <p className="text-sm text-text-muted">
+            The pot event and mission prizes are paid from. Members report what they hand in; nothing counts
+            until you say it happened.
+          </p>
+        </div>
+        {hcwCoffer && <CofferPotTabs pot={pot} />}
+      </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
-        <Figure label="Available" value={formatGp(balance.available)} accent hint="What a new prize can be funded against" />
+        <Figure
+          label="Available"
+          value={formatGp(balance.available)}
+          accent
+          hint={hcw ? 'HCW gp a new prize can be funded against' : 'What a new prize can be funded against'}
+        />
         <Figure label="Promised" value={formatGp(balance.reserved)} hint="Won, not yet sent" />
         <Figure label="Confirmed total" value={formatGp(balance.confirmed)} hint="Everything approved, before promises" />
       </div>
 
       {/* A reading, not a balance. It sat in its own card beside the three figures and read as a
           fourth — "which one is the real pot?" — when it is only there to cross-check them against. */}
-      <p className="text-[11px] text-text-muted -mt-3 mb-6">
-        <span className="text-foreground/80">In-game Clan Coffer:</span>{' '}
-        {physicalState ? (
-          <>
-            {formatGp(physicalState.balance)} when a member&apos;s plugin last saw it (
-            <LocalTime date={physicalState.observedAt} />)
-          </>
-        ) : (
-          'not seen yet — open it in game with Anvil enabled'
-        )}
-        . It&apos;s for checking the numbers above against, not a second balance: deposits there fund this pot,
-        and moving coins to a bank isn&apos;t counted as spending.
-      </p>
+      {hcw ? (
+        <p className="text-[11px] text-text-muted -mt-3 mb-6">
+          Hardcore Worlds has no in-game clan coffer: this pot is only what your staff log here. Coins are
+          usually traded to a staff member&apos;s HCW character.
+        </p>
+      ) : (
+        <p className="text-[11px] text-text-muted -mt-3 mb-6">
+          <span className="text-foreground/80">In-game Clan Coffer:</span>{' '}
+          {physicalState ? (
+            <>
+              {formatGp(physicalState.balance)} when a member&apos;s plugin last saw it (
+              <LocalTime date={physicalState.observedAt} />)
+            </>
+          ) : (
+            'not seen yet — open it in game with Anvil enabled'
+          )}
+          . It&apos;s for checking the numbers above against, not a second balance: deposits there fund this pot,
+          and moving coins to a bank isn&apos;t counted as spending.
+        </p>
+      )}
 
       {msg && <p className="text-sm text-amber-300 mb-4">{msg}</p>}
 
       <Section id="coffer-to-confirm" title="To confirm" count={pendingDonations.length}>
         {pendingDonations.length === 0 ? (
-          <Empty>Nothing waiting. Members file donations from the clan&apos;s Coffer page; in-game coffer readings land here when only one client saw them.</Empty>
+          <Empty>
+            {hcw
+              ? 'Nothing waiting. Members file Hardcore Worlds donations from the clan’s Coffer page.'
+              : <>Nothing waiting. Members file donations from the clan&apos;s Coffer page; in-game coffer readings land here when only one client saw them.</>}
+          </Empty>
         ) : (
           pendingDonations.map((e) => (
             <Row key={e.id}>
@@ -269,6 +325,7 @@ export default function CofferClient({
                     <>
                       {e.memberName ?? e.rsn ?? 'Someone'} says they donated{' '}
                       <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>
+                      {hcw && ' HCW gp'}
                     </>
                   )}
                 </p>
@@ -318,7 +375,7 @@ export default function CofferClient({
             <Row key={e.id}>
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">
-                  <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>{' '}
+                  <span className="text-gold">{formatGp(Math.abs(e.amount))}{hcw && ' HCW gp'}</span>{' '}
                   {e.kind === 'pool' ? 'for a board' : `to ${e.memberName ?? e.rsn ?? 'a winner'}`}
                 </p>
                 <p className="text-[11px] text-text-muted truncate">
@@ -349,7 +406,7 @@ export default function CofferClient({
         )}
       </Section>
 
-      <Section id="coffer-record-donation" title="Record a donation">
+      <Section id="coffer-record-donation" title="Record a donation" aside={hcw ? 'in Hardcore Worlds gp' : undefined}>
         <div className="p-3 space-y-3">
           <p className="text-[11px] text-text-muted">
             For gp handed over in game rather than reported through the site. Credited to whoever gave
@@ -452,7 +509,7 @@ export default function CofferClient({
             </button>
             {donationSum > 0 && (
               <span className="text-[11px] text-text-muted">
-                {formatGp(donationSum)} gp from {chosen.filter((r) => (parseGpInput(shares[r.id] ?? '') ?? 0) > 0).length}{' '}
+                {formatGp(donationSum)} {unit} from {chosen.filter((r) => (parseGpInput(shares[r.id] ?? '') ?? 0) > 0).length}{' '}
                 {chosen.length === 1 ? 'person' : 'people'}
               </span>
             )}
@@ -460,7 +517,7 @@ export default function CofferClient({
         </div>
       </Section>
 
-      <Section id="coffer-correct" title="Correct the pot">
+      <Section id="coffer-correct" title="Correct the pot" aside={hcw ? 'in Hardcore Worlds gp' : undefined}>
         <div className="p-3 space-y-2">
           <p className="text-[11px] text-text-muted">
             For gp that moved outside Anvil — seeding the pot, spending it on something else, fixing a
@@ -544,6 +601,23 @@ export default function CofferClient({
           </div>
         )}
       </Section>
+
+      {/* Here rather than under Clan settings: the people who keep the coffer are the ones who know
+          whether the clan hands HCW gp around, and Clan settings is closed to a treasurer. */}
+      <div id="coffer-hcw" className="scroll-mt-24 border border-dashed border-card-border rounded-xl p-4">
+        <Checkbox
+          checked={hcwCoffer}
+          disabled={savingHcw}
+          onChange={setHcwCoffer}
+          label={
+            <>
+              Keep a Hardcore Worlds coffer
+              {savingHcw && <span className="ml-2 text-xs font-normal text-text-muted">Saving…</span>}
+            </>
+          }
+          description="A second pot, in HCW gp, that your staff keep by hand. Off, every prize is paid from the main game coffer."
+        />
+      </div>
     </div>
   );
 }
@@ -591,12 +665,26 @@ function Figure({ label, value, hint, accent }: { label: string; value: string; 
   );
 }
 
-function Section({ id, title, count, children }: { id?: string; title: string; count?: number; children: React.ReactNode }) {
+function Section({
+  id,
+  title,
+  aside,
+  count,
+  children,
+}: {
+  id?: string;
+  title: string;
+  /** A muted word after the title, like which pot the form writes to. */
+  aside?: string;
+  count?: number;
+  children: React.ReactNode;
+}) {
   return (
     <div id={id} className="mb-6 scroll-mt-24">
       <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
         <span className="w-1 h-5 bg-gold rounded-full" />
         {title}
+        {aside && <span className="text-xs font-medium text-text-muted">{aside}</span>}
         {count != null && count > 0 && <span className="text-sm font-normal text-text-muted">({count})</span>}
       </h2>
       <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden">{children}</div>
