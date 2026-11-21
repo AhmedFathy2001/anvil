@@ -1,3 +1,7 @@
+import { getSetting } from '@/lib/settings';
+import { getWeeklyPool } from '@/lib/coffer';
+import { setWeeklyPool } from '@/lib/coffer';
+import { checkCountsOn, HCW_COFFER_SETTING_KEY, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
 import { cleanEntryFee } from '@/lib/weeklySignups';
 import { retargetCompetition } from '@/lib/weeklyRetarget';
 import { parseStamp } from '@/lib/dbTime';
@@ -163,6 +167,29 @@ export async function PUT(
     updates.feeGatesPrize = body.feeGatesPrize;
   }
 
+  // Which game counts (lib/competitionGame): only before it starts. Scores are read from the tables it
+  // names, so changing it mid-race would compare one save's start with another's finish.
+  if (body.countsOn !== undefined && body.countsOn !== scoped.countsOn) {
+    if (parseStamp(scoped.startDate) !== null && (parseStamp(scoped.startDate) as number) <= Date.now()) {
+      return NextResponse.json({ error: 'Which game counts can only change before the competition starts.' }, { status: 400 });
+    }
+    const counts = checkCountsOn(body.countsOn, scoped.type);
+    if (!counts.ok) return NextResponse.json({ error: counts.error }, { status: 400 });
+    updates.countsOn = counts.value;
+  }
+  // What the prizes are paid in: the clan's money, so a treasurer's; never once they are settled. A
+  // competition that no longer counts Hardcore Worlds (or a clan without that coffer) pays main gp.
+  // Only asked when this save is about the game or the currency: an unrelated edit (a title) never moves money.
+  const nextCounts = (updates.countsOn as string | undefined) ?? scoped.countsOn;
+  const aboutMoney = body.prizeCurrency !== undefined || updates.countsOn !== undefined;
+  const hcwCoffer = aboutMoney && (await getSetting(scoped.clanId, HCW_COFFER_SETTING_KEY)) === '1';
+  const nextCurrency = aboutMoney ? prizeCurrencyFor(body.prizeCurrency ?? scoped.prizeCurrency, nextCounts, hcwCoffer) : scoped.prizeCurrency;
+  if (nextCurrency !== scoped.prizeCurrency) {
+    if (scoped.prizesSettledAt) return NextResponse.json({ error: 'These prizes are already settled.' }, { status: 400 });
+    if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can change what the prizes are paid in.' }, { status: 403 });
+    updates.prizeCurrency = nextCurrency;
+  }
+
   if (Object.keys(updates).length === 0 && modeChanged) {
     return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);
   }
@@ -172,6 +199,18 @@ export async function PUT(
   }
 
   await db.update(weeklyCompetitions).set(updates).where(eq(weeklyCompetitions.id, compId));
+
+  // The ladder's hold follows its currency into the other pot (or is recorded unheld there when that
+  // pot can't cover it), exactly as setting the prizes does.
+  if (updates.prizeCurrency) {
+    const pool = await getWeeklyPool(compId);
+    if (pool && pool.status !== 'paid') {
+      const currency = updates.prizeCurrency as PrizeCurrency;
+      const args = { clanId: scoped.clanId, competitionId: compId, amount: Math.abs(pool.amount), userId: user.userId > 0 ? user.userId : null, currency };
+      const held = await setWeeklyPool({ ...args, hold: pool.status === 'reserved' });
+      if (!held.ok) await setWeeklyPool({ ...args, hold: false });
+    }
+  }
 
   // The switch is saved; now make the list match what was asked.
   let clearedEntrants: number | undefined;
