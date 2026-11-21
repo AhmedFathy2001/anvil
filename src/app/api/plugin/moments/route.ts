@@ -242,9 +242,10 @@ export async function POST(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) return noClanForPlugin();
   // Item hunts (lib/itemHuntDb) read every drop, log line and pet first: a hunt counts its own
-  // targets whatever the feed's floors below would keep. Main game only, and a character in a
-  // hunt is the only one it does anything for. Never fails the push.
-  if (!mode) await recordHuntReports(member, clan.id, observations, new Date(now)).catch((err) => log.warn('hunt.record-failed', { clanId: clan.id }, err));
+  // targets whatever the feed's floors below would keep. From the main game, or from the mode a hunt
+  // counts (lib/competitionGame); a character in a hunt is the only one it does anything for. Never
+  // fails the push.
+  await recordHuntReports(member, clan.id, observations, new Date(now), mode?.key ?? null).catch((err) => log.warn('hunt.record-failed', { clanId: clan.id }, err));
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
   const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));
