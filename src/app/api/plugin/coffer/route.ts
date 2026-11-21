@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 import { foreignOr } from '@/lib/pluginForeign';
 
 import { resolvePluginMember } from '@/lib/auth';
@@ -32,6 +33,10 @@ export async function POST(request: Request) {
 
   const rl = await rateLimit(request, `plugin-coffer:${member.userId}`, { limit: 40, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  // A Hardcore Worlds (or any other mode's) character sits in the main clan but has its own economy:
+  // what it sees or moves is never the main game's coffer. Dropped, as a success so it isn't retried.
+  const otherWorld = worldModeIgnored(request);
+  if (otherWorld) return otherWorld;
 
   // WHOSE COFFER IS IT? The interface shows the coffer of the clan the character is in, in game. A
   // guest of this clan, or a member who has since moved to another, is reading somebody else's
