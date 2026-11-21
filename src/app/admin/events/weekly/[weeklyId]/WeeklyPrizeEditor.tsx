@@ -24,7 +24,10 @@ export default function WeeklyPrizeEditor({
   settledAt,
   canEdit,
   hasCoffer,
+  hcw = false,
 }: {
+  /** Paid in Hardcore Worlds gp: the balance shown is that pot's. */
+  hcw?: boolean;
   competitionId: number;
   initial: WeeklyPrizes;
   cofferAvailable: number;
@@ -95,7 +98,7 @@ export default function WeeklyPrizeEditor({
         </h2>
         <div className="flex items-center gap-3">
           <GuideLink href="/guide/coffer#out">How prizes work</GuideLink>
-          <span className="text-xs text-text-muted">{formatGp(available)} gp available in the coffer</span>
+          <span className="text-xs text-text-muted">{formatGp(available)} {hcw ? 'HCW gp available in the Hardcore Worlds coffer' : 'gp available in the coffer'}</span>
         </div>
       </div>
       <p className="text-xs text-text-muted mb-4">

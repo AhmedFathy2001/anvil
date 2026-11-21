@@ -20,6 +20,8 @@ interface PrizeContext {
   initial: WeeklyPrizes;
   /** Available in the coffer, with this ladder's own hold added back in. */
   cofferAvailable: number;
+  /** Paid in Hardcore Worlds gp, from the clan's Hardcore Worlds coffer. */
+  hcw?: boolean;
   /** Whether this ladder's gp is being held right now. */
   held: boolean;
   settledAt: string | null;
@@ -275,6 +277,7 @@ export default function WeeklyHomeClient({
         settledAt={prizes.settledAt}
         canEdit={prizes.canEdit}
         hasCoffer={prizes.hasCoffer}
+        hcw={prizes.hcw}
       />
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5">

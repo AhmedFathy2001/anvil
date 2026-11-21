@@ -98,7 +98,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
         attention={attention}
         entrants={hunt.participants.map((p) => ({ id: p.id, rsn: p.rsn })).sort((a, b) => a.rsn.localeCompare(b.rsn))}
         asItStands={asItStands}
-        prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer }}
+        prizes={{ initial: prizes, cofferAvailable: balance.available + held, held: held > 0, settledAt: comp.prizesSettledAt, canEdit: Boolean(feeCollector), hasCoffer, hcw: comp.prizeCurrency === 'hcw' }}
         prizesWaiting={comp.status === 'completed' && !comp.prizesSettledAt && prizeHolds.length > 0}
       />
     );
@@ -122,6 +122,7 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
       prizes={{
         initial: prizes,
         cofferAvailable: balance.available + held,
+        hcw: comp.prizeCurrency === 'hcw',
         held: held > 0,
         settledAt: comp.prizesSettledAt,
         canEdit: Boolean(feeCollector),
