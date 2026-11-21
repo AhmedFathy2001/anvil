@@ -27,6 +27,7 @@ import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/c
 import { useDialog } from '@/components/Confirm';
 import { useDirtyForm, useUnsavedChanges } from '@/components/UnsavedChanges';
 import { CountsOnChoice, PrizeCurrencyChoice, countsOnSummary } from '@/components/weekly/CompetitionGameFields';
+import { CompetitionPingFields, type PingValue } from '@/components/weekly/CompetitionPingFields';
 import { MAIN, checkCountsOn, countsHardcore, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
 import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
@@ -286,6 +287,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [feeGatesPrize, setFeeGatesPrize] = useState(true);
   // Which game counts (lib/competitionGame): the main game unless the organiser says otherwise.
   const [countsOn, setCountsOn] = useState<string>(MAIN);
+  // A Discord role its start/results posts ping (lib/discord rolePing): none unless picked.
+  const [ping, setPing] = useState<PingValue>({ roleId: '', onStart: false, onEnd: false });
   // The organiser's own "Paid in" pick, or null for the default. What is sent goes through
   // prizeCurrencyFor, so switching the game away from Hardcore Worlds quietly falls back to main gp.
   const [prizeCurrencyPick, setPrizeCurrencyPick] = useState<PrizeCurrency | null>(null);
@@ -312,7 +315,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       name, mode, size, intervalMinutes, batchSize, ladderRotation, windowSize, revealOrder, firstBonus,
       decayEnabled, decayMode, decayTargetPct, decayHours, lockout, maxAccounts, accountSlotMode, feeMode,
       multiClan, placement, teamCount, teamCap, cashPolicy, coHostSlugs, activePreset, startDate, endDate,
-      weeklyType, weeklyMetric, hunt, countsOn, prizeCurrencyPick, includeGuests, hostEntrants, entryFeeText, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
+      weeklyType, weeklyMetric, hunt, countsOn, prizeCurrencyPick, ping, includeGuests, hostEntrants, entryFeeText, weeklyMode, repeatWeekly, rotation, startFrom, libraryBoardId,
     },
     { guard: false },
   );
@@ -568,6 +571,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             hostEntrants,
             countsOn: counts.value,
             prizeCurrency,
+            ...(ping.roleId ? { pingRoleId: ping.roleId, pingOnStart: ping.onStart, pingOnEnd: ping.onEnd } : {}),
             ...(signupEntry && entryFeeGp ? { entryFee: entryFeeGp, feesToPrizes, feeGatesPrize } : {}),
             // A hunt is everyone for themselves: no teams, no clan sides.
             mode: isHunt ? 'solo' : weeklyMode.mode,
@@ -1156,6 +1160,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   </p>
                 </div>
               )}
+              <CompetitionPingFields value={ping} onChange={setPing} />
               {!selectedOnly && (
                 <Checkbox checked={includeGuests} onChange={setIncludeGuests} label={isHunt ? 'Guests hunt too' : 'Guests race too'} className="text-sm text-foreground/80" />
               )}

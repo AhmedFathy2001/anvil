@@ -116,6 +116,10 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
               // Which game counts and what it pays in carry over: a Hardcore Worlds week stays one.
               countsOn: prev.countsOn,
               prizeCurrency: prev.prizeCurrency,
+              // The same role pinged each week.
+              pingRoleId: prev.pingRoleId,
+              pingOnStart: prev.pingOnStart,
+              pingOnEnd: prev.pingOnEnd,
             })
             .returning();
           const kept = await tx

@@ -1506,6 +1506,13 @@
       "when": 1795270000000,
       "tag": "0277_competition_game",
       "breakpoints": true
+    },
+    {
+      "idx": 278,
+      "version": "7",
+      "when": 1795271000000,
+      "tag": "0278_competition_ping",
+      "breakpoints": true
     }
   ]
 }

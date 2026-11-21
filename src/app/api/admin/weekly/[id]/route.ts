@@ -1,7 +1,7 @@
 import { getSetting } from '@/lib/settings';
 import { getWeeklyPool } from '@/lib/coffer';
 import { setWeeklyPool } from '@/lib/coffer';
-import { checkCountsOn, HCW_COFFER_SETTING_KEY, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
+import { checkCountsOn, cleanPingRole, HCW_COFFER_SETTING_KEY, prizeCurrencyFor, type PrizeCurrency } from '@/lib/competitionGame';
 import { cleanEntryFee } from '@/lib/weeklySignups';
 import { retargetCompetition } from '@/lib/weeklyRetarget';
 import { parseStamp } from '@/lib/dbTime';
@@ -189,6 +189,11 @@ export async function PUT(
     if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Only a treasurer or admin can change what the prizes are paid in.' }, { status: 403 });
     updates.prizeCurrency = nextCurrency;
   }
+
+  // The role its start/results posts ping: any time before that post goes out. Null clears it.
+  if (body.pingRoleId !== undefined) updates.pingRoleId = cleanPingRole(body.pingRoleId);
+  if (typeof body.pingOnStart === 'boolean') updates.pingOnStart = body.pingOnStart;
+  if (typeof body.pingOnEnd === 'boolean') updates.pingOnEnd = body.pingOnEnd;
 
   if (Object.keys(updates).length === 0 && modeChanged) {
     return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);

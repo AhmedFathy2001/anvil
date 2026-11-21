@@ -2244,6 +2244,8 @@ function weeklyGroupField(type: string, g: WeeklyGroupPost, label: string) {
 interface WeeklyStartParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
+  /** A role to ping with it (the host clan's own server only); null = no ping. */
+  pingRoleId?: string | null;
   type: string;   // 'skill' | 'boss'
   title: string;
   metric: string; // e.g. 'attack', 'zulrah'
@@ -2259,6 +2261,15 @@ interface WeeklyStartParams {
 function countsOnField(countsOn: string | null | undefined) {
   const c = parseCountsOn(countsOn);
   return c === MAIN ? [] : [field('Counts', countsOnLabel(c))];
+}
+
+/**
+ * The role a competition pings on its start or results post: the mention as the message's text, and
+ * allowed_mentions naming that one role, so nothing else in the post can ping. Not a Discord id: nothing.
+ */
+export function rolePing(roleId: string | null | undefined): Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'> {
+  if (!roleId || !/^\d{17,20}$/.test(roleId)) return {};
+  return { content: `<@&${roleId}>`, allowed_mentions: { parse: [], roles: [roleId] } };
 }
 
 export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
@@ -2291,7 +2302,7 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     embed.description = 'Team competition — live now. Your gains count for your team; team totals decide it.';
   }
 
-  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
+  return sendWeeklyWebhook(params.clanId, { ...rolePing(params.pingRoleId), embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
 /**
@@ -2404,6 +2415,8 @@ export async function notifyWeeklyHalfway(params: {
 interface WeeklyResultsParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
+  /** A role to ping with it (the host clan's own server only); null = no ping. */
+  pingRoleId?: string | null;
   type: string;
   title: string;
   metric: string;
@@ -2483,5 +2496,5 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
   if (best) embed.fields = [...(embed.fields ?? []), best];
   embed.fields = [...(embed.fields ?? []), ...countsOnField(params.countsOn)];
 
-  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
+  return sendWeeklyWebhook(params.clanId, { ...rolePing(params.pingRoleId), embeds: [await withClanCrest(params.clanId, embed)] });
 }

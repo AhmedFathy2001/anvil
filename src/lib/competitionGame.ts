@@ -122,6 +122,11 @@ export function currencyWords(c: PrizeCurrency): string {
   return c === 'hcw' ? 'HCW gp' : 'gp';
 }
 
+/** A Discord role id a competition may ping, or null (anything that isn't a snowflake). */
+export function cleanPingRole(raw: unknown): string | null {
+  return typeof raw === 'string' && /^\d{17,20}$/.test(raw) ? raw : null;
+}
+
 /** The tooltip on the Hardcore Worlds icon beside a prize. */
 export const HCW_PRIZE_TITLE = 'Paid in Hardcore Worlds gp';
 

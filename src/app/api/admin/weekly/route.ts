@@ -1,5 +1,5 @@
 import { getSetting } from '@/lib/settings';
-import { checkCountsOn, HCW_COFFER_SETTING_KEY, prizeCurrencyFor } from '@/lib/competitionGame';
+import { checkCountsOn, cleanPingRole, HCW_COFFER_SETTING_KEY, prizeCurrencyFor } from '@/lib/competitionGame';
 import { cleanEntryFee } from '@/lib/weeklySignups';
 import { parseStamp } from '@/lib/dbTime';
 import { NextResponse } from 'next/server';
@@ -202,6 +202,10 @@ export async function POST(request: Request) {
     hunt: huntJson,
     countsOn: counts.value,
     prizeCurrency,
+    // A role to ping on the start and/or results post (lib/discord rolePing); off without a role.
+    pingRoleId: cleanPingRole(body.pingRoleId),
+    pingOnStart: !!cleanPingRole(body.pingRoleId) && body.pingOnStart === true,
+    pingOnEnd: !!cleanPingRole(body.pingRoleId) && body.pingOnEnd === true,
   }).returning();
 
   const comp = result[0];
