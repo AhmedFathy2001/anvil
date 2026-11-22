@@ -260,7 +260,7 @@
     "drizzle-orm": "^0.45.4",
     "exceljs": "^4.4.0",
     "jose": "^6.2.3",
-    "next": "^16.4.2",
+    "next": "^16.4.6",
     "nodemailer": "10.4.0",
     "osrs-json-hiscores": "^2.25.0",
     "pg": "^8.23.0",
@@ -281,7 +281,7 @@
     "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9",
-    "eslint-config-next": "^16.4.2",
+    "eslint-config-next": "^16.4.6",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"
