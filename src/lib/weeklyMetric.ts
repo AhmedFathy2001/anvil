@@ -146,6 +146,48 @@ export function effectiveMetricParts(
 }
 
 /**
+ * An item hunt's row stats off one read (lib/itemHunt rowStatKeys: "boss:generalGraardor",
+ * "skill:fishing"), each max(hiscores, live) like the values above. A key the read cannot answer
+ * is left out rather than written as 0, so it starts from the first read that has it.
+ */
+export function huntRowParts(snapshot: HiscoresSnapshot, keys: string[], liveMap: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of keys) {
+    const [type, metric] = k.split(':');
+    if ((type !== 'boss' && type !== 'skill') || !metric) continue;
+    const part = readMetricFromSnapshot(snapshot, type, metric);
+    if (part.kind === 'value') out[k] = Math.max(part.value, liveMap[metric] ?? 0);
+  }
+  return out;
+}
+
+/**
+ * Fold a fresh read into a hunt entrant's row stats. The start of a key is its first reading and
+ * never moves after; the current only goes up (a lower reading is a stale hiscores page or another
+ * account on the name, the guard applyWeeklyValue keeps for the hunt's own value).
+ */
+export function mergeHuntRowStats(
+  baseline: Record<string, number> | null | undefined,
+  current: Record<string, number> | null | undefined,
+  read: Record<string, number>,
+): { baseline: Record<string, number>; current: Record<string, number>; changed: boolean } {
+  const b = { ...(baseline ?? {}) };
+  const c = { ...(current ?? {}) };
+  let changed = false;
+  for (const [k, v] of Object.entries(read)) {
+    if (typeof b[k] !== 'number') {
+      b[k] = v;
+      changed = true;
+    }
+    if (typeof c[k] !== 'number' || v > c[k]) {
+      c[k] = Math.max(v, b[k]);
+      changed = true;
+    }
+  }
+  return { baseline: b, current: c, changed };
+}
+
+/**
  * The split of a gain, one line per key, when it adds up to the gain the standings show (it always
  * does for rows captured with parts; a hand-corrected baseline drops them). Null otherwise.
  */

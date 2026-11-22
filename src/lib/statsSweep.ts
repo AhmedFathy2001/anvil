@@ -28,6 +28,7 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { competitionStat, effectiveMetricParts, effectiveMetricValue } from '@/lib/weeklyMetric';
+import { recordHuntRowStats } from '@/lib/huntRowStats';
 import { metricKeys } from '@/lib/constants';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
@@ -99,7 +100,8 @@ interface EventCtx {
 
 interface BingoTask { ctx: EventCtx; player: PlayerRow; needsSnapshot: boolean; }
 interface WeeklyTask {
-  comp: { id: number; type: CompetitionType; metric: string; startDate: string };
+  /** `hunt`: an item hunt's rules, for its per-row stats (lib/huntRowStats). */
+  comp: { id: number; type: CompetitionType; metric: string; startDate: string; hunt?: string | null; kind?: string };
   participant: { id: number; baselineValue: number | null; currentValue: number | null; lastUpdated: string | null; clanMemberId: number | null };
 }
 
@@ -303,7 +305,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
 
     for (const p of participants) {
       const entry = claim(ensureEntry(p.clanMemberId, p.rsn));
-      entry.weekly.push({ comp: { id: comp.id, type: stat.type, metric: stat.metric, startDate: comp.startDate }, participant: p });
+      entry.weekly.push({ comp: { id: comp.id, type: stat.type, metric: stat.metric, startDate: comp.startDate, hunt: comp.hunt, kind: comp.type }, participant: p });
       entry.staleKey = olderOf(entry.staleKey, p.lastUpdated);
     }
   }
@@ -700,6 +702,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
         now: ts,
       });
       if (outcome.outcome === 'updated' || outcome.outcome === 'first-captured') weeklyUpdated++;
+      // An item hunt's rows each show their own stat: the same read, one more look at it.
+      if (w.comp.kind === 'hunt') await recordHuntRowStats(w.participant.id, { type: 'hunt', hunt: w.comp.hunt }, snapshot, liveMap);
       // Competition-scoped snapshot (frozen baseline + per-tick current), bounded at 2 rows/member/comp.
       //
       // entry.accountId, NOT participant.clanMemberId. This passed a SEAT id into a column that

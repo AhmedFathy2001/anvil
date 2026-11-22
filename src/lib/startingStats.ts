@@ -61,6 +61,7 @@ import {
 import { log } from '@/lib/logger';
 import { parseStamp } from '@/lib/dbTime';
 import { applyWeeklyValue, writePlayerSnapshot } from '@/lib/weekly';
+import { recordHuntRowStats } from '@/lib/huntRowStats';
 import { competitionStat, effectiveMetricParts, effectiveMetricValue } from '@/lib/weeklyMetric';
 
 /** Same window as the sweep's (lib/statsSweep STALE_OVERLAY_MS). */
@@ -543,6 +544,8 @@ async function captureWeeklyOne(comp: CompRow, row: WeeklyRow, owner: 'site' | '
     competitionStartIso: comp.startDate,
     now: read.at,
   });
+  // An item hunt's per-row stats start from the same read (lib/huntRowStats).
+  await recordHuntRowStats(fresh.id, comp, read.snapshot, read.overlay);
   if (read.accountId != null) await writePlayerSnapshot(read.accountId, comp.id, read.snapshot);
   return outcome.outcome === 'first-captured' || outcome.outcome === 'updated';
 }

@@ -25,6 +25,10 @@ import {
   type DropSighting,
   type HuntConfig,
   type HuntDrop,
+  type HuntEntrant,
+  type HuntRates,
+  type HuntRowProgress,
+  huntRowProgress,
   type HuntReport,
   type HuntRow,
   BURST_WINDOW_MS,
@@ -47,6 +51,7 @@ import {
   rankHunt,
   serializeHunt,
 } from '@/lib/itemHunt';
+import { huntRates } from '@/lib/huntRates';
 import { log } from '@/lib/logger';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { clogItemIdByName } from '@/lib/moments';
@@ -57,6 +62,21 @@ type Competition = typeof weeklyCompetitions.$inferSelect;
 type CompetitionLike = Pick<Competition, 'id' | 'type' | 'startDate' | 'endDate'> & { hunt?: string | null };
 
 const windowOf = (comp: { startDate: string; endDate: string }) => ({ startMs: parseStamp(comp.startDate), endMs: parseStamp(comp.endDate) });
+
+type EntrantSource = { rsn: string; baselineValue: number | null; currentValue: number | null; huntBaseline?: Record<string, number> | null; huntCurrent?: Record<string, number> | null };
+
+/**
+ * What rankHunt needs of each entrant: the hunt's one stat gained, and on a v2 hunt their Due over
+ * the rows' drop rates (lib/itemHunt huntRowProgress). Every board ranks through this, so the page,
+ * the panel, the results post and the prize settle all put the driest in the same order.
+ */
+function huntEntrants(config: HuntConfig, participants: EntrantSource[], rates: HuntRates, tracked = true): HuntEntrant[] {
+  return participants.map((p) => ({
+    rsn: p.rsn,
+    statGain: tracked && p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null,
+    ...(config.v === 2 ? { due: huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates).due } : {}),
+  }));
+}
 
 function toHuntDrop(r: HuntDropRow): HuntDrop {
   return {
@@ -99,6 +119,10 @@ export interface HuntStandings {
   /** Every row, for the staff page. */
   all: HuntDropRow[];
   participants: Awaited<ReturnType<typeof getEffectiveParticipants>>;
+  /** v2: each row's drop rate per stat key (lib/huntRates); empty on v1. */
+  rates: HuntRates;
+  /** v2: each entrant's progress per row and Due, by rsn. Empty on v1. */
+  progress: Map<string, { rows: HuntRowProgress[]; due: number | null }>;
 }
 
 /** The hunt's standings, ranked by its rule. Null when the competition is not a readable hunt. */
@@ -108,15 +132,9 @@ export async function huntStandings(comp: CompetitionLike): Promise<HuntStanding
   const [participants, all] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id)]);
   const tracked = huntStat(config) != null;
   const drops = all.map(toHuntDrop);
-  const rows = rankHunt(
-    config,
-    participants.map((p) => ({
-      rsn: p.rsn,
-      statGain: tracked && p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null,
-    })),
-    drops,
-    windowOf(comp),
-  );
+  const rates = config.v === 2 ? huntRates(config) : {};
+  const rows = rankHunt(config, huntEntrants(config, participants, rates, tracked), drops, windowOf(comp));
+  const progress = new Map(config.v === 2 ? participants.map((p) => [p.rsn, huntRowProgress(config, p.huntBaseline, p.huntCurrent, rates)] as const) : []);
   return {
     config,
     rows,
@@ -125,6 +143,8 @@ export async function huntStandings(comp: CompetitionLike): Promise<HuntStanding
     awaiting: awaitingConfirmation(config, drops, windowOf(comp)),
     all,
     participants,
+    rates,
+    progress,
   };
 }
 
@@ -137,17 +157,12 @@ export async function huntStandings(comp: CompetitionLike): Promise<HuntStanding
  */
 export async function competitionBoard(
   comp: CompetitionLike,
-  participants: { rsn: string; baselineValue: number | null; currentValue: number | null }[],
+  participants: EntrantSource[],
 ): Promise<LeaderboardEntry[]> {
   const config = comp.type === 'hunt' ? parseHunt(comp.hunt) : null;
   if (comp.type !== 'hunt') return computeLeaderboard(participants);
   if (!config) return participants.map((p) => ({ rsn: p.rsn, baselineValue: 0, currentValue: 0, gained: 0 }));
-  const rows = rankHunt(
-    config,
-    participants.map((p) => ({ rsn: p.rsn, statGain: p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null })),
-    (await huntDropRows(comp.id)).map(toHuntDrop),
-    windowOf(comp),
-  );
+  const rows = rankHunt(config, huntEntrants(config, participants, config.v === 2 ? huntRates(config) : {}), (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp));
   return rows.map((r) => ({ rsn: r.rsn, baselineValue: 0, currentValue: r.count, gained: r.count }));
 }
 
@@ -172,7 +187,8 @@ async function activeHunts(clanId: number, nowMs: number): Promise<{ comp: Compe
  */
 export async function huntReportItemIds(clanId: number, nowMs: number = Date.now()): Promise<number[]> {
   const hunts = await activeHunts(clanId, nowMs);
-  return [...new Set(hunts.flatMap((h) => (h.config.target === 'items' ? h.config.items.map((i) => i.id) : [])))];
+  // A v2 hunt's pet rows are pets all the same: reported anyway.
+  return [...new Set(hunts.flatMap((h) => (h.config.target === 'items' ? h.config.items.filter((i) => !i.pet).map((i) => i.id) : [])))];
 }
 
 function sightingOf(row: HuntDropRow): DropSighting {
@@ -318,7 +334,7 @@ export async function recordHuntReports(
 }
 
 /**
- * An "after N drops" hunt that has reached its ending: pull the end back to the deciding drop and
+ * An "after N drops" (or "when a player has all of them") hunt that has reached its ending: pull the end back to the deciding drop and
  * finish it (lib/weeklyFinish: results post, prizes, exactly once). Does nothing while the hunt is
  * still running, which with staff confirming includes "enough reported, not yet confirmed".
  */
@@ -401,17 +417,12 @@ export async function updateHuntSettings(
  */
 export async function huntPrizeBoard(
   comp: Competition,
-  entrants: { rsn: string; baselineValue: number | null; currentValue: number | null }[],
+  entrants: EntrantSource[],
   prizePlaces: number,
 ): Promise<{ rows: HuntRow[]; holds: HuntDrop[] } | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
-  const rows = rankHunt(
-    config,
-    entrants.map((p) => ({ rsn: p.rsn, statGain: p.baselineValue != null && p.currentValue != null ? Math.max(0, p.currentValue - p.baselineValue) : null })),
-    (await huntDropRows(comp.id)).map(toHuntDrop),
-    windowOf(comp),
-  );
+  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}), (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp));
   return { rows, holds: unconfirmedPrizeDrops(config, rows, prizePlaces) };
 }
 
