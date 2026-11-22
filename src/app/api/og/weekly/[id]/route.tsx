@@ -58,7 +58,15 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
   const art = await remoteSprite(kind === 'hunt' ? huntIconFor(comp.hunt) : competitionImageUrl(kind, comp.metric), kind === 'boss' ? 560 : 300);
 
   // The clan's own title only when it says something the metric doesn't ("Double XP week").
-  const subtitle = comp.title && !comp.title.toLowerCase().includes(label.toLowerCase()) ? comp.title : null;
+  let title = label;
+  let subtitle = comp.title && !comp.title.toLowerCase().includes(label.toLowerCase()) ? comp.title : null;
+  if (kind === 'hunt' && comp.title) {
+    // A hunt's own name leads ("Any DT2 Pet"; the eyebrow already says it is a hunt), and what it
+    // hunts goes under it as a list. A hunt for four pets was the title before: "Baron + Butcher +
+    // Nid + 1 more" was cut off on its one line, and the display font drew its "+" broken.
+    title = asList(comp.title.replace(/^(pet|item) hunt:\s*/i, '') || comp.title);
+    subtitle = asList(label);
+  }
 
   const count = participants.length;
   const left = timeLeft(comp.endDate);
@@ -95,7 +103,7 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
     kind,
     eyebrow: `${KIND_LABEL[kind]} · ${stage === 'completed' ? 'Finished' : name}`,
     stage,
-    title: label,
+    title,
     subtitle,
     line,
     art,
@@ -107,4 +115,9 @@ async function load(_request: Request, { params }: { params: Promise<{ id: strin
 export function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   // Keyed by path alone: the card never depends on who is asking.
   return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+}
+
+/** "Baron + Butcher + 2 more" → "Baron, Butcher and 2 more": the card's display font draws "+" broken. */
+function asList(s: string): string {
+  return s.replace(/ \+ (\d+ )?more$/, (_, n) => ` and ${n ?? ''}more`).replace(/ \+ /g, ', ');
 }
