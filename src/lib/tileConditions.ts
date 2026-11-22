@@ -26,8 +26,11 @@ export interface PartyBar {
 export interface RaidPick {
   raid: RaidId;
   modes?: RaidModeId[];
-  /** ToA only: the level the raid ENDS at (after a missed timer's penalty), and whether Entry (<150) counts. */
-  toa?: { min: number; entry: boolean };
+  /**
+   * ToA only: the level the raid ENDS at (after a missed timer's penalty) against `min` — at least it
+   * (`op` absent or 'gte'), exactly it ('eq') or at most it ('lte') — and whether Entry (<150) counts.
+   */
+  toa?: ToaBar;
   /** Under this many seconds. */
   under?: number | null;
   /** CoX CM / ToB HM only: inside the game's challenge time for the party (see challengeSeconds). */
@@ -36,6 +39,16 @@ export interface RaidPick {
   /** CoX only: scaled to at least this team size. */
   scale?: number | null;
 }
+
+/** A ToA raid level bar. `min` is the level compared against, whatever `op` says. */
+export interface ToaBar {
+  min: number;
+  entry: boolean;
+  op?: 'gte' | 'eq' | 'lte';
+}
+
+/** The most players each raid takes: the party-size field stops there. */
+export const RAID_PARTY_MAX: Record<RaidId, number> = { cox: 100, tob: 5, toa: 8, tfa: 8 };
 
 /** The player's own count of the thing when the event started: under or over a number. */
 export interface StartCount {
@@ -56,7 +69,7 @@ export interface TileConditions {
   /** Kill / raid / log tiles: the count when the event started. */
   startCount?: StartCount | null;
   /** Drop tiles whose items come from ToA: the raid the drop came from ended at this level or more. */
-  toaLevel?: { min: number; entry: boolean } | null;
+  toaLevel?: ToaBar | null;
 }
 
 // ─── The game's numbers ──────────────────────────────────────────────────────────────────────
@@ -154,11 +167,8 @@ export function pickAccepts(pick: RaidPick, run: RaidRun): { ok: true } | Refusa
   if (run.raid === 'toa') {
     const bar = pick.toa ?? { min: 150, entry: false };
     if (run.lvl == null) return no('the raid level was not seen');
-    // Counts at the level or above, or as an Entry run (<150) when Entry is ticked.
-    const entryRun = run.lvl < 150;
-    if (!(run.lvl >= bar.min || (entryRun && bar.entry))) {
-      return no(entryRun && !bar.entry ? 'Entry Mode does not count here' : `raid level ${run.lvl}, needs ${bar.min}+`);
-    }
+    const r = toaLevelAllows(bar, run.lvl);
+    if (!r.ok) return r;
   } else if (!(pick.modes ?? []).includes(run.mode)) {
     return no(`${run.mode === 'cm' ? 'Challenge Mode' : run.mode === 'hard' ? 'Hard Mode' : run.mode === 'entry' ? 'Entry Mode' : 'Normal'} does not count here`);
   }
@@ -182,6 +192,21 @@ export function pickAccepts(pick: RaidPick, run: RaidRun): { ok: true } | Refusa
     if (run.sec > limit) return no(`${clockWords(run.sec)}, the challenge time is ${clockWords(limit)}`);
   }
   return { ok: true };
+}
+
+export function toaBarWords(bar: ToaBar): string {
+  const op = bar.op ?? 'gte';
+  return op === 'eq' ? `exactly ${bar.min}` : op === 'lte' ? `${bar.min} or lower` : `${bar.min}+`;
+}
+
+/** A ToA level against a bar: the level compared by `op`, or an Entry run (<150) when Entry is ticked. */
+export function toaLevelAllows(bar: ToaBar, lvl: number): { ok: true } | Refusal {
+  const op = bar.op ?? 'gte';
+  const entryRun = lvl < 150;
+  const hit = op === 'eq' ? lvl === bar.min : op === 'lte' ? lvl <= bar.min : lvl >= bar.min;
+  // An Entry run counts only when Entry is ticked, whatever the bar says; above Entry the bar decides.
+  if (entryRun) return bar.entry ? { ok: true } : no('Entry Mode does not count here');
+  return hit ? { ok: true } : no(`raid level ${lvl}, needs ${toaBarWords(bar)}`);
 }
 
 /** The tile-wide rules a run must also pass (deaths, teammates). Start counts are judged elsewhere. */
@@ -242,7 +267,7 @@ export function pickWords(p: RaidPick): string {
   let name = RAID_SHORT[p.raid];
   if (p.raid === 'toa') {
     const bar = p.toa ?? { min: 150, entry: false };
-    name += ` at ${bar.min}+${bar.entry ? ' or Entry' : ''}`;
+    name += ` at ${toaBarWords(bar)}${bar.entry ? ' or Entry' : ''}`;
   } else if (p.modes?.length) {
     const ms = p.modes.map((m) => (m === 'cm' ? 'CM' : m === 'hard' ? 'HM' : m === 'entry' ? 'Entry' : 'Normal'));
     if (!(ms.length === 1 && ms[0] === 'Normal')) name += ` ${ms.join('/')}`;
