@@ -157,9 +157,12 @@ export function conditionsKindError(tileType: string | null | undefined, c: Tile
   if (raidOnly) return 'Raids, deaths and teammates are conditions of a raid tile.';
   if (c.startCount) {
     if (hasStat) return 'The count at the start needs the plugin to count the kills: switch the tile to the plugin.';
-    // Kill and raid tiles only: their start count is a hiscores count with a count line behind it. A
-    // collection log has neither, so a start count there could never be checked.
-    if (tileType !== 'kill') return 'Only raid and kill tiles can ask for a count at the start.';
+    // Kill and raid tiles: a hiscores count with a count line behind it. A collection log tile may say
+    // "a first" (under 1) and nothing else: its credit is the game's "New item added to your collection
+    // log" line, which only ever fires for a first, so that bar is already met and needs no checking.
+    if (tileType === 'clog') {
+      if (!(c.startCount.op === 'lt' && c.startCount.n === 1)) return 'A collection log tile can only ask for a first (under 1 at the start).';
+    } else if (tileType !== 'kill') return 'Only raid, kill and collection log tiles can ask for a count at the start.';
   }
   if (c.toaLevel && tileType !== 'drop') return 'Only drop tiles can ask for a ToA raid level.';
   return null;
@@ -340,5 +343,6 @@ export function raidFactsSupportedBy(version: string | null | undefined): boolea
 export function conditionedForPlugin(tile: { tileType?: string | null; conditions?: string | null }): boolean {
   if (tile.tileType === RAID_TILE_TYPE) return true;
   const c = parseStored(tile.conditions ?? null);
-  return !!c && (!!c.startCount || !!c.toaLevel);
+  // A log tile's "first" is proven by the slot line itself (see conditionsKindError).
+  return !!c && ((!!c.startCount && tile.tileType !== 'clog') || !!c.toaLevel);
 }

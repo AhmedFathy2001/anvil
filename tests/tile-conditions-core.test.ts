@@ -63,8 +63,11 @@ test('conditionsKindError keeps each condition on its kind', () => {
   assert.match(conditionsKindError('kill', raid, false)!, /raid tile/);
   assert.equal(conditionsKindError('kill', { v: 1, startCount: { op: 'lt', n: 1 } }, false), null);
   assert.match(conditionsKindError('kill', { v: 1, startCount: { op: 'lt', n: 1 } }, true)!, /plugin/);
-  assert.match(conditionsKindError('lap', { v: 1, startCount: { op: 'lt', n: 1 } }, false)!, /Only raid and kill/);
-  assert.match(conditionsKindError('clog', { v: 1, startCount: { op: 'lt', n: 1 } }, false)!, /Only raid and kill/);
+  assert.match(conditionsKindError('lap', { v: 1, startCount: { op: 'lt', n: 1 } }, false)!, /Only raid, kill/);
+  // A log slot is a first by definition: "under 1" only, and it never blocks the slot's own credit.
+  assert.equal(conditionsKindError('clog', { v: 1, startCount: { op: 'lt', n: 1 } }, false), null);
+  assert.match(conditionsKindError('clog', { v: 1, startCount: { op: 'gt', n: 5 } }, false)!, /only ask for a first/);
+  assert.equal(conditionedForPlugin({ tileType: 'clog', conditions: JSON.stringify({ v: 1, startCount: { op: 'lt', n: 1 } }) }), false);
   assert.equal(conditionsKindError('drop', { v: 1, toaLevel: { min: 300, entry: false } }, false), null);
   assert.match(conditionsKindError('kill', { v: 1, toaLevel: { min: 300, entry: false } }, false)!, /drop tiles/);
 });

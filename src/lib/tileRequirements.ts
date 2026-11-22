@@ -400,7 +400,8 @@ export function tileNeeds(tile: TileNeedsLike): TileNeeds {
   const conditions = parseConditions(tile.conditions);
   if (kind === 'clog') {
     req.push(need('clog-chat-setting'), need('clog-plugin-version'));
-    conditionNeeds(conditions, req, lim);
+    // A log tile's "first" is its clog-first-time line already; nothing more to say or check.
+    conditionNeeds(conditions ? { ...conditions, startCount: null } : null, req, lim);
     if (clogTileMode(tile.countMode) === 'complete') {
       req.push(need('clog-sync-before'), need('clog-page-screenshot'));
       lim.push(need('clog-page-own-log'), need('clog-sync-only'));
