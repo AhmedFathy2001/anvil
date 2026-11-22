@@ -52,6 +52,7 @@ import GuideLink from '@/components/GuideLink';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 import { parseComboRule } from '@/lib/combo';
 import type { ComboPartConfig, TileConfig } from '@/lib/types';
+import { parseConditions, type TileConditions } from '@/lib/tileConditions';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape (the tile panel's full form, behind
 // "More options" on a new tile and the whole panel on a written one).
@@ -99,6 +100,8 @@ function tileToTrackingInitial(tile: Tile): TileConfig {
     partySize: tile.partySize ?? null,
     minRaidLevel: tile.minRaidLevel ?? null,
     partyTeamOnly: !!tile.partyTeamOnly,
+    // Raid picks and tile-wide rules (lib/tileConditions); the row keeps them as JSON.
+    conditions: parseConditions(tile.conditions),
     pvpMinLootValue: tile.pvpMinLootValue ?? null,
     mission: !!tile.mission,
     missionRules: tile.rules ? parseTileMissionRules(tile.rules) : null,
@@ -767,9 +770,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       partySize?: number | null;
       minRaidLevel?: number | null;
       partyTeamOnly?: boolean | null;
+      conditions?: TileConditions | string | null;
     },
   ) {
-    const { trackedItemIds, itemRequirements, sourceNpcs, targetNpcs, optional: updatedOptional, partyTeamOnly, ...rest } = updated;
+    const { trackedItemIds, itemRequirements, sourceNpcs, targetNpcs, optional: updatedOptional, partyTeamOnly, conditions, ...rest } = updated;
     setLocalTiles((prev) =>
       prev.map((t) =>
         t.id === tileId
@@ -778,6 +782,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               ...rest,
               optional: updatedOptional ? 1 : 0,
               partyTeamOnly: partyTeamOnly === undefined ? t.partyTeamOnly : partyTeamOnly ? 1 : null,
+              conditions: conditions === undefined ? t.conditions : conditions === null ? null : typeof conditions === 'string' ? conditions : JSON.stringify(conditions),
               trackedItemIds:
                 trackedItemIds === undefined ? t.trackedItemIds : trackedItemIds === null ? null : JSON.stringify(trackedItemIds),
               itemRequirements:

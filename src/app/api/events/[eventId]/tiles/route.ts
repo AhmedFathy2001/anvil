@@ -24,6 +24,8 @@ import { deriveTileIcon } from '@/lib/tileIcons';
 import { tilesForViewer } from '@/lib/tilesForViewer';
 import { afterEaseOptionSaved } from '@/lib/raceEaseDb';
 import { STAFF_HIDE_ERROR, raceTileHiddenForSession } from '@/lib/raceHideAheadDb';
+import { RAID_TILE_TYPE, conditionsKindError, validateConditions } from '@/lib/tileConditionsCheck';
+import { parseConditions } from '@/lib/tileConditions';
 
 export async function GET(
   request: Request,
@@ -189,6 +191,7 @@ function blankPartRow(parent: TileRow): TileRow {
     partySize: null,
     minRaidLevel: null,
     partyTeamOnly: null,
+    conditions: null,
     pvpMinLootValue: null,
     revealStats: null,
     comboRule: null,
@@ -309,7 +312,15 @@ async function applyTileUpdate(
 ): Promise<NextResponse> {
   const { eId, editor, event, eventStarted, liveOverrideActive } = ctx;
   const tileId = tile.id;
-  const { label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, capBy, comboRule, comboWeight, icon } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, capBy, comboRule, comboWeight, icon, conditions } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  // Tile conditions (lib/tileConditions): checked whole and rebuilt from the known fields; null clears.
+  let conditionsJson: string | null | undefined;
+  if (conditions !== undefined) {
+    const parsed = validateConditions(conditions);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    conditionsJson = parsed.value ? JSON.stringify(parsed.value) : null;
+  }
 
   // Validate inputs
   if (requiredAmount !== undefined && requiredAmount !== null) {
@@ -727,6 +738,8 @@ async function applyTileUpdate(
     if (capByJson !== undefined) updateSet.capBy = capByJson;
     if (comboRuleJson !== undefined) updateSet.comboRule = comboRuleJson;
     if (comboWeightValue !== undefined) updateSet.comboWeight = comboWeightValue;
+    // What a clear must do to count is the tile's rule, frozen with its kind and amount.
+    if (conditionsJson !== undefined) updateSet.conditions = conditionsJson;
   }
 
   // Cross-validate the FINAL persisted state so a tile is always exactly one kind.
@@ -791,6 +804,9 @@ async function applyTileUpdate(
   const isGain = merged.tileType === 'gain';
   // Deathless tiles reuse timedActivity as the raid and requiredAmount as runs needed.
   const isDeathless = merged.tileType === 'deathless';
+  // Raid tiles (lib/tileConditions): the raids and their bars live in `conditions`, requiredAmount is
+  // the clears needed. Counted only from the plugin's raid facts, judged here on the site.
+  const isRaid = merged.tileType === RAID_TILE_TYPE;
   // Collection-log tiles (lib/clogTiles): page names in targetNpcs, the chosen items in trackedItemIds,
   // countMode 'slots' | 'complete', requiredAmount = new slots (or pages) needed.
   const isClog = merged.tileType === 'clog';
@@ -801,7 +817,7 @@ async function applyTileUpdate(
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || isClog || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || isRaid || isClog || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
       { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
       { status: 400 },
@@ -875,8 +891,26 @@ async function applyTileUpdate(
   } else if (merged.countMode === 'slots' || merged.countMode === 'complete') {
     return NextResponse.json({ error: "countMode 'slots' / 'complete' is for collection log tiles." }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed && !isClog) {
-    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.' }, { status: 400 });
+  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isRaid && !isTimed && !isClog) {
+    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, raid, or timed (trial runs) tiles can have a required amount.' }, { status: 400 });
+  }
+  // Conditions must fit the kind: raids on a raid tile, a start count on a raid/kill/log tile, a ToA
+  // level on a drop tile. A raid tile carries nothing else: the raids are its whole rule.
+  const mergedConditions = parseConditions(merged.conditions);
+  const conditionsError = conditionsKindError(merged.tileType, mergedConditions, hasStat);
+  if (conditionsError) return NextResponse.json({ error: conditionsError }, { status: 400 });
+  if (isRaid) {
+    if (dropItemFields || hasKillFields || hasTimedFields || merged.minRaidLevel != null) {
+      return NextResponse.json({ error: 'A raid tile’s raids and bars are its conditions; clear the other tracking fields.' }, { status: 400 });
+    }
+    if (!hasRequiredAmount) return NextResponse.json({ error: 'Set how many clears the raid tile needs.' }, { status: 400 });
+    // "Counted once per raid" is the kill tile's shared-run rule (lib/coopRuns): one credit per raid
+    // the team was in together, however many of them reported it.
+    const coop = mergedConditions?.shared === 'together' ? 'per-kill' : null;
+    if ((merged.coopCredit ?? null) !== coop) {
+      updateSet.coopCredit = coop;
+      merged.coopCredit = coop;
+    }
   }
 
   // CONVERTING an existing board tile into a mission.

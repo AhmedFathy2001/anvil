@@ -130,6 +130,7 @@ export async function POST(
         partySize: t.partySize,
         minRaidLevel: t.minRaidLevel,
         partyTeamOnly: t.partyTeamOnly,
+        conditions: t.conditions,
         pvpMinLootValue: t.pvpMinLootValue,
         category: t.category,
         points: t.points,

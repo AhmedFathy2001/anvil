@@ -965,6 +965,10 @@ export const tiles = pgTable('tiles', {
   // party voids the run). Judged by the plugin, which sees the party; coopMinMembers can still ask
   // for "at least N teammates" instead. NULL/0 = anyone may be in the party.
   partyTeamOnly: integer('party_team_only'),
+  // Tile conditions (lib/tileConditions), JSON: a RAID tile's raid picks and their bars, and the
+  // tile-wide rules (nobody dies, teammates inside, the count when the event started, a ToA level for
+  // a drop). Judged on the site from the plugin's facts. NULL = none.
+  conditions: text('conditions'),
   // PVP tiles (tile_type='pvp'). Minimum loot value in gp a kill must yield to count toward the
   // tile — an anti-farm floor so killing naked alts/teammates doesn't credit. NULL/0 = no minimum
   // (every attributed kill counts, matching legacy behaviour and still crediting loot-key kills).

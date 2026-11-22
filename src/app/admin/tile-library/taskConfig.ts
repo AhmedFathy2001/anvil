@@ -3,6 +3,7 @@ import type { ComboPartConfig, ItemRequirement, TileConfig } from '@/lib/types';
 import { parseComboRule } from '@/lib/combo';
 import { clanFetch } from '@/lib/clanFetch';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
+import { parseConditions } from '@/lib/tileConditions';
 
 // Bridging the two shapes a task lives in.
 //
@@ -134,6 +135,7 @@ export async function toTileConfig(
     perKillCap: asNumber(row.perKillCap),
     coopCredit: row.coopCredit === 'per-kill' ? 'per-kill' : null,
     coopMinMembers: asNumber(row.coopMinMembers),
+    conditions: parseConditions(row.conditions),
   };
 }
 
@@ -182,6 +184,7 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
     coopMinMembers: (payload.coopMinMembers as number | null) ?? null,
     statBasis: payload.statBasis === 'milestone' ? 'milestone' : null,
     capBy: Array.isArray(payload.capBy) && payload.capBy.length ? (payload.capBy as string[]) : null,
+    conditions: parseConditions(payload.conditions),
   };
   // A combo keeps its rule and its parts, each stored as a row of its own (the importer reads them back).
   if (row.tileType === 'combo') {
