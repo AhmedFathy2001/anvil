@@ -45,6 +45,9 @@ import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboList, type 
 import { listKillKey, listRule, readListTile } from '@/lib/listTile';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, isGotrEnergyCapped } from '@/lib/tileCaps';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
+import { conditionsSentence, parseConditions, type TileConditions } from '@/lib/tileConditions';
+import { conditionsFromSelection, normalizeConditions } from '@/lib/raidQuery';
+import { RaidCardGrid, StartCountField, TileRules, ToaLevelField } from '@/components/tile-creator/ConditionFields';
 
 interface Props {
   /** Board editing: the tile row being edited. Omit when `onSave` takes over the write. */
@@ -113,7 +116,7 @@ interface Props {
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
 // 'kills' is ONE authoring kind over two stored shapes — a hiscores boss-stat tile or a plugin kill
 // tile — and the shape is picked from the monsters chosen (lib/killSource), not by the admin.
-type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless' | 'clog' | 'combo';
+type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless' | 'raid' | 'clog' | 'combo';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -126,6 +129,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
   { key: 'deathless', label: 'Deathless raid', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance and credits off the completion message.' },
+  { key: 'raid', label: 'Raid with conditions', blurb: 'N clears of the raids you pick, each with its own bar (time, party size, scale, challenge time, ToA level), plus nobody dies / teammates / count at the start. The plugin reports each clear; the site checks it.' },
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
   { key: 'value', label: 'Loot value', blurb: 'Loot worth X gp — one big haul, or hauls summing to a target. Loot keys, PvP kills, any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
@@ -397,6 +401,7 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'gain') return 'gain';
   if (initial.tileType === 'timed') return 'timed';
   if (initial.tileType === 'deathless') return 'deathless';
+  if (initial.tileType === 'raid') return 'raid';
   if (initial.tileType === 'lms') return 'lms';
   if (initial.tileType === 'value' || initial.tileType === 'valuetotal') return 'value';
   if (initial.tileType === 'diary') return 'diary';
@@ -768,6 +773,7 @@ const KIND_FIELDS_CLEARED: Partial<TileConfig> = {
   minRaidLevel: null,
   partyTeamOnly: null,
   pvpMinLootValue: null,
+  conditions: null,
 };
 
 /**
@@ -1083,6 +1089,11 @@ function TileTrackingEditor({
   const [coopMinMembers, setCoopMinMembers] = useState<string>(
     initial.coopMinMembers ? String(initial.coopMinMembers) : '',
   );
+  // Raid / kill / drop conditions (lib/tileConditions): a raid tile's picks and rules, a kill tile's
+  // start count, a ToA drop's raid level. Each kind saves only its own part of it.
+  const [conditions, setConditions] = useState<TileConditions>(
+    () => parseConditions(initial.conditions) ?? (initial.tileType === 'raid' ? conditionsFromSelection(undefined) : { v: 1 }),
+  );
   // ToA raid-level floor (timed + deathless): blank = any level.
   const [minRaidLevel, setMinRaidLevel] = useState<string>(initial.minRaidLevel ? String(initial.minRaidLevel) : '');
   // Deathless: who may be in the raid. 'all' rides partyTeamOnly, 'min' rides coopMinMembers.
@@ -1273,6 +1284,7 @@ function TileTrackingEditor({
   const isGain = kind === 'gain';
   const isTimed = kind === 'timed';
   const isDeathless = kind === 'deathless';
+  const isRaid = kind === 'raid';
   const isLms = kind === 'lms';
   const isValue = kind === 'value';
   const isDiary = kind === 'diary';
@@ -1466,6 +1478,20 @@ function TileTrackingEditor({
   function changeKind(next: TileKind) {
     setKind(next);
     setError(null);
+    if (next === 'raid') {
+      if (!conditions.raids?.length) setConditions((c) => ({ ...c, ...conditionsFromSelection(undefined) }));
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setKillPicks([]);
+      setDiarySelectors([]);
+      setCaSelectors([]);
+      setLapCourses([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
+      if (!requiredAmount.trim()) setRequiredAmount('5');
+    }
     // A new combo starts with two empty parts to fill in.
     if (next === 'combo' && comboParts.length === 0) setComboParts([blankPart(initial, 1), blankPart(initial, 2)]);
     // Fields not relevant to the destination kind are always cleared; each branch then
@@ -1653,6 +1679,12 @@ function TileTrackingEditor({
       }
       return null;
     }
+    if (kind === 'raid') {
+      if (!conditions.raids?.length) return 'Pick at least one raid.';
+      if (conditions.raids.some((p) => p.raid !== 'toa' && !(p.modes ?? []).length)) return 'Pick at least one mode for each raid.';
+      const amt = parseInt(requiredAmount || '1', 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set how many clears are needed (at least 1).';
+    }
     if (kind === 'combo') {
       if (comboParts.length < MIN_COMBO_PARTS || comboParts.length > MAX_COMBO_PARTS) {
         return `A combo needs ${MIN_COMBO_PARTS}–${MAX_COMBO_PARTS} parts.`;
@@ -1829,7 +1861,7 @@ function TileTrackingEditor({
       mission,
       missionRules: buildMissionRules(),
       // defaults — overridden per kind below
-      tileType: isCombo ? 'combo' : isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : isClog ? 'clog' : 'standard',
+      tileType: isCombo ? 'combo' : isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isRaid ? 'raid' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : isClog ? 'clog' : 'standard',
       trackedStat: null,
       statType: null,
       statGoal: null,
@@ -1856,6 +1888,8 @@ function TileTrackingEditor({
       partyTeamOnly: null,
       // Cleared by default so switching away from PvP drops any stale floor; the pvp branch sets it.
       pvpMinLootValue: null,
+      // Set below for the kinds that carry conditions; every other kind saves none.
+      conditions: null,
     };
 
     if (listActive && listKind) {
@@ -1981,6 +2015,15 @@ function TileTrackingEditor({
       payload.requiredAmount = parseGp(valueGpText);
     }
 
+    if (isRaid) {
+      payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+      payload.conditions = normalizeConditions(conditions);
+    } else if (kind === 'kills' && !listActive && conditions.startCount) {
+      payload.conditions = { v: 1, startCount: conditions.startCount };
+    } else if (kind === 'drop' && conditions.toaLevel) {
+      payload.conditions = normalizeConditions({ v: 1, toaLevel: conditions.toaLevel });
+    }
+
     if (isDrop || isValue) {
       const npcs = sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean);
       payload.sourceNpcs = npcs.length > 0 ? npcs : null;
@@ -2100,6 +2143,7 @@ function TileTrackingEditor({
           partySize: updated.partySize ?? null,
           minRaidLevel: updated.minRaidLevel ?? null,
           partyTeamOnly: !!updated.partyTeamOnly,
+          conditions: parseConditions(updated.conditions),
           mission: !!updated.mission,
           missionRules: updated.rules ? parseTileMissionRules(updated.rules) : null,
           capBy: updated.capBy ? JSON.parse(updated.capBy) : null,
@@ -2796,6 +2840,24 @@ function TileTrackingEditor({
                 })()}
               </div>
             </div>
+          )}
+
+          {kind === 'drop' && (
+            <details className="rounded-lg border border-card-border/60 p-2.5 group" open={!!conditions.toaLevel}>
+              <summary className="cursor-pointer select-none list-none text-xs text-text-muted hover:text-foreground flex items-center gap-1 min-h-9">
+                <span className="transition-transform group-open:rotate-90">▸</span>
+                ToA drops: only from a raid ending at a level
+              </summary>
+              <div className="mt-2">
+                <ToaLevelField
+                  bar={conditions.toaLevel ?? null}
+                  onChange={(b) => setConditions((c) => ({ ...c, toaLevel: b }))}
+                  allowAny
+                  label="ToA raid level the drop came from"
+                />
+                <p className="text-[10px] text-text-muted mt-1">The level the raid ends at, after any missed-timer penalty. Any = every ToA counts.</p>
+              </div>
+            </details>
           )}
 
           {isDrop && (
@@ -3860,6 +3922,39 @@ function TileTrackingEditor({
             <RaidLevelField value={minRaidLevel} onChange={setMinRaidLevel} />
           )}
           </>
+          )}
+        </div>
+      )}
+
+      {kind === 'kills' && !listActive && (
+        <StartCountField
+          value={conditions.startCount}
+          onChange={(sc) => setConditions((c) => ({ ...c, startCount: sc }))}
+        />
+      )}
+
+      {/* ---- RAID KIND (raids with per-raid bars and tile-wide rules) ---- */}
+      {isRaid && (
+        <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Clears needed</label>
+            <Input
+              type="number"
+              value={requiredAmount}
+              onChange={(e) => setRequiredAmount(e.target.value)}
+              disabled={locked}
+              placeholder="1"
+              className="w-28 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+              min="1"
+            />
+          </div>
+          <RaidCardGrid conditions={conditions} onChange={setConditions} />
+          <TileRules conditions={conditions} onChange={setConditions} teamPlay={teamPlay} />
+          {(conditions.raids?.length ?? 0) > 0 && (
+            <p className="text-xs text-foreground/85 leading-relaxed">
+              <span className="text-text-muted">Reads as: </span>
+              Clear {parseInt(requiredAmount || '1', 10) || 1} of: {conditionsSentence(conditions)}
+            </p>
           )}
         </div>
       )}
