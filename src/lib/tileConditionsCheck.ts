@@ -331,3 +331,13 @@ export function raidFactsSupportedBy(version: string | null | undefined): boolea
   const cmp = compareVersions(version, RAID_FACTS_MIN_PLUGIN);
   return cmp != null && cmp >= 0;
 }
+
+/**
+ * A tile only site-judged facts may credit from the plugin: a raid tile, or one whose conditions the
+ * plugin can't be trusted to have checked (a start count, a ToA level).
+ */
+export function conditionedForPlugin(tile: { tileType?: string | null; conditions?: string | null }): boolean {
+  if (tile.tileType === RAID_TILE_TYPE) return true;
+  const c = parseStored(tile.conditions ?? null);
+  return !!c && (!!c.startCount || !!c.toaLevel);
+}

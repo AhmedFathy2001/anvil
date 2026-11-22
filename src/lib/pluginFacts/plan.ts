@@ -17,7 +17,7 @@ export interface PlannedSubmission {
   credit: Credit;
 }
 
-const BANNER: Record<Exclude<Credit['kind'], 'tile'>, string> = { drop: 'BINGO DROP', value: 'BINGO VALUE', kill: 'BINGO KILL' };
+const BANNER: Record<Exclude<Credit['kind'], 'tile' | 'raid'>, string> = { drop: 'BINGO DROP', value: 'BINGO VALUE', kill: 'BINGO KILL' };
 
 export function formatGp(gp: number): string {
   if (gp >= 1_000_000) return `${(gp / 1_000_000).toFixed(1)}M gp`;
@@ -92,6 +92,40 @@ export function tileText(c: Credit, withImage: boolean): { title: string; detail
   }
 }
 
+/** A raid clear's proof banner and note (lib/tileConditions): what was seen, then the tile's count. */
+export function raidText(c: Credit): { title: string; detail: string; note: string } {
+  const f = c.raid!;
+  const bits = [f.sec != null ? clock(f.sec) : null, f.party ? `party ${f.party}` : null, f.lvl != null ? `level ${f.lvl}` : null].filter(Boolean);
+  const name = f.key.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  return {
+    title: 'BINGO RAID',
+    detail: `${c.label}  ${bits.join('  ')}${bits.length ? '  ' : ''}(${c.have}/${c.of})`,
+    note: `[Auto] ${name} clear${f.sec != null ? ` in ${clock(f.sec)}` : ''} checked and counted by the site from the RuneLite plugin`,
+  };
+}
+
+/** A raid credit's submission: one clear, with what the plugin saw of its company for a shared raid. */
+function raidBody(c: Credit, board: FactBoard, img: string | null, proof: Record<string, unknown> | null, coop: Coop | null, pendingKey: string | null): Record<string, unknown> {
+  const f = c.raid!;
+  const text = raidText(c);
+  const shot = !!img || !!pendingKey;
+  const party = Math.max(f.party ?? 0, coop?.partySize ?? 0);
+  return {
+    tileId: c.tileId,
+    teamId: board.teamId,
+    creditPlayerId: board.playerId,
+    amount: 1,
+    note: text.note,
+    imageUrl: img,
+    ...(!img && pendingKey ? { proofKey: pendingKey } : {}),
+    ...(f.sec != null ? { durationSeconds: f.sec } : {}),
+    // "Counted once per raid" (lib/coopRuns): the reports of one raid merge on these.
+    ...(coop?.teammates?.length ? { coopGroup: coop.teammates } : {}),
+    ...(party > 1 ? { coopPartySize: party } : {}),
+    ...(shot && proof ? { proof: { ...proof, title: text.title, detail: text.detail } } : {}),
+  };
+}
+
 /** The submission body for a `tile` credit — what the plugin's own POST carried for that kind. */
 function tileBody(c: Credit, board: FactBoard, img: string | null, proof: Record<string, unknown> | null, coop: Coop | null, pendingKey: string | null): Record<string, unknown> {
   const f = c.fact!;
@@ -150,6 +184,10 @@ export function planSubmissions(
     if (!board) continue;
     if (c.kind === 'tile') {
       out.push({ board, credit: c, body: tileBody(c, board, img, proof, coop, pendingKey) });
+      continue;
+    }
+    if (c.kind === 'raid') {
+      out.push({ board, credit: c, body: raidBody(c, board, img, proof, coop, pendingKey) });
       continue;
     }
     const unit = units.get(c.tileId) ?? 'kill';
