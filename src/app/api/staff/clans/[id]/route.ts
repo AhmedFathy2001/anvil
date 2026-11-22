@@ -9,6 +9,7 @@ import { availabilityMessage, normalizeSlug } from '@/lib/clanNames';
 import { checkSlug } from '@/lib/clanCreate';
 import type { AddressKind } from '@/lib/clanScopedPaths';
 import { ClanDeleteBlocked, deleteClan } from '@/lib/clanDelete';
+import { renewingClanPlan } from '@/lib/clanPlanRenewal';
 import { log } from '@/lib/logger';
 import { forgetLinkCards } from '@/lib/ogKit';
 
@@ -159,16 +160,25 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 500) : '';
   if (!reason) return NextResponse.json({ error: 'Say why — it goes in the platform log' }, { status: 400 });
 
-  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { slug: true } });
+  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { slug: true, plan: true, gumroadSubscriptionId: true, cancelAtPeriodEnd: true } });
   if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (confirm !== clan.slug) {
     return NextResponse.json({ error: `Type the clan's slug (${clan.slug}) to confirm` }, { status: 400 });
+  }
+  // Staff may delete a clan whose plan still renews (abuse, a dead clan), but only having said they
+  // saw it: the delete doesn't cancel the Gumroad membership, so they cancel or refund it by hand.
+  const renewing = renewingClanPlan(clan);
+  if (renewing && body?.ackRenewing !== true) {
+    return NextResponse.json(
+      { error: `This clan's plan still renews on Gumroad (membership ${renewing}). Deleting it won't stop the charges: cancel or refund it by hand, then confirm.`, renewing },
+      { status: 409 },
+    );
   }
 
   try {
     const deleted = await deleteClan(clanId, actor.user.userId, reason);
     if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    log.warn('staff.clan-deleted', { clanId, slug: deleted.slug, by: actor.user.userId, ...deleted.counts });
+    log.warn('staff.clan-deleted', { clanId, slug: deleted.slug, by: actor.user.userId, ...deleted.counts, ...(renewing ? { renewingSubscription: renewing } : {}) });
     return NextResponse.json({ ok: true, deleted });
   } catch (e) {
     if (e instanceof ClanDeleteBlocked) {

@@ -8,6 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { clanGrant } from '@/lib/clanGrants';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { rateLimitByKey } from '@/lib/rate-limit';
+import { OWNER_RENEWING_MESSAGE, renewingClanPlan } from '@/lib/clanPlanRenewal';
 
 /**
  * Delete a clan, and everything that belongs to it.
@@ -58,6 +59,12 @@ export async function POST(request: Request) {
       { error: `Type the clan's address (${clan.slug}) to confirm.` },
       { status: 400 },
     );
+  }
+
+  // A plan still renewing would keep charging the owner after the clan is gone: they cancel first.
+  const billing = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { plan: true, gumroadSubscriptionId: true, cancelAtPeriodEnd: true } });
+  if (billing && renewingClanPlan(billing)) {
+    return NextResponse.json({ error: OWNER_RENEWING_MESSAGE, renewing: true }, { status: 409 });
   }
 
   // Said before the row is gone, because afterwards there is nothing left to say it about — the

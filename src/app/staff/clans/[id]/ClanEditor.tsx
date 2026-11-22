@@ -15,7 +15,7 @@ export default function ClanEditor({
   clan,
   canDelete,
 }: {
-  clan: { id: number; name: string; slug: string; kind?: string | null; events: number; members: number };
+  clan: { id: number; name: string; slug: string; kind?: string | null; events: number; members: number; renewing?: string | null };
   canDelete: boolean;
 }) {
   const router = useRouter();
@@ -65,7 +65,7 @@ export default function ClanEditor({
   async function remove() {
     const ok = await confirm({
       title: `Delete ${clan.name} for good?`,
-      body: `This removes the clan and what it ran: ${clan.events} event(s) with their boards, proofs and teams, its staff, settings, weeklies and guides. Its ${clan.members} member(s) are unlinked, not deleted: their accounts, characters and stats stay on Anvil. The address ${clanBasePath(clan)} is retired for good. It cannot be undone; archiving is the reversible option.`,
+      body: `This removes the clan and what it ran: ${clan.events} event(s) with their boards, proofs and teams, its staff, settings, weeklies and guides. Its ${clan.members} member(s) are unlinked, not deleted: their accounts, characters and stats stay on Anvil. The address ${clanBasePath(clan)} is retired for good. It cannot be undone; archiving is the reversible option.${clan.renewing ? ` Its plan still renews on Gumroad (membership ${clan.renewing}): deleting the clan does not stop the charges, so cancel or refund it there by hand.` : ''}`,
       confirmLabel: 'Delete clan',
       tone: 'danger',
     });
@@ -76,7 +76,7 @@ export default function ClanEditor({
       const res = await fetch(`/api/staff/clans/${clan.id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: confirmSlug, reason }),
+        body: JSON.stringify({ confirm: confirmSlug, reason, ackRenewing: !!clan.renewing }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
