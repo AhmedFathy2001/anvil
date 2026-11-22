@@ -29,6 +29,9 @@ import {
   type HuntRates,
   type HuntRowProgress,
   huntReportItemIdsOf,
+  huntPets,
+  huntRsnKey,
+  defaultHuntTitle,
   huntRowProgress,
   type HuntReport,
   type HuntRow,
@@ -189,6 +192,37 @@ async function activeHunts(clanId: number, nowMs: number): Promise<{ comp: Compe
 export async function huntReportItemIds(clanId: number, nowMs: number = Date.now()): Promise<number[]> {
   const hunts = await activeHunts(clanId, nowMs);
   return [...new Set(hunts.flatMap((h) => huntReportItemIdsOf(h.config)))];
+}
+
+/** One running hunt's target, for the plugin's drop popup (lib/pluginFacts/rules huntDropRules). */
+export interface HuntTarget {
+  competitionId: number;
+  hunt: string;
+  itemId: number;
+  name: string;
+  /** Where it has to come from; empty for a pet or an any-source item. */
+  sources: string[];
+}
+
+/**
+ * The targets of the clan's running hunts this character is entered in, so their plugin can show the
+ * drop popup and line the moment one lands. Only a popup: the drop report still decides what counts.
+ */
+export async function huntTargetsFor(clanId: number, rsn: string | null | undefined, nowMs: number = Date.now()): Promise<HuntTarget[]> {
+  if (!rsn) return [];
+  const me = huntRsnKey(rsn);
+  const out: HuntTarget[] = [];
+  for (const { comp, config } of await activeHunts(clanId, nowMs)) {
+    const entered = (await getEffectiveParticipants(comp.id)).some((p) => huntRsnKey(p.rsn) === me);
+    if (!entered) continue;
+    const hunt = (comp.title || defaultHuntTitle(config)).slice(0, 60);
+    const rows =
+      config.target === 'pets' && config.v !== 2
+        ? huntPets(config).map((p) => ({ id: p.id, name: p.name, sources: [] as string[] }))
+        : config.items.map((it) => ({ id: it.id, name: it.name, sources: it.pet ? [] : it.sources }));
+    for (const r of rows) out.push({ competitionId: comp.id, hunt, itemId: r.id, name: r.name, sources: r.sources });
+  }
+  return out;
 }
 
 function sightingOf(row: HuntDropRow): DropSighting {

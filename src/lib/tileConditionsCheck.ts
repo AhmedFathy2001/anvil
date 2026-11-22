@@ -331,6 +331,14 @@ export function startCountOfSnapshot(snapshot: string | null | undefined, keys: 
 }
 
 /** Does a plugin of this version (its X-Anvil-Plugin-Version) send raid facts? Unknown reads as no. */
+/** Item hunt drop rules (lib/pluginFacts/rules huntDropRules): 1.17.2 would read one as a bingo drop tile. */
+export const HUNT_POPUP_MIN_PLUGIN = '1.17.3';
+
+export function huntPopupsSupportedBy(version: string | null | undefined): boolean {
+  const cmp = compareVersions(version, HUNT_POPUP_MIN_PLUGIN);
+  return cmp != null && cmp >= 0;
+}
+
 export function raidFactsSupportedBy(version: string | null | undefined): boolean {
   const cmp = compareVersions(version, RAID_FACTS_MIN_PLUGIN);
   return cmp != null && cmp >= 0;

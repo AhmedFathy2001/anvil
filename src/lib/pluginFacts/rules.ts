@@ -103,6 +103,37 @@ export interface DropRule {
   simple: boolean;
 }
 
+/**
+ * An item hunt's target as a drop rule: the plugin shows the drop popup and prints the `hunt` line
+ * when it lands, and sends nothing for it (the drop report already does). `t` is the hunt's
+ * competition id, negated so it can never be a tile id.
+ */
+export interface HuntDropRule {
+  t: number;
+  label: string;
+  have: 0;
+  of: 1;
+  npcs?: string[];
+  hunt: string;
+  simple: false;
+}
+
+export function huntDropRules(targets: { competitionId: number; hunt: string; itemId: number; name: string; sources: string[] }[]): Record<string, HuntDropRule[]> {
+  const out: Record<string, HuntDropRule[]> = {};
+  for (const h of targets) {
+    (out[String(h.itemId)] ??= []).push({
+      t: -h.competitionId,
+      label: h.name,
+      have: 0,
+      of: 1,
+      ...(h.sources.length ? { npcs: h.sources } : {}),
+      hunt: h.hunt,
+      simple: false,
+    });
+  }
+  return out;
+}
+
 export interface KillRule {
   t: number;
   label: string;
@@ -403,6 +434,7 @@ export function buildRuleTable(cfg: RulesConfigIn, opts: RulesOpts = {}): RuleTa
     say: {
       drop: 'Tracked drop: {label} ({have}/{of})',
       dropPlain: 'Tracked drop: {label}',
+      hunt: 'Item hunt: {label} ({hunt})',
       kill: 'Tracked {unit}: {label} ({have}/{of})',
       value: 'Loot worth {gp} counted: {label}',
       xp: '{label}: {have}/{of} xp ({pct}%)',
