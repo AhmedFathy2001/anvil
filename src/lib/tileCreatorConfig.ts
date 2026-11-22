@@ -14,6 +14,7 @@ import type { TileCsvRow } from '@/lib/csvTiles';
 import type { ComboPartConfig, TileConfig } from '@/lib/types';
 import { COMBO_TILE_TYPE, type ComboRule } from '@/lib/combo';
 import { fuzzySearch } from '@/lib/fuzzySearch';
+import type { TileConditions } from '@/lib/tileConditions';
 
 // ─── Raids ───────────────────────────────────────────────────────────────────────────────────
 
@@ -387,6 +388,10 @@ export function howItCountsLine(config: Partial<TileConfig>): { engine: CountEng
     const engine: CountEngine = engines.has('plugin') ? 'plugin' : engines.has('hiscores') ? 'hiscores' : 'screenshot';
     return { engine, text: 'Each part counts the way it would as its own tile; the tile is done when the rule is met.' };
   }
+  // A raid tile with conditions: the plugin reports each clear, the site checks it against them.
+  if (config.tileType === 'raid') {
+    return { engine: 'plugin', text: 'Counts by itself: the plugin reports each raid it sees finish, and the site checks it against the conditions.' };
+  }
   const kind = configKind(config);
   const base = howTileCounts(kind, false);
   if (!base.auto) return { engine: 'screenshot', text: 'Needs a screenshot: staff approve each one.' };
@@ -480,6 +485,9 @@ export const KIND_FIELDS_NULL = {
   capBy: null,
   comboRule: null,
   parts: null,
+  // Raid / kill / drop / log conditions (lib/tileConditions): cleared like any kind field, so a
+  // draft that drops its conditions saves the plain tile.
+  conditions: null,
 } as const;
 
 /** Kinds where "as a team" vs "one player alone" means something (the full editor shows the toggle). */
@@ -576,6 +584,7 @@ export function draftToCsvRow(draft: TileDraft): TileCsvRow {
     countMode: c.countMode ?? null,
     perKillCap: c.perKillCap ?? null,
     ...(c.capBy && (c.capBy as string[]).length > 0 ? { capBy: c.capBy as string[] } : {}),
+    ...(c.conditions ? { conditions: c.conditions as TileConditions } : {}),
   };
   // A COMBO row (lib/combo): the rule, and each part as a row of its own (the importer's shape).
   if (c.tileType === COMBO_TILE_TYPE && Array.isArray(draft.config.parts)) {
