@@ -285,6 +285,22 @@ export function killPicksConfig(picks: string[], amount: number | null): KillPic
   return { ok: true, source: 'plugin', what, config: { tileType: 'kill', targetNpcs: choice.targetNpcs, requiredAmount: n } };
 }
 
+/**
+ * A kills tile with a start count, on the plugin. A first-timer is usually unlisted on the hiscores,
+ * so only the game's count line can prove the count they started from: a hiscores boss tile becomes
+ * the plugin kill tile chooseKillSource makes when asked for the plugin. Other configs come back as
+ * they are.
+ */
+export function pluginKillsConfig(config: Partial<TileConfig>): Partial<TileConfig> {
+  if (config.tileType !== 'standard' && config.tileType != null) return config;
+  if (config.statType !== 'boss' || !config.trackedStat) return config;
+  const choice = chooseKillSource(killPicksOf(config), null, true);
+  if (!choice.ok || choice.source !== 'plugin') return config;
+  const { statType: _s, trackedStat: _t, statGoal, statBasis: _b, ...rest } = config;
+  void _s; void _t; void _b;
+  return { ...rest, tileType: 'kill', targetNpcs: choice.targetNpcs, requiredAmount: statGoal ?? config.requiredAmount ?? 1 };
+}
+
 /** The picks a kills config carries (stat keys or plugin target names). */
 export function killPicksOf(config: Partial<TileConfig>): string[] {
   if (config.tileType === 'kill') return config.targetNpcs ?? [];
@@ -399,6 +415,14 @@ export function howItCountsLine(config: Partial<TileConfig>): { engine: CountEng
   if (kind === 'boss') return { engine: 'hiscores', text: 'Counts by itself from the hiscores. Nothing to upload.' };
   switch (kind) {
     case 'kill':
+      if (config.conditions?.startCount) {
+        return {
+          engine: 'plugin',
+          text: config.conditions.startCount.op === 'lt' && config.conditions.startCount.n === 1
+            ? 'Counts through the plugin: the game’s kill count line proves it’s their first.'
+            : 'Counts through the plugin: the game’s kill count line proves their count when the event started.',
+        };
+      }
       return { engine: 'plugin', text: 'Counts by itself: the plugin reads the in-game count line as players go.' };
     case 'lap':
       return { engine: 'plugin', text: 'Counts by itself off the in-game counter. Only runs during the event count.' };

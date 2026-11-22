@@ -29,6 +29,7 @@ import {
   defaultRaidSelection,
   familyFor,
   killPicksConfig,
+  pluginKillsConfig,
   draftPayload,
   draftToCsvRow,
   itemTileConfig,
@@ -788,6 +789,16 @@ test('first inferno: one Zuk kill for first-timers, the plain reading still offe
   assert.equal(top.amount, 1);
   assert.equal(top.title, 'First TzKal-Zuk');
   assert.equal(verdict.status, 'ready');
+  // Only the game's count line proves a first: the plugin kill tile, never the hiscores.
+  const forced = chooseKillSource(['tzKalZuk'], null, true);
+  assert.ok(forced.ok && forced.source === 'plugin');
+  assert.equal(top.config.tileType, 'kill');
+  assert.deepEqual(top.config.targetNpcs, forced.targetNpcs);
+  assert.equal(top.config.requiredAmount, 1);
+  assert.equal(top.config.statType, undefined);
+  assert.equal(top.amountField, 'requiredAmount');
+  assert.equal(top.engine, 'plugin');
+  assert.match(top.hint, /kill count line proves it’s their first/);
   const plain = cands.find((c) => c.key === 'boss-tzKalZuk');
   assert.ok(plain && !plain.config.conditions && !plain.confident);
 });
@@ -814,6 +825,31 @@ test('a count bar alone keeps the usual amount', () => {
   assert.equal(top.amount, 25);
   assert.deepEqual(top.config.conditions, { v: 1, startCount: { op: 'lt', n: 50 } });
   assert.match(top.title, /under 50 at the start$/);
+  assert.equal(top.config.tileType, 'kill');
+  assert.equal(top.config.requiredAmount, 25);
+  assert.match(top.hint, /count when the event started/);
+});
+
+test('pluginKillsConfig: a hiscores kills tile moves to the plugin; anything else is left alone', () => {
+  const hiscores = { tileType: 'standard', statType: 'boss', trackedStat: 'zulrah', statGoal: 10, statBasis: 'gain' as const, conditions: { v: 1 as const, startCount: { op: 'gt' as const, n: 5 } } };
+  const out = pluginKillsConfig(hiscores);
+  assert.equal(out.tileType, 'kill');
+  assert.equal(out.requiredAmount, 10);
+  assert.equal(out.statType, undefined);
+  assert.deepEqual(out.conditions, hiscores.conditions);
+  const plugin = { tileType: 'kill', targetNpcs: ['Cow'], requiredAmount: 5 };
+  assert.equal(pluginKillsConfig(plugin), plugin);
+  const skill = { tileType: 'standard', statType: 'skill', trackedStat: 'fishing', statGoal: 100 };
+  assert.equal(pluginKillsConfig(skill), skill);
+  // The bulk importer writes the plugin tile too.
+  const row = draftToCsvRow({ label: 'First Zulrah', config: best('first zulrah').top.config, points: 1, trackingMode: 'team' });
+  assert.equal(row.tileType, 'kill');
+  assert.deepEqual(row.conditions, { v: 1, startCount: { op: 'lt', n: 1 } });
+});
+
+test('a first log slot keeps its start count and stays a log tile', () => {
+  const slot = best('first quiver', quiverCtx).cands.find((c) => c.source === 'clogtile')!;
+  assert.equal(slot.config.tileType, 'clog');
 });
 
 test('the raid box words in the main search: a raid tile with conditions', () => {

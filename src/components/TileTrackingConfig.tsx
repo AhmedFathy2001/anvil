@@ -1169,8 +1169,9 @@ function TileTrackingEditor({
   const [baseStamp, setBaseStamp] = useState<string | null>(initial.updatedAt ?? null);
 
   const killChoice = useMemo(
-    () => chooseKillSource(killPicks, frozenKillSource, killPreferPlugin),
-    [killPicks, frozenKillSource, killPreferPlugin],
+    // A start count is proved by the game's count line only, so it puts the tile on the plugin.
+    () => chooseKillSource(killPicks, frozenKillSource, killPreferPlugin || !!conditions.startCount),
+    [killPicks, frozenKillSource, killPreferPlugin, conditions.startCount],
   );
   // The list in force: which kind it is and its entries' keys, in order. Fewer than two is no list.
   const listKind: ComboList | null = eachOn && !asPart ? (kind === 'kills' ? 'kills' : kind === 'skill' ? 'skill' : null) : null;
@@ -3926,7 +3927,8 @@ function TileTrackingEditor({
         </div>
       )}
 
-      {kind === 'kills' && !listActive && (
+      {/* A start count needs the plugin; a live tile frozen on the hiscores can't take one. */}
+      {kind === 'kills' && !listActive && frozenKillSource !== 'hiscores' && (
         <StartCountField
           value={conditions.startCount}
           onChange={(sc) => setConditions((c) => ({ ...c, startCount: sc }))}

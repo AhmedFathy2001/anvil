@@ -46,6 +46,7 @@ import {
   BOSS_FAMILIES,
   familyFor,
   killPicksConfig,
+  pluginKillsConfig,
   type CountEngine,
   type RaidId,
   type RaidSelection,
@@ -985,6 +986,18 @@ function conditionedRaidCandidate(query: string, q: ParsedQuery): TaskCandidate 
   };
 }
 
+/**
+ * A kills candidate counted by the plugin (lib/tileCreatorConfig pluginKillsConfig): what a start count
+ * needs. The amount moves to requiredAmount; anything not a hiscores kills tile comes back as it is.
+ */
+export function withPluginKills(c: TaskCandidate): TaskCandidate {
+  if (c.config.statType !== 'boss') return c;
+  const config = pluginKillsConfig(c.config);
+  if (config.tileType !== 'kill') return c;
+  const how = howItCountsLine(config);
+  return { ...c, config, amountField: 'requiredAmount', hint: how.text, engine: how.engine };
+}
+
 // Kill and log candidates take a start count ("first inferno"); raids get theirs from the raid box.
 const START_COUNT_SOURCES = new Set<CandidateSource>(['boss', 'monster', 'counter', 'clogtile']);
 
@@ -1001,13 +1014,14 @@ function startCountCandidates(found: TaskCandidate[], q: ParsedQuery, ctx: Match
     const amount = q.amount == null && sc.op === 'lt' && c.amountField ? sc.n : c.amount;
     const base = amount !== c.amount ? applyAmount(c, amount) : c;
     const conditions: TileConditions = { ...(base.config.conditions ?? { v: 1 }), startCount: sc };
-    return {
+    // Only the game's count line proves a start count, so a hiscores kills tile goes to the plugin.
+    return withPluginKills({
       ...base,
       key: `${c.key}-start`,
       title: titleWithStartCount(base.title, base.noun, amount, sc),
       config: { ...base.config, conditions },
       score: c.score + bonus,
-    };
+    });
   };
   for (let i = 0; i < found.length; i++) {
     const c = found[i];

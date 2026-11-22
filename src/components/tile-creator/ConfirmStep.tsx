@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
-import { applyAmount, killCandidate, titleAt, type TaskCandidate } from '@/lib/taskMatch';
+import { applyAmount, killCandidate, titleAt, withPluginKills, type TaskCandidate } from '@/lib/taskMatch';
 import KillPicksField from './KillPicksField';
 import { comboCandidate } from '@/lib/taskMatch';
 import { comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
@@ -98,10 +98,12 @@ function SingleConfirm({
   const killable = ['boss', 'counter', 'monster'].includes(original.source) && killPicksOf(original.config).length > 0;
   const [picks, setPicks] = useState<string[]>(() => killPicksOf(original.config));
   const picksChanged = killable && picks.join('|') !== killPicksOf(original.config).join('|');
-  const candidate = (picksChanged && killCandidate(picks, amount, { tileCategory: original.tileCategory, points: original.points })) || original;
-  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   // "Who can take it" (lib/tileConditions startCount): kill and log tiles, and raid tiles with conditions.
   const [startCount, setStartCount] = useState<StartCount | null>(original.config.conditions?.startCount ?? null);
+  const picked = (picksChanged && killCandidate(picks, amount, { tileCategory: original.tileCategory, points: original.points })) || original;
+  // A start count is proved by the game's count line only: kills then count through the plugin.
+  const candidate = startCount ? withPluginKills(picked) : picked;
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const startable = ['boss', 'monster', 'counter', 'clogtile'].includes(candidate.source) || candidate.config.tileType === 'raid';
 
   const isTimedCap = candidate.config.tileType === 'timed' && candidate.source !== 'trial';
