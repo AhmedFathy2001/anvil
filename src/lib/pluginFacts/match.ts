@@ -99,6 +99,8 @@ export interface RaidTile extends TrackedBase, Conditioned {
 
 /** A tile the plugin judges itself (timed, deathless, LMS, PvP, diary, combat task, clog, gain), as the config lists it. */
 export interface PlainTile extends TrackedBase {
+  /** Conditions only the site judges: a `tile` fact never credits a row that has them. */
+  conditions?: TileConditions | null;
   currentAmount?: number | null;
   requiredAmount?: number | null;
   activity?: string | null;
@@ -262,6 +264,11 @@ export interface Credit {
   /** Kill tiles that need the client's view of its company. */
   coop?: boolean;
   pingMax?: number;
+  /**
+   * The tile's conditions (lib/tileConditions) were checked here on the site: only such a credit may
+   * reach a conditioned tile (the facts route marks its filing, lib/pluginFacts/judged).
+   */
+  judged?: true;
   /** Raid credits: the clear as reported. */
   raid?: RaidFact;
   /** Tile credits: the fact as reported, the tile's kind and its config row. */
@@ -498,7 +505,7 @@ export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult, skip?: S
       const [have, of] = perItem
         ? collectionProgress(drop.itemRequirements!, drop.groupMode, drop.setsRequired)
         : [drop.currentAmount, drop.requiredAmount];
-      out.credits.push({ kind: 'drop', tileId: drop.tileId, label: drop.label, amount, itemId: trackingItemId, have, of, board: drop.board, inferred: fact.inf ?? null });
+      out.credits.push({ kind: 'drop', tileId: drop.tileId, label: drop.label, amount, itemId: trackingItemId, have, of, board: drop.board, inferred: fact.inf ?? null, ...(toa ? { judged: true as const } : {}) });
     }
   }
 }
@@ -584,6 +591,7 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
       quiet: cap,
       coop: (kill.coopCredit ?? '').toLowerCase() === 'per-kill' || (kill.coopMinMembers ?? 0) > 0,
       pingMax: kill.pingMax,
+      ...(bar ? { judged: true as const } : {}),
     });
   }
 }
@@ -603,6 +611,13 @@ export function matchTile(fact: TileFact, t: Tracked, out: MatchResult, skip?: S
     const row = rows?.find((r) => r?.tileId === fact.t);
     if (!row) continue;
     const kind = (TILE_LISTS as Record<string, TileKind>)[key] ?? (key as 'drop' | 'kill' | 'value');
+    // The plugin judged this one itself, and it can't have judged conditions only the site checks
+    // (a start count, a ToA level, raid bars): such a tile counts only through its own facts.
+    const c = row.conditions;
+    if (c && (c.startCount || c.toaLevel || c.raids?.length)) {
+      out.notes.push(notCounted(row, 'this tile counts only clears and kills the site has checked'));
+      return;
+    }
     if (kind === 'timed' && !fact.sec) return;
     const combo = row.partOf ? t.trackedCombos?.find((c) => c.tileId === row.partOf) : undefined;
     const label = combo && (kind === 'gain' || kind === 'clog') ? `${combo.label.trim()} — ${row.label.trim()}` : row.label;
@@ -635,7 +650,9 @@ export function startCountRefusal(bar: StartCount, start: number | null, line: n
   if (start != null) {
     return startCountAllows(bar, start) ? null : `you had ${start.toLocaleString('en-US')} ${start === 1 ? noun.one : noun.many} when it started`;
   }
-  if (line == null) return null;
+  // Neither known: refused, never assumed. A missed first would be lost, but a fifth kill credited as a
+  // first can't be taken back by anything the player sees.
+  if (line == null) return `your ${noun.one} count wasn't seen; make sure the game's ${noun.one} count messages are on`;
   // countLineAllows reads one event: shift a burst of several so "line" is the first of them.
   const first = line - Math.max(1, moved) + 1;
   if (countLineAllows(bar, first)) return null;
@@ -684,7 +701,7 @@ export function matchRaid(fact: RaidFact, t: Tracked, out: MatchResult, skip?: S
       }
     }
     r.currentAmount += 1;
-    out.credits.push({ kind: 'raid', tileId: r.tileId, label: r.label, amount: 1, have: r.currentAmount, of: r.requiredAmount, board: r.board, raid: fact, tileKind: 'raid' });
+    out.credits.push({ kind: 'raid', tileId: r.tileId, label: r.label, amount: 1, have: r.currentAmount, of: r.requiredAmount, board: r.board, raid: fact, tileKind: 'raid', judged: true });
   }
 }
 

@@ -128,7 +128,9 @@ export async function POST(request: Request) {
         // Signed like middleware's own: lib/clanContext only reads a proven slug.
         if (p.board.clan && p.board.clan !== LAB_CLAN_SLUG) await setProvenClan(headers, p.board.clan);
         const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
-        const res = await submitRoute(markJudged(new Request(url, { method: 'POST', headers, body: JSON.stringify(factIds.length ? { ...p.body, factIds } : p.body) })), {
+        // Marked as site-judged only when match checked the tile's conditions (lib/pluginFacts/judged).
+        const req = new Request(url, { method: 'POST', headers, body: JSON.stringify(factIds.length ? { ...p.body, factIds } : p.body) });
+        const res = await submitRoute(p.credit.judged ? markJudged(req) : req, {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),
         });
         const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; awaitingProof?: boolean; duplicate?: boolean; factsSeen?: string[] };

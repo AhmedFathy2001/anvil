@@ -63,7 +63,8 @@ test('conditionsKindError keeps each condition on its kind', () => {
   assert.match(conditionsKindError('kill', raid, false)!, /raid tile/);
   assert.equal(conditionsKindError('kill', { v: 1, startCount: { op: 'lt', n: 1 } }, false), null);
   assert.match(conditionsKindError('kill', { v: 1, startCount: { op: 'lt', n: 1 } }, true)!, /plugin/);
-  assert.match(conditionsKindError('lap', { v: 1, startCount: { op: 'lt', n: 1 } }, false)!, /Only raid, kill/);
+  assert.match(conditionsKindError('lap', { v: 1, startCount: { op: 'lt', n: 1 } }, false)!, /Only raid and kill/);
+  assert.match(conditionsKindError('clog', { v: 1, startCount: { op: 'lt', n: 1 } }, false)!, /Only raid and kill/);
   assert.equal(conditionsKindError('drop', { v: 1, toaLevel: { min: 300, entry: false } }, false), null);
   assert.match(conditionsKindError('kill', { v: 1, toaLevel: { min: 300, entry: false } }, false)!, /drop tiles/);
 });
@@ -149,12 +150,29 @@ test('start counts: the event-start count decides, else the clear or kill count 
   assert.deepEqual(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 } }], { trackedKills: [kill(12)] }).notes, ['Not counted: First Inferno: you had 12 kills when it started.']);
   assert.equal(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 }, c: { 'TzKal-Zuk': 1 } }], { trackedKills: [kill(null)] }).credits.length, 1);
   assert.deepEqual(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 }, c: { 'TzKal-Zuk': 3 } }], { trackedKills: [kill(null)] }).notes, ["Not counted: First Inferno: this was kill 3, so you'd done it before."]);
-  // No count line and no baseline: unknown, taken.
-  assert.equal(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 } }], { trackedKills: [kill(null)] }).credits.length, 1);
+  // No count line and no baseline: refused, never assumed.
+  const neither = matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 } }], { trackedKills: [kill(null)] });
+  assert.equal(neither.credits.length, 0);
+  assert.deepEqual(neither.notes, ["Not counted: First Inferno: your kill count wasn't seen; make sure the game's kill count messages are on."]);
+  assert.deepEqual(matchFacts([{ k: 'raid', key: 'fractured archive' }], { trackedRaids: [raidTile(c, { startCount: null })] }).notes, ["Not counted: Raid tile: your clear count wasn't seen; make sure the game's clear count messages are on."]);
+  // A credit whose conditions were checked here is marked so; only those may file on a conditioned tile.
+  assert.equal(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 }, c: { 'TzKal-Zuk': 1 } }], { trackedKills: [kill(null)] }).credits[0].judged, true);
   // "Over 50": the 52nd kill is the first that had more than 50 before it.
   const over: KillTile = { ...kill(null), conditions: { v: 1, startCount: { op: 'gt', n: 50 } } };
   assert.equal(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 }, c: { 'TzKal-Zuk': 51 } }], { trackedKills: [over] }).credits.length, 0);
   assert.equal(matchFacts([{ k: 'kill', n: { 'TzKal-Zuk': 1 }, c: { 'TzKal-Zuk': 52 } }], { trackedKills: [{ ...over }] }).credits.length, 1);
+});
+
+test('a tile fact the plugin judged itself never credits a conditioned tile', () => {
+  // A replayed older proof (`note`) may name any tracked tile, a kill tile with a start count included.
+  const kill: KillTile = { tileId: 20, label: 'First Inferno', requiredAmount: 1, currentAmount: 0, targetNpcs: ['TzKal-Zuk'], conditions: { v: 1, startCount: { op: 'lt', n: 1 } }, startCount: 12 };
+  const out = matchFacts([{ k: 'tile', t: 20, n: 1, note: '[Auto] Zuk kill' }], { trackedKills: [kill] });
+  assert.equal(out.credits.length, 0);
+  assert.deepEqual(out.notes, ['Not counted: First Inferno: this tile counts only clears and kills the site has checked.']);
+  // An unconditioned one still goes through, unmarked.
+  const plain = matchFacts([{ k: 'tile', t: 21, n: 1, note: 'x' }], { trackedKills: [{ ...kill, tileId: 21, conditions: null }] });
+  assert.equal(plain.credits.length, 1);
+  assert.equal(plain.credits[0].judged, undefined);
 });
 
 test('a ToA-level drop tile reads the loot raid level', () => {

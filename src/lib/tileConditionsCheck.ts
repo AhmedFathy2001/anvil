@@ -144,8 +144,7 @@ export function validateConditions(raw: unknown): Check<TileConditions | null> {
 
 /**
  * Which conditions a tile kind may carry, or why not. A raid tile is raids plus every tile-wide rule;
- * a plugin kill or collection log tile the start count; a drop tile a ToA level (and the start count
- * of nothing, so none).
+ * a plugin kill tile the start count; a drop tile a ToA level.
  */
 export function conditionsKindError(tileType: string | null | undefined, c: TileConditions | null, hasStat: boolean): string | null {
   if (!c) return tileType === RAID_TILE_TYPE ? 'A raid tile needs at least one raid.' : null;
@@ -158,7 +157,9 @@ export function conditionsKindError(tileType: string | null | undefined, c: Tile
   if (raidOnly) return 'Raids, deaths and teammates are conditions of a raid tile.';
   if (c.startCount) {
     if (hasStat) return 'The count at the start needs the plugin to count the kills: switch the tile to the plugin.';
-    if (tileType !== 'kill' && tileType !== 'clog') return 'Only raid, kill and collection log tiles can ask for a count at the start.';
+    // Kill and raid tiles only: their start count is a hiscores count with a count line behind it. A
+    // collection log has neither, so a start count there could never be checked.
+    if (tileType !== 'kill') return 'Only raid and kill tiles can ask for a count at the start.';
   }
   if (c.toaLevel && tileType !== 'drop') return 'Only drop tiles can ask for a ToA raid level.';
   return null;
