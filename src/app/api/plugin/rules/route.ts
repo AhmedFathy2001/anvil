@@ -1,9 +1,11 @@
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { loadTrackedConfig } from '@/lib/pluginFacts/load';
-import { buildRuleTable } from '@/lib/pluginFacts/rules';
+import { buildRuleTable, huntDropRules } from '@/lib/pluginFacts/rules';
+import { huntTargetsFor } from '@/lib/itemHuntDb';
+import { pluginViewerRsn, verifyPluginTokenUser, resolvePluginClan } from '@/lib/auth';
 import { rareTableFor } from '@/lib/notifyDropItems';
 import { pluginVersionHeader } from '@/lib/pluginSeen';
-import { raidFactsSupportedBy } from '@/lib/tileConditionsCheck';
+import { huntPopupsSupportedBy, raidFactsSupportedBy } from '@/lib/tileConditionsCheck';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,5 +20,21 @@ export async function GET(request: Request) {
   const floor = (loaded.cfg as { me?: { floor?: number } }).me?.floor;
   // Raid rules (lib/tileConditions) only for a plugin that sends raid facts.
   const raidFacts = raidFactsSupportedBy(pluginVersionHeader(request));
-  return jsonWithEtag(request, { ...buildRuleTable(loaded.cfg, { raidFacts }), rare: await rareTableFor(floor) });
+  const table = buildRuleTable(loaded.cfg, { raidFacts });
+  // The clan's running item hunts this character is in: their targets get the drop popup and a line
+  // (lib/itemHuntDb huntTargetsFor). Only for a plugin that knows a hunt rule; an older one would
+  // count it as a tile.
+  if (huntPopupsSupportedBy(pluginVersionHeader(request))) {
+    const hunts = huntDropRules(await huntTargetsForCaller(request).catch(() => []));
+    for (const [id, rules] of Object.entries(hunts)) table.drops[id] = [...(table.drops[id] ?? []), ...rules] as typeof table.drops[string];
+  }
+  return jsonWithEtag(request, { ...table, rare: await rareTableFor(floor) });
+}
+
+// A signed-in plugin with or without a live board (a hunt runs without one). The character is the
+// one it plays as; a wrong name only costs a popup, since the drop report decides what counts.
+async function huntTargetsForCaller(request: Request) {
+  const user = await verifyPluginTokenUser(request);
+  const clan = user ? await resolvePluginClan(request, user.userId) : null;
+  return clan ? huntTargetsFor(clan.id, pluginViewerRsn(request)) : [];
 }
