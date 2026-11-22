@@ -399,6 +399,11 @@ export function huntRows(config: HuntConfig): HuntItem[] {
   return config.items.map((it) => ({ ...it, stat: null }));
 }
 
+/** The item ids the plugin is asked to report for this hunt. Pets need none: the plugin reports every pet. */
+export function huntReportItemIdsOf(config: HuntConfig): number[] {
+  return config.target === 'items' ? config.items.filter((i) => !i.pet).map((i) => i.id) : [];
+}
+
 /** Is this drop a pet: any drop of a v1 pet hunt, or one of a v2 hunt's pet rows. */
 export function dropIsPet(config: HuntConfig, itemId: number | null): boolean {
   return config.target === 'pets' || !!config.items.find((it) => it.id === itemId)?.pet;

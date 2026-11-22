@@ -28,6 +28,7 @@ import {
   type HuntEntrant,
   type HuntRates,
   type HuntRowProgress,
+  huntReportItemIdsOf,
   huntRowProgress,
   type HuntReport,
   type HuntRow,
@@ -187,8 +188,7 @@ async function activeHunts(clanId: number, nowMs: number): Promise<{ comp: Compe
  */
 export async function huntReportItemIds(clanId: number, nowMs: number = Date.now()): Promise<number[]> {
   const hunts = await activeHunts(clanId, nowMs);
-  // A v2 hunt's pet rows are pets all the same: reported anyway.
-  return [...new Set(hunts.flatMap((h) => (h.config.target === 'items' ? h.config.items.filter((i) => !i.pet).map((i) => i.id) : [])))];
+  return [...new Set(hunts.flatMap((h) => huntReportItemIdsOf(h.config)))];
 }
 
 function sightingOf(row: HuntDropRow): DropSighting {
