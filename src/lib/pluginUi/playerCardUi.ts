@@ -432,7 +432,8 @@ function latest(c: PlayerCard): Node {
 /** A count with the game's own picture; the name stands in when the plugin has no picture for it. */
 function countCell(pic: Node, name: string, n: number, tip: string, on?: Action): Node {
   // A larger picture, so each cell is taller: at the default size three across read as a wall of small numbers.
-  return { t: 'text', s: count(n), color: 'white', cell: true, icon: { w: 24, h: 22, ...(pic as Extract<Node, { t: 'icon' }>), alt: name }, tip, ...(on ? { on } : {}), k: name };
+  // The count in bold so it reads at a glance; every picture asks for the same box, items included.
+  return { t: 'text', s: count(n), color: 'white', font: 'bold', cell: true, icon: { w: 24, h: 22, ...(pic as Extract<Node, { t: 'icon' }>), alt: name }, tip, ...(on ? { on } : {}), k: name };
 }
 
 /** The game's skill tab: icon + level, three across, XP on hover; total level and a virtual toggle below. */
