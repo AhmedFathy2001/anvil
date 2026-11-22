@@ -9,6 +9,7 @@ import { CAN_DELETE_CLAN, requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import ClanEditor from './ClanEditor';
+import { renewingClanPlan } from '@/lib/clanPlanRenewal';
 import PlatformHiddenToggle from './PlatformHiddenToggle';
 import { db } from '@/db';
 import { clanBoostState, clans } from '@/db/schema';
@@ -54,7 +55,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   // The billing columns the trial facts need, read straight from the row (lib/planTrials).
   const trialRow = await db.query.clans.findFirst({
     where: eq(clans.id, clan.id),
-    columns: { id: true, kind: true, plan: true, inGameName: true, trialEndsAt: true, gumroadSubscriptionId: true, gumroadRef: true },
+    columns: { id: true, kind: true, plan: true, inGameName: true, trialEndsAt: true, gumroadSubscriptionId: true, gumroadRef: true, cancelAtPeriodEnd: true },
   });
   // clan-scope: this clan -- its own row, by id.
   const own = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true, foundVia: true, foundViaNote: true } });
@@ -250,7 +251,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
       {canWrite && (
         <Section title="Edit clan">
           <ClanEditor
-            clan={{ id: clan.id, name: clan.name, slug: clan.slug, kind: clan.kind, events: clan.events, members: clan.members + clan.guests }}
+            clan={{ id: clan.id, name: clan.name, slug: clan.slug, kind: clan.kind, events: clan.events, members: clan.members + clan.guests, renewing: trialRow ? renewingClanPlan(trialRow) : null }}
             canDelete={canDelete}
           />
         </Section>

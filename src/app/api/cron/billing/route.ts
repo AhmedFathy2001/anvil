@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server';
 
 import { timingSafeStrEqual } from '@/lib/auth';
 import { sweepLapsedBilling } from '@/lib/billingLapse';
+import { sweepLapsedSupporters } from '@/lib/supporterBilling';
 import { sweepSupporterMoments } from '@/lib/supporterMoments';
 import { startDueQueuedGifts } from '@/lib/supporterGifts';
 import { sendTrialReminders } from '@/lib/trialReminders';
@@ -33,6 +34,12 @@ export async function GET(request: Request) {
   }
 
   const result = await sweepLapsedBilling();
+  // The same check for Supporter plans: a failed card can leave one 'active' with nobody told.
+  const supporters = await sweepLapsedSupporters().catch((e) => {
+    log.error('supporter-lapse.failed', { error: String(e) });
+    return { checked: 0, ended: 0, errors: 1 };
+  });
+  log.info('supporter-lapse.done', { ...supporters });
   // The same daily run answers "Remind me when the trial ends" (lib/trialReminders) and starts staff
   // "add time" whose paid membership has stopped (lib/supporterGifts). Neither touches Gumroad.
   const reminders = await sendTrialReminders().catch((e) => { log.error('trial-reminders.failed', { error: String(e) }); return { sent: 0 }; });
@@ -43,5 +50,6 @@ export async function GET(request: Request) {
   // cron call shouldn't wait on that (lib/supporterMoments, deduped, so a repeat run is harmless).
   after(async () => log.info('supporter-moments.done', await sweepSupporterMoments()));
   // Gumroad unreachable for some rows 502s so the cron log carries it; tomorrow's run asks again.
-  return NextResponse.json({ ok: result.errors === 0, ...result }, { status: result.errors > 0 ? 502 : 200 });
+  const errors = result.errors + supporters.errors;
+  return NextResponse.json({ ok: errors === 0, ...result, supporters }, { status: errors > 0 ? 502 : 200 });
 }

@@ -190,3 +190,42 @@ test('the plugin panel finds a supporter by any of their character names', async
   assert.equal(tiers.get('main flair'), 'patron');
   assert.equal(tiers.size, 2);
 });
+
+test('the daily check ends a Supporter plan Gumroad stopped charging, and leaves running or recent ones', async () => {
+  const { db, schema: s } = await loadDb();
+  const { sweepLapsedSupporters } = await import('../src/lib/supporterBilling.ts');
+  const day = 86_400_000;
+  const now = Date.parse('2026-11-22T00:00:00Z');
+  const longAgo = new Date(now - 20 * day).toISOString();
+  const recent = new Date(now - 1 * day).toISOString();
+  const failed = await makeUser('lapse-failed');
+  const alive = await makeUser('lapse-alive');
+  const fresh = await makeUser('lapse-recent');
+  await db.insert(s.supporterSubscriptions).values([
+    { userId: failed.id, tier: 'supporter', status: 'active', gumroadSubscriptionId: 'sub-failed', startedAt: longAgo, currentPeriodEnd: longAgo },
+    { userId: alive.id, tier: 'supporter', status: 'active', gumroadSubscriptionId: 'sub-alive', startedAt: longAgo, currentPeriodEnd: longAgo },
+    { userId: fresh.id, tier: 'supporter', status: 'active', gumroadSubscriptionId: 'sub-recent', startedAt: longAgo, currentPeriodEnd: recent },
+  ]);
+  const asked: string[] = [];
+  const realFetch = globalThis.fetch;
+  process.env.GUMROAD_ACCESS_TOKEN = 'test-token';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const id = decodeURIComponent(String(input).split('/subscribers/')[1] ?? '');
+    asked.push(id);
+    // A card that failed: Gumroad keeps the membership in failed_payment and sends nothing.
+    const status = id === 'sub-failed' ? 'failed_payment' : 'alive';
+    return new Response(JSON.stringify({ success: true, subscriber: { id, status } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  try {
+    const result = await sweepLapsedSupporters(now);
+    assert.equal(result.ended, 1);
+    assert.equal(result.errors, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.GUMROAD_ACCESS_TOKEN;
+  }
+  assert.ok(!asked.includes('sub-recent'), 'a plan inside its grace is not asked about');
+  assert.equal((await rowsFor(failed.id))[0].status, 'ended');
+  assert.equal((await rowsFor(alive.id))[0].status, 'active');
+  assert.equal((await rowsFor(fresh.id))[0].status, 'active');
+});

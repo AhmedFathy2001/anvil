@@ -148,6 +148,73 @@ async function unknownMembership(ev: GumroadEvent): Promise<Result> {
 }
 
 /** Apply one Supporter notification. Returns what the route should answer. */
+/**
+ * A Supporter membership that is over: the row ends (a refunded one stays refunded), held referral
+ * rewards go, and staff "add time" waiting for this paid run to stop starts now. The webhook's
+ * `subscription_ended` and the daily lapse check both end a membership exactly this way.
+ */
+export async function endSupporterRow(row: { id: number; userId: number; status: string }, subscriptionId: string | null): Promise<void> {
+  if (row.status !== 'refunded') {
+    await db.update(supporterSubscriptions).set({ status: 'ended', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
+  }
+  // A trial that never paid, or a membership gone before its referral settled, earns nothing.
+  const lost = subscriptionId ? await revokeReferrals(subscriptionId, { heldOnly: true }) : [];
+  // Time staff added for when this paid membership stopped starts now (lib/supporterGifts).
+  await startQueuedGifts(row.userId);
+  afterSupporterChange([row.userId, ...lost]);
+}
+
+/** A renewal webhook can land a little late; past this, a missing one is worth asking Gumroad about. */
+const SUPPORTER_GRACE_DAYS = 2;
+
+export interface SupporterLapseResult {
+  checked: number;
+  ended: number;
+  errors: number;
+}
+
+/**
+ * Supporter memberships Gumroad stopped charging without telling us.
+ *
+ * A row marked 'active' grants its tier with no end date (lib/supporterTiers rowInForce): only a
+ * webhook ends it. But a card that fails leaves the membership in Gumroad's `failed_payment` with no
+ * `subscription_ended` sent, as lfl's clan plan did for weeks — so a Supporter whose card failed kept
+ * their tier, colours and boosts indefinitely. Once a day every active row whose renewal date has gone
+ * by (or never had one) is checked with Gumroad, and one it no longer runs is ended the webhook's way.
+ * Paying again comes back through the webhook's restart / new-sale paths; the tenure grace keeps a
+ * short lapse from breaking their streak.
+ */
+export async function sweepLapsedSupporters(now = Date.now()): Promise<SupporterLapseResult> {
+  if (!process.env.GUMROAD_ACCESS_TOKEN) return { checked: 0, ended: 0, errors: 0 };
+  // clan-scope: global -- Supporter plans belong to people, not clans; a few rows, filtered in JS
+  // because the period column holds two timestamp shapes (lib/dbTime) and parseStamp reads both.
+  const active = await db
+    .select({
+      id: supporterSubscriptions.id,
+      userId: supporterSubscriptions.userId,
+      status: supporterSubscriptions.status,
+      subscriptionId: supporterSubscriptions.gumroadSubscriptionId,
+      currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
+    })
+    .from(supporterSubscriptions)
+    .where(and(eq(supporterSubscriptions.status, 'active'), isNotNull(supporterSubscriptions.gumroadSubscriptionId)));
+  const due = active.filter((r) => {
+    const end = parseStamp(r.currentPeriodEnd);
+    return Number.isNaN(end) || end < now - SUPPORTER_GRACE_DAYS * 86_400_000;
+  });
+  const result: SupporterLapseResult = { checked: due.length, ended: 0, errors: 0 };
+  for (const row of due) {
+    const check = await checkSubscriptionWithGumroad(row.subscriptionId);
+    if (check === 'dead') {
+      await endSupporterRow(row, row.subscriptionId);
+      result.ended += 1;
+    } else if (check === 'error') {
+      result.errors += 1;
+    }
+  }
+  return result;
+}
+
 export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
   // By subscription, else by the sale itself: a refund or replay must always find what it grants.
   const row = ev.subscriptionId
@@ -231,14 +298,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
 
     case 'subscription_ended': {
       if (!row) return unknownMembership(ev);
-      if (row.status !== 'refunded') {
-        await db.update(supporterSubscriptions).set({ status: 'ended', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
-      }
-      // A trial that never paid, or a membership gone before its referral settled, earns nothing.
-      const lost = ev.subscriptionId ? await revokeReferrals(ev.subscriptionId, { heldOnly: true }) : [];
-      // Time staff added for when this paid membership stopped starts now (lib/supporterGifts).
-      await startQueuedGifts(row.userId);
-      afterSupporterChange([row.userId, ...lost]);
+      await endSupporterRow(row, ev.subscriptionId);
       return ok();
     }
 
