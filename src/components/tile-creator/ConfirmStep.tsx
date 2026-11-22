@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
-import { applyAmount, killCandidate, titleAt, type TaskCandidate } from '@/lib/taskMatch';
+import { applyAmount, killCandidate, titleAt, withPluginKills, type TaskCandidate } from '@/lib/taskMatch';
 import KillPicksField from './KillPicksField';
 import { comboCandidate } from '@/lib/taskMatch';
 import { comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
@@ -18,6 +18,9 @@ import { formatTileAmount } from '@/lib/tileKinds';
 import { clogTileSetupNote } from '@/lib/clogTileWords';
 import TileBeforeYouStart from '@/components/TileBeforeYouStart';
 import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, SecondaryButton, StepHeader, configIcon } from './parts';
+import { StartCountField } from './ConditionFields';
+import { conditionsEmpty, normalizeConditions, startCountLabel, titleWithStartCount } from '@/lib/raidQuery';
+import type { StartCount } from '@/lib/tileConditions';
 
 interface Suggestion {
   suggestedPoints: number | null;
@@ -95,16 +98,25 @@ function SingleConfirm({
   const killable = ['boss', 'counter', 'monster'].includes(original.source) && killPicksOf(original.config).length > 0;
   const [picks, setPicks] = useState<string[]>(() => killPicksOf(original.config));
   const picksChanged = killable && picks.join('|') !== killPicksOf(original.config).join('|');
-  const candidate = (picksChanged && killCandidate(picks, amount, { tileCategory: original.tileCategory, points: original.points })) || original;
+  // "Who can take it" (lib/tileConditions startCount): kill and log tiles, and raid tiles with conditions.
+  const [startCount, setStartCount] = useState<StartCount | null>(original.config.conditions?.startCount ?? null);
+  const picked = (picksChanged && killCandidate(picks, amount, { tileCategory: original.tileCategory, points: original.points })) || original;
+  // A start count is proved by the game's count line only: kills then count through the plugin.
+  const candidate = startCount ? withPluginKills(picked) : picked;
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const startable = ['boss', 'monster', 'counter', 'clogtile'].includes(candidate.source) || candidate.config.tileType === 'raid';
 
   const isTimedCap = candidate.config.tileType === 'timed' && candidate.source !== 'trial';
   const current = applyAmount(candidate, amount);
-  const config = useMemo(
-    () => (isTimedCap ? { ...current.config, timeThresholdSeconds: clockSeconds(capText) } : current.config),
-    [current.config, isTimedCap, capText],
-  );
-  const autoLabel = titleAt(candidate, amount);
+  const config = useMemo(() => {
+    const base = isTimedCap ? { ...current.config, timeThresholdSeconds: clockSeconds(capText) } : current.config;
+    if (!startable) return base;
+    const merged = normalizeConditions({ ...(base.conditions ?? { v: 1 }), startCount });
+    return { ...base, conditions: conditionsEmpty(merged) ? null : merged };
+  }, [current.config, isTimedCap, capText, startable, startCount]);
+  const isRaidTile = config.tileType === 'raid';
+  // A raid tile's title says its start count as a suffix; a kill or log tile can read "First X".
+  const autoLabel = titleWithStartCount(titleAt(candidate, amount), isRaidTile ? '' : candidate.noun, isRaidTile ? 2 : amount, startCount);
   const effectiveLabel = (label ?? autoLabel).trim() || autoLabel;
   const how = howItCountsLine(config);
   const showTracking = teamPlay && supportsTrackingMode(config);
@@ -192,6 +204,15 @@ function SingleConfirm({
           <span className="text-xs text-text-muted">(leave blank for any time)</span>
         </div>
       )}
+      {startable && (
+        <div className="mb-4">
+          <StartCountField
+            value={startCount}
+            onChange={setStartCount}
+            noun={isRaidTile ? 'clears' : candidate.source === 'clogtile' ? 'of it' : 'kills'}
+          />
+        </div>
+      )}
       {showTracking && (
         <div role="group" aria-label="Who it counts for" className="grid grid-cols-2 gap-2 mb-4">
           <ChoiceButton pressed={trackingMode === 'team'} onClick={() => setTrackingMode('team')} title="Every member's progress adds up toward the goal.">
@@ -273,7 +294,7 @@ function SingleConfirm({
               <p className="text-sm font-semibold break-words">{effectiveLabel}</p>
             )}
             <p className="text-xs text-text-muted">
-              {[progress, pointsMode ? (points != null ? `${points} pts` : 'pick a tier') : null].filter(Boolean).join(' · ')}
+              {[progress, startCount ? startCountLabel(startCount) : null, pointsMode ? (points != null ? `${points} pts` : 'pick a tier') : null].filter(Boolean).join(' · ')}
             </p>
           </div>
           {!renaming && (

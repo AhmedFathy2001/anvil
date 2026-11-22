@@ -119,6 +119,7 @@ import { parseComboRule, type ComboRule } from '@/lib/combo';
 import { parseCapBy } from '@/lib/tileCaps';
 import { parseConditions, type TileConditions } from '@/lib/tileConditions';
 import type { Tile } from '@/lib/types';
+import type { TileConditions } from '@/lib/tileConditions';
 import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { parseGpInput } from '@/lib/adminEventsFormat';
 import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
@@ -183,6 +184,8 @@ export interface TileCsvRow {
   parts?: TileCsvRow[] | null;
   /** A combo PART's weight in a 'mix' combo (null/absent = 1). */
   comboWeight?: number | null;
+  /** Raid / kill / drop / log conditions (lib/tileConditions) — set by the tile creator; no column (yet). */
+  conditions?: TileConditions | null;
   /**
    * A race tile's EASIER OPTIONS (lib/raceEase), first level first — no spreadsheet column: each is
    * its own row (any kind but a combo). Only a tile race keeps them on import.

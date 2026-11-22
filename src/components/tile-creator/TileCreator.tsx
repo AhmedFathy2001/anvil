@@ -197,7 +197,16 @@ export default function TileCreator(props: TileCreatorProps) {
   }
 
   if (screen.name === 'raids') {
-    return <RaidStep seed={screen.candidate?.seed?.raids} amount={screen.candidate?.amount ?? null} onBack={back} onNext={pick} />;
+    return (
+      <RaidStep
+        seed={screen.candidate?.seed?.raids}
+        seedConditions={screen.candidate?.seed?.conditions}
+        amount={screen.candidate?.amount ?? null}
+        teamPlay={teamPlay}
+        onBack={back}
+        onNext={pick}
+      />
+    );
   }
   if (screen.name === 'courses') {
     return <CoursesStep seed={screen.candidate?.seed} amount={screen.candidate?.amount ?? null} onBack={back} onNext={pick} />;
@@ -409,7 +418,7 @@ function BrowseList({
           className="w-full min-h-14 mb-3 text-left rounded-xl border border-gold/50 bg-gold/[0.07] hover:bg-gold/[0.12] px-3 py-2.5"
         >
           <span className="block text-sm font-semibold">Raids: CoX, ToB, ToA, TFA</span>
-          <span className="block text-xs text-text-muted">Pick which modes count, Entry included or not</span>
+          <span className="block text-xs text-text-muted">Modes, times, party size, deathless, first-timers</span>
         </button>
       )}
       {all.length > 8 && (

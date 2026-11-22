@@ -8,6 +8,8 @@ import { howItCountsLine, itemTileConfig, type ItemHow, type ItemNeed } from '@/
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { ItemObtainInfo } from '@/lib/itemObtain';
 import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, StepHeader } from './parts';
+import { ToaLevelField } from './ConditionFields';
+import { toaBarWords, type ToaBar } from '@/lib/tileConditions';
 
 interface Item {
   id: number;
@@ -37,6 +39,8 @@ export default function ItemStep({
   const [need, setNeed] = useState<ItemNeed>(initialAmount && initialAmount > 1 ? 'total' : 'any');
   const [amount, setAmount] = useState<number | null>(initialAmount && initialAmount > 1 ? initialAmount : 10);
   const [sources, setSources] = useState<string[]>([]);
+  // ToA drops only: the raid the drop came from ended at this level (lib/tileConditions toaLevel).
+  const [toaLevel, setToaLevel] = useState<ToaBar | null>(null);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Item[]>([]);
   // Loot only by default (lib/osrsItems isDroppableItem: drops, chest rewards, clog unlocks), so a
@@ -100,7 +104,10 @@ export default function ItemStep({
   }
 
   const effectiveNeed: ItemNeed = need === 'each' && (effectiveHow === 'gain' || items.length < 2) ? 'any' : need;
-  const config = itemTileConfig({ items, how: effectiveHow, need: effectiveNeed, amount, sources });
+  const fromToa = known.some((i) => /amascut/i.test(i.clogPage ?? '') || i.sources.some((s) => /amascut/i.test(s)));
+  const levelBar = effectiveHow === 'drop' && fromToa ? toaLevel : null;
+  const plainConfig = itemTileConfig({ items, how: effectiveHow, need: effectiveNeed, amount, sources });
+  const config = plainConfig && levelBar ? { ...plainConfig, conditions: { v: 1 as const, toaLevel: levelBar } } : plainConfig;
   const countsLine = config ? howItCountsLine(config) : null;
 
   function next() {
@@ -108,10 +115,11 @@ export default function ItemStep({
     const one = items.length === 1 ? items[0].name : null;
     const what = one ?? `${items.length} items`;
     const n = effectiveNeed === 'total' ? Math.max(1, amount ?? 1) : 1;
-    const title =
+    const plainTitle =
       effectiveNeed === 'each' ? `One of each: ${items.map((i) => i.name).join(', ')}`.slice(0, 120)
       : n > 1 ? `${n.toLocaleString('en-US')} × ${what}`
       : one ? one : `Any of ${items.map((i) => i.name).join(', ')}`.slice(0, 120);
+    const title = levelBar ? `${plainTitle} (ToA ${toaBarWords(levelBar)}${levelBar.entry ? ' or Entry' : ''})` : plainTitle;
     onNext({
       key: `items-${items.map((i) => i.id).join('+')}`,
       source: effectiveHow === 'gain' ? 'gain' : 'drop',
@@ -233,6 +241,14 @@ export default function ItemStep({
               );
             })}
           </div>
+        </fieldset>
+      )}
+
+      {effectiveHow === 'drop' && fromToa && (
+        <fieldset className="mb-5">
+          <legend className="text-sm font-semibold text-foreground/90 mb-2.5">From a raid ending at level</legend>
+          <ToaLevelField bar={toaLevel} onChange={setToaLevel} allowAny label="ToA raid level the drop came from" />
+          <p className="mt-1.5 text-xs text-text-muted">The level the raid ends at, after any missed-timer penalty. Any = every ToA counts, Entry only if ticked.</p>
         </fieldset>
       )}
 
