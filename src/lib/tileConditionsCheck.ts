@@ -262,3 +262,65 @@ export function teamTakeLine(team: string, members: { name: string; start: numbe
 
 /** The panel row line for a tile an older plugin can't count. */
 export const NEEDS_PLUGIN_LINE = 'Needs the latest Anvil plugin';
+
+// ─── The count when the event started ────────────────────────────────────────────────────────────
+
+/** The fields of a tile the start count is read off. */
+export interface StartTileLike {
+  tileType?: string | null;
+  conditions?: string | TileConditions | null;
+  targetNpcs?: string | string[] | null;
+}
+
+function targetsOf(t: StartTileLike): string[] {
+  if (Array.isArray(t.targetNpcs)) return t.targetNpcs.map(String);
+  try {
+    const v = t.targetNpcs ? JSON.parse(t.targetNpcs) : [];
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The hiscores keys a tile's start count sums: a raid tile's raids, a kill tile's monsters. Empty when
+ * nothing on it is on the hiscores (a collection log tile, a chicken): then the count line decides.
+ */
+export function tileStartKeys(t: StartTileLike): string[] {
+  if (t.tileType === RAID_TILE_TYPE) return raidStartKeys(typeof t.conditions === 'string' || t.conditions == null ? parseStored(t.conditions) : t.conditions);
+  if (t.tileType === 'kill') return [...new Set(targetsOf(t).map((n) => hiscoresKeyForMonster(n)).filter((k): k is string => !!k))];
+  return [];
+}
+
+function parseStored(raw: string | null | undefined): TileConditions | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' && v.v === 1 ? (v as TileConditions) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the count is of, for the sentences ("TzKal-Zuk kills", "CoX clears"). */
+export function tileStartWhat(t: StartTileLike): { what: string; noun: CountNoun } {
+  if (t.tileType === RAID_TILE_TYPE) {
+    const c = typeof t.conditions === 'string' || t.conditions == null ? parseStored(t.conditions) : t.conditions;
+    const names = [...new Set((c?.raids ?? []).map((p) => RAID_OPTIONS.find((r) => r.id === p.raid)?.short ?? p.raid))];
+    return { what: names.join('/') || 'raid', noun: CLEARS };
+  }
+  const first = targetsOf(t)[0];
+  return { what: first ?? 'kill', noun: KILLS };
+}
+
+/** A participant's event-start baseline (statsSnapshot JSON) read for those keys: their start count, or null when unknown. */
+export function startCountOfSnapshot(snapshot: string | null | undefined, keys: string[]): number | null {
+  if (!snapshot || keys.length === 0) return null;
+  let parsed: { bosses?: Record<string, { score?: number } | undefined> } | null = null;
+  try {
+    parsed = JSON.parse(snapshot);
+  } catch {
+    return null;
+  }
+  return startCountFrom(keys, (k) => parsed?.bosses?.[k]?.score ?? null);
+}

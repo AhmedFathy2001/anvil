@@ -1,6 +1,7 @@
 import { activityFor } from '@/lib/hiscoresActivities';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { AGILITY_COURSES, BOSSES, SEPULCHRE_TARGETS, SKILL_LABELS, lapUnitNoun } from './constants';
+import { conditionsSentence, parseConditions } from '@/lib/tileConditions';
 
 // Structural subset of a tile row that the kind/target helpers need — board clients keep
 // their own narrowed Tile interfaces, so we type against the shape, not the shared Tile.
@@ -15,7 +16,7 @@ export interface TileKindLike {
 
 // The stored tile types, so a catalog of kinds can be read off tileKindLabel instead of retyped
 // (lib/featureRegistry). A tile with no type is 'Standard'; a tracked-stat tile is 'Kills' or 'XP'.
-export const TILE_TYPES = ['drop', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'valuetotal', 'diary', 'ca', 'clog'] as const;
+export const TILE_TYPES = ['drop', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'raid', 'lms', 'value', 'valuetotal', 'diary', 'ca', 'clog'] as const;
 
 // Human label for a tile's tracking kind — mirrors the kind picker in TileTrackingConfig.
 // Collection is a drop tile that carries per-item requirements (deriveKind does the same).
@@ -38,6 +39,8 @@ export function tileKindLabel(tile: TileKindLike): string {
       return 'Timed clear';
     case 'deathless':
       return 'Deathless raid';
+    case 'raid':
+      return 'Raid';
     case 'lms':
       return 'LMS placement';
     case 'value':
@@ -75,6 +78,9 @@ export function tileCountNoun(tile: TileKindLike): string {
     case 'deathless':
     case 'timed':
       return 'run';
+    // A raid tile (lib/tileConditions) counts clears that met its bars.
+    case 'raid':
+      return 'clear';
     case 'lms':
       return 'game';
     // Collection-log tiles credit one new slot per row (lib/clogTiles).
@@ -138,7 +144,7 @@ export function statLabel(trackedStat: string | null | undefined, statType?: str
 /** The one canonical kind of a tile, as the authoring surfaces group them. */
 export type TileKindKey =
   | 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp'
-  | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca' | 'clog';
+  | 'gain' | 'timed' | 'deathless' | 'raid' | 'lms' | 'value' | 'diary' | 'ca' | 'clog';
 
 /** Shape the kind badge/summary helpers read — a superset of TileKindLike. */
 export interface TileSummaryLike extends TileKindLike {
@@ -148,6 +154,8 @@ export interface TileSummaryLike extends TileKindLike {
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
   countMode?: string | null;
+  /** JSON tile conditions (lib/tileConditions), on a raid tile its raids. */
+  conditions?: string | null;
 }
 
 /** Derive the single canonical kind from the stored columns (mirrors TileTrackingConfig). */
@@ -160,6 +168,7 @@ export function tileKindKey(tile: TileKindLike): TileKindKey {
   if (tile.tileType === 'gain') return 'gain';
   if (tile.tileType === 'timed') return 'timed';
   if (tile.tileType === 'deathless') return 'deathless';
+  if (tile.tileType === 'raid') return 'raid';
   if (tile.tileType === 'lms') return 'lms';
   if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
   if (tile.tileType === 'diary') return 'diary';
@@ -191,6 +200,7 @@ export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string;
   gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
   timed: { label: 'Timed clear', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
   deathless: { label: 'Deathless raid', cls: 'bg-fuchsia-500/20 text-fuchsia-300', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance.' },
+  raid: { label: 'Raid', cls: 'bg-fuchsia-500/20 text-fuchsia-200', blurb: 'Clear one of several raids N times, each with its own bar (time, party, mode, ToA level), plus nobody dies or teammates inside. The plugin reports each clear; the site judges it.' },
   lms: { label: 'LMS placement', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
   value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200', blurb: 'Loot worth X gp — one haul or hauls summing to a target. Plugin prices the haul.' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300', blurb: 'Complete achievement-diary tiers during the event. Plugin-detected off the completion message.' },
@@ -267,7 +277,7 @@ export const TILE_KIND_FILTERS: { key: 'all' | TileKindKey; label: string }[] = 
   { key: 'all', label: 'All' },
   // The badge's own label: the filter used to call the same kind "Kill" / "Laps" / "Gain" while the
   // badge on the tile said "Kill count" / "Agility laps" / "Item gain".
-  ...(['standard', 'skill', 'kill', 'drop', 'collection', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca', 'clog'] as const).map(
+  ...(['standard', 'skill', 'kill', 'drop', 'collection', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'raid', 'lms', 'value', 'diary', 'ca', 'clog'] as const).map(
     (key) => ({ key, label: TILE_KIND_BADGES[key].label }),
   ),
 ];
@@ -321,6 +331,11 @@ export function tileConfigSummary(tile: TileSummaryLike, noun = 'tile'): string 
     case 'deathless': {
       const party = tile.timeThresholdSeconds ? ` · ${tile.timeThresholdSeconds}-man` : '';
       return `Deathless · ${tile.timedActivity || 'raid'}${party}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
+    }
+    case 'raid': {
+      const c = parseConditions(tile.conditions);
+      const n = tile.requiredAmount ?? 1;
+      return `Raid${n > 1 ? ` ×${n}` : ''}${c ? ` · ${conditionsSentence(c)}` : ''}`;
     }
     case 'timed':
       if (parseTrialRankTile(tile.timedActivity)) {
