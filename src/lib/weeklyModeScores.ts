@@ -7,6 +7,7 @@ import { metricKeys } from '@/lib/constants';
 import { log } from '@/lib/logger';
 import { modeHiscoresTable, type ModeFetchMode } from '@/lib/modeHiscores';
 import { applyWeeklyValue } from '@/lib/weekly';
+import { recordHuntRowStats } from '@/lib/huntRowStats';
 import { competitionStat, effectiveMetricParts, effectiveMetricValue, liveMetricValue } from '@/lib/weeklyMetric';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { HCW_PROBE_EVERY_MS, modeReadWanted, planModeRead, type ModeRead, type WeeklyModeRow } from '@/lib/weeklyModePlan';
@@ -117,6 +118,8 @@ export async function applyWeeklyModeReads(reads: ReadonlyMap<string, ModeRead>,
       now: ts,
     });
     if (outcome.outcome === 'updated' || outcome.outcome === 'first-captured') moved++;
+    // An item hunt's per-row stats, off the same mode-table read (lib/huntRowStats).
+    if (row.hunt) await recordHuntRowStats(row.participantId, { type: 'hunt', hunt: row.hunt }, plan.snapshot);
   }
   return moved;
 }

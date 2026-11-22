@@ -22,6 +22,8 @@ export interface WeeklyModeRow {
   baselineValue: number | null;
   currentValue: number | null;
   lastUpdated: string | null;
+  /** An item hunt's rules, for its per-row stats; null on every other competition. */
+  hunt?: string | null;
 }
 
 export interface ModeRead {

@@ -34,7 +34,7 @@ export async function retargetCompetition(comp: Competition, input: Record<strin
     if (!checked.ok) return { ok: false, error: checked.error };
     const config = checked.config;
     // The same two rules as at creation (api/admin/weekly POST).
-    if (config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
+    if (config.v === 1 && config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
     if (config.killsOf) config.xpSkill = null;
     updates.hunt = serializeHunt(config);
     updates.metric = huntTargetsLabel(config);
@@ -66,7 +66,7 @@ export async function retargetCompetition(comp: Competition, input: Record<strin
   const competition = await db.transaction(async (tx) => {
     const [row] = await tx.update(weeklyCompetitions).set(updates).where(eq(weeklyCompetitions.id, comp.id)).returning();
     // Starting values read for the old target mean nothing for the new one: the sweep reads them again.
-    await tx.update(weeklyParticipants).set({ baselineValue: null, currentValue: null, baselineParts: null, currentParts: null }).where(eq(weeklyParticipants.competitionId, comp.id));
+    await tx.update(weeklyParticipants).set({ baselineValue: null, currentValue: null, baselineParts: null, currentParts: null, huntBaseline: null, huntCurrent: null }).where(eq(weeklyParticipants.competitionId, comp.id));
     await tx.delete(playerSnapshots).where(eq(playerSnapshots.weeklyCompetitionId, comp.id));
     await tx.insert(clanAuditLog).values({
       clanId: comp.clanId,

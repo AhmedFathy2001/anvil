@@ -94,11 +94,13 @@ export async function GET(request: Request) {
   const [board, since] = await Promise.all([weeklyBoard(comp.id), comp.status === 'active' ? weeklyBaselineRanks(comp.id) : Promise.resolve(null)]);
   // An item hunt: the dim line under each row ("412 kills, no drop"), and its drops as the highlights.
   const hunt = comp.type === 'hunt' ? await huntStandings(comp) : null;
-  const huntSub = new Map((hunt ? huntPanelSubs(hunt) : []).map((s) => [weeklyRsnKey(s.rsn), s.sub]));
+  const huntLines = new Map((hunt ? huntPanelSubs(hunt) : []).map((s) => [weeklyRsnKey(s.rsn), s]));
   const row = (e: (typeof board)[number], i: number) => ({
     rank: i + 1,
     rsn: e.rsn,
-    ...(huntSub.get(weeklyRsnKey(e.rsn)) ? { sub: huntSub.get(weeklyRsnKey(e.rsn)) } : {}),
+    ...(huntLines.get(weeklyRsnKey(e.rsn))?.sub ? { sub: huntLines.get(weeklyRsnKey(e.rsn))?.sub } : {}),
+    // A v2 hunt's own figure on the right ("8 pts · 2/3", "61% due"), drawn in place of the count.
+    ...(huntLines.get(weeklyRsnKey(e.rsn))?.figure ? { figure: huntLines.get(weeklyRsnKey(e.rsn))?.figure } : {}),
     // Clamp to >= 0: a not-yet-fetched / unranked participant has currentValue null, which
     // computeLeaderboard treats as 0, yielding a spurious negative gain (0 - baseline). You
     // can't lose KC/XP, so floor it at 0.

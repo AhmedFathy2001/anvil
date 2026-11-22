@@ -1859,6 +1859,11 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   // single-metric competition, on rows captured before this, and once staff correct a baseline by hand.
   baselineParts: jsonb('baseline_parts').$type<Record<string, number>>(),
   currentParts: jsonb('current_parts').$type<Record<string, number>>(),
+  // An item hunt (v2): each row's "Closest to it" stat at the start and now, by "boss:<key>" /
+  // "skill:<key>" (lib/itemHunt rowStatKeys), read off the same hiscores reads as the values above
+  // (lib/huntRowStats). Null on every other competition and on v1 hunts.
+  huntBaseline: jsonb('hunt_baseline').$type<Record<string, number>>(),
+  huntCurrent: jsonb('hunt_current').$type<Record<string, number>>(),
 }, (table) => [
   index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),

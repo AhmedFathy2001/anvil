@@ -99,6 +99,8 @@ export interface WeeklyStanding {
   self: boolean;
   /** A dim line under the row. An item hunt's: "412 kills, no drop" (kills at the source since it started). */
   sub?: string | null;
+  /** Drawn on the right instead of the count: a v2 item hunt's "8 pts · 2/3" or "61% due". */
+  figure?: string | null;
   /** Places climbed since the UTC day began (lib/rankMoves); null = unchanged or unknown. */
   move?: number | null;
   /** 'HCW': a Hardcore Worlds character (lib/competitionGame tableTag). Absent on the main game. */
@@ -1240,7 +1242,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
 function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {
   const ink: Color = r.self ? GOLD : SOFT;
   // A hunt counts drops, which are not a gain: "2 drops", not "+2 drops".
-  const figure = w.type === 'hunt' ? weeklyGain(w, r.gained) : `+${weeklyGain(w, r.gained)}`;
+  const figure = r.figure ? r.figure : w.type === 'hunt' ? weeklyGain(w, r.gained) : `+${weeklyGain(w, r.gained)}`;
   // A Hardcore Worlds character, or one that died there: a short mark after the name, which gives
   // up a little of the name's room so the row stays one line.
   const mark = r.tag ? small(r.stopped ? `${r.tag} fell` : r.tag, CORAL, { tip: r.stopped ? FELL_TITLE : HCW_ENTRANT_TITLE }) : r.stopped ? small('fell', FAINT, { tip: FELL_TITLE }) : undefined;
