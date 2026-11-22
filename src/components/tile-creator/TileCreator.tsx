@@ -197,7 +197,16 @@ export default function TileCreator(props: TileCreatorProps) {
   }
 
   if (screen.name === 'raids') {
-    return <RaidStep seed={screen.candidate?.seed?.raids} amount={screen.candidate?.amount ?? null} onBack={back} onNext={pick} />;
+    return (
+      <RaidStep
+        seed={screen.candidate?.seed?.raids}
+        seedConditions={screen.candidate?.seed?.conditions}
+        amount={screen.candidate?.amount ?? null}
+        teamPlay={teamPlay}
+        onBack={back}
+        onNext={pick}
+      />
+    );
   }
   if (screen.name === 'courses') {
     return <CoursesStep seed={screen.candidate?.seed} amount={screen.candidate?.amount ?? null} onBack={back} onNext={pick} />;

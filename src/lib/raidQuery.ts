@@ -831,7 +831,8 @@ export function raidConditionsTile(c: TileConditions, clears: number | null): Ra
   const conditions = normalizeConditions(c);
   const names = picks.map((p) => pickTitle(p));
   const lead = [...new Set(names)].join(' or ');
-  const tail = c.startCount?.op === 'lt' && c.startCount.n === 1 ? ', first-timers' : c.noDeaths ? ', deathless' : '';
+  // The start count is said by the confirm step's title (titleWithStartCount), not here.
+  const tail = c.noDeaths ? ', deathless' : '';
   return {
     ok: true,
     source: 'raid',
