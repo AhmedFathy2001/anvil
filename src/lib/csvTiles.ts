@@ -119,7 +119,6 @@ import { parseComboRule, type ComboRule } from '@/lib/combo';
 import { parseCapBy } from '@/lib/tileCaps';
 import { parseConditions, type TileConditions } from '@/lib/tileConditions';
 import type { Tile } from '@/lib/types';
-import type { TileConditions } from '@/lib/tileConditions';
 import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { parseGpInput } from '@/lib/adminEventsFormat';
 import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
@@ -191,8 +190,6 @@ export interface TileCsvRow {
    * its own row (any kind but a combo). Only a tile race keeps them on import.
    */
   easier?: TileCsvRow[] | null;
-  /** Tile conditions (lib/tileConditions) — set by the tile creator; no spreadsheet column (yet). */
-  conditions?: TileConditions | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
