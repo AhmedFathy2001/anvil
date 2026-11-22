@@ -17,6 +17,7 @@ export const TRACKED_TILE_LISTS = [
   'trackedPvp',
   'trackedLms',
   'trackedDeathless',
+  'trackedRaids',
   'trackedDiaries',
   'trackedCombatTasks',
   'trackedCombos',
@@ -25,7 +26,7 @@ export const TRACKED_TILE_LISTS = [
 ] as const;
 
 const LABELLED_LISTS = new Set<string>([
-  'trackedPvp', 'trackedTimed', 'trackedLms', 'trackedGains', 'trackedDeathless', 'trackedDiaries', 'trackedCombatTasks', 'trackedClog', 'trackedCombos',
+  'trackedPvp', 'trackedTimed', 'trackedLms', 'trackedGains', 'trackedDeathless', 'trackedRaids', 'trackedDiaries', 'trackedCombatTasks', 'trackedClog', 'trackedCombos',
   'trackedStats', 'completedTiles',
 ]);
 

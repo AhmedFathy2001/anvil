@@ -72,6 +72,7 @@ export function clanlessConfigBody(luckItemIds: number[]): Record<string, unknow
     trackedValues: [],
     trackedGains: [],
     trackedDeathless: [],
+    trackedRaids: [],
     trackedDiaries: [],
     trackedCombatTasks: [],
     trackedClog: [],

@@ -6,6 +6,7 @@
  */
 import { RAID_OPTIONS, type RaidId, type RaidModeId } from '@/lib/tileCreatorConfig';
 import { hiscoresKeyForMonster } from '@/lib/killSource';
+import { compareVersions } from '@/lib/tileRequirementChecks';
 import {
   RAID_PARTY_MAX,
   raidOffers,
@@ -323,4 +324,10 @@ export function startCountOfSnapshot(snapshot: string | null | undefined, keys: 
     return null;
   }
   return startCountFrom(keys, (k) => parsed?.bosses?.[k]?.score ?? null);
+}
+
+/** Does a plugin of this version (its X-Anvil-Plugin-Version) send raid facts? Unknown reads as no. */
+export function raidFactsSupportedBy(version: string | null | undefined): boolean {
+  const cmp = compareVersions(version, RAID_FACTS_MIN_PLUGIN);
+  return cmp != null && cmp >= 0;
 }
