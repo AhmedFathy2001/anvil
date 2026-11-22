@@ -43,7 +43,7 @@ export interface ControlTile {
 }
 
 /** Kinds whose submissions simply add up toward requiredAmount (lib/submissions syncDropTileCompletion). */
-const COUNT_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'diary', 'ca', 'lms', 'valuetotal']);
+const COUNT_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'raid', 'diary', 'ca', 'lms', 'valuetotal']);
 
 function hasCollection(tile: ControlTile): boolean {
   return parseJsonArray<unknown>(tile.itemRequirements).length > 0;

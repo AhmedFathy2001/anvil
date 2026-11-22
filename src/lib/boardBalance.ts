@@ -50,7 +50,7 @@ function kindFamily(t: Tile): 'RNG drops' | 'Grind' | 'Execution' | 'Manual' {
   const type = t.tileType ?? 'standard';
   // New collection-log slots are drop RNG; a whole page is the rarest slot on it.
   if (type === 'drop' || type === 'value' || type === 'clog') return 'RNG drops';
-  if (type === 'timed' || type === 'lms' || type === 'deathless') return 'Execution';
+  if (type === 'timed' || type === 'lms' || type === 'deathless' || type === 'raid') return 'Execution';
   // CA tiles sit with Execution — completing a combat task is a mechanics test, not a grind.
   if (type === 'ca') return 'Execution';
   // PvP kills are a mechanics (and bravery) test — hunting players, not a grind.

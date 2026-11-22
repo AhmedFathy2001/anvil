@@ -8,7 +8,7 @@
 // Imports nothing on purpose, so client components and node's type-stripping tests can both use it.
 
 /** Tile kinds whose rows are one-per-game-action pings rather than deliberate turn-ins. */
-export const AUTO_PING_TILE_TYPES: ReadonlySet<string> = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms']);
+export const AUTO_PING_TILE_TYPES: ReadonlySet<string> = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'raid', 'lms']);
 
 export function isAutoPingTileType(tileType: string | null | undefined): boolean {
   return tileType != null && AUTO_PING_TILE_TYPES.has(tileType);

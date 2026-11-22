@@ -47,7 +47,7 @@ export function dropProgressFor(tiles: Tile[], submissions: Submission[], comple
         (tile.tileType === 'drop' || tile.tileType === 'kill' || tile.tileType === 'lap'
           || tile.tileType === 'pvp'
           || tile.tileType === 'gain' || tile.tileType === 'diary' || tile.tileType === 'ca'
-          || tile.tileType === 'deathless' || tile.tileType === 'lms'
+          || tile.tileType === 'deathless' || tile.tileType === 'raid' || tile.tileType === 'lms'
           || tile.tileType === 'value' || tile.tileType === 'valuetotal'
           // Collection-log NEW SLOTS; a whole-page tile is read off members' logs server-side.
           || (tile.tileType === 'clog' && tile.countMode !== 'complete'))

@@ -107,6 +107,7 @@ const KIND_WORD: Record<string, string> = {
   gain: 'item gain',
   timed: 'timed',
   deathless: 'deathless',
+  raid: 'raid',
   lms: 'LMS',
   value: 'loot value',
   valuetotal: 'loot value',

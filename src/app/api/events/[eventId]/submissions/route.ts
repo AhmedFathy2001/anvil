@@ -57,7 +57,7 @@ class FactsTaken extends Error {}
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll', 'unverified_counter']);
 
 /** Kinds whose ping counts kills/laps/games one at a time. Gains and loot values are not counts. */
-const PING_CAPPED_KINDS = new Set(['kill', 'lap', 'pvp', 'deathless', 'lms']);
+const PING_CAPPED_KINDS = new Set(['kill', 'lap', 'pvp', 'deathless', 'raid', 'lms']);
 
 // The same combat task or finished-page proof again (the plugin says it as "Not counted: <tile> — …").
 const ALREADY_COUNTED = 'already counted for this tile';
@@ -306,8 +306,8 @@ export async function POST(
   const isCap = goalValue != null;
   // A cap counter is a count of something else — never which item it was.
   let itemId = isCap ? null : rawItemId;
-  if (tile.tileType !== 'clog' && tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'lap' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, value, or collection log tiles' }, { status: 400 });
+  if (tile.tileType !== 'clog' && tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'lap' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'raid' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, lap, PvP, gain, timed, deathless, raid, diary, CA, LMS, value, or collection log tiles' }, { status: 400 });
   }
   // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
   if ((isCap || (tile.tileType !== 'value' && tile.tileType !== 'valuetotal')) && submitAmount > 10000) {
@@ -319,7 +319,7 @@ export async function POST(
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
-  const isPluginKillPing = !!pluginAuth && ( tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
+  const isPluginKillPing = !!pluginAuth && ( tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'raid' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
   // CREDIT FIRST, PROOF AFTER (lib/proofAfter): a plugin credit whose screenshot follows under this
   // key counts as one with a screenshot for every rule below — and is reversed if it never arrives
   // (lib/proofFinish sweepOverdueProofs), so the client gains nothing by never sending it.
