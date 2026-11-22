@@ -584,7 +584,9 @@ function weeklyRow(d: HomeData, w: ScheduleWeekly): Node {
   // it, something the title does not already say: a hunt's rule, else what is being counted.
   const shortLabel =
     w.type === 'hunt' ? (w.metricLabel.split(' · ')[1] ?? 'Item hunt') : w.type === 'skill' ? 'XP gained' : w.type === 'boss' ? 'Kills gained' : 'Hours gained';
-  const lines: Node[] = [named ? row(muted(clip(shortLabel, 16), { icon: weeklyIcon(w) }), undefined, when()) : row(muted(clip(w.metricLabel, 16), { icon: weeklyIcon(w) }), undefined, when())];
+  // The label and the clock each get their own line: side by side, a long label (a hunt for four pets,
+  // "Baron + Butcher + …") ran under "Starts in 11:24:30" and the two were drawn over each other.
+  const lines: Node[] = [muted(clip(named ? shortLabel : w.metricLabel, 30), { icon: weeklyIcon(w) }), when()];
   if (!upcoming) lines.push(withMove(small(clip(yourWeeklyLine(w, s), 32), s?.you ? GOLD : FAINT), s?.you?.move));
   return openRow(text(name, '#e6e6e6', { wrap: 170 }), undefined, lines, home(`weekly:${w.id}`), name);
 }
