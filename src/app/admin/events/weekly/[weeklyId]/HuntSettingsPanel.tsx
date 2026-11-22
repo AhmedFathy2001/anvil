@@ -11,7 +11,7 @@ import type { HuntConfirm, HuntEnding } from '@/lib/itemHunt';
  * An item hunt's own settings: how it ends, and who confirms the drops that decide it. Changing
  * either on a running hunt is written to the audit log (lib/itemHuntDb updateHuntSettings).
  */
-export default function HuntSettingsPanel({ competitionId, initial, finished }: { competitionId: number; initial: { ends: HuntEnding; confirm: HuntConfirm }; finished: boolean }) {
+export default function HuntSettingsPanel({ competitionId, initial, finished, rowCount }: { competitionId: number; initial: { ends: HuntEnding; confirm: HuntConfirm }; finished: boolean; rowCount?: number }) {
   const router = useRouter();
   const [ends, setEnds] = useState<HuntEnding>(initial.ends);
   const [confirm, setConfirm] = useState<HuntConfirm>(initial.confirm);
@@ -48,7 +48,7 @@ export default function HuntSettingsPanel({ competitionId, initial, finished }: 
         <p className="text-sm text-text-muted">This hunt has finished, so how it ends can no longer change.</p>
       ) : (
         <>
-          <HuntEndingFields ends={ends} confirm={confirm} onChange={(patch) => { if (patch.ends) setEnds(patch.ends); if (patch.confirm) setConfirm(patch.confirm); }} name="hunt-settings" />
+          <HuntEndingFields ends={ends} confirm={confirm} onChange={(patch) => { if (patch.ends) setEnds(patch.ends); if (patch.confirm) setConfirm(patch.confirm); }} name="hunt-settings" rowCount={rowCount} />
           <p className="mt-3 text-xs text-text-muted">
             Switching to automatic does not confirm anything that is already waiting: held reports stay with staff. Changes here are written to the audit log.
           </p>

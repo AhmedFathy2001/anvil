@@ -8,10 +8,12 @@ import { itemObtainInfo } from '@/lib/itemObtain';
 import { getMonsterNames } from '@/lib/npcNames';
 import { getItemMapping, isDroppableItem, type MappingItem } from '@/lib/osrsItems';
 import { expandShorthands } from '@/lib/taskMatch';
+import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 
 // The item hunt form's one search box: items by name (each with the sources the drop dataset lists
-// for it, so the organiser sees which boss or activity it comes from), and bosses by name (each
-// with its rarest drops, so a hunt can be picked by browsing a boss).
+// for it, so the organiser sees which boss or activity it comes from), bosses by name (each with its
+// rarest drops, so a hunt can be picked by browsing a boss), and pets, by their own name or by the
+// boss they come from ("graardor" finds Pet general graardor): a pet is just another row.
 //
 // The same datasets the tile editor's item and monster pickers read (api/admin/items-search,
 // api/admin/npc-search); this adds the join between them.
@@ -35,12 +37,25 @@ function sourcesOf(id: number): string[] {
   return [...seen.values()];
 }
 
+const ALL_PETS = PET_GROUPS.find((g) => g.key === 'all')?.items ?? [];
+const bossLabel = new Map(BOSSES.map((b) => [b.key, b.label.toLowerCase()]));
+
+/** Pets whose name, or whose boss's name, holds every word typed. The collection log's own list. */
+function petsFor(query: string): { id: number; name: string }[] {
+  const words = query.toLowerCase().replace(/\bpet\b/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  return ALL_PETS.filter((p) => {
+    const hay = [p.name.toLowerCase(), ...(PET_BOSS_KEYS[p.id] ?? []).map((k) => bossLabel.get(k) ?? '')].join(' ');
+    return words.every((w) => hay.includes(w));
+  }).slice(0, 6);
+}
+
 export async function GET(request: Request) {
   const user = await verifyAdminOrModerator();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const query = new URL(request.url).searchParams.get('q')?.toLowerCase().trim();
-  if (!query || query.length < 2) return NextResponse.json({ items: [], bosses: [] });
+  if (!query || query.length < 2) return NextResponse.json({ items: [], bosses: [], pets: [] });
 
   try {
     const mapping = await getItemMapping();
@@ -75,7 +90,10 @@ export async function GET(request: Request) {
       })
       .filter((b) => b.items.length > 0);
 
-    return NextResponse.json({ items, bosses });
+    // A pet found as a pet is not listed again as an item.
+    const pets = petsFor(query);
+    const petIds = new Set(pets.map((p) => p.id));
+    return NextResponse.json({ items: items.filter((i) => !petIds.has(i.id)), bosses, pets });
   } catch (err) {
     console.error('hunt-search failed:', err);
     return NextResponse.json({ error: 'Search is not available right now.' }, { status: 500 });

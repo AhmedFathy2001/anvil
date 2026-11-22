@@ -13,6 +13,7 @@ import Textarea from '@/components/Textarea';
 import ThingIcon from '@/components/ThingIcon';
 import { clanFetch } from '@/lib/clanFetch';
 import { SKILLS, SKILL_LABELS } from '@/lib/constants';
+import { dueWords, rowProgressWords, type HuntRowProgress } from '@/lib/itemHunt';
 import type { HuntView, HuntViewDrop, HuntViewRow } from '@/lib/itemHuntView';
 import { itemIconUrl } from '@/lib/tileIcons';
 import { EntrantTags } from './GameTags';
@@ -26,7 +27,8 @@ import { CountsOnChip } from './CompetitionHero';
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 function statGainWords(row: HuntViewRow, view: HuntView): string | null {
-  if (!view.statUnit) return null;
+  // A v2 hunt shows each row's own progress instead (ProgressChips).
+  if (view.v2 || !view.statUnit) return null;
   if (row.statPending) return 'starting point not read yet';
   const n = (row.statGain ?? 0).toLocaleString();
   if (view.statUnit === 'kills') return `${n} ${row.statGain === 1 ? 'kill' : 'kills'}${row.count === 0 && (row.statGain ?? 0) > 0 ? ', no drop' : ''}`;
@@ -64,6 +66,42 @@ function DropLine({ drop, showItem }: { drop: HuntViewDrop; showItem: boolean })
   );
 }
 
+/** Hover text for one row's chip: where its share of Due comes from, or why it has none. */
+function chipTitle(p: HuntRowProgress): string {
+  if (p.gain == null) return `${p.name}: the starting point is not read yet.`;
+  if (p.due != null && p.rate != null) return `${p.name}: ${Math.round(p.due * 100)}% of a 1 in ${Math.round(p.rate).toLocaleString()} drop rate worked through since the start.`;
+  return p.unit === 'xp'
+    ? `${p.name}: XP gained since the start. There is no XP-based drop rate in our data, so it does not add to Due.`
+    : `${p.name}: kills since the start. There is no drop rate for it in our data, so it does not add to Due.`;
+}
+
+/** "General Graardor +2,140 kc 43%" per row a player is still missing: progress since the hunt started. */
+function ProgressChips({ row }: { row: HuntViewRow }) {
+  const have = new Set(row.heldIds);
+  const chips = (row.progress ?? []).filter((p) => p.label && !have.has(p.id));
+  if (chips.length === 0) return null;
+  // The same stat on several rows (a pet and an item from one boss) is one chip, with the larger share.
+  const byLabel = new Map<string, HuntRowProgress>();
+  for (const p of chips) {
+    const key = `${p.label}|${p.unit}`;
+    const held = byLabel.get(key);
+    if (!held || (p.due ?? -1) > (held.due ?? -1)) byLabel.set(key, p);
+  }
+  return (
+    <span className="mt-1 flex flex-wrap gap-1.5 text-[11.5px]">
+      {[...byLabel.values()].map((p) => {
+        const moved = (p.gain ?? 0) > 0;
+        return (
+          <span key={`${p.id}-${p.label}`} title={chipTitle(p)} className={`rounded-md border px-1.5 py-0.5 ${moved ? 'border-card-border text-foreground/90' : 'border-card-border/60 text-text-dim'}`}>
+            {moved ? rowProgressWords(p) : `${p.label} +0`}
+            {moved && p.due != null && <span className="ml-1 text-text-muted">{dueWords(p.due)}</span>}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?: boolean }) {
   const stat = statGainWords(row, view);
   const has = row.count > 0;
@@ -83,6 +121,17 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
             <EntrantTags hcw={row.hcw} stopped={row.stopped} />
             {row.isMe && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-accent-green-light">you</span>}
           </span>
+          {/* "2 of 3": the rows they hold, as their icons. */}
+          {view.v2 && view.targets.length > 1 && row.held > 0 && (
+            <span className="mt-0.5 flex items-center gap-1 text-xs text-text-muted">
+              {row.heldIds.slice(0, 6).map((id) => (
+                <ThingIcon key={id} src={itemIconUrl(id)} alt="" size={18} />
+              ))}
+              {row.held} of {view.targets.length}
+              {row.completeAt && <span className="ml-1 rounded-full border border-gold/50 px-1.5 text-[10px] text-gold-light">has all of them</span>}
+            </span>
+          )}
+          {view.v2 && <ProgressChips row={row} />}
           {stat && <span className={`block text-xs ${!has && (row.statGain ?? 0) > 0 ? 'text-amber-300/90' : 'text-text-muted'}`}>{stat}</span>}
           {/* A hunt over several bosses: where those kills were, and each count's start and now on hover. */}
           {row.statParts && (
@@ -96,6 +145,13 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
             </span>
           )}
         </span>
+        {/* Due: how much of the rows' drop rates a player without a drop has worked through. */}
+        {view.v2 && view.rated && !has && (
+          <span className="shrink-0 text-right" title="How much of the drop rates they have worked through since the start. 100% means one is expected by now.">
+            <span className={`block font-mono text-lg font-bold leading-none tabular-nums ${(row.due ?? 0) >= 0.5 ? 'text-amber-300' : 'text-foreground/80'}`}>{row.due != null ? dueWords(row.due) : '—'}</span>
+            <span className="block text-[10px] uppercase tracking-wider text-text-muted">due</span>
+          </span>
+        )}
         <span className="shrink-0 text-right">
           <span className={`block font-mono text-lg font-bold leading-none tabular-nums ${has ? 'text-gold-light' : 'text-text-muted'}`}>{row.count.toLocaleString()}</span>
           <span className="block text-[10px] uppercase tracking-wider text-text-muted">{view.rule === 'first' && has ? 'got it' : view.rule === 'points' ? (row.count === 1 ? 'point' : 'points') : row.count === 1 ? 'drop' : 'drops'}</span>
@@ -148,11 +204,23 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
       {view.rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-card-border py-10 text-center text-sm text-text-muted">Nobody is entered yet.</div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-card-border">
-          {view.rows.map((r) => (
-            <Row key={r.rsn} row={r} view={view} />
+        <div className="overflow-hidden rounded-xl border border-card-border [&>div:last-child>div:last-child]:border-b-0">
+          {view.rows.map((r, i) => (
+            <div key={r.rsn}>
+              {/* Where the players with a drop end and the rest, ordered by Due, begin. */}
+              {view.v2 && view.rated && r.count === 0 && (i === 0 || view.rows[i - 1].count > 0) && (
+                <p className="border-b border-card-border/60 bg-brown-dark/40 px-3 py-1.5 text-xs text-text-muted">No drop yet: ordered by how due they are</p>
+              )}
+              <Row row={r} view={view} />
+            </div>
           ))}
         </div>
+      )}
+      {view.v2 && view.rated && started && (
+        <p className="mt-2 max-w-3xl text-xs leading-relaxed text-text-muted">
+          <b className="text-foreground/80">Due</b> adds up how much of each row&rsquo;s drop rate a player has worked through since the start: 2,140 kills toward a 1 in 5,000 pet is 43%.
+          100% means one is expected by now. Kills and XP are never added together. A row with no drop rate in our data (a skilling pet&rsquo;s XP) shows its gain and adds nothing.
+        </p>
       )}
       {started && view.drops === 0 && view.rows.length > 0 && (
         <p className="mt-2 text-xs text-text-muted">No drops yet. {view.statUnit === 'kills' ? 'The list is in order of kills, so the top is whoever is driest.' : ''}</p>
@@ -274,7 +342,7 @@ export function HuntProofForm({
             />
           </div>
         )}
-        {target && !fixedSource && !proof.pets && (
+        {target && !fixedSource && !proof.pets && !target.pet && (
           <div>
             <label className={label}>Where it came from</label>
             {target.free && target.sources.length === 0 ? (
@@ -324,7 +392,7 @@ export function HuntProofForm({
           </label>
           <NumberInput value={stat} onChange={setStat} min={0} max={statKind === 'kc' ? 1_000_000 : 200_000_000} aria-label={statKind === 'kc' ? 'Kill count at the drop' : 'XP at the drop'} />
         </div>
-        {!proof.pets && (
+        {!proof.pets && !target?.pet && (
           <div>
             <label className={label}>How many</label>
             <NumberInput value={quantity} onChange={setQuantity} min={1} max={1_000_000} fallback={1} aria-label="Quantity" />
