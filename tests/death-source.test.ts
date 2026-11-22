@@ -60,3 +60,11 @@ test('a pet is never the killer', () => {
   assert.equal(shownKiller('Lil Bob'), 'Lil Bob'); // a player
   assert.equal(shownKiller('Vorkath'), 'Vorkath');
 });
+
+test("CoX's puzzle crabs never read as the killer, stored or new", () => {
+  for (const crab of ['Jewelled Crab (red)', 'Jewelled Crab (green)', 'Jewelled Crab (blue)', 'Jewelled Crab']) assert.equal(shownKiller(crab), null);
+  const raw: Record<string, unknown> = { kind: 'death', source: 'Jewelled Crab (blue)', sourceKind: 'npc' };
+  settleDeathSource(raw);
+  assert.equal(raw.source, null);
+  assert.equal(shownKiller('Great Olm'), 'Great Olm');
+});

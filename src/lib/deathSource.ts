@@ -50,7 +50,14 @@ const NOT_A_KILLER = new Set([
 // "Lil'" needs its apostrophe: no RSN can hold one, so a PvP killer called "Lil Bob" is never hidden.
 const PET_NAME = /^(?:lil'|little (?:nightmare|parasite)$|tiny tempor$|smol heredit$|(?:corrupted )?youngllef$)/i;
 
-const neverKiller = (name: string) => NOT_A_KILLER.has(name.trim().toLowerCase()) || PET_NAME.test(name.trim());
+/**
+ * CoX's crystal-crab puzzle: the Jewelled Crabs (red, green, blue) turn to face whoever is in the room
+ * and never deal damage, so a death later in the raid — Olm, Vasa, a fall — read "Killed by Jewelled
+ * Crab (red)". Thirty deaths in a month said so.
+ */
+const PUZZLE_NPC = /^jewell?ed crab\b/i;
+
+const neverKiller = (name: string) => NOT_A_KILLER.has(name.trim().toLowerCase()) || PET_NAME.test(name.trim()) || PUZZLE_NPC.test(name.trim());
 
 /** A stored death's killer as it should read: null for one of the never-killers above, or a pet. */
 export function shownKiller(source: string | null | undefined): string | null {
