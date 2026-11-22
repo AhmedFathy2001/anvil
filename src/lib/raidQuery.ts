@@ -882,3 +882,13 @@ export function conditionsFromSelection(sel: RaidSelection | undefined, fallback
   const picks = picksFromSelection(sel ?? defaultRaidSelection(fallback));
   return { v: 1, raids: picks };
 }
+
+/**
+ * A tile title with its start-count rule said: "First TzKal-Zuk" for a single first, else the title
+ * with ", as a first" / ", under 5 at the start" / ", over 50 at the start" after it.
+ */
+export function titleWithStartCount(title: string, noun: string, amount: number | null, sc: StartCount | null | undefined): string {
+  if (!sc) return title;
+  if (sc.op === 'lt' && sc.n === 1) return (amount ?? 1) <= 1 ? `First ${noun}` : `${title}, as a first`;
+  return `${title}, ${sc.op === 'lt' ? 'under' : 'over'} ${sc.n} at the start`;
+}

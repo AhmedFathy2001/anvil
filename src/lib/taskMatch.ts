@@ -50,6 +50,8 @@ import {
   type RaidId,
   type RaidSelection,
 } from '@/lib/tileCreatorConfig';
+import type { StartCount, TileConditions } from '@/lib/tileConditions';
+import { isPlainRaidTile, parseRaidQuery, raidConditionsTile, raidQueryText, titleWithStartCount } from '@/lib/raidQuery';
 
 // ─── Types ───────────────────────────────────────────────────────────────────────────────────
 
@@ -93,6 +95,8 @@ export interface TaskCandidate {
     courses?: string[];
     /** A collection-log tile's picks (lib/clogTiles). */
     clog?: { mode: 'slots' | 'complete'; pages: string[]; itemIds: number[] };
+    /** A raid tile's conditions as the raid box read them (lib/raidQuery). */
+    conditions?: TileConditions;
   };
   category: BrowseCategory;
   score: number;
@@ -184,6 +188,8 @@ export interface ParsedQuery {
   all: string[];
   /** A time cap, when the task says "sub 30" / "under 1:20:00". */
   timeCapSeconds: number | null;
+  /** The player's count when the event starts: "first" (under 1), "first 5", "under 5 kc", "over 50 kc". */
+  startCount: StartCount | null;
 }
 
 function parseClock(s: string): number | null {
@@ -255,6 +261,20 @@ export function expandShorthands(text: string): string {
 export function parseTaskQuery(query: string): ParsedQuery {
   let text = expandShorthands(query.trim().replace(/\s+/g, ' '));
   let timeCapSeconds: number | null = null;
+  // Read before the time cap, so "under 5 kc" is a count and never a five-minute cap.
+  let startCount: StartCount | null = null;
+  const countBar = /\b(under|below|fewer than|less than|over|above|more than)\s+(\d+)\s*(?:kc|kills?|clears?|completions?|count)\b/i.exec(text);
+  if (countBar) {
+    startCount = { op: /^(under|below|fewer|less)/i.test(countBar[1]) ? 'lt' : 'gt', n: parseInt(countBar[2], 10) };
+    text = (text.slice(0, countBar.index) + text.slice(countBar.index + countBar[0].length)).replace(/\s+/g, ' ').trim();
+  }
+  // "first inferno" = under 1 at the start; "first 5 cox" = 5 clears, by players under 5. The number
+  // stays in the text, so it is still read as the amount.
+  const first = /^first\b\s*(\d+\b)?/i.exec(text);
+  if (first && text.length > first[0].length) {
+    startCount = { op: 'lt', n: first[1] ? parseInt(first[1], 10) : 1 };
+    text = text.slice(5).trim();
+  }
   // "sub 30", "sub-25 min", "under 1:20:00", "in under 45 minutes"
   const cap = /\b(?:sub|under|below|in under|faster than)\s*-?\s*(\d{1,2}:\d{2}(?::\d{2})?|\d+(?:\.\d+)?)\s*(m|min|mins|minutes|s|sec|secs|seconds|h|hr|hrs|hours)?\b/i.exec(text);
   if (cap) {
@@ -288,6 +308,7 @@ export function parseTaskQuery(query: string): ParsedQuery {
     tokens: tokens(text),
     all: words(text).map(stem),
     timeCapSeconds,
+    startCount,
   };
 }
 
@@ -925,6 +946,89 @@ function raidCandidate(q: ParsedQuery): TaskCandidate | null {
     score: coverage * 10 + 3,
     confident: coverage >= 0.6,
   };
+}
+
+/**
+ * A raid tile with conditions, read by the raid box (lib/raidQuery): "5 cm challenge time, toa 300
+ * solo, deathless", "first 5 cox". Only when the box reads every word and finds a condition — a
+ * plain "5 cox" stays the hiscores tile raidCandidate makes.
+ */
+function conditionedRaidCandidate(query: string, q: ParsedQuery): TaskCandidate | null {
+  const read = parseRaidQuery(query);
+  if (read.problems.length > 0 || !read.conditions.raids?.length || isPlainRaidTile(read.conditions)) return null;
+  const n = read.clears ?? q.amount ?? 1;
+  const tile = raidConditionsTile(read.conditions, n);
+  if (!tile.ok) return null;
+  const how = howItCountsLine(tile.config);
+  // The deathless and speed kinds already answer "deathless tob" / "tob sub 20": this reading sits
+  // beside them, a step below, rather than taking their place.
+  const ownKind = ['deathless', 'flawless', 'death', 'speed', 'speedrun'].some((w) => q.all.includes(w)) || q.timeCapSeconds != null;
+  return {
+    key: `raidc-${raidQueryText(read.conditions, null)}`,
+    source: 'raid',
+    badge: 'Raids',
+    title: tile.title,
+    titleTemplate: tile.titleTemplate,
+    titleOne: tile.titleOne,
+    hint: how.text,
+    engine: how.engine,
+    verb: 'Clear',
+    noun: 'raids',
+    amountField: 'requiredAmount',
+    amount: n,
+    config: tile.config,
+    flow: 'raids',
+    seed: { conditions: read.conditions },
+    category: 'bosses',
+    score: ownKind ? 7 : 12,
+    confident: !ownKind,
+  };
+}
+
+// Kill and log candidates take a start count ("first inferno"); raids get theirs from the raid box.
+const START_COUNT_SOURCES = new Set<CandidateSource>(['boss', 'monster', 'counter', 'clogtile']);
+
+/**
+ * "first inferno", "first 5 tempoross", "zulrah under 50 kc": each kill / log reading again with the
+ * start count set, ranked just above the same reading without it. "first X" also offers X's
+ * collection-log slot when X names a log item ("first quiver").
+ */
+function startCountCandidates(found: TaskCandidate[], q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
+  const sc = q.startCount!;
+  const out: TaskCandidate[] = [];
+  const withCount = (c: TaskCandidate, bonus: number): TaskCandidate => {
+    // "first inferno" is one kill; "first 5 cox" five. A count bar alone keeps the usual amount.
+    const amount = q.amount == null && sc.op === 'lt' && c.amountField ? sc.n : c.amount;
+    const base = amount !== c.amount ? applyAmount(c, amount) : c;
+    const conditions: TileConditions = { ...(base.config.conditions ?? { v: 1 }), startCount: sc };
+    return {
+      ...base,
+      key: `${c.key}-start`,
+      title: titleWithStartCount(base.title, base.noun, amount, sc),
+      config: { ...base.config, conditions },
+      score: c.score + bonus,
+    };
+  };
+  for (let i = 0; i < found.length; i++) {
+    const c = found[i];
+    // A plain raid reading loses to the raid box's, which carries the count.
+    if (c.source === 'raid' && !c.config.conditions && found.some((x) => x.key.startsWith('raidc-'))) {
+      found[i] = { ...c, score: c.score - 3, confident: false };
+      continue;
+    }
+    if (!START_COUNT_SOURCES.has(c.source)) continue;
+    out.push(withCount(c, 0.5));
+    // The same reading without the count is still offered, never as the confident pick.
+    found[i] = { ...c, confident: false };
+  }
+  if (sc.op === 'lt' && sc.n === 1 && !found.some((c) => c.source === 'clogtile')) {
+    const item = clogItemFor(q.text, ctx);
+    if (item) {
+      const slot = clogTileCandidate({ mode: 'slots', pages: [item.page], itemIds: [item.id], itemNames: [item.name] }, 1);
+      out.push(withCount({ ...slot, noun: item.name, score: 9, confident: !out.some((c) => c.confident) }, 0));
+    }
+  }
+  return out;
 }
 
 const COURSE_TOKENS: Record<string, string[]> = {
@@ -1791,6 +1895,9 @@ function matchExact(query: string, ctx: MatchContext): TaskCandidate[] {
   }
   out.push(...clogCandidates(q, ctx));
   out.push(...clogTileCandidates(query, q, ctx));
+  const conditioned = conditionedRaidCandidate(query, q);
+  if (conditioned) out.push(conditioned);
+  if (q.startCount) out.push(...startCountCandidates(out, q, ctx));
 
   out.sort((a, b) => b.score - a.score);
   // One row per key (a library task and its seed can share a label but not a key).
