@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clogSlotPostedRecently } from '@/lib/notifySeen';
 import { duplicateClogSlot } from '@/lib/notifyDedupe';
 import { judgeDropRequest, withNotableFacts, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
@@ -250,7 +251,10 @@ export async function POST(request: Request) {
   const poster = member?.rsn ?? (await posterRsn(request, auth.userId));
   if (kind !== undefined && facts && typeof facts === 'object' && !Array.isArray(facts)) facts = factsAsPoster(facts, poster);
   // One unlock, one post (lib/notifyDedupe): the plugin's two sightings of a slot can both arrive.
-  if (kind === 'clogSlot' && facts && typeof facts === 'object' && duplicateClogSlot(auth.userId, (facts as Record<string, unknown>).item)) {
+  if (
+    kind === 'clogSlot' && facts && typeof facts === 'object' &&
+    (duplicateClogSlot(auth.userId, (facts as Record<string, unknown>).item) || (await clogSlotPostedRecently(auth.userId, (facts as Record<string, unknown>).item)))
+  ) {
     return NextResponse.json({ ok: true, declined: 1 });
   }
   // A diary completion below the tier in force (the person's own, else their clan's default) posts
