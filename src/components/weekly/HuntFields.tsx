@@ -12,19 +12,8 @@ import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import { clanFetch } from '@/lib/clanFetch';
 import { BOSSES, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS, metricKeys } from '@/lib/constants';
 import { parseTypedHunt, type TypedHunt } from '@/lib/huntTyped';
-import {
-  MAX_ENDING_DROPS,
-  MAX_HUNT_ITEMS,
-  MAX_HUNT_ROWS,
-  MAX_ITEM_POINTS,
-  type HuntConfirm,
-  type HuntCountMode,
-  type HuntEnding,
-  type HuntRowStat,
-  type HuntRule,
-  autoRowStat,
-  rowStatLabel,
-} from '@/lib/itemHunt';
+import { decodeStat, encodeStat, huntFormRow, type HuntFormItem, type HuntFormValue } from '@/lib/huntForm';
+import { MAX_ENDING_DROPS, MAX_HUNT_ITEMS, MAX_HUNT_ROWS, MAX_ITEM_POINTS, type HuntConfirm, type HuntEnding, autoRowStat, rowStatLabel } from '@/lib/itemHunt';
 import NumberInput from '@/components/NumberInput';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { itemIconUrl } from '@/lib/tileIcons';
@@ -37,92 +26,9 @@ import { MAX_WEEKLY_PLACES } from '@/lib/weeklyPrizes';
  * (lib/itemHunt huntFromInput).
  */
 
-export interface HuntFormItem {
-  id: number;
-  name: string;
-  /** Sources the drop dataset lists for it: the choices offered. */
-  known: string[];
-  sources: string[];
-  anySource: boolean;
-  count: HuntCountMode;
-  /** Rule 'points': what one drop (or piece, counting the quantity) scores. */
-  points: number;
-  /** A pet: no source to choose, one at a time. */
-  pet: boolean;
-  /** "Closest to it": 'boss:<keys>' / 'skill:<key>', '' for nothing (encodeStat). */
-  stat: string;
-  /** Still the one picked for it: an item's follows its sources until someone picks by hand. */
-  statAuto: boolean;
-}
-
-export interface HuntFormValue {
-  items: HuntFormItem[];
-  rule: HuntRule;
-  /** Rule 'points': 'first' scores only each player's first drop of each item. */
-  repeat: 'every' | 'first';
-  ends: HuntEnding;
-  confirm: HuntConfirm;
-  /** The prizes shortcut: gp for each paid place, first place first. Empty = none set here. */
-  prizes: number[];
-}
-
-export const DEFAULT_HUNT: HuntFormValue = { items: [], rule: 'first', repeat: 'every', ends: { kind: 'date' }, confirm: 'staff', prizes: [] };
-
-export const encodeStat = (stat: HuntRowStat | null | undefined): string => (stat ? `${stat.type}:${stat.metric}` : '');
-export function decodeStat(v: string): HuntRowStat | null {
-  const [type, metric] = [v.slice(0, v.indexOf(':')), v.slice(v.indexOf(':') + 1)];
-  return (type === 'boss' || type === 'skill') && metric ? { type, metric } : null;
-}
-
-/** A new row: items take the sources they were picked with, everything takes its stat from the data. */
-export function huntFormRow(t: { id: number; name: string; known?: string[]; sources?: string[]; pet?: boolean; points?: number }): HuntFormItem {
-  const pet = !!t.pet;
-  const sources = pet ? [] : (t.sources ?? []);
-  return {
-    id: t.id,
-    name: t.name,
-    known: pet ? [] : (t.known ?? sources),
-    sources,
-    anySource: false,
-    count: 'drops',
-    points: t.points ?? 1,
-    pet,
-    stat: encodeStat(autoRowStat({ id: t.id, name: t.name, sources, pet })),
-    statAuto: true,
-  };
-}
-
-/** What the form posts as `hunt`. */
-export function huntPayload(v: HuntFormValue) {
-  return {
-    v: 2,
-    items: v.items.map((it) => ({
-      id: it.id,
-      name: it.name,
-      sources: it.pet || it.anySource ? [] : it.sources,
-      anySource: it.anySource,
-      count: it.count,
-      points: it.points,
-      // Sent as chosen, "Nothing" included, so the server never re-picks what someone changed.
-      stat: decodeStat(it.stat),
-    })),
-    rule: v.rule,
-    ...(v.rule === 'points' ? { repeat: v.repeat } : {}),
-    ends: v.ends,
-    confirm: v.confirm,
-  };
-}
-
-/** The prize ladder the shortcut sets (lib/weeklyPrizes shape), or null when it sets none. */
-export function huntPrizesPayload(v: HuntFormValue): { places: { gp: number }[]; payZeroGain: false } | null {
-  const places = v.prizes.filter((gp) => gp > 0);
-  return places.length > 0 && places.length === v.prizes.length ? { places: places.map((gp) => ({ gp })), payZeroGain: false } : null;
-}
-
-/** An item still waiting for its "Counts from" choice, if any. The form refuses to submit on one. */
-export function huntUnchosen(v: HuntFormValue): HuntFormItem | null {
-  return v.items.find((it) => !it.pet && !it.anySource && it.sources.length === 0) ?? null;
-}
+// The form's value and what it posts live in lib/huntForm, so a server page can build one too.
+export { DEFAULT_HUNT, decodeStat, encodeStat, huntFormRow, huntPayload, huntPrizesPayload, huntUnchosen } from '@/lib/huntForm';
+export type { HuntFormItem, HuntFormValue } from '@/lib/huntForm';
 
 interface SearchItem { id: number; name: string; sources: string[] }
 interface SearchBoss { name: string; items: { id: number; name: string }[] }

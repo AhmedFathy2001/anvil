@@ -34,6 +34,7 @@ import {
   rowProgressWords,
   serializeHunt,
 } from '@/lib/itemHunt';
+import { huntFormFromConfig, huntPayload, huntPrizesPayload } from '@/lib/huntForm';
 import { huntRates, killsPerDrop } from '@/lib/huntRates';
 import { huntRowParts, mergeHuntRowStats } from '@/lib/weeklyMetric';
 
@@ -276,4 +277,30 @@ test('row stats: each key off one read, start fixed at the first reading, curren
   assert.deepEqual(later.baseline, { ...read, 'skill:thieving': 50 });
   assert.deepEqual(later.current, { 'skill:fishing': 1_000_500, 'boss:generalGraardor': 12, 'skill:thieving': 50 });
   assert.equal(mergeHuntRowStats(later.baseline, later.current, { 'boss:generalGraardor': 12 }).changed, false);
+});
+
+// ── The form ────────────────────────────────────────────────────────────────────────────────
+
+test('the form: a v1 pet hunt opens as pet rows, and what it posts is a v2 hunt the server takes', () => {
+  const v1 = parseHunt(JSON.stringify({ v: 1, target: 'pets', items: [], petGroup: 'gwd', petIds: [GRAARDOR_PET, 12649], rule: 'first', ends: { kind: 'date' }, confirm: 'staff', killsOf: null, xpSkill: null }));
+  assert.ok(v1);
+  const form = huntFormFromConfig(v1);
+  assert.deepEqual(
+    form.items.map((it) => [it.id, it.pet, it.stat]).sort((a, b) => Number(a[0]) - Number(b[0])),
+    [
+      [GRAARDOR_PET, true, 'boss:generalGraardor'],
+      [12649, true, 'boss:kreeArra'],
+    ].sort((a, b) => Number(a[0]) - Number(b[0])),
+  );
+  const back = huntFromInput(huntPayload({ ...form, ends: { kind: 'all' } }));
+  assert.ok(back.ok);
+  assert.equal(back.config.v, 2);
+  assert.deepEqual(back.config.ends, { kind: 'all' });
+  // "Nothing" survives the trip: it is posted as null, not re-picked.
+  const none = huntFromInput(huntPayload({ ...form, items: form.items.map((it) => ({ ...it, stat: '' })) }));
+  assert.ok(none.ok);
+  assert.deepEqual(none.config.items.map((it) => it.stat), [null, null]);
+  // The prizes shortcut sets a ladder only when every place has an amount.
+  assert.equal(huntPrizesPayload({ ...form, prizes: [10_000_000, 0] }), null);
+  assert.deepEqual(huntPrizesPayload({ ...form, prizes: [10_000_000, 5_000_000] }), { places: [{ gp: 10_000_000 }, { gp: 5_000_000 }], payZeroGain: false });
 });

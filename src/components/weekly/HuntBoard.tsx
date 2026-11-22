@@ -177,7 +177,7 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
         Standings
         <span className="text-xs font-normal text-text-muted">
           {view.rows.length} entered · {view.rule === 'first' ? 'in the order they got it' : view.rule === 'points' ? 'most points first' : 'most drops first'}
-          {view.statLabel && view.statUnit === 'kills' && ` · kills at ${view.statLabel} since the start`}
+          {!view.v2 && view.statLabel && view.statUnit === 'kills' && ` · kills at ${view.statLabel} since the start`}
         </span>
       </h2>
       <p className="mb-3 text-xs text-text-muted">Drops count from the Anvil plugin, or from a screenshot with the kill count or XP that staff approve.</p>
@@ -223,7 +223,7 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
         </p>
       )}
       {started && view.drops === 0 && view.rows.length > 0 && (
-        <p className="mt-2 text-xs text-text-muted">No drops yet. {view.statUnit === 'kills' ? 'The list is in order of kills, so the top is whoever is driest.' : ''}</p>
+        <p className="mt-2 text-xs text-text-muted">No drops yet. {view.v2 && view.rated ? 'The list is in order of Due, so the top is whoever is driest.' : view.statUnit === 'kills' ? 'The list is in order of kills, so the top is whoever is driest.' : ''}</p>
       )}
     </div>
   );
