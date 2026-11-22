@@ -1513,6 +1513,20 @@
       "when": 1795271000000,
       "tag": "0278_competition_ping",
       "breakpoints": true
+    },
+    {
+      "idx": 279,
+      "version": "7",
+      "when": 1795272000000,
+      "tag": "0279_tile_conditions",
+      "breakpoints": true
+    },
+    {
+      "idx": 280,
+      "version": "7",
+      "when": 1795273000000,
+      "tag": "0280_hunt_row_stats",
+      "breakpoints": true
     }
   ]
 }

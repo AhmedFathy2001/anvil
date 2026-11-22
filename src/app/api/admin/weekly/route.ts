@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     const config = checked.config;
     // Kills at the source come from the chosen sources when every one is a hiscores boss. With
     // "any source" the organiser may have picked a boss to show instead. A pet hunt's come from the
-    // pets' own bosses, worked out in huntFromInput.
-    if (config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
+    // pets' own bosses, worked out in huntFromInput. A v2 hunt's comes from its rows' own stats.
+    if (config.v === 1 && config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
     if (config.killsOf) config.xpSkill = null;
     huntJson = serializeHunt(config);
     metric = huntTargetsLabel(config);

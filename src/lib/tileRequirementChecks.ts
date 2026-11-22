@@ -72,6 +72,15 @@ export function pluginVersionVerdict(seen: SeenPlugin | null, min: string): Chec
   return { status: 'ok', text: `Anvil plugin ${seen.version} is new enough.` };
 }
 
+/** Raid and ToA-level tiles: does the plugin this character last played on report raid clears? */
+export function raidPluginVerdict(seen: SeenPlugin | null, min: string): CheckVerdict {
+  if (!seen) return { status: 'unknown', text: 'We haven’t seen the Anvil plugin on this character yet.' };
+  const cmp = compareVersions(seen.version, min);
+  if (cmp == null) return { status: 'unknown', text: `Can’t tell whether plugin ${seen.version} is new enough.` };
+  if (cmp < 0) return { status: 'problem', text: `Needs the latest Anvil plugin: yours (${seen.version}) doesn’t report raid clears, so this tile can’t count for you. Update to ${min} or newer.` };
+  return { status: 'ok', text: `Anvil plugin ${seen.version} reports raid clears.` };
+}
+
 /** Has this character synced their collection log (whole-page tiles need it from before the start)? */
 export function clogSyncedVerdict(synced: boolean): CheckVerdict {
   if (!synced) return { status: 'problem', text: 'You haven’t synced your collection log yet. Sync it in the plugin before the event starts.' };

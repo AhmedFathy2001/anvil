@@ -10,6 +10,8 @@ import bossIcons from '@/data/bossIcons.json';
 import bossImages from '@/data/bossImages.json';
 import bossHiscoreIcons from '@/data/bossHiscoreIcons.json';
 import { itemAssetUrl, proxyWikiUrl, wikiImageUrl } from '@/lib/assetUrls';
+import { parseConditions } from '@/lib/tileConditions';
+import { RAID_OPTIONS } from '@/lib/tileCreatorConfig';
 
 export { wikiImageUrl } from '@/lib/assetUrls';
 
@@ -292,6 +294,7 @@ export interface IconableTile {
   itemRequirements?: string | null;
   timedActivity?: string | null;
   targetNpcs?: string | null;
+  conditions?: string | null;
 }
 
 /**
@@ -309,6 +312,13 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   const type = (tile.tileType ?? 'standard').toLowerCase();
   if (type === 'timed' || type === 'deathless') {
     const notable = notableItemFor(tile.timedActivity);
+    return notable != null ? itemIconUrl(notable) : null;
+  }
+  // A raid tile (lib/tileConditions): its first raid's signature reward.
+  if (type === 'raid') {
+    const first = parseConditions(tile.conditions)?.raids?.[0]?.raid;
+    const name = RAID_OPTIONS.find((r) => r.id === first)?.modes.find((m) => m.id === 'normal')?.name;
+    const notable = notableItemFor(name);
     return notable != null ? itemIconUrl(notable) : null;
   }
   if (type === 'value') return itemIconUrl(COINS_ITEM_ID);

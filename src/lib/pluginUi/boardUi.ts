@@ -81,7 +81,7 @@ const MANUAL: Color = '#e8b83a';
 const DONE_LINE: Color = '#6fc26f';
 const IN_PROGRESS: Color = 'progress';
 const SET_COLORS: Color[] = ['#e0c06a', '#6ac8e0', '#e08ac4', '#a89af0', '#5fd4be', '#e8a87a'];
-const TRACKED_TYPES = new Set(['kill', 'lap', 'pvp', 'diary', 'ca', 'timed', 'lms', 'value', 'valuetotal', 'deathless', 'clog']);
+const TRACKED_TYPES = new Set(['kill', 'lap', 'pvp', 'diary', 'ca', 'timed', 'lms', 'value', 'valuetotal', 'deathless', 'raid', 'clog']);
 const TYPE_WORDS: Record<string, string[]> = {
   drop: ['drop', 'drops'],
   kill: ['kill', 'kills'],
@@ -90,6 +90,7 @@ const TYPE_WORDS: Record<string, string[]> = {
   gain: ['gain', 'gains', 'item gain', 'gather'],
   timed: ['timed', 'time', 'speedrun'],
   deathless: ['deathless'],
+  raid: ['raid', 'raids', 'clear'],
   diary: ['diary', 'diaries', 'achievement diary'],
   ca: ['ca', 'cas', 'combat task', 'combat achievement'],
   clog: ['clog', 'collection log', 'log slot', 'log page'],

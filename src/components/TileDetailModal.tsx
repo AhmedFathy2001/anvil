@@ -148,7 +148,7 @@ interface Props {
 }
 
 /** Combo parts that take a screenshot of their own (the kinds the submission forms below serve). */
-const PART_PROOF_TYPES = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'diary', 'ca', 'deathless', 'lms', 'clog', 'timed', 'value', 'valuetotal']);
+const PART_PROOF_TYPES = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'diary', 'ca', 'deathless', 'raid', 'lms', 'clog', 'timed', 'value', 'valuetotal']);
 
 /** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
 const CONTRIBUTOR_PREVIEW = 8;
@@ -289,6 +289,8 @@ export default function TileDetailModal({
   const isCa = tile.tileType === 'ca';
   const isGain = tile.tileType === 'gain';
   const isDeathless = tile.tileType === 'deathless';
+  // A raid tile (lib/tileConditions) counts clears; the site judges each one the plugin reports.
+  const isRaid = tile.tileType === 'raid';
   const isLms = tile.tileType === 'lms';
   const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
   // Collection-log tiles (lib/clogTileWords): a slot upload names its item; a whole-page tile takes a
@@ -304,7 +306,7 @@ export default function TileDetailModal({
     : 'Added. Your captain or the staff mark the tile done once they’ve seen it.';
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
-  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms || isClog;
+  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isRaid || isLms || isClog;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
   // A drop tile that counts a big stack ("500 Demon tears") is the same: one amount, one screenshot.
@@ -384,7 +386,7 @@ export default function TileDetailModal({
   const needsItem = isCollection || isDistinctPool || isClogSlots;
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
-  const countNoun = isClogPage ? 'page' : isClog ? 'slot' : isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless || isTimed ? 'run' : isLms ? 'game' : 'drop';
+  const countNoun = isClogPage ? 'page' : isClog ? 'slot' : isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless || isTimed ? 'run' : isRaid ? 'clear' : isLms ? 'game' : 'drop';
   // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
   // Both engines behind "Kills" (hiscores boss tile, plugin kill tile) wear one badge: "Kills · 50".
   // Which engine counts it is the how-it-counts line below.

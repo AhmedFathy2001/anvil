@@ -64,6 +64,9 @@ import { getCofferBalance } from '@/lib/coffer';
 import crypto from 'crypto';
 import { playedCharacter } from '@/lib/pluginAccount';
 import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
+import { needsRaidFacts, parseConditions } from '@/lib/tileConditions';
+import { NEEDS_PLUGIN_LINE, RAID_TILE_TYPE, raidFactsSupportedBy, raidKeys, startCountOfSnapshot, takeLine, tileStartKeys, tileStartWhat } from '@/lib/tileConditionsCheck';
+import { pluginVersionHeader } from '@/lib/pluginSeen';
 import { parseStamp } from '@/lib/dbTime';
 import { tilePingMax } from '@/lib/pingMax';
 import { clanBoostLevel } from '@/lib/clanBoosts';
@@ -804,7 +807,13 @@ export async function buildEnrolledConfig(args: {
   const hasCoopTiles = trackedTiles.some(
     (t) => (t.tileType === 'kill' || t.tileType === 'deathless')
       && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0 || !!t.partyTeamOnly),
-  );
+  ) || trackedTiles.some((t) => {
+    // A raid tile that asks who was inside (lib/tileConditions): the plugin reports `mates`/`all` off
+    // this roster, and a shared raid counted once is correlated from the teammates it names.
+    if (t.tileType !== RAID_TILE_TYPE) return false;
+    const c = parseConditions(t.conditions);
+    return !!c?.mates || c?.shared === 'together';
+  });
   const pvpRoster = hasPvpTiles || hasCoopTiles
     ? (
         await db
@@ -1027,6 +1036,27 @@ export async function buildEnrolledConfig(args: {
   }
 
   const activeBoost = await clanBoostLevel(clan.id).catch(() => null);
+  // TILE CONDITIONS (lib/tileConditions). A raid tile, and a drop tile asking for a ToA level, is
+  // judged from facts only a plugin from RAID_FACTS_MIN_PLUGIN on sends; an older one is told so on
+  // the tile's row instead of watching a tile it can never count. The team view (no caller) goes to
+  // every teammate, so it assumes a current plugin. A start-count tile says whether the CALLER can
+  // take it, from the count recorded for them when the event started (statsSnapshot).
+  const raidFacts = viewer ? raidFactsSupportedBy(pluginVersionHeader(viewer.request)) : true;
+  const myStartStats = playerId != null ? teamPlayers.find((p) => p.id === playerId)?.statsSnapshot ?? null : null;
+  const conditionFields = (t: (typeof trackedTiles)[number]) => {
+    const c = parseConditions(t.conditions);
+    if (!c) return {};
+    const factsNeeded = needsRaidFacts(c) || !!c.toaLevel;
+    let startCount: number | null = null;
+    let take: string | undefined;
+    if (c.startCount && playerId != null) {
+      startCount = startCountOfSnapshot(myStartStats, tileStartKeys(t));
+      take = takeLine(c.startCount, startCount, tileStartWhat(t).noun).line;
+    }
+    if (factsNeeded && !raidFacts) take = NEEDS_PLUGIN_LINE;
+    return { conditions: c, ...(c.startCount ? { startCount } : {}), ...(take ? { take } : {}), ...(factsNeeded && !raidFacts ? { needsPlugin: true } : {}) };
+  };
+
   const body = {
     server: serverInfo(),
     // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
@@ -1209,6 +1239,8 @@ export async function buildEnrolledConfig(args: {
           // Exact raid party size required ("solo Cursed phalanx"); rides
           // timeThresholdSeconds on drop tiles. 0 = any size.
           partySize: t.timeThresholdSeconds ?? 0,
+          // A ToA level the drop's raid must have ended at (lib/tileConditions), judged on the site.
+          ...conditionFields(t),
           // Most this tile can be credited from one kill (0 = uncapped). The plugin enforces it —
           // it's the only side that can see where one kill ends and the next begins.
           perKillCap: t.perKillCap ?? 0,
@@ -1277,6 +1309,8 @@ export async function buildEnrolledConfig(args: {
           coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
           coopMinMembers: t.coopMinMembers ?? 0,
           ...pingMaxField(targetNpcs),
+          // The count when the event started (lib/tileConditions): judged on the site per kill.
+          ...conditionFields(t),
         };
       }),
       // Capped tiles' cap-counter entries (see capKills above).
@@ -1518,6 +1552,29 @@ export async function buildEnrolledConfig(args: {
         itemId: notableItemFor(t.timedActivity) ?? -1,
         completed: completedTileIdSet.has(t.id),
       })),
+
+    // RAID tiles (lib/tileConditions): any of several raids, each with its own bar, plus tile-wide
+    // rules. The plugin only reports each clear on one of `keys` (a `raid` fact); the site judges it.
+    // requiredAmount = clears needed.
+    trackedRaids: trackedTiles
+      .filter((t) => t.tileType === RAID_TILE_TYPE)
+      .map((t) => {
+        const c = parseConditions(t.conditions);
+        return {
+          tileId: t.id,
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          keys: raidKeys(c),
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: currentFor(t),
+          coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+          completed: completedTileIdSet.has(t.id),
+          ...conditionFields(t),
+        };
+      }),
 
     // Combo tiles and their parts (see trackedCombos above). Absent when the board has none.
     ...(trackedCombos.length > 0 ? { trackedCombos } : {}),

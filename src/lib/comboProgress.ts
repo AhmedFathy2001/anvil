@@ -63,7 +63,7 @@ export interface PartInputs {
 }
 
 /** Count kinds whose `requiredAmount` is a count the submissions add up to. */
-const COUNT_KINDS = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'deathless', 'diary', 'ca', 'lms', 'valuetotal']);
+const COUNT_KINDS = new Set(['drop', 'kill', 'lap', 'pvp', 'gain', 'deathless', 'raid', 'diary', 'ca', 'lms', 'valuetotal']);
 
 function isTrialRuns(p: ProgressPart): boolean {
   return p.tileType === 'timed' && (p.requiredAmount ?? 1) > 1;

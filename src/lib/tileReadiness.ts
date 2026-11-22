@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, eventParticipants, submissions, type events } from '@/db/schema';
+import { accounts, eventParticipants, submissions, teams, type events } from '@/db/schema';
 import { clogTileGroups, clogTileItemIds, clogTileSpec, ownedAtStart } from '@/lib/clogTiles';
 import { memberClogLog } from '@/lib/clogTileCredit';
 import { parseStamp } from '@/lib/dbTime';
@@ -14,8 +14,12 @@ import {
   hiscoresRankedVerdict,
   pluginSeenVerdict,
   pluginVersionVerdict,
+  raidPluginVerdict,
   type CheckVerdict,
 } from '@/lib/tileRequirementChecks';
+import { parseConditions } from '@/lib/tileConditions';
+import { RAID_FACTS_MIN_PLUGIN, startCountOfSnapshot, takeSentence, teamTakeLine, tileStartKeys, tileStartWhat } from '@/lib/tileConditionsCheck';
+import { isIndividualMode } from '@/lib/statTracking';
 import { CLOG_TILE_MIN_PLUGIN, tileNeeds, type NeedCheck, type TileNeeds, type TileNeedsLike } from '@/lib/tileRequirements';
 
 // "Before you start", the per-player half: run a tile's checks (lib/tileRequirements) for the VIEWING
@@ -65,7 +69,7 @@ export async function tileReadiness(args: {
 
   // The viewer's own characters on this board.
   const mine = await db
-    .select({ participantId: eventParticipants.id, accountId: accounts.id, rsn: accounts.rsn, status: accounts.status })
+    .select({ participantId: eventParticipants.id, accountId: accounts.id, rsn: accounts.rsn, status: accounts.status, teamId: eventParticipants.teamId, startStats: eventParticipants.statsSnapshot })
     .from(eventParticipants)
     .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
     .where(and(eq(eventParticipants.eventId, event.id), eq(accounts.playerId, personId)));
@@ -73,7 +77,7 @@ export async function tileReadiness(args: {
 
   const all = new Set([...wanted.values()].flatMap((s) => [...s]));
   const accountIds = mine.map((m) => m.accountId);
-  const seen = all.has('plugin-seen') || all.has('plugin-version') ? await pluginSeenFor(accountIds) : new Map();
+  const seen = all.has('plugin-seen') || all.has('plugin-version') || all.has('raid-plugin-version') ? await pluginSeenFor(accountIds) : new Map();
   const wantsClog = all.has('clog-synced') || all.has('clog-owned');
   const logs = wantsClog ? new Map(await Promise.all(accountIds.map(async (id) => [id, await memberClogLog(id)] as const))) : new Map();
   const snapshots = all.has('hiscores-ranked')
@@ -109,7 +113,35 @@ export async function tileReadiness(args: {
         if (!v) continue;
         out.push({ tileId, check, status: v.status, text: mine.length > 1 ? `${m.rsn}: ${v.text}` : v.text });
       }
+      // A start-count tile on a team board: who on the viewer's team can take it (the Board mockup's
+      // "3 of 5 on Team Bandos can take it"). Names and yes/no only, never a teammate's count.
+      if (check === 'start-count' && !isIndividualMode(t.trackingMode)) out.push(...(await teamTakeResults(event.id, tileId, t, mine)));
     }
+  }
+  return out;
+}
+
+async function teamTakeResults(
+  eventId: number,
+  tileId: number,
+  t: TileNeedsLike,
+  mine: { teamId: number | null }[],
+): Promise<ReadinessResult[]> {
+  const bar = parseConditions(t.conditions)?.startCount;
+  const teamIds = [...new Set(mine.map((m) => m.teamId).filter((id): id is number => id != null))];
+  if (!bar || teamIds.length === 0) return [];
+  const keys = tileStartKeys(t);
+  const rows = await db
+    .select({ teamId: eventParticipants.teamId, name: eventParticipants.name, startStats: eventParticipants.statsSnapshot, teamName: teams.name })
+    .from(eventParticipants)
+    .innerJoin(teams, eq(teams.id, eventParticipants.teamId))
+    .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.teamId, teamIds)));
+  const out: ReadinessResult[] = [];
+  for (const teamId of teamIds) {
+    const members = rows.filter((r) => r.teamId === teamId);
+    if (members.length < 2) continue;
+    const line = teamTakeLine(members[0].teamName ?? 'your team', members.map((r) => ({ name: r.name, start: startCountOfSnapshot(r.startStats, keys) })), bar);
+    out.push({ tileId, check: 'start-count', status: 'unknown', text: line });
   }
   return out;
 }
@@ -117,7 +149,7 @@ export async function tileReadiness(args: {
 function verdictFor(
   check: NeedCheck,
   tile: TileNeedsLike,
-  m: { accountId: number; status: string },
+  m: { accountId: number; status: string; startStats?: string | null },
   ctx: {
     seen: Map<number, { version: string; seenAt: string }>;
     logs: Map<number, { synced: boolean; rows: { itemId: number; firstSeenAt: string | null }[] }>;
@@ -132,6 +164,16 @@ function verdictFor(
       return pluginSeenVerdict(ctx.seen.get(m.accountId) ?? null, ctx.nowMs);
     case 'plugin-version':
       return pluginVersionVerdict(ctx.seen.get(m.accountId) ?? null, CLOG_TILE_MIN_PLUGIN);
+    case 'raid-plugin-version':
+      return raidPluginVerdict(ctx.seen.get(m.accountId) ?? null, RAID_FACTS_MIN_PLUGIN);
+    case 'start-count': {
+      // The count is the one recorded for this board when it started (event_participants.stats_snapshot).
+      const bar = parseConditions(tile.conditions)?.startCount;
+      if (!bar) return null;
+      const { what, noun } = tileStartWhat(tile);
+      const v = takeSentence(bar, startCountOfSnapshot(m.startStats, tileStartKeys(tile)), what, noun);
+      return { status: v.ok ? 'ok' : 'problem', text: v.text };
+    }
     case 'clog-synced':
       return clogSyncedVerdict(!!ctx.logs.get(m.accountId)?.synced);
     case 'clog-owned': {

@@ -1,6 +1,7 @@
 import type { ComboRule } from '@/lib/combo';
 import type { ProofAttachment } from '@/lib/proofAttachments';
 import type { MissionReward } from '@/lib/eventRules';
+import type { TileConditions } from '@/lib/tileConditions';
 // Canonical shared types used across client components
 
 import type { SignupProfile } from '@/lib/signup';
@@ -113,6 +114,8 @@ export interface Tile extends TileRevealState {
   timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)
   partySize?: number | null; // timed raid tiles — exact party size required (null = any)
   minRaidLevel?: number | null; // ToA timed/deathless tiles — raid level the run must END at (null = any)
+  /** JSON TileConditions (lib/tileConditions): raids + per-raid bars, deaths, teammates, start count. */
+  conditions?: string | null;
   partyTeamOnly?: number | null; // deathless tiles — 1 = every player in the raid is on the team
   pvpMinLootValue?: number | null; // pvp tiles — min loot value (gp) a kill must yield (null/0 = none)
   /** Combo PART (lib/combo): the combo this tile is a piece of. Parts are never board cells. */
@@ -300,6 +303,8 @@ export interface TileConfig {
   partySize?: number | null;
   // ToA timed/deathless tiles: the raid level the run must END at (after any failed timer). null = any.
   minRaidLevel?: number | null;
+  // Raid / kill / drop / log tiles: conditions judged on the site (lib/tileConditions). null = none.
+  conditions?: TileConditions | null;
   // Deathless tiles: every player in the raid must be on the team.
   partyTeamOnly?: boolean | null;
   // PvP tiles: minimum loot value (gp) a kill must yield to count. null/0 = no minimum.

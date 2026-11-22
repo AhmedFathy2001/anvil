@@ -188,6 +188,7 @@ export async function GET(request: Request) {
         trackedValues: [],
         trackedGains: [],
         trackedDeathless: [],
+        trackedRaids: [],
         trackedDiaries: [],
         trackedCombatTasks: [],
         trackedClog: [],

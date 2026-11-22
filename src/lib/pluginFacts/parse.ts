@@ -22,7 +22,10 @@ export function parseFacts(raw: unknown, max = MAX_FACTS): Fact[] {
         .slice(0, MAX_ITEMS)
         .filter((p): p is [number, number] => Array.isArray(p) && int(p[0], 1_000_000) != null && int(p[1]) != null)
         .map(([id, q]) => [id, q] as [number, number]);
-      if (items.length) out.push({ k: 'loot', src: str(o.src), kind, items, party: int(o.party, 255), inf: str(o.inf, 48) });
+      // Inside a raid the loot also says the ToA level at the chest and the deaths seen (lib/tileConditions).
+      const lvl = int(o.lvl, 1_000);
+      const deaths = int(o.deaths, 255);
+      if (items.length) out.push({ k: 'loot', src: str(o.src), kind, items, party: int(o.party, 255), inf: str(o.inf, 48), ...(lvl != null ? { lvl } : {}), ...(deaths != null ? { deaths } : {}) });
     } else if (o.k === 'value' && kind && int(o.gp) != null) {
       out.push({ k: 'value', src: str(o.src), kind, gp: o.gp as number });
     } else if (o.k === 'kill' && o.n && typeof o.n === 'object') {
@@ -31,7 +34,14 @@ export function parseFacts(raw: unknown, max = MAX_FACTS): Fact[] {
         if (str(name) && int(amount, 10_000)) n[name] = amount as number;
       }
       const unv = Array.isArray(o.unv) ? (o.unv as unknown[]).map((x) => str(x)).filter((x): x is string => !!x) : undefined;
-      if (Object.keys(n).length) out.push({ k: 'kill', n, unv, inf: str(o.inf, 48) });
+      // The game's count line per name, when the plugin read one: the absolute count after this kill.
+      let c: Record<string, number> | undefined;
+      if (o.c && typeof o.c === 'object' && !Array.isArray(o.c)) {
+        for (const [name, count] of Object.entries(o.c as Record<string, unknown>).slice(0, 8)) {
+          if (str(name) && int(count, 10_000_000) != null && (count as number) > 0) (c ??= {})[name] = count as number;
+        }
+      }
+      if (Object.keys(n).length) out.push({ k: 'kill', n, unv, inf: str(o.inf, 48), ...(c ? { c } : {}) });
     } else if (o.k === 'tile' && Number.isInteger(o.t) && o.t !== 0 && Math.abs(o.t as number) <= 2_147_483_647 && int(o.n, typeof o.note === 'string' ? undefined : 10_000)) {
       // A replayed older proof (`note`) may carry a value tile's gp as its amount.
       out.push({
@@ -50,6 +60,20 @@ export function parseFacts(raw: unknown, max = MAX_FACTS): Fact[] {
         item: opt(int(o.item, 1_000_000)),
         inf: opt(str(o.inf, 48)),
         note: opt(str(o.note, 500)),
+      });
+    } else if (o.k === 'raid' && str(o.key, 64)) {
+      // A raid clear (lib/tileConditions RaidRun): each number only when the plugin saw it.
+      out.push({
+        k: 'raid',
+        key: (o.key as string).toLowerCase(),
+        sec: opt(int(o.sec, 86_400)),
+        party: opt(int(o.party, 255)),
+        scale: opt(int(o.scale, 255)),
+        deaths: opt(int(o.deaths, 255)),
+        lvl: opt(int(o.lvl, 1_000)),
+        mates: opt(int(o.mates, 255)),
+        all: o.all === true || undefined,
+        kc: opt(int(o.kc, 10_000_000)),
       });
     }
     // A re-sent fact: the tiles it already landed on.

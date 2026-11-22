@@ -31,7 +31,7 @@ const TEAM_FIELDS = [
   'event', 'team', 'board', 'completedTiles',
   'trackedStats', 'trackedKcNames', 'trackedSkillNames', 'trackedActivityKeys',
   'trackedDrops', 'trackedKills', 'trackedPvp', 'trackedDiaries', 'trackedCombatTasks',
-  'trackedTimed', 'trackedLms', 'trackedValues', 'trackedGains', 'trackedDeathless', 'trackedClog',
+  'trackedTimed', 'trackedLms', 'trackedValues', 'trackedGains', 'trackedDeathless', 'trackedRaids', 'trackedClog',
   // Combo tiles (lib/combo): which tracked rows fold under which combo, and its progress.
   'trackedCombos',
 ] as const;

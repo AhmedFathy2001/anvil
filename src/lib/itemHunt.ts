@@ -14,6 +14,7 @@
 
 import { BOSSES, RAIDS_ANY_MODE, SKILL_LABELS, bossMetricLabel, metricKeys } from '@/lib/constants';
 import { dropCounts } from '@/lib/h2hRules';
+import skillPets from '@/data/skillPets.json';
 import { PET_BOSS_KEYS, PET_GROUPS } from '@/lib/petGroups';
 import { sourceMatches } from '@/lib/pluginFacts/match';
 import { itemIconUrl } from '@/lib/tileIcons';
@@ -27,8 +28,9 @@ export type HuntConfirm = 'staff' | 'auto';
 /**
  * 'date': runs to its end date. 'drops': ends once `n` have landed, across everyone ('all') or by
  * one player ('player', "first to N"). n = 1 across everyone is "when the first one lands".
+ * 'all': ends when one player holds every row of the hunt; nobody does, it runs to the end date.
  */
-export type HuntEnding = { kind: 'date' } | { kind: 'drops'; n: number; by: 'all' | 'player' };
+export type HuntEnding = { kind: 'date' } | { kind: 'drops'; n: number; by: 'all' | 'player' } | { kind: 'all' };
 
 export const MAX_ENDING_DROPS = 1000;
 
@@ -36,13 +38,14 @@ export const MAX_ENDING_DROPS = 1000;
 export function huntSettingsFromInput(body: Record<string, unknown>): { ends: HuntEnding; confirm: HuntConfirm } {
   const e = (body.ends && typeof body.ends === 'object' ? body.ends : {}) as Record<string, unknown>;
   const n = typeof e.n === 'number' && Number.isFinite(e.n) ? Math.min(MAX_ENDING_DROPS, Math.max(1, Math.floor(e.n))) : 1;
-  const ends: HuntEnding = e.kind === 'drops' ? { kind: 'drops', n, by: e.by === 'player' ? 'player' : 'all' } : { kind: 'date' };
+  const ends: HuntEnding = e.kind === 'drops' ? { kind: 'drops', n, by: e.by === 'player' ? 'player' : 'all' } : e.kind === 'all' ? { kind: 'all' } : { kind: 'date' };
   return { ends, confirm: body.confirm === 'auto' ? 'auto' : 'staff' };
 }
 
 /** "at the end date", "after 3 drops", "when one player has 5", "when the first one lands". */
 export function huntEndingWords(ends: HuntEnding): string {
   if (ends.kind === 'date') return 'at the end date';
+  if (ends.kind === 'all') return 'when a player has all of them';
   if (ends.by === 'player') return ends.n === 1 ? 'when the first one lands' : `when one player has ${ends.n.toLocaleString()}`;
   return ends.n === 1 ? 'when the first one lands' : `after ${ends.n.toLocaleString()} drops`;
 }
@@ -56,10 +59,28 @@ export interface HuntItem {
   count: HuntCountMode;
   /** Rule 'points': what one drop (or one piece, under 'quantity') of it scores. Absent = 1. */
   points?: number;
+  /** v2: the row is a pet. It counts from wherever it came, one at a time, like a v1 pet hunt's. */
+  pet?: true;
+  /**
+   * v2: "Closest to it", the stat that shows progress toward this row (kills at its boss, XP in its
+   * skill). null = nothing shown for it. Absent on every v1 config, which has the one stat below.
+   */
+  stat?: HuntRowStat | null;
 }
 
+/** One row's progress stat. `metric` is a lib/constants metricKeys list: a raid reads as its modes. */
+export interface HuntRowStat {
+  type: 'boss' | 'skill';
+  metric: string;
+}
+
+/**
+ * v1: one list of items, OR one group of pets, with one stat beside the count.
+ * v2: one list of rows where a pet is just another row, each with its own progress stat. Stored v1
+ * configs are read exactly as they were written (huntFromInput's v1 path); the form only writes v2.
+ */
 export interface HuntConfig {
-  v: 1;
+  v: 1 | 2;
   target: 'items' | 'pets';
   items: HuntItem[];
   /** target 'pets': a lib/petGroups key; 'all' is "any pet". */
@@ -92,6 +113,8 @@ export interface HuntConfig {
 }
 
 export const MAX_HUNT_ITEMS = 12;
+/** v2: rows in all. Items stay at MAX_HUNT_ITEMS (each one is an id the plugin is asked to report); pets ride free. */
+export const MAX_HUNT_ROWS = 80;
 export const MAX_HUNT_SOURCES = 12;
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -136,6 +159,7 @@ export function huntFromInput(
   opts: { lenient?: boolean } = {},
 ): { ok: true; config: HuntConfig } | { ok: false; error: string } {
   const body = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  if (body.v === 2) return huntV2FromInput(body, opts);
   const target = body.target === 'pets' ? 'pets' : 'items';
   const rule: HuntRule = body.rule === 'most' ? 'most' : body.rule === 'first' ? 'first' : body.rule === 'points' ? 'points' : (null as never);
   if (!rule) return { ok: false, error: 'Pick the rule: first to get it, most by the end, or most points.' };
@@ -212,10 +236,184 @@ export function huntFromInput(
   };
 }
 
+// ── v2: one list, a pet is a row ───────────────────────────────────────────────────────────
+
+const ALL_PETS = PET_GROUPS.find((g) => g.key === 'all')?.items ?? [];
+const PET_BY_ID = new Map(ALL_PETS.map((p) => [p.id, p]));
+
+export function isPetId(id: number | null | undefined): boolean {
+  return id != null && PET_BY_ID.has(id);
+}
+
+/**
+ * The skill a skilling pet comes from, read off src/data/skillPets.json (the same map a skill week's
+ * feed uses). The first skill that lists it: Smolcano is under Mining and Smithing, and has a boss
+ * anyway. Slayer is left out: the pets it lists are boss pets, and their boss's kills say more.
+ */
+function petSkill(name: string): string | null {
+  const skills = (skillPets as { skills?: Record<string, string[]> }).skills ?? {};
+  for (const [skill, names] of Object.entries(skills)) {
+    if (skill === 'slayer' || !SKILL_LABELS[skill]) continue;
+    if (names.some((n) => norm(n) === norm(name))) return skill;
+  }
+  return null;
+}
+
+/**
+ * "Closest to it" when nobody chose: a boss pet takes its boss's kills (lib/petGroups PET_BOSS_KEYS),
+ * a skilling pet its skill's XP, an item the kills at its sources when every source is a hiscores
+ * boss. Anything else has no honest number and gets none.
+ */
+export function autoRowStat(row: { id: number; name: string; sources: string[]; pet?: boolean }): HuntRowStat | null {
+  if (row.pet || isPetId(row.id)) {
+    const keys = PET_BOSS_KEYS[row.id];
+    if (keys && keys.length > 0) return { type: 'boss', metric: keys.join(',') };
+    const skill = petSkill(PET_BY_ID.get(row.id)?.name ?? row.name);
+    return skill ? { type: 'skill', metric: skill } : null;
+  }
+  const killsOf = killsOfForItems([{ id: row.id, name: row.name, sources: row.sources, count: 'drops' }]);
+  return killsOf ? { type: 'boss', metric: killsOf } : null;
+}
+
+/** A row stat as a form or a stored config gave it, checked: real boss keys, or a real skill (not Total). */
+export function rowStatFromInput(raw: unknown): HuntRowStat | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.metric !== 'string') return null;
+  if (r.type === 'skill') return r.metric !== 'overall' && SKILL_LABELS[r.metric] ? { type: 'skill', metric: r.metric } : null;
+  if (r.type !== 'boss') return null;
+  const keys = [...new Set(metricKeys(r.metric))];
+  return keys.length > 0 && keys.every((k) => BOSSES.some((b) => b.key === k)) ? { type: 'boss', metric: keys.join(',') } : null;
+}
+
+/** "General Graardor kills", "Fishing XP", "Chambers of Xeric kills". */
+export function rowStatLabel(stat: HuntRowStat | null | undefined): string | null {
+  if (!stat) return null;
+  if (stat.type === 'skill') return `${SKILL_LABELS[stat.metric] ?? stat.metric} XP`;
+  const names = bossNames(stat.metric);
+  return `${names.length <= 2 ? names.join(' + ') : `${names[0]} + ${names.length - 1} more`} kills`;
+}
+
+/** The short name the standings use: "Fishing", "General Graardor", "Callisto + 1". */
+export function rowStatShort(stat: HuntRowStat): string {
+  if (stat.type === 'skill') return SKILL_LABELS[stat.metric] ?? stat.metric;
+  const names = bossNames(stat.metric);
+  return names.length === 1 ? names[0] : `${names[0]} + ${names.length - 1}`;
+}
+
+/** The stat's single hiscores keys, as a row stores them: "boss:generalGraardor", "skill:fishing". */
+export function rowStatKeys(stat: HuntRowStat | null | undefined): string[] {
+  if (!stat) return [];
+  return [...new Set(metricKeys(stat.metric))].map((k) => `${stat.type}:${k}`);
+}
+
+/** Every row stat key of a hunt: what the sweep reads for each entrant. Empty on a v1 hunt. */
+export function huntRowStatKeys(config: HuntConfig | null): string[] {
+  if (!config || config.v !== 2) return [];
+  return [...new Set(config.items.flatMap((r) => rowStatKeys(r.stat)))];
+}
+
+/**
+ * The hunt-wide stat of a v2 hunt, the one every v1 hunt has: what the hiscores sweep reads and the
+ * plugin pushes live, what a held report's kill count is checked against, and the order of the
+ * driest when no row has a drop rate. Every boss the rows show, added together; with no boss row,
+ * the first row's skill.
+ */
+export function v2HuntStat(rows: HuntItem[]): { killsOf: string | null; xpSkill: string | null } {
+  const keys = new Set<string>();
+  let skill: string | null = null;
+  for (const r of rows) {
+    if (r.stat?.type === 'boss') for (const k of metricKeys(r.stat.metric)) keys.add(k);
+    else if (r.stat?.type === 'skill' && !skill) skill = r.stat.metric;
+  }
+  return keys.size > 0 ? { killsOf: [...keys].join(','), xpSkill: null } : { killsOf: null, xpSkill: skill };
+}
+
+function huntV2FromInput(body: Record<string, unknown>, opts: { lenient?: boolean }): { ok: true; config: HuntConfig } | { ok: false; error: string } {
+  const rule: HuntRule | null = body.rule === 'most' ? 'most' : body.rule === 'first' ? 'first' : body.rule === 'points' ? 'points' : null;
+  if (!rule) return { ok: false, error: 'Pick the rule: first to get it, most by the end, or most points.' };
+  const raw = Array.isArray(body.items) ? body.items : [];
+  const items: HuntItem[] = [];
+  const seen = new Set<number>();
+  let plain = 0;
+  for (const r of raw.slice(0, MAX_HUNT_ROWS)) {
+    const it = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
+    const id = typeof it.id === 'number' && Number.isInteger(it.id) && it.id > 0 ? it.id : null;
+    const given = typeof it.name === 'string' ? it.name.trim().slice(0, 80) : '';
+    if (id == null || seen.has(id)) continue;
+    // A pet is known by its id, whatever the form called it: a flag alone cannot make an item one.
+    const pet = isPetId(id);
+    const name = pet ? (PET_BY_ID.get(id)?.name ?? given) : given;
+    if (!name) continue;
+    if (!pet && ++plain > MAX_HUNT_ITEMS) return { ok: false, error: `A hunt holds up to ${MAX_HUNT_ITEMS} items (pets do not count toward that).` };
+    seen.add(id);
+    const sources: string[] = [];
+    if (!pet) {
+      const byKey = new Map<string, string>();
+      for (const s of Array.isArray(it.sources) ? it.sources : []) {
+        if (typeof s !== 'string' || !s.trim()) continue;
+        if (!byKey.has(norm(s))) byKey.set(norm(s), s.trim().slice(0, 80));
+      }
+      sources.push(...[...byKey.values()].slice(0, MAX_HUNT_SOURCES));
+      if (!opts.lenient && sources.length === 0 && it.anySource !== true) {
+        return { ok: false, error: `Choose where ${name} counts from: one or more sources, or any source.` };
+      }
+    }
+    const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
+    // Absent = picked for you; null = "Nothing"; anything else is checked, and an unreadable one is nothing.
+    const stat = it.stat === undefined ? autoRowStat({ id, name, sources, pet }) : rowStatFromInput(it.stat);
+    items.push({
+      id,
+      name,
+      sources,
+      count: !pet && it.count === 'quantity' ? 'quantity' : 'drops',
+      ...(rule === 'points' ? { points: Math.min(MAX_ITEM_POINTS, Math.max(1, pts)) } : {}),
+      ...(pet ? { pet: true as const } : {}),
+      stat,
+    });
+  }
+  if (items.length === 0) return { ok: false, error: 'Pick at least one item or pet to hunt.' };
+  return {
+    ok: true,
+    config: {
+      v: 2,
+      target: 'items',
+      items,
+      petGroup: null,
+      rule,
+      ...(rule === 'points' && body.repeat === 'first' ? { repeat: 'first' as const } : {}),
+      ...huntSettingsFromInput(body),
+      ...v2HuntStat(items),
+      ...(opts.lenient && typeof body.plannedEnd === 'string' ? { plannedEnd: body.plannedEnd } : {}),
+    },
+  };
+}
+
+/**
+ * The rows a hunt counts, whatever version it is: a v2 hunt's list, a v1 item hunt's items, a v1 pet
+ * hunt's pets as pet rows. A v1 row has no stat of its own (stat null): the hunt's one stat is it.
+ */
+export function huntRows(config: HuntConfig): HuntItem[] {
+  if (config.v === 2) return config.items;
+  if (config.target === 'pets') return huntPets(config).map((p) => ({ id: p.id, name: p.name, sources: [], count: 'drops' as const, pet: true as const, stat: null }));
+  return config.items.map((it) => ({ ...it, stat: null }));
+}
+
+/** The item ids the plugin is asked to report for this hunt. Pets need none: the plugin reports every pet. */
+export function huntReportItemIdsOf(config: HuntConfig): number[] {
+  return config.target === 'items' ? config.items.filter((i) => !i.pet).map((i) => i.id) : [];
+}
+
+/** Is this drop a pet: any drop of a v1 pet hunt, or one of a v2 hunt's pet rows. */
+export function dropIsPet(config: HuntConfig, itemId: number | null): boolean {
+  return config.target === 'pets' || !!config.items.find((it) => it.id === itemId)?.pet;
+}
+
 // ── Words ─────────────────────────────────────────────────────────────────────────────────────
 
-/** 'Item hunt' or 'Pet hunt'. */
+/** 'Item hunt' or 'Pet hunt': a v2 hunt of nothing but pets is a pet hunt too. */
 export function huntKindWord(config: HuntConfig | null): string {
+  if (config?.v === 2) return config.items.length > 0 && config.items.every((it) => it.pet) ? 'Pet hunt' : 'Item hunt';
   return config?.target === 'pets' ? 'Pet hunt' : 'Item hunt';
 }
 
@@ -242,6 +440,12 @@ export function huntTargetsLabel(config: HuntConfig): string {
     }
     const group = petGroupOf(config.petGroup);
     return !group || group.key === 'all' ? 'Any pet' : group.label;
+  }
+  // A v2 list with pets in it: a pet has no source to name, so each row reads on its own.
+  if (config.v === 2 && config.items.some((it) => it.pet)) {
+    const shown = config.items.slice(0, 3);
+    const more = config.items.length - shown.length;
+    return (shown.map((it) => (it.pet ? it.name : it.name + sourcesWords(it.sources))).join(' + ') + (more > 0 ? ` + ${more} more` : '')).slice(0, 160);
   }
   const shown = config.items.slice(0, 3);
   const more = config.items.length - shown.length;
@@ -433,6 +637,8 @@ export function matchHuntReport(config: HuntConfig, report: HuntReport): HuntHit
 
   const item = config.items.find((it) => (report.itemId != null && it.id === report.itemId) || (name != null && norm(it.name) === norm(name)));
   if (!item) return null;
+  // A v2 pet row is a v1 pet hunt's pet: it follows its own source, and comes one at a time.
+  if (item.pet) return { itemId: item.id, itemName: item.name, quantity: 1, source };
   if (item.sources.length > 0 && !sourceMatches(item.sources, source)) return null;
   return { itemId: item.id, itemName: item.name, quantity, source };
 }
@@ -442,6 +648,7 @@ export function manualSourceAllowed(config: HuntConfig, itemId: number | null, s
   if (config.target === 'pets') return true;
   const item = config.items.find((it) => it.id === itemId);
   if (!item) return false;
+  if (item.pet) return true;
   if (item.sources.length === 0) return true;
   return sourceMatches(item.sources, source);
 }
@@ -549,6 +756,8 @@ export interface HuntEntrant {
   rsn: string;
   /** Stat gained since the hunt started (kills at the source, or XP), or null with nothing tracked. */
   statGain: number | null;
+  /** v2: Due, as a fraction (1 = one drop expected by now; huntRowProgress). Null: no rate, or not read yet. */
+  due?: number | null;
 }
 
 export interface HuntRow {
@@ -562,6 +771,106 @@ export interface HuntRow {
   /** When they reached their final count: the "most" tie-break. */
   reachedAt: string | null;
   statGain: number | null;
+  due: number | null;
+  /** How many of the hunt's rows they hold. */
+  held: number;
+  /** "When a player has all of them": when they first held every row; null otherwise. */
+  completeAt: string | null;
+}
+
+/** Kills (or XP) one drop of a row is expected to take, per row stat key: rates[rowId]["boss:generalGraardor"]. */
+export type HuntRates = Record<number, Record<string, number>>;
+
+export interface HuntRowProgress {
+  id: number;
+  name: string;
+  /** "General Graardor", "Fishing"; null when the row shows nothing. */
+  label: string | null;
+  unit: 'kills' | 'xp' | null;
+  /** Gained since the start; null with no stat, or no starting line read for it. */
+  gain: number | null;
+  /** This row's share of Due (a fraction); null when the row has no drop rate. */
+  due: number | null;
+  /** The drop rate behind `due`, for the hover: "1 in 5,000". Null with none. */
+  rate: number | null;
+}
+
+/**
+ * Each row's progress for one entrant, and their Due.
+ *
+ * A row's gain is its stat's gain since the start, every key added up (a raid's modes). Its share
+ * of Due is that gain over the kills one drop is expected to take, key by key, so 2,140 Graardor
+ * kills toward a 1 in 5,000 pet is 0.43. Due is the shares added together: 1 means one drop is
+ * expected by now. Kills and XP are never added as raw numbers. A row with no rate in `rates` (a
+ * skilling pet: the repo has no XP-based pet rate) adds nothing to Due and only shows its gain.
+ * Due is null when no row has a rate, or the entrant's starting line is not read yet.
+ */
+export function huntRowProgress(
+  config: HuntConfig,
+  baseline: Record<string, number> | null | undefined,
+  current: Record<string, number> | null | undefined,
+  rates: HuntRates,
+): { rows: HuntRowProgress[]; due: number | null } {
+  let anyRated = false;
+  let due = 0;
+  const rows = huntRows(config).map((r): HuntRowProgress => {
+    const keys = rowStatKeys(r.stat);
+    const rowRates = rates[r.id] ?? {};
+    const rated = keys.filter((k) => (rowRates[k] ?? 0) > 0);
+    if (rated.length > 0) anyRated = true;
+    const read = keys.length > 0 && !!baseline && !!current && keys.every((k) => typeof baseline[k] === 'number' && typeof current[k] === 'number');
+    const gainOf = (k: string) => Math.max(0, (current?.[k] ?? 0) - (baseline?.[k] ?? 0));
+    const gain = read ? keys.reduce((n, k) => n + gainOf(k), 0) : null;
+    const share = read && rated.length > 0 ? rated.reduce((n, k) => n + gainOf(k) / rowRates[k], 0) : null;
+    if (share != null) due += share;
+    return {
+      id: r.id,
+      name: r.name,
+      label: r.stat ? rowStatShort(r.stat) : null,
+      unit: r.stat ? (r.stat.type === 'boss' ? 'kills' : 'xp') : null,
+      gain,
+      due: share,
+      rate: rated.length === 1 ? rowRates[rated[0]] : rated.length > 1 ? Math.min(...rated.map((k) => rowRates[k])) : null,
+    };
+  });
+  return { rows, due: anyRated && baseline && current ? due : null };
+}
+
+/** "61%": Due as the standings show it. */
+export function dueWords(due: number): string {
+  return `${Math.round(due * 100).toLocaleString('en-US')}%`;
+}
+
+/** 1.2M, 340K, 12,450: XP the way players say it. */
+function shortXp(n: number): string {
+  if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 100_000) return `${Math.round(n / 1_000)}K`;
+  return n.toLocaleString('en-US');
+}
+
+/** "General Graardor +2,140 kc", "Fishing +1.2M XP"; null for a row that shows nothing. */
+export function rowProgressWords(p: Pick<HuntRowProgress, 'label' | 'unit' | 'gain'>): string | null {
+  if (!p.label) return null;
+  if (p.gain == null) return `${p.label}: not read yet`;
+  return p.unit === 'kills' ? `${p.label} +${p.gain.toLocaleString('en-US')} kc` : `${p.label} +${shortXp(p.gain)} XP`;
+}
+
+/**
+ * The plugin panel's two texts for one player of a v2 hunt (the mock's side panel): on the right
+ * "8 pts · 2/3" for a player with drops, "61% due" for one without; under the name, their progress
+ * on the rows they are still missing.
+ */
+export function huntPanelLine(
+  config: HuntConfig,
+  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'>,
+  progress: HuntRowProgress[] | null,
+): { figure: string | null; sub: string | null } {
+  const total = huntRows(config).length;
+  const unit = config.rule === 'points' ? 'pts' : row.count === 1 ? 'drop' : 'drops';
+  const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? ` · ${row.held}/${total}` : ''}` : row.due != null ? `${dueWords(row.due)} due` : null;
+  const have = new Set(row.drops.map((d) => d.itemId));
+  const words = (progress ?? []).filter((p) => !have.has(p.id) && (p.gain ?? 0) > 0).map(rowProgressWords).filter((w): w is string => !!w);
+  return { figure, sub: words.length > 0 ? words.slice(0, 2).join(' · ') : null };
 }
 
 export const huntRsnKey = (rsn: string) => norm(rsn);
@@ -608,8 +917,19 @@ export function countedDrops(drops: HuntDrop[], window: { startMs: number | null
  * Walks the counted drops oldest first. Across everyone, the hunt is decided by the drop that
  * brings the total to N; by one player, by the drop that brings any one player to N. `deciding`
  * is every drop up to and including that one: the drops the result rests on.
+ *
+ * "When a player has all of them" is decided by the drop that gives one player the last row they
+ * were missing, and rests on that player's drops up to it: whoever else was close changes nothing.
  */
 export function endingDrop(config: HuntConfig, drops: HuntDrop[], window: { startMs: number | null; endMs: number | null }): { at: string; deciding: HuntDrop[] } | null {
+  if (config.ends.kind === 'all') {
+    const done = completionOf(config, countedDrops(drops, window));
+    let first: { rsnKey: string; at: string } | null = null;
+    for (const [rsnKey, at] of done) if (!first || Date.parse(at) < Date.parse(first.at)) first = { rsnKey, at };
+    if (!first) return null;
+    const winner = first;
+    return { at: winner.at, deciding: countedDrops(drops, window).filter((d) => d.rsnKey === winner.rsnKey && Date.parse(d.occurredAt) <= Date.parse(winner.at)) };
+  }
   if (config.ends.kind !== 'drops') return null;
   const counted = countedDrops(drops, window);
   const per = new Map<string, number>();
@@ -623,6 +943,31 @@ export function endingDrop(config: HuntConfig, drops: HuntDrop[], window: { star
     if (reached) return { at: d.occurredAt, deciding: counted.slice(0, i + 1) };
   }
   return null;
+}
+
+/**
+ * When each player first held every row, by rsn key: only the players who have. `counted` is
+ * oldest first (countedDrops). A pet the plugin never named fills no row.
+ */
+export function completionOf(config: HuntConfig, counted: HuntDrop[]): Map<string, string> {
+  const rows = new Set(huntRows(config).map((r) => r.id));
+  const held = new Map<string, Set<number>>();
+  const done = new Map<string, string>();
+  if (rows.size === 0) return done;
+  for (const d of counted) {
+    if (d.itemId == null || !rows.has(d.itemId) || done.has(d.rsnKey)) continue;
+    const mine = held.get(d.rsnKey) ?? new Set<number>();
+    mine.add(d.itemId);
+    held.set(d.rsnKey, mine);
+    if (mine.size === rows.size) done.set(d.rsnKey, d.occurredAt);
+  }
+  return done;
+}
+
+/** How many of the hunt's rows a player holds: the "2 of 3" beside their name. */
+export function rowsHeld(config: HuntConfig, mine: HuntDrop[]): number {
+  const rows = new Set(huntRows(config).map((r) => r.id));
+  return new Set(mine.filter((d) => d.itemId != null && rows.has(d.itemId)).map((d) => d.itemId)).size;
 }
 
 /**
@@ -731,7 +1076,12 @@ export function dropFlag(input: {
  * A hunt that ends after N drops has its end pulled back to the deciding drop (huntEndsAt), and the
  * window then leaves out everything after it.
  *
- * Everyone without a drop follows, ordered by kills at the source (who is driest), then by name.
+ * Everyone without a drop follows, ordered by Due (huntRowProgress: how much of the rows' drop
+ * rates they have worked through) when the hunt has a rate to go on, else by kills at the source
+ * (who is driest), then by name.
+ *
+ * "When a player has all of them": whoever held every row first is first, whatever the rule; the
+ * rest rank by the rule as above.
  */
 export function rankHunt(
   config: HuntConfig,
@@ -742,6 +1092,7 @@ export function rankHunt(
   const counted = countedDrops(drops, window);
   const byRsn = new Map<string, HuntDrop[]>();
   for (const d of counted) byRsn.set(d.rsnKey, [...(byRsn.get(d.rsnKey) ?? []), d]);
+  const complete = config.ends.kind === 'all' ? completionOf(config, counted) : null;
 
   const rows = entrants.map((e): HuntRow => {
     const mine = byRsn.get(huntRsnKey(e.rsn)) ?? [];
@@ -758,11 +1109,21 @@ export function rankHunt(
       // Drops are oldest first, so the last one is the one that brought the total to where it is.
       reachedAt: scoring[scoring.length - 1]?.occurredAt ?? null,
       statGain: e.statGain,
+      due: e.due ?? null,
+      held: rowsHeld(config, mine),
+      completeAt: complete?.get(huntRsnKey(e.rsn)) ?? null,
     };
   });
 
   const t = (s: string | null) => (s ? Date.parse(s) : Number.POSITIVE_INFINITY);
+  // Due orders the driest only when some entrant has one: no row with a rate (or nobody's starting
+  // line read yet) keeps the order every hunt had before.
+  const byDue = entrants.some((e) => e.due != null);
   rows.sort((a, b) => {
+    if (complete && (a.completeAt != null || b.completeAt != null)) {
+      if (a.completeAt == null || b.completeAt == null) return a.completeAt ? -1 : 1;
+      return t(a.completeAt) - t(b.completeAt) || a.rsn.localeCompare(b.rsn);
+    }
     const aIn = a.count > 0;
     const bIn = b.count > 0;
     if (aIn !== bIn) return aIn ? -1 : 1;
@@ -770,6 +1131,7 @@ export function rankHunt(
       if (config.rule !== 'first') return b.count - a.count || t(a.reachedAt) - t(b.reachedAt) || a.rsn.localeCompare(b.rsn);
       return t(a.firstAt) - t(b.firstAt) || a.rsn.localeCompare(b.rsn);
     }
+    if (byDue) return (b.due ?? 0) - (a.due ?? 0) || (b.statGain ?? 0) - (a.statGain ?? 0) || a.rsn.localeCompare(b.rsn);
     return (b.statGain ?? 0) - (a.statGain ?? 0) || a.rsn.localeCompare(b.rsn);
   });
   rows.forEach((r, i) => (r.rank = i + 1));
@@ -791,6 +1153,8 @@ export function dropOriginWords(drop: Pick<HuntDrop, 'origin' | 'approvedBy'> & 
 
 /** Which number a manual proof has to state for this hunt. */
 export function manualStatKind(config: HuntConfig): 'kc' | 'xp' | 'either' {
+  // A v2 list mixes boss rows and skill rows: the proof says whichever its row has.
+  if (config.v === 2) return 'either';
   if (config.killsOf) return 'kc';
   if (config.xpSkill) return 'xp';
   return 'either';

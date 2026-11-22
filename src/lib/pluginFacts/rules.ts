@@ -10,7 +10,8 @@
  */
 import { statKeys } from '@/lib/tileKinds';
 import { kcNamesForKey } from '@/lib/pluginStats';
-import { killTargetKeys, type DropTile, type KillTile, type PlainTile, type ValueTile } from '@/lib/pluginFacts/match';
+import { killTargetKeys, type DropTile, type KillTile, type PlainTile, type RaidTile, type ValueTile } from '@/lib/pluginFacts/match';
+import { startCountAllows } from '@/lib/tileConditions';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { DIARY_AREAS } from '@/lib/constants';
 
@@ -41,6 +42,14 @@ export interface RulesConfigIn {
   trackedClog?: (PlainTile & { mode?: string; items?: string[] | null; groups?: Record<string, number[]>; completed?: boolean; proven?: boolean })[] | null;
   trackedGains?: (PlainTile & { itemIds?: number[]; completed?: boolean })[] | null;
   trackedCombos?: { tileId: number; label: string }[] | null;
+  /** Raid tiles (lib/tileConditions); `needsPlugin` = this caller's plugin sends no raid facts. */
+  trackedRaids?: (RaidTile & { needsPlugin?: boolean })[] | null;
+}
+
+/** What the rule table may ask of this caller's plugin. */
+export interface RulesOpts {
+  /** It sends `raid` facts and loot's raid level (lib/tileConditionsCheck RAID_FACTS_MIN_PLUGIN). */
+  raidFacts?: boolean;
 }
 
 /**
@@ -55,7 +64,7 @@ export interface EventRule {
   label: string;
   have: number;
   of: number;
-  on: 'timed' | 'deathless' | 'lms' | 'pvp' | 'pvpLoot' | 'diary' | 'ca' | 'clog' | 'page' | 'gain';
+  on: 'timed' | 'deathless' | 'lms' | 'pvp' | 'pvpLoot' | 'diary' | 'ca' | 'clog' | 'page' | 'gain' | 'raid';
   keys?: string[];
   /** Keys that never hit, even through a wildcard: a combat task already counted on the tile. */
   no?: string[];
@@ -73,6 +82,12 @@ export interface EventRule {
   /** A clog page: item ids that must all be obtained on the open page. */
   need?: number[];
   say?: string;
+  /**
+   * Judged on the site (a raid tile, lib/tileConditions): the client never counts it or speaks for it,
+   * it only reports each clear whose line names one of `keys` as a `raid` fact. The reply's notes say
+   * whether it counted.
+   */
+  site?: true;
 }
 
 export interface DropRule {
@@ -201,7 +216,7 @@ export function pvpKeys(targets: string[], roster: { name: string; teamId: numbe
 }
 
 /** The event rules for the tiles the plugin judges itself, open ones only. */
-export function buildEventRules(cfg: RulesConfigIn): EventRule[] {
+export function buildEventRules(cfg: RulesConfigIn, opts: RulesOpts = {}): EventRule[] {
   const done = new Set((cfg.completedTiles ?? []).map((c) => c.tileId));
   const combo = new Map((cfg.trackedCombos ?? []).map((c) => [c.tileId, c.label]));
   const open = (r: PlainTile & { completed?: boolean }) => !r.completed && !done.has(r.tileId) && (r.currentAmount ?? 0) < Math.max(1, r.requiredAmount ?? 1);
@@ -269,6 +284,16 @@ export function buildEventRules(cfg: RulesConfigIn): EventRule[] {
   for (const r of cfg.trackedGains ?? []) {
     if (open(r) && r.itemIds?.length) out.push({ ...base(r, 'gain'), keys: r.itemIds.map(String) });
   }
+  // Raid tiles: only for a plugin that sends raid facts. An older one is never handed a rule it
+  // can't keep; its panel row says the tile needs the latest plugin instead.
+  if (opts.raidFacts !== false) {
+    for (const r of cfg.trackedRaids ?? []) {
+      if (r.needsPlugin || r.completed || done.has(r.tileId) || r.currentAmount >= Math.max(1, r.requiredAmount) || !r.keys?.length) continue;
+      // Known from the event start that this player can't take it: nothing to report.
+      if (r.conditions?.startCount && r.startCount != null && !startCountAllows(r.conditions.startCount, r.startCount)) continue;
+      out.push({ ...base(r, 'raid'), label: named(r), keys: r.keys, site: true });
+    }
+  }
   return out;
 }
 
@@ -286,10 +311,12 @@ function isSimpleDrop(d: DropTile): boolean {
 }
 
 
-export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
+export function buildRuleTable(cfg: RulesConfigIn, opts: RulesOpts = {}): RuleTable {
   const done = new Set((cfg.completedTiles ?? []).map((c) => c.tileId));
   const drops: Record<string, DropRule[]> = {};
   for (const d of cfg.trackedDrops ?? []) {
+    // A ToA-level drop tile is judged off the loot's raid level, which an older plugin never sends.
+    if (d.conditions?.toaLevel && opts.raidFacts === false) continue;
     const perItem = !!d.itemRequirements?.length;
     if (perItem ? done.has(d.tileId) : d.currentAmount >= d.requiredAmount) continue;
     const ids = perItem ? d.itemRequirements!.map((r) => r.itemId) : d.itemIds ?? [];
@@ -298,7 +325,8 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
       label: named(d),
       have: d.currentAmount,
       of: d.requiredAmount,
-      simple: isSimpleDrop(d),
+      // A ToA-level tile can refuse a drop the client would have counted: never its own line.
+      simple: isSimpleDrop(d) && !d.conditions?.toaLevel,
       ...(d.acceptedSources?.length ? { src: d.acceptedSources } : {}),
       ...(d.sourceNpcs?.length ? { npcs: d.sourceNpcs } : {}),
     };
@@ -308,6 +336,8 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
   const kills: Record<string, KillRule[]> = {};
   for (const k of cfg.trackedKills ?? []) {
     if (k.currentAmount >= k.requiredAmount) continue;
+    // A start-count tile this player is known to be out of (lib/tileConditions): not watched at all.
+    if (k.conditions?.startCount && k.startCount != null && !startCountAllows(k.conditions.startCount, k.startCount)) continue;
     const cap = k.capOf != null && k.capOf > 0;
     if (cap && done.has(k.capOf!)) continue;
     const rule: KillRule = {
@@ -368,7 +398,7 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
     kills,
     values,
     stats,
-    events: buildEventRules(cfg),
+    events: buildEventRules(cfg, opts),
     proof: { min: 25, frac: 0.25 },
     say: {
       drop: 'Tracked drop: {label} ({have}/{of})',

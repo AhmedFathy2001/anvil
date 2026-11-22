@@ -33,6 +33,7 @@ import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirem
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
 import { canSeeTeamProgress } from '@/lib/standingsVisibility';
+import { conditionsSentence, parseConditions, toaBarWords } from '@/lib/tileConditions';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -122,6 +123,19 @@ function tileHowItCounts(t: typeof tiles.$inferSelect): string | null {
   });
 }
 
+/** A kill or drop tile's conditions said after its requirement ("… Only a first counts."). A raid tile says them itself. */
+function withConditions(t: typeof tiles.$inferSelect, req: string | null): string | null {
+  const c = t.tileType === 'raid' ? null : parseConditions(t.conditions);
+  if (!c) return req;
+  const extra: string[] = [];
+  if (c.toaLevel) extra.push(`From a ToA raid at level ${toaBarWords(c.toaLevel)}${c.toaLevel.entry ? ' or Entry' : ''}.`);
+  if (c.startCount) {
+    const { op, n } = c.startCount;
+    extra.push(op === 'lt' ? (n === 1 ? 'Only a first counts.' : `Only players under ${n} at the start.`) : `Only players over ${n} at the start.`);
+  }
+  return [req, ...extra].filter(Boolean).join(' ') || null;
+}
+
 function tileRequirement(t: typeof tiles.$inferSelect): string | null {
   const amt = t.requiredAmount && t.requiredAmount > 0 ? t.requiredAmount.toLocaleString() : '';
   const names = (json: string | null): string[] => {
@@ -169,6 +183,11 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       const party = t.partySize ? ` (${t.partySize}-player)` : '';
       const level = t.minRaidLevel ? ` at raid level ${t.minRaidLevel}+` : '';
       return `Clear ${t.timedActivity}${cap}${party}${level}`;
+    }
+    case 'raid': {
+      // A raid tile's whole rule is its conditions (lib/tileConditions).
+      const c = parseConditions(t.conditions);
+      return c ? `Clear ${amt || '1'}: ${conditionsSentence(c)}` : null;
     }
     case 'deathless': {
       if (!t.timedActivity) return null;
@@ -593,7 +612,7 @@ export async function buildBoard(
           name: trackedItemNames.get(itemId) ?? `Item ${itemId}`,
         })),
         requiredAmount: t.requiredAmount ?? 1,
-        requirement: tileRequirement(t),
+        requirement: withConditions(t, tileRequirement(t)),
         // A combo says its rule over its parts ("Done when the team does any one of: …").
         howItCounts: isComboTile(t)
           ? comboSentence(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).map((p) => p.label), isIndividualMode(t.trackingMode))

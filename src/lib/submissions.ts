@@ -109,7 +109,7 @@ export async function countTileProgress(
 // role; it now dispatches on tile_type. Stat (hiscores) tiles don't flow through here.
 /** Tile kinds the plugin can feed with image-less pings — so a completion needs one screenshot. */
 // Collection-log tiles too: the live unlock push credits slots with no image (lib/clogTileCredit).
-const PROOF_ON_COMPLETION_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms', 'value', 'valuetotal', 'clog']);
+const PROOF_ON_COMPLETION_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'raid', 'lms', 'value', 'valuetotal', 'clog']);
 
 export async function syncDropTileCompletion(
   tileId: number,
@@ -203,7 +203,7 @@ export async function syncDropTileCompletion(
     const best = richest[0]?.best ?? null;
     totalAmount = best ?? 0;
     isComplete = best != null && best >= tile.requiredAmount;
-  } else if (tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'diary' || tile.tileType === 'ca' || tile.tileType === 'lms' || tile.tileType === 'valuetotal') {
+  } else if (tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'raid' || tile.tileType === 'diary' || tile.tileType === 'ca' || tile.tileType === 'lms' || tile.tileType === 'valuetotal') {
     // Kill count / agility laps / PvP kills / item gains / deathless runs / diary or CA completions
     // / LMS qualifying games / aggregate loot value: accumulate the submitted amount toward the
     // required amount,

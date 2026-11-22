@@ -17,7 +17,7 @@ export interface PluginTileCount {
 
 const COUNTED = [
   'trackedDrops', 'trackedKills', 'trackedPvp', 'trackedDiaries', 'trackedCombatTasks', 'trackedClog',
-  'trackedLms', 'trackedGains', 'trackedDeathless', 'trackedTimed', 'trackedStats',
+  'trackedLms', 'trackedGains', 'trackedDeathless', 'trackedRaids', 'trackedTimed', 'trackedStats',
 ] as const;
 
 interface Row {

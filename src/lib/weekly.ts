@@ -608,6 +608,9 @@ export async function getEffectiveParticipants(competitionId: number) {
       // The split of a sum over several bosses or skills (lib/weeklyMetric gainParts); null otherwise.
       baselineParts: weeklyParticipants.baselineParts,
       currentParts: weeklyParticipants.currentParts,
+      // An item hunt's per-row stats at the start and now (lib/huntRowStats); null otherwise.
+      huntBaseline: weeklyParticipants.huntBaseline,
+      huntCurrent: weeklyParticipants.huntCurrent,
       // Carried so a board can join a participant to their daily history and mark a stale baseline.
       // computeLeaderboard ignores the extra columns.
       clanMemberId: weeklyParticipants.clanMemberId,

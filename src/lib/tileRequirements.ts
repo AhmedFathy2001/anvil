@@ -9,6 +9,8 @@ import { PET_GROUPS } from '@/lib/petGroups';
 import { isIndividualMode } from '@/lib/statTracking';
 import { isGotrEnergyCapped, parseCapBy } from '@/lib/tileCaps';
 import { parseJsonArray, statLabel, tileKindKey, type TileKindKey } from '@/lib/tileKinds';
+import { conditionsSentence, parseConditions, toaBarWords, type TileConditions } from '@/lib/tileConditions';
+import { RAID_FACTS_MIN_PLUGIN } from '@/lib/tileConditionsCheck';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // "Before you start": what a tile needs from a player, and what it can't do.
@@ -31,7 +33,7 @@ import { parseJsonArray, statLabel, tileKindKey, type TileKindKey } from '@/lib/
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Per-player checks lib/tileReadiness knows how to run. */
-export type NeedCheck = 'plugin-seen' | 'plugin-version' | 'clog-synced' | 'clog-owned' | 'hiscores-ranked';
+export type NeedCheck = 'plugin-seen' | 'plugin-version' | 'clog-synced' | 'clog-owned' | 'hiscores-ranked' | 'raid-plugin-version' | 'start-count';
 
 export type NeedKind = 'requirement' | 'limitation';
 
@@ -210,6 +212,36 @@ const DEFS = {
     kind: 'requirement', group: 'raids', title: 'Minimum raid level',
     text: 'The raid must end at the raid level the tile asks for or higher.',
   },
+  'raid-plugin-version': {
+    kind: 'requirement', group: 'raids', title: 'Plugin version for raid tiles',
+    text: `Run the Anvil plugin (${RAID_FACTS_MIN_PLUGIN} or newer) while you raid.`,
+    more: 'The plugin reports each clear (time, party, deaths, raid level) and the site decides whether it counts. Older plugins don’t report clears, so this tile can’t count for them.',
+    check: 'raid-plugin-version',
+  },
+  'raid-conditions': {
+    kind: 'requirement', group: 'raids', title: 'What a clear must do',
+    text: 'A clear counts only when it meets the tile’s bar.',
+    more: 'Each raid on the tile can have its own bar: a mode, a time to beat, the game’s challenge time, a party size, a scale. The site checks every clear the plugin reports and says in chat why one didn’t count.',
+  },
+  'raid-no-deaths': {
+    kind: 'requirement', group: 'raids', title: 'Nobody dies',
+    text: 'Nobody in the party can die during the raid.',
+  },
+  'raid-mates': {
+    kind: 'requirement', group: 'raids', title: 'Teammates inside',
+    text: 'Enough of your team must be in the raid.',
+    more: 'The plugin counts the players inside who are on your team, you included.',
+  },
+  'raid-once-together': {
+    kind: 'limitation', group: 'raids', title: 'A shared raid counts once',
+    text: 'A raid several of you did together counts once for the team.',
+  },
+  'start-count': {
+    kind: 'requirement', group: 'counts', title: 'Your count when the event started',
+    text: 'Only players whose count was in range when the event started can take this.',
+    more: 'The count comes from the hiscores when the event started. Not listed there means it isn’t known: then the game’s own count line on the kill decides (a first reads “1”).',
+    check: 'start-count',
+  },
   'trial-runs': {
     kind: 'limitation', group: 'raids', title: 'Barracuda rank tiles count runs',
     text: 'This tile counts runs: each run that reaches the rank adds one.',
@@ -298,6 +330,8 @@ export interface TileNeedsLike {
   partySize?: number | null;
   minRaidLevel?: number | null;
   partyTeamOnly?: number | boolean | null;
+  /** JSON or parsed tile conditions (lib/tileConditions). */
+  conditions?: string | TileConditions | null;
   comboRule?: string | ComboRule | null;
   parts?: TileNeedsLike[] | null;
 }
@@ -309,7 +343,7 @@ const CHAMPION_SCROLL_IDS: ReadonlySet<number> = new Set([6798, 6799, 6800, 6801
 const DT2_NORMAL = new Set(['duke sucellus', 'vardorvis', 'the leviathan', 'leviathan', 'the whisperer', 'whisperer']);
 const UNCONFIRMED_COUNTERS = new Map(GAME_COUNTERS.filter((c) => !c.confirmed).map((c) => [c.name.toLowerCase(), c.name]));
 
-const PLUGIN_KINDS: ReadonlySet<TileKindKey> = new Set(['drop', 'collection', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca']);
+const PLUGIN_KINDS: ReadonlySet<TileKindKey> = new Set(['drop', 'collection', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'raid', 'lms', 'value', 'diary', 'ca']);
 const PING_KINDS: ReadonlySet<TileKindKey> = new Set(['kill', 'lap', 'pvp', 'gain', 'lms']);
 
 function need(id: NeedId, text?: string): TileNeed {
@@ -363,8 +397,11 @@ export function tileNeeds(tile: TileNeedsLike): TileNeeds {
     return { requirements: req, limitations: lim };
   }
 
+  const conditions = parseConditions(tile.conditions);
   if (kind === 'clog') {
     req.push(need('clog-chat-setting'), need('clog-plugin-version'));
+    // A log tile's "first" is its clog-first-time line already; nothing more to say or check.
+    conditionNeeds(conditions ? { ...conditions, startCount: null } : null, req, lim);
     if (clogTileMode(tile.countMode) === 'complete') {
       req.push(need('clog-sync-before'), need('clog-page-screenshot'));
       lim.push(need('clog-page-own-log'), need('clog-sync-only'));
@@ -395,6 +432,7 @@ export function tileNeeds(tile: TileNeedsLike): TileNeeds {
     if (tile.minRaidLevel) req.push(need('raid-min-level', `The raid must end at raid level ${tile.minRaidLevel} or higher.`));
   }
   if (kind === 'timed' && parseTrialRankTile(tile.timedActivity)) lim.push(need('trial-runs'));
+  conditionNeeds(conditions, req, lim);
 
   if (PING_KINDS.has(kind)) {
     const max = tilePingMax(targets);
@@ -435,6 +473,27 @@ export function tileNeeds(tile: TileNeedsLike): TileNeeds {
   }
 
   return { requirements: req, limitations: lim };
+}
+
+/** The lines a tile's conditions add (lib/tileConditions): raid bars, deaths, teammates, the start count. */
+function conditionNeeds(c: TileConditions | null, req: TileNeed[], lim: TileNeed[]): void {
+  if (!c) return;
+  if (c.raids?.length) {
+    req.push(need('raid-plugin-version'), need('raid-conditions', conditionsSentence({ v: 1, raids: c.raids })));
+    if (c.noDeaths) req.push(need('raid-no-deaths'));
+    if (c.mates && 'all' in c.mates) req.push(need('raid-team-only'));
+    else if (c.mates) req.push(need('raid-mates', `At least ${c.mates.min} of your team must be in the raid, you included.`));
+    if (c.shared === 'together') lim.push(need('raid-once-together'));
+  }
+  if (c.toaLevel) {
+    req.push(need('raid-plugin-version'), need('raid-min-level', `The drop must come from a Tombs of Amascut raid at level ${toaBarWords(c.toaLevel)}${c.toaLevel.entry ? ' (Entry Mode counts too)' : ''}.`));
+  }
+  if (c.startCount) {
+    const { op, n } = c.startCount;
+    req.push(need('start-count', op === 'lt'
+      ? n === 1 ? 'Only a first counts: you can take this if you had none when the event started.' : `Only players under ${n.toLocaleString('en-US')} when the event started can take this.`
+      : `Only players over ${n.toLocaleString('en-US')} when the event started can take this.`));
+  }
 }
 
 function comboNeeds(tile: TileNeedsLike): TileNeeds {

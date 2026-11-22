@@ -21,8 +21,7 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
-import HuntFields, { DEFAULT_HUNT, huntFormPets, huntPayload, huntUnchosen, type HuntFormValue } from '@/components/weekly/HuntFields';
-import { PET_GROUPS } from '@/lib/petGroups';
+import HuntFields, { DEFAULT_HUNT, huntPayload, huntPrizesPayload, huntUnchosen, type HuntFormValue } from '@/components/weekly/HuntFields';
 import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
 import { useDirtyForm, useUnsavedChanges } from '@/components/UnsavedChanges';
@@ -101,17 +100,12 @@ const WEEKLY_KINDS = [
 ];
 type WeeklyType = (typeof WEEKLY_KINDS)[number]['type'];
 
-/** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Any pet". */
+/** What a hunt calls itself until someone names it: "Item hunt: Uncut onyx", "Pet hunt: Heron + Rocky". */
 function huntName(hunt: HuntFormValue): string {
-  if (hunt.target === 'pets') {
-    // Pets picked out of a group are named, the way lib/itemHunt defaultHuntTitle names them.
-    const picked = hunt.petIds && hunt.petIds.length > 0 ? huntFormPets(hunt) : null;
-    if (picked) return `Pet hunt: ${picked.slice(0, 2).map((p) => p.name).join(' + ')}${picked.length > 2 ? ' + more' : ''}`;
-    const group = PET_GROUPS.find((g) => g.key === hunt.petGroup);
-    return `Pet hunt: ${!group || group.key === 'all' ? 'Any pet' : group.label}`;
-  }
   if (hunt.items.length === 0) return 'Item hunt';
-  return `Item hunt: ${hunt.items.slice(0, 2).map((i) => i.name).join(' + ')}${hunt.items.length > 2 ? ' + more' : ''}`;
+  // A list of nothing but pets is a pet hunt, the way lib/itemHunt huntKindWord names it.
+  const kind = hunt.items.every((i) => i.pet) ? 'Pet hunt' : 'Item hunt';
+  return `${kind}: ${hunt.items.slice(0, 2).map((i) => i.name).join(' + ')}${hunt.items.length > 2 ? ' + more' : ''}`;
 }
 
 /** One "this costs you" row in the panel. */
@@ -532,12 +526,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         return;
       }
       if (isHunt) {
-        if (hunt.target === 'items' && hunt.items.length === 0) {
-          setError('Pick at least one item to hunt.');
-          return;
-        }
-        if (hunt.target === 'pets' && huntFormPets(hunt).length === 0) {
-          setError('Tick at least one pet to hunt.');
+        if (hunt.items.length === 0) {
+          setError('Pick at least one item or pet to hunt.');
           return;
         }
         const unchosen = huntUnchosen(hunt);
@@ -563,6 +553,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             // A hunt's metric is written by the server from its targets (lib/itemHunt).
             metric: isHunt ? 'hunt' : weeklyMetric,
             ...(isHunt ? { hunt: huntPayload(hunt) } : {}),
+            // The hunt form's "Top 3 win": the competition's own prize ladder, set as it is created
+            // (the server holds it to the treasurer rule, api/admin/weekly).
+            ...(isHunt && huntPrizesPayload(hunt) ? { prizes: huntPrizesPayload(hunt) } : {}),
             title: name.trim() || weeklyName(weeklyType, weeklyMetric),
             startDate,
             endDate,
@@ -1034,6 +1027,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     setHunt(next);
                     if (!nameTouched) setName(huntName(next));
                   }}
+                  prizes
                 />
               )}
               {!isHunt && <div>

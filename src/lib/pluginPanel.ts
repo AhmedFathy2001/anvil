@@ -91,6 +91,8 @@ export interface TrackedLists {
   trackedValues?: (Omit<Base, 'currentAmount'> & { mode?: string; thresholdGp: number; currentGp: number; completed?: boolean })[];
   trackedGains?: (Base & { requiredAmount: number })[];
   trackedDeathless?: (Base & { requiredAmount: number })[];
+  /** Raid tiles (lib/tileConditions), counted from the plugin's raid facts. */
+  trackedRaids?: (Base & { requiredAmount: number; completed?: boolean })[];
   trackedClog?: (Base & { requiredAmount: number; completed?: boolean })[];
 }
 
@@ -101,6 +103,11 @@ interface Base {
   position: number;
   description: string | null;
   currentAmount: number;
+  /**
+   * A conditioned tile's line for the caller (lib/tileConditions): "You can take this", "Not for you:
+   * 12 kills at the start", "Needs the latest Anvil plugin". Drawn as the row's sub-line.
+   */
+  take?: string;
 }
 
 const INT_MAX = 2_147_483_647;
@@ -119,7 +126,7 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   const rows: PanelTile[] = [];
   const add = (t: Omit<Base, 'currentAmount'>, current: number, goal: number, complete: boolean, sets?: string | null) =>
     rows.push({
-      ...(sets ? { sets } : {}),
+      ...(sets ? { sets } : t.take ? { sets: t.take } : {}),
       tileId: t.tileId,
       label: t.label ?? '',
       current,
@@ -167,6 +174,7 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   }
   counted(cfg.trackedGains, 1);
   counted(cfg.trackedDeathless, 1);
+  for (const t of cfg.trackedRaids ?? []) add(t, t.currentAmount, Math.max(1, t.requiredAmount), !!t.completed || done.has(t.tileId));
   // Collection-log tiles: new slots, or pages finished (lib/clogTiles) — the site's own numbers.
   for (const t of cfg.trackedClog ?? []) add(t, t.currentAmount, Math.max(1, t.requiredAmount), !!t.completed || done.has(t.tileId));
   return foldCombos(rows, cfg.trackedCombos ?? []);

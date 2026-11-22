@@ -19,6 +19,8 @@ import {
   huntStatLabel,
   manualStatKind,
   huntPets,
+  huntRows,
+  type HuntRowProgress,
 } from '@/lib/itemHunt';
 import { huntStandings, type HuntStandings } from '@/lib/itemHuntDb';
 import { weeklyStatus } from '@/lib/weeklyStage';
@@ -71,6 +73,16 @@ export interface HuntViewRow {
   /** A Hardcore Worlds character (lib/competitionGame isHardcoreEntrant), and one that died mid-way. */
   hcw: boolean;
   stopped: boolean;
+  /** v2: progress per row since the start ("Graardor +2,140 kc"); null on a v1 hunt. */
+  progress: HuntRowProgress[] | null;
+  /** v2: Due as a fraction (1 = one drop expected); null with no rate or no starting line. */
+  due: number | null;
+  /** How many of the hunt's rows they hold: "2 of 3". */
+  held: number;
+  /** "When a player has all of them": they do, since then. */
+  completeAt: string | null;
+  /** Item ids of the rows they hold, for the little icons beside the name. */
+  heldIds: number[];
 }
 
 /** One target a manual proof can be for, with the sources it may name. */
@@ -80,6 +92,8 @@ export interface HuntProofTarget {
   /** Sources to choose from. `free` means any source is accepted (the list is a suggestion). */
   sources: string[];
   free: boolean;
+  /** A pet row of a v2 hunt: no source to ask about, and one at a time. */
+  pet?: boolean;
 }
 
 export interface HuntView {
@@ -106,13 +120,21 @@ export interface HuntView {
   /** Drops the "after N drops" ending is waiting on staff for. */
   awaiting: { rsn: string; itemName: string; occurredAt: string }[];
   proof: { targets: HuntProofTarget[]; statKind: 'kc' | 'xp' | 'either'; xpSkill: string | null; pets: boolean };
+  /** v2: rows with their own progress, and Due. */
+  v2: boolean;
+  /** The rows hunted, in order. */
+  targets: { id: number; name: string; pet: boolean }[];
+  /** v2: some row has a drop rate, so players without a drop are ordered by Due. */
+  rated: boolean;
+  /** "When a player has all of them". */
+  endsAll: boolean;
 }
 
 export function proofTargets(config: HuntConfig): HuntProofTarget[] {
   if (config.target === 'pets') {
     return huntPets(config).map((p) => ({ itemId: p.id, name: p.name, sources: [], free: true }));
   }
-  return config.items.map((it) => ({
+  return config.items.map((it) => it.pet ? { itemId: it.id, name: it.name, sources: [], free: true, pet: true } : ({
     itemId: it.id,
     name: it.name,
     sources: it.sources.length > 0 ? it.sources : [...new Set(itemObtainInfo(it.id).sources.map((s) => s.split('#')[0].trim()))],
@@ -134,6 +156,8 @@ export function buildHuntView(
   const gameOf = new Map(
     standings.participants.map((p) => [p.rsn, { hcw: isHardcoreEntrant(p.hiscoresTable, comp.countsOn ?? MAIN), stopped: p.stoppedAt != null }]),
   );
+  const targets = huntRows(config).map((t) => ({ id: t.id, name: t.name, pet: !!t.pet }));
+  const targetIds = new Set(targets.map((t) => t.id));
   const rows: HuntViewRow[] = standings.rows.map((r) => ({
     rank: r.rank,
     rsn: r.rsn,
@@ -146,6 +170,11 @@ export function buildHuntView(
     lastAt: r.lastAt,
     hcw: gameOf.get(r.rsn)?.hcw ?? false,
     stopped: gameOf.get(r.rsn)?.stopped ?? false,
+    progress: standings.progress.get(r.rsn)?.rows ?? null,
+    due: r.due,
+    held: r.held,
+    completeAt: r.completeAt,
+    heldIds: [...new Set(r.drops.map((d) => d.itemId).filter((id): id is number => id != null && targetIds.has(id)))],
     drops: r.drops.map((d, i) => ({
       score: config.rule !== 'points' ? null : config.repeat === 'first' && r.drops.slice(0, i).some((e) => (e.itemId ?? e.itemName) === (d.itemId ?? d.itemName)) ? 0 : dropScore(config, d),
       id: d.id,
@@ -174,6 +203,10 @@ export function buildHuntView(
     status: weeklyStatus(comp),
     iconUrl: huntIconUrl(config),
     multipleTargets: config.target === 'pets' || config.items.length > 1,
+    v2: config.v === 2,
+    targets,
+    rated: Object.keys(standings.rates).length > 0,
+    endsAll: config.ends.kind === 'all',
     statLabel: huntStatLabel(config),
     statUnit: stat ? (stat.type === 'boss' ? 'kills' : 'xp') : null,
     rows,
@@ -181,7 +214,7 @@ export function buildHuntView(
     drops: standings.drops.length,
     hunters: rows.filter((r) => r.count > 0).length,
     awaiting: standings.awaiting.map((d) => ({ rsn: rsnOf.get(d.rsnKey) ?? d.rsnKey, itemName: d.itemName, occurredAt: d.occurredAt })),
-    proof: { targets: proofTargets(config), statKind: manualStatKind(config), xpSkill: config.xpSkill, pets: config.target === 'pets' },
+    proof: { targets: proofTargets(config), statKind: manualStatKind(config), xpSkill: config.v === 2 ? null : config.xpSkill, pets: config.target === 'pets' },
   };
 }
 

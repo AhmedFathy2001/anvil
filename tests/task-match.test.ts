@@ -29,6 +29,7 @@ import {
   defaultRaidSelection,
   familyFor,
   killPicksConfig,
+  pluginKillsConfig,
   draftPayload,
   draftToCsvRow,
   itemTileConfig,
@@ -759,4 +760,106 @@ test('"(any mix)", "mix and match", "combined", "any combination" make a weighte
   assert.deepEqual(row.comboRule, { mode: 'mix' });
   assert.equal(row.parts?.[0].comboWeight, undefined);
   assert.equal(row.parts?.[1].comboWeight, 0.5);
+});
+
+// ─── Tile conditions: start counts and the raid box ─────────────────────────────────────────
+
+const quiverCtx: MatchContext = {
+  ...ctx,
+  clogPages: [...(ctx.clogPages ?? []), { name: 'Fortis Colosseum', items: [{ id: 28947, name: "Dizana's quiver" }, { id: 28960, name: 'Smol heredit' }] }],
+};
+
+test('"first", "under N kc" and "over N kc" are start counts, never an amount or a time', () => {
+  assert.deepEqual(parseTaskQuery('first inferno').startCount, { op: 'lt', n: 1 });
+  assert.equal(parseTaskQuery('first inferno').amount, null);
+  assert.deepEqual(parseTaskQuery('first 5 cox').startCount, { op: 'lt', n: 5 });
+  assert.equal(parseTaskQuery('first 5 cox').amount, 5);
+  const under = parseTaskQuery('zulrah under 50 kc');
+  assert.deepEqual(under.startCount, { op: 'lt', n: 50 });
+  assert.equal(under.timeCapSeconds, null);
+  assert.deepEqual(parseTaskQuery('vorkath over 100 kills').startCount, { op: 'gt', n: 100 });
+  assert.equal(parseTaskQuery('sub 30 inferno').startCount, null);
+  assert.equal(parseTaskQuery('first').startCount, null);
+});
+
+test('first inferno: one Zuk kill for first-timers, the plain reading still offered', () => {
+  const { cands, top, verdict } = best('first inferno');
+  assert.equal(top.source, 'boss');
+  assert.deepEqual(top.config.conditions, { v: 1, startCount: { op: 'lt', n: 1 } });
+  assert.equal(top.amount, 1);
+  assert.equal(top.title, 'First TzKal-Zuk');
+  assert.equal(verdict.status, 'ready');
+  // Only the game's count line proves a first: the plugin kill tile, never the hiscores.
+  const forced = chooseKillSource(['tzKalZuk'], null, true);
+  assert.ok(forced.ok && forced.source === 'plugin');
+  assert.equal(top.config.tileType, 'kill');
+  assert.deepEqual(top.config.targetNpcs, forced.targetNpcs);
+  assert.equal(top.config.requiredAmount, 1);
+  assert.equal(top.config.statType, undefined);
+  assert.equal(top.amountField, 'requiredAmount');
+  assert.equal(top.engine, 'plugin');
+  assert.match(top.hint, /kill count line proves it’s their first/);
+  const plain = cands.find((c) => c.key === 'boss-tzKalZuk');
+  assert.ok(plain && !plain.config.conditions && !plain.confident);
+});
+
+test('first quiver: the log slot, as a first', () => {
+  const { cands } = best('first quiver', quiverCtx);
+  const slot = cands.find((c) => c.source === 'clogtile');
+  assert.ok(slot, cands.map((c) => c.key).join(', '));
+  assert.deepEqual(slot!.config.conditions, { v: 1, startCount: { op: 'lt', n: 1 } });
+  assert.deepEqual(slot!.config.trackedItemIds, [28947]);
+  assert.equal(slot!.title, "First Dizana's quiver");
+});
+
+test('first 5 cox: five clears AND under five at the start, as a raid tile', () => {
+  const { top } = best('first 5 cox');
+  assert.equal(top.config.tileType, 'raid');
+  assert.equal(top.config.requiredAmount, 5);
+  assert.deepEqual(top.config.conditions, { v: 1, raids: [{ raid: 'cox', modes: ['normal', 'cm'] }], startCount: { op: 'lt', n: 5 } });
+  assert.equal(top.amountField, 'requiredAmount');
+});
+
+test('a count bar alone keeps the usual amount', () => {
+  const { top } = best('25 zulrah under 50 kc');
+  assert.equal(top.amount, 25);
+  assert.deepEqual(top.config.conditions, { v: 1, startCount: { op: 'lt', n: 50 } });
+  assert.match(top.title, /under 50 at the start$/);
+  assert.equal(top.config.tileType, 'kill');
+  assert.equal(top.config.requiredAmount, 25);
+  assert.match(top.hint, /count when the event started/);
+});
+
+test('pluginKillsConfig: a hiscores kills tile moves to the plugin; anything else is left alone', () => {
+  const hiscores = { tileType: 'standard', statType: 'boss', trackedStat: 'zulrah', statGoal: 10, statBasis: 'gain' as const, conditions: { v: 1 as const, startCount: { op: 'gt' as const, n: 5 } } };
+  const out = pluginKillsConfig(hiscores);
+  assert.equal(out.tileType, 'kill');
+  assert.equal(out.requiredAmount, 10);
+  assert.equal(out.statType, undefined);
+  assert.deepEqual(out.conditions, hiscores.conditions);
+  const plugin = { tileType: 'kill', targetNpcs: ['Cow'], requiredAmount: 5 };
+  assert.equal(pluginKillsConfig(plugin), plugin);
+  const skill = { tileType: 'standard', statType: 'skill', trackedStat: 'fishing', statGoal: 100 };
+  assert.equal(pluginKillsConfig(skill), skill);
+  // The bulk importer writes the plugin tile too.
+  const row = draftToCsvRow({ label: 'First Zulrah', config: best('first zulrah').top.config, points: 1, trackingMode: 'team' });
+  assert.equal(row.tileType, 'kill');
+  assert.deepEqual(row.conditions, { v: 1, startCount: { op: 'lt', n: 1 } });
+});
+
+test('a first log slot keeps its start count and stays a log tile', () => {
+  const slot = best('first quiver', quiverCtx).cands.find((c) => c.source === 'clogtile')!;
+  assert.equal(slot.config.tileType, 'clog');
+});
+
+test('the raid box words in the main search: a raid tile with conditions', () => {
+  const { top, verdict } = best('5 cm challenge time, tob hm 4+ challenge time, toa 300 solo');
+  assert.equal(top.config.tileType, 'raid');
+  assert.equal(top.config.requiredAmount, 5);
+  assert.equal(top.config.conditions?.raids?.length, 3);
+  assert.equal(verdict.status, 'ready');
+  // A plain raid list is still the hiscores tile.
+  const plain = best('5 cox or tob').top;
+  assert.equal(plain.config.tileType, 'standard');
+  assert.equal(plain.config.conditions, undefined);
 });

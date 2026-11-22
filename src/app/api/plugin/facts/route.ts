@@ -6,6 +6,7 @@ import { decideFactClaim, settledIds, splitDuplicates } from '@/lib/pluginFacts/
 import { factOwner, settledFactIds, settleFacts, tileFactIds } from '@/lib/pluginFacts/factIdStore';
 import { creditOutcome, planSubmissions, retryFacts, type Coop, type Outcome } from '@/lib/pluginFacts/plan';
 import { readBody, storeImage } from '@/lib/pluginFacts/request';
+import { markJudged } from '@/lib/pluginFacts/judged';
 import { named } from '@/lib/pluginFacts/rules';
 import { LAB_CLAN_SLUG } from '@/lib/labRules';
 import { newProofKey } from '@/lib/proofAfter';
@@ -127,7 +128,9 @@ export async function POST(request: Request) {
         // Signed like middleware's own: lib/clanContext only reads a proven slug.
         if (p.board.clan && p.board.clan !== LAB_CLAN_SLUG) await setProvenClan(headers, p.board.clan);
         const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
-        const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(factIds.length ? { ...p.body, factIds } : p.body) }), {
+        // Marked as site-judged only when match checked the tile's conditions (lib/pluginFacts/judged).
+        const req = new Request(url, { method: 'POST', headers, body: JSON.stringify(factIds.length ? { ...p.body, factIds } : p.body) });
+        const res = await submitRoute(p.credit.judged ? markJudged(req) : req, {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),
         });
         const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; awaitingProof?: boolean; duplicate?: boolean; factsSeen?: string[] };
@@ -195,6 +198,12 @@ export async function POST(request: Request) {
   // A proof the plugin filed for one tile used to end on "Submitted: <tile>"; it is said from here now.
   const notes = [...matched.notes];
   for (const c of credits) if (c.kind === 'tile' && (img || pendingKey) && byTile.get(c.tileId)?.ok) notes.push(`Submitted: ${c.label}`);
+  // A raid tile is judged here (lib/tileConditions), so the plugin says nothing of its own: its
+  // progress line is said from here, once the credit is actually in.
+  for (const c of credits) {
+    if (c.kind !== 'raid' || replayed.has(c) || !byTile.get(c.tileId)?.ok) continue;
+    notes.push(`Tile progress: ${named(c)} (${Math.min(c.have, c.of)}/${c.of})`);
+  }
   // Credits whose picture never came, reversed on the way out (the lifecycle tick does it too).
   afterReply(() => sweepOverdueProofs(Date.now(), 10));
   return Response.json({

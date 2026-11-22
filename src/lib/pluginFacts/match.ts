@@ -9,6 +9,16 @@
  * request see each other's progress the way the plugin's in-memory copies did.
  */
 import { itemCap } from '@/lib/collectionSets';
+import {
+  countLineAllows,
+  judgeRaidRun,
+  startCountAllows,
+  toaLevelAllows,
+  toaModeFor,
+  type StartCount,
+  type TileConditions,
+} from '@/lib/tileConditions';
+import { RAID_KEY_MODES } from '@/lib/tileConditionsCheck';
 
 export type SourceKind = 'npc' | 'event' | 'pvp' | 'pickpocket' | 'clog';
 
@@ -49,9 +59,17 @@ export interface DropTile extends TrackedBase {
   setsRequired?: number;
   countMode?: string | null;
   countedItemIds?: number[] | null;
+  /** A ToA level the drop's raid must have ended at (lib/tileConditions toaLevel). */
+  conditions?: TileConditions | null;
 }
 
-export interface KillTile extends TrackedBase {
+/** Tile conditions on a config row, and the caller's count when the event started (null = unknown). */
+interface Conditioned {
+  conditions?: TileConditions | null;
+  startCount?: number | null;
+}
+
+export interface KillTile extends TrackedBase, Conditioned {
   requiredAmount: number;
   currentAmount: number;
   targetNpcs?: string[] | null;
@@ -70,8 +88,19 @@ export interface ValueTile extends TrackedBase {
   completed?: boolean;
 }
 
+/** A raid tile (lib/tileConditions): judged here from the plugin's `raid` facts. */
+export interface RaidTile extends TrackedBase, Conditioned {
+  requiredAmount: number;
+  currentAmount: number;
+  /** The lower-cased clear-line names it takes a fact for. */
+  keys?: string[] | null;
+  completed?: boolean;
+}
+
 /** A tile the plugin judges itself (timed, deathless, LMS, PvP, diary, combat task, clog, gain), as the config lists it. */
 export interface PlainTile extends TrackedBase {
+  /** Conditions only the site judges: a `tile` fact never credits a row that has them. */
+  conditions?: TileConditions | null;
   currentAmount?: number | null;
   requiredAmount?: number | null;
   activity?: string | null;
@@ -108,6 +137,7 @@ export interface Tracked {
   trackedDiaries?: PlainTile[] | null;
   trackedCombatTasks?: PlainTile[] | null;
   trackedClog?: PlainTile[] | null;
+  trackedRaids?: RaidTile[] | null;
   trackedCombos?: { tileId: number; label: string }[] | null;
   /** Team-level completions; a per-item collection tile is gated on this, not on its count. */
   completedTiles?: { tileId: number }[] | null;
@@ -124,6 +154,9 @@ export interface LootFact {
   party?: number | null;
   /** The item was worked out, not seen (a duplicate pet or scroll); the site flags it for review. */
   inf?: string | null;
+  /** Inside a raid: the ToA level at the chest, and the party deaths seen. */
+  lvl?: number | null;
+  deaths?: number | null;
 }
 
 /** A haul priced by the client (GE value of the whole loot), for loot-value tiles. */
@@ -146,6 +179,26 @@ export interface KillFact {
   unv?: string[];
   /** A whole-fact flag (DuplicateInference etc.), carried onto the submission. */
   inf?: string | null;
+  /** The absolute count the game's count line read for a name ("kill 3"), when the plugin read one. */
+  c?: Record<string, number>;
+}
+
+/**
+ * One raid clear on a key a raid tile listed (lib/tileConditions RaidRun, as the plugin saw it).
+ * `key` is the clear line's raid name, lower-cased; the rest are absent when not seen.
+ */
+export interface RaidFact {
+  k: 'raid';
+  key: string;
+  sec?: number;
+  party?: number;
+  scale?: number;
+  deaths?: number;
+  lvl?: number;
+  mates?: number;
+  all?: true;
+  /** The raid's count line ("Your completed … count is: N"). */
+  kc?: number;
 }
 
 /**
@@ -182,13 +235,13 @@ export interface TileFact {
  * `done`: a fact the plugin re-sends after a transient filing failure carries the tiles it already
  * landed on (or was refused by), so only the ones that failed are filed again.
  */
-export type Fact = (LootFact | ValueFact | KillFact | TileFact) & {
+export type Fact = (LootFact | ValueFact | KillFact | TileFact | RaidFact) & {
   done?: number[];
   /** The plugin's own id for this fact (lib/pluginFacts/factIds): made once, sent again unchanged. */
   id?: string;
 };
 
-export type CreditKind = 'drop' | 'value' | 'kill' | 'tile';
+export type CreditKind = 'drop' | 'value' | 'kill' | 'tile' | 'raid';
 
 export interface Credit {
   kind: CreditKind;
@@ -211,9 +264,16 @@ export interface Credit {
   /** Kill tiles that need the client's view of its company. */
   coop?: boolean;
   pingMax?: number;
+  /**
+   * The tile's conditions (lib/tileConditions) were checked here on the site: only such a credit may
+   * reach a conditioned tile (the facts route marks its filing, lib/pluginFacts/judged).
+   */
+  judged?: true;
+  /** Raid credits: the clear as reported. */
+  raid?: RaidFact;
   /** Tile credits: the fact as reported, the tile's kind and its config row. */
   fact?: TileFact;
-  tileKind?: TileKind | 'drop' | 'kill' | 'value';
+  tileKind?: TileKind | 'drop' | 'kill' | 'value' | 'raid';
   row?: PlainTile;
   /** Indices (in the posted array) of the facts this credit came from. */
   fi?: number[];
@@ -393,6 +453,16 @@ export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult, skip?: S
         if (!drop.acceptedSources.includes(fact.kind)) continue;
       } else if (fact.kind === 'pvp') continue;
       if (drop.sourceNpcs?.length && !sourceMatches(drop.sourceNpcs, fact.src)) continue;
+      // A drop that must come from a ToA raid at a level (lib/tileConditions toaLevel): the plugin
+      // reads the level at the chest and sends it with the loot.
+      const toa = drop.conditions?.toaLevel;
+      if (toa) {
+        const verdict = fact.lvl == null ? ({ ok: false, why: 'the raid level was not seen' } as const) : toaLevelAllows(toa, fact.lvl);
+        if (!verdict.ok) {
+          out.notes.push(notCounted(drop, verdict.why));
+          continue;
+        }
+      }
       if ((drop.partySize ?? 0) > 0) {
         const seen = fact.party ?? 0;
         if (fact.party == null || seen !== drop.partySize) {
@@ -435,7 +505,7 @@ export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult, skip?: S
       const [have, of] = perItem
         ? collectionProgress(drop.itemRequirements!, drop.groupMode, drop.setsRequired)
         : [drop.currentAmount, drop.requiredAmount];
-      out.credits.push({ kind: 'drop', tileId: drop.tileId, label: drop.label, amount, itemId: trackingItemId, have, of, board: drop.board, inferred: fact.inf ?? null });
+      out.credits.push({ kind: 'drop', tileId: drop.tileId, label: drop.label, amount, itemId: trackingItemId, have, of, board: drop.board, inferred: fact.inf ?? null, ...(toa ? { judged: true as const } : {}) });
     }
   }
 }
@@ -480,15 +550,29 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
   const unverified = new Set((fact.unv ?? []).map((n) => n.toLowerCase()));
   const amountByTile = new Map<KillTile, number>();
   const flagged = new Set<KillTile>();
+  // The game's count line for the name that reached each tile (the highest, if several did).
+  const lineByTile = new Map<KillTile, number>();
+  const lines = new Map(Object.entries(fact.c ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
   for (const [name, n] of Object.entries(fact.n)) {
     if (!(n > 0)) continue;
     for (const kill of index.get(name.toLowerCase()) ?? []) {
       if (n > (amountByTile.get(kill) ?? 0)) amountByTile.set(kill, n);
       if (unverified.has(name.toLowerCase())) flagged.add(kill);
+      const line = lines.get(name.toLowerCase());
+      if (line != null && line > (lineByTile.get(kill) ?? 0)) lineByTile.set(kill, line);
     }
   }
   for (const [kill, moved] of amountByTile) {
     if (kill.currentAmount >= kill.requiredAmount || skip?.has(kill.tileId)) continue;
+    // "First 5 CoX" / "over 50 kills": the count when the event started, else the kill's own count line.
+    const bar = kill.conditions?.startCount;
+    if (bar) {
+      const why = startCountRefusal(bar, kill.startCount ?? null, lineByTile.get(kill) ?? null, moved, KILL_WORDS);
+      if (why) {
+        out.notes.push(notCounted(kill, why));
+        continue;
+      }
+    }
     // Never more than the tile still needs: an inflated count must not fan out into a flood of pings.
     const amount = Math.min(moved, kill.requiredAmount - kill.currentAmount);
     const cap = kill.capOf != null && kill.capOf > 0;
@@ -507,6 +591,7 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
       quiet: cap,
       coop: (kill.coopCredit ?? '').toLowerCase() === 'per-kill' || (kill.coopMinMembers ?? 0) > 0,
       pingMax: kill.pingMax,
+      ...(bar ? { judged: true as const } : {}),
     });
   }
 }
@@ -526,6 +611,13 @@ export function matchTile(fact: TileFact, t: Tracked, out: MatchResult, skip?: S
     const row = rows?.find((r) => r?.tileId === fact.t);
     if (!row) continue;
     const kind = (TILE_LISTS as Record<string, TileKind>)[key] ?? (key as 'drop' | 'kill' | 'value');
+    // The plugin judged this one itself, and it can't have judged conditions only the site checks
+    // (a start count, a ToA level, raid bars): such a tile counts only through its own facts.
+    const c = row.conditions;
+    if (c && (c.startCount || c.toaLevel || c.raids?.length)) {
+      out.notes.push(notCounted(row, 'this tile counts only clears and kills the site has checked'));
+      return;
+    }
     if (kind === 'timed' && !fact.sec) return;
     const combo = row.partOf ? t.trackedCombos?.find((c) => c.tileId === row.partOf) : undefined;
     const label = combo && (kind === 'gain' || kind === 'clog') ? `${combo.label.trim()} — ${row.label.trim()}` : row.label;
@@ -533,6 +625,83 @@ export function matchTile(fact: TileFact, t: Tracked, out: MatchResult, skip?: S
     row.currentAmount = Math.min(of, (row.currentAmount ?? 0) + fact.n);
     out.credits.push({ kind: 'tile', tileId: fact.t, label, amount: fact.n, have: row.currentAmount, of, board: row.board, inferred: fact.inf ?? null, fact, tileKind: kind, row });
     return;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tile conditions (lib/tileConditions): raid clears, and the count when the event started
+
+/** "Not counted: <tile>: <why>." — the line the plugin prints for a site-judged refusal. */
+export function notCounted(row: { label: string; board?: FactBoard | null }, why: string): string {
+  const name = row.board?.name;
+  const label = name && !row.label.endsWith(` \u00b7 ${name}`) ? `${row.label} \u00b7 ${name}` : row.label;
+  return `Not counted: ${label}: ${why}.`;
+}
+
+const KILL_WORDS = { one: 'kill', many: 'kills' };
+const CLEAR_WORDS = { one: 'clear', many: 'clears' };
+
+/**
+ * Why a start-count tile refuses this player's credit, or null when it takes it. The count from the
+ * event start decides when it is known; otherwise the game's count line, which reads the count
+ * AFTER this event (`moved` of them), so the count before it is line - moved. Neither known: taken.
+ */
+export function startCountRefusal(bar: StartCount, start: number | null, line: number | null, moved: number, noun: { one: string; many: string }): string | null {
+  if (start != null) {
+    return startCountAllows(bar, start) ? null : `you had ${start.toLocaleString('en-US')} ${start === 1 ? noun.one : noun.many} when it started`;
+  }
+  // Neither known: refused, never assumed. A missed first would be lost, but a fifth kill credited as a
+  // first can't be taken back by anything the player sees.
+  if (line == null) return `your ${noun.one} count wasn't seen; make sure the game's ${noun.one} count messages are on`;
+  // countLineAllows reads one event: shift a burst of several so "line" is the first of them.
+  const first = line - Math.max(1, moved) + 1;
+  if (countLineAllows(bar, first)) return null;
+  return bar.op === 'lt'
+    ? `this was ${noun.one} ${first.toLocaleString('en-US')}, so you'd done it before`
+    : `this was ${noun.one} ${first.toLocaleString('en-US')}, needs over ${bar.n.toLocaleString('en-US')} before it`;
+}
+
+/**
+ * A raid clear against the caller's raid tiles. Each tile listing the clear's key judges it on its own
+ * (judgeRaidRun: the picks' bars, then deaths and teammates, then the start count); a refusal is a
+ * note in plain words, since the plugin says nothing itself for these tiles.
+ */
+export function matchRaid(fact: RaidFact, t: Tracked, out: MatchResult, skip?: Set<number>): void {
+  const mode = RAID_KEY_MODES.get(fact.key.toLowerCase());
+  if (!mode) return;
+  const done = completedSet(t);
+  const run = {
+    raid: mode.raid,
+    // ToA's mode is its level; the line's name is only the band the level fell in.
+    mode: mode.raid === 'toa' && fact.lvl != null ? toaModeFor(fact.lvl) : mode.mode,
+    sec: fact.sec ?? null,
+    party: fact.party ?? null,
+    scale: fact.scale ?? null,
+    deaths: fact.deaths ?? null,
+    lvl: fact.lvl ?? null,
+    mates: fact.mates ?? null,
+    allMates: fact.all ?? null,
+  };
+  for (const r of t.trackedRaids ?? []) {
+    if (skip?.has(r.tileId) || r.completed || done.has(r.tileId)) continue;
+    if (!(r.keys ?? []).includes(fact.key.toLowerCase())) continue;
+    const c = r.conditions;
+    if (!c) continue;
+    if (r.currentAmount >= r.requiredAmount) continue;
+    const verdict = judgeRaidRun(c, run);
+    if (!verdict.ok) {
+      out.notes.push(notCounted(r, verdict.why));
+      continue;
+    }
+    if (c.startCount) {
+      const why = startCountRefusal(c.startCount, r.startCount ?? null, fact.kc ?? null, 1, CLEAR_WORDS);
+      if (why) {
+        out.notes.push(notCounted(r, why));
+        continue;
+      }
+    }
+    r.currentAmount += 1;
+    out.credits.push({ kind: 'raid', tileId: r.tileId, label: r.label, amount: 1, have: r.currentAmount, of: r.requiredAmount, board: r.board, raid: fact, tileKind: 'raid', judged: true });
   }
 }
 
@@ -550,6 +719,7 @@ export function matchFacts(facts: Fact[], t: Tracked): MatchResult {
     else if (f.k === 'value') matchValue(f, t, out, skip);
     else if (f.k === 'kill') matchKill(f, t, out, index, skip);
     else if (f.k === 'tile') matchTile(f, t, out, skip);
+    else if (f.k === 'raid') matchRaid(f, t, out, skip);
     for (const c of out.credits.slice(from)) c.fi = [i];
   });
   return out;
@@ -602,7 +772,7 @@ export function coalesce(credits: Credit[]): Credit[] {
   for (const c of credits) {
     const key = `${c.kind}:${c.tileId}:${c.itemId ?? '-'}`;
     const had = byKey.get(key);
-    if (!had || c.kind === 'value' || c.kind === 'tile') {
+    if (!had || c.kind === 'value' || c.kind === 'tile' || c.kind === 'raid') {
       const copy = { ...c, parts: c.parts ? [...c.parts] : undefined, fi: c.fi ? [...c.fi] : undefined };
       if (!had) byKey.set(key, copy);
       out.push(copy);

@@ -1,3 +1,4 @@
+import { RAID_TILE_TYPE, conditionsKindError, validateConditions } from '@/lib/tileConditionsCheck';
 import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
 import { parseJsonArray } from '@/lib/tileKinds';
@@ -86,6 +87,8 @@ interface ImportRow {
   comboWeight?: unknown;
   /** A race tile's EASIER OPTIONS (lib/raceEase), first level first: each its own row, any kind but a combo. */
   easier?: unknown;
+  /** Tile conditions (lib/tileConditions): a raid tile's raids, or a start count / ToA level. */
+  conditions?: unknown;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -109,7 +112,7 @@ const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['combo', 'standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal', 'clog']);
+const VALID_TILE_TYPES = new Set(['combo', 'standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'raid', 'diary', 'ca', 'lms', 'value', 'valuetotal', 'clog']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -355,6 +358,16 @@ function validateRowKind(
   const isDeathless = effTileType === 'deathless';
   // Collection-log tiles: pages in targetNpcs, the chosen items from the row's items (lib/clogTiles).
   const isClog = effTileType === 'clog' || (!!derived && row.tileType === 'clog');
+  // Raid tiles (lib/tileConditions): the raids ride `conditions`; requiredAmount = clears needed.
+  const isRaid = effTileType === RAID_TILE_TYPE;
+  if (row.conditions !== undefined || isRaid) {
+    const checked = row.conditions !== undefined ? validateConditions(row.conditions) : { ok: true as const, value: null };
+    if (!checked.ok) return `Row ${i + 1}: ${checked.error}`;
+    const kindError = conditionsKindError(effTileType, checked.value, hasStat);
+    if (kindError) return `Row ${i + 1}: ${kindError}`;
+    if (isRaid && (dropItemFields || effTargetNpcsLen > 0 || effTimed)) return `Row ${i + 1}: a raid tile’s raids are its conditions; clear the other tracking fields.`;
+    if (isRaid && effRequiredAmount == null) return `Row ${i + 1}: set how many clears the raid tile needs.`;
+  }
 
   if (hasStat && (isClog || isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
     return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile.`;
@@ -382,8 +395,8 @@ function validateRowKind(
   if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
     return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed) {
-    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isRaid && !isTimed) {
+    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, raid, or timed (trial runs) tiles can have a required amount.`;
   }
   return null;
 }
@@ -445,6 +458,14 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
     // A collection-log row without items (pages only, or any page) still carries its mode.
     if (row.tileType === 'clog' && !derived) s.countMode = row.countMode === 'complete' ? 'complete' : 'slots';
     if (row.requiredAmount !== undefined) s.requiredAmount = row.requiredAmount ?? null;
+    // Conditions are the tile's rules too (checked in validateRowKind). "Counted once per raid" is
+    // the shared-run rule (lib/coopRuns), so a raid tile's coopCredit follows it.
+    if (row.conditions !== undefined) {
+      const checked = validateConditions(row.conditions);
+      const c = checked.ok ? checked.value : null;
+      s.conditions = c ? JSON.stringify(c) : null;
+      if (row.tileType === RAID_TILE_TYPE) s.coopCredit = c?.shared === 'together' ? 'per-kill' : null;
+    }
     // The alternative is part of the tile's rules, frozen with them once the event runs.
     if (row.capBy !== undefined) {
       const caps = validateCapBy(row.capBy);

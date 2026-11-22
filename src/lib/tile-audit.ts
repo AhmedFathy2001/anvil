@@ -42,6 +42,7 @@ const AUDITED_FIELDS: { key: keyof TileRow; label: string; json?: boolean }[] = 
   { key: 'partySize', label: 'Party size' },
   { key: 'minRaidLevel', label: 'Min raid level' },
   { key: 'partyTeamOnly', label: 'Whole party from the team' },
+  { key: 'conditions', label: 'Conditions', json: true },
   { key: 'pvpMinLootValue', label: 'Min loot value (gp)' },
   { key: 'trackedItemIds', label: 'Tracked items', json: true },
   { key: 'itemRequirements', label: 'Item requirements', json: true },
