@@ -29,6 +29,7 @@ const COPY: Record<TileKindKey, { label: string; blurb: string; icon: string }> 
   lap: { label: 'Agility laps', blurb: 'Laps, Sepulchre floors, full runs', icon: wikiImageUrl('Agility_icon.png') },
   timed: { label: 'Timed clears', blurb: 'Inferno, raids, Colosseum — under a cap', icon: itemIconUrl(21295) },
   deathless: { label: 'Deathless', blurb: 'Raids finished with nobody dying', icon: wikiImageUrl('Hitpoints_icon.png') },
+  raid: { label: 'Raids', blurb: 'Clears of any of several raids, each with its own bar', icon: itemIconUrl(20851) },
   pvp: { label: 'PvP kills', blurb: 'Anyone, a rival team, or a named bounty', icon: wikiImageUrl('Skull_(status)_icon.png') },
   lms: { label: 'LMS', blurb: 'Place top-N in Last Man Standing', icon: itemIconUrl(12746) },
   value: { label: 'Loot value', blurb: 'A haul worth X gp, priced as it drops', icon: itemIconUrl(995) },

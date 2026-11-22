@@ -74,7 +74,8 @@ the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 `POST /api/plugin/clog` and `/api/plugin/pb`); `start-proof` (the anti-stack starting shot
 — a `startProof` block on `/api/plugin/config` and `POST /api/events/:id/start-proof`);
 `moments` (`POST /api/plugin/moments` — the pets/uniques/deaths highlight feed for a
-competition week or a running board); `drop-facts` (a `dropFacts` block on
+competition week or a running board); `raid-facts` (site-judged raid tiles and tile conditions —
+below); `drop-facts` (a `dropFacts` block on
 `/api/plugin/config`, below); `mission-prizes` (what a mission pays, place by place —
 below); `coffer-sync` (absolute in-game Clan Coffer observations posted to
 `/api/plugin/coffer`, below); `coffer-chat` (the coffer's clan-chat line posted to
@@ -521,6 +522,26 @@ sign-in, the clan picker, settings and banner sounds, and the starting-shot card
   inputs; `ask` prompts for a note first), `pin` (this client's in-game tile tracker, then `then`; tile 0
   unpins the event), `switch` (point the plugin at another of the member's clans). Any
   node may carry `menu`, a right-click list of `{label, on}`. The plugin ignores anything else.
+
+### `raid-facts`
+
+Tile conditions (`src/lib/tileConditions.ts`) are judged on the site, never in the client. The rule
+table carries, per open raid tile, `{ t, label, have, of, on: "raid", keys, site: true }`: `keys` are
+the lower-cased clear-line names of every mode of each raid on the tile, and `site: true` means the
+client neither counts it nor says anything for it. On every raid clear whose line names one of them,
+the client sends a fact to `POST /api/plugin/facts`:
+
+```json
+{ "k": "raid", "key": "chambers of xeric challenge mode", "sec": 1712, "party": 3, "scale": 3,
+  "deaths": 0, "mates": 3, "all": true, "kc": 41, "id": "…" }
+```
+
+(each number only when seen; `key` the longest key the line names). Kill facts may add
+`c: { "<name>": <the count line's number> }`, and loot facts from inside a raid `lvl` (ToA level at the
+chest) and `deaths`. The reply's `notes` say the outcome: `Tile progress: <label> (2/5)` or
+`Not counted: <label>: <why>.` A plugin older than 1.17.2 (`X-Anvil-Plugin-Version`) gets no raid
+rules, and a plugin submission straight to `/api/events/:id/submissions` on a conditioned tile is
+refused: only facts the site judged may credit one.
 
 ### `moments`
 

@@ -135,6 +135,11 @@ export const PLUGIN_CAPABILITIES = [
   // server decides which competition week or board they belong to (lib/moments). Gated because a
   // plugin that pushed these at a site without the endpoint would just collect 404s.
   'moments',
+  // Tile conditions (lib/tileConditions): the rule table carries `on: 'raid'` rules marked `site: true`,
+  // and POST /api/plugin/facts takes `raid` facts (time, party, scale, deaths, level, teammates, the
+  // count line), kill facts' count line (`c`) and loot's raid level/deaths. The site judges them and
+  // says the result in the reply's notes. Gated so a plugin never reports raids to a site that drops them.
+  'raid-facts',
   // Drop facts (lib/dropFacts): /api/plugin/config carries `dropFacts`, telling the plugin which
   // monster a pet actually comes from and which items a source hands over every kill. Gated because
   // the plugin's fallbacks differ — without it, a pet is attributed to the last loot event it saw
