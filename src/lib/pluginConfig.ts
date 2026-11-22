@@ -2,7 +2,7 @@ import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
-import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, huntDrops, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { competitionStat } from '@/lib/weeklyMetric';
 import { huntLine, huntPets, parseHunt } from '@/lib/itemHunt';
@@ -71,6 +71,46 @@ function huntIconItem(w: { type: string; hunt?: string | null }): { iconItem?: n
   return id ? { iconItem: id } : {};
 }
 
+/** One thing an item hunt is after, for the panel's targets card: who got it first, once someone has. */
+export interface HuntPanelItem {
+  id: number;
+  name: string;
+  /** Its points, on a "most points" hunt. */
+  pts?: number;
+  /** The first counted drop of it: who, and when. */
+  got?: { rsn: string; at: string };
+  /** How many counted drops of it in all, when more than one. */
+  n?: number;
+}
+
+/** A hunt's targets, in the order it lists them, with the first counted drop of each. */
+async function huntPanelItems(w: { id: number; type: string; hunt?: string | null }): Promise<{ huntItems?: HuntPanelItem[] }> {
+  if (w.type !== 'hunt') return {};
+  const config = parseHunt(w.hunt);
+  if (!config) return {};
+  const rows: { id: number; name: string; points?: number }[] =
+    config.target === 'pets' && config.v !== 2 ? huntPets(config) : config.items.map((it) => ({ id: it.id, name: it.name, points: it.points }));
+  if (!rows.length) return {};
+  // clan-scope: this competition only -- its id came from the clan's own schedule above.
+  const drops = await db
+    .select({ itemId: huntDrops.itemId, rsn: huntDrops.rsn, at: huntDrops.occurredAt })
+    .from(huntDrops)
+    .where(and(eq(huntDrops.competitionId, w.id), eq(huntDrops.status, 'counted')));
+  drops.sort((a, b) => a.at.localeCompare(b.at));
+  return {
+    huntItems: rows.slice(0, 40).map((r) => {
+      const mine = drops.filter((d) => d.itemId === r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        ...(config.rule === 'points' && r.points ? { pts: r.points } : {}),
+        ...(mine[0] ? { got: { rsn: mine[0].rsn, at: mine[0].at } } : {}),
+        ...(mine.length > 1 ? { n: mine.length } : {}),
+      };
+    }),
+  };
+}
+
 export interface ScheduleWeekly {
   id: number;
   title: string;
@@ -87,6 +127,8 @@ export interface ScheduleWeekly {
   hostedBy?: string;
   /** An item hunt (type 'hunt'): the id of the item or pet it hunts, for its picture. */
   iconItem?: number;
+  /** An item hunt: everything it is after, and who got each one (the panel's targets card). */
+  huntItems?: HuntPanelItem[];
   /** Coffer prizes in gp, first place first (lib/weeklyPrizes). Absent when it pays nothing. */
   prizeGp?: number[];
   /** 'hcw': the prizes are paid in Hardcore Worlds gp, from the clan's Hardcore Worlds coffer. Absent = main game gp. */
@@ -288,8 +330,9 @@ export async function buildSchedule(
       ? (await db.select({ id: clans.id, name: clans.name }).from(clans).where(inArray(clans.id, foreignHosts))).map((h) => [h.id, h.name])
       : [],
   );
-  const weeklies: ScheduleWeekly[] = allWeeklies
-    .filter((w) => weeklyStatus(w) !== 'completed')
+  const live = allWeeklies.filter((w) => weeklyStatus(w) !== 'completed');
+  const huntItems = new Map(await Promise.all(live.map(async (w) => [w.id, await huntPanelItems(w)] as const)));
+  const weeklies: ScheduleWeekly[] = live
     .map((w) => ({
       id: w.id,
       title: w.title,
@@ -298,6 +341,7 @@ export async function buildSchedule(
       // An item hunt reads "Uncut onyx from Zulrah · most by the end" (lib/itemHunt).
       metricLabel: w.type === 'hunt' ? huntLine(parseHunt(w.hunt), w.metric) : weeklyMetricLabel(w.type, w.metric),
       ...huntIconItem(w),
+      ...huntItems.get(w.id),
       ...weeklyPrizeGp(w.prizes),
       ...(parsePrizeCurrency(w.prizeCurrency) === 'hcw' ? { prizeCurrency: 'hcw' as const } : {}),
       status: weeklyStatus(w),

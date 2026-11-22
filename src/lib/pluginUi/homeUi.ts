@@ -1191,6 +1191,30 @@ const utcDayTime = (iso: string): string => {
   return `${day} ${t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`;
 };
 
+/**
+ * Everything an item hunt is after, one row each with its picture, so nobody has to open the site to
+ * see the list: who got it first (green), else its points on a points hunt, else "not yet".
+ */
+function huntTargetsCard(w: ScheduleWeekly): Node | null {
+  const items = w.huntItems ?? [];
+  if (!items.length) return null;
+  const found = items.filter((it) => it.got).length;
+  const allPets = /^pet hunt/i.test(w.title || '') || w.metricLabel.toLowerCase().startsWith('pet');
+  return section(
+    [
+      row(title(allPets ? 'Pets' : 'Targets'), undefined, muted(found ? `${found} of ${items.length} found` : `${items.length} to find`)),
+      ...items.map((it) => {
+        const name = text(clip(it.name, 18), it.got ? 'white' : SOFT, { icon: icon({ item: it.id, w: 24, h: 22 }), tip: it.name });
+        const right = it.got
+          ? small(`✓ ${clip(it.got.rsn, 11)}${it.n ? ` +${it.n - 1}` : ''}`, GREEN, { tip: `First: ${it.got.rsn}${it.n ? ` (${it.n} in all)` : ''}` })
+          : small(it.pts ? `${it.pts} pts` : 'not yet', FAINT);
+        return row(name, undefined, right, { gap: 6 });
+      }),
+    ],
+    { gap: 4 },
+  );
+}
+
 function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const upcoming = w.status !== 'active';
   const s = d.weekly.get(w.id);
@@ -1215,6 +1239,8 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
       ];
   top.push(siteLink(upcoming ? 'View event' : 'View standings', upcoming ? 'Open this event on the Anvil site' : 'Open the full standings on the Anvil site', path));
   parts.push(section(top));
+  const targets = huntTargetsCard(w);
+  if (targets) parts.push(targets);
   const prizes = weeklyPrizeCard(w);
   if (prizes) parts.push(prizes);
   if (!upcoming) {

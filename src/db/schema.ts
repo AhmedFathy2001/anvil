@@ -2771,6 +2771,15 @@ export const pendingNotifications = pgTable('pending_notifications', {
 ]);
 
 /**
+ * Posts that must go out once even across a restart (lib/notifyDedupe): `key` is "<kind>:<user>:<item>",
+ * `seen_at` when it last posted. Old rows are swept as it goes.
+ */
+export const notifySeen = pgTable('notify_seen', {
+  key: text('key').primaryKey(),
+  seenAt: timestamp('seen_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('notify_seen_at_idx').on(t.seenAt)]);
+
+/**
  * Every board post Anvil sent with a webhook, kept so it can be found, edited or deleted later
  * (lib/discordPosts): a submission post (one or a merged bucket of several), a tile-complete post, a
  * team-win post. One row per destination it went to (host channel, co-host, extra hooks).
