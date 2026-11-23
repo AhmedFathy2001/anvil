@@ -305,8 +305,8 @@ test('events list: invite-only is never listed to non-staff; staff see it tagged
 });
 
 test('clan-only public pages are a creator space\'s to skip; events and the rest are not', () => {
-  assert.deepEqual([...CREATOR_HIDDEN_PUBLIC_PATHS], ['/members', '/weekly', '/coffer', '/clan-events']);
-  for (const p of ['/members', '/members/Zezima', '/weekly', '/weekly/12', '/coffer', '/clan-events/3', '/clan-events/3/survey']) {
+  assert.deepEqual([...CREATOR_HIDDEN_PUBLIC_PATHS], ['/members', '/weekly', '/coffer', '/clan-events', '/fund']);
+  for (const p of ['/members', '/members/Zezima', '/weekly', '/weekly/12', '/coffer', '/clan-events/3', '/clan-events/3/survey', '/fund']) {
     assert.equal(creatorHidesPublicPath(p), true, p);
   }
   for (const p of ['/', '/events', '/events/5', '/team', '/profile', '/membership', '/weeklyish', '/host']) {

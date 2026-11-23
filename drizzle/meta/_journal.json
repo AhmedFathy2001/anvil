@@ -1555,6 +1555,13 @@
       "when": 1795277000000,
       "tag": "0284_plan_payers",
       "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1795278000000,
+      "tag": "0285_clan_fund",
+      "breakpoints": true
     }
   ]
 }

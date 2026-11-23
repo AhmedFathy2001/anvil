@@ -1,3 +1,4 @@
+import { MEMBERSHIP_OWNS_PLAN } from '@/lib/clanFundRules';
 import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 
@@ -58,6 +59,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const plan = String(body.plan ?? '');
     if (!planIdsFor(before.kind).includes(plan)) return NextResponse.json({ error: 'Bad plan' }, { status: 400 });
     patch.plan = plan;
+    // A plan set by hand is not the clan fund's (lib/clanFund); a fund recompute re-applies its own.
+    Object.assign(patch, MEMBERSHIP_OWNS_PLAN);
     // The cap follows the plan unless this same request overrides it. An operator moving a clan to
     // Silver means the Silver cap; leaving a stale cap behind is the bug this prevents.
     if (!('memberCap' in body)) patch.memberCap = billingTierOf(before.kind, plan).memberCap;

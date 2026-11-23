@@ -42,6 +42,8 @@ interface Props {
   myTeams: number;
   /** The clan keeps a coffer — only then does the page have anything to show. */
   hasCoffer?: boolean;
+  /** The clan runs a fund (lib/clanFund): members can chip in toward its plan. */
+  hasFund?: boolean;
   isStaff: boolean;
   /** The first admin surface this person's grant may actually open in the current clan. */
   adminHref: string;
@@ -90,7 +92,7 @@ const DiscordIcon = (
   </svg>
 );
 
-export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, platformBadge = null, discordInvite, user, clan, myClans }: Props) {
+export default function SiteNav({ signedIn, myTeams, hasCoffer = false, hasFund = false, isStaff, adminHref, platformBadge = null, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
   const closeMenu = useCallback(() => setOpen(false), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -164,6 +166,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
           ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
           : []),
         ...(hasCoffer ? [{ href: '/coffer', label: 'Coffer' }] : []),
+        ...(hasFund ? [{ href: '/fund', label: 'Fund' }] : []),
       ]
     : [
         { href: '/clans', label: 'Clans' },
