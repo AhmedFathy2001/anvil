@@ -72,7 +72,7 @@ test("know-how carries from the main to the pure, but the pure's means still gat
 
 test('an iron at the stats but without the gear in its log is held back', () => {
   const iron = account({ accountType: 'ironman', clogItems: new Set(['dragon defender']) });
-  const geared = account({ accountType: 'ironman', clogItems: new Set(['twisted bow']) });
+  const geared = account({ accountType: 'ironman', clogItems: new Set(['twisted bow', 'tanzanite fang']) });
   assert.ok(meansFor(iron, spec('tzKalZuk')) < 0.3);
   assert.equal(meansFor(geared, spec('tzKalZuk')), 1);
   // A normal account is assumed able to buy what it needs.

@@ -1314,8 +1314,8 @@ export const en = {
         'You don’t have to draft. **Team placement**, on the create form and the **Sign-ups** tab, decides where each new sign-up lands:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'each person who signs up joins the team with the fewest players. You only choose how many teams. Good for big public events.',
+          term: 'Even split',
+          body: 'each person who signs up joins the team with the fewest players, so team sizes stay even. It goes by headcount, not skill. You only choose how many teams. Good for big public events.',
         },
         {
           term: 'Players pick',

@@ -26,6 +26,7 @@ import { xpPerHourAt } from '@/lib/efficiency';
 import { expectedKillsForAll, itemChance } from '@/lib/dropOdds';
 import { clogTileGroups, clogTileItemIds, clogTileSpec } from '@/lib/clogTiles';
 import { clogItemNames } from '@/lib/clogDataset';
+import { boardActivityKeys } from '@/lib/draftCoverage';
 
 export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
@@ -34,7 +35,16 @@ const FLOOR_ORDER: Floor[] = ['anyone', 'mid', 'high', 'elite'];
 // Difficulty is a modest execution premium. Attempt duration / success rate already prices most
 // mechanical difficulty, so a large multiplier here would count the same failures twice. Floors
 // map onto the 0–5 rubric used by the scoring design: routine=0, mid=1, high≈2.5, elite=4.
-const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.05, high: 1.125, elite: 1.2 };
+const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.1, high: 1.3, elite: 1.5 };
+/**
+ * Skill premium from WHO CAN DO IT, when the pool (or clan) is known: 1 when everyone can, rising to
+ * 1 + SCARCITY_PREMIUM when almost nobody can. Replaces the floor guess above, which is only the
+ * fallback for a board with no players to read (a new clan, a creator space).
+ */
+const SCARCITY_PREMIUM = 0.7;
+export function scarcityDifficulty(share: number): number {
+  return 1 + SCARCITY_PREMIUM * Math.pow(1 - Math.min(1, Math.max(0, share)), 1.5);
+}
 
 // Nobody should ever be told to drop a hard tile to 2 points. A tile's suggested value is
 // clamped up to this floor by difficulty — prestige has a price regardless of throughput.
@@ -1092,6 +1102,11 @@ export function analyzeEffort(
     eventDays?: number | null;
     /** Players per team — a team-tracked XP/KC goal is fed by all of them at once. */
     teamSize?: number | null;
+    /**
+     * Boss key → share of the priced population (pool, else clan) able to do it — lib/capabilityPool.
+     * Absent = no players to read; the floors' difficulty stands.
+     */
+    capabilityShares?: Map<string, number> | null;
   },
 ): EffortReport {
   const rates = mergeRates(opts.ratesOverride);
@@ -1124,7 +1139,20 @@ export function analyzeEffort(
     const weight = tileWeight(scoringMode, t.points ?? 1);
     const avg = hours && Number.isFinite(hours[1]) && hours[1] > 0 ? hours[1] : null;
     const skillRating = effortConfig?.skillRating ?? null;
-    const difficulty = skillRating != null ? 1 + 0.05 * skillRating : FLOOR_EFFORT_MULTIPLIER[floor];
+    // The hardest activity the tile asks for sets its share; a tile naming none keeps the floor.
+    let share: number | null = null;
+    if (opts.capabilityShares?.size) {
+      for (const key of boardActivityKeys([t])) {
+        const v = opts.capabilityShares.get(key);
+        if (v != null) share = share == null ? v : Math.min(share, v);
+      }
+    }
+    const difficulty =
+      skillRating != null
+        ? 1 + 0.1 * skillRating
+        : share != null && (floor === 'high' || floor === 'elite' || floor === 'mid')
+          ? Math.max(FLOOR_EFFORT_MULTIPLIER[floor] * 0.85, scarcityDifficulty(share))
+          : FLOOR_EFFORT_MULTIPLIER[floor];
     // Assignee-band pricing (plan A2): high/elite tiles price against 60/40 fast/avg — and when
     // the avg band literally can't do it (Infinity) but the fast band can, the fast band alone
     // carries the price: that's exactly the Inferno case, a real tile for the one who'll get it.

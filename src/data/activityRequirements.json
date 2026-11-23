@@ -1,5 +1,5 @@
 {
- "_comment": "Per-activity account requirements for the ability table (lib/capability). hard = game-enforced skill gates; realistic = the low end of the OSRS Wiki recommended stats (raid/endgame floors hand-lowered to the realistic minimum); ironGear = for irons, every group needs any one item in the collection log. Overridable per clan via balance_rates.requirements (merged by key).",
+ "_comment": "Per-activity account requirements for the ability table (lib/capability). hard = game-enforced skill gates; realistic = the low end of the OSRS Wiki recommended stats (raid/endgame floors hand-lowered to the realistic minimum); ironGear = for irons, every group needs any one item in the collection log. Overridable per clan via balance_rates.requirements (merged by key). Gear names must be collection-log item names (the blowpipe is proven by its Tanzanite fang).",
  "source": "OSRS Wiki strategy pages, curated 2026-11-23",
  "activities": {
   "abyssalSire": {
@@ -313,7 +313,7 @@
     [
      "twisted bow",
      "dragon hunter crossbow",
-     "tumeken's shadow"
+     "tumeken's shadow (uncharged)"
     ]
    ],
    "related": [
@@ -1061,7 +1061,7 @@
    "ironGear": [
     [
      "twisted bow",
-     "toxic blowpipe"
+     "tanzanite fang"
     ]
    ],
    "related": [

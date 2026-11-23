@@ -47,9 +47,9 @@ export function placementOf(event: { teamPlacement?: string | null; teamFormatio
 
 export const PLACEMENT_META: Record<TeamPlacement, { label: string; short: string; help: string }> = {
   auto: {
-    label: 'Auto-balance',
+    label: 'Even split',
     short: 'Anvil spreads players evenly as they join',
-    help: 'Each person who signs up joins the team with the fewest players. You only choose how many teams; Anvil makes them on the first sign-ups. Good for big public events.',
+    help: 'Each person who signs up joins the team with the fewest players, so team sizes stay even. It goes by headcount, not skill; use Balance teams on the Teams page if you want strength evened out too. You only choose how many teams; Anvil makes them on the first sign-ups. Good for big public events.',
   },
   pick: {
     label: 'Players pick',

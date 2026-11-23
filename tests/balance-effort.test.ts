@@ -180,7 +180,7 @@ test('ordinary monster drops use the mob fallback and wait for calibration befor
   assert.equal(effort.suggestedPoints, null);
 });
 
-test('tile effort config is defensive and skill rating controls only the small premium', () => {
+test('tile effort config is defensive and skill rating sets the skill premium', () => {
   assert.deepEqual(parseTileEffortConfig('{"skillRating":4}'), { skillRating: 4 });
   assert.equal(parseTileEffortConfig('{not json'), null);
   assert.equal(parseTileEffortConfig({ skillRating: 9 }), null);
@@ -188,10 +188,10 @@ test('tile effort config is defensive and skill rating controls only the small p
   const tile = raidDropTile({ effortConfig: JSON.stringify({ skillRating: 4 }) });
   const effort = analyzeEffort([tile], { pointsMode: true }).perTile[0];
   assert.equal(effort.skillRating, 4);
-  assert.equal(effort.difficulty, 1.2);
+  assert.equal(effort.difficulty, 1.4);
 });
 
-test('skill floors add only a modest premium after attempt success is priced', () => {
+test('skill floors add a premium after attempt success is priced', () => {
   const elite = analyzeEffort([
     {
       ...raidDropTile(),
@@ -204,7 +204,7 @@ test('skill floors add only a modest premium after attempt success is priced', (
   ], { pointsMode: true }).perTile[0];
 
   assert.equal(elite.floor, 'elite');
-  assert.equal(elite.difficulty, 1.2);
+  assert.equal(elite.difficulty, 1.5);
 });
 
 test('Inferno benchmarks price one KC, GM speed, and five-KC marginal work as 100/150/200', () => {
@@ -251,7 +251,7 @@ test('manual expected hours model bespoke objectives without folding in the skil
   }], { pointsMode: true }).perTile[0];
 
   assert.deepEqual(ca.hours, [1.6, 2, 2.7]);
-  assert.equal(ca.difficulty, 1.2);
+  assert.equal(ca.difficulty, 1.4);
   assert.equal(ca.pricingHours, 2);
   assert.match(ca.note ?? '', /manual calibration/);
 });
@@ -621,4 +621,23 @@ test('hard tiles paying less per effort-hour than the board are called out as no
   const check = report.checks.find((c) => c.id === 'hard-not-worth-it');
   assert.ok(check, 'cheap hard tile should be flagged');
   assert.deepEqual(check!.tileIds, [7]);
+});
+
+test('a tile few players can do carries a bigger skill premium than one everyone can do', () => {
+  const tile = {
+    ...raidDropTile(),
+    tileType: 'standard',
+    trackedItemIds: null,
+    sourceNpcs: null,
+    trackedStat: 'tzKalZuk',
+    statType: 'boss',
+    statGoal: 1,
+    effortConfig: null,
+  } as Tile;
+  const rare = analyzeEffort([tile], { pointsMode: true, capabilityShares: new Map([['tzKalZuk', 0.03]]) }).perTile[0];
+  const common = analyzeEffort([tile], { pointsMode: true, capabilityShares: new Map([['tzKalZuk', 0.9]]) }).perTile[0];
+  const unknown = analyzeEffort([tile], { pointsMode: true }).perTile[0];
+  assert.ok(rare.difficulty > 1.6, `rare ${rare.difficulty}`);
+  assert.ok(common.difficulty < unknown.difficulty);
+  assert.equal(unknown.difficulty, 1.5, 'no players to read: the elite floor stands');
 });
