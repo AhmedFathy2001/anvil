@@ -267,6 +267,12 @@ test('lower target: a real couple of kills finish the practice copy, the real ti
   assert.equal(lowered.goal, 2);
   const done = await db.select().from(s.completions).where(and(eq(s.completions.tileId, copy.id), eq(s.completions.teamId, team.id)));
   assert.equal(done.length, 1, 'finished by the two kills');
+  // A team total stores no finisher: the board names whoever made the team's last credit, as the event feed does.
+  const [ev] = await db.select().from(s.events).where(eq(s.events.id, practiceId));
+  const [board] = await db.select().from(s.practiceBoards).where(eq(s.practiceBoards.eventId, practiceId));
+  const view = await practice.practiceView(ev, board);
+  const row = view.tiles.find((t) => t.id === copy.id)!.teams.find((t) => t.teamId === team.id)!;
+  assert.equal(row.doneBy, player.name);
   const [real] = await db.select().from(s.tiles).where(eq(s.tiles.id, killTileId));
   assert.equal(real.requiredAmount, 50);
 
