@@ -226,7 +226,11 @@ export default function TileDetailModal({
   const [savingAmountId, setSavingAmountId] = useState<number | null>(null);
   async function saveAmount(id: number, was: number) {
     const n = parseInt(amountDrafts[id] ?? '', 10);
-    if (!onSetAmount || !Number.isInteger(n) || n < 1 || n === was) return;
+    if (!onSetAmount || !Number.isInteger(n) || n === was) return;
+    if (n < 1) {
+      setActionError('An amount must be 1 or more. To take a credit off, use Remove.');
+      return;
+    }
     setSavingAmountId(id);
     setActionError('');
     try {
@@ -1514,6 +1518,18 @@ export default function TileDetailModal({
                                 >
                                   {savingAmountId === sub.id ? 'Saving…' : 'Save'}
                                 </button>
+                                {/* Credits with no screenshot (plugin logs, staff corrections) have no
+                                    proof thumbnail to delete from, so removal lives here too. */}
+                                {onDelete && canDeleteShot(sub.id) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openDeleteModal(sub.id)}
+                                    disabled={deletingId === sub.id}
+                                    className="rounded border border-red-400/40 px-2 py-1 text-[11px] text-red-400 hover:border-red-300 hover:text-red-300 disabled:opacity-40"
+                                  >
+                                    {deletingId === sub.id ? '…' : 'Remove'}
+                                  </button>
+                                )}
                               </li>
                             ))}
                           </ul>

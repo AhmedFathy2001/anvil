@@ -5,6 +5,7 @@ import { itemIconUrl } from '@/lib/tileIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { howItCountsLine, itemTileConfig, type ItemHow, type ItemNeed } from '@/lib/tileCreatorConfig';
+import { itemPoolTitle, shortPage } from '@/lib/tileNames';
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { ItemObtainInfo } from '@/lib/itemObtain';
 import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, StepHeader } from './parts';
@@ -90,17 +91,39 @@ export default function ItemStep({
   }, [q, everyItem, how, howTouched]);
 
   const pages = useMemo(() => {
-    const set = new Set(known.map((i) => i.clogPage).filter((p): p is string => !!p));
+    // "All Pets" is where a pet is listed, not where it comes from: never offered as a page to add.
+    const set = new Set(known.map((i) => i.clogPage).filter((p): p is string => !!p && p !== 'All Pets'));
     return [...set].slice(0, 2);
   }, [known]);
   const allSources = useMemo(() => [...new Set(known.flatMap((i) => i.sources))].slice(0, 8), [known]);
   const hasPet = known.some((i) => i.pet);
 
-  async function addPage(page: string) {
-    const res = await clanFetch(`/api/admin/task-suggest/items?page=${encodeURIComponent(page)}`);
-    if (!res.ok) return;
-    const d = (await res.json()) as { items: Item[] };
-    setItems((prev) => [...prev, ...d.items.filter((i) => !prev.some((p) => p.id === i.id))]);
+  // A page's items, fetched once: its uniques go in on the first click, its minor slots (bolt racks,
+  // raid jewels and kits, lib/clogMinor) only when asked for.
+  const [pageItems, setPageItems] = useState<Record<string, (Item & { minor?: boolean })[]>>({});
+  useEffect(() => {
+    const missing = pages.filter((p) => !pageItems[p]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map((p) =>
+        clanFetch(`/api/admin/task-suggest/items?page=${encodeURIComponent(p)}`)
+          .then((r) => (r.ok ? r.json() : { items: [] }))
+          .then((d: { items?: (Item & { minor?: boolean })[] }) => [p, d.items ?? []] as const),
+      ),
+    )
+      .then((rows) => {
+        if (!cancelled) setPageItems((prev) => ({ ...prev, ...Object.fromEntries(rows) }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pages, pageItems]);
+
+  function addFromPage(page: string, minor: boolean) {
+    const add = (pageItems[page] ?? []).filter((i) => !!i.minor === minor).map((i) => ({ id: i.id, name: i.name }));
+    setItems((prev) => [...prev, ...add.filter((i) => !prev.some((p) => p.id === i.id))]);
   }
 
   const effectiveNeed: ItemNeed = need === 'each' && (effectiveHow === 'gain' || items.length < 2) ? 'any' : need;
@@ -113,19 +136,24 @@ export default function ItemStep({
   function next() {
     if (!config || !countsLine) return;
     const one = items.length === 1 ? items[0].name : null;
-    const what = one ?? `${items.length} items`;
     const n = effectiveNeed === 'total' ? Math.max(1, amount ?? 1) : 1;
-    const plainTitle =
-      effectiveNeed === 'each' ? `One of each: ${items.map((i) => i.name).join(', ')}`.slice(0, 120)
-      : n > 1 ? `${n.toLocaleString('en-US')} × ${what}`
-      : one ? one : `Any of ${items.map((i) => i.name).join(', ')}`.slice(0, 120);
+    // Named by what the items share (lib/tileNames): "ToA unique", "Tbow or Scythe", "GWD hilt".
+    const nameOpts = {
+      items,
+      need: effectiveNeed === 'each' ? ('each' as const) : ('any' as const),
+      pagesOf: (id: number) => (info[id]?.clogPage ? [info[id]!.clogPage!] : undefined),
+      petIds: new Set(items.filter((i) => info[i.id]?.pet).map((i) => i.id)),
+    };
+    const plainTitle = itemPoolTitle({ ...nameOpts, amount: n }).slice(0, 120);
+    const template = itemPoolTitle({ ...nameOpts, amount: 2 }).replace(/^2 /, '{n} ');
+    const what = one ?? itemPoolTitle({ ...nameOpts, amount: 1 });
     const title = levelBar ? `${plainTitle} (ToA ${toaBarWords(levelBar)}${levelBar.entry ? ' or Entry' : ''})` : plainTitle;
     onNext({
       key: `items-${items.map((i) => i.id).join('+')}`,
       source: effectiveHow === 'gain' ? 'gain' : 'drop',
       badge: effectiveHow === 'gain' ? 'Items' : 'Drop',
       title,
-      titleTemplate: effectiveNeed === 'total' ? `{n} × ${what}` : title,
+      titleTemplate: effectiveNeed === 'total' && template.startsWith('{n} ') ? template : title,
       titleOne: one ?? undefined,
       hint: countsLine.text,
       engine: countsLine.engine,
@@ -202,11 +230,37 @@ export default function ItemStep({
           )}
         </div>
       </div>
-      {pages.map((p) => (
-        <button key={p} type="button" onClick={() => addPage(p)} className="min-h-11 text-sm text-gold hover:text-gold-light underline underline-offset-2 mr-4">
-          + All {p} collection log items
-        </button>
-      ))}
+      {pages.map((p) => {
+        const list = pageItems[p] ?? [];
+        const picked = new Set(items.map((i) => i.id));
+        const uniquesLeft = list.filter((i) => !i.minor && !picked.has(i.id)).length;
+        const minor = list.filter((i) => i.minor);
+        const minorLeft = minor.filter((i) => !picked.has(i.id));
+        const minorIn = minor.filter((i) => picked.has(i.id));
+        return (
+          <span key={p} className="mr-4 inline-flex flex-wrap items-center gap-x-3">
+            {uniquesLeft > 0 && (
+              <button type="button" onClick={() => addFromPage(p, false)} className="min-h-11 text-sm text-gold hover:text-gold-light underline underline-offset-2">
+                + {minor.length > 0 ? `${shortPage(p)} uniques` : `All ${shortPage(p)} log items`} ({uniquesLeft})
+              </button>
+            )}
+            {minorLeft.length > 0 && (
+              <button type="button" onClick={() => addFromPage(p, true)} className="min-h-11 text-xs text-text-muted hover:text-foreground underline underline-offset-2">
+                + also {minorLeft.length} minor item{minorLeft.length === 1 ? '' : 's'} ({minorLeft[0].name}{minorLeft.length > 1 ? '…' : ''})
+              </button>
+            )}
+            {minorIn.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setItems((prev) => prev.filter((i) => !minorIn.some((m) => m.id === i.id)))}
+                className="min-h-11 text-xs text-text-muted hover:text-foreground underline underline-offset-2"
+              >
+                − remove {minorIn.length} minor item{minorIn.length === 1 ? '' : 's'}
+              </button>
+            )}
+          </span>
+        );
+      })}
 
       <fieldset className="mt-5 mb-5">
         <legend className="text-sm font-semibold text-foreground/90 mb-2.5">How do players get them?</legend>

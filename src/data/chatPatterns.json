@@ -688,6 +688,30 @@
       ]
     },
     {
+      "key": "counter.pest_control_win",
+      "description": "A won Pest Control game: the commendation points awarded line. One line = one game won; amount = the points (3/4/5 by lander, plus Combat Achievement bonus). Wording unverified in game: override on the site if it differs.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "awarded you (?<points>[\\d,]+) Void Knight [Cc]ommendation points?",
+      "groups": [
+        "points"
+      ],
+      "samples": [
+        {
+          "line": "Congratulations! You managed to destroy all the portals! We've awarded you 4 Void Knight Commendation points.",
+          "expect": {
+            "points": "4"
+          }
+        }
+      ]
+    },
+    {
       "key": "counter.sunstone_golem",
       "description": "Sunstone golem completed (wiki Transcript:Golem (sunstone)). One line, one golem; the 'You have crafted X golems on Wyrmscraig.' tally is not read.",
       "types": [

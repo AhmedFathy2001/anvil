@@ -622,8 +622,17 @@ export function draftToCsvRow(draft: TileDraft): TileCsvRow {
   }
   const reqs = draft.config.itemRequirements;
   if (reqs && reqs.length > 0) {
-    row.items = reqs.map((r) => ({ name: r.name, id: r.itemId, count: r.requiredAmount }));
+    // Sets ride along: "one from each slot" is groups + "Every set", and a lost group is a different tile.
+    row.items = reqs.map((r) => ({
+      name: r.name,
+      id: r.itemId,
+      count: r.requiredAmount,
+      ...(r.group ? { group: r.group } : {}),
+      ...(r.group && r.groupRequire != null && r.groupRequire >= 1 ? { groupRequire: r.groupRequire } : {}),
+    }));
     row.requiredAmount = null;
+    if (c.groupMode === 'all') row.groupMode = 'all';
+    if (typeof c.setsRequired === 'number' && c.setsRequired > 1) row.setsRequired = c.setsRequired;
   } else if (draft.config.trackedItemIds && draft.config.trackedItemIds.length > 0) {
     // Ids pin the exact item; the importer only falls back to the name when no id is given.
     row.items = draft.config.trackedItemIds.map((id) => ({ name: '', id, count: 1 }));

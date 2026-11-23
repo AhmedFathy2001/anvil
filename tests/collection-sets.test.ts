@@ -187,3 +187,34 @@ test('howItCounts spells out each item mode', () => {
   assert.match(howItCounts({ tileType: 'drop', requiredAmount: 8, itemRequirements: sets, groupMode: 'all' })!, /EVERY set below in full/);
   assert.equal(howItCounts({ tileType: 'kill', requiredAmount: 5 }), null);
 });
+
+test('board cell: one-from-each sets count sets satisfied, and the sentence says one piece from each', async () => {
+  const { collectionCellProgress, howItCounts } = await import('../src/lib/collectionSets.ts');
+  const slot = (group: string, ids: number[]) =>
+    ids.map((itemId) => ({ itemId, name: `#${itemId}`, requiredAmount: 1, group, groupRequire: 1 }));
+  const reqs = [...slot('Legs', [1, 2]), ...slot('Helm', [3, 4]), ...slot('Weapon', [5, 6]), ...slot('Tops', [7, 8])];
+  const got = new Map([[2, 1], [3, 2]]);
+  const state = evaluateCollection(reqs.map((r) => ({ ...r, currentAmount: got.get(r.itemId) ?? 0 })), 'all');
+  assert.deepEqual(collectionCellProgress(state), { current: 2, required: 4, text: '2/4' });
+  assert.equal(
+    howItCounts({ tileType: 'drop', itemRequirements: reqs, groupMode: 'all' } as never),
+    'Get ONE piece from each of the 4 sets below — any piece in a set counts.',
+  );
+});
+
+test('board cell: no sets counts items met', async () => {
+  const { collectionCellProgress } = await import('../src/lib/collectionSets.ts');
+  const reqs = [1, 2, 3].map((itemId) => ({ itemId, name: `#${itemId}`, requiredAmount: 1, currentAmount: itemId === 1 ? 1 : 0 }));
+  assert.equal(collectionCellProgress(evaluateCollection(reqs, null)).text, '1/3');
+});
+
+test('sentence: sets needing different counts name each one', async () => {
+  const { howItCounts } = await import('../src/lib/collectionSets.ts');
+  const slot = (group: string, ids: number[], groupRequire: number) =>
+    ids.map((itemId) => ({ itemId, name: `#${itemId}`, requiredAmount: 1, group, groupRequire }));
+  const reqs = [...slot('Legs', [1, 2, 3], 1), ...slot('Helm', [4, 5, 6], 2)];
+  assert.equal(
+    howItCounts({ tileType: 'drop', itemRequirements: reqs, groupMode: 'all' } as never),
+    'Get pieces from each of the 2 sets below: 1 of 3 from Legs, 2 of 3 from Helm.',
+  );
+});

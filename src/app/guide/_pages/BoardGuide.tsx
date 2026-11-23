@@ -34,14 +34,15 @@ export default async function BoardGuide({ lang }: { lang: string }) {
   const SECTIONS = [
     { id: 'kinds', n: 1, title: b.kinds.title },
     { id: 'pick', n: 2, title: b.pick.title },
-    { id: 'bulk', n: 3, title: b.bulk.title },
-    { id: 'traps', n: 4, title: b.traps.title },
-    { id: 'points', n: 5, title: b.points.title },
-    { id: 'reveal', n: 6, title: b.reveal.title },
-    { id: 'check', n: 7, title: b.check.title },
-    { id: 'library', n: 8, title: b.library.title },
-    { id: 'stats', n: 9, title: b.stats.title },
-    { id: 'race', n: 10, title: b.race.title },
+    { id: 'drops', n: 3, title: b.drops.title },
+    { id: 'bulk', n: 4, title: b.bulk.title },
+    { id: 'traps', n: 5, title: b.traps.title },
+    { id: 'points', n: 6, title: b.points.title },
+    { id: 'reveal', n: 7, title: b.reveal.title },
+    { id: 'check', n: 8, title: b.check.title },
+    { id: 'library', n: 9, title: b.library.title },
+    { id: 'stats', n: 10, title: b.stats.title },
+    { id: 'race', n: 11, title: b.race.title },
   ];
 
   return (
@@ -76,13 +77,23 @@ export default async function BoardGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      <Section id="bulk" n={3} title={b.bulk.title} labels={t.common}>
+      <Section id="drops" n={3} title={b.drops.title} labels={t.common}>
+        <p className="text-text-muted">{rt(b.drops.intro, v)}</p>
+        <Rows rows={rows(b.drops.rows, v)} />
+        <p className="text-text-muted">{rt(b.drops.examplesIntro, v)}</p>
+        <ul className="list-disc pl-5 text-text-muted space-y-1.5 text-sm">{items(b.drops.examples, v)}</ul>
+        <Note tag={b.drops.note.tag}>
+          <p>{rt(b.drops.note.body, v)}</p>
+        </Note>
+      </Section>
+
+      <Section id="bulk" n={4} title={b.bulk.title} labels={t.common}>
         {paragraphs(b.bulk.body, v)}
         <ol className="list-decimal pl-5 text-text-muted space-y-1.5 text-sm">{items(b.bulk.steps, v)}</ol>
         <Rows rows={rows(b.bulk.rules, v)} />
       </Section>
 
-      <Section id="traps" n={4} title={b.traps.title} labels={t.common}>
+      <Section id="traps" n={5} title={b.traps.title} labels={t.common}>
         <p className="text-text-muted">{rt(b.traps.intro, v)}</p>
         <Rows rows={rows(b.traps.rows, v)} />
         <Note tag={b.traps.note.tag}>
@@ -90,15 +101,15 @@ export default async function BoardGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      <Section id="points" n={5} title={b.points.title} labels={t.common}>
+      <Section id="points" n={6} title={b.points.title} labels={t.common}>
         {paragraphs(b.points.body, v)}
       </Section>
 
-      <Section id="reveal" n={6} title={b.reveal.title} labels={t.common}>
+      <Section id="reveal" n={7} title={b.reveal.title} labels={t.common}>
         {paragraphs(b.reveal.body, v)}
       </Section>
 
-      <Section id="check" n={7} title={b.check.title} labels={t.common}>
+      <Section id="check" n={8} title={b.check.title} labels={t.common}>
         <p className="text-text-muted">{rt(b.check.intro, v)}</p>
         <ul className="list-disc pl-5 text-text-muted space-y-1.5 text-sm">{items(b.check.items, v)}</ul>
         <Note tag={b.check.note.tag}>
@@ -106,15 +117,15 @@ export default async function BoardGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      <Section id="library" n={8} title={b.library.title} labels={t.common}>
+      <Section id="library" n={9} title={b.library.title} labels={t.common}>
         <SectionBlocks s={b.library} v={v} />
       </Section>
 
-      <Section id="stats" n={9} title={b.stats.title} labels={t.common}>
+      <Section id="stats" n={10} title={b.stats.title} labels={t.common}>
         <SectionBlocks s={b.stats} v={v} />
       </Section>
 
-      <Section id="race" n={10} title={b.race.title} labels={t.common}>
+      <Section id="race" n={11} title={b.race.title} labels={t.common}>
         <SectionBlocks s={b.race} v={v} />
       </Section>
     </GuideShell>

@@ -499,6 +499,10 @@ test('monsters: not the cowhide, not a variant, and bosses / counters / raids st
 // The real collection-log pages, so "a Vorkath unique" is whatever the log lists for Vorkath.
 const clogCtx: MatchContext = { ...ctx, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop };
 const pageIds = (name: string) => clogPages().find((p) => p.name === name)!.items.map((i) => i.id);
+// A page's uniques: its minor slots (lib/clogMinor — the bolt rack on Barrows) are not "an item" from it.
+const pageUniqueIds = (name: string) => clogPages().find((p) => p.name === name)!.items.filter((i) => !i.minor).map((i) => i.id);
+const allPetIds = new Set(clogPages().find((p) => p.name === 'All Pets')!.items.map((i) => i.id));
+const pagePetIds = (name: string) => pageIds(name).filter((id) => allPetIds.has(id));
 const partsOf = (c: TaskCandidate) => c.config.parts ?? [];
 
 test('the clan’s GOTR line is ONE ready combo: the GOTR log page, OR 100 searches capped by event energy', () => {
@@ -518,7 +522,7 @@ test('the clan’s GOTR line is ONE ready combo: the GOTR log page, OR 100 searc
   assert.equal(searches.requiredAmount, 100);
   assert.deepEqual(searches.capBy, [...GOTR_ENERGY_CAPS]);
   assert.equal(top.flow, 'confirm');
-  assert.match(top.title, /^Any Guardians of the Rift collection log item or 100 /);
+  assert.match(top.title, /^Guardians of the Rift log item or 100 /);
   assert.equal(top.hint, comboSentence({ mode: 'any' }, partsOf(top).map((p) => p.label)));
   assert.match(top.hint, /^Done when the team does any one of: /);
   // Saved as-is by both write paths: the rule and each part.
@@ -571,7 +575,8 @@ test('combo is generic: a drop page OR a hiscores KC tile — each part on its o
     const parts = partsOf(top);
     const drop = parts.find((p) => p.tileType === 'drop')!;
     const kc = parts.find((p) => p !== drop)!;
-    assert.deepEqual(drop.trackedItemIds, pageIds(page), line);
+    // "unique" / "item" is the page's uniques (no bolt racks); "pet" is just the page's pet.
+    assert.deepEqual(drop.trackedItemIds, /\bpet\b/i.test(line) ? pagePetIds(page) : pageUniqueIds(page), line);
     // The KC side is the normal hiscores boss tile now — no forcing plugin kills.
     assert.equal(kc.statType, 'boss', line);
     assert.equal(kc.trackedStat, key, line);

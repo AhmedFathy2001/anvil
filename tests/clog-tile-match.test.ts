@@ -36,7 +36,7 @@ test('"new clog slot from dwh, tyrannical ring or chaos ele pet" resolves to the
   const ids = new Set(c.config.trackedItemIds ?? []);
   assert.equal(ids.size, 3);
   const named = (c.titleOne ?? '').toLowerCase();
-  assert.match(named, /dragon warhammer/);
+  assert.match(named, /\bdwh\b/); // short names (lib/tileNames): Dragon warhammer → DWH
   assert.match(named, /tyrannical ring/);
   assert.match(named, /pet chaos elemental/);
   assert.equal(c.config.requiredAmount, 1);

@@ -14,6 +14,7 @@ import droppableData from '@/data/droppableItems.json';
 import npcDrops from '@/data/npcDrops.json';
 import raidRewards from '@/data/raidRewards.json';
 import { PET_GROUPS } from '@/lib/petGroups';
+import { clogMinorIds } from '@/lib/clogMinor';
 import type { MatchItem } from '@/lib/taskMatch';
 
 let monsterIds: Set<number> | null = null;
@@ -60,7 +61,10 @@ function clogActivities(): Record<string, MatchItem[]> {
 
 /** The collection-log pages, for "any GOTR reward" style tasks. "All Pets" is a page too. */
 export function clogPages(): { name: string; items: MatchItem[] }[] {
-  return Object.entries(clogActivities()).map(([name, items]) => ({ name, items }));
+  return Object.entries(clogActivities()).map(([name, items]) => {
+    const minor = clogMinorIds(name);
+    return { name, items: minor.size === 0 ? items : items.map((it) => (minor.has(it.id) ? { ...it, minor: true } : it)) };
+  });
 }
 
 /** True when a monster (or a raid chest) drops it, or it is a pet. */

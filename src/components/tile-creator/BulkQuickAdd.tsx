@@ -431,6 +431,7 @@ export default function BulkQuickAdd({
                               </span>
                             )}
                             {r.status === 'pick' && !r.draft && <span className="block text-xs text-gold">Which one did you mean?</span>}
+                            {r.tip && r.status !== 'ready' && !r.manual && <span className="block text-xs text-text-muted">{r.tip}</span>}
                           </button>
                           {r.note && <span className="block text-xs text-amber-200">{r.note}</span>}
                           {dups[i] && (

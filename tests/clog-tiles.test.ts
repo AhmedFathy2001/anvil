@@ -55,8 +55,8 @@ test('page names resolve case- and punctuation-insensitively; the API refuses un
 
 test('titles say what the tile asks for', () => {
   assert.equal(clogTileTitle({ mode: 'slots', pages: [], itemIds: [], required: 10 }), '10 new collection log slots');
-  assert.equal(clogTileTitle({ mode: 'slots', pages: ['Barrows Chests'], itemIds: [], required: 3 }), '3 new Barrows Chests log slots');
-  assert.equal(clogTileTitle({ mode: 'complete', pages: ['Wintertodt'], itemIds: [], required: 1 }), 'Complete the Wintertodt collection log page');
+  assert.equal(clogTileTitle({ mode: 'slots', pages: ['Barrows Chests'], itemIds: [], required: 3 }), '3 new Barrows log slots');
+  assert.equal(clogTileTitle({ mode: 'complete', pages: ['Wintertodt'], itemIds: [], required: 1 }), 'Finish the Wintertodt log');
 });
 
 // ── New slots ────────────────────────────────────────────────────────────────────────────────

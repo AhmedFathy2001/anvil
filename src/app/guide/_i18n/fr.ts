@@ -1770,6 +1770,25 @@ const fr: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Drops : uniques, objets différents et sets",
+      intro: "Trois réglages décident de ce qu’une case de drop demande vraiment. Chacun tient en un clic dans l’éditeur de case, et l’éditeur le propose quand une case semble en avoir besoin.",
+      rows: [
+        { term: "Objets différents uniquement", body: "sur une case de drop à plusieurs objets, **Les répétitions comptent** laisse le même objet la terminer : trois Dharok’s helms terminent « obtenir 3 ». **Objets différents uniquement** compte chaque objet une fois, par équipe sur une case d’équipe et par joueur sur une case solo, donc « 4 pièces de Barrows différentes » veut dire quatre pièces différentes." },
+        { term: "Sets : Un set ou Chaque set", body: "sur une case **Set d’objets**, donnez un nom de set à chaque objet. **Un set** se termine au premier set complet ; **Nombre de sets** en demande plus. **Chaque set** les exige tous, et **Objets par set** à 1 signifie un de chaque. Barrows par emplacement : les six casques dans un set Helm, les hauts dans Top, jambes et jupes dans Bottom, les armes dans Weapon, choisissez **Chaque set** et réglez chacun sur 1." },
+        { term: "Uniques seulement", body: "ajouter une page du journal de collection coche ses uniques et laisse de côté les objets mineurs : les bolt racks de Barrows, les joyaux, linceuls et kits de ToA, les cosmétiques d’un raid, et les drops courants et parchemins de téléportation d’un boss. Désactivez **Uniques seulement** sur la page pour compter la page entière. Vous pouvez toujours cocher ou décocher n’importe quel objet ; l’interrupteur affiche alors la page comme sélection personnalisée. Les pages sans objets mineurs n’ont pas d’interrupteur." },
+      ],
+      examplesIntro: "L’ajout rapide comprend ces lignes telles quelles :",
+      examples: [
+        "`toa unique` / `any toa purple`: un drop parmi les uniques de ToA",
+        "`4 different barrows pieces`: quatre pièces, chacune comptée une fois",
+        "`dharok set`, `2 barrows sets`: des sets complets",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: un casque, un haut, un bas et une arme",
+        "`a unique from each dt2 boss`: un de chacun des quatre",
+      ],
+      note: { tag: "Une ligne de drop qu’il ne comprend pas", body: "ne devient jamais une case de kill count. La relecture demande ce que vous vouliez dire et montre comment l’écrire." },
+    },
+
     bulk: {
       title: 'Créez-les en masse, pas dans le navigateur',
       body: [

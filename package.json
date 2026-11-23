@@ -1,6 +1,6 @@
 {
   "name": "anvil",
-  "version": "1.23.1",
+  "version": "1.23.2",
   "private": true,
   "scripts": {
     "test:proofattachments": "npx tsx --test tests/proof-attachments.test.ts",
@@ -18,6 +18,7 @@
     "data:drops": "node scripts/build-drops-dataset.mjs",
     "data:slayer": "node scripts/build-slayer-dataset.mjs",
     "data:variants": "node scripts/build-item-variants.mjs",
+    "data:clogminor": "node scripts/build-clog-minor.mjs",
     "data:rates": "node scripts/build-rates-dataset.mjs",
     "data:gear": "npx tsx scripts/build-gear-dataset.ts",
     "discord:commands": "tsx scripts/register-discord-commands.mts",

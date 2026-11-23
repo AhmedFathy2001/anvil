@@ -1756,6 +1756,25 @@ const ptBr: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Drops: únicos, itens diferentes e sets",
+      intro: "Três ajustes decidem o que uma casa de drop realmente pede. Cada um é um clique no editor, e o editor sugere quando a casa parece precisar.",
+      rows: [
+        { term: "Só itens diferentes", body: "numa casa de drop com vários itens, **Repetições contam** deixa o mesmo item completá-la: três Dharok’s helms completam “pegue 3”. **Só itens diferentes** conta cada item uma vez, por equipe numa casa de equipe e por jogador numa solo, então “4 peças diferentes de Barrows” são quatro peças diferentes." },
+        { term: "Sets: Um set ou Todos os sets", body: "numa casa de **Set de itens**, escreva um nome de set em cada item. **Um set** termina no primeiro set completo; **Quantos sets** pede mais. **Todos os sets** exige todos, e **Itens por set** em 1 significa um de cada. Barrows por espaço: os seis elmos no set Helm, as partes de cima em Top, pernas e saias em Bottom e as armas em Weapon; escolha **Todos os sets** e coloque cada um em 1." },
+        { term: "Só únicos", body: "adicionar uma página do registro de coleção marca os únicos e deixa de fora os itens menores: os bolt racks de Barrows, as joias, mortalhas e kits da ToA, os cosméticos de uma raid e os drops comuns e pergaminhos de teleporte de um chefe. Desligue **Só únicos** na página para contar a página inteira. Você ainda pode marcar ou desmarcar qualquer item; o interruptor mostra a página como escolha própria. Páginas sem itens menores não têm interruptor." },
+      ],
+      examplesIntro: "A adição rápida lê estas linhas como estão:",
+      examples: [
+        "`toa unique` / `any toa purple`: um drop entre os únicos da ToA",
+        "`4 different barrows pieces`: quatro peças, cada uma contada uma vez",
+        "`dharok set`, `2 barrows sets`: sets completos",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: um elmo, uma parte de cima, uma de baixo e uma arma",
+        "`a unique from each dt2 boss`: um de cada um dos quatro",
+      ],
+      note: { tag: "Uma linha de drop que ele não entende", body: "nunca vira uma casa de kill count. A revisão pergunta o que você quis dizer e mostra como escrever." },
+    },
+
     bulk: {
       title: 'Escreva em massa, não no navegador',
       body: [
