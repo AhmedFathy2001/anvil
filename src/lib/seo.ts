@@ -122,6 +122,8 @@ export const NOINDEX_ROOTS = [
   // A clan's gp ledger — who paid what, who was owed what. Readable by the clan, and no more a
   // search result than a bank statement is.
   '/coffer',
+  // The clan fund's page: a clan's money, like the coffer.
+  '/fund',
   '/u',
   '/p',
   '/api',

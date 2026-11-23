@@ -213,6 +213,9 @@ export const PERSON_DATA: PersonDataEntry[] = [
   own('referrals', 'referrer_user_id', 'who they invited', ex('referrals', 'kind', 'status', 'reward_months', 'created_at')),
   own('supporter_gift_intents', 'buyer_user_id', 'an unfinished gift checkout'),
   own('supporter_gift_intents', 'recipient_user_id', 'an unfinished gift checkout'),
+  // A chip-in keeps counting for the clan (the membership is still Gumroad's to end): the name comes off it.
+  e('clan_fund_pledges', 'user_id', 'user', 'detach', 'fk', 'their chip-ins to a clan fund; the chip-in stays without a name on it',
+    ex('clan_fund', 'clan_id', 'cents', 'status', 'started_at', 'current_period_end', 'ended_at')),
   own('supporter_subscriptions', 'user_id', 'their Supporter membership rows',
     ex('supporter', 'tier', 'status', 'recurrence', 'started_at', 'tenure_started_at', 'current_period_end', 'ended_at', 'gift_months')),
   own('team_staff', 'user_id', 'their team staff seats', ex('roles_teams', 'team_id', 'created_at')),

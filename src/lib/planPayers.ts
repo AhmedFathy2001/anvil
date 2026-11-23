@@ -117,8 +117,9 @@ async function tellPayerStopped(clan: typeof clans.$inferSelect, payerUserId: nu
 }
 
 /** Is the clan's recorded payer paying for a membership that is still running? */
-function liveMembership(clan: Pick<typeof clans.$inferSelect, 'plan' | 'gumroadSubscriptionId'>): boolean {
-  return !!clan.gumroadSubscriptionId && !isFreePlanId(clan.plan);
+function liveMembership(clan: Pick<typeof clans.$inferSelect, 'plan' | 'gumroadSubscriptionId'> & { fundFunded?: boolean }): boolean {
+  // A plan the clan fund pays for (lib/clanFund) is nobody's membership.
+  return !!clan.gumroadSubscriptionId && !isFreePlanId(clan.plan) && !clan.fundFunded;
 }
 
 /**
@@ -148,7 +149,7 @@ export interface PlanPayerView {
 }
 
 /** What the plan page says about who pays. */
-export async function planPayerView(clan: Pick<typeof clans.$inferSelect, 'id' | 'plan' | 'gumroadSubscriptionId' | 'planPaidByUserId'>): Promise<PlanPayerView> {
+export async function planPayerView(clan: Pick<typeof clans.$inferSelect, 'id' | 'plan' | 'gumroadSubscriptionId' | 'planPaidByUserId'> & { fundFunded?: boolean }): Promise<PlanPayerView> {
   if (!clan.planPaidByUserId || !liveMembership(clan)) return { payer: null, payerStopped: false };
   const name = (await userName(clan.planPaidByUserId)) ?? 'someone';
   return { payer: { userId: clan.planPaidByUserId, name }, payerStopped: !(await canPayForPlan(clan.id, clan.planPaidByUserId)) };

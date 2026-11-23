@@ -13,6 +13,7 @@ import { log } from '@/lib/logger';
 import { recordLedger } from '@/lib/moneyLedger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
 import { handleGiftEvent, isSupporterGiftEvent } from '@/lib/supporterGiftCheckout';
+import { handleFundEvent, isFundEvent } from '@/lib/clanFund';
 import { planKindOf } from '@/lib/unmatchedPurchaseRules';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
@@ -144,6 +145,12 @@ export async function POST(req: NextRequest) {
   // A one-time Supporter gift, bought by one person for another (lib/supporterGiftCheckout).
   if (isSupporterGiftEvent(ev)) {
     const result = await handleGiftEvent(ev);
+    return Response.json(result.body, { status: result.status });
+  }
+
+  // A chip-in to a clan fund (lib/clanFund): its own rows, matched by the clan's ref like a plan sale.
+  if (isFundEvent(ev)) {
+    const result = await handleFundEvent(ev);
     return Response.json(result.body, { status: result.status });
   }
 

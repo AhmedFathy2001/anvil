@@ -25,6 +25,10 @@ import BuyButtons from '@/components/BuyButtons';
 import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import PlanTrialPanel from '@/components/PlanTrialPanel';
 import PlanPayers from './PlanPayers';
+import FundControls from './FundControls';
+import ClanFundProgress from '@/components/ClanFundProgress';
+import { fundConfigured, fundView, membershipPaysPlan } from '@/lib/clanFund';
+import { FUND_PLANS, fundCheckoutUrl, goalCents, usd as usdCents } from '@/lib/clanFundRules';
 import { canPayForPlan, payerCandidates, planPayerView } from '@/lib/planPayers';
 import { removePayerConfirm } from '@/lib/planPayerRules';
 import { ensureSupporterRef } from '@/lib/supporter';
@@ -78,13 +82,21 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
   // membership is only ever sent to the pay-now product, charged that day. Every clan made since
   // automatic trials began has had one, so "Start free trial" is for older clans that never did.
   const [billingRow, extras] = await Promise.all([
-    db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { id: true, plan: true, trialEndsAt: true, gumroadSubscriptionId: true, planPaidByUserId: true, currentPeriodEnd: true, cancelAtPeriodEnd: true } }),
+    db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { id: true, plan: true, trialEndsAt: true, gumroadSubscriptionId: true, planPaidByUserId: true, currentPeriodEnd: true, cancelAtPeriodEnd: true, fundPlan: true, fundFunded: true, fundShortSince: true } }),
     openExtrasForClans([clan.id]),
   ]);
   const trialUsed = billingRow ? await clanTrialUsed(billingRow) : true;
   // Who pays (lib/planPayers): shown to everyone on this page; the owner manages who may.
   const payerView = billingRow ? await planPayerView(billingRow) : { payer: null, payerStopped: false };
   const candidates = isOwner ? await payerCandidates(clan.id) : [];
+  // The clan fund (lib/clanFund): members chip in toward one plan; the payer covers the rest.
+  const fund = billingRow ? await fundView(billingRow) : null;
+  const fundOn = fundConfigured();
+  const fundBlocked = billingRow && membershipPaysPlan(billingRow) ? 'A membership already pays for the plan. To fund it with chip-ins instead, cancel that membership on Gumroad first, so nobody pays twice.' : null;
+  const coverUrl =
+    fund && fundOn && canPay && !fund.totals.funded && session
+      ? fundCheckoutUrl(process.env.GUMROAD_URL_CLAN_FUND, await ensureClanCheckoutRef(clan.id), payerRef, true)
+      : null;
   const renewsMs = billingRow?.currentPeriodEnd ? Date.parse(billingRow.currentPeriodEnd.includes('T') ? billingRow.currentPeriodEnd : `${billingRow.currentPeriodEnd.replace(' ', 'T')}Z`) : NaN;
   const yearly = fits ? yearlyPriceUsd(fits.priceUsd) : null;
   // Monthly and, once that tier's yearly checkout is set, yearly (a year costs ten months).
@@ -250,7 +262,11 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                   <li key={f}>{f}</li>
                 ))}
               </ul>
-              {canPay && held ? (
+              {fund ? (
+                <p className="text-[13px] leading-relaxed text-text-muted">
+                  The clan is funding {fund.planName} with chip-ins (below), so there is nothing to subscribe to here: nobody pays twice.
+                </p>
+              ) : canPay && held ? (
                 <p className="text-[13px] text-text-muted">
                   You already have a membership waiting for its first payment (see the notice above), so there is nothing to
                   buy here.
@@ -296,13 +312,41 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
           )
         )}
 
-        <section className="flex flex-col gap-3 rounded-xl border border-card-border bg-card-bg p-5">
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-dim">Or share it · soon</p>
-          <h2 className="text-xl font-semibold">A clan fund</h2>
+        <section id="fund" className="flex scroll-mt-24 flex-col gap-3 rounded-xl border border-card-border bg-card-bg p-5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-dim">Or share it</p>
+          <h2 className="text-xl font-semibold">Clan fund</h2>
           <p className="text-[14px] leading-relaxed text-text-muted">
-            Members who want to will be able to chip in once a year, from $6. You top up whatever&rsquo;s left, or
-            nothing if they cover it. Coming soon.
+            Members chip in once a year, from $6, and it renews until they cancel. Once chip-ins reach the plan&rsquo;s yearly price the
+            clan is on it; whoever pays for the plan covers the rest.
           </p>
+          {fund && <ClanFundProgress planName={fund.planName} totals={fund.totals} graceEndsAt={fund.granted && !fund.totals.funded ? fund.graceEndsAt : null} />}
+          {coverUrl && fund && (
+            <a
+              href={coverUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-gold px-4 text-[14px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            >
+              Cover the rest · {usdCents(fund.totals.left)} (enter it on Gumroad)
+            </a>
+          )}
+          {fund && (
+            <ClanLink href="/fund" className="text-[13px] text-gold hover:text-gold-light">
+              The fund page members see
+            </ClanLink>
+          )}
+          {isOwner && fundOn ? (
+            <FundControls
+              current={fund?.plan ?? null}
+              locked={!!fund?.granted}
+              blockedReason={fundBlocked}
+              options={FUND_PLANS.map((id) => ({ id, label: PLANS[id].name, goal: usdCents(goalCents(id)) }))}
+            />
+          ) : !fundOn ? (
+            <p className="text-[13px] text-text-muted">Coming soon.{viewerIsStaff ? ' (Staff: set GUMROAD_URL_CLAN_FUND and GUMROAD_PRODUCT_CLAN_FUND to switch it on.)' : ''}</p>
+          ) : !fund ? (
+            <p className="text-[13px] text-text-muted">The owner can start one here.</p>
+          ) : null}
         </section>
       </div>
 

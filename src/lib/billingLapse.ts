@@ -37,6 +37,12 @@ export async function logBilling(clanId: number, eventType: string, detail: unkn
  * creator free, lib/billingCatalog). Status is NOT touched: the site, roster and history stay.
  */
 export async function endMembership(clan: { id: number; kind: string; plan: string }, notes = 'gumroad webhook', reason?: string) {
+  // The clan fund pays for the plan now (lib/clanFund): an old membership ending takes nothing away.
+  const funded = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { fundFunded: true } });
+  if (funded?.fundFunded) {
+    await logBilling(clan.id, 'billing_ended', { from: clan.plan, kept: 'clan fund', ...(reason ? { reason } : {}) }, notes);
+    return;
+  }
   // Still charged for an older membership it was told to cancel (lib/extraMemberships)? It goes back
   // to that one, on Gumroad's word that it is running, instead of to free.
   if (await fallBackToOlderMembership(clan, notes)) return;
@@ -84,11 +90,13 @@ export async function sweepLapsedBilling(now = Date.now()): Promise<LapseSweepRe
       status: clans.status,
       subscriptionId: clans.gumroadSubscriptionId,
       currentPeriodEnd: clans.currentPeriodEnd,
+      fundFunded: clans.fundFunded,
     })
     .from(clans);
 
   const due = paying.filter((c) => {
-    if (!c.subscriptionId || isFreePlanId(c.plan) || c.status === 'suspended') return false;
+    // A plan the clan fund pays for (lib/clanFund) has its own daily check.
+    if (!c.subscriptionId || isFreePlanId(c.plan) || c.status === 'suspended' || c.fundFunded) return false;
     const days = daysUntil(c.currentPeriodEnd, now);
     // No date at all is a subscription from before renewals recorded one — the case that hid lfl.
     return days == null || days < -GRACE_DAYS;

@@ -167,6 +167,13 @@ export const clans = pgTable('clans', {
   // owner let pay (clan_staff.can_pay_plan). Display and notices only: what the clan is entitled to is
   // still `plan`. Null = not known (a purchase from before this, or a checkout without the payer ref).
   planPaidByUserId: integer('plan_paid_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // The clan fund (lib/clanFund): the plan the owner started a fund for ('bronze' | 'silver' | 'gold',
+  // null = no fund). Its goal is that plan's yearly price; members chip in with yearly memberships
+  // (clan_fund_pledges). `fundFunded` = the plan in `plan` is the fund's doing (so a lapse of an old
+  // membership never takes it away); `fundShortSince` starts the 7-day grace when the fund falls short.
+  fundPlan: text('fund_plan'),
+  fundFunded: boolean('fund_funded').notNull().default(false),
+  fundShortSince: text('fund_short_since'),
   // Where the owner said they found Anvil, asked once on /clans/new (lib/foundVia FOUND_VIA). NULL =
   // skipped or created before the question. `foundViaNote` is their free text for 'other'.
   foundVia: text('found_via'),
@@ -4767,6 +4774,35 @@ export const chatPatternOverrides = pgTable('chat_pattern_overrides', {
 // nothing about it is per clan. A person's effective tier is the best row still in force: 'active', or
 // 'cancelling' before its period end (they paid for the term). 'ended' and 'refunded' rows stay as
 // history, because "supporter since" counts from the first one.
+/**
+ * One person's chip-in to a clan fund (lib/clanFund): a Gumroad YEARLY membership on the clan fund
+ * product, pay-what-you-want from $6, renewing until they cancel. Counted toward the fund's goal while
+ * 'active', and while 'cancelling' until the year it paid for runs out. 'failed' (a renewal Gumroad
+ * stopped charging, from the daily check), 'ended' and 'refunded' never count. `isPayer`: the clan's
+ * payer covering the rest. `userId` may be null for a chip-in from someone not signed in.
+ */
+export const clanFundPledges = pgTable('clan_fund_pledges', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  isPayer: boolean('is_payer').notNull().default(false),
+  cents: integer('cents').notNull(),
+  currency: text('currency'),
+  recurrence: text('recurrence'),
+  status: text('status').notNull(), // 'active' | 'cancelling' | 'failed' | 'ended' | 'refunded'
+  gumroadSubscriptionId: text('gumroad_subscription_id'),
+  gumroadSaleId: text('gumroad_sale_id'), // the last applied charge: the replay latch
+  currentPeriodEnd: text('current_period_end'),
+  startedAt: text('started_at').notNull(),
+  cancelledAt: text('cancelled_at'),
+  endedAt: text('ended_at'),
+  showBadge: boolean('show_badge').notNull().default(false),
+}, (table) => [
+  uniqueIndex('clan_fund_pledges_sub_unique').on(table.gumroadSubscriptionId),
+  index('clan_fund_pledges_clan_idx').on(table.clanId, table.status),
+  index('clan_fund_pledges_user_idx').on(table.userId),
+]);
+
 export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
