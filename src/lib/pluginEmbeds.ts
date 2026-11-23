@@ -63,6 +63,8 @@ export interface DropFacts {
   /** RuneLite loot kind, lowercased: npc / player→"pvp" / pickpocket / event … */
   sourceKind?: string | null;
   kc?: number | null;
+  /** The count line a raid drop's KC came from ("Chambers of Xeric Challenge Mode"): the field names the mode. */
+  kcOf?: string | null;
   /** The count is the site's own reading, not the plugin's: it can trail the kill by one, so it reads "(about)". */
   kcAbout?: boolean;
   /** Per-kill probability (single item only). */
@@ -310,10 +312,26 @@ export function fromPhrase(source: string | null | undefined, sourceKind: string
   return label == null ? '' : ` from ${label}`;
 }
 
-/** What the count against this source is called — keys and caskets are not kills. */
-export function countLabel(source: string | null | undefined): string {
+const RAID_BASES = ['chambers of xeric', 'theatre of blood', 'tombs of amascut'];
+const RAID_MODES: Record<string, string> = { 'challenge mode': 'CM', 'expert mode': 'Expert', 'hard mode': 'HM', 'entry mode': 'Entry' };
+const foldName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/**
+ * What the count against this source is called — keys and caskets are not kills. A raid's count is one
+ * mode's ("CM KC", "Expert KC", "Normal KC"), named from the count line the plugin read (`kcOf`).
+ */
+export function countLabel(source: string | null | undefined, kcOf?: string | null): string {
   if (isLootKey(source)) return 'Keys opened';
   if (source && source.toLowerCase().startsWith('clue scroll')) return 'Caskets';
+  if (source && kcOf) {
+    const base = foldName(source);
+    const line = foldName(kcOf);
+    if (RAID_BASES.includes(base)) {
+      if (line === base) return 'Normal KC';
+      const mode = line.startsWith(`${base} `) ? RAID_MODES[line.slice(base.length + 1)] : undefined;
+      if (mode) return `${mode} KC`;
+    }
+  }
   return 'KC';
 }
 
@@ -401,7 +419,7 @@ function deathEmbed(f: DeathFacts, wording: DeathWording, random: () => number):
 const itemLabel = (name: string, qty: number) => (qty > 1 ? `${name} ×${qty}` : name);
 
 function dropEmbed(f: DropFacts, random: () => number): DiscordEmbed {
-  const kcLabel = countLabel(f.source);
+  const kcLabel = countLabel(f.source, f.kcOf);
   if (f.items.length > 1) {
     // A whole kill / loot key with several standouts: lead with the most valuable (the first of
     // equals), plus the combined total — never a post per item.
@@ -688,7 +706,7 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
         kind,
         facts: {
           rsn: rsnOf(o), items, source: optStr(o, 'source'), sourceKind: optStr(o, 'sourceKind', 32),
-          kc: optInt(o, 'kc'), kcAbout: flag(o, 'kcAbout'), dropRate: optRate(o, 'dropRate'),
+          kc: optInt(o, 'kc'), kcOf: optStr(o, 'kcOf', 64), kcAbout: flag(o, 'kcAbout'), dropRate: optRate(o, 'dropRate'),
           rateRolls: ((r) => (r != null && r >= 1 && r <= 10 ? r : null))(optInt(o, 'rateRolls')), guaranteed: flag(o, 'guaranteed'),
           troll: flag(o, 'troll'), notable, earned: flag(o, 'earned'), spoon: flag(o, 'spoon'),
           note: optStr(o, 'note', 512), modeOnly: flag(o, 'modeOnly'),
