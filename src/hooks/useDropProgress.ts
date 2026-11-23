@@ -5,6 +5,7 @@ import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import { countProgress } from '@/lib/countProgress';
 import { parseCapBy } from '@/lib/tileCaps';
 import { comboProgressLine, comboView, type ComboView } from '@/lib/comboProgress';
+import { collectionCellProgress, evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
 
 interface DropProgress {
   current: number;
@@ -73,6 +74,27 @@ export function dropProgressFor(tiles: Tile[], submissions: Submission[], comple
             ...req,
             currentAmount: tileSubs.filter(s => s.itemId === req.itemId && s.goal == null).reduce((sum, s) => sum + s.amount, 0),
           })));
+        }
+      }
+
+      // Item set tiles carry no requiredAmount (the sets are the goal), so the count block above
+      // skips them. Show sets done instead, summed over the team as the server completes them.
+      if (tile.itemRequirements && !tile.requiredAmount) {
+        let reqs: CollectionRequirement[] = [];
+        try {
+          reqs = JSON.parse(tile.itemRequirements) as CollectionRequirement[];
+        } catch {
+          reqs = [];
+        }
+        if (reqs.length > 0) {
+          const tileSubs = submissions.filter((s) => s.tileId === tile.id && s.goal == null);
+          const items = reqs.map((r) => ({
+            ...r,
+            currentAmount: tileSubs.filter((s) => s.itemId === r.itemId).reduce((sum, s) => sum + s.amount, 0),
+          }));
+          const p = collectionCellProgress(evaluateCollection(items, tile.groupMode, tile.setsRequired));
+          dropProgress.set(tile.id, { current: p.current, required: p.required, text: p.text });
+          perItemProgressMap.set(tile.id, items);
         }
       }
 

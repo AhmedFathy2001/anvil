@@ -164,6 +164,28 @@ export function evaluateCollection<T extends CollectionProgressItem>(
 }
 
 /**
+ * A board cell's "done / needed" for an item set tile, read off the same state the server completes
+ * on. No sets: items met of all items. 'all': sets satisfied (plus always-required items met) of
+ * all of them. 'any': sets done of the sets the tile needs, plus always-required items.
+ */
+export function collectionCellProgress(state: CollectionState): { current: number; required: number; text: string } {
+  const loose = state.ungrouped.filter(itemMet).length;
+  let current: number;
+  let required: number;
+  if (state.groups.length === 0) {
+    current = loose;
+    required = state.ungrouped.length;
+  } else if (state.mode === 'all') {
+    current = state.groups.filter((g) => g.satisfied).length + loose;
+    required = state.groups.length + state.ungrouped.length;
+  } else {
+    current = Math.min(state.setsDone, state.setsRequired) + loose;
+    required = state.setsRequired + state.ungrouped.length;
+  }
+  return { current, required: Math.max(1, required), text: `${current}/${Math.max(1, required)}` };
+}
+
+/**
  * The X in a collection's "X items" display total: the SHORTEST path to completing it. Every
  * ungrouped item, plus — per group — the cheapest `require` items in it. 'any' mode adds only the
  * cheapest group (satisfy one), 'all' mode adds every group (satisfy each). Display only; the real
@@ -255,6 +277,13 @@ function collectionSentence(reqs: CollectionRequirement[], groupMode: string | n
   const pieces = (g: CollectionGroupState) => (g.require < g.items.length ? `any ${g.require} of its ${g.items.length} pieces` : `all ${g.items.length} pieces`);
 
   if (state.mode === 'all') {
+    const k = state.groups.length;
+    const r = state.groups[0].require;
+    if (partial && state.groups.every((g) => g.require === r)) {
+      return (r === 1
+        ? `Get ONE piece from each of the ${k} sets below — any piece in a set counts.`
+        : `Get any ${r} pieces from each of the ${k} sets below.`) + always;
+    }
     return (partial
       ? 'Complete EVERY set below — each needs the number of pieces shown.'
       : 'Complete EVERY set below in full.') + always;
