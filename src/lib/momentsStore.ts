@@ -524,12 +524,11 @@ export async function recordSeatMoments(
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
   const seatKind = seat?.kind ?? 'guest';
-  // A death is kept with nothing running too, when the clan keeps deaths (it's the clan's feed either way).
-  const kept = idle
-    ? seatKind === 'member'
-      ? observations.filter((o) => isAchievementKind(o.kind) || (o.kind === 'death' && scopes.clan.deaths))
-      : []
-    : observations;
+  // Nothing running is an ordinary day for the clan's feed, not a reason to drop the news: a member's
+  // pets, drops, achievements and deaths all go to the clan scope, whose own rules decide (lib/moments
+  // clanKindFor: a pet always, a drop past the clan's rarity or value floor, a death when it keeps
+  // them). Only a guest seat, whose clan this isn't, keeps nothing.
+  const kept = idle ? (seatKind === 'member' ? observations : []) : observations;
   if (kept.length === 0) return { stored: 0, matched: 0, inserted: [], seatKind, idle };
   return { ...(await recordMoments(member, kept, scopes)), seatKind, idle };
 }
