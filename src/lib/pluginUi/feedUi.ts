@@ -490,6 +490,10 @@ export interface FeedTabOptions {
   } | null;
 }
 
+/** A Feed filter the website's clan feed (Members → Lately) takes, or null for All. */
+const kindGroupFilter = (f: string): KindGroup | null =>
+  f === 'drops' || f === 'pets' || f === 'achievements' || f === 'deaths' || f === 'milestones' ? f : f === 'tasks' ? 'achievements' : null;
+
 /** The Feed's filter chips for a clan or a board, in order: [filter, label]. */
 export function feedFilterChips(kind: 'clan' | 'event', teamId: number | null): [string, string][] {
   // Achievements: log slots, diaries, quests, the clan's level milestones and combat-task tier,
@@ -646,6 +650,18 @@ export function feedTabUi(o: FeedTabOptions): Node {
     );
   }
 
+  if (o.webPath && o.current.kind === 'clan' && o.pane === 'feed' && !o.mode?.active) {
+    parts.push(
+      gap(4),
+      text('See the whole feed on Anvil', 'brand', {
+        font: 'small',
+        tip: 'Everything this list holds and all that came before it, with the same filters',
+        on: { a: 'site', path: `${o.webPath}${o.filter && kindGroupFilter(o.filter) ? `&f=${kindGroupFilter(o.filter)}` : ''}` },
+        icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' },
+        iconAfter: true,
+      }),
+    );
+  }
   if (o.webPath && o.current.kind === 'event' && !o.mode?.active) {
     parts.push(
       gap(4),

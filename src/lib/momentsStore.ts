@@ -744,7 +744,8 @@ export async function allMomentsForEvent(eventId: number, cap = 5000): Promise<M
  * through the whole history, where filtering the newest few hundred of every kind afterwards showed
  * only the pets that happened to fall inside the last couple of days of drops.
  */
-export async function momentsForClan(clanId: number, limit = 20, kinds?: readonly string[]): Promise<MomentRow[]> {
+/** `before`: only moments older than this stamp (ISO) — the next page of the site's clan feed. */
+export async function momentsForClan(clanId: number, limit = 20, kinds?: readonly string[], before?: string | null): Promise<MomentRow[]> {
   const clan = await clanScope(clanId);
   const window = Math.min(limit * 12, 600);
   const rows = await db
@@ -766,6 +767,7 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
         or(notInArray(moments.kind, [MILESTONE_KIND, ...BOARD_COPY_KINDS]), isNull(moments.eventId)),
         // A practice board's row never reaches the clan feed (lib/practice; none should be written).
         notPracticeEventId(moments.eventId),
+        before ? lt(moments.occurredAt, before) : undefined,
       ),
     )
     .orderBy(desc(moments.occurredAt))
