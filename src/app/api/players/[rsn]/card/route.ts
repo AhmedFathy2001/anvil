@@ -6,10 +6,8 @@ import { lookupPlayerCard } from '@/lib/pluginUi/load';
 /**
  * The plugin's player card: GET /api/players/<rsn>/card.
  *
- * Public, with the same visibility rule as /p/<rsn> (apexCharacter): a shared character is anyone's to
- * look at, an unshared one only its owner's, and everybody else gets the same 404 a name that isn't on
- * Anvil gets. The Account Token is optional and only ever WIDENS what you can see to your own
- * characters — it is how the plugin's "You" tab shows a private account to the person who owns it.
+ * Public, with the same visibility rule as /p/<rsn> (apexCharacter): a hidden character gets the same
+ * 404 a name that isn't on Anvil gets. The Account Token is optional; it tells the card whose it is.
  *
  * Read-only and additive: advertised as the `player-card` capability, so a plugin against a site
  * without this route never calls it.

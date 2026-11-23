@@ -165,7 +165,7 @@ export function CompareForm({
           {missing.map((name) => (
             <p key={name}>
               <span className="font-semibold">{name}</span>{' '}
-              {noun === 'player' ? 'is not on Anvil, or is not shared.' : 'is not on Anvil, or is not listed publicly.'}
+              {noun === 'player' ? 'is not on Anvil.' : 'is not on Anvil, or is not listed publicly.'}
             </p>
           ))}
         </div>

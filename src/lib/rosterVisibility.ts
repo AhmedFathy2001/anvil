@@ -1,17 +1,15 @@
 // Who a clan's public pages may name.
 //
-// Each character has a "Show publicly" switch (accounts.shared; Settings → Privacy shows the off
-// state as "Only its clans"). A public clan's pages used to ignore it: the roster, the member page,
-// the clan card and the home page named every seated character to anyone, signed in or not. The rule
-// these helpers hold:
+// Every character is public, with one exception: a person banned from the platform. The rule these
+// helpers hold:
 //
 //   An INSIDER of the clan — someone with a live seat in it, its staff, platform staff — sees the
-//   whole roster. Everyone else sees only the characters whose owner left the switch on.
+//   whole roster. Everyone else sees every character except those of a platform-banned owner.
 //
 // Counts and clan-wide totals are not names and stay whole; only rows that NAME a hidden character
 // are dropped.
 //
-// PURE — tests/roster-visibility.test.ts. The reads that feed it live in lib/clanInsider.
+// PURE — tests/member-privacy.test.ts. The reads that feed it live in lib/clanInsider.
 
 /** One spelling per character name: case, spaces, underscores and hyphens all compare equal. */
 export function rsnKey(rsn: string): string {
@@ -69,17 +67,15 @@ export function withoutHiddenNames<T>(value: T, hidden: HiddenNames): T {
  * May this character be listed on a person's "also plays" card (the persona) for this viewer?
  *
  * Listing a character under a person LINKS it to them. A clan insider sees the characters the clan
- * holds a seat for, plus the ones the owner published and agreed to link. Someone outside the clan
- * gets only the second kind — a seat in a clan they are not in is not theirs to learn about.
+ * holds a seat for, plus every other one when the owner agreed to link them. Someone outside the
+ * clan gets only the second kind — a seat in a clan they are not in is not theirs to learn about.
  */
 export function personaCharacterVisible(c: {
   insider: boolean;
   seatedHere: boolean;
-  /** accounts.shared */
-  shared: boolean;
   /** players.linkAccountsPublicly, and the person is not banned. */
   linkable: boolean;
 }): boolean {
-  if (c.linkable && c.shared) return true;
+  if (c.linkable) return true;
   return c.insider && c.seatedHere;
 }

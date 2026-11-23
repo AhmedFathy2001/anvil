@@ -1342,16 +1342,16 @@ const sv: PartialGuideDict = {
         'Du måste inte drafta. **Team placement**, i skapa-formuläret och på fliken **Sign-ups**, avgör var varje ny anmälan hamnar:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'varje person som anmäler sig hamnar i laget med minst spelare. Du väljer bara hur många lag det ska vara. Bra för stora öppna event.',
+          term: 'Even split',
+          body: 'varje person som anmäler sig hamnar i laget med minst spelare, så lagen blir jämna. Det styrs av antal, inte skicklighet. Du väljer bara hur många lag det ska vara. Bra för stora öppna event.',
         },
         {
           term: 'Players pick',
-          body: 'du skapar lagen först, och varje spelare väljer ett i anmälningsformuläret. Sätt en gräns per lag för att hålla dem jämna.',
+          body: 'du skapar lagen först, och varje spelare väljer ett i anmälningsformuläret. Inget lag kan få fler än två spelare före det minsta, så folk inte samlas i ett. Sätt en gräns per lag om du också vill ha ett hårt tak.',
         },
         {
           term: 'Host drafts',
-          body: 'alla väntar i en pool tills du eller dina kaptener draftar dem eller placerar dem för hand. Bäst när du känner spelarna.',
+          body: 'alla väntar i en pool. Dina kaptener turas om att plocka ur den i ormordning (1, 2, 3, sedan 3, 2, 1) mot en pickklocka, och ser varje spelares anmälningssvar, eller så placerar du folk för hand. Bäst när du känner spelarna.',
         },
         {
           term: 'Solo',
@@ -3743,7 +3743,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Monter',
-          body: 'dina bästa drops, killcounts och tider fästa på din profil: 4 platser för Supporter, 8 för Champion, 12 för Patron. Fästa saker från karaktärer du inte delar förblir privata.',
+          body: 'dina bästa drops, killcounts och tider fästa på din profil: 4 platser för Supporter, 8 för Champion, 12 för Patron.',
         },
       ],
     },
@@ -4225,10 +4225,6 @@ const sv: PartialGuideDict = {
     dek: 'Anvil har en sida för **dig** och en för **varje karaktär** du spelar. Det här finns på dem, vem som kan öppna dem, och Wrapped-korten som kommer ut i slutet av varje månad och varje event.',
     facts: [
       {
-        strong: 'Delad som standard',
-        rest: 'gör vilken karaktär som helst privat med en knapp',
-      },
-      {
         strong: 'Månatlig Wrapped',
         rest: 'kommer den 1:a i nästa månad',
       },
@@ -4248,11 +4244,11 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'En karaktärs sida',
-          body: '`/p/<name>`: en karaktär, läsbar för alla med länken så länge den är delad. Den visar färdigheter, bossar, samlingsloggen och personliga rekord, och lämnar medvetet bort dina klanplaceringar, din eventhistorik och ditt Discord-namn.',
+          body: '`/p/<name>`: en karaktär, läsbar för alla med länken. Den visar färdigheter, bossar, samlingsloggen och personliga rekord, och lämnar medvetet bort dina klanplaceringar, din eventhistorik och ditt Discord-namn.',
         },
         {
           term: 'Din personsida',
-          body: '`/u/…`: alla dina delade karaktärer på en sida, med ditt utställningsskåp och de streamingkonton du valt att visa. Den finns bara om du slår på **Show that my characters are one person**.',
+          body: '`/u/…`: alla dina karaktärer på en sida, med ditt utställningsskåp och de streamingkonton du valt att visa. Den finns bara om du slår på **Show that my characters are one person**.',
         },
         {
           term: 'En klans medlemssida',
@@ -4263,9 +4259,8 @@ const sv: PartialGuideDict = {
     sharing: {
       title: 'Vem som kan se vad',
       body: [
-        'Varje karaktär börjar **shared**: dess sida öppnas för alla med länken, och den kan dyka upp på ledartavlor och för andra klaner. Stäng av en under **Who sees my characters** i Inställningar så svarar dess sida _not found_ för alla utom dig. Du ser **Private — only you can see this page.** med en länk **Share it →**.',
-        'En delad sida har **Copy link** under namnet. Inloggade besökare som tycker att en sida är kränkande kan trycka på **Report this profile**.',
-        'Per karaktär låter Inställningar dig också dölja vilken klan i spelet den tillhör (**Show my in-game clan**), så den lämnar den karaktärens sida och den klanens Anvil-sida.',
+        'Varje karaktär: dess sida öppnas för alla med länken, och den kan dyka upp på ledartavlor och för andra klaner.',
+        'En karaktärs sida har **Copy link** under namnet. Inloggade besökare som tycker att en sida är kränkande kan trycka på **Report this profile**.',
       ],
     },
     wrapped: {
@@ -4273,7 +4268,7 @@ const sv: PartialGuideDict = {
       body: [
         'Varje månad får varje karaktär ett Wrapped-kort: **XP gained**, **Boss kills**, **New slots** i samlingsloggen, **Efficient** timmar, **PBs**, plus husdjur och den största drop. Det kommer ut den **1:a i nästa månad** (UTC). Tills dess kan bara du öppna det, som en förhandsvisning.',
         'Året får också ett, på `/p/<name>/wrapped/<year>`, från **1 december**. `/p/<name>/wrapped` tar dig alltid till det nyaste som finns.',
-        'Tryck på **Copy link to your Wrapped** för att dela det. Klistrat i Discord visas det som en bild av kortet. En privat karaktärs Wrapped öppnas bara för dig, och dess länk förhandsvisas som ett vanligt Anvil-kort.',
+        'Tryck på **Copy link to your Wrapped** för att dela det. Klistrat i Discord visas det som en bild av kortet.',
       ],
       note: {
         tag: 'En tom månad',
@@ -4292,7 +4287,6 @@ const sv: PartialGuideDict = {
       title: 'Jämför två karaktärer',
       body: [
         'Öppna [Compare](/compare) och skriv två namn. Du får färdigheter, bossar och samlingsloggssidor sida vid sida. Ledaren i varje räkning är i guld. Under det finns en analys, XP per färdighet, varje boss någon av er har dödat, och varje loggsida föremål för föremål: ni har båda, ingen av er, eller bara en av er. **Swap sides** byter plats på dem.',
-        'Bara delade karaktärer kan jämföras. En privat, eller ett namn Anvil inte känner till, returneras som _not on Anvil, or not shared_. Du kan alltid jämföra dina egna privata karaktärer medan du är inloggad.',
       ],
     },
     news: {
@@ -4423,15 +4417,11 @@ const sv: PartialGuideDict = {
     },
     privacy: {
       title: 'Vem som ser mina karaktärer',
-      intro: 'Dina karaktärer är delade från början. Tre knappar ändrar det:',
+      intro: 'Alla karaktärer är offentliga. Två reglage ställer du in själv:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'en knapp per karaktär. På (från start) är dess sida **Public**. Av är den **Only its clans**: dess klaner ser den fortfarande i sina listor och event, ingen annan gör det, och den lämnar ledartavlorna.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'med två eller fler karaktärer skapar detta din personsida, som listar dina delade karaktärer tillsammans. Av kan ingen se att de alla är du.',
+          body: 'med två eller fler karaktärer skapar detta din personsida, som listar dina karaktärer tillsammans. Av kan ingen se att de alla är du.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4465,10 +4455,6 @@ const sv: PartialGuideDict = {
       title: 'Varje karaktär',
       intro: 'Under **Characters** har varje karaktär en egen sida: dess typ, om den är verifierad, och länkar till dess publika sida och hela profil.',
       rows: [
-        {
-          term: 'Synlighet',
-          body: '**Show to other clans and on leaderboards**, och **Show my in-game clan**.',
-        },
         {
           term: 'Klaner',
           body: 'varje klan och space den är i, som **member** eller **guest**, med **Announce drops & achievements** per klan och **Leave**. Om Anvil har den i fel klan berättar **Which clan is it really in?** för stabben.',
@@ -4948,7 +4934,7 @@ const sv: PartialGuideDict = {
     ghost: {
       title: 'Klaner i spelet som inte finns på Anvil',
       body: [
-        'En karaktärs sida anger klanen i spelet den tillhör. Om den klanen inte finns på Anvil öppnar länken en enkel sida som listar de Anvil-spelare som är med i den och valt att visa det. Det är inte den klanens lista, och inget på den gör någon till medlem.',
+        'En karaktärs sida anger klanen i spelet den tillhör. Om den klanen inte finns på Anvil öppnar länken en enkel sida som listar de Anvil-spelare som är med i den. Det är inte den klanens lista, och inget på den gör någon till medlem.',
         'Om det är din klan sätter **Bring your clan to Anvil** upp en. När den är en publik Anvil-klan går länken direkt dit.',
       ],
     },

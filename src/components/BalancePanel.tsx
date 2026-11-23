@@ -1,28 +1,25 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { PlayerRatings, RatedProfile } from '@/hooks/usePlayerRatings';
-import { ratingScore } from '@/components/PlayerRatingBadge';
+import type { TeamStrengthsState } from '@/hooks/useTeamStrengths';
 import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 
 // Draft-side balance advisory (balance-engine plan, Phase 4/5 UI). Renders on the Teams & Draft
-// tab for the classic draft format: projected team-strength bars, the pool grouped into S/A/B/C
-// tiers with capability hints, the balanceMode selector, and the admin "Balance teams" action.
-// Everything is staff-facing information — the enforcement itself (tiered picks, dynamic order,
-// greedy placement) lives server-side; this panel is how staff see and choose it.
+// tab for the classic draft format: projected team-strength bars, the balanceMode selector, and the
+// admin "Balance teams" action. The enforcement itself (tiered picks, dynamic order, greedy
+// placement) lives server-side; this panel is how staff see and choose it.
 //
-// The ratings themselves come from the page-level usePlayerRatings hook (one fetch shared with the
-// per-member badges on the pool cards and roster rows) rather than a fetch of its own.
-
-type ProfileRow = RatedProfile;
+// TEAM-level only. No per-player rating or tier is shown to anyone — member privacy, even from
+// their own clan admins — so the strengths come from the page-level useTeamStrengths hook already
+// summed per team on the server.
 
 interface Props {
   eventId: number;
   rules: string | null | undefined; // events.rules JSON (parsed leniently server-side)
   teams: { id: number; name: string; color: string | null }[];
-  /** Shared pool ratings (page-level hook) — profiles, tiers, and a refetch for after balancing. */
-  ratings: PlayerRatings;
+  /** Per-team strengths (page-level hook), with a refetch for after balancing. */
+  strengths: TeamStrengthsState;
   draftStatus: string;
   editLocked: boolean;
   /** Called after auto-balance / mode change so the parent refreshes rosters. */
@@ -31,16 +28,14 @@ interface Props {
 
 const MODES = [
   { value: 'off', label: 'Off — classic draft', hint: 'No steering; the panel stays informational.' },
-  { value: 'advisory', label: 'Advisory', hint: 'Show strength bars and tiers; enforce nothing.' },
-  { value: 'tiered-snake', label: 'Tiered snake', hint: 'No second S/A-tier pick while a team has none.' },
+  { value: 'advisory', label: 'Advisory', hint: 'Show strength bars; enforce nothing.' },
+  { value: 'tiered-snake', label: 'Tiered snake', hint: 'No second top pick while another team has none.' },
   { value: 'dynamic-order', label: 'Dynamic order', hint: 'Weakest projected team picks next each round.' },
   { value: 'auto', label: 'Auto-balance', hint: 'Skip drafting — the Balance teams button forms rosters.' },
 ] as const;
 
-const TIERS = ['S', 'A', 'B', 'C'] as const;
-
-export default function BalancePanel({ eventId, rules, teams, ratings, draftStatus, editLocked, onChanged }: Props) {
-  const profiles: ProfileRow[] | null = ratings.profiles;
+export default function BalancePanel({ eventId, rules, teams, strengths: strengthState, draftStatus, editLocked, onChanged }: Props) {
+  const loaded = strengthState.data;
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -60,17 +55,10 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
   // collapsed panel would be permanently stuck shut. Show it open (read-only) instead.
   const [collapsed, setCollapsed] = useState(mode === 'off' && !editLocked);
 
-  // Quartile tiering (mirror of lib/draftBalance) is computed once by the shared hook.
-  const tierByPerson = ratings.tierByPersonKey;
-
-  const strengths = useMemo(() => {
-    const map = new Map<number, number>(teams.map((t) => [t.id, 0]));
-    for (const p of profiles ?? []) {
-      if (p.teamId == null || !map.has(p.teamId)) continue;
-      map.set(p.teamId, (map.get(p.teamId) ?? 0) + Math.pow(p.rating, 1.5));
-    }
-    return map;
-  }, [profiles, teams]);
+  const strengths = useMemo(
+    () => new Map<number, number>(teams.map((t) => [t.id, loaded?.byTeam.get(t.id) ?? 0])),
+    [loaded, teams],
+  );
   const maxStrength = Math.max(0.0001, ...strengths.values());
   const spreadPct = useMemo(() => {
     const vals = [...strengths.values()].filter(() => teams.length >= 2);
@@ -79,8 +67,8 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
     return max > 0 ? Math.round(((max - Math.min(...vals)) / max) * 100) : 0;
   }, [strengths, teams.length]);
 
-  const pool = (profiles ?? []).filter((p) => p.teamId == null);
-  const canAutoBalance = !editLocked && draftStatus === 'none' && teams.length >= 2 && pool.length > 0;
+  const poolCount = loaded?.poolCount ?? 0;
+  const canAutoBalance = !editLocked && draftStatus === 'none' && teams.length >= 2 && poolCount > 0;
 
   const setMode = async (value: string) => {
     setBusy('mode');
@@ -116,7 +104,7 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
       } else {
         setNote(`Placed ${data.placed} — projected spread now ${data.spreadPct}%.`);
         onChanged();
-        ratings.refetch();
+        strengthState.refetch();
       }
     } finally {
       setBusy(null);
@@ -124,12 +112,9 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
   };
 
   // Nothing to rate anyone on yet — no past events, no marker-boss kill counts. The panel would show
-  // a 0% spread, a tier for every unknown and five balancing modes that have nothing to work with,
-  // so it says that in a line instead. Left alone once a mode is on, so it can be switched back off.
-  const nothingToRate =
-    (profiles?.length ?? 0) > 0 &&
-    (profiles ?? []).every((p) => p.evidenceEvents === 0 && p.capabilityMarkers.length === 0);
-  if (nothingToRate && mode === 'off') {
+  // a 0% spread and five balancing modes that have nothing to work with, so it says that in a line
+  // instead. Left alone once a mode is on, so it can be switched back off.
+  if (loaded?.nothingToRate && mode === 'off') {
     return (
       <p className="text-xs text-text-muted">
         Team balance: nobody in this pool has played an Anvil event or has boss kill counts to go on yet, so
@@ -137,9 +122,6 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
       </p>
     );
   }
-
-  const bandGlyph = (p: ProfileRow) =>
-    p.band === 'tight' ? '' : p.band === 'medium' ? ' ·?' : ' ·??';
 
   return (
     <div className="border border-card-border rounded-xl bg-card-bg p-5">
@@ -181,31 +163,26 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
       </div>
       {note && <p className="text-xs text-text-muted mt-2">{note}</p>}
       <p className="text-xs text-text-muted mt-1">
-        Projected roster strength from each player&apos;s past-event history — advisory only.{' '}
+        Projected roster strength from the players&apos; past-event history — advisory only.{' '}
         {MODES.find((m) => m.value === mode)?.hint}
       </p>
 
-      {/* Plain-language key for the shorthand below — the whole reason this used to read as gibberish. */}
+      {/* Plain-language key for the number beside each bar. */}
       {!collapsed && (
         <p className="text-[11px] text-text-muted/80 mt-2 leading-relaxed">
-          <span className="text-foreground/70">Tiers</span> rank players strongest → weakest:{' '}
-          <span className="text-gold">S</span> = top 25%, then A, B, <span>C</span> = bottom 25% (so{' '}
-          <span className="text-foreground/70">S×3</span> means three top-tier players). The number beside a{' '}
-          <span className="text-foreground/70">team bar</span> is that roster&apos;s projected strength; the
-          number beside a <span className="text-foreground/70">player</span> — here and on every pool card
-          and roster row — is their own 0-100 rating. Hover either for the breakdown.
+          The number beside a <span className="text-foreground/70">team bar</span> is that roster&apos;s projected
+          strength. Individual players are never rated on screen.
         </p>
       )}
 
-      {!collapsed && profiles == null && <p className="text-xs text-text-muted mt-3">Rating the pool…</p>}
+      {!collapsed && loaded == null && <p className="text-xs text-text-muted mt-3">Rating the pool…</p>}
 
-      {!collapsed && profiles != null && (
+      {!collapsed && loaded != null && (
         <div className="mt-4 space-y-4">
           {teams.length > 0 && (
             <div className="space-y-1.5">
               {teams.map((t) => {
                 const s = strengths.get(t.id) ?? 0;
-                const teamTiers = (profiles ?? []).filter((p) => p.teamId === t.id);
                 return (
                   <div key={t.id} className="flex items-center gap-2 text-xs">
                     <span className="w-28 truncate" title={t.name}>
@@ -219,25 +196,9 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
                     </div>
                     <span
                       className="w-10 text-right text-text-muted"
-                      title="Projected strength — the team's combined member ratings. Higher is stronger on paper."
+                      title="Projected strength — the team's combined strength on paper. Higher is stronger on paper."
                     >
                       {(s * 100).toFixed(0)}
-                    </span>
-                    <span
-                      className="text-text-muted/80 whitespace-nowrap shrink-0"
-                      title={
-                        TIERS.map((tier) => {
-                          const c = teamTiers.filter((p) => tierByPerson.get(p.personKey) === tier).length;
-                          return c > 0 ? `${c} ${tier}-tier` : null;
-                        })
-                          .filter(Boolean)
-                          .join(', ') || 'No players yet'
-                      }
-                    >
-                      {TIERS.map((tier) => {
-                        const c = teamTiers.filter((p) => tierByPerson.get(p.personKey) === tier).length;
-                        return c > 0 ? `${tier}×${c} ` : '';
-                      })}
                     </span>
                   </div>
                 );
@@ -245,41 +206,15 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
             </div>
           )}
 
-          {pool.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-text-muted mb-1.5">
-                Undrafted players, tagged with their tier and 0-100 rating —{' '}
-                <span className="text-text-muted/80">? = thin history, ?? = no history</span> behind the rating
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {pool.map((p) => {
-                  const tier = tierByPerson.get(p.personKey) ?? 'C';
-                  const marker = p.capabilityMarkers[0]?.label;
-                  const flags = [
-                    p.subbedOutBefore ? 'subbed out before' : null,
-                    p.reliability != null && p.reliability < 0.4 ? 'low attendance history' : null,
-                  ]
-                    .filter(Boolean)
-                    .join(', ');
-                  return (
-                    <span
-                      key={p.personKey}
-                      title={`${p.rsn} — rating ${ratingScore(p)}/100, tier ${tier}${marker ? ` · ${marker}` : ''}${flags ? ` · ${flags}` : ''}`}
-                      className={`text-xs px-2 py-0.5 rounded-lg border ${
-                        tier === 'S'
-                          ? 'border-gold/40 text-gold'
-                          : tier === 'A'
-                            ? 'border-gold/20 text-foreground/90'
-                            : 'border-card-border text-text-muted'
-                      } ${flags ? 'opacity-70' : ''}`}
-                    >
-                      {tier} · {p.rsn} · <span className="font-mono tabular-nums">{ratingScore(p)}</span>
-                      {marker ? ` · ${marker}` : ''}
-                      {bandGlyph(p)}
-                    </span>
-                  );
-                })}
-              </div>
+          {poolCount > 0 && <p className="text-xs text-text-muted">{poolCount} players still in the pool.</p>}
+          {(loaded?.coverage.length ?? 0) > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+              <p className="text-xs font-medium text-amber-300">Coverage gaps on this board</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-text-muted">
+                {loaded!.coverage.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

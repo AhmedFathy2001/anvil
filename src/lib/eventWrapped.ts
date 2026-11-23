@@ -23,8 +23,6 @@ export interface EventWrapped {
   ended: boolean;
   players: WrappedPlayer[];
   teams: WrappedTeam[];
-  /** event player id → the account behind it, for the link-card cache's un-share hook. */
-  accountOf: Record<number, number>;
 }
 
 /**
@@ -76,13 +74,9 @@ async function computeEventWrapped(eventId: number): Promise<EventWrapped | null
 
   const playerBySeat = new Map<number, number>();
   const playerByAccount = new Map<number, number>();
-  const accountOf: Record<number, number> = {};
   for (const r of roster) {
     if (r.clanMemberId != null && !playerBySeat.has(r.clanMemberId)) playerBySeat.set(r.clanMemberId, r.id);
-    if (r.accountId != null) {
-      accountOf[r.id] = r.accountId;
-      if (!playerByAccount.has(r.accountId)) playerByAccount.set(r.accountId, r.id);
-    }
+    if (r.accountId != null && !playerByAccount.has(r.accountId)) playerByAccount.set(r.accountId, r.id);
   }
 
   const luckRows: WrappedLuckRow[] = [];
@@ -118,7 +112,6 @@ async function computeEventWrapped(eventId: number): Promise<EventWrapped | null
     eventName: event.name,
     clanId: event.clanId,
     ended: stats.ended,
-    accountOf,
     ...shaped,
   };
 }

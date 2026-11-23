@@ -6,6 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import { notPracticeEventId } from '@/lib/practiceScope';
 import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
@@ -524,12 +525,11 @@ export async function recordSeatMoments(
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
   const seatKind = seat?.kind ?? 'guest';
-  // A death is kept with nothing running too, when the clan keeps deaths (it's the clan's feed either way).
-  const kept = idle
-    ? seatKind === 'member'
-      ? observations.filter((o) => isAchievementKind(o.kind) || (o.kind === 'death' && scopes.clan.deaths))
-      : []
-    : observations;
+  // Nothing running is an ordinary day for the clan's feed, not a reason to drop the news: a member's
+  // pets, drops, achievements and deaths all go to the clan scope, whose own rules decide (lib/moments
+  // clanKindFor: a pet always, a drop past the clan's rarity or value floor, a death when it keeps
+  // them). Only a guest seat, whose clan this isn't, keeps nothing.
+  const kept = idle ? (seatKind === 'member' ? observations : []) : observations;
   if (kept.length === 0) return { stored: 0, matched: 0, inserted: [], seatKind, idle };
   return { ...(await recordMoments(member, kept, scopes)), seatKind, idle };
 }
@@ -745,7 +745,8 @@ export async function allMomentsForEvent(eventId: number, cap = 5000): Promise<M
  * through the whole history, where filtering the newest few hundred of every kind afterwards showed
  * only the pets that happened to fall inside the last couple of days of drops.
  */
-export async function momentsForClan(clanId: number, limit = 20, kinds?: readonly string[]): Promise<MomentRow[]> {
+/** `before`: only moments older than this stamp (ISO) — the next page of the site's clan feed. */
+export async function momentsForClan(clanId: number, limit = 20, kinds?: readonly string[], before?: string | null): Promise<MomentRow[]> {
   const clan = await clanScope(clanId);
   const window = Math.min(limit * 12, 600);
   const rows = await db
@@ -767,11 +768,26 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
         or(notInArray(moments.kind, [MILESTONE_KIND, ...BOARD_COPY_KINDS]), isNull(moments.eventId)),
         // A practice board's row never reaches the clan feed (lib/practice; none should be written).
         notPracticeEventId(moments.eventId),
+        before ? lt(moments.occurredAt, before) : undefined,
       ),
     )
     .orderBy(desc(moments.occurredAt))
     .limit(window);
-  return rows.filter((row) => isClanWorthy(row, clan)).slice(0, limit);
+  // A drop filed on a board whose standings are hidden stays out of every clan feed (the board's own
+  // feed shows each team its own): checked here so the panel, the site's Lately pages and the clan
+  // card all leave it out alike.
+  const boardIds = [...new Set(rows.map((r) => r.eventId).filter((e): e is number => e != null))];
+  const hiddenBoards = new Set<number>();
+  if (boardIds.length) {
+    const now = Date.now();
+    // clan-scope: this clan -- the boards this clan's own moments were filed on
+    const boards = await db
+      .select({ id: events.id, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt, rules: events.rules })
+      .from(events)
+      .where(inArray(events.id, boardIds));
+    for (const b of boards) if (standingsHidden(b, now)) hiddenBoards.add(b.id);
+  }
+  return rows.filter((row) => (row.eventId == null || !hiddenBoards.has(row.eventId)) && isClanWorthy(row, clan)).slice(0, limit);
 }
 
 /** Separate-save activity for the compact Modes timeline, never mixed into the ordinary clan feed. */

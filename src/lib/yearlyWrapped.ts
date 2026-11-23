@@ -50,7 +50,7 @@ export async function getYearlyWrapped(accountId: number, rsn: string, year: str
 
 /**
  * The Supporter bits of a year: the star this character wears publicly (supporterLooksByName applies
- * the same shared + verified rule as every name), and the months its person gave others, only when
+ * the same verified rule as every name), and the months its person gave others, only when
  * they're on the public wall (users.supporter_wall on every login).
  */
 async function supporterExtras(accountId: number, rsn: string, year: string): Promise<Pick<YearlyWrapped, 'supporter' | 'gifted'>> {
@@ -64,8 +64,8 @@ async function supporterExtras(accountId: number, rsn: string, year: string): Pr
         months: look.tenure.months,
       }
     : null;
-  const acc = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { playerId: true, shared: true } });
-  if (!acc?.playerId || !acc.shared) return { supporter, gifted: null };
+  const acc = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { playerId: true } });
+  if (!acc?.playerId) return { supporter, gifted: null };
   const optedOut = await db.select({ id: users.id }).from(users).where(and(eq(users.playerId, acc.playerId), eq(users.supporterWall, false))).limit(1);
   if (optedOut.length) return { supporter, gifted: null };
   const months = await giftedMonthsInYear(acc.playerId, year);

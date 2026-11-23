@@ -118,13 +118,13 @@ export const PERSON_DATA: PersonDataEntry[] = [
   // ── Characters ──────────────────────────────────────────────────────────────────────────────────
   e('accounts', 'player_id', 'player', 'detach', 'custom',
     'a character on any clan’s roster or event stays as an unclaimed name (as releaseCharacter leaves it) with its proof, Discord id, account hash, look and live stats cleared; a character on no clan record is deleted',
-    ex('characters', 'id', 'rsn', 'previous_rsns', 'status', 'is_primary', 'shared', 'account_type', 'verified_at', 'verification_method', 'claimed_at', 'created_at')),
+    ex('characters', 'id', 'rsn', 'previous_rsns', 'status', 'is_primary', 'account_type', 'verified_at', 'verification_method', 'claimed_at', 'created_at')),
   e('accounts', 'verified_by_user_id', 'user', 'detach', 'fk', 'who approved somebody else’s character'),
 
   // Per character. These say what happens for a character that STAYS on a clan record; a character
   // on no clan record is deleted outright and every one of these goes with it.
   e('account_clan_emission', 'account_id', 'account', 'delete', 'sql', 'their per-clan announcement choices', tied({ since: 'updated_at' }, ex('preferences', 'account_id', 'clan_id', 'enabled', 'updated_at'))),
-  e('account_game_clans', 'account_id', 'account', 'delete', 'sql', 'the in-game clan their own plugin reported', tied({ since: 'observed_at' }, ex('characters_game_clans', 'account_id', 'rank', 'title', 'joined_on', 'observed_at', 'hidden'))),
+  e('account_game_clans', 'account_id', 'account', 'delete', 'sql', 'the in-game clan their own plugin reported', tied({ since: 'observed_at' }, ex('characters_game_clans', 'account_id', 'rank', 'title', 'joined_on', 'observed_at'))),
   e('account_media', 'account_id', 'account', 'delete', 'sql', 'character picture and banner; the stored images are deleted after', tied({ writer: 'owner_player_id', key: 'player' }, ex('profile_media', 'account_id', 'avatar_url', 'banner_url', 'updated_at'))),
   e('account_media', 'owner_player_id', 'player', 'delete', 'sql', 'the same pictures, found by who uploaded them (no foreign key)'),
   e('account_ownership_claims', 'account_id', 'account', 'delete', 'sql', 'disputes over who owns the character'),

@@ -1328,7 +1328,7 @@ export async function getCompetitionHistory(
  * The roster sync's date first. Without one — a clan whose sync hasn't run since dates were kept —
  * the date the character's OWN plugin reported (account_game_clans), but only when the clan it
  * reported is this one: its name matches the clan's VERIFIED in-game name. An unverified clan's name
- * is a claim nobody checked, and a member who hid their in-game clan has hidden its date too.
+ * is a claim nobody checked.
  */
 export async function ingameJoinDates(seatIds: number[]): Promise<Map<number, string>> {
   if (seatIds.length === 0) return new Map();
@@ -1347,7 +1347,7 @@ export async function ingameJoinDates(seatIds: number[]): Promise<Map<number, st
     .innerJoin(clans, and(eq(clans.id, clanMemberships.clanId), isNotNull(clans.ingameNameVerifiedAt)))
     .innerJoin(
       accountGameClans,
-      and(eq(accountGameClans.accountId, clanMemberships.accountId), isNotNull(accountGameClans.joinedOn), eq(accountGameClans.hidden, false)),
+      and(eq(accountGameClans.accountId, clanMemberships.accountId), isNotNull(accountGameClans.joinedOn)),
     )
     .innerJoin(
       gameClans,
@@ -1428,7 +1428,6 @@ export async function getPersona(clanMemberId: number, viewer: { insider: boolea
       isPrimary: accounts.isPrimary,
       accountType: accounts.accountType,
       overallXp: accounts.statsOverallXp,
-      shared: accounts.shared,
     })
     .from(accounts)
     .where(and(eq(accounts.playerId, member.playerId), isNotNull(accounts.claimedAt)));
@@ -1438,11 +1437,10 @@ export async function getPersona(clanMemberId: number, viewer: { insider: boolea
     // Member and guest seats: an event player's seat is not standing here (one per event, read as "guest").
     .where(and(eq(clanRoster.clanId, member.clanId), eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt), rosterClanSeat()));
   const seatByAccount = new Map(seatsHere.map((x) => [x.accountId, x]));
-  // WHAT KEEPS A CHARACTER WITHOUT A SEAT HERE OFF THIS CARD — the same two consents the apex reads
-  // (lib/apexProfiles), because listing a character under this person is LINKING it to them:
-  //   - the character is shared (public on Anvil), and
-  //   - the person agreed to have their characters linked publicly (players.linkAccountsPublicly).
-  // Either one off, and only the characters seated here show — a clan always sees what it holds a
+  // WHAT KEEPS A CHARACTER WITHOUT A SEAT HERE OFF THIS CARD — the same consent the apex reads
+  // (lib/apexProfiles), because listing a character under this person is LINKING it to them: the
+  // person agreed to have their characters linked publicly (players.linkAccountsPublicly).
+  // Off, and only the characters seated here show — a clan always sees what it holds a
   // seat for (lib/accountVisibility). A platform-banned person's other characters are not shown.
   const ownerRow = await db.query.players.findFirst({
     where: eq(players.id, member.playerId),
@@ -1451,13 +1449,12 @@ export async function getPersona(clanMemberId: number, viewer: { insider: boolea
   const linkable = !!ownerRow?.linkAccountsPublicly && !ownerRow?.banned;
   //
   // AND WHO IS LOOKING. Any signed-in visitor to a public clan's member page used to get the whole
-  // card: the Discord name and face, and every character seated here, shared or not. Someone outside
-  // the clan now gets only what the person published and agreed to link, and no Discord identity.
+  // card: the Discord name and face, and every character seated here. Someone outside the clan now
+  // gets only what the person agreed to link, and no Discord identity.
   for (let i = owned.length - 1; i >= 0; i--) {
     const visible = personaCharacterVisible({
       insider: viewer.insider,
       seatedHere: seatByAccount.has(owned[i].accountId),
-      shared: owned[i].shared,
       linkable,
     });
     if (!visible) owned.splice(i, 1);
@@ -1466,7 +1463,7 @@ export async function getPersona(clanMemberId: number, viewer: { insider: boolea
   for (const seat of viewer.insider ? seatsHere : []) {
     if (!owned.some((o) => o.accountId === seat.accountId)) {
       const row = rows.find((r) => r.id === seat.id);
-      owned.push({ accountId: seat.accountId, rsn: row?.rsn ?? '', isPrimary: 0, accountType: null, overallXp: row?.overallXp ?? null, shared: true });
+      owned.push({ accountId: seat.accountId, rsn: row?.rsn ?? '', isPrimary: 0, accountType: null, overallXp: row?.overallXp ?? null });
     }
   }
   if (owned.length <= 1) return null;

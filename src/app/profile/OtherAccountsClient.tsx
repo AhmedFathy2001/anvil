@@ -14,20 +14,9 @@ function shortDate(stamp: string | null): string {
 /**
  * Your characters that this clan holds no seat for.
  *
- * TWO DIFFERENT QUESTIONS LIVE ON EACH ROW, and for a long time one switch was asked to answer both.
- *
- *   Show on my public profile — whether this character appears on its own profile and the cross-clan boards.
- *     The platform's question, on by default, and nothing to do with any particular clan. Turning it
- *     off is how an ironman or a PK alt stays out of the public pages.
- *
- *   Guest here — whether THIS clan knows about the character at all. That is a seat on their roster,
- *     which their own door grants (open seats you at once, approval asks a moderator, closed refuses),
- *     and it is what lets the character play their events.
- *
- * The old "Share" was the first one wearing the second one's name: it promised that clans you were
- * not in could see the character, while every clan screen went on showing only its own seats. A
- * person read "shared" and reasonably concluded the clan could see it. Now the row says both things
- * and each one does what it says.
+ * Each row offers "Guest here": a seat on this clan's roster, which their own door grants (open seats
+ * you at once, approval asks a moderator, closed refuses), and it is what lets the character play
+ * their events.
  */
 export default function OtherAccountsClient({
   accounts,

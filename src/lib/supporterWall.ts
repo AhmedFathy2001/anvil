@@ -3,8 +3,7 @@
 //
 // Shown by default once someone subscribes; users.supporter_wall (Settings → Supporter) takes them
 // off. A person appears ONCE, under one character that already wears their flair publicly
-// (flairCharacterWhere: shared + verified), so the wall never ties a hidden character to anyone. A
-// person with no such character is counted, not named.
+// (flairCharacterWhere: verified). A person with no such character is counted, not named.
 
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 

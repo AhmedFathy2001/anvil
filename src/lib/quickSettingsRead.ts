@@ -45,7 +45,7 @@ export async function quickSettingsFor(
 
   // clan-scope: global -- the subject is a PERSON; the seat rows below are filtered to this one clan.
   const mine = await db
-    .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
+    .select({ id: accounts.id, rsn: accounts.rsn })
     .from(accounts)
     .where(eq(accounts.playerId, playerId))
     .orderBy(desc(accounts.isPrimary), asc(accounts.id));
@@ -68,7 +68,6 @@ export async function quickSettingsFor(
         .where(eq(accountClanEmission.clanId, clan.id))
     : [];
   const prefs = parseNotifyPrefs(user?.notifyPrefs);
-  const main = characters[0] ?? null;
 
   const view = buildQuickSettings({
     clanId: clan.id,
@@ -79,8 +78,6 @@ export async function quickSettingsFor(
     prefs: { drops: prefs.drops, deaths: prefs.deaths, levels: prefs.levels },
     blockGuestPosts: !!user?.block,
     guestCharacters: guestIds.map((id) => ({ accountId: id, allowed: overrides.some((o) => o.accountId === id && o.enabled) })),
-    main: main ? { accountId: main.id, rsn: main.rsn, shared: !!main.shared } : null,
-    characterCount: characters.length,
     dms: user?.dms === 'yes',
   });
   return { view, done: false };

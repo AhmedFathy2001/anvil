@@ -63,8 +63,6 @@ test('with nothing running, a member’s achievement is kept and listed in the c
     { kind: 'diary', itemName: 'Varrock', tier: 'Hard', occurredAt: now(), dedupKey: 'diary|varrock|hard' },
     { kind: 'level', itemName: 'Slayer', quantity: 99, sourceKind: 'skill', occurredAt: now(), dedupKey: 'level|slayer|99' },
     { kind: 'level', itemName: 'Cooking', quantity: 70, sourceKind: 'skill', occurredAt: now(), dedupKey: 'level|cooking|70' },
-    // Drops and pets still need something running.
-    { kind: 'pet', itemName: 'Heron', occurredAt: now(), dedupKey: 'pet|heron' },
   ]);
   assert.equal(r.idle, true);
   assert.equal(r.seatKind, 'member');
@@ -79,6 +77,21 @@ test('with nothing running, a member’s achievement is kept and listed in the c
   assert.ok(rows.includes('Dragon warhammer'));
   assert.ok(rows.includes('99 Slayer'));
   assert.ok(rows.includes('Hard Varrock'));
+});
+
+test('with nothing running, a member’s pet and a drop past the clan’s floor still reach the clan feed; a cheap one does not', async () => {
+  const r = await push('member', [
+    { kind: 'pet', itemName: 'Dom', source: 'Doom of Mokhaiotl', occurredAt: now(), dedupKey: 'pet|dom' },
+    { kind: 'drop', itemId: 27277, itemName: "Tumeken's shadow (uncharged)", quantity: 1, valueGp: 1_500_000_000, source: 'Tombs of Amascut', occurredAt: now(), dedupKey: 'drop|shadow' },
+    { kind: 'drop', itemId: 995, itemName: 'Coins', quantity: 50, valueGp: 50, source: 'Goblin', occurredAt: now(), dedupKey: 'drop|coins' },
+  ]);
+  assert.equal(r.idle, true);
+  const kinds = r.inserted.map((m) => m.kind);
+  assert.ok(kinds.includes('pet'), 'a pet is always the news');
+  assert.ok(kinds.includes('unique') || kinds.includes('loot'), 'a valuable drop is kept');
+  assert.equal(r.inserted.filter((m) => m.itemName === 'Coins').length, 0, 'a cheap drop is not');
+  const feed = await M.momentsForClan(clanId, 80);
+  assert.ok(feed.some((m) => m.kind === 'pet' && m.itemName === 'Dom'));
 });
 
 test('a guest seat’s achievement is not kept for the clan', async () => {
