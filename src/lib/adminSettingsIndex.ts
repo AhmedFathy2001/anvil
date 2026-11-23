@@ -369,6 +369,7 @@ const PAGES: readonly SettingEntry[] = [
     description: 'Your Anvil plan, member limit, invoices and upgrading.',
     keywords: ['billing', 'subscription', 'pricing', 'payment', 'upgrade', 'member cap', 'limit', 'gumroad', 'premium', 'invoice', 'cancel'],
     href: '/admin/plan',
+    minRole: 'admin',
     section: 'Settings',
   },
   {
@@ -377,6 +378,7 @@ const PAGES: readonly SettingEntry[] = [
     description: 'How many members you have, and how many your plan allows.',
     keywords: ['member cap', 'limit', 'how many members', 'full', 'usage', 'seats'],
     href: '/admin/plan#plan-usage',
+    minRole: 'admin',
     section: 'Settings → Plan and billing',
     only: 'clan',
   },
@@ -396,6 +398,7 @@ const PAGES: readonly SettingEntry[] = [
     description: 'Ask the Anvil team and other clans, report a bug, follow releases.',
     keywords: ['support', 'help', 'bug', 'contact', 'anvil discord'],
     href: '/admin/plan#anvil-discord',
+    minRole: 'admin',
     section: 'Settings → Plan and billing',
     only: 'clan',
   },
