@@ -1,5 +1,5 @@
 // A person's profile in a clan lists EVERY character they own, marked member / guest / not here
-// (lib/memberProfile getPersona) — except one its player chose not to share, unless it sits here.
+// (lib/memberProfile getPersona), once the person agreed to link their characters.
 //
 // Run: npx tsx --test tests/persona-characters.test.ts
 
@@ -34,12 +34,12 @@ before(async () => {
   const main = await mk('Main', { isPrimary: 1 });
   const alt = await mk('Alt', { accountType: 'hardcore' });
   const elsewhere = await mk('Elsewhere');
-  const hidden = await mk('Hidden', { shared: false });
+  const another = await mk('Another');
 
   seatHere = (await db.insert(s.clanMemberships).values({ clanId: here, accountId: main, kind: 'member' }).returning())[0].id;
   await db.insert(s.clanMemberships).values({ clanId: here, accountId: alt, kind: 'guest' });
   await db.insert(s.clanMemberships).values({ clanId: there, accountId: elsewhere, kind: 'member' });
-  await db.insert(s.clanMemberships).values({ clanId: there, accountId: hidden, kind: 'member' });
+  await db.insert(s.clanMemberships).values({ clanId: there, accountId: another, kind: 'member' });
 });
 
 after(async () => {
@@ -50,7 +50,7 @@ after(async () => {
 // The card as someone INSIDE the clan reads it; a visitor from outside is the last test.
 const CLANMATE = { insider: true };
 
-test('every shared character, with where it stands here', async () => {
+test('every character, with where it stands here', async () => {
   const { getPersona } = await import('../src/lib/memberProfile.ts');
   const p = await getPersona(seatHere, CLANMATE);
   assert.ok(p);
@@ -60,7 +60,7 @@ test('every shared character, with where it stands here', async () => {
   assert.equal(byRsn.get('Alt')?.accountType, 'hardcore');
   assert.equal(byRsn.get('Elsewhere')?.status, 'out');
   assert.equal(byRsn.get('Elsewhere')?.id, null, 'no seat here to link to');
-  assert.equal(byRsn.has('Hidden'), false, 'its player turned sharing off and it has no seat here');
+  assert.equal(byRsn.get('Another')?.status, 'out');
   assert.equal(p.accounts[0].rsn, 'Main', 'the main first');
 });
 
@@ -82,6 +82,6 @@ test('a visitor from outside the clan gets no Discord identity and nothing the p
   assert.ok(p);
   assert.equal(p.discordUsername, null);
   assert.equal(p.avatarUrl, null);
-  assert.equal(p.accounts.some((a) => a.rsn === 'Hidden'), false);
+  assert.deepEqual(p.accounts.map((a) => a.rsn).sort(), ['Alt', 'Another', 'Elsewhere', 'Main']);
   assert.equal('discordId' in p, false);
 });

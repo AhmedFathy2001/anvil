@@ -212,7 +212,7 @@ test('a team’s private chat is pushed live to the board’s staff, not every m
   assert.match(src('lib/eventChat.ts'), /eventTeamChatStaffUserIds\(eventId\), ownTeamOnlyUserIds\(eventId\)/);
 });
 
-// ── C. Public pages obey the member's own switch ─────────────────────────────────────────────────
+// ── C. Public pages leave out a platform-banned owner's characters ──────────────────────────────
 
 const hidden = hiddenNameSet(['Quiet Alt', 'iron_secret']);
 
@@ -242,17 +242,15 @@ test('nested leaderboards lose the hidden names and keep their totals', () => {
   assert.doesNotMatch(JSON.stringify(out), /Quiet Alt|Iron Secret/);
 });
 
-test('the persona lists a seated-but-unshared character to clanmates only', () => {
-  const seatedUnshared = { seatedHere: true, shared: false, linkable: true };
-  assert.equal(personaCharacterVisible({ insider: true, ...seatedUnshared }), true);
-  assert.equal(personaCharacterVisible({ insider: false, ...seatedUnshared }), false);
-  // Published AND linked: anyone.
-  assert.equal(personaCharacterVisible({ insider: false, seatedHere: false, shared: true, linkable: true }), true);
-  // Published but the person never agreed to link their characters: an outsider gets nothing…
-  assert.equal(personaCharacterVisible({ insider: false, seatedHere: true, shared: true, linkable: false }), false);
+test('the persona lists linked characters to anyone, seated ones to clanmates only', () => {
+  // Linked: anyone.
+  assert.equal(personaCharacterVisible({ insider: false, seatedHere: false, linkable: true }), true);
+  assert.equal(personaCharacterVisible({ insider: false, seatedHere: true, linkable: true }), true);
+  // The person never agreed to link their characters: an outsider gets nothing…
+  assert.equal(personaCharacterVisible({ insider: false, seatedHere: true, linkable: false }), false);
   // …and a clanmate still sees what the clan holds a seat for, and no more.
-  assert.equal(personaCharacterVisible({ insider: true, seatedHere: true, shared: true, linkable: false }), true);
-  assert.equal(personaCharacterVisible({ insider: true, seatedHere: false, shared: true, linkable: false }), false);
+  assert.equal(personaCharacterVisible({ insider: true, seatedHere: true, linkable: false }), true);
+  assert.equal(personaCharacterVisible({ insider: true, seatedHere: false, linkable: false }), false);
 });
 
 test('the persona payload has no Discord id field', () => {

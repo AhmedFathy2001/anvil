@@ -2,8 +2,7 @@
 // stored avatar/banner read back at the tier in force (lib/profileMedia).
 //
 // What must hold: a pin is accepted only for an item on the person's OWN verified character; slots
-// are the tier now (4 / 8 / 12) and a full case refuses; strangers never see a pin from an unshared
-// character; a lapse hides the case and keeps the rows; a character that leaves the person takes its
+// are the tier now (4 / 8 / 12) and a full case refuses; a lapse hides the case and keeps the rows; a character that leaves the person takes its
 // pins with it; a lapsed Champion's pictures fall back to the still frame.
 //
 // Run: TEST_DATABASE_URL=... npx tsx --test tests/supporter-media-db.test.ts
@@ -53,18 +52,18 @@ before(async () => {
   ids.otherPlayer = them.id;
   const [u] = await db.insert(s.users).values({ playerId: me.id, displayName: 'Me', discordId: 'me-1' }).returning();
   ids.user = u.id;
-  const acct = async (playerId: number, rsn: string, verified: boolean, shared: boolean) => {
+  const acct = async (playerId: number, rsn: string, verified: boolean) => {
     const [a] = await db
       .insert(s.accounts)
-      .values({ playerId, rsn, rsnNormalized: rsn.toLowerCase(), verifiedAt: verified ? NOW : null, shared })
+      .values({ playerId, rsn, rsnNormalized: rsn.toLowerCase(), verifiedAt: verified ? NOW : null })
       .returning();
     const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: a.id, kind: 'member', source: 'roster' }).returning();
     return { a, seat };
   };
-  const main = await acct(me.id, 'Mainy', true, true);
-  const iron = await acct(me.id, 'Irony', true, false);
-  const typed = await acct(me.id, 'Typedin', false, true);
-  const other = await acct(them.id, 'Stranger', true, true);
+  const main = await acct(me.id, 'Mainy', true);
+  const iron = await acct(me.id, 'Irony', true);
+  const typed = await acct(me.id, 'Typedin', false);
+  const other = await acct(them.id, 'Stranger', true);
   ids.main = main.a.id;
   ids.iron = iron.a.id;
   ids.typed = typed.a.id;
@@ -126,7 +125,7 @@ test('no tier: a pin is kept for its owner, and nobody else sees the case', asyn
   const r = await pin({ kind: 'clog', accountId: ids.main, itemId: 4151 }, null);
   assert.ok(r.ok);
   assert.equal((await DC.readDisplayCase(ids.user, ids.player)).length, 1, 'the owner sees what they pinned');
-  assert.deepEqual(await DC.displayCaseForPlayer(ids.player, { publicView: true }), [], 'strangers see nothing');
+  assert.deepEqual(await DC.displayCaseForPlayer(ids.player), [], 'strangers see nothing');
   assert.deepEqual(await DC.displayCaseForPlayer(ids.player, { accountId: ids.main }), [], 'nor does the plugin card');
 });
 
@@ -151,7 +150,7 @@ test('pins only from their own verified characters, and only items really there'
   }
 
   assert.ok((await pin({ kind: 'drop', momentId: ids.myDrop }, 'supporter')).ok);
-  assert.ok((await pin({ kind: 'clog', accountId: ids.iron, itemId: 12921 }, 'supporter')).ok); // private character
+  assert.ok((await pin({ kind: 'clog', accountId: ids.iron, itemId: 12921 }, 'supporter')).ok); // a second character
   assert.ok((await pin({ kind: 'clog', accountId: ids.main, itemId: 13265 }, 'supporter')).ok);
   // A fifth pin is kept (to try Champion's slots), but a Supporter's case still shows four.
   const fifth = await pin({ kind: 'clog', accountId: ids.main, itemId: 12932 }, 'supporter');
@@ -161,7 +160,7 @@ test('pins only from their own verified characters, and only items really there'
   if (fifth.ok) await DC.unpinFromDisplayCase(ids.user, fifth.id);
 });
 
-test('read back: names, values, kc, proof link; strangers never see the unshared character', async () => {
+test('read back: names, values, kc, proof link; a character page shows its own pins', async () => {
   const mine = await DC.readDisplayCase(ids.user, ids.player);
   assert.equal(mine.length, 4);
   const whip = mine.find((e) => e.itemId === 4151)!;
@@ -175,15 +174,13 @@ test('read back: names, values, kc, proof link; strangers never see the unshared
   assert.equal(fang.valueGp, 2_100_000);
   assert.equal(fang.source, 'Zulrah');
   const pet = mine.find((e) => e.accountId === ids.iron)!;
-  assert.equal(pet.shared, false);
-  assert.equal(pet.proofHref, null);
+  assert.ok(pet.proofHref?.startsWith('/p/Irony'));
 
-  const publicCase = await DC.displayCaseForPlayer(ids.player, { publicView: true });
-  assert.equal(publicCase.length, 3);
-  assert.ok(publicCase.every((e) => e.rsn !== 'Irony'));
-  const onIronPage = await DC.displayCaseForPlayer(ids.player, { accountId: ids.iron, publicView: true });
-  assert.deepEqual(onIronPage, []);
-  const onMainPage = await DC.displayCaseForPlayer(ids.player, { accountId: ids.main, publicView: true });
+  const publicCase = await DC.displayCaseForPlayer(ids.player);
+  assert.equal(publicCase.length, 4);
+  const onIronPage = await DC.displayCaseForPlayer(ids.player, { accountId: ids.iron });
+  assert.equal(onIronPage.length, 1);
+  const onMainPage = await DC.displayCaseForPlayer(ids.player, { accountId: ids.main });
   assert.equal(onMainPage.length, 3);
 });
 
@@ -201,7 +198,7 @@ test('reorder and remove', async () => {
 
 test('a lapse hides the case and keeps every row; Champion opens 8 slots', async () => {
   await setTier(null);
-  assert.deepEqual(await DC.displayCaseForPlayer(ids.player, { publicView: true }), []);
+  assert.deepEqual(await DC.displayCaseForPlayer(ids.player), []);
   const kept = await db.select().from(s.displayCaseItems).where(eq(s.displayCaseItems.userId, ids.user));
   assert.equal(kept.length, 3);
 
@@ -253,7 +250,7 @@ test('kill counts and personal bests: candidates, pins, the live value on read, 
   assert.ok(zuk.ok);
   assert.deepEqual(await pin({ kind: 'kc', accountId: ids.main, statKey: 'tzKalZuk' }, 'supporter'), zuk); // twice is one pin
   assert.ok((await pin({ kind: 'pb', accountId: ids.main, statKey: '0:vardorvis (awakened)' }, 'supporter')).ok);
-  assert.ok((await pin({ kind: 'kc', accountId: ids.iron, statKey: 'vorkath' }, 'supporter')).ok); // private character
+  assert.ok((await pin({ kind: 'kc', accountId: ids.iron, statKey: 'vorkath' }, 'supporter')).ok); // a second character
 
   const refused = [
     await pin({ kind: 'kc', accountId: ids.main, statKey: 'zulrah' }, 'supporter'), // unranked: nothing to show
@@ -285,15 +282,9 @@ test('kill counts and personal bests: candidates, pins, the live value on read, 
   assert.equal(mine.find((e) => e.statKey === 'tzKalZuk')!.headline, '13 KC');
   assert.equal(mine.find((e) => e.kind === 'pb')!.headline, '1:49.50');
 
-  // Strangers never see the unshared character's pin; the owner does.
-  let shown = await DC.displayCaseForPlayer(ids.player, { publicView: true });
-  assert.deepEqual(shown.map((e) => e.statKey).sort(), ['0:vardorvis (awakened)', 'tzKalZuk']);
-  // Unshare the main: its pins go dark for others, and stay for the owner.
-  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, ids.main));
-  shown = await DC.displayCaseForPlayer(ids.player, { publicView: true });
-  assert.deepEqual(shown, []);
-  assert.equal((await DC.displayCaseForPlayer(ids.player)).length, 3);
-  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, ids.main));
+  // Everyone sees every pin.
+  const shown = await DC.displayCaseForPlayer(ids.player);
+  assert.deepEqual(shown.map((e) => e.statKey).sort(), ['0:vardorvis (awakened)', 'tzKalZuk', 'vorkath']);
 
   // A record that goes away takes its pin with it, with no write.
   await db.delete(s.memberPersonalBests).where(eq(s.memberPersonalBests.accountId, ids.main));

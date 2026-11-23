@@ -116,7 +116,6 @@ export default async function ProfilePage({
               rsn: accounts.rsn,
               rsnNormalized: accounts.rsnNormalized,
               accountHash: accounts.accountHash,
-              shared: accounts.shared,
               isPrimary: accounts.isPrimary,
             })
             .from(accounts)
@@ -163,7 +162,6 @@ export default async function ProfilePage({
             .map((a) => ({
               id: a.id,
               rsn: a.rsn,
-              shared: !!a.shared,
               isPrimary: a.isPrimary === 1,
               standing: standings.lineByAccount.get(a.id),
             }))}
@@ -463,7 +461,7 @@ async function LockerCharacterProfile({
   progressTab?: string;
 }) {
   if (publicView) {
-    // The owner always passes apexCharacter's rule (shared, or theirs), so this is their own /p/ page.
+    // The owner always passes apexCharacter's rule, so this is their own /p/ page.
     const character = await apexCharacter(rsn, viewer?.playerId ?? null);
     const profile = character ? await getAccountProfile(character.accountId) : null;
     if (!character || !profile) return null;

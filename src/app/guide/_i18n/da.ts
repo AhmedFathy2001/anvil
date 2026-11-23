@@ -3752,7 +3752,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Vitrine',
-          body: 'dine bedste drops, killcounts og tider fastgjort på din profil: 4 pladser for Supporter, 8 for Champion, 12 for Patron. Fastgjorte ting fra karakterer, du ikke deler, forbliver private.',
+          body: 'dine bedste drops, killcounts og tider fastgjort på din profil: 4 pladser for Supporter, 8 for Champion, 12 for Patron.',
         },
       ],
     },
@@ -4234,10 +4234,6 @@ const da: PartialGuideDict = {
     dek: 'Anvil har én side for **dig** og én for **hver karakter**, du spiller. Her er, hvad der står på dem, hvem der kan åbne dem, og Wrapped-kortene, der kommer ved udgangen af hver måned og hvert event.',
     facts: [
       {
-        strong: 'Delt som standard',
-        rest: 'slå enhver karakter privat med ét skifte',
-      },
-      {
         strong: 'Monthly Wrapped',
         rest: 'kommer den 1. i den følgende måned',
       },
@@ -4257,11 +4253,11 @@ const da: PartialGuideDict = {
         },
         {
           term: 'En karakters side',
-          body: '`/p/<name>`: én karakter, læsbar for alle med linket, mens den er delt. Den viser skills, bosser, samlingsloggen og personlige rekorder, og udelader med vilje dine klanplaceringer, din eventhistorik og dit Discord-navn.',
+          body: '`/p/<name>`: én karakter, læsbar for alle med linket. Den viser skills, bosser, samlingsloggen og personlige rekorder, og udelader med vilje dine klanplaceringer, din eventhistorik og dit Discord-navn.',
         },
         {
           term: 'Din personside',
-          body: '`/u/…`: alle dine delte karakterer på én side, med din udstillingsvitrine og de streamingkonti, du valgte at vise. Den findes kun, hvis du slår **Show that my characters are one person** til.',
+          body: '`/u/…`: alle dine karakterer på én side, med din udstillingsvitrine og de streamingkonti, du valgte at vise. Den findes kun, hvis du slår **Show that my characters are one person** til.',
         },
         {
           term: 'En klans medlemsside',
@@ -4272,9 +4268,8 @@ const da: PartialGuideDict = {
     sharing: {
       title: 'Hvem der kan se hvad',
       body: [
-        'Hver karakter starter **shared**: dens side åbner for alle med linket, og den kan optræde på ranglister og over for andre klaner. Slå en fra under **Who sees my characters** i Indstillinger, og dens side svarer _not found_ for alle undtagen dig. Du ser **Private — only you can see this page.** med et **Share it →**-link.',
-        'En delt side har **Copy link** under navnet. Indloggede besøgende, der synes en side er krænkende, kan trykke **Report this profile**.',
-        'Pr. karakter lader Indstillinger dig også skjule, hvilken klan i spillet den er i (**Show my in-game clan**), så den forlader karakterens side og den klans Anvil-side.',
+        'Hver karakter: dens side åbner for alle med linket, og den kan optræde på ranglister og over for andre klaner.',
+        'En karakters side har **Copy link** under navnet. Indloggede besøgende, der synes en side er krænkende, kan trykke **Report this profile**.',
       ],
     },
     wrapped: {
@@ -4282,7 +4277,7 @@ const da: PartialGuideDict = {
       body: [
         'Hver måned får hver karakter et Wrapped-kort: **XP gained**, **Boss kills**, **New slots** i samlingsloggen, **Efficient**-timer, **PBs**, samt kæledyr og det største drop. Det kommer den **1. i den følgende måned** (UTC). Indtil da kan kun du åbne det, som en forhåndsvisning.',
         'Året får også ét, på `/p/<name>/wrapped/<year>`, fra **1. december**. `/p/<name>/wrapped` fører altid til det nyeste, der findes.',
-        'Tryk **Copy link to your Wrapped** for at dele det. Sat ind i Discord vises det som et billede af kortet. En privat karakters Wrapped åbner kun for dig, og dens link forhåndsvises som et almindeligt Anvil-kort.',
+        'Tryk **Copy link to your Wrapped** for at dele det. Sat ind i Discord vises det som et billede af kortet.',
       ],
       note: {
         tag: 'En tom måned',
@@ -4301,7 +4296,6 @@ const da: PartialGuideDict = {
       title: 'Sammenlign to karakterer',
       body: [
         'Åbn [Compare](/compare) og skriv to navne. Du får skills-, boss- og samlingslogsider side om side. Lederen på hver optælling er i guld. Nedenunder er en analyse, XP pr. skill, hver boss I begge har dræbt, og hver logside punkt for punkt: I har begge det, ingen af jer har det, eller kun en af jer. **Swap sides** vender dem om.',
-        'Kun delte karakterer kan sammenlignes. En privat, eller et navn Anvil ikke kender, giver _not on Anvil, or not shared_. Du kan altid sammenligne dine egne private karakterer, når du er logget ind.',
       ],
     },
     news: {
@@ -4432,15 +4426,11 @@ const da: PartialGuideDict = {
     },
     privacy: {
       title: 'Hvem der ser mine karakterer',
-      intro: 'Dine karakterer er delt fra start. Tre skift ændrer det:',
+      intro: 'Alle figurer er offentlige. To kontakter kan du selv sætte:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'ét skift pr. karakter. Til (fra start), er dens side **Public**. Fra, er den **Only its clans**: dens klaner ser den stadig i deres lister og events, ingen andre gør, og den forlader ranglisterne.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'med to eller flere karakterer laver dette din personside, der samler dine delte karakterer. Fra kan ingen se, at de alle er dig.',
+          body: 'med to eller flere karakterer laver dette din personside, der samler dine karakterer. Fra kan ingen se, at de alle er dig.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4474,10 +4464,6 @@ const da: PartialGuideDict = {
       title: 'Hver karakter',
       intro: 'Under **Characters** har hver karakter sin egen side: dens type, om den er verificeret, og links til dens offentlige side og fulde profil.',
       rows: [
-        {
-          term: 'Synlighed',
-          body: '**Show to other clans and on leaderboards**, og **Show my in-game clan**.',
-        },
         {
           term: 'Klaner',
           body: 'hver klan og hvert rum den er i, som **member** eller **guest**, med **Announce drops & achievements** pr. klan og **Leave**. Hvis Anvil har den i den forkerte klan, fortæller **Which clan is it really in?** staff det.',
@@ -4957,7 +4943,7 @@ const da: PartialGuideDict = {
     ghost: {
       title: 'Klaner i spillet, der ikke er på Anvil',
       body: [
-        'En karakters side nævner den klan i spillet, den er i. Hvis den klan ikke er på Anvil, åbner linket en almindelig side, der lister de Anvil-spillere, der er i den, og valgte at vise det. Det er ikke den klans liste, og intet på den gør nogen til medlem.',
+        'En karakters side nævner den klan i spillet, den er i. Hvis den klan ikke er på Anvil, åbner linket en almindelig side, der lister de Anvil-spillere, der er i den. Det er ikke den klans liste, og intet på den gør nogen til medlem.',
         'Er det din klan, sætter **Bring your clan to Anvil** en op. Når den er en offentlig Anvil-klan, går linket direkte til den.',
       ],
     },

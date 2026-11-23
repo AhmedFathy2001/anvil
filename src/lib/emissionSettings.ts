@@ -13,7 +13,7 @@ import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type Mi
  * lib/emissionRouting. Everything here is scoped to the caller's own person; there is no path to read
  * or change anyone else's, which is the whole point of it living on the person rather than a clan.
  *
- * The routing engine computes defaults from seats + `shared`; this surface only edits the deviations
+ * The routing engine computes defaults from seats; this surface only edits the deviations
  * (the user's global block, the per-(account, clan) overrides, and the personal webhooks). A control
  * that reads "Default" here has no row at all.
  */
@@ -31,7 +31,6 @@ export interface EmissionClanRow {
 export interface EmissionAccountRow {
   accountId: number;
   rsn: string;
-  shared: boolean;
   /** The clan where this account holds its member seat, if any — shown as context, not editable. */
   memberClan: { clanId: number; name: string } | null;
   /** Guest clans + any whitelisted-elsewhere clan, each with its current override state. */
@@ -94,7 +93,7 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
     .limit(1);
 
   const myAccounts = await db
-    .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
+    .select({ id: accounts.id, rsn: accounts.rsn })
     .from(accounts)
     .where(eq(accounts.playerId, playerId));
   const accountIds = myAccounts.map((a) => a.id);
@@ -171,7 +170,6 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
     return {
       accountId: a.id,
       rsn: a.rsn,
-      shared: !!a.shared,
       memberClan: memberSeat ? { clanId: memberSeat.clanId, name: memberSeat.clanName } : null,
       clans: rows.sort((x, y) => x.name.localeCompare(y.name)),
     };

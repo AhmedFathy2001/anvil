@@ -28,7 +28,7 @@ async function member(clanId: number, name: string, opts: { announce?: boolean }
   n++;
   const [player] = await db.insert(s.players).values({}).returning();
   const [u] = await db.insert(s.users).values({ displayName: `M ${n}`, discordId: `mom-${n}`, playerId: player.id, announceSupporter: opts.announce ?? true }).returning();
-  const [acc] = await db.insert(s.accounts).values({ playerId: player.id, rsn: name, rsnNormalized: name.toLowerCase(), shared: true, verifiedAt: new Date().toISOString() }).returning();
+  const [acc] = await db.insert(s.accounts).values({ playerId: player.id, rsn: name, rsnNormalized: name.toLowerCase(), verifiedAt: new Date().toISOString() }).returning();
   const [seat] = await db.insert(s.clanMemberships).values({ clanId, accountId: acc.id, kind: 'member' }).returning();
   return { user: u, seat };
 }

@@ -17,6 +17,7 @@
 import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { isErasedStandIn } from '@/lib/erasedCharacters';
 import { accounts, clans, events, promoReports, spacePanels, spaceProfiles, streamHighlights, users } from '@/db/schema';
 import { apexPerson } from '@/lib/apexProfiles';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -65,7 +66,7 @@ export interface ReportInput {
   category: unknown;
   note: unknown;
   reporterUserId: number;
-  /** The reporter's player id, for "may they see this?" (an event, an unshared character). */
+  /** The reporter's player id, for "may they see this?" (an event). */
   reporterPlayerId: number | null;
 }
 
@@ -144,9 +145,9 @@ async function resolveTarget(type: ReportTarget, id: number, playerId: number | 
     }
     case 'character': {
       // clan-scope: global -- a character belongs to a person, not to a clan.
-      const a = await db.query.accounts.findFirst({ where: eq(accounts.id, id), columns: { id: true, rsn: true, shared: true, playerId: true } });
-      // The same rule as /p/<rsn>: shared, or the viewer's own.
-      if (!a || (!a.shared && a.playerId !== playerId)) return null;
+      const a = await db.query.accounts.findFirst({ where: eq(accounts.id, id), columns: { id: true, rsn: true, erasedAt: true, claimedAt: true } });
+      // The same rule as /p/<rsn>: a character left behind by an account deletion has no page.
+      if (!a || isErasedStandIn(a)) return null;
       return { clanId: null, snapshot: buildSnapshot([['Character', a.rsn], ['Address', `/p/${encodeURIComponent(a.rsn)}`]]) };
     }
     case 'person': {

@@ -28,7 +28,7 @@ const snap = (attack: number, zulrah: number) => ({
 
 async function character(rsn: string) {
   const [p] = await db.insert(s.players).values({ displayName: rsn }).returning();
-  const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn, rsnNormalized: rsn.toLowerCase(), shared: true }).returning();
+  const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
   return a.id;
 }
 

@@ -1,6 +1,6 @@
 import { withoutPetDoubles } from '@/lib/momentDupes';
 import { normalizeHex } from '@/lib/artPalette';
-import { unsharedRosterNames } from '@/lib/clanInsider';
+import { bannedRosterNames } from '@/lib/clanInsider';
 import { withoutHiddenKeys, withoutHiddenRows } from '@/lib/rosterVisibility';
 import { eq, inArray } from 'drizzle-orm';
 
@@ -133,9 +133,9 @@ export async function loadClanCard(clan: {
   const members = await listMembers(clan.id);
   const roster = members.filter((m) => !m.isGuest);
   // The card is the clan's public face (the showcase, link previews, the compare page), so it names
-  // only characters whose owner left "Show publicly" on (lib/rosterVisibility). The counts and
-  // totals still cover the whole roster.
-  const hidden = await unsharedRosterNames(clan.id);
+  // no character of a platform-banned owner (lib/rosterVisibility). The counts and totals still
+  // cover the whole roster.
+  const hidden = await bannedRosterNames(clan.id);
   const [analytics, moments, weekly, clogRows] = await Promise.all([
     getClanAnalytics(members),
     momentsForClan(clan.id, 12),

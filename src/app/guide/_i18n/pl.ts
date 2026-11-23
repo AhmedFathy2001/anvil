@@ -3730,7 +3730,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Gablota',
-          body: 'twoje najlepsze dropy, liczby zabójstw i czasy przypięte do profilu: 4 miejsca dla Supportera, 8 dla Championa, 12 dla Patrona. Przypięcia z postaci, których nie udostępniasz, pozostają prywatne.',
+          body: 'twoje najlepsze dropy, liczby zabójstw i czasy przypięte do profilu: 4 miejsca dla Supportera, 8 dla Championa, 12 dla Patrona.',
         },
       ],
     },
@@ -4212,10 +4212,6 @@ const pl: PartialGuideDict = {
     dek: 'Anvil prowadzi jedną stronę dla **ciebie** i jedną dla **każdej postaci**, którą grasz. Tu jest to, co na nich jest, kto może je otworzyć oraz karty Wrapped, które wychodzą na koniec każdego miesiąca i każdego wydarzenia.',
     facts: [
       {
-        strong: 'Domyślnie udostępnione',
-        rest: 'każdą postać ukryjesz jednym przełącznikiem',
-      },
-      {
         strong: 'Miesięczne Wrapped',
         rest: 'wychodzi 1. dnia następnego miesiąca',
       },
@@ -4235,11 +4231,11 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Strona postaci',
-          body: '`/p/<name>`: jedna postać, czytelna dla każdego, kto ma link, dopóki jest udostępniona. Pokazuje umiejętności, bossy, dziennik zbiorów i rekordy osobiste, a celowo pomija twoje pozycje w klanach, historię wydarzeń i nazwę na Discordzie.',
+          body: '`/p/<name>`: jedna postać, czytelna dla każdego, kto ma link. Pokazuje umiejętności, bossy, dziennik zbiorów i rekordy osobiste, a celowo pomija twoje pozycje w klanach, historię wydarzeń i nazwę na Discordzie.',
         },
         {
           term: 'Twoja strona osoby',
-          body: '`/u/…`: wszystkie twoje udostępnione postacie na jednej stronie, z gablotą i kontami streamingowymi, które wybrałeś do pokazania. Istnieje tylko wtedy, gdy włączysz **Show that my characters are one person**.',
+          body: '`/u/…`: wszystkie twoje postacie na jednej stronie, z gablotą i kontami streamingowymi, które wybrałeś do pokazania. Istnieje tylko wtedy, gdy włączysz **Show that my characters are one person**.',
         },
         {
           term: 'Strona członka klanu',
@@ -4250,9 +4246,8 @@ const pl: PartialGuideDict = {
     sharing: {
       title: 'Kto co widzi',
       body: [
-        'Każda postać zaczyna jako **shared**: jej strona otwiera się dla każdego z linkiem, a może pojawiać się w tabelach wyników i przed innymi klanami. Wyłącz ją w **Who sees my characters** w Ustawieniach, a jej strona odpowie _not found_ każdemu oprócz ciebie. Ty widzisz **Private — only you can see this page.** z linkiem **Share it →**.',
-        'Udostępniona strona ma pod nazwą **Copy link**. Zalogowani odwiedzający, którzy uważają stronę za obraźliwą, mogą nacisnąć **Report this profile**.',
-        'Dla każdej postaci Ustawienia pozwalają też ukryć, w którym klanie z gry jest (**Show my in-game clan**), więc znika ze strony tej postaci i ze strony Anvil tego klanu.',
+        'Każda postać: jej strona otwiera się dla każdego z linkiem, a może pojawiać się w tabelach wyników i przed innymi klanami.',
+        'Strona postaci ma pod nazwą **Copy link**. Zalogowani odwiedzający, którzy uważają stronę za obraźliwą, mogą nacisnąć **Report this profile**.',
       ],
     },
     wrapped: {
@@ -4260,7 +4255,7 @@ const pl: PartialGuideDict = {
       body: [
         'Co miesiąc każda postać dostaje kartę Wrapped: **XP gained**, **Boss kills**, **New slots** w dzienniku zbiorów, godziny **Efficient**, **PBs**, a do tego pety i największy drop. Wychodzi **1. dnia następnego miesiąca** (UTC). Do tego czasu tylko ty możesz ją otworzyć, jako podgląd.',
         'Rok też dostaje swoją, pod `/p/<name>/wrapped/<year>`, od **1 grudnia**. `/p/<name>/wrapped` zawsze prowadzi do najnowszej dostępnej.',
-        'Naciśnij **Copy link to your Wrapped**, by się nim podzielić. Wklejony na Discordzie rozwija się jako obrazek karty. Wrapped prywatnej postaci otwiera się tylko dla ciebie, a jej link pokazuje się jako zwykła karta Anvil.',
+        'Naciśnij **Copy link to your Wrapped**, by się nim podzielić. Wklejony na Discordzie rozwija się jako obrazek karty.',
       ],
       note: {
         tag: 'Pusty miesiąc',
@@ -4279,7 +4274,6 @@ const pl: PartialGuideDict = {
       title: 'Porównaj dwie postacie',
       body: [
         'Otwórz [Compare](/compare) i wpisz dwie nazwy. Dostajesz umiejętności, bossy i strony dziennika zbiorów obok siebie. Lider w każdej kategorii jest złotą liczbą. Niżej są analiza, XP za każdą umiejętność, każdy boss, którego któryś z was zabił, i każda pozycja dziennika po kolei: obaj ją mają, nikt albo tylko jeden z was. **Swap sides** zamienia strony.',
-        'Porównać można tylko udostępnione postacie. Prywatna albo nazwa, której Anvil nie zna, zwraca _not on Anvil, or not shared_. Własne prywatne postacie zawsze możesz porównać, będąc zalogowanym.',
       ],
     },
     news: {
@@ -4410,15 +4404,11 @@ const pl: PartialGuideDict = {
     },
     privacy: {
       title: 'Kto widzi moje postacie',
-      intro: 'Twoje postacie są na start udostępnione. Trzy przełączniki to zmieniają:',
+      intro: 'Każda postać jest publiczna. Dwa przełączniki ustawiasz sam:',
       rows: [
         {
-          term: 'Pokaż <name> publicznie',
-          body: 'jeden przełącznik na postać. Włączony (na start) jej strona jest **Public**. Wyłączony, jest **Only its clans**: jej klany nadal widzą ją w swoich listach i wydarzeniach, nikt inny nie, a postać znika z tabel wyników.',
-        },
-        {
           term: 'Pokaż, że moje postacie to jedna osoba',
-          body: 'przy dwóch lub więcej postaciach tworzy twoją stronę osoby, która zbiera twoje udostępnione postacie razem. Wyłączony, nikt nie może poznać, że to wszystko ty.',
+          body: 'przy dwóch lub więcej postaciach tworzy twoją stronę osoby, która zbiera twoje postacie razem. Wyłączony, nikt nie może poznać, że to wszystko ty.',
         },
         {
           term: 'Pokaż plansze innych klanów',
@@ -4452,10 +4442,6 @@ const pl: PartialGuideDict = {
       title: 'Każda postać',
       intro: 'Pod **Characters** każda postać ma własną stronę: typ, czy jest zweryfikowana oraz linki do jej publicznej strony i pełnego profilu.',
       rows: [
-        {
-          term: 'Widoczność',
-          body: '**Show to other clans and on leaderboards** oraz **Show my in-game clan**.',
-        },
         {
           term: 'Klany',
           body: 'każdy klan i przestrzeń, w której jest, jako **member** albo **guest**, z **Announce drops & achievements** dla każdego klanu i **Leave**. Jeśli Anvil ma ją w złym klanie, **Which clan is it really in?** informuje sztab.',
@@ -4935,7 +4921,7 @@ const pl: PartialGuideDict = {
     ghost: {
       title: 'Klany z gry, których nie ma na Anvil',
       body: [
-        'Strona postaci nazywa klan z gry, w którym jest. Jeśli tego klanu nie ma na Anvil, link otwiera zwykłą stronę, wypisującą graczy Anvil, którzy w nim są i wybrali to pokazać. To nie jest lista członków tego klanu i nic na niej nikogo nie czyni członkiem.',
+        'Strona postaci nazywa klan z gry, w którym jest. Jeśli tego klanu nie ma na Anvil, link otwiera zwykłą stronę, wypisującą graczy Anvil, którzy w nim są. To nie jest lista członków tego klanu i nic na niej nikogo nie czyni członkiem.',
         'Jeśli to twój klan, **Bring your clan to Anvil** go zakłada. Gdy stanie się publicznym klanem Anvil, link prowadzi prosto do niego.',
       ],
     },

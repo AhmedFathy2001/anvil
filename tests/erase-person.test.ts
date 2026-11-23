@@ -183,6 +183,19 @@ test('the person goes; the clan’s roster seat and event history stay under the
   assert.equal(placeholder.displayName, 'ZezimaMain', 'held by a stand-in named after the RSN, as a released character is');
   assert.equal((await db.select().from(s.users).where(eq(s.users.playerId, kept.playerId))).length, 0, 'which nobody signs in as');
 
+  // No public page opens it: the person asked to be gone (lib/erasedCharacters).
+  assert.ok(kept.erasedAt, 'marked as left behind by a deletion');
+  const { apexCharacter } = await import('../src/lib/apexProfiles.ts');
+  assert.equal(await apexCharacter('ZezimaMain'), null, '/p/ answers not found');
+  // An ordinary unclaimed roster placeholder is still public.
+  const [stand] = await db.insert(s.players).values({ displayName: 'Plain Placeholder' }).returning();
+  await db.insert(s.accounts).values({ playerId: stand.id, rsn: 'Plain Placeholder', rsnNormalized: 'plain placeholder' });
+  assert.ok(await apexCharacter('Plain Placeholder'), 'a placeholder nobody erased keeps its page');
+  // Somebody claiming the RSN later is a new owner, and the page opens again.
+  await db.update(s.accounts).set({ claimedAt: new Date().toISOString() }).where(eq(s.accounts.id, p.seated));
+  assert.ok(await apexCharacter('ZezimaMain'), 'claimed again: public again');
+  await db.update(s.accounts).set({ claimedAt: null }).where(eq(s.accounts.id, p.seated));
+
   assert.equal((await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.id, p.seatId))).length, 1, 'the seat');
   const [entry] = await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.id, p.entryId));
   assert.equal(entry.name, 'ZezimaMain');

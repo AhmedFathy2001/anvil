@@ -135,7 +135,7 @@ async function person(name: string, linkPublicly = false) {
   const [pl] = await db.insert(s.players).values({ displayName: name, linkAccountsPublicly: linkPublicly }).returning();
   const [a] = await db
     .insert(s.accounts)
-    .values({ playerId: pl.id, rsn: name, rsnNormalized: name.toLowerCase(), verifiedAt: new Date().toISOString(), shared: true })
+    .values({ playerId: pl.id, rsn: name, rsnNormalized: name.toLowerCase(), verifiedAt: new Date().toISOString() })
     .returning();
   const [u] = await db.insert(s.users).values({ playerId: pl.id, displayName: name, discordId }).returning();
   return { userId: u.id, playerId: pl.id, accountId: a.id };

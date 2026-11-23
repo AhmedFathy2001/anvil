@@ -41,7 +41,7 @@ before(async () => {
   for (let i = 0; i < 4; i++) {
     const [p] = await db.insert(s.players).values({ displayName: `P${i}` }).returning();
     const [u] = await db.insert(s.users).values({ displayName: `User ${i}`, discordId: `cem-${i}`, pluginTokenHash: tokenHash(`cem-token-${i}`), playerId: p.id }).returning();
-    const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: `Massgoer ${i}`, rsnNormalized: `massgoer ${i}`, shared: false, claimedAt: new Date().toISOString() }).returning();
+    const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: `Massgoer ${i}`, rsnNormalized: `massgoer ${i}`, claimedAt: new Date().toISOString() }).returning();
     await db.insert(s.clanMemberships).values({ clanId, accountId: a.id, kind: 'member' });
     people.push({ userId: u.id, playerId: p.id, displayName: `User ${i}` });
   }

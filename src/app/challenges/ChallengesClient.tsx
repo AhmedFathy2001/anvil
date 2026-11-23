@@ -331,8 +331,8 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
   const hits = searching ? itemHits : [];
   const shownCheck = opponent.trim() ? check : null;
 
-  // Names to pick from as they type: shared characters only (api/players/search), so it never
-  // confirms an unshared one. The free text still works for anyone the search does not list.
+  // Names to pick from as they type (api/players/search). The free text still works for anyone the
+  // search does not list.
   const [people, setPeople] = useState<{ rsn: string; clanName: string | null }[]>([]);
   useEffect(() => {
     const q = opponent.trim();

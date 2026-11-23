@@ -525,15 +525,13 @@ const quickBase: QuickFacts = {
   prefs: { drops: true, deaths: false, levels: true },
   blockGuestPosts: true,
   guestCharacters: [],
-  main: { accountId: 3, rsn: 'Zezima', shared: true },
-  characterCount: 2,
   dms: false,
 };
 const ids = (v: ReturnType<typeof buildQuickSettings>) => v!.groups.flatMap((g) => g.items.map((i) => i.id));
 
 test('quick settings: a member sees member wording and current values, at most six switches', () => {
   const v = buildQuickSettings(quickBase)!;
-  assert.deepEqual(ids(v), ['drops', 'deaths', 'levels', 'visible', 'dms']);
+  assert.deepEqual(ids(v), ['drops', 'deaths', 'levels', 'dms']);
   assert.ok(ids(v).length <= 6);
   assert.match(v.groups[0].items[0].label, /Oak Hall's Discord/);
   assert.equal(v.groups[0].items.find((i) => i.id === 'deaths')!.checked, false, 'shows the stored value, changes nothing');
@@ -542,13 +540,13 @@ test('quick settings: a member sees member wording and current values, at most s
 
 test('quick settings: a clan with no Discord shows no Discord switches', () => {
   const v = buildQuickSettings({ ...quickBase, clanPosts: { drops: false, deaths: false, levels: false } })!;
-  assert.deepEqual(ids(v), ['visible', 'dms']);
-  assert.deepEqual(ids(buildQuickSettings({ ...quickBase, clanPosts: { drops: true, deaths: false, levels: false } })), ['drops', 'visible', 'dms']);
+  assert.deepEqual(ids(v), ['dms']);
+  assert.deepEqual(ids(buildQuickSettings({ ...quickBase, clanPosts: { drops: true, deaths: false, levels: false } })), ['drops', 'dms']);
 });
 
 test('quick settings: a guest sees guest wording, the clan by name, and the per-clan allow', () => {
   const g = buildQuickSettings({ ...quickBase, seat: 'guest', guestCharacters: [{ accountId: 3, allowed: false }, { accountId: 4, allowed: true }] })!;
-  assert.deepEqual(ids(g), ['guest-clan', 'guest-all', 'visible', 'dms']);
+  assert.deepEqual(ids(g), ['guest-clan', 'guest-all', 'dms']);
   const [clan, all] = g.groups[0].items;
   assert.match(clan.label, /Oak Hall/);
   assert.equal(clan.checked, false, 'only on when every guest character is allowed');
@@ -563,15 +561,12 @@ test('quick settings: a guest sees guest wording, the clan by name, and the per-
 
 test('quick settings: a guest in a clan that refuses guest posts, or has no Discord, is not offered them', () => {
   const guest = { ...quickBase, seat: 'guest' as const, guestCharacters: [{ accountId: 3, allowed: false }] };
-  assert.deepEqual(ids(buildQuickSettings({ ...guest, clanRefusesGuests: true })), ['visible', 'dms']);
-  assert.deepEqual(ids(buildQuickSettings({ ...guest, clanPosts: { drops: false, deaths: false, levels: false } })), ['visible', 'dms']);
+  assert.deepEqual(ids(buildQuickSettings({ ...guest, clanRefusesGuests: true })), ['dms']);
+  assert.deepEqual(ids(buildQuickSettings({ ...guest, clanPosts: { drops: false, deaths: false, levels: false } })), ['dms']);
 });
 
-test('quick settings: no character means no visibility switch; each switch names its existing route', () => {
-  const v = buildQuickSettings({ ...quickBase, main: null, characterCount: 0 })!;
-  assert.ok(!ids(v).includes('visible'));
+test('quick settings: each switch names its existing route', () => {
   const full = buildQuickSettings(quickBase)!.groups.flatMap((g) => g.items);
-  assert.equal(full.find((i) => i.id === 'visible')!.on[0].url, '/api/profile/accounts/3/share');
   assert.equal(full.find((i) => i.id === 'dms')!.on[0].url, '/api/notices');
   assert.equal(full.find((i) => i.id === 'drops')!.on[0].url, '/api/profile/emissions');
 });

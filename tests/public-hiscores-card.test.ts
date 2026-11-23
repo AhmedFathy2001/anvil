@@ -57,9 +57,9 @@ before(async () => {
   ({ db, pool, schema: s } = await loadDb());
   ({ publicHiscoresCard } = await import('../src/lib/publicHiscoresCard.ts'));
 
-  const [person] = await db.insert(s.players).values({ displayName: 'Someone' }).returning();
+  const [person] = await db.insert(s.players).values({ displayName: 'Someone', banned: true }).returning();
   await db.insert(s.accounts).values([
-    { playerId: person.id, rsn: 'Quiet Iron', rsnNormalized: 'quiet iron', shared: false },
+    { playerId: person.id, rsn: 'Quiet Iron', rsnNormalized: 'quiet iron' },
   ]);
 });
 
@@ -68,7 +68,7 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-test('a private account gets the same public hiscores card as a stranger — nothing of the account', async () => {
+test('a banned owner’s account gets the same public hiscores card as a stranger — nothing of the account', async () => {
   const f = fetcher(snapshot(10));
   const res = await publicHiscoresCard('quiet_IRON', { fetch: f.fetch, acquire: always, now: () => T0 });
   assert.equal(res.kind, 'card');
