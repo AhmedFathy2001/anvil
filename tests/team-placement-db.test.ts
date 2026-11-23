@@ -184,7 +184,7 @@ test('an invite link wins over placement', async () => {
   assert.equal((await TP.teamLoads(soloEv.id)).length, 1);
 });
 
-test('pick: players go straight onto the team they chose, and a capped team refuses the extra one under a rush', async () => {
+test('pick: players go straight onto the team they chose; under a rush the cap and the lead rule hold', async () => {
   const ev = await makeEvent({ teamPlacement: 'pick', teamCap: 3 });
   const [red, blue] = await db
     .insert(s.teams)
@@ -195,19 +195,24 @@ test('pick: players go straight onto the team they chose, and a capped team refu
     .returning();
   const crowd = await people('picker', 5);
   const results = await Promise.all(crowd.map((p) => seat(ev, p, { pickTeamId: red.id })));
-  assert.equal(results.filter((r) => r.ok).length, 3);
-  assert.equal(results.filter((r) => !r.ok && r.reason === 'full').length, 2);
+  // Red may get MAX_PICK_LEAD ahead of an empty Blue, then refuses — before the cap of 3 is reached.
+  assert.equal(results.filter((r) => r.ok).length, 2);
+  assert.equal(results.filter((r) => !r.ok && r.reason === 'ahead').length, 3);
   assert.deepEqual(await sizes(ev.id), [
-    { name: 'Red', size: 3 },
+    { name: 'Red', size: 2 },
     { name: 'Blue', size: 0 },
   ]);
 
-  // A refused player picks Blue instead.
-  const refused = crowd[results.findIndex((r) => !r.ok)];
-  assert.deepEqual(await seat(ev, refused, { pickTeamId: blue.id }), { ok: true, teamId: blue.id });
+  // A refused player picks Blue instead — and that opens Red up again.
+  const refused = crowd.filter((_, i) => !results[i].ok);
+  assert.deepEqual(await seat(ev, refused[0], { pickTeamId: blue.id }), { ok: true, teamId: blue.id });
+  assert.deepEqual(await seat(ev, refused[1], { pickTeamId: red.id }), { ok: true, teamId: red.id });
+  // Red is at its cap of 3 now.
+  const r = await seat(ev, refused[2], { pickTeamId: red.id });
+  assert.equal(r.ok, false);
 
-  // Before the start, switching is allowed while there is room — and refused when there is not.
-  const onRed = crowd[results.findIndex((r) => r.ok)];
+  // Before the start, switching is allowed while there is room.
+  const onRed = crowd[results.findIndex((x) => x.ok)];
   assert.deepEqual(await seat(ev, onRed, { pickTeamId: blue.id }), { ok: true, teamId: blue.id });
   assert.deepEqual(await sizes(ev.id), [
     { name: 'Red', size: 2 },
