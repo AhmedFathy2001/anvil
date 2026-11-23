@@ -11,12 +11,14 @@ import { parsePracticeInput, practiceAllowedForPlan } from '@/lib/practiceRules'
 import { postEventRules } from '@/lib/eventRulesPost';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { log } from '@/lib/logger';
+import { listLibrary } from '@/lib/tileLibrary';
 
 export const dynamic = 'force-dynamic';
 
 // /api/admin/practice — a clan admin's practice board (lib/practice).
 //   GET               the boards this clan could copy, and its running practice board if any
 //   GET ?board=<id>   one of those boards' tiles, to pick from
+//   GET ?library=1    the clan's tile library, to pick from
 //   POST              start one (body: lib/practiceRules PracticeInput)
 //
 // Admins of THIS clan only — the same gate as creating an event. Every id is checked against it.
@@ -34,7 +36,15 @@ export async function GET(request: Request) {
   const g = await gate(request);
   if ('response' in g) return g.response;
   const { clan } = g;
-  const boardParam = new URL(request.url).searchParams.get('board');
+  const params = new URL(request.url).searchParams;
+  const boardParam = params.get('board');
+
+  // The clan's tile library, for "Pick tiles" — an admin without the tile-author grant may still
+  // put library tasks on a practice board, which is all this is used for.
+  if (params.get('library') === '1') {
+    const tasks = await listLibrary(clan.id);
+    return NextResponse.json({ tasks: tasks.map((t) => ({ id: t.id, label: t.label, points: t.points, category: t.category, config: t.config })) });
+  }
 
   if (boardParam != null) {
     const boardId = Number(boardParam);

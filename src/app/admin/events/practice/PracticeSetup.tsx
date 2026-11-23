@@ -90,7 +90,7 @@ export function PickTiles({ picked, onChange, max }: { picked: PickedRow[]; onCh
   const [amount, setAmount] = useState('1');
 
   useEffect(() => {
-    clanFetch('/api/admin/tile-library')
+    clanFetch('/api/admin/practice?library=1')
       .then(async (r) => (r.ok ? r.json() : Promise.reject(new Error('The tile library could not be loaded.'))))
       .then((d: { tasks: LibraryTask[] }) => setTasks(d.tasks ?? []))
       .catch((e: Error) => {
