@@ -24,6 +24,7 @@
  * by that clan's admins, or automatically when that clan has team sync switched on — the host never
  * drives a co-host's bot.
  */
+import { isPracticeEvent } from '@/lib/practiceScope';
 import { and, eq, inArray, isNotNull, isNull, gte } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -963,6 +964,8 @@ export async function syncEventServerMembers(eventId: number): Promise<MemberSyn
 /** A roster change (bench, unbench, move, removal) on a live event: bring the event server in line. */
 export function syncEventServerMembersFireAndForget(eventId: number): void {
   (async () => {
+    // A practice board (lib/practice) never touches any clan's server.
+    if (await isPracticeEvent(eventId)) return;
     // clan-scope: global -- system hook after a roster change on this event.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { discordLayout: true, eventGuildId: true } });
     if (!event || event.discordLayout === 'own' || !event.eventGuildId) return;
@@ -1328,6 +1331,8 @@ export async function autoTeamChannels(eventId: number, clanId: number, hostClan
  * server. Never fails the caller.
  */
 export async function provisionCohostTeamChannels(eventId: number): Promise<void> {
+  // A practice board (lib/practice) never touches any clan's server.
+  if (await isPracticeEvent(eventId)) return;
   // clan-scope: global -- system hook after a roster change on this event.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { discordLayout: true, clanId: true } });
   if (!event || event.discordLayout !== 'own') return;
@@ -1365,6 +1370,8 @@ export async function teardownAutoClanChannels(eventId: number): Promise<void> {
  */
 export function syncEventDiscordFireAndForget(eventId: number): void {
   (async () => {
+    // A practice board (lib/practice) never touches any clan's server.
+    if (await isPracticeEvent(eventId)) return;
     // clan-scope: global -- system hook after a roster change on this event.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { discordLayout: true, clanId: true } });
     if (!event || event.discordLayout === 'own') return;

@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { clans, completions, eventDaySnapshots, eventParticipants, events, moments, teams, tiles } from '@/db/schema';
 import { eventBoardTiles } from '@/lib/comboSql';
@@ -217,7 +218,7 @@ export async function runDailyDigests(nowMs = Date.now()): Promise<void> {
   const running = await db
     .select()
     .from(events)
-    .where(and(eq(events.startNotified, 1), eq(events.endNotified, 0)));
+    .where(and(eq(events.startNotified, 1), eq(events.endNotified, 0), notPractice()));
   for (const event of running) {
     if (event.forceEndedAt) continue;
     try {
@@ -401,7 +402,7 @@ export async function runHalfwayReports(nowMs = Date.now()): Promise<void> {
   const running = await db
     .select()
     .from(events)
-    .where(and(eq(events.startNotified, 1), eq(events.endNotified, 0), eq(events.halfwayNotified, false)));
+    .where(and(eq(events.startNotified, 1), eq(events.endNotified, 0), eq(events.halfwayNotified, false), notPractice()));
   for (const event of running) {
     if (event.forceEndedAt) continue;
     const startMs = stampMs(event.startDate);

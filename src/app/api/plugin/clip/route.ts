@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { activePracticeBoard } from '@/lib/practice';
 import { requirePluginClan } from '@/lib/auth';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
@@ -140,6 +141,15 @@ export async function POST(request: Request) {
   // one. That name is a test bench's, and never goes to a real clan's channel.
   if (lab.sessionEventId != null && eventName && eventName.trim() === (await labEvent(lab.sessionEventId))?.name.trim()) {
     eventName = null;
+  }
+  // A practice board (lib/practice) is the active board only when nothing real runs; its name and the
+  // team's standing on it never go to the clan's clips channel.
+  if (eventName) {
+    const practice = await activePracticeBoard(clan.id).catch(() => null);
+    if (practice && eventName.trim() === practice.name.trim()) {
+      eventName = null;
+      standing = null;
+    }
   }
 
   if (!file) {

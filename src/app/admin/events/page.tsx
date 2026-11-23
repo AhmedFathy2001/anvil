@@ -21,6 +21,8 @@ import {
 import EventsClient, { type ListItem } from './EventsClient';
 import { atLeast } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
+import { activePracticeBoard } from '@/lib/practice';
+import { practiceAllowedForPlan } from '@/lib/practiceRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +51,8 @@ export default async function AdminEventsPage() {
   // listed here and linked across rather than being rows of this clan's own.
   const cohosted = session ? await coHostedBoardLinks(clan.id, session.userId, scoped) : [];
   const [allEventsRaw, allWeeklyRaw, clanEventRows] = await Promise.all([
-    db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
+    // Never a practice board (lib/practice): it has its own strip and page, below.
+    db.select().from(events).where(and(eq(events.clanId, clan.id), eq(events.practice, false))).orderBy(desc(events.createdAt)),
     scoped
       ? Promise.resolve([])
       : db
@@ -180,6 +183,9 @@ export default async function AdminEventsPage() {
   const past = all.filter(isPast).sort(byDateDesc);
 
   const canManage = atLeast(session?.role, 'admin');
+  const canPractice = canManage && practiceAllowedForPlan(clan.plan);
+  const practiceRow = canManage ? await activePracticeBoard(clan.id) : null;
+  const practice = practiceRow ? { id: practiceRow.id, name: practiceRow.name, endDate: practiceRow.endDate } : null;
 
   // ---- the numbers ------------------------------------------------------------------------
   // Editors don't get the operational reads: they author tiles, and every href in the attention
@@ -235,6 +241,8 @@ export default async function AdminEventsPage() {
       pastWeekly={Object.fromEntries(pastWeekly)}
       attention={attention}
       cohosted={cohosted}
+      practice={practice}
+      canPractice={canPractice}
     />
   );
 }

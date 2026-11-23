@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isPracticeEvent } from '@/lib/practiceScope';
 import { mayJoinWith } from '@/lib/characterState';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
@@ -43,6 +44,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   if (!Number.isInteger(eventId) || eventId <= 0) {
     return NextResponse.json({ error: 'Bad event' }, { status: 400 });
   }
+  // Nobody enters a practice board (lib/practice): its admin puts the people on it.
+  if (await isPracticeEvent(eventId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Cheap to attempt and cheap to abuse: entering an event creates a seat in somebody's clan.
   const limited = await rateLimitByKey('event-enter', String(session.userId), { limit: 10, windowMs: 3600_000 });

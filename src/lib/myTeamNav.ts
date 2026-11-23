@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { clanRoster, eventSignups, events, eventParticipants, teams, teamStaff } from '@/db/schema';
@@ -37,7 +38,8 @@ export async function countLiveTeamInvolvements(
     or(isNull(events.endDate), gt(events.endDate, nowIso)),
     onlyClanId != null ? eq(events.clanId, onlyClanId) : undefined,
   );
-  const notForceEnded = isNull(events.forceEndedAt);
+  // Never a practice board (lib/practice): it has its own page, reached from the clan's Events.
+  const notForceEnded = and(isNull(events.forceEndedAt), notPractice())!;
 
   const [captainRows, staffRows, playerRows, signupRows] = await Promise.all([
     // clan-scope: global -- this nav count follows the signed-in person across every clan by design.

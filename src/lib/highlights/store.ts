@@ -11,6 +11,7 @@
 // READS respect exactly what the feed respects: the event must be the viewer's to see (the pages and
 // routes check canSeeEvent), and behind hidden standings only the viewer's own team's beats show.
 
+import { isPracticeEvent } from '@/lib/practiceScope';
 import { raceTileHiddenFromOthers } from '@/lib/raceHideAheadDb';
 import { and, desc, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
@@ -248,6 +249,8 @@ export interface Beat {
 export async function recordBeat(beat: Beat, now = Date.now()): Promise<number[]> {
   try {
     if (!freshEnough(beat.occurredAt.getTime(), now)) return [];
+    // A practice board (lib/practice) never clips anyone's channel.
+    if (await isPracticeEvent(beat.eventId)) return [];
     const ctx = await eventContext(beat.eventId);
     if (!ctx?.streamed) return [];
     const targets = planTargets({ streamed: true, beat: beat.beat, host: ctx.host, actor: await actorFor(beat.actorPlayerId) });

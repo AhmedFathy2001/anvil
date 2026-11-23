@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { and, count, eq, isNotNull, isNull, lt, min } from 'drizzle-orm';
@@ -50,26 +51,26 @@ export async function GET() {
       .select({ n: count() })
       .from(clanRoster)
       .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'))),
-    db.select({ n: count() }).from(events).where(eq(events.clanId, clan.id)),
+    db.select({ n: count() }).from(events).where(and(eq(events.clanId, clan.id), notPractice())),
     db
       .select({ n: count() })
       .from(events)
-      .where(and(eq(events.clanId, clan.id), isNotNull(events.endDate), lt(events.endDate, new Date().toISOString()))),
+      .where(and(eq(events.clanId, clan.id), notPractice(), isNotNull(events.endDate), lt(events.endDate, new Date().toISOString()))),
     db
       .select({ n: count() })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
       // Board cells only — a combo part (lib/combo) is not a tile completed.
-      .where(and(eq(events.clanId, clan.id), isNull(tiles.parentTileId))),
+      .where(and(eq(events.clanId, clan.id), notPractice(), isNull(tiles.parentTileId))),
     db
       .select({ n: count() })
       .from(submissions)
       .innerJoin(tiles, eq(submissions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(eq(events.clanId, clan.id)),
+      .where(and(eq(events.clanId, clan.id), notPractice())),
     db.select({ n: count() }).from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clan.id)),
-    db.select({ at: min(events.createdAt) }).from(events).where(eq(events.clanId, clan.id)),
+    db.select({ at: min(events.createdAt) }).from(events).where(and(eq(events.clanId, clan.id), notPractice())),
     db.select({ at: min(clanRoster.joinedAt) }).from(clanRoster).where(eq(clanRoster.clanId, clan.id)),
     getSettingText(clan.id, 'discord_invite_url'),
   ]);

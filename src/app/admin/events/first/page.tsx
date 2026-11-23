@@ -1,6 +1,7 @@
+import { notPractice } from '@/lib/practiceScope';
 import GuidedFlow from '@/components/GuidedFlow';
 import { newEventFlow } from '@/lib/guidedFlows/runEvent';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 
 import { db } from '@/db';
@@ -25,7 +26,7 @@ export default async function FirstEventPage() {
   const clan = await requireClan();
   track('flow.first.opened', { clanId: clan.id });
   // clan-scope: this clan's own events, for the suggested name's number.
-  const [ec] = await db.select({ c: count() }).from(events).where(eq(events.clanId, clan.id));
+  const [ec] = await db.select({ c: count() }).from(events).where(and(eq(events.clanId, clan.id), notPractice()));
   // A friends host: the owner's tier sets the size (lib/friendEventRules). Lapsed → no tier: send
   // them to /host/friends, which says why and how to come back.
   const friendsTier = isFriendsHost(clan) ? await tierOfFriendsHost(clan.id) : null;

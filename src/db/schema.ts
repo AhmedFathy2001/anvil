@@ -829,10 +829,35 @@ export const events = pgTable('events', {
   // host offer their changes back as a suggestion on an Anvil board, and counts how often a board is
   // used. Never followed: an event's tiles are its own from the moment it's created.
   libraryBoardId: integer('library_board_id').references((): AnyPgColumn => libraryBoards.id, { onDelete: 'set null' }),
+  // A PRACTICE BOARD (lib/practice, migration 0282): a short test board a clan admin runs on real
+  // characters to watch tiles, popups and posts work before a real event. It counts for nothing:
+  // no listing, feed, points, recap, award or clan channel may ever take it (lib/practiceScope
+  // notPractice is the filter). Its own settings — the test webhook — live in practice_boards.
+  practice: boolean('practice').notNull().default(false),
 }, (table) => [
   // The public events directory (lib/eventsDirectoryDb, migration 0201): partial, advertised rows only.
   index('events_advertised_start_idx').on(table.startDate).where(sql`${table.advertised} = true`),
   uniqueIndex('events_invite_token_unique').on(table.inviteToken).where(sql`invite_token is not null`),
+  index('events_practice_clan_idx').on(table.clanId).where(sql`practice = true`),
+]);
+
+/**
+ * A practice board's own settings (lib/practice, migration 0282). Its own table rather than columns on
+ * `events` for the overlay key's reason: whole event rows are read and handed on, and the test webhook
+ * URL must ride along into none of those answers.
+ */
+export const practiceBoards = pgTable('practice_boards', {
+  eventId: integer('event_id').primaryKey().references(() => events.id, { onDelete: 'cascade' }),
+  // The clan it runs in — always the event's own clan; kept so every read can be clan-scoped.
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // The board its tiles were copied from, when they were. Shown, never followed.
+  sourceEventId: integer('source_event_id').references((): AnyPgColumn => events.id, { onDelete: 'set null' }),
+  // The ONLY Discord destination this board ever has. Null = no posts at all.
+  webhookUrl: text('webhook_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('practice_boards_clan_idx').on(t.clanId),
 ]);
 
 /**

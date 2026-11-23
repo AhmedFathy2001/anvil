@@ -79,6 +79,10 @@ interface Props {
   attention: AttentionItem[];
   /** Boards on other clans this clan co-hosts — linked across to the host. */
   cohosted?: CoHostedBoardLink[];
+  /** The clan's practice board that has not ended (lib/practice), shown on its own — never in the lists. */
+  practice?: { id: number; name: string; endDate: string | null } | null;
+  /** May this admin start one (lib/practiceRules practiceAllowedForPlan). */
+  canPractice?: boolean;
 }
 
 export default function EventsClient({
@@ -92,6 +96,8 @@ export default function EventsClient({
   pastWeekly,
   attention,
   cohosted = [],
+  practice = null,
+  canPractice = false,
 }: Props) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -171,14 +177,39 @@ export default function EventsClient({
           </p>
         </div>
         {canManage && (
-          <ClanLink
-            href="/admin/events/new"
-            className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
-          >
-            + New event
-          </ClanLink>
+          <div className="flex flex-wrap gap-2">
+            {canPractice && (
+              <ClanLink
+                href={practice ? `/events/practice/${practice.id}` : '/admin/events/practice'}
+                className="px-4 py-2 text-sm font-semibold border border-card-border hover:border-gold/60 text-gold rounded-lg transition-colors"
+              >
+                {practice ? 'Practice board running' : 'Practice board'}
+              </ClanLink>
+            )}
+            <ClanLink
+              href="/admin/events/new"
+              className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors shadow-sm shadow-gold/20"
+            >
+              + New event
+            </ClanLink>
+          </div>
         )}
       </header>
+
+      {practice && canManage && (
+        <ClanLink
+          href={`/events/practice/${practice.id}`}
+          className="mb-6 flex items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm hover:border-amber-400/70 transition-colors"
+        >
+          <span className="rounded bg-amber-400 px-2 py-0.5 text-[11px] font-bold tracking-wider text-brown-dark">PRACTICE</span>
+          <span className="flex-1 min-w-0 truncate text-amber-100">{practice.name}</span>
+          {practice.endDate && (
+            <span className="text-amber-200/80 text-xs">
+              ends <LocalTime date={practice.endDate} format="datetime" />
+            </span>
+          )}
+        </ClanLink>
+      )}
 
       {cohosted.length > 0 && (
         <section className="mb-8">

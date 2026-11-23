@@ -1083,6 +1083,9 @@ export async function buildEnrolledConfig(args: {
       startDate: event.startDate,
       endDate: event.endDate,
       forceEndedAt: event.forceEndedAt ?? null,
+      // A PRACTICE board (lib/practice): a clan admin's test board that counts for nothing. The plugin
+      // prefixes its popups and chat lines with "[Practice]" off this. Absent on every real board.
+      ...(event.practice ? { practice: true } : {}),
       // The plugin's Anvil tab opens the matching view (grid / points accordion / tile race / ladder)
       // for the player's own active event straight from these two fields.
       format: event.format,

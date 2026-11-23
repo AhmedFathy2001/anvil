@@ -8,9 +8,10 @@
 //
 // This is that union, once. Storage stays split; the reading of it doesn't.
 
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 import { eventStage } from '@/lib/eventStage';
 import { weeklyStage, WEEKLY_BADGE } from '@/lib/weeklyStage';
@@ -45,7 +46,7 @@ export async function listEventIndex(clanId: number): Promise<EventIndexItem[]> 
   const [boards, weeklies, teamCounts, participantCounts] = await Promise.all([
     // Scoped. This took no clan at all, and both callers — the admin dashboard and the schedule API —
     // are clan surfaces, so every clan's index listed every other clan's boards and weeks.
-    db.select().from(events).where(eq(events.clanId, clanId)).orderBy(desc(events.createdAt)),
+    db.select().from(events).where(and(eq(events.clanId, clanId), notPractice())).orderBy(desc(events.createdAt)),
     db
       .select()
       .from(weeklyCompetitions)

@@ -4,6 +4,7 @@ import { notifyBoardPeople } from '@/lib/pushNotify';
 import { db } from '@/db';
 import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
 import { eventBoardTiles } from '@/lib/comboSql';
+import { notPractice } from '@/lib/practiceScope';
 import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
 import { notifyBoardRevealed, notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
 import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
@@ -26,6 +27,7 @@ import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
 import { sweepEndedLabSessions } from '@/lib/lab';
+import { sweepEndedPracticeBoards } from '@/lib/practice';
 import { sweepLabTestDrops } from '@/lib/labSupporter';
 import { sweepChatFeed } from '@/lib/chatFeed';
 import { sweepClanAchievements } from '@/lib/momentsStore';
@@ -197,7 +199,9 @@ async function raceRoadProblemCount(eventId: number): Promise<number> {
 // too, purely as a backstop.
 export async function processEventLifecycleNotifications(): Promise<void> {
   // clan-scope: global -- the lifecycle tick is cron-driven and spans clans by design.
-  const allEvents = await db.select().from(events);
+  // Never a practice board (lib/practice): no start, hold, rules, end, facts, payouts or recap for it.
+  // Its posts are latched off at creation too; this keeps it out even if a latch were cleared.
+  const allEvents = await db.select().from(events).where(notPractice());
   const now = new Date().toISOString();
   const nowMs = Date.parse(now);
 
@@ -484,6 +488,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await runDiscordCleanups(nowMs).catch((err) => log.warn('event-lifecycle.discord-cleanup-failed', { err: String(err) }));
   // Lab sessions are scratch boards: deleted a week after they end (lib/lab).
   await sweepEndedLabSessions(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-sweep-failed', { err: String(err) }));
+  // Practice boards likewise, a week after they end (lib/practice).
+  await sweepEndedPracticeBoards(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.practice-sweep-failed', { err: String(err) }));
   // And the Supporter lab's test drops, on the same week (lib/labSupporter).
   await sweepLabTestDrops(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-drops-sweep-failed', { err: String(err) }));
   // Clan-wide achievements (log slots, diaries, quests, levels, tasks) after 30 days, a batch a tick.

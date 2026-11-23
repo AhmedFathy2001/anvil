@@ -52,6 +52,7 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
       forceEndedAt: events.forceEndedAt,
       teamId: eventParticipants.teamId,
       clanMemberId: eventParticipants.clanMemberId,
+      practice: events.practice,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
@@ -81,7 +82,8 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
   // account's live enrollment first, else any live one; latest start wins within each tier —
   // mirroring verifyPluginToken's pick so pre- and post-login agree. The real account-scoped board
   // takes over the moment an account resolves in-game.
-  here.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+  // A real board before a practice one (lib/pluginEventPick), then the latest start.
+  here.sort((a, b) => Number(a.practice) - Number(b.practice) || (b.startDate ?? '').localeCompare(a.startDate ?? ''));
   const live =
     here.find((e) => isLive(e) && e.clanMemberId != null && primaryIds.has(e.clanMemberId)) ??
     here.find(isLive);

@@ -5,6 +5,7 @@
 // read: the profile fields the clan wrote about itself, plus a few counts and its recent events to
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
+import { notPractice } from '@/lib/practiceScope';
 import { unsharedRosterNames } from '@/lib/clanInsider';
 import { withoutHiddenRows } from '@/lib/rosterVisibility';
 import { sceneFor } from '@/lib/scenes';
@@ -103,12 +104,12 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
   const [eventRow] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(events)
-    .where(eq(events.clanId, clanId));
+    .where(and(eq(events.clanId, clanId), notPractice()));
 
   const recent = await db
     .select({ id: events.id, name: events.name, startDate: events.startDate, endDate: events.endDate })
     .from(events)
-    .where(eq(events.clanId, clanId))
+    .where(and(eq(events.clanId, clanId), notPractice()))
     .orderBy(desc(events.startDate))
     .limit(4);
 

@@ -6,6 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { notPracticeEventId } from '@/lib/practiceScope';
 import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
@@ -125,7 +126,9 @@ export async function liveBoardRows(clanMemberId: number, now: Date = new Date()
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(participantScope ?? eq(eventParticipants.clanMemberId, clanMemberId));
+    // Never a practice board (lib/practice): a moment stamped with one would leave the real board and
+    // the clan feed without it, for a board that counts for nothing.
+    .where(and(participantScope ?? eq(eventParticipants.clanMemberId, clanMemberId), eq(events.practice, false)));
   // STARTED, not merely un-ended. A revealed board is still only a preview until the whistle. Use
   // the shared parser rather than comparing timestamp strings: Postgres defaults use a space while
   // browser-authored dates use ISO `T`, and lexicographic comparisons disagree on same-day times.
@@ -762,6 +765,8 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
         // A milestone has its own clan copy; its board copies are the boards' (recordMilestoneMoment).
         // Log slots, diaries and quests likewise file a copy on each live board (BOARD_COPY_KINDS).
         or(notInArray(moments.kind, [MILESTONE_KIND, ...BOARD_COPY_KINDS]), isNull(moments.eventId)),
+        // A practice board's row never reaches the clan feed (lib/practice; none should be written).
+        notPracticeEventId(moments.eventId),
       ),
     )
     .orderBy(desc(moments.occurredAt))

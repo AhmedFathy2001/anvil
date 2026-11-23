@@ -1,6 +1,7 @@
 import { RAID_TILE_TYPE, conditionsKindError, validateConditions } from '@/lib/tileConditionsCheck';
 import { STAFF_HIDE_ERROR, staffHideBlocksEventId } from '@/lib/raceHideAheadDb';
 import { NextResponse } from 'next/server';
+import { PRACTICE_MAX_TILES } from '@/lib/practiceRules';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { clogTileError } from '@/lib/clogTiles';
 import { eventForRequest } from '@/lib/eventScope';
@@ -589,7 +590,10 @@ export async function POST(
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
+  // A PRACTICE board (lib/practice) is authored while it runs — adding tiles to it and testing them
+  // is the point — so its tiles take a whole import whenever, as before a real start. Never more
+  // than its own cap.
+  const eventStarted = !event.practice && !!event.startDate && new Date(event.startDate) <= new Date();
   const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
 
   // Rows arrive either as a JSON body (client-parsed CSV / programmatic use) or as a
@@ -664,7 +668,7 @@ export async function POST(
     append: appendMode,
     canGrow,
     started: eventStarted,
-    maxTiles: MAX_TILES,
+    maxTiles: event.practice ? PRACTICE_MAX_TILES : MAX_TILES,
   });
   if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: 400 });
   const { targets, updates, creates, ignored } = plan;

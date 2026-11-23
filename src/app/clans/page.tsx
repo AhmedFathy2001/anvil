@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { headers } from 'next/headers';
 import { clanTenureBadges } from '@/lib/clanCard';
 import { notFound } from 'next/navigation';
@@ -133,6 +134,7 @@ async function liveByClanId(ids: number[]): Promise<Map<number, string>> {
       .where(
         and(
           inArray(clans.id, ids),
+          notPractice(),
           isNull(events.forceEndedAt),
           sql`${events.startDate} is not null and ${events.startDate} <= ${nowIso}`,
           or(isNull(events.endDate), gt(events.endDate, nowIso)),

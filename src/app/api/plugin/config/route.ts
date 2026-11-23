@@ -71,7 +71,7 @@ async function activeEventForUnlinkedRsn(request: Request, clanId: number): Prom
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(and(eq(events.clanId, clanId), sql`lower(${eventParticipants.name}) = ${norm}`));
+    .where(and(eq(events.clanId, clanId), eq(events.practice, false), sql`lower(${eventParticipants.name}) = ${norm}`));
   const now = Date.now();
   for (const r of rows) {
     if (normalizeRsn(r.name) !== norm) continue; // exact (nbsp-normalised) match
@@ -299,7 +299,7 @@ export async function GET(request: Request) {
     const body = built.body as unknown as Record<string, unknown>;
     const b = built.body;
     const active = summaryOf(
-      { eventId: b.event.id, name: b.event.name, clan: clan.slug, clanName: clan.name, teamId: b.team.id, teamName: b.team.name, endDate: (b.event as { endDate?: string | null }).endDate ?? null },
+      { eventId: b.event.id, name: b.event.name, clan: clan.slug, clanName: clan.name, teamId: b.team.id, teamName: b.team.name, endDate: (b.event as { endDate?: string | null }).endDate ?? null, practice: (b.event as { practice?: boolean }).practice === true },
       (b as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board,
     );
     await foldOtherBoards(request, body, { accountId: auth.accountId, userId: auth.userId, addressedClanId: clan.id, active });

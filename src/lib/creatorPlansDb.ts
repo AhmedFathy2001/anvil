@@ -1,5 +1,6 @@
 // Creator-space plans — the reads (rules: lib/creatorPlans). What the meters count.
 
+import { notPractice } from '@/lib/practiceScope';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -120,7 +121,7 @@ export async function hostEventSeats(clanId: number, tx: Executor = db): Promise
     })
     .from(events)
     .leftJoin(eventSignups, and(eq(eventSignups.eventId, events.id), inArray(eventSignups.status, [...ON_BOARD])))
-    .where(eq(events.clanId, clanId))
+    .where(and(eq(events.clanId, clanId), notPractice()))
     .groupBy(events.id, events.name, events.startDate, events.endDate, events.forceEndedAt, events.openToViewers);
   return rows
     .filter((r) => streamedEvent(host, r))
@@ -186,7 +187,8 @@ export async function liveEventCount(
   const rows = await (opts.tx ?? db)
     .select({ id: events.id, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
     .from(events)
-    .where(eq(events.clanId, clanId));
+    // A practice board (lib/practice) takes no live-event slot.
+    .where(and(eq(events.clanId, clanId), notPractice()));
   return rows.filter((r) => r.id !== opts.exceptEventId && isLiveEvent(r, now)).length;
 }
 

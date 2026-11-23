@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { maskRaceTilesForSession } from '@/lib/raceHideAheadDb';
 import { db } from '@/db';
 import { clanHref } from '@/lib/clanPath';
@@ -35,6 +36,7 @@ export default async function AdminProofsPage() {
     .where(
       and(
         eq(events.clanId, clan.id),
+        notPractice(),
         isNotNull(submissions.flaggedReason),
         or(isNull(events.endDate), gt(events.endDate, cutoff)),
       ),
@@ -45,7 +47,7 @@ export default async function AdminProofsPage() {
   const browse = await db
     .select({ eventId: events.id, name: events.name })
     .from(events)
-    .where(and(eq(events.clanId, clan.id), isNotNull(events.startDate), or(isNull(events.endDate), gt(events.endDate, cutoff))))
+    .where(and(eq(events.clanId, clan.id), notPractice(), isNotNull(events.startDate), or(isNull(events.endDate), gt(events.endDate, cutoff))))
     .orderBy(desc(events.startDate));
 
   const eventIds = [...new Set(flagged.map((r) => r.eventId))];

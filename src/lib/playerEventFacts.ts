@@ -304,6 +304,8 @@ export async function writePlayerEventFacts(eventId: number, opts: { force?: boo
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return 0;
+  // A practice board (lib/practice) leaves nothing on anyone's career, history or trophies.
+  if (event.practice) return 0;
   if (!opts.force && !isEventEnded(event)) return 0;
 
   const rows = await computePlayerEventFacts(eventId);

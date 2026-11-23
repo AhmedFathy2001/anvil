@@ -2,6 +2,7 @@
 // plus what only a year has — the events they played, their busiest month, and since when we've
 // been counting.
 
+import { notPractice } from '@/lib/practiceScope';
 import { and, eq, like, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -93,7 +94,8 @@ async function yearEvents(accountId: number, year: string): Promise<YearEvent[]>
     .innerJoin(events, eq(events.id, eventParticipants.eventId))
     .innerJoin(clans, eq(clans.id, events.clanId))
     // Tile-lab boards are test runs, not events anyone played (lib/lab).
-    .where(and(eq(eventParticipants.accountId, accountId), like(events.startDate, `${year}-%`), notLabClan(events.clanId)));
+    // …nor practice boards (lib/practice).
+    .where(and(eq(eventParticipants.accountId, accountId), like(events.startDate, `${year}-%`), notLabClan(events.clanId), notPractice()));
 
   const shown = rows.filter(
     (r) => r.clanVisibility === 'public' && visibilityOf(r.visibility) !== 'invited' && isEventEnded(r),

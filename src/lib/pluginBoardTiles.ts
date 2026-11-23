@@ -34,8 +34,9 @@ const LABELLED_LISTS = new Set<string>([
  * Append another board's tracked tiles to `body`'s lists, each tagged with the board it credits.
  * The active board's own entries stay untagged — that is how an older reading of them stays right.
  */
-export function appendBoardTiles(body: Record<string, unknown>, extra: Record<string, unknown>, board: Pick<LiveBoard, 'eventId' | 'teamId' | 'playerId' | 'clan' | 'name'>): void {
-  const tag = { eventId: board.eventId, teamId: board.teamId, playerId: board.playerId, clan: board.clan, name: board.name };
+export function appendBoardTiles(body: Record<string, unknown>, extra: Record<string, unknown>, board: Pick<LiveBoard, 'eventId' | 'teamId' | 'playerId' | 'clan' | 'name'> & { practice?: boolean }): void {
+  // `practice: true` on a practice board's entries (lib/practice), so a popup off one says "[Practice]".
+  const tag = { eventId: board.eventId, teamId: board.teamId, playerId: board.playerId, clan: board.clan, name: board.name, ...(board.practice ? { practice: true } : {}) };
   // The kinds the plugin judges itself say their label in chat: " · <board>" tells two boards apart
   // (the plugin used to add it; an older one sees it there already and leaves it).
   const suffix = ` · ${board.name}`;

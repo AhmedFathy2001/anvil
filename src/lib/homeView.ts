@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { huntIconFor, huntLine, parseHunt } from '@/lib/itemHunt';
 import { huntStandings } from '@/lib/itemHuntDb';
 import { db } from '@/db';
@@ -346,6 +347,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     .where(
       and(
         eq(events.clanId, clanId),
+        notPractice(),
         isNull(events.forceEndedAt),
         isNotNull(events.startDate),
         lte(events.startDate, nowIso),

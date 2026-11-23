@@ -1534,6 +1534,13 @@
       "when": 1795274000000,
       "tag": "0281_notify_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 282,
+      "version": "7",
+      "when": 1795275000000,
+      "tag": "0282_practice_boards",
+      "breakpoints": true
     }
   ]
 }

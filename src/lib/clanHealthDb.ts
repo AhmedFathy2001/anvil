@@ -52,6 +52,7 @@ export async function clanActivity(now: number = Date.now()): Promise<Map<number
                               and (end_date is null or ${at('end_date')} > ${iso})) as running,
              count(*) filter (where start_date is not null and ${at('start_date')} > ${iso} and force_ended_at is null) as scheduled
         from events
+       where practice = false
        group by clan_id
     `),
     rows<Record<string, unknown>>(sql`

@@ -52,6 +52,9 @@ export default async function EventLayout({
   // tab beneath this layout. The write routes underneath all call eventForRequest; the pages never
   // asked. This is the one check that settles it, for the layout and everything it wraps.
   const event = await requireEventForPage(id);
+  // A practice board has its own one-screen page (lib/practice) — none of the event admin's
+  // co-hosts, sign-ups, drafts, money, Discord or publishing apply to it.
+  if (event.practice) redirect(await clanHref(`/events/practice/${event.id}`));
 
   const session = await verifyUser();
   const isEditor = session?.role === 'editor';

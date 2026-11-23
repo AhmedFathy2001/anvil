@@ -3,6 +3,7 @@
 // and roles at the end or some days after. Rides the lifecycle tick; events.discord_cleanup records
 // each step so it runs once.
 
+import { notPractice } from '@/lib/practiceScope';
 import { and, eq, isNotNull, ne, or, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -18,7 +19,7 @@ export async function runDiscordCleanups(nowMs: number = Date.now()): Promise<vo
   const due = await db
     .select({ id: events.id, clanId: events.clanId, endDate: events.endDate, step: events.discordCleanup })
     .from(events)
-    .where(and(eq(events.endNotified, 1), isNotNull(events.endDate), or(isNull(events.discordCleanup), ne(events.discordCleanup, 'all'))));
+    .where(and(eq(events.endNotified, 1), notPractice(), isNotNull(events.endDate), or(isNull(events.discordCleanup), ne(events.discordCleanup, 'all'))));
 
   for (const event of due) {
     try {

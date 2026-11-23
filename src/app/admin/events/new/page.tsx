@@ -1,10 +1,11 @@
+import { notPractice } from '@/lib/practiceScope';
 import GuidedFlow from '@/components/GuidedFlow';
 import { newEventFlow } from '@/lib/guidedFlows/runEvent';
 import { requireClan } from '@/lib/clanContext';
 import { track } from '@/lib/analytics';
 import { db } from '@/db';
 import { eventPresets, events } from '@/db/schema';
-import { count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import EventForm from '@/components/EventForm';
 import { BUILTIN_PRESETS, suggestEventName, type EventPreset } from '@/lib/eventPresets';
 import { modeKeyFor } from '@/lib/eventModes';
@@ -64,7 +65,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
     // THIS CLAN'S events. Unscoped, the suggestion counted every clan's boards on the deployment, so
     // a new clan's first event was proposed as "MyClan Bingo #4823". Exactly the read-side bug the
     // clan-scope lint rule exists to catch — it was reporting this one, in a list of 163 warnings.
-    db.select({ c: count() }).from(events).where(eq(events.clanId, clan.id)),
+    db.select({ c: count() }).from(events).where(and(eq(events.clanId, clan.id), notPractice())),
     // Likewise: a saved template belongs to the clan that saved it. Unscoped, every clan's template
     // gallery listed every other clan's — and applying one seeds a board through the tile importer,
     // so this leaked their tile design too.

@@ -20,6 +20,7 @@
  *
  * Reuses the bot REST helper + credential resolution from lib/discord-roles.ts.
  */
+import { isPracticeEvent } from '@/lib/practiceScope';
 import { loadEventRoleSettings, readPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
@@ -419,6 +420,8 @@ export async function provisionTeamDiscord(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
+  // A practice board (lib/practice) never touches the clan's server: no channels, roles or grants.
+  if (event.practice) return { ok: false, reason: 'practice board', teams: [], captainsAssigned: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId, { eventId });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', teams: [], captainsAssigned: 0 };
 
@@ -592,6 +595,8 @@ export async function assignTeamRoles(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
+  // A practice board (lib/practice) never touches the clan's server: no channels, roles or grants.
+  if (event.practice) return { ok: false, reason: 'practice board', assigned: 0, skipped: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId, { eventId });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
   if (!(await eventRostersReadyForAssignment(eventId, event.draftStatus))) {
@@ -670,6 +675,8 @@ export async function assignBingoRoleToApprovedSignups(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
+  // A practice board (lib/practice) never touches the clan's server: no channels, roles or grants.
+  if (event.practice) return { ok: false, reason: 'practice board', assigned: 0, skipped: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId, { force: true });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
   if (!cfg.bingoRoleId) {
@@ -1302,6 +1309,8 @@ export async function teardownTeamDiscord(eventId: number): Promise<TeardownRepo
  */
 export function syncTeamDiscordOnDraftCompleteFireAndForget(eventId: number): void {
   (async () => {
+  // A practice board (lib/practice) never touches the clan's server: no channels, roles or grants.
+    if (await isPracticeEvent(eventId)) return;
     // A co-hosted event with its own event server (joint/single) is handled entirely by
     // lib/eventDiscord; building host-server channels as well would duplicate every team.
     if (await usesEventServer(eventId)) {

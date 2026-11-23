@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         select count(*) from ${clanMemberships} m
         where m.clan_id = clans.id and m.left_at is null and m.kind = 'member'
       )`,
-      events: sql<number>`(select count(*) from ${eventsTable} e where e.clan_id = clans.id)`,
+      events: sql<number>`(select count(*) from ${eventsTable} e where e.clan_id = clans.id and e.practice = false)`,
       ownerName: sql<string | null>`(
         select u.display_name from ${clanStaff} cs
         join ${users} u on u.id = cs.user_id
