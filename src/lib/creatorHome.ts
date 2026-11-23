@@ -2,6 +2,7 @@
 // (lib/clanHome) leads with members, focus and recruiting — none of which a creator space has — so
 // this reads the creator, their stream links and the people who have played their events.
 
+import { notPractice } from '@/lib/practiceScope';
 import { normalizeHex } from '@/lib/artPalette';
 import { and, desc, eq, inArray, isNull, max, notInArray, or, sql } from 'drizzle-orm';
 
@@ -189,7 +190,7 @@ export async function creatorEventsView(
       })
       .from(events)
       // clan-scope: clanId is the creator space whose page is being rendered; its own events only.
-      .where(eq(events.clanId, clanId))
+      .where(and(eq(events.clanId, clanId), notPractice()))
       .orderBy(desc(events.id)),
     loadEventCards(clanId, { includeUpcoming: true, pastLimit: PAST_SHOWN }, now).catch(() => []),
   ]);

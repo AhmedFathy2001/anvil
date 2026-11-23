@@ -23,11 +23,15 @@ import { verdictMessage } from '@/lib/entryGates';
 import { signupNetAdding } from '@/lib/creatorPlans';
 import { PlanLimitError, hostRoomVerdict, roomPlanOfEvent } from '@/lib/creatorPlansDb';
 import { friendsHostOfEvent, friendsJoinCheck, withHostEventRoom } from '@/lib/friendEvents';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -152,6 +156,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const rl = await rateLimit(request, 'signup', { limit: 20, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
 
@@ -549,6 +556,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { raceGraph, teamRoute } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
 import { db } from '@/db';
@@ -148,7 +149,7 @@ export default async function MyTeamsHubPage() {
       .innerJoin(events, eq(eventParticipants.eventId, events.id))
       .innerJoin(hostClan, eq(hostClan.id, events.clanId))
       .leftJoin(teamClan, eq(teamClan.id, teams.clanId))
-      .where(and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId)));
+      .where(and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId), notPractice()));
     for (const r of playerRows) add(r, 'player');
     myPlayerRows = playerRows;
   }

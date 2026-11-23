@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { and, asc, eq, gt, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 
@@ -122,6 +123,7 @@ export async function apexHomeView(
       .where(
         and(
           inArray(events.clanId, ids),
+          notPractice(),
           isNull(events.forceEndedAt),
           sql`${events.startDate} is not null and ${events.startDate} <= ${nowIso}`,
           or(isNull(events.endDate), gt(events.endDate, nowIso)),
@@ -339,6 +341,7 @@ export async function openSignups(
     .innerJoin(clans, eq(clans.id, events.clanId))
     .where(
       and(
+        notPractice(),
         or(
           clanIds.length ? inArray(events.clanId, clanIds) : undefined,
           externalIds.length ? inArray(events.id, externalIds) : undefined,
@@ -451,6 +454,7 @@ export async function clansWithSomethingLive(clanIds: number[]): Promise<Set<num
       .where(
         and(
           inArray(events.clanId, clanIds),
+          notPractice(),
           isNull(events.forceEndedAt),
           sql`${events.startDate} is not null and ${events.startDate} <= ${nowIso}`,
           or(isNull(events.endDate), gt(events.endDate, nowIso)),

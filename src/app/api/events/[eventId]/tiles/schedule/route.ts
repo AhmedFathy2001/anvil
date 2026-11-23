@@ -9,6 +9,7 @@ import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { diffTiles, logTileAudit } from '@/lib/tile-audit';
 import { staggeredTimes } from '@/lib/tileAuthoring';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Lay a run of reveal times across a scheduled board.
 //
@@ -23,6 +24,9 @@ import { staggeredTimes } from '@/lib/tileAuthoring';
 const MAX_TILES = 500;
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
 

@@ -10,6 +10,7 @@ import { normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { noteWebhookSave, refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 import { isEventPostKind, parseEventPostKinds } from '@/lib/eventWebhookKinds';
 import { sendEventHookTest } from '@/lib/discord';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * An event's extra webhooks (lib/eventWebhooks): more channels that get a copy of this board's posts,
@@ -58,6 +59,9 @@ async function cleanTeam(eventId: number, raw: unknown): Promise<number | null |
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   const rows = await db.select().from(eventWebhooks).where(eq(eventWebhooks.eventId, s.eventId)).orderBy(eventWebhooks.id);
@@ -73,6 +77,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -116,6 +123,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -145,6 +155,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   const id = Number(new URL(request.url).searchParams.get('id'));

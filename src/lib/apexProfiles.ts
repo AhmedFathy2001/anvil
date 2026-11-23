@@ -16,6 +16,7 @@
 // Everything here is therefore opt-in, and mostly empty until people opt in. That is the correct
 // resting state for cross-clan visibility, not a defect.
 
+import { notPractice } from '@/lib/practiceScope';
 import { clanBeforeSpace, slugWhere } from '@/lib/clanSlugLookup';
 import type { AddressKind } from '@/lib/clanScopedPaths';
 import { and, count, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm';
@@ -74,13 +75,14 @@ export async function apexClan(slug: string, kind: AddressKind | null = null): P
       .where(
         and(eq(clanMemberships.clanId, clan.id), isNull(clanMemberships.leftAt), eq(clanMemberships.kind, 'guest')),
       ),
-    db.select({ n: count() }).from(events).where(eq(events.clanId, clan.id)),
+    db.select({ n: count() }).from(events).where(and(eq(events.clanId, clan.id), notPractice())),
     db
       .select({ id: events.id, name: events.name, endDate: events.endDate })
       .from(events)
       .where(
         and(
           eq(events.clanId, clan.id),
+          notPractice(),
           isNull(events.forceEndedAt),
           // Started, and not finished. A board with no start date is still being built and is not
           // the clan's business to advertise.

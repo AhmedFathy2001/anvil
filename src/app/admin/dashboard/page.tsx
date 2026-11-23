@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { countRunning, runningLabel, runningParts } from '@/lib/runningCount';
 import { requireClan } from '@/lib/clanContext';
 import { parseBillingInterval } from '@/lib/billingInterval';
@@ -133,18 +134,18 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
     clanEventItems,
   ] = await Promise.all([
     listEventIndex(clan.id),
-    db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
+    db.select().from(events).where(and(eq(events.clanId, clan.id), notPractice())).orderBy(desc(events.createdAt)),
     db
       .select({ eventId: tiles.eventId, n: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clan.id), writtenTile, isNull(tiles.parentTileId)))
+      .where(and(eq(events.clanId, clan.id), notPractice(), writtenTile, isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId),
     db
       .select({ eventId: teams.eventId, n: count() })
       .from(teams)
       .innerJoin(events, eq(teams.eventId, events.id))
-      .where(eq(events.clanId, clan.id))
+      .where(and(eq(events.clanId, clan.id), notPractice()))
       .groupBy(teams.eventId),
     db
       .select({ c: count() })
@@ -202,14 +203,14 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clan.id), isNull(tiles.parentTileId), sinceDay(completions.completedAt, now, 7)))
+      .where(and(eq(events.clanId, clan.id), notPractice(), isNull(tiles.parentTileId), sinceDay(completions.completedAt, now, 7)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clan.id), isNull(tiles.parentTileId), betweenDays(completions.completedAt, now, 14, 7)))
+      .where(and(eq(events.clanId, clan.id), notPractice(), isNull(tiles.parentTileId), betweenDays(completions.completedAt, now, 14, 7)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({
@@ -244,6 +245,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       .where(
         and(
           eq(events.clanId, clan.id),
+          notPractice(),
           inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']),
           notInArray(eventSignups.status, ['withdrawn', 'rejected']),
         ),
@@ -266,6 +268,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       .where(
         and(
           eq(events.clanId, clan.id),
+          notPractice(),
           eq(signupFees.status, 'collected'),
           notInArray(eventSignups.status, ['withdrawn', 'rejected']),
         ),
@@ -289,6 +292,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       .where(
         and(
           eq(events.clanId, clan.id),
+          notPractice(),
           eq(signupFees.status, 'collected'),
           notInArray(eventSignups.status, ['withdrawn', 'rejected']),
         ),
@@ -316,6 +320,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
       .where(
         and(
           eq(events.clanId, clan.id),
+          notPractice(),
           eq(eventSignups.status, 'pending'),
           isNull(events.forceEndedAt),
           // The page's own clock, not a second reading of it — one render, one "now".

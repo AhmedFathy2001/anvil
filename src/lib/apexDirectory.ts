@@ -83,6 +83,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
   const eventCounts = await db
     .select({ clanId: eventsTable.clanId, n: count() })
     .from(eventsTable)
+    .where(eq(eventsTable.practice, false))
     .groupBy(eventsTable.clanId);
   const eventsByClan = new Map(eventCounts.map((e) => [e.clanId, Number(e.n)]));
 

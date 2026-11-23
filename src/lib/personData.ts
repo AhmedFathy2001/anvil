@@ -288,7 +288,7 @@ export const PERSON_DATA: PersonDataEntry[] = [
     ['library_tasks', 'created_by_user_id'], ['library_tasks', 'updated_by_user_id'], ['mode_line_patterns', 'updated_by'], ['owner_trials', 'granted_by'],
     ['owner_trials', 'revoked_by'], ['payouts', 'paid_by_user_id'], ['pending_renames', 'submitted_by_user_id'], ['platform_notices', 'created_by_user_id'],
     ['promo_blocked_domains', 'added_by_user_id'], ['promo_reports', 'reporter_user_id'], ['promo_reports', 'resolved_by_user_id'],
-    ['race_lifelines', 'used_by_user_id'], ['race_road_picks', 'picked_by_user_id'], ['shared_webhooks', 'decided_by_user_id'], ['signup_fees', 'collected_by_user_id'],
+    ['practice_boards', 'created_by_user_id'], ['race_lifelines', 'used_by_user_id'], ['race_road_picks', 'picked_by_user_id'], ['shared_webhooks', 'decided_by_user_id'], ['signup_fees', 'collected_by_user_id'],
     ['signup_fees', 'confirmed_by_user_id'], ['signup_fees', 'reported_collector_user_id'], ['space_panels', 'staff_hidden_by_user_id'],
     ['space_profiles', 'hidden_by_user_id'], ['stream_highlights', 'staff_hidden_by_user_id'], ['supporter_subscriptions', 'gifted_by_user_id'],
     ['team_invites', 'created_by_user_id'], ['teams', 'captain_user_id'], ['team_staff', 'granted_by_user_id'], ['tile_audit_log', 'actor_user_id'],

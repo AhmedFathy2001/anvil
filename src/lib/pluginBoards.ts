@@ -50,6 +50,8 @@ export interface LiveBoard {
   rsn: string;
   startDate: string | null;
   endDate?: string | null;
+  /** A practice board (lib/practice): the plugin marks its popups "[Practice]". */
+  practice?: boolean;
 }
 
 /** The `boards` summary row /config sends and Home draws. */
@@ -69,6 +71,8 @@ export interface BoardSummary {
   rank?: number | null;
   /** How many teams the rank is out of; 0 when there is no rank. */
   of?: number;
+  /** Present (true) only on a practice board (lib/practice), which counts for nothing. */
+  practice?: true;
 }
 
 /**
@@ -107,6 +111,7 @@ export async function liveBoardsForCharacter(
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
+      practice: events.practice,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
@@ -184,6 +189,7 @@ export async function liveBoardsForCharacter(
       rsn: r.name,
       startDate: r.startDate,
       endDate: r.endDate,
+      ...(r.practice ? { practice: true } : {}),
     });
   }
   out.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? '') || b.eventId - a.eventId);
@@ -204,7 +210,7 @@ export async function summarizeBoards(boards: LiveBoard[], viewer: { userId: num
       const m = byId.get(b.eventId);
       const score = m?.tilesRevealed ? await teamBoardScore({ eventId: b.eventId, scoringMode: m.scoringMode, rules: m.rules }, b.teamId) : null;
       const place = m?.tilesRevealed ? await boardPlace(m, b.teamId, viewer.userId).catch(() => null) : null;
-      return summaryOf({ ...b, endDate: b.endDate ?? m?.endDate ?? null }, score ? { tilesComplete: score.boardScore, tilesTotal: score.total, pointsScored: score.unit === 'pts' } : null, place);
+      return summaryOf({ ...b, endDate: b.endDate ?? m?.endDate ?? null, practice: b.practice ?? m?.practice ?? false }, score ? { tilesComplete: score.boardScore, tilesTotal: score.total, pointsScored: score.unit === 'pts' } : null, place);
     }),
   );
 }
@@ -236,7 +242,7 @@ export async function boardPlace(m: typeof events.$inferSelect, teamId: number, 
 
 /** The row /config sends for one board. */
 export function summaryOf(
-  b: Pick<LiveBoard, 'eventId' | 'name' | 'clan' | 'clanName' | 'teamId' | 'teamName'> & { endDate?: string | null },
+  b: Pick<LiveBoard, 'eventId' | 'name' | 'clan' | 'clanName' | 'teamId' | 'teamName'> & { endDate?: string | null; practice?: boolean },
   tally: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null | undefined,
   place?: { rank: number | null; of: number } | null,
 ): BoardSummary {
@@ -253,6 +259,7 @@ export function summaryOf(
     endDate: ('endDate' in b ? b.endDate : null) ?? null,
     rank: place?.rank ?? null,
     of: place?.of ?? 0,
+    ...(b.practice ? { practice: true as const } : {}),
   };
 }
 
@@ -284,7 +291,7 @@ export async function foldOtherBoards(
     // clan-scope: global -- multi-board tracking spans a character's clans by design; b.eventId came from that character's own live seats.
     const ev = await db.query.events.findFirst({ where: eq(events.id, b.eventId) });
     const place = ev?.tilesRevealed ? await boardPlace(ev, b.teamId, args.userId).catch(() => null) : null;
-    summaries.push(summaryOf({ ...b, endDate: b.endDate ?? ev?.endDate ?? null }, (built.body as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board, place));
+    summaries.push(summaryOf({ ...b, endDate: b.endDate ?? ev?.endDate ?? null, practice: b.practice ?? ev?.practice ?? false }, (built.body as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board, place));
   }
   body.boards = summaries;
 }

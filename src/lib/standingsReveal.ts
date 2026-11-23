@@ -16,6 +16,7 @@
 // At the END of the event the marker is cleared without a post: the end post already carries the
 // final standings, and two leaderboards a minute apart would be one too many.
 
+import { notPractice } from '@/lib/practiceScope';
 import { and, eq, ilike, inArray, like, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -80,7 +81,7 @@ export async function runStandingsReveals(nowMs = Date.now()): Promise<void> {
   const curtained = await db
     .select()
     .from(events)
-    .where(and(eq(events.endNotified, 0), ilike(events.rules, '%"visibility":"at-%')));
+    .where(and(eq(events.endNotified, 0), notPractice(), ilike(events.rules, '%"visibility":"at-%')));
   // Events holding a marker, whatever their rule says now — the "switched back to live" case.
   // clan-scope: global -- markers are per event; the event row names its own clan.
   const marked = await db

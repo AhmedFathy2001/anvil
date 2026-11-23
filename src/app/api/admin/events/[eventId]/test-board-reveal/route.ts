@@ -10,12 +10,16 @@ import { isAcceptedCohost } from '@/lib/coHost';
 import { notifyBoardRevealed } from '@/lib/discord';
 import { eventInClan } from '@/lib/eventScope';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * Send the exact reveal embed to THIS clan's bingo channel only. It never flips tilesRevealed and
  * never fans out, so a host can test tomorrow's image without announcing it to co-host servers.
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const eventId = Number((await params).eventId);
   if (!Number.isInteger(eventId) || eventId <= 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { stripImageMetadata, UNREADABLE_IMAGE } from '@/lib/stripImageMetadata';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { eventForRequest } from '@/lib/eventScope';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Payout proofs are stored under `payouts/` so the unpay/delete actions can remove them individually.
 // Mirrors the fee-proof upload: admin-or-treasurer only, image validation, 10 MB cap.
@@ -25,6 +26,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   // The route sits under an event but never read its id, because the old gate was clan-wide. A
   // per-board treasurer can only upload proof for their own board, so now it does.
   const { eventId } = await params;

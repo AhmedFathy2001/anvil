@@ -12,6 +12,7 @@ import { forgetLinkCards } from '@/lib/ogKit';
 import { mayAdvertiseEvents } from '@/lib/eventsDirectory';
 import { forgetDirectory } from '@/lib/eventsDirectoryDb';
 import { isFriendsHost } from '@/lib/friendEventRules';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * Inviting another clan — or one person — to an event, and setting who may see it.
@@ -22,6 +23,9 @@ import { isFriendsHost } from '@/lib/friendEventRules';
  */
 
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -68,6 +72,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 
 /** Change visibility/entry/advertised, or add an invite. */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -164,6 +171,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });

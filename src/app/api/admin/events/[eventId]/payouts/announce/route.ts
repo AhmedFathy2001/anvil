@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { announcePayouts } from '@/lib/payouts';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // POST — manually announce (or re-announce) the paid winners to the bingo Discord webhook.
 // The same summary auto-fires when the last payout is marked paid; this is for re-posting or
@@ -10,6 +11,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.

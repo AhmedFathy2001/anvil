@@ -128,6 +128,7 @@ export async function POST(request: Request) {
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
+      practice: events.practice,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
@@ -136,8 +137,13 @@ export async function POST(request: Request) {
   // that's running AND pre-drafted into one that starts in two months, and row order decides nothing.
   // This used to take the first row that merely hadn't ENDED, which let an event months away win —
   // and then credited its tiles off a live kill. Started boards come first; among them the freshest.
+  // A PRACTICE board (lib/practice) is never THE pick: it is fresh by nature and would take the live
+  // push off a real board running beside it. Its own stat tiles are credited after, below.
   const candidates = playerRows.filter(
-    (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
+    (p) => p.teamId && !p.practice && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
+  );
+  const practiceRows = playerRows.filter(
+    (p) => p.teamId && p.practice && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso) && eventHasStarted(p),
   );
   candidates.sort((a, b) => {
     const sa = eventHasStarted(a);
@@ -149,8 +155,8 @@ export async function POST(request: Request) {
   // (the plugin shows its board), but nothing about it should score — see lib/completionGate.
   const activePlayer = candidates.find((p) => eventHasStarted(p));
 
-  if (activePlayer) {
-    const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, activePlayer.eventId));
+  for (const board of activePlayer ? [activePlayer, ...practiceRows] : practiceRows) {
+    const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, board.eventId));
     const statTiles = eventTiles.filter(
       (t) =>
         t.trackedStat &&
@@ -162,11 +168,11 @@ export async function POST(request: Request) {
     );
 
     if (statTiles.length > 0) {
-      notifyTeamTiles(activePlayer.eventId, activePlayer.teamId!, statTiles.map((t) => t.id));
+      notifyTeamTiles(board.eventId, board.teamId!, statTiles.map((t) => t.id));
       completed.push(
         ...(await creditStatTilesForTeam({
-          eventId: activePlayer.eventId,
-          teamId: activePlayer.teamId!,
+          eventId: board.eventId,
+          teamId: board.teamId!,
           statTiles,
           notifyClanId: clan.id,
           clip: true,

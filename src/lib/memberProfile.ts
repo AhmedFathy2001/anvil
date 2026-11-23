@@ -4,6 +4,7 @@
 // rows, the milestone log. Opening a profile never triggers a hiscores fetch, which is what keeps a
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
+import { notPractice } from '@/lib/practiceScope';
 import { historyEventShown, historyRowIsThisSeats } from '@/lib/clanScopeRules';
 import { visibilityOf } from '@/lib/eventVisibility';
 import { avatarUrl } from '@/lib/discord-oauth';
@@ -1157,7 +1158,7 @@ export async function getCompetitionHistory(
     // THIS SEAT'S ROWS, OR THIS CLAN'S EVENTS — in the query, not after it. This read every
     // participant of every event on Anvil and matched by name afterwards, so a same-named player in
     // another clan's event (a members-only clan's included) appeared in this member's history.
-    .where(and(notFriendsEvent(events.clanId), ownOrSeat(eventParticipants.clanMemberId)))
+    .where(and(notFriendsEvent(events.clanId), notPractice(), ownOrSeat(eventParticipants.clanMemberId)))
     .orderBy(desc(events.endDate));
 
   const seatRef = { id: clanMemberId, clanId: member?.clanId ?? null };

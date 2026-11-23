@@ -9,6 +9,7 @@ import { del, isClanMediaUrl } from '@/lib/storage';
 import { currentClan } from '@/lib/clanContext';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
 import { getEventPool, settleAward } from '@/lib/coffer';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // POST — a treasurer/admin marks a payout as paid, optionally attaching a proof screenshot.
 // Body: { proofUrl?, notes? }. Re-marking replaces the proof. When this makes EVERY payout for the
@@ -18,6 +19,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.

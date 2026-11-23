@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { NextResponse } from 'next/server';
 import { helloListsActivity } from '@/lib/pluginHelloRules';
 import { db } from '@/db';
@@ -41,6 +42,7 @@ async function activeNow(clan: { id: number }) {
       .where(
         and(
           eq(events.clanId, clan.id),
+          notPractice(),
           isNull(events.forceEndedAt),
           lte(events.startDate, nowIso),
           or(isNull(events.endDate), gt(events.endDate, nowIso)),

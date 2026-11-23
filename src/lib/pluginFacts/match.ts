@@ -8,6 +8,7 @@
  * (`buildEnrolledConfig`), and this mutates their counts as it credits, so several facts in one
  * request see each other's progress the way the plugin's in-memory copies did.
  */
+import { boardLabel } from '@/lib/pluginBoardTiles';
 import { itemCap } from '@/lib/collectionSets';
 import {
   countLineAllows,
@@ -28,6 +29,8 @@ export interface FactBoard {
   playerId: number;
   clan?: string | null;
   name?: string | null;
+  /** A practice board (lib/practice): its lines start "[Practice] ". */
+  practice?: boolean | null;
 }
 
 interface TrackedBase {
@@ -633,8 +636,7 @@ export function matchTile(fact: TileFact, t: Tracked, out: MatchResult, skip?: S
 
 /** "Not counted: <tile>: <why>." — the line the plugin prints for a site-judged refusal. */
 export function notCounted(row: { label: string; board?: FactBoard | null }, why: string): string {
-  const name = row.board?.name;
-  const label = name && !row.label.endsWith(` \u00b7 ${name}`) ? `${row.label} \u00b7 ${name}` : row.label;
+  const label = boardLabel(row.label, row.board);
   return `Not counted: ${label}: ${why}.`;
 }
 

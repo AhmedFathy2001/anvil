@@ -1,6 +1,7 @@
 // Loads the clan hall (lib/clanHallMerge) for one clan: its Discord widget, its roster's plugin
 // presence, this week's XP and the teams of whatever event is live.
 
+import { notPractice } from '@/lib/practiceScope';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -135,6 +136,7 @@ export async function clanHallView(
           .where(
             and(
               eq(events.clanId, clanId),
+              notPractice(),
               inArray(eventParticipants.accountId, accountIds),
               isNull(events.forceEndedAt),
               isNotNull(events.startDate),

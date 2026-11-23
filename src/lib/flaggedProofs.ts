@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { and, count, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { events, submissions, tiles } from '@/db/schema';
@@ -24,6 +25,7 @@ export async function flaggedProofBoards(
     .where(
       and(
         eq(events.clanId, clanId),
+        notPractice(),
         isNotNull(submissions.flaggedReason),
         or(isNull(events.endDate), gt(events.endDate, new Date(now - FLAGGED_PROOF_WINDOW_MS).toISOString())),
       ),

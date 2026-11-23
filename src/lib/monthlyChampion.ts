@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { events, eventParticipants, clanRoster, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -185,7 +186,7 @@ async function discordIdForParticipant(eventId: number, playerId: number): Promi
 /** Cron pass: settle the month on every live ladder that asked for it. */
 export async function settleLadderMonths(): Promise<MonthlyResult[]> {
   // clan-scope: global -- one pass covers every clan's ladders; each event is handled on its own clanId.
-  const rows = await db.select().from(events).where(inArray(events.format, ['ladder']));
+  const rows = await db.select().from(events).where(and(inArray(events.format, ['ladder']), notPractice()));
   const out: MonthlyResult[] = [];
   for (const event of rows) {
     if (event.forceEndedAt) continue;

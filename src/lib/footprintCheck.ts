@@ -1,4 +1,5 @@
 // Runs the hiscores footprint checks (lib/footprint) over running boards and ones that just ended.
+import { notPractice } from '@/lib/practiceScope';
 import { primaryCredit } from '@/lib/comboSql';
 //
 // Costs no hiscores budget: it reads what the sweep already fetched — each account's last poll
@@ -41,6 +42,7 @@ export async function runFootprintChecks(nowMs = Date.now()): Promise<void> {
     .from(events)
     .where(and(
       eq(events.startNotified, 1),
+      notPractice(),
       or(isNull(events.endDate), gt(events.endDate, new Date(nowMs - AFTER_END_MS).toISOString())),
     ));
   for (const ev of live) {

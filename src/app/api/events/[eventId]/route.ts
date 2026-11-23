@@ -34,6 +34,7 @@ import { repriceStandardFees } from '@/lib/entryFee';
 import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
 import { PlanLimitError, roomPlanOfEvent } from '@/lib/creatorPlansDb';
 import { withHostEventSlot } from '@/lib/friendEvents';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export async function GET(
   request: Request,
@@ -104,6 +105,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   const { eventId } = await params;
@@ -791,6 +795,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import {
@@ -398,7 +399,8 @@ export async function buildLocker(
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .leftJoin(teams, eq(eventParticipants.teamId, teams.id))
-    .where(inArray(eventParticipants.clanMemberId, memberIds));
+    // Never a practice board (lib/practice): it is played, not part of anyone's history.
+    .where(and(inArray(eventParticipants.clanMemberId, memberIds), notPractice()));
 
   const isOver = (row: { eventForceEndedAt: string | null; eventEndDate: string | null }) =>
     !!row.eventForceEndedAt || (!!row.eventEndDate && row.eventEndDate < nowIso);
@@ -1003,7 +1005,7 @@ async function openSignupsFor(
   alreadyIn: Set<number> = new Set(),
 ): Promise<LockerSignup[]> {
   // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
-  const all = await db.select().from(events);
+  const all = await db.select().from(events).where(notPractice());
   const openWindows = all.filter((e) => {
     if (e.forceEndedAt) return false;
     if (!e.startDate) return false; // a draft the host is still building isn't public

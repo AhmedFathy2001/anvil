@@ -13,7 +13,8 @@
 import { and, eq, isNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventInvites, events, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventInvites, eventParticipants, events, users } from '@/db/schema';
+import { atLeast } from '@/lib/clanRoles';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { entryOf, visibilityOf } from '@/lib/eventVisibility';
@@ -35,6 +36,13 @@ export async function canSeeEvent(opts: {
   // clan-scope: global -- reads the very event being access-checked, by its own id; its clanId is the subject of the check below.
   const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
   if (!event) return false;
+
+  // A PRACTICE board (lib/practice) is seen by the people on it and the clan's admins, and by no one
+  // else — not the clan's other members, not a signed-out visitor, whatever the clan's setting says.
+  if (event.practice) {
+    if (opts.playerId == null) return false;
+    return (await practiceAdminIn(event.clanId, opts.playerId)) || (await personOnPracticeBoard(event.id, opts.playerId));
+  }
 
   const visibility = visibilityOf(event.visibility);
   if (visibility === 'public') return true;
@@ -164,6 +172,27 @@ export async function memberOfAcceptedCohostClan(eventId: number, playerId: numb
     )
     .limit(1);
   return row.length > 0;
+}
+
+/** An admin (or the owner) of this clan — who may manage its practice boards. */
+async function practiceAdminIn(clanId: number, playerId: number): Promise<boolean> {
+  const rows = await db
+    .select({ role: clanStaff.role })
+    .from(clanStaff)
+    .innerJoin(users, eq(users.id, clanStaff.userId))
+    .where(and(eq(clanStaff.clanId, clanId), eq(users.playerId, playerId)));
+  return rows.some((r) => atLeast(r.role, 'admin'));
+}
+
+/** Is one of this person's characters entered in this (practice) board? */
+async function personOnPracticeBoard(eventId: number, playerId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: eventParticipants.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .where(and(eq(eventParticipants.eventId, eventId), eq(accounts.playerId, playerId)))
+    .limit(1);
+  return !!row;
 }
 
 /** A staff grant in this clan, which is authority without necessarily a roster seat. */

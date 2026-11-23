@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { entrantChip, playsAsIndividuals } from '@/lib/competitionRows';
 import { db } from '@/db';
 import { eventIconUrl } from '@/lib/eventImage';
@@ -82,6 +83,7 @@ export async function countPastEvents(clanId: number, now: Date = new Date()): P
     .where(
       and(
         eq(events.clanId, clanId),
+        notPractice(),
         or(isNotNull(events.forceEndedAt), and(isNotNull(events.endDate), lt(events.endDate, nowIso))),
       ),
     );
@@ -111,7 +113,8 @@ export async function loadEventCards(
   const all = await db
     .select()
     .from(events)
-    .where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId))
+    // Never a practice board (lib/practice): it is on no events page, card or count.
+    .where(and(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId), notPractice()))
     .orderBy(desc(events.createdAt));
 
   // A draft has no start date and no forced end: the host is still building it, so it is not public.

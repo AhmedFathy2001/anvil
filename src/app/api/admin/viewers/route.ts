@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { NextResponse } from 'next/server';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 
@@ -36,7 +37,7 @@ export async function GET() {
       .where(and(eq(clanRoster.clanId, g.clan.id), eq(clanRoster.kind, 'guest'), isNull(clanRoster.leftAt)))
       .orderBy(asc(clanRoster.rsn)),
     // clan-scope: this clan -- its own events, to pick which one.
-    db.select({ id: events.id, name: events.name }).from(events).where(eq(events.clanId, g.clan.id)).orderBy(desc(events.id)).limit(100),
+    db.select({ id: events.id, name: events.name }).from(events).where(and(eq(events.clanId, g.clan.id), notPractice())).orderBy(desc(events.id)).limit(100),
   ]);
   return NextResponse.json({ events: byEvent, guests, clanEvents });
 }

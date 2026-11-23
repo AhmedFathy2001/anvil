@@ -53,6 +53,8 @@ export interface SettledAward {
  * caller can announce them exactly once.
  */
 export async function settleMissionAwards(event: EventRow, missionTiles?: TileRow[]): Promise<SettledAward[]> {
+  // A practice board (lib/practice) pays nothing: no coffer reserve, no unfunded award, no prize post.
+  if (event.practice) return [];
   // clan-scope: global -- takes an event row whose clan the caller has already settled.
   const all = missionTiles ?? (await db.select().from(tiles).where(eq(tiles.eventId, event.id)));
   // Only missions that promise money need any of this; a points-only ladder is settled the moment

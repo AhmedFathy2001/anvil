@@ -21,6 +21,7 @@
 //
 // Everything here is read-only and cheap; commands compose it and never re-derive it.
 
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { clanRoster, clans, eventCohosts, eventParticipants, events, settings, teams, users } from '@/db/schema';
 import { eq, and, isNull, inArray, or, ne, desc, ilike, asc } from 'drizzle-orm';
@@ -208,7 +209,8 @@ async function eventsVisibleTo(clanId: number): Promise<(typeof events.$inferSel
     .select({ id: eventCohosts.eventId })
     .from(eventCohosts)
     .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
-  return db.select().from(events).where(or(eq(events.clanId, clanId), inArray(events.id, cohosted)));
+  // Never a practice board (lib/practice): /bingo answers about the clan's real boards only.
+  return db.select().from(events).where(and(or(eq(events.clanId, clanId), inArray(events.id, cohosted)), notPractice()));
 }
 
 /**

@@ -15,6 +15,7 @@ import { setSetting } from '@/lib/settings';
 import { noteWebhookSave, refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 import { clanEventPool, eventWebhookCapacity, poolView } from '@/lib/webhookCapacity';
 import { MAX_RECOMMENDED_WEBHOOKS, webhookIdOf } from '@/lib/webhookPool';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * The webhook pool behind one event's posts (lib/webhookPool): several webhooks for the SAME channel,
@@ -37,6 +38,9 @@ const SAME_CHANNEL =
   'That webhook posts to a different channel. Extra webhooks have to be in the same channel as the first one: they share its posts, they don’t add a second channel.';
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const eventId = Number((await params).eventId);
   if (!Number.isInteger(eventId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

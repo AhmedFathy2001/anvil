@@ -5,6 +5,7 @@
 // Built PER CLAN, not once and copied: each server reads it in its own bot language, with links to
 // its own site (a co-host plays from home), under the same host-authored rulebook.
 
+import { isPracticeEvent, practiceHookFor } from '@/lib/practiceScope';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
 import { eventChannelUrls, upsertBingoWebhookReport, upsertCohostWebhook } from '@/lib/discord';
@@ -49,6 +50,10 @@ export async function postEventRules(
   // and the host's share allow.
   opts: { clanIds?: number[]; auto?: boolean } = {},
 ): Promise<RulesPostResult[]> {
+  // A PRACTICE board (lib/practice): its rules card goes to its test webhook and nowhere else — no
+  // co-hosts, no event channel, never the clan's bingo channel. No test hook, no post.
+  const practiceHook = (await isPracticeEvent(eventId)) ? await practiceHookFor(eventId) : undefined;
+  if (practiceHook === null) return [];
   const [clanDefaults, prefs] = await Promise.all([loadClanPostDefaults(hostClanId), readEventDiscordPrefs(eventId)]);
   const decided = decideHostPost('rules', clanDefaults, prefs);
   if (opts.auto && !decided.send) return [];
@@ -56,7 +61,7 @@ export async function postEventRules(
   const [facts, host, targets, eventRow] = await Promise.all([
     loadRulesFacts(eventId),
     clanContextById(hostClanId),
-    rulesPostTargets(eventId, hostClanId, opts.clanIds),
+    practiceHook ? Promise.resolve([hostClanId]) : rulesPostTargets(eventId, hostClanId, opts.clanIds),
     db.query.events.findFirst({
       // clan-scope: this clan -- the event must belong to the host the caller already resolved.
       where: and(eq(events.id, eventId), eq(events.clanId, hostClanId)),
@@ -90,7 +95,9 @@ export async function postEventRules(
           footer: contextLine(clan, event, undefined, t),
         });
         let delivery;
-        if (clanId === hostClanId) {
+        if (practiceHook) {
+          delivery = await upsertBingoWebhookReport(clanId, { embeds }, priorMessageIds[String(clanId)], [practiceHook]);
+        } else if (clanId === hostClanId) {
           delivery = await upsertBingoWebhookReport(clanId, { embeds }, priorMessageIds[String(clanId)], eventChannelUrls(prefs));
         } else {
           const partner = await readPartnerDiscordPrefs(eventId, clanId);

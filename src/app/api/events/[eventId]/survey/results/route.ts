@@ -5,6 +5,7 @@ import { surveyQuestions, surveyResponses, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { aggregateSurvey, toQuestionView, type SurveyAnswerMap } from '@/lib/survey';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Staff-only survey results: per-question aggregation plus attributed free-text answers. Attribution
 // (respondent name) never leaves this admin-gated endpoint.
@@ -12,6 +13,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);

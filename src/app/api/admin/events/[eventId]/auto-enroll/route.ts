@@ -10,6 +10,7 @@ import {
   listEligiblePluginMembers,
   type EnrollPlacement, withinAccountCap } from '@/lib/enroll';
 import { assertEventEditable } from '@/lib/eventLock';
+import { refusePractice } from '@/lib/practiceGuard';
 
 const PLACEMENTS: EnrollPlacement[] = ['one_team', 'draft_pool', 'individual'];
 
@@ -18,6 +19,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -47,6 +51,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

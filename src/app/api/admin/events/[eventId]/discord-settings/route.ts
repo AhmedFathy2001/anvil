@@ -20,6 +20,7 @@ import { noteWebhookSave } from '@/lib/sharedWebhooks';
 import { eventWebhookCapacity, poolView } from '@/lib/webhookCapacity';
 import { botCanManageWebhooks } from '@/lib/discord-permissions';
 import { getBotCredentials } from '@/lib/discord-roles';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * One event's Discord tab (lib/discordPostPolicy): which posts go out, who they ping, its own
@@ -84,6 +85,9 @@ async function view(eventId: number, clanId: number, eventName: string) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   return NextResponse.json(await view(s.eventId, s.clanId, s.eventName));
@@ -95,6 +99,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
  * { create: true } has the bot make a channel named for the event and sets that.
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   const body = (await request.json().catch(() => ({}))) as { prefs?: unknown; channel?: ChannelInput };

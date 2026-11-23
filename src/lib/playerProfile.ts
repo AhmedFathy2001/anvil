@@ -239,7 +239,10 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   // THIS CLAN'S EVENTS ONLY. This read every event on Anvil, so a member's rating here was built
   // from what they did in other clans' boards — play this clan's staff were never shown and have no
   // business scoring. `priorRows` and the facts below hang off this list, so scoping it scopes them.
-  const allEvents = await db.select({ id: events.id, startDate: events.startDate }).from(events).where(eq(events.clanId, clanId));
+  // …and never a practice board (lib/practice): nothing done there rates anyone.
+  const allEvents = (
+    await db.select({ id: events.id, startDate: events.startDate, practice: events.practice }).from(events).where(eq(events.clanId, clanId))
+  ).filter((e) => !e.practice);
   const priorEventIds = allEvents
     .filter((e) => e.startDate && e.startDate < referenceIso && e.id !== opts.eventId)
     .map((e) => e.id);

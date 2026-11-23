@@ -1,5 +1,6 @@
 import { withItemVariants } from '@/lib/itemVariants';
 import { dropHiddenEase, easeVisibleFor, loadEaseContext } from '@/lib/raceEaseDb';
+import { prefixPracticeLabels } from '@/lib/pluginBoardTiles';
 import { raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
 import { eventRaceOpts, loadRacePicks } from '@/lib/raceRoutePicks';
@@ -1084,6 +1085,9 @@ export async function buildEnrolledConfig(args: {
       startDate: event.startDate,
       endDate: event.endDate,
       forceEndedAt: event.forceEndedAt ?? null,
+      // A PRACTICE board (lib/practice): a clan admin's test board that counts for nothing. The plugin
+      // prefixes its popups and chat lines with "[Practice]" off this. Absent on every real board.
+      ...(event.practice ? { practice: true } : {}),
       // The plugin's Anvil tab opens the matching view (grid / points accordion / tile race / ladder)
       // for the player's own active event straight from these two fields.
       format: event.format,
@@ -1622,6 +1626,9 @@ export async function buildEnrolledConfig(args: {
     const row = rows.find((r) => r.tileId === c.tileId);
     if (row) (c as { percent?: number }).percent = Math.round((row.current / Math.max(1, row.goal)) * 100);
   }
+  // A practice board's popups and chat lines say "[Practice]" — also when it is the active board,
+  // whose rows go untagged (lib/pluginBoardTiles). After the panel rows: those keep the plain names.
+  if (event.practice) prefixPracticeLabels(body as unknown as Record<string, unknown>);
   return {
     ok: true as const,
     body: {

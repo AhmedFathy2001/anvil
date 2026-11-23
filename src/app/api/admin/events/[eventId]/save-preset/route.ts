@@ -9,6 +9,7 @@ import { verifyUser } from '@/lib/auth';
 import { TILE_CSV_COLUMNS, tileToCsvCells } from '@/lib/csvTiles';
 import type { Tile } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Save an existing event as a reusable template. Captures the event's shape (format / scoring /
 // size) plus its tiles serialized to the canonical tile CSV, so re-applying the preset runs the
@@ -29,6 +30,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });

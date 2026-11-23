@@ -1900,7 +1900,9 @@ export function pluginRsnHintOnly(request: Request): boolean {
  */
 export async function pluginParticipantScope(
   member: { clanMemberId: number; accountId: number; clanId: number },
-  opts: { lab?: boolean } = {},
+  // `lab: false` leaves tile-lab boards out, `practice: false` practice boards (lib/practice): the
+  // routes that stamp ONE board on something real (a moment, a milestone) must never pick either.
+  opts: { lab?: boolean; practice?: boolean } = {},
 ): Promise<SQL> {
   const [cohosted, ownSeats] = await Promise.all([
     db
@@ -1931,6 +1933,7 @@ export async function pluginParticipantScope(
     cohostedIds.length > 0
       ? or(eq(events.clanId, member.clanId), inArray(events.id, cohostedIds))
       : eq(events.clanId, member.clanId),
+    opts.practice === false ? eq(events.practice, false) : undefined,
   )!;
   // A tile-lab board this character is entered in (lib/lab). Its row carries the account and no
   // seat, so the seat rule above can never reach it.
@@ -2203,6 +2206,8 @@ export async function verifyPluginToken(
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
+      // A real board wins the pick over a practice one (lib/pluginEventPick).
+      practice: events.practice,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))

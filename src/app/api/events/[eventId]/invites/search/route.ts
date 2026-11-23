@@ -6,6 +6,7 @@ import { accounts, eventInvites } from '@/db/schema';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * Find one person by RSN, so a host can invite them by name.
@@ -23,6 +24,9 @@ import { eventForRequest } from '@/lib/eventScope';
  * about a name, not a person, and inviting one would invite whoever eventually proves it.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });

@@ -248,7 +248,7 @@ export async function POST(request: Request) {
   await recordHuntReports(member, clan.id, observations, new Date(now), mode?.key ?? null).catch((err) => log.warn('hunt.record-failed', { clanId: clan.id }, err));
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
-  const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));
+  const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false, practice: false }));
   // A fallen character's death is the clan's news, never a death on a main-game board or week.
   const scopes = fallen ? { ...found, weeklies: [], event: null, boards: [] } : found;
   // Nothing running still keeps the clan's achievements (momentsStore recordSeatMoments); `scoped:

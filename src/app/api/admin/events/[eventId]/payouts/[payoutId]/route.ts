@@ -6,12 +6,16 @@ import { and, eq } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { del } from '@/lib/storage';
 import { MAX_PAYOUT_GP } from '@/lib/payouts';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // PATCH — edit an editable field on a payout row (amount, recipient name, notes).
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -69,6 +73,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.

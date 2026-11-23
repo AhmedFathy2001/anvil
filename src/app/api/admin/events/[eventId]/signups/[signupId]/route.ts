@@ -20,6 +20,7 @@ import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { SignupChangedError, withHostEventRoom } from '@/lib/friendEvents';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -42,6 +43,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; signupId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const session = await verifyUser();
   if (!session) return NextResponse.json({ error: 'Admin only' }, { status: 401 });

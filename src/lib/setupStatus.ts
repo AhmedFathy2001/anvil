@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
 import { accounts, clanKickChannels, clanTwitchChannels, clanYoutubeChannels, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users } from '@/db/schema';
@@ -107,12 +108,13 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // four steps already ticked and the wizard's Done screen congratulating it. Tiles reach their clan
   // through their event; there is no tiles.clan_id to filter on.
   const [[ec], [tc], [mc], pluginRows, [firstEvent]] = await Promise.all([
-    db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
+    // A practice board (lib/practice) is not the clan's first event.
+    db.select({ c: count() }).from(events).where(and(eq(events.clanId, clanId), notPractice())),
     db
       .select({ c: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clanId), writtenTile, isNull(tiles.parentTileId))),
+      .where(and(eq(events.clanId, clanId), notPractice(), writtenTile, isNull(tiles.parentTileId))),
     // Live member seats — guests from other clans don't make a roster.
     db
       .select({ c: count() })
@@ -127,7 +129,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       .innerJoin(accounts, eq(accounts.playerId, users.playerId))
       .where(and(eq(clanStaff.clanId, clanId), isNotNull(accounts.liveStatsAt)))
       .limit(1),
-    db.select({ id: events.id }).from(events).where(eq(events.clanId, clanId)).orderBy(asc(events.id)).limit(1),
+    db.select({ id: events.id }).from(events).where(and(eq(events.clanId, clanId), notPractice())).orderBy(asc(events.id)).limit(1),
   ]);
   const pluginSeen = pluginRows.length > 0;
   const eventsCount = ec?.c ?? 0;
@@ -240,7 +242,7 @@ async function creatorSetupStatus(clanId: number, map: Map<string, string | null
     .where(eq(clanStaff.clanId, clanId));
   const staffIds = staffAccounts.map((r) => r.id);
   const [[ec], [sc], [tw], [ki], [yt]] = await Promise.all([
-    db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
+    db.select({ c: count() }).from(events).where(and(eq(events.clanId, clanId), notPractice())),
     db
       .select({ c: count() })
       .from(eventSignups)

@@ -20,6 +20,7 @@ import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
 import { log } from '@/lib/logger';
 // The lab and friends hosts (lib/friendEventRules) never post: lib/friendEventsSql isHiddenHost.
 import { isHiddenHost } from '@/lib/friendEventsSql';
+import { isPracticeEvent, practiceHookFor } from '@/lib/practiceScope';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
@@ -700,6 +701,10 @@ export async function sendEventBingoWebhook(
   hostClanId = host;
   // A tile-lab board announces nothing, anywhere — not to co-hosts, not to its extra hooks (lib/lab).
   if (await isHiddenHost(hostClanId)) return false;
+  // A PRACTICE board (lib/practice) posts to its own test webhook and nowhere else: never the clan's
+  // channels, its co-hosts, extra hooks or team hooks, and never a ping — whatever the board it was
+  // copied from named. No test hook, no post.
+  if (await isPracticeEvent(eventId)) return sendPracticePost(eventId, hostClanId, payload, opts.post);
 
   const [clanDefaults, prefs] = await Promise.all([loadClanPostDefaults(hostClanId), loadEventDiscordPrefs(eventId)]);
   const hostDecision = decideHostPost(opts.post, clanDefaults, prefs);
@@ -786,6 +791,20 @@ export async function sendEventBingoWebhook(
   return hostSend;
 }
 
+/**
+ * A practice board's post (lib/practice): to its test webhook only, as the clan's defaults would word
+ * it, with every mention stripped. Returns false when it has no hook or the clan turned the kind off.
+ */
+async function sendPracticePost(eventId: number, clanId: number, payload: DiscordWebhookPayload, post: DiscordPostType): Promise<boolean> {
+  const hook = await practiceHookFor(eventId).catch(() => null);
+  if (!hook) return false;
+  if (!clanDefault(post, await loadClanPostDefaults(clanId)).send) return false;
+  const { content: _content, allowed_mentions: _mentions, ...rest } = payload;
+  void _content;
+  void _mentions;
+  return sendToWebhook(hook, { ...rest, allowed_mentions: { parse: [] } }, clanId);
+}
+
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'weekly')) return false;
@@ -841,6 +860,8 @@ interface SignupApprovedNotifyParams {
 // Posted when an admin approves a sign-up. Pings the approved member and nudges them to pay the
 // entry fee so approvals convert into paid, committed seats. Fire-and-forget from the approve action.
 export async function notifySignupApproved(params: SignupApprovedNotifyParams): Promise<boolean> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return false;
   const { eventId, eventName, displayName, discordId, rsn, feeAmount, feeAlreadyPaid } = params;
   if (!(await eventPostDecision(params.clanId, eventId, 'signupApproved')).send) return false;
   const base = siteBaseUrl();
@@ -1415,6 +1436,8 @@ export interface BoardRevealedNotifyParams {
 
 /** Whole-board reveal, distinct from the live reveal engine's per-tile/mission announcements. */
 export async function notifyBoardRevealed(params: BoardRevealedNotifyParams): Promise<boolean> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return false;
   const boardUrl = eventLeaderboardUrl(params.eventId);
   const base = siteBaseUrl();
   const imageUrl = base
@@ -1545,6 +1568,8 @@ function monthName(key: string): string {
  * that says nothing about roles at all.
  */
 export async function notifyMonthlyChampion(params: MonthlyChampionNotifyParams): Promise<boolean> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return false;
   const { eventName, month, rsn, points, tasks, runnersUp, roleGranted, eventId } = params;
   const fields: DiscordEmbedField[] = [statField('Points', points), statField('Tasks', tasks)];
   if (runnersUp.length > 0) {
@@ -1616,6 +1641,8 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
 export async function notifyDraftCompleteForClan(
   params: DraftCompleteNotifyParams & { cohost: boolean },
 ): Promise<boolean> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return false;
   const payload = draftCompletePayload(params);
   // A manual re-send from the admin: posts whatever the event's switches say.
   if (!params.cohost) return sendBingoWebhook(params.clanId, payload);
@@ -1793,6 +1820,8 @@ interface EventStartHeldNotifyParams {
 // away, and it tells members why the countdown is stalling. No member ping: it's a heads-up, not a
 // celebration.
 export async function notifyEventStartHeld(params: EventStartHeldNotifyParams): Promise<boolean> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return false;
   const { eventName, scheduledStart, blockers } = params;
 
   const embed: DiscordEmbed = {
@@ -1890,6 +1919,8 @@ export async function notifyFinalHour(
   params: FinalHourNotifyParams,
   rolesByClan: Map<number, string[]>,
 ): Promise<{ clanId: number; status: 'sent' | 'skipped' | 'failed' }[]> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return [];
   const embed = await withClanCrest(params.clanId, finalHourEmbed(params), params.eventId);
   const payloadFor = (clanId: number): DiscordWebhookPayload => {
     const roles = rolesByClan.get(clanId) ?? [];
@@ -2090,6 +2121,8 @@ export async function notifyEventStatsPost(params: EventStatsPostParams): Promis
 // automatically when the last pending payout is marked paid, and re-runnable from the admin
 // "Announce" button. Mirrors notifyEventEnd's medal styling.
 export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean> {
+  // A practice board (lib/practice) posts only through sendEventBingoWebhook, to its test hook.
+  if (await isPracticeEvent(params.eventId)) return false;
   const { eventId, eventName, totalPaid, recipients } = params;
 
   // Order by place (nulls/manual last), then by amount desc within a place.

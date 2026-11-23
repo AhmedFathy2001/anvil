@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { eventHourSnapshots, events } from '@/db/schema';
 import { and, desc, eq } from 'drizzle-orm';
@@ -16,7 +17,7 @@ export async function runHourlySnapshots(nowMs = Date.now()): Promise<void> {
   const running = await db
     .select()
     .from(events)
-    .where(and(eq(events.startNotified, 1), eq(events.endNotified, 0)));
+    .where(and(eq(events.startNotified, 1), eq(events.endNotified, 0), notPractice()));
   for (const event of running) {
     if (event.forceEndedAt) continue;
     try {

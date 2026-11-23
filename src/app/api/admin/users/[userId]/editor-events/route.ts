@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { NextResponse } from 'next/server';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
@@ -55,7 +56,7 @@ export async function GET(
         createdAt: events.createdAt,
       })
       .from(events)
-      .where(eq(events.clanId, clan.id))
+      .where(and(eq(events.clanId, clan.id), notPractice()))
       .orderBy(desc(events.createdAt)),
   ]);
 
@@ -114,7 +115,7 @@ export async function PUT(
     ? await db
         .select({ id: events.id })
         .from(events)
-        .where(and(inArray(events.id, requested), eq(events.clanId, clan.id)))
+        .where(and(inArray(events.id, requested), eq(events.clanId, clan.id), notPractice()))
     : [];
   const validIds = new Set(existing.map((e) => e.id));
   const eventIds = requested.filter((id) => validIds.has(id));

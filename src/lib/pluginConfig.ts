@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { parseWeeklyPrizes } from '@/lib/weeklyPrizes';
 import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
@@ -221,7 +222,8 @@ export async function buildSchedule(
       ).map((r) => r.eventId);
       const [allEvents, allWeeklies] = await Promise.all([
         // clan-scope: this clan -- its own events, plus the ones it holds an accepted co-host seat on.
-        db.select().from(events).where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId)),
+        // Never a practice board (lib/practice): the plugin hears of it as a board, not in the schedule.
+        db.select().from(events).where(and(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId), notPractice())),
         // clan-scope: this clan -- its own weeklies, plus clan-vs-clan ones it accepted an invite into.
         db
           .select()

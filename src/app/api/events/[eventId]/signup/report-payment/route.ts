@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { clanStaff, eventSignups, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Returns the list of staff who can collect fees, plus the authenticated user's
 // own existing payment report (if any) so the form can pre-populate.
@@ -16,6 +17,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -58,6 +62,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

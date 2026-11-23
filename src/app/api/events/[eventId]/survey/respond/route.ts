@@ -6,6 +6,7 @@ import { events, eventSignups, surveyQuestions, surveyResponses } from '@/db/sch
 import { and, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { isEventEnded, toQuestionView, validateAnswers } from '@/lib/survey';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // A participant submits (or updates) their survey response. Gated: must be logged in, hold an approved
 // sign-up for this event, and the event must have ended. One response per user (upserted).
@@ -13,6 +14,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 

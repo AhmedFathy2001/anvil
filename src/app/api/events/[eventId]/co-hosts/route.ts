@@ -14,6 +14,7 @@ import { clanCan, minPlanNameFor } from '@/lib/entitlements';
 import { creatorCan, creatorMinPlanNameFor } from '@/lib/creatorCatalog';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { withPlanInForce } from '@/lib/planTrials';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 export type CashPolicy = (typeof CASH_POLICIES)[number];
@@ -25,6 +26,9 @@ export type CashPolicy = (typeof CASH_POLICIES)[number];
  * the event to the clan whose site this is, so an admin of one clan can't co-host another's event.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const eventId = Number((await params).eventId);
   const event = await eventForRequest(request, eventId);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -44,6 +48,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
  * co-host's staff may author the board (`cohostId` + `staffCanEditBoard`).
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   // A creator space has no co-hosts to configure (lib/creatorSpaces).
@@ -82,6 +89,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 

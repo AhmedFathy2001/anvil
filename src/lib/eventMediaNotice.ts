@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanStaff, clans, events, users } from '@/db/schema';
@@ -54,6 +55,8 @@ export async function eventsNeedingNotice(now: Date, limit = 20): Promise<(Row &
       and(
         isNull(events.mediaPurgedAt),
         isNull(events.mediaPurgeFinalNoticeAt),
+        // A practice board (lib/practice) is deleted a week after it ends: nothing to warn anyone of.
+        notPractice(),
         or(isNotNull(events.endDate), isNotNull(events.forceEndedAt)),
       ),
     );

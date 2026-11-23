@@ -1,6 +1,7 @@
+import { notPractice } from '@/lib/practiceScope';
 import { NextResponse } from 'next/server';
 import { MAX_ACCOUNTS_CAP, validAccountLimit } from '@/lib/accountCap';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
@@ -25,7 +26,8 @@ export async function GET() {
   const allEvents = await db
     .select()
     .from(events)
-    .where(eq(events.clanId, clan.id))
+    // Never a practice board (lib/practice).
+    .where(and(eq(events.clanId, clan.id), notPractice()))
     .orderBy(desc(events.createdAt));
   // A friends event's invite link is the only key to it (lib/friendEvents): never in a list.
   return NextResponse.json(allEvents.map(({ inviteToken: _token, ...e }) => e));

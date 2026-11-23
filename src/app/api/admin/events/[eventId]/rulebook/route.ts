@@ -10,6 +10,7 @@ import { en } from '@/lib/discordI18n';
 import { parseEventRules } from '@/lib/eventRules';
 import { loadRulesFacts, rulebookForEvent } from '@/lib/eventRulebook';
 import { defaultRulesMessage } from '@/lib/rulesMechanics';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /** Longer than any Discord embed will show — the rest is what the "full rules" link is for. */
 const MAX_RULEBOOK = 20_000;
@@ -24,6 +25,9 @@ const MAX_RULES_MESSAGE = 3_500;
  * flag is merged into the STORED rules JSON, so no other default gets materialised.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const id = Number((await params).eventId);
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const row = await requireEventForPage(id);
@@ -46,6 +50,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const id = Number((await params).eventId);
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const event = await requireEventForPage(id);

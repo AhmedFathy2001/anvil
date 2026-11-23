@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import type { BillingInterval } from '@/lib/billingInterval';
 
@@ -50,7 +51,7 @@ export default async function CreatorDashboard({
     db
       .select({ id: events.id, name: events.name, startDate: events.startDate })
       .from(events)
-      .where(eq(events.clanId, clanId))
+      .where(and(eq(events.clanId, clanId), notPractice()))
       .orderBy(desc(events.id))
       .limit(20),
     creatorPlayers(clanId),

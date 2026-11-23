@@ -19,6 +19,7 @@ import {
 } from '@/lib/discord-teams';
 import { cohostsForEvent, isAcceptedCohost } from '@/lib/coHost';
 import { requestCohostDiscordSetup } from '@/lib/cohostDiscordSetup';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // GET — current provisioning state for the admin Teams tab: whether the feature is
 // configured, and which teams already have a role + channels.
@@ -26,6 +27,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -94,6 +98,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

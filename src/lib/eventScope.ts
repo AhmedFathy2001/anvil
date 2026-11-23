@@ -24,6 +24,7 @@ import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { isStandingsStaff, viewerTeamIds } from '@/lib/standingsAccess';
 import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import { provenPath } from '@/lib/requestHeaderProof';
+import { clanHref } from '@/lib/clanPath';
 
 export type ScopedEvent = typeof events.$inferSelect;
 
@@ -258,6 +259,12 @@ export async function requireEventForParticipantPage(
 
   const session = await verifyUser();
   if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
+  // A practice board (lib/practice) has one page of its own, for the people on it and the admins
+  // (canSeeEvent above already turned everyone else away). Never at a co-host's address: it has none.
+  if (event.practice) {
+    if (apiPrefix) notFound();
+    redirect(await clanHref(`/events/practice/${event.id}`));
+  }
 
   return { event, apiPrefix };
 }

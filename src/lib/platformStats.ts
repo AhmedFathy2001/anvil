@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { and, ne, count, eq, gt, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -62,7 +63,7 @@ async function loadPlatformStats(): Promise<PlatformStats> {
       .from(clanMemberships)
       .where(and(isNull(clanMemberships.leftAt), eq(clanMemberships.kind, 'member'))),
     db.select({ n: count() }).from(accounts),
-    db.select({ n: count() }).from(events),
+    db.select({ n: count() }).from(events).where(notPractice()),
     db
       .select({ n: sql<number>`coalesce(sum(${memberDailyStats.xpGained}), 0)` })
       .from(memberDailyStats)
@@ -72,6 +73,7 @@ async function loadPlatformStats(): Promise<PlatformStats> {
       .from(events)
       .where(
         and(
+          notPractice(),
           isNull(events.forceEndedAt),
           sql`${events.startDate} is not null and ${events.startDate} <= ${nowIso}`,
           or(isNull(events.endDate), gt(events.endDate, nowIso)),

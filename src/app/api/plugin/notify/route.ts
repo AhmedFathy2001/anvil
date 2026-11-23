@@ -282,7 +282,7 @@ export async function POST(request: Request) {
     if (milestone && member) {
       try {
         // Every live board they're drafted onto too, co-hosted and clan-v-clan included (lab boards aside).
-        const boards = await liveBoardRows(member.clanMemberId, new Date(), await pluginParticipantScope(member, { lab: false }));
+        const boards = await liveBoardRows(member.clanMemberId, new Date(), await pluginParticipantScope(member, { lab: false, practice: false }));
         const stored = await recordMilestoneMoment(member, milestone, boards);
         if (stored.clan.length) await emitMomentRows(member.clanId, 'member', stored.clan);
         // The board copies go to the boards' lists only: 'guest' skips the clan push, which has its own copy.

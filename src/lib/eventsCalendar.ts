@@ -1,3 +1,4 @@
+import { notPractice } from '@/lib/practiceScope';
 import { db } from '@/db';
 import { eventCohosts, events, weeklyCompetitions } from '@/db/schema';
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
@@ -82,6 +83,7 @@ export async function loadCalendar(
       .where(
         and(
           cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId),
+          notPractice(),
           // A draft has no start date: it isn't scheduled, so it isn't on a calendar.
           isNotNull(events.startDate),
           lte(events.startDate, to),

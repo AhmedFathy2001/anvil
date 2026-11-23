@@ -12,6 +12,8 @@ export function pickActivePluginEvent<
     startDate: string | null;
     endDate: string | null;
     forceEndedAt: string | null;
+    /** A practice board (lib/practice): only the pick when no real board is live. */
+    practice?: boolean | null;
   },
 >(rows: T[], nowIso: string = new Date().toISOString()): T | null {
   const nowMs = Date.parse(nowIso);
@@ -32,8 +34,14 @@ export function pickActivePluginEvent<
 
   // A member can be in more than one running event. The freshest start wins; the event id makes an
   // exact timestamp tie deterministic instead of relying on database row order.
+  // A REAL board beats a practice one whatever their starts (lib/practice): a practice board is fresh
+  // by nature and would otherwise win, taking the active board — and every older plugin's credit —
+  // off the real event running beside it. It is still credited as one of the character's boards.
   active.sort(
-    (a, b) => Date.parse(b.startDate!) - Date.parse(a.startDate!) || b.eventId - a.eventId,
+    (a, b) =>
+      Number(a.practice === true) - Number(b.practice === true) ||
+      Date.parse(b.startDate!) - Date.parse(a.startDate!) ||
+      b.eventId - a.eventId,
   );
   return active[0] ?? null;
 }

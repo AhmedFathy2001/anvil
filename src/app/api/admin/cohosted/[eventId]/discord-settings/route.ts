@@ -10,6 +10,7 @@ import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { getSetting } from '@/lib/settings';
 import { readEventDiscordPrefs, readPartnerDiscordPrefs, savePartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { noteWebhookSave } from '@/lib/sharedWebhooks';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * A co-host clan's side of a board's Discord (lib/discordPostPolicy decidePartnerPost): what its own
@@ -52,12 +53,18 @@ async function view(eventId: number, clanId: number) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   return NextResponse.json(await view(s.eventId, s.clanId));
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   // Co-hosting is between in-game clans; a creator space is never one (lib/coHost coHostKindRefusal).
   const refused = await refuseForCreatorSpace();
   if (refused) return refused;

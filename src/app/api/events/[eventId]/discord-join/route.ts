@@ -3,6 +3,7 @@ import { verifyUser } from '@/lib/auth';
 import { eventForRequest } from '@/lib/eventScope';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { playerInvite, playerJoinView, playerSettle } from '@/lib/eventDiscord';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * The signed-in player's own way into their event's Discord server (lib/eventDiscord).
@@ -21,6 +22,9 @@ async function authorize(request: Request, params: Promise<{ eventId: string }>)
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const auth = await authorize(request, params);
   if (!auth) return NextResponse.json({ error: 'Sign in to see your event server.' }, { status: 401 });
   return NextResponse.json(await playerJoinView(auth.id, auth.userId));
@@ -30,6 +34,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 //   invite — a single-use 24h invite to the event server, for this player only
 //   check  — "I've joined" / "add me": assign the team role now, or auto-join with a stored grant
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const auth = await authorize(request, params);
   if (!auth) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   const rl = await rateLimitByKey('event-discord-join', `${auth.userId}:${auth.id}`, { limit: 12, windowMs: 60_000 });
