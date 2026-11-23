@@ -29,15 +29,21 @@ if (!res.ok) throw new Error(`names.json HTTP ${res.status}`);
 const names = await res.json();
 
 const groups = new Map();
+const spellings = new Map();
 for (const [id, name] of Object.entries(names)) {
   if (typeof name !== 'string' || !name.trim() || name.trim().toLowerCase() === 'null') continue;
   const key = baseName(name);
   const list = groups.get(key) ?? [];
   list.push(Number(id));
   groups.set(key, list);
+  spellings.set(key, (spellings.get(key) ?? new Set()).add(name.trim().toLowerCase()));
 }
-const out = [...groups.values()].filter((g) => g.length > 1).map((g) => g.sort((a, b) => a - b)).sort((a, b) => a[0] - b[0]);
+const keys = [...groups.keys()].filter((k) => groups.get(k).length > 1).sort((a, b) => Math.min(...groups.get(a)) - Math.min(...groups.get(b)));
+const out = keys.map((k) => groups.get(k).sort((a, b) => a - b));
+// Groups that join differently named forms (charged and uncharged), not just an item's noted and
+// placeholder copies: the editor says "any version counts" only for these.
+const forms = keys.flatMap((k, i) => (spellings.get(k).size > 1 ? [i] : []));
 if (out.length < 1000) throw new Error(`only ${out.length} groups — refusing to overwrite`);
 
-writeFileSync(OUT_PATH, JSON.stringify({ source: NAMES_URL, generatedAt: new Date().toISOString(), groups: out }) + '\n');
+writeFileSync(OUT_PATH, JSON.stringify({ source: NAMES_URL, generatedAt: new Date().toISOString(), forms, groups: out }) + '\n');
 console.log(`wrote ${out.length} variant groups to ${OUT_PATH}`);

@@ -35,7 +35,7 @@ const rec = (k: string, p: number): FlairRecord => ({ k, p });
 
 test('a diff sets new and changed looks, drops names gone ineligible, and records owner-only moves silently', () => {
   const state: FlairState = new Map([['alpha', rec(GOLD, 1)], ['bravo', rec(GOLD, 2)], ['charlie', rec(GOLD, 3)]]);
-  // alpha upgraded, bravo unshared (absent from fresh), charlie merged into person 9, delta new.
+  // alpha upgraded, bravo unverified (absent from fresh), charlie merged into person 9, delta new.
   const fresh = new Map([['alpha', rec(PATRON, 1)], ['charlie', rec(GOLD, 9)], ['delta', rec(GOLD, 4)]]);
   const d = diffFlair(state, fresh, ['alpha', 'bravo', 'charlie', 'delta', 'echo']);
   assert.deepEqual([...d.set.keys()].sort(), ['alpha', 'delta']);

@@ -131,8 +131,8 @@ export default function DraftControlPanel({
 
       {data.unrated && (
         <p className="text-xs text-yellow-200/90 border border-yellow-500/30 bg-yellow-500/10 rounded-lg px-3 py-2">
-          Nobody in this pool has an enrollment snapshot, so every rating is identical — the bars and
-          tiers below mean nothing yet.
+          Nobody in this pool has an enrollment snapshot, so every rating is identical — the bars
+          below mean nothing yet.
         </p>
       )}
 
@@ -145,14 +145,13 @@ export default function DraftControlPanel({
           </span>
         </div>
 
-        <div className="grid grid-cols-[110px_minmax(0,1fr)_56px] sm:grid-cols-[130px_minmax(0,1fr)_72px_56px] gap-2.5 px-2.5 mb-1 font-mono text-[10px] text-text-muted">
+        <div className="grid grid-cols-[110px_minmax(0,1fr)_56px] sm:grid-cols-[130px_minmax(0,1fr)_56px] gap-2.5 px-2.5 mb-1 font-mono text-[10px] text-text-muted">
           <span />
           <span className="flex justify-between">
             <span>&minus;{axis}%</span>
             <span>average roster</span>
             <span>+{axis}%</span>
           </span>
-          <span className="hidden sm:block">tiers</span>
           <span className="text-right">vs avg</span>
         </div>
 
@@ -275,11 +274,11 @@ export default function DraftControlPanel({
         <div className="flex gap-2 flex-wrap">
           {[
             { mode: 'off', label: 'Off', hint: 'No steering.' },
-            { mode: 'tiered-snake', label: 'Tier coverage', hint: 'No second S or A while another team has none.' },
+            { mode: 'tiered-snake', label: 'Top-pick coverage', hint: 'No second top pick while another team has none.' },
             {
               mode: 'spread-cap',
               label: `Cap the spread at ${data.balanceSpreadCapPct}%`,
-              hint: 'A captain may only take someone who keeps their team within the cap of the average roster, measured per pick so picking first in a round is not penalised. A team already past it may only take from the lowest-rated left.',
+              hint: 'A captain may only take someone who keeps their team within the cap of the average roster, measured per pick so picking first in a round is not penalised. A team already past it may only take from the weakest left.',
             },
             { mode: 'dynamic-order', label: 'Weakest picks next', hint: 'Reorders turns instead of filtering.' },
           ].map((m) => (
@@ -365,10 +364,9 @@ export default function DraftControlPanel({
             {data.picks.map((p) => (
               <div
                 key={p.pickNumber}
-                className="grid grid-cols-[34px_20px_minmax(0,1fr)_auto] gap-2.5 items-center py-1.5 text-[12.5px] border-b border-card-border/50 last:border-b-0"
+                className="grid grid-cols-[34px_minmax(0,1fr)_auto] gap-2.5 items-center py-1.5 text-[12.5px] border-b border-card-border/50 last:border-b-0"
               >
                 <span className="font-mono text-[11px] text-text-muted">{p.pickNumber + 1}</span>
-                <span className="font-mono text-[10px] text-text-muted">{p.tier ?? '—'}</span>
                 <span className="truncate">
                   <b>{p.rsn}</b>
                   <span className="text-text-muted"> → {p.teamName ?? 'a team'}</span>
@@ -419,7 +417,7 @@ function TeamRow({
 
   return (
     <div className={`rounded-lg border ${onTheClock ? 'border-gold/40' : 'border-card-border'} bg-brown-dark/40`}>
-      <div className="grid grid-cols-[110px_minmax(0,1fr)_56px] sm:grid-cols-[130px_minmax(0,1fr)_72px_56px] gap-2.5 items-center px-2.5 py-2">
+      <div className="grid grid-cols-[110px_minmax(0,1fr)_56px] sm:grid-cols-[130px_minmax(0,1fr)_56px] gap-2.5 items-center px-2.5 py-2">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -439,20 +437,6 @@ function TeamRow({
                 : { right: '50%', width: `${width * 100}%` }
             }
           />
-        </div>
-
-        <div className="hidden sm:flex gap-1">
-          {(['S', 'A', 'B', 'C'] as const).map((t) => (
-            <span
-              key={t}
-              className={`font-mono text-[10px] rounded px-1 border ${
-                team.tiers[t] > 0 ? 'text-foreground border-gold-dark' : 'text-text-muted border-card-border'
-              }`}
-            >
-              {t}
-              {team.tiers[t]}
-            </span>
-          ))}
         </div>
 
         <span
@@ -491,7 +475,6 @@ function TeamRow({
                   movingKey === p.personKey ? 'border-gold/50 bg-gold/10' : 'border-card-border bg-card-bg'
                 }`}
               >
-                <span className="font-mono text-[10px] text-text-muted w-3">{p.tier ?? '—'}</span>
                 <span className="truncate">{p.rsn}</span>
                 {p.pickNumber != null && (
                   <span className="font-mono text-[10px] text-text-muted">#{p.pickNumber + 1}</span>

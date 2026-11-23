@@ -29,10 +29,7 @@ export const dynamic = 'force-dynamic';
  * a clan to be third in), competition history, and the persona card. And nothing from Discord — this
  * page is public, and a character's owner is named only when they published the link themselves.
  *
- * Only shown when the account is shared. The apex holds no seat for anyone, so the visibility rule —
- * seat in the clan, or shared — leaves only the second half here. A page saying "this exists but you
- * may not see it" would disclose the very thing being withheld, so an unshared character is a 404,
- * indistinguishable from one that does not exist.
+ * A platform-banned owner's character is a 404, indistinguishable from one that does not exist.
  */
 
 /**
@@ -64,13 +61,12 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   const title = `${c.rsn} — Anvil`;
   const origin = configuredOrigin();
   const url = origin ? `${origin}/p/${encodeURIComponent(c.rsn)}` : undefined;
-  // Drawn as a stranger sees it: an unshared character's card is the plain Anvil one.
+  // Drawn as a stranger sees it.
   const image = `/api/og/player/${encodeURIComponent(c.rsn)}`;
 
   return {
     title,
     description,
-    ...(c.privateToViewer ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title,
       description,

@@ -34,7 +34,7 @@ async function person(name: string) {
   return { playerId: p.id, userId: u.id };
 }
 async function character(playerId: number, rsn: string) {
-  const [a] = await db.insert(s.accounts).values({ playerId, rsn, rsnNormalized: rsn.toLowerCase(), shared: true }).returning();
+  const [a] = await db.insert(s.accounts).values({ playerId, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
   return a.id;
 }
 async function seat(clanId: number, accountId: number, kind: 'member' | 'guest', joinedDaysAgo: number) {

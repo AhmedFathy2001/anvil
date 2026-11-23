@@ -41,6 +41,8 @@ interface EffortWire {
   eliteShare: number;
   /** Face points vs what the board is realistically worth (each tile × its chance in the event). */
   boardPoints?: { face: number; expected: number; lotteryFace: number };
+  /** Whose abilities the skill premium was read from (lib/capabilityPool). */
+  pricedFor?: { source: 'pool' | 'clan' | 'baseline'; population: number };
   checks: BalanceCheck[];
   revision: string;
 }
@@ -368,6 +370,21 @@ export default function EffortTable({
           Points vs effort{median != null && <> · board median {median.toFixed(1)} adj. pts/h</>}
           {pointsMode && report.suggestionBudget > 0 && <> · {report.suggestionBudget.toLocaleString()} pts redistributed</>}
         </p>
+        {report.pricedFor && (
+          <p
+            className="w-full text-[11px] text-text-muted"
+            title="Hard tiles pay more when fewer of the people playing can do them. Before anyone signs up the clan stands in; with neither, a typical account's difficulty is used."
+          >
+            Priced for:{' '}
+            <span className="text-foreground/90">
+              {report.pricedFor.source === 'pool'
+                ? `your sign-ups (${report.pricedFor.population} accounts)`
+                : report.pricedFor.source === 'clan'
+                  ? `your clan (${report.pricedFor.population} accounts, no sign-ups yet)`
+                  : 'a typical account (no players to read yet)'}
+            </span>
+          </p>
+        )}
         {pointsMode && report.boardPoints && report.boardPoints.face > 0 && (
           <p
             className="w-full text-[11px] text-text-muted"

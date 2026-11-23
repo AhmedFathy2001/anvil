@@ -1343,16 +1343,16 @@ const nl: PartialGuideDict = {
         'Je hoeft niet te draften. **Team placement**, op het aanmaakformulier en het tabblad **Sign-ups**, bepaalt waar elke nieuwe inschrijving terechtkomt:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'elke persoon die zich inschrijft, komt in het team met de minste spelers. Jij kiest alleen hoeveel teams er zijn. Goed voor grote openbare events.',
+          term: 'Even split',
+          body: 'elke persoon die zich inschrijft, komt in het team met de minste spelers, zodat de teams even groot blijven. Het gaat op aantal, niet op niveau. Jij kiest alleen hoeveel teams er zijn. Goed voor grote openbare events.',
         },
         {
           term: 'Players pick',
-          body: 'jij maakt eerst de teams, en elke speler kiest er een op het inschrijfformulier. Stel een limiet per team in om ze gelijk te houden.',
+          body: 'jij maakt eerst de teams, en elke speler kiest er een op het inschrijfformulier. Geen enkel team kan meer dan twee spelers voor zijn op het kleinste, dus iedereen stapt niet op één team. Stel een limiet per team in als je ook een harde grens wilt.',
         },
         {
           term: 'Host drafts',
-          body: 'iedereen wacht in een pool tot jij of je captains ze draften of met de hand indelen. Het beste als je de spelers kent.',
+          body: 'iedereen wacht in een pool. Je captains kiezen om de beurt in slangvolgorde (1, 2, 3, dan 3, 2, 1) uit de pool, tegen een pickklok, en zien de inschrijfantwoorden van elke speler, of jij plaatst mensen met de hand. Het beste als je de spelers kent.',
         },
         {
           term: 'Solo',
@@ -3744,7 +3744,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Vitrine',
-          body: 'je beste drops, killcounts en tijden, vastgepind op je profiel: 4 plekken voor Supporter, 8 voor Champion, 12 voor Patron. Pins van characters die je niet deelt, blijven privé.',
+          body: 'je beste drops, killcounts en tijden, vastgepind op je profiel: 4 plekken voor Supporter, 8 voor Champion, 12 voor Patron.',
         },
       ],
     },
@@ -4226,10 +4226,6 @@ const nl: PartialGuideDict = {
     dek: 'Anvil houdt één pagina voor **jou** en één voor **elk character** dat je speelt. Dit staat erop, wie ze kan openen, en de Wrapped-kaarten die aan het eind van elke maand en elk event verschijnen.',
     facts: [
       {
-        strong: 'Standaard gedeeld',
-        rest: 'zet elk character in één schakelaar op privé',
-      },
-      {
         strong: 'Maandelijkse Wrapped',
         rest: 'verschijnt op de 1e van de volgende maand',
       },
@@ -4249,11 +4245,11 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'De pagina van een character',
-          body: '`/p/<name>`: één character, leesbaar voor iedereen met de link zolang het gedeeld is. Het toont skills, bossen, de collectielog en persoonlijke records, en laat met opzet je clanstanden, je eventgeschiedenis en je Discord-naam weg.',
+          body: '`/p/<name>`: één character, leesbaar voor iedereen met de link. Het toont skills, bossen, de collectielog en persoonlijke records, en laat met opzet je clanstanden, je eventgeschiedenis en je Discord-naam weg.',
         },
         {
           term: 'Je persoonspagina',
-          body: '`/u/…`: al je gedeelde characters op één pagina, met je display case en de streamingaccounts die je wilt tonen. Die bestaat alleen als je **Show that my characters are one person** aanzet.',
+          body: '`/u/…`: al je characters op één pagina, met je display case en de streamingaccounts die je wilt tonen. Die bestaat alleen als je **Show that my characters are one person** aanzet.',
         },
         {
           term: 'De ledenpagina van een clan',
@@ -4264,9 +4260,8 @@ const nl: PartialGuideDict = {
     sharing: {
       title: 'Wie wat kan zien',
       body: [
-        'Elk character begint als **gedeeld**: de pagina opent voor iedereen met de link, en het kan op ranglijsten en bij andere clans verschijnen. Zet er één uit onder **Who sees my characters** in Instellingen, dan antwoordt de pagina voor iedereen behalve jou met _not found_. Jij ziet **Private — only you can see this page.** met een link **Share it →**.',
-        'Een gedeelde pagina heeft **Copy link** onder de naam. Ingelogde bezoekers die een pagina misbruik vinden, kunnen op **Report this profile** drukken.',
-        'Per character kun je in Instellingen ook verbergen in welke in-game clan het zit (**Show my in-game clan**), zodat het van die pagina en van de Anvil-pagina van die clan verdwijnt.',
+        'Elk character: de pagina opent voor iedereen met de link, en het kan op ranglijsten en bij andere clans verschijnen.',
+        'De pagina van een character heeft **Copy link** onder de naam. Ingelogde bezoekers die een pagina misbruik vinden, kunnen op **Report this profile** drukken.',
       ],
     },
     wrapped: {
@@ -4274,7 +4269,7 @@ const nl: PartialGuideDict = {
       body: [
         'Elke maand krijgt elk character een Wrapped-kaart: **XP gained**, **Boss kills**, **New slots** in de collectielog, **Efficient** uren, **PBs**, plus pets en de grootste drop. Die verschijnt op de **1e van de volgende maand** (UTC). Tot die tijd kun alleen jij hem openen, als voorbeeld.',
         'Het jaar krijgt er ook één, op `/p/<name>/wrapped/<year>`, vanaf **1 december**. `/p/<name>/wrapped` brengt je altijd naar de nieuwste die er is.',
-        'Druk op **Copy link to your Wrapped** om hem te delen. In Discord geplakt, toont hij zich als een afbeelding van de kaart. De Wrapped van een privécharacter opent alleen voor jou, en zijn link toont een gewone Anvil-kaart als voorbeeld.',
+        'Druk op **Copy link to your Wrapped** om hem te delen. In Discord geplakt, toont hij zich als een afbeelding van de kaart.',
       ],
       note: {
         tag: 'Een lege maand',
@@ -4293,7 +4288,6 @@ const nl: PartialGuideDict = {
       title: 'Twee characters vergelijken',
       body: [
         'Open [Compare](/compare) en typ twee namen. Je krijgt skills, bossen en collectielogpagina’s naast elkaar. De leider bij elk getal staat in goud. Daaronder staan een analyse, XP per skill, elke boss die een van jullie heeft gedood, en elk logonderdeel per item: jullie hebben het allebei, geen van beiden, of alleen één van jullie. **Swap sides** draait ze om.',
-        'Alleen gedeelde characters kunnen worden vergeleken. Een privécharacter, of een naam die Anvil niet kent, komt terug als _not on Anvil, or not shared_. Je kunt je eigen privécharacters altijd vergelijken als je bent ingelogd.',
       ],
     },
     news: {
@@ -4424,15 +4418,11 @@ const nl: PartialGuideDict = {
     },
     privacy: {
       title: 'Wie mijn characters ziet',
-      intro: 'Je characters worden in het begin gedeeld. Drie schakelaars veranderen dat:',
+      intro: 'Elk personage is openbaar. Twee schakelaars stel je zelf in:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'één schakelaar per character. Aan (standaard), is de pagina **Public**. Uit, wordt het **Only its clans**: de clans van dat character zien het nog in hun ledenlijsten en events, niemand anders, en het verdwijnt van de ranglijsten.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'met twee of meer characters maakt dit je persoonspagina, die je gedeelde characters samen toont. Uit, dan kan niemand zien dat ze allemaal van jou zijn.',
+          body: 'met twee of meer characters maakt dit je persoonspagina, die je characters samen toont. Uit, dan kan niemand zien dat ze allemaal van jou zijn.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4466,10 +4456,6 @@ const nl: PartialGuideDict = {
       title: 'Elk character',
       intro: 'Onder **Characters** heeft elk character zijn eigen pagina: het type, of het is geverifieerd, en links naar de openbare pagina en het volledige profiel.',
       rows: [
-        {
-          term: 'Zichtbaarheid',
-          body: '**Show to other clans and on leaderboards**, en **Show my in-game clan**.',
-        },
         {
           term: 'Clans',
           body: 'elke clan en space waarin het zit, als **member** of **guest**, met **Announce drops & achievements** per clan en **Leave**. Heeft Anvil het in de verkeerde clan, dan vertelt **Which clan is it really in?** het aan de staf.',
@@ -4949,7 +4935,7 @@ const nl: PartialGuideDict = {
     ghost: {
       title: 'In-game clans die niet op Anvil staan',
       body: [
-        'De pagina van een character noemt de in-game clan waarin het zit. Staat die clan niet op Anvil, dan opent de link een eenvoudige pagina met de Anvil-spelers die erin zitten en ervoor kiezen dat te tonen. Het is niet de ledenlijst van die clan, en niets op de pagina maakt iemand lid.',
+        'De pagina van een character noemt de in-game clan waarin het zit. Staat die clan niet op Anvil, dan opent de link een eenvoudige pagina met de Anvil-spelers die erin zitten. Het is niet de ledenlijst van die clan, en niets op de pagina maakt iemand lid.',
         'Is het jouw clan, dan zet **Bring your clan to Anvil** er één op. Zodra het een openbare Anvil-clan is, gaat de link rechtstreeks ernaartoe.',
       ],
     },

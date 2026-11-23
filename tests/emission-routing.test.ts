@@ -6,12 +6,11 @@
 // trusted to read correctly at the call site.
 //
 //   member clan       announces (default on); silenced only by an explicit per-clan off.
-//   guest + shared    announces once the person turned guest-clan posting ON (off by default, 0263).
+//   guest             announces once the person turned guest-clan posting ON (off by default, 0263).
 //                     Every case below that expects a guest post has it switched on (clearOverrides).
-//   guest + unshared  announces NOWHERE but the member clan — the shared floor.
 //   clan block        RECEIVER VETO — a clan that refuses guest noise gets none, whitelist or not.
 //   user block        the person stops ALL guest emissions, except a whitelisted (account, clan).
-//   whitelist         opts one clan back in, past the shared floor and the user block; and points an
+//   whitelist         opts one clan back in, past the user block; and points an
 //                     ALT at a clan its owner is a member of (even with no seat of its own there).
 //
 // Run: npx tsx --test tests/emission-routing.test.ts
@@ -31,8 +30,8 @@ let clanMember: number; // account is a MEMBER here
 let clanGuestA: number; // account guests here
 let clanGuestB: number; // account guests here too
 let clanStranger: number; // the person has NO seat here at all
-let sharedAccount: number;
-let unsharedAccount: number;
+let mainAccount: number;
+let ironAccount: number;
 let seatlessAlt: number; // an alt with NO seat anywhere
 let person: number;
 let login: number;
@@ -69,27 +68,27 @@ before(async () => {
   const [u] = await db.insert(s.users).values({ playerId: pp.id, displayName: 'Player', discordId: 'p-1' }).returning();
   login = u.id;
 
-  const [shared] = await db
+  const [main] = await db
     .insert(s.accounts)
-    .values({ playerId: pp.id, rsn: 'Main', rsnNormalized: 'main', shared: true })
+    .values({ playerId: pp.id, rsn: 'Main', rsnNormalized: 'main' })
     .returning();
-  sharedAccount = shared.id;
-  await seat(sharedAccount, clanMember, 'member');
-  await seat(sharedAccount, clanGuestA, 'guest');
-  await seat(sharedAccount, clanGuestB, 'guest');
+  mainAccount = main.id;
+  await seat(mainAccount, clanMember, 'member');
+  await seat(mainAccount, clanGuestA, 'guest');
+  await seat(mainAccount, clanGuestB, 'guest');
 
   const [alt] = await db
     .insert(s.accounts)
-    .values({ playerId: pp.id, rsn: 'Iron', rsnNormalized: 'iron', shared: false })
+    .values({ playerId: pp.id, rsn: 'Iron', rsnNormalized: 'iron' })
     .returning();
-  unsharedAccount = alt.id;
-  await seat(unsharedAccount, clanMember, 'member');
-  await seat(unsharedAccount, clanGuestA, 'guest');
+  ironAccount = alt.id;
+  await seat(ironAccount, clanMember, 'member');
+  await seat(ironAccount, clanGuestA, 'guest');
 
   // A pure alt with NO seat anywhere — for the "point an alt at a clan you're a member of" case.
   const [pure] = await db
     .insert(s.accounts)
-    .values({ playerId: pp.id, rsn: 'Pure', rsnNormalized: 'pure', shared: false })
+    .values({ playerId: pp.id, rsn: 'Pure', rsnNormalized: 'pure' })
     .returning();
   seatlessAlt = pure.id;
 });
@@ -105,9 +104,9 @@ function clanIds(list: { clanId: number }[]): number[] {
 
 // ── Defaults ────────────────────────────────────────────────────────────────────────────────────
 
-test('a shared account announces to its member clan and every clan it guests in', async () => {
+test('an account announces to its member clan and every clan it guests in', async () => {
   await clearOverrides();
-  const targets = await R.socialEmissionClans(sharedAccount);
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestA, clanGuestB].sort((a, b) => a - b));
   assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
 });
@@ -123,7 +122,6 @@ test('a brand-new person announces in its own clan only — guest clans stay qui
     .insert(s.accounts)
     .values({ playerId: person.id, rsn: 'Fresh One', rsnNormalized: 'fresh one' })
     .returning();
-  assert.equal(acct.shared, true, 'sharing is the default');
 
   await db.insert(s.clanMemberships).values([
     { clanId: clanMember, accountId: acct.id, kind: 'member', source: 'roster' },
@@ -162,16 +160,14 @@ test('a clanless account routes to NO clan — not to whichever one addressed it
   assert.deepEqual(await R.socialEmissionClans(acct.id), [], 'no seats anywhere means no destinations');
 });
 
-test('a character announces where it holds a seat — being private on Anvil is a different question', async () => {
-  // THIS USED TO READ "an UNSHARED account announces to its member clan only", and the guest clan was
-  // excluded because `shared` was false. That flag now means "public on Anvil" — its own profile, the
-  // cross-clan boards — and says nothing about which clans hear your drops. What answers here is the
-  // seat: this character guests in A, and the person has not silenced guest clans, so A hears it.
+test('a character announces where it holds a seat', async () => {
+  // What answers here is the seat: this character guests in A, and the person has not silenced
+  // guest clans, so A hears it.
   //
   // The levers that matter are all still in front of the person: block guest emissions (ON by
   // default), a per-clan off, and the receiving clan's own veto. Each has its own test below.
   await clearOverrides();
-  const targets = await R.socialEmissionClans(unsharedAccount);
+  const targets = await R.socialEmissionClans(ironAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestA].sort((a, b) => a - b));
   assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
   assert.equal(targets.find((t) => t.clanId === clanGuestA)!.kind, 'guest');
@@ -182,16 +178,16 @@ test('a character announces where it holds a seat — being private on Anvil is 
 test('a per-clan OFF silences one guest clan and no other', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
-  await db.insert(s.accountClanEmission).values({ accountId: sharedAccount, clanId: clanGuestA, enabled: false });
-  const targets = await R.socialEmissionClans(sharedAccount);
+  await db.insert(s.accountClanEmission).values({ accountId: mainAccount, clanId: clanGuestA, enabled: false });
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestB].sort((a, b) => a - b));
 });
 
 test('a per-clan OFF can silence even the MEMBER clan', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
-  await db.insert(s.accountClanEmission).values({ accountId: sharedAccount, clanId: clanMember, enabled: false });
-  const targets = await R.socialEmissionClans(sharedAccount);
+  await db.insert(s.accountClanEmission).values({ accountId: mainAccount, clanId: clanMember, enabled: false });
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.equal(targets.some((t) => t.clanId === clanMember), false);
 });
 
@@ -201,7 +197,7 @@ test('the user block stops ALL guest emissions — member clan still announces',
   await clearOverrides();
   const { db, schema: s } = await loadDb();
   await db.update(s.users).set({ blockGuestEmissions: true }).where(eq(s.users.id, login));
-  const targets = await R.socialEmissionClans(sharedAccount);
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.deepEqual(clanIds(targets), [clanMember], 'guests silenced, home stays');
 });
 
@@ -209,27 +205,27 @@ test('a whitelist opts one guest clan back in past the user block', async () => 
   await clearOverrides();
   const { db, schema: s } = await loadDb();
   await db.update(s.users).set({ blockGuestEmissions: true }).where(eq(s.users.id, login));
-  await db.insert(s.accountClanEmission).values({ accountId: sharedAccount, clanId: clanGuestA, enabled: true });
-  const targets = await R.socialEmissionClans(sharedAccount);
+  await db.insert(s.accountClanEmission).values({ accountId: mainAccount, clanId: clanGuestA, enabled: true });
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestA].sort((a, b) => a - b), 'A whitelisted back in, B stays blocked');
 });
 
-test('a whitelist opts an UNSHARED guest in — overriding the shared floor', async () => {
+test('a whitelist opts a second character in as a guest', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
-  // unsharedAccount guests in A; a whitelist announces it there despite shared=false.
-  await db.insert(s.accountClanEmission).values({ accountId: unsharedAccount, clanId: clanGuestA, enabled: true });
-  const targets = await R.socialEmissionClans(unsharedAccount);
+  // ironAccount guests in A; a whitelist announces it there.
+  await db.insert(s.accountClanEmission).values({ accountId: ironAccount, clanId: clanGuestA, enabled: true });
+  const targets = await R.socialEmissionClans(ironAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestA].sort((a, b) => a - b));
 });
 
 // ── The clan receiver veto ──────────────────────────────────────────────────────────────────
 
-test('a clan that blocks guest emissions gets none — even a shared account', async () => {
+test('a clan that blocks guest emissions gets none', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
   await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'true' });
-  const targets = await R.socialEmissionClans(sharedAccount);
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestB].sort((a, b) => a - b), 'A refuses guests');
 });
 
@@ -237,8 +233,8 @@ test('the clan veto beats a whitelist — the clan is refusing, and it is its ch
   await clearOverrides();
   const { db, schema: s } = await loadDb();
   await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'true' });
-  await db.insert(s.accountClanEmission).values({ accountId: sharedAccount, clanId: clanGuestA, enabled: true });
-  const targets = await R.socialEmissionClans(sharedAccount);
+  await db.insert(s.accountClanEmission).values({ accountId: mainAccount, clanId: clanGuestA, enabled: true });
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.equal(targets.some((t) => t.clanId === clanGuestA), false, 'whitelist cannot override the receiver');
 });
 
@@ -247,7 +243,7 @@ test('the clan veto does NOT affect that clan’s own members', async () => {
   const { db, schema: s } = await loadDb();
   // Home blocks guest emissions; the account is a MEMBER of Home, so it is unaffected.
   await db.insert(s.settings).values({ clanId: clanMember, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'true' });
-  const targets = await R.socialEmissionClans(sharedAccount);
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.equal(targets.some((t) => t.clanId === clanMember && t.kind === 'member'), true);
 });
 
@@ -277,7 +273,7 @@ test('a departed seat is not a destination', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
   await db.update(s.clanMemberships).set({ leftAt: new Date().toISOString() }).where(eq(s.clanMemberships.clanId, clanGuestB));
-  const targets = await R.socialEmissionClans(sharedAccount);
+  const targets = await R.socialEmissionClans(mainAccount);
   assert.equal(targets.some((t) => t.clanId === clanGuestB), false);
   await db.update(s.clanMemberships).set({ leftAt: null }).where(eq(s.clanMemberships.clanId, clanGuestB));
 });

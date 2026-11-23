@@ -10,12 +10,10 @@
 // nothing else), and the cache means a popular name costs one request per half hour however many
 // people look it up.
 //
-// PRIVACY: an unshared Anvil account must stay indistinguishable from a name Anvil has never seen. So
-// this does NOT ask whether an account holds the name: every name the viewer can't see — private or
-// missing — gets the same hiscores card, built only from what Jagex publishes to anyone. Answering a
-// private account with a 404 instead turned "404 for a name that is on the hiscores" into "this person
-// has a private Anvil account", and a name spelled one way past the account check and another way to
-// Jagex could still reach it. Nothing here reads an account, so there is nothing of one to leak.
+// PRIVACY: a hidden Anvil account (a platform-banned owner's) must stay indistinguishable from a
+// name Anvil has never seen. So this does NOT ask whether an account holds the name: every name the
+// viewer can't see — hidden or missing — gets the same hiscores card, built only from what Jagex
+// publishes to anyone. Nothing here reads an account, so there is nothing of one to leak.
 
 import { eq } from 'drizzle-orm';
 

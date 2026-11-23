@@ -16,7 +16,7 @@ import {
   monthLabel,
 } from '@/lib/monthlyWrappedRules';
 import { siteCard, wrappedCard } from '@/lib/ogCard';
-import { cachedCard, cardParam, remoteSprite, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, cardParam, remoteSprite } from '@/lib/ogKit';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,8 +30,8 @@ function shortDay(day: string): string {
 /**
  * A character's month as a picture — what /p/<rsn>/wrapped/<month> unfurls into.
  *
- * Always the stranger's view (apexCharacter with no viewer): an unshared character draws the plain
- * Anvil card, the same as its profile card, so the link can't be used to ask whether it exists.
+ * Always the stranger's view (apexCharacter with no viewer): an unknown or banned character draws
+ * the plain Anvil card, the same as its profile card.
  */
 async function load(_request: Request, { params }: { params: Promise<Params> }): Promise<Response> {
   const p = await params;
@@ -48,7 +48,7 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
   if (!monthHasAnything(w)) return siteCard();
 
   const feature = monthlyFeature(w);
-  const res = await wrappedCard({
+  return wrappedCard({
     name: character.rsn,
     eventName: w.monthLabel,
     clanName: character.clan?.name ?? null,
@@ -60,7 +60,6 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
     awards: year ? yearlyHighlights(year, monthlyHighlights(w)) : monthlyHighlights(w),
     luck: (year?.busiestMonth ? `Busiest month: ${monthLabel(year.busiestMonth.key).split(' ')[0]}` : null) ?? monthlyStory(w),
   });
-  return showingAccounts(res, [character.accountId]);
 }
 
 export function GET(request: Request, ctx: { params: Promise<Params> }) {

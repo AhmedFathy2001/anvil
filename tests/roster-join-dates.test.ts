@@ -63,24 +63,22 @@ test('without a synced date, the character’s own report stands in — only for
   const [{ id: foundry }] = await db.insert(s.gameClans).values({ nameKey: 'iron foundry', name: 'Iron Foundry', firstSeenAt: now, lastSeenAt: now }).returning();
   const [{ id: other }] = await db.insert(s.gameClans).values({ nameKey: 'other clan', name: 'Other Clan', firstSeenAt: now, lastSeenAt: now }).returning();
 
-  const seat = async (clan: number, rsn: string, game: number, joinedOn: string, hidden = false) => {
+  const seat = async (clan: number, rsn: string, game: number, joinedOn: string) => {
     const [pl] = await db.insert(s.players).values({ displayName: rsn }).returning();
     const [a] = await db.insert(s.accounts).values({ playerId: pl.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
-    await db.insert(s.accountGameClans).values({ accountId: a.id, gameClanId: game, joinedOn, observedAt: now, hidden });
+    await db.insert(s.accountGameClans).values({ accountId: a.id, gameClanId: game, joinedOn, observedAt: now });
     const [m] = await db.insert(s.clanMemberships).values({ clanId: clan, accountId: a.id, kind: 'member' }).returning();
     return m.id;
   };
   const reported = await seat(verified, 'Carol', foundry, '2023-05-01');
   const elsewhere = await seat(verified, 'Dave', other, '2022-01-01');
-  const hidden = await seat(verified, 'Erin', foundry, '2021-01-01', true);
   const unchecked = await seat(unverified, 'Finn', other, '2020-01-01');
   const synced = await seat(verified, 'Gail', foundry, '2019-01-01');
   await db.update(s.clanMemberships).set({ ingameJoinedOn: '2024-02-02' }).where(eq(s.clanMemberships.id, synced));
 
-  const dates = await ingameJoinDates([reported, elsewhere, hidden, unchecked, synced]);
+  const dates = await ingameJoinDates([reported, elsewhere, unchecked, synced]);
   assert.equal(dates.get(reported), '2023-05-01');
   assert.equal(dates.has(elsewhere), false, 'reported a different clan');
-  assert.equal(dates.has(hidden), false, 'hid their in-game clan');
   assert.equal(dates.has(unchecked), false, 'clan never verified its in-game name');
   assert.equal(dates.get(synced), '2024-02-02', 'the roster sync wins');
 });

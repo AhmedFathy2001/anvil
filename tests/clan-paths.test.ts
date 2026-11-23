@@ -55,7 +55,7 @@ test('the API split does not follow the page split', () => {
   assert.equal(isClanScopedPath('/api/admin/clan'), true);
   assert.equal(isClanScopedPath('/api/events/5/tiles'), true);
   assert.equal(isClanScopedPath('/api/plugin/config'), true);
-  assert.equal(isClanScopedPath('/api/profile/accounts/1/share'), false);
+  assert.equal(isClanScopedPath('/api/profile/link-accounts'), false);
   assert.equal(isClanScopedPath('/api/staff/clans/1'), false);
   assert.equal(isClanScopedPath('/api/player/login'), false);
   assert.equal(isClanScopedPath('/api/cron/stats'), false);

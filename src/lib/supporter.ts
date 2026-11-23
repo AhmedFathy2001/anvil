@@ -116,12 +116,12 @@ export async function supporterTiersForRsns(rsns: string[]): Promise<Map<string,
 
 /**
  * Which characters wear a Supporter's colours, anywhere (game chat, the plugin panel, the site):
- * shared publicly (a hidden character's name must not be tied to them), and verified — the plugin
+ * verified ones — the plugin
  * logging in on it proved it is theirs. A clan's approval (provisional) doesn't decide it: a clanless
  * Supporter wears their colours too. ONE where-clause for every reader, so they can't disagree.
  */
 export function flairCharacterWhere(): SQL {
-  return and(eq(accounts.shared, true), isNotNull(accounts.verifiedAt))!;
+  return isNotNull(accounts.verifiedAt);
 }
 
 /**

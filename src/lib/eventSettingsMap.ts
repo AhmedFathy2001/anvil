@@ -49,7 +49,7 @@ export interface MapGroup {
 }
 
 const PLACEMENT_WORDS: Record<string, string> = {
-  auto: 'Auto-balance',
+  auto: 'Even split',
   pick: 'Players pick a team',
   draft: 'Host drafts',
   solo: 'Everyone solo',

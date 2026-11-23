@@ -1344,16 +1344,16 @@ const fr: PartialGuideDict = {
         'Vous n’êtes pas obligé de faire un draft. **Team placement**, dans le formulaire de création et l’onglet **Sign-ups**, décide où arrive chaque nouvel inscrit :',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'chaque inscrit rejoint l’équipe qui a le moins de joueurs. Vous choisissez seulement le nombre d’équipes. Idéal pour les grands événements publics.',
+          term: 'Even split',
+          body: 'chaque inscrit rejoint l’équipe qui compte le moins de joueurs, pour que les équipes restent égales. La répartition se fait au nombre, pas au niveau. Vous choisissez seulement le nombre d’équipes. Idéal pour les grands événements publics.',
         },
         {
           term: 'Players pick',
-          body: 'vous créez d’abord les équipes, et chaque joueur en choisit une sur le formulaire d’inscription. Fixez une limite par équipe pour garder l’équilibre.',
+          body: 'vous créez d’abord les équipes, et chaque joueur en choisit une sur le formulaire d’inscription. Aucune équipe ne peut avoir plus de deux joueurs d’avance sur la plus petite, pour éviter que tout le monde se regroupe. Fixez une limite par équipe si vous voulez aussi un plafond strict.',
         },
         {
           term: 'Host drafts',
-          body: 'tout le monde attend dans un vivier jusqu’à ce que vous ou vos capitaines les draftiez ou les placiez à la main. Le mieux quand vous connaissez les joueurs.',
+          body: 'tout le monde attend dans un vivier. Vos capitaines choisissent à tour de rôle, en ordre serpent (1, 2, 3, puis 3, 2, 1), contre un chrono, en voyant les réponses d’inscription de chaque joueur, ou vous placez les gens à la main. Le mieux quand vous connaissez les joueurs.',
         },
         {
           term: 'Solo',
@@ -3746,7 +3746,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Vitrine',
-          body: 'vos meilleurs drops, kill counts et temps épinglés sur votre profil : 4 emplacements pour Supporter, 8 pour Champion, 12 pour Patron. Les épingles des personnages que vous ne partagez pas restent privées.',
+          body: 'vos meilleurs drops, kill counts et temps épinglés sur votre profil : 4 emplacements pour Supporter, 8 pour Champion, 12 pour Patron.',
         },
       ],
     },
@@ -4229,10 +4229,6 @@ const fr: PartialGuideDict = {
     dek: 'Anvil tient une page pour **toi** et une page pour **chaque personnage** que tu joues. Voici ce qu’elles contiennent, qui peut les ouvrir, et les cartes Wrapped qui sortent à la fin de chaque mois et de chaque événement.',
     facts: [
       {
-        strong: 'Partagé par défaut',
-        rest: 'rends n’importe quel personnage privé d’un seul bouton',
-      },
-      {
         strong: 'Wrapped mensuel',
         rest: 'disponible le 1er du mois suivant',
       },
@@ -4252,11 +4248,11 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'La page d’un personnage',
-          body: '`/p/<name>` : un personnage, lisible par quiconque a le lien tant qu’il est partagé. Elle affiche les compétences, les boss, le journal de collection et les meilleurs temps, et laisse volontairement de côté tes classements de clan, ton historique d’événements et ton nom Discord.',
+          body: '`/p/<name>` : un personnage, lisible par quiconque a le lien. Elle affiche les compétences, les boss, le journal de collection et les meilleurs temps, et laisse volontairement de côté tes classements de clan, ton historique d’événements et ton nom Discord.',
         },
         {
           term: 'Ta page personnelle',
-          body: '`/u/…` : tous tes personnages partagés sur une seule page, avec ton display case et les comptes de streaming que tu as choisi de montrer. Elle n’existe que si tu actives **Show that my characters are one person**.',
+          body: '`/u/…` : tous tes personnages sur une seule page, avec ton display case et les comptes de streaming que tu as choisi de montrer. Elle n’existe que si tu actives **Show that my characters are one person**.',
         },
         {
           term: 'La page membre d’un clan',
@@ -4267,9 +4263,8 @@ const fr: PartialGuideDict = {
     sharing: {
       title: 'Qui peut voir quoi',
       body: [
-        'Chaque personnage commence **shared** : sa page s’ouvre pour quiconque a le lien, et il peut apparaître dans les classements et chez les autres clans. Désactive-le sous **Who sees my characters** dans les Réglages, et sa page répond _not found_ à tout le monde sauf à toi. Tu vois **Private — only you can see this page.** avec un lien **Share it →**.',
-        'Une page partagée a **Copy link** sous le nom. Les visiteurs connectés qui jugent une page abusive peuvent appuyer sur **Report this profile**.',
-        'Pour chaque personnage, les Réglages permettent aussi de masquer le clan en jeu auquel il appartient (**Show my in-game clan**), pour qu’il disparaisse de la page de ce personnage et de la page Anvil de ce clan.',
+        'Chaque personnage : sa page s’ouvre pour quiconque a le lien, et il peut apparaître dans les classements et chez les autres clans.',
+        'La page d’un personnage a **Copy link** sous le nom. Les visiteurs connectés qui jugent une page abusive peuvent appuyer sur **Report this profile**.',
       ],
     },
     wrapped: {
@@ -4277,7 +4272,7 @@ const fr: PartialGuideDict = {
       body: [
         'Chaque mois, chaque personnage reçoit une carte Wrapped : **XP gained**, **Boss kills**, **New slots** dans le journal de collection, heures **Efficient**, **PBs**, plus les pets et le plus gros drop. Elle sort le **1er du mois suivant** (UTC). Jusque-là, toi seul peux l’ouvrir, en aperçu.',
         'L’année en a une aussi, à `/p/<name>/wrapped/<year>`, à partir du **1er décembre**. `/p/<name>/wrapped` t’amène toujours à la plus récente disponible.',
-        'Appuie sur **Copy link to your Wrapped** pour la partager. Collée sur Discord, elle s’affiche en image de la carte. Le Wrapped d’un personnage privé ne s’ouvre que pour toi, et son lien ne s’aperçoit que comme une simple carte Anvil.',
+        'Appuie sur **Copy link to your Wrapped** pour la partager. Collée sur Discord, elle s’affiche en image de la carte.',
       ],
       note: {
         tag: 'Un mois vide',
@@ -4296,7 +4291,6 @@ const fr: PartialGuideDict = {
       title: 'Comparer deux personnages',
       body: [
         'Ouvre [Compare](/compare) et saisis deux noms. Tu obtiens les compétences, les boss et les pages du journal de collection côte à côte. Celui qui mène sur chaque compte est affiché en or. En dessous, il y a une analyse, l’XP par compétence, chaque boss tué par l’un ou l’autre, et chaque objet du journal, un par un : vous l’avez tous les deux, aucun des deux, ou seulement l’un de vous. **Swap sides** les inverse.',
-        'Seuls les personnages partagés peuvent être comparés. Un personnage privé, ou un nom qu’Anvil ne connaît pas, renvoie _not on Anvil, or not shared_. Tu peux toujours comparer tes propres personnages privés quand tu es connecté.',
       ],
     },
     news: {
@@ -4427,15 +4421,11 @@ const fr: PartialGuideDict = {
     },
     privacy: {
       title: 'Qui voit mes personnages',
-      intro: 'Tes personnages sont partagés au départ. Trois interrupteurs changent cela :',
+      intro: 'Tous les personnages sont publics. Deux interrupteurs dépendent de vous :',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'un interrupteur par personnage. Activé (par défaut), sa page est **Public**. Désactivé, elle est **Only its clans** : ses clans la voient toujours dans leurs listes et événements, personne d’autre ne la voit, et elle quitte les classements.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'avec deux personnages ou plus, cela crée ta page personnelle, qui regroupe tes personnages partagés. Désactivé, personne ne peut savoir qu’ils sont tous toi.',
+          body: 'avec deux personnages ou plus, cela crée ta page personnelle, qui regroupe tes personnages. Désactivé, personne ne peut savoir qu’ils sont tous toi.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4469,10 +4459,6 @@ const fr: PartialGuideDict = {
       title: 'Chaque personnage',
       intro: 'Sous **Characters**, chaque personnage a sa propre page : son type, s’il est vérifié, et des liens vers sa page publique et son profil complet.',
       rows: [
-        {
-          term: 'Visibilité',
-          body: '**Show to other clans and on leaderboards**, et **Show my in-game clan**.',
-        },
         {
           term: 'Clans',
           body: 'chaque clan et espace dont il fait partie, en tant que **member** ou **guest**, avec **Announce drops & achievements** par clan et **Leave**. Si Anvil l’a placé dans le mauvais clan, **Which clan is it really in?** prévient le staff.',
@@ -4952,7 +4938,7 @@ const fr: PartialGuideDict = {
     ghost: {
       title: 'Les clans en jeu qui ne sont pas sur Anvil',
       body: [
-        'La page d’un personnage indique le clan en jeu auquel il appartient. Si ce clan n’est pas sur Anvil, le lien ouvre une page simple qui liste les joueurs Anvil qui en font partie et ont choisi de le montrer. Ce n’est pas la liste de membres de ce clan, et rien sur cette page ne fait de quelqu’un un membre.',
+        'La page d’un personnage indique le clan en jeu auquel il appartient. Si ce clan n’est pas sur Anvil, le lien ouvre une page simple qui liste les joueurs Anvil qui en font partie. Ce n’est pas la liste de membres de ce clan, et rien sur cette page ne fait de quelqu’un un membre.',
         'Si c’est ton clan, **Bring your clan to Anvil** en crée un. Une fois qu’il est un clan Anvil public, le lien y mène directement.',
       ],
     },

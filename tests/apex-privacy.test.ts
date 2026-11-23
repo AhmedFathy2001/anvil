@@ -11,10 +11,9 @@
 //   one — and it was rendered as "played by <name>" on the character page and as the <h1> and the
 //   <title> of the person page.
 //
-//   Sharing a character is not linking it. /u/ listed every shared account of a person together, so
-//   sharing a second character silently announced that both belonged to one human. That is the
-//   disclosure people are most likely to want kept, and it is the reason sharing is per-account in
-//   the first place.
+//   A public character is not a linked one. Every character is public on its own; saying that two
+//   of them belong to one human is the disclosure people are most likely to want kept, so it waits
+//   for players.link_accounts_publicly.
 //
 // These are assertions about what is ABSENT, which is why they need a test: a page that leaks looks
 // exactly like a page that does not, and the leak is only visible to someone who knows the value is
@@ -49,9 +48,9 @@ before(async () => {
   personId = person.id;
 
   await db.insert(s.accounts).values([
-    { playerId: personId, rsn: 'Main Guy', rsnNormalized: 'main guy', shared: true, isPrimary: 1 },
-    { playerId: personId, rsn: 'Quiet Iron', rsnNormalized: 'quiet iron', shared: false },
-    { playerId: personId, rsn: 'Alt Guy', rsnNormalized: 'alt guy', shared: true },
+    { playerId: personId, rsn: 'Main Guy', rsnNormalized: 'main guy', isPrimary: 1 },
+    { playerId: personId, rsn: 'Quiet Iron', rsnNormalized: 'quiet iron' },
+    { playerId: personId, rsn: 'Alt Guy', rsnNormalized: 'alt guy' },
   ]);
 });
 
@@ -67,7 +66,7 @@ async function setLinking(on: boolean) {
 
 // ── Linking is its own decision ───────────────────────────────────────────────────────────────
 
-test('sharing two characters does not publish that they are one person', async () => {
+test('two public characters do not publish that they are one person', async () => {
   await setLinking(false);
   assert.equal(await P.apexPerson(personId), null, 'no person page without linking');
 });
@@ -75,7 +74,7 @@ test('sharing two characters does not publish that they are one person', async (
 test('and the character page does not name their owner either', async () => {
   await setLinking(false);
   const c = await P.apexCharacter('Main Guy');
-  assert.ok(c, 'the character itself is still public — sharing did that');
+  assert.ok(c, 'the character itself is still public');
   assert.equal(c!.owner, null, 'but nothing says whose it is');
 });
 
@@ -83,12 +82,12 @@ test('turning linking on is what publishes the connection', async () => {
   await setLinking(true);
   const person = await P.apexPerson(personId);
   assert.ok(person);
-  assert.deepEqual(person!.characters.map((c) => c.rsn).sort(), ['Alt Guy', 'Main Guy']);
+  assert.deepEqual(person!.characters.map((c) => c.rsn).sort(), ['Alt Guy', 'Main Guy', 'Quiet Iron']);
 });
 
 // ── No Discord identity, ever ─────────────────────────────────────────────────────────────────
 
-test('the person is named by their primary shared RSN, not their Discord name', async () => {
+test('the person is named by their primary RSN, not their Discord name', async () => {
   await setLinking(true);
   const person = await P.apexPerson(personId);
   assert.equal(person!.label, 'Main Guy', 'isPrimary wins the label');
@@ -109,10 +108,10 @@ test('the owner line names a DIFFERENT character, never the one being read', asy
   await setLinking(true);
 
   // This assertion used to read `owner?.label === 'Main Guy'` on the 'Main Guy' page — it encoded
-  // the bug. The label was the person's PRIMARY shared RSN, which is just first in the list and is
+  // the bug. The label was the person's PRIMARY RSN, which is just first in the list and is
   // very often the character you are looking at, so the page said "Main Guy · also plays Main Guy".
   const main = await P.apexCharacter('Main Guy');
-  assert.equal(main!.owner?.label, 'Alt Guy', 'their other shared character');
+  assert.equal(main!.owner?.label, 'Alt Guy', 'their other character, by name');
 
   // And it works from the other side, which a "hide it when the names match" patch would not have:
   // there the label is still chosen without reference to the page you are on.
@@ -120,30 +119,17 @@ test('the owner line names a DIFFERENT character, never the one being read', asy
   assert.equal(alt!.owner?.label, 'Main Guy');
 });
 
-test('somebody who publishes ONE character has no owner line at all', async () => {
+test('somebody with ONE character has no owner line at all', async () => {
+  // No "also", and the person page behind the link would list only the character you are reading.
   const { db, schema: s } = await loadDb();
-  await setLinking(true);
+  const [solo] = await db.insert(s.players).values({ displayName: 'SoloOnDiscord', linkAccountsPublicly: true }).returning();
+  await db.insert(s.accounts).values({ playerId: solo.id, rsn: 'Only One', rsnNormalized: 'only one', isPrimary: 1 });
 
-  // Unshare the alt: now the person publishes only 'Main Guy', so there is no "also", and the person
-  // page behind the link would list only the character you are already reading.
-  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.rsnNormalized, 'alt guy'));
-
-  const c = await P.apexCharacter('Main Guy');
+  const c = await P.apexCharacter('Only One');
   assert.equal(c!.owner, null, 'no other character to name, so no line');
-
-  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.rsnNormalized, 'alt guy'));
 });
 
-test('an unshared character stays invisible even with linking on', async () => {
-  // Linking publishes the connection between SHARED characters. It is not a second way to publish a
-  // character, which would make it a trapdoor around the per-account switch.
-  await setLinking(true);
-  assert.equal(await P.apexCharacter('Quiet Iron'), null);
-  const person = await P.apexPerson(personId);
-  assert.equal(person!.characters.some((c) => c.rsn === 'Quiet Iron'), false);
-});
-
-test('a person who has shared nothing has no page, linked or not', async () => {
+test('a person with no characters has no page, linked or not', async () => {
   const { db, schema: s } = await loadDb();
   const [ghost] = await db
     .insert(s.players)

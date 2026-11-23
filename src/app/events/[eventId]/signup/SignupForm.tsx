@@ -89,6 +89,11 @@ interface Props {
   fee: FeeRow | null;
   prefillClanMemberId: number | null;
   prefillProfile: SignupProfile;
+  /**
+   * Pre-ticks read from the entered accounts (lib/capability suggestSignup): bosses they're doing now,
+   * non-combat skills they clearly train. Only on a first sign-up for this event; labelled on the form.
+   */
+  suggested?: { bosses: string[]; skills: string[] };
   windowOpen: boolean;
   windowReason: 'not_open_yet' | 'closed' | 'event_started' | 'off' | null;
   /**
@@ -244,6 +249,7 @@ export default function SignupForm({
   fee,
   prefillClanMemberId,
   prefillProfile,
+  suggested,
   windowOpen,
   windowReason,
   invite = null,
@@ -311,11 +317,19 @@ export default function SignupForm({
   const [afkWeeklyMin, setAfkWeeklyMin] = useState<string>(hoursBound(initialProfile.afkWeeklyHours, 'min'));
   const [afkWeeklyMax, setAfkWeeklyMax] = useState<string>(hoursBound(initialProfile.afkWeeklyHours, 'max'));
   const [timezone, setTimezone] = useState<string>(initialProfile.timezone ?? '');
+  // Their own answers (this sign-up, else their last one) win; suggestions only add to a first sign-up.
+  const fromStats = useMemo(
+    () => ({
+      bosses: new Set(existingSignup ? [] : (suggested?.bosses ?? []).filter((k) => !(prefillProfile.bosses ?? []).includes(k))),
+      skills: new Set(existingSignup ? [] : (suggested?.skills ?? []).filter((k) => !(prefillProfile.skills ?? []).includes(k))),
+    }),
+    [existingSignup, suggested, prefillProfile],
+  );
   const [bosses, setBosses] = useState<Set<string>>(
-    new Set((existingSignup?.profile ?? prefillProfile).bosses ?? []),
+    new Set([...((existingSignup?.profile ?? prefillProfile).bosses ?? []), ...fromStats.bosses]),
   );
   const [skills, setSkills] = useState<Set<string>>(
-    new Set((existingSignup?.profile ?? prefillProfile).skills ?? []),
+    new Set([...((existingSignup?.profile ?? prefillProfile).skills ?? []), ...fromStats.skills]),
   );
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>(
     () => (existingSignup?.profile ?? prefillProfile).answers ?? {},
@@ -911,7 +925,15 @@ export default function SignupForm({
                 onChange={() => toggle(bosses, b.key, setBosses)}
                 disabled={isLocked}
                 labelClassName="truncate text-xs"
-                label={b.label}
+                label={
+                  fromStats.bosses.has(b.key) && checked ? (
+                    <span title="Ticked because you've been doing this lately. Untick it if you won't during the event.">
+                      {b.label} <span className="text-[10px] text-text-muted">· from your stats</span>
+                    </span>
+                  ) : (
+                    b.label
+                  )
+                }
               />
             );
           })}
@@ -967,7 +989,15 @@ export default function SignupForm({
                 onChange={() => toggle(skills, s, setSkills)}
                 disabled={isLocked}
                 labelClassName="text-xs"
-                label={SKILL_LABELS[s] ?? s}
+                label={
+                  fromStats.skills.has(s) && checked ? (
+                    <span title="Ticked from your XP: well past 99, or trained a lot lately. Untick it if you won't during the event.">
+                      {SKILL_LABELS[s] ?? s} <span className="text-[10px] text-text-muted">· from your stats</span>
+                    </span>
+                  ) : (
+                    SKILL_LABELS[s] ?? s
+                  )
+                }
               />
             );
           })}

@@ -7,7 +7,6 @@ import { notFound, redirect } from 'next/navigation';
 import SupporterName from '@/components/SupporterName';
 import { supporterForUser } from '@/lib/supporter';
 import { emissionSettingsView } from '@/lib/emissionSettings';
-import { gameClanForAccount } from '@/lib/gameClans';
 import { membershipConflicts } from '@/lib/homeClan';
 import { alsoPlayedFromByAccount } from '@/lib/accountSightings';
 import { claimsOnMyCharacters } from '@/lib/ownershipClaims';
@@ -16,7 +15,7 @@ import HomeClanConflicts from '@/app/profile/HomeClanConflicts';
 import RenameRequestClient from '@/app/profile/RenameRequestClient';
 import WrongClanReport from '@/app/profile/WrongClanReport';
 import { CharacterAnnouncements } from '../../EmissionPanels';
-import { ActionButton, SettingSwitch } from '../../_client';
+import { ActionButton } from '../../_client';
 import { Pill, SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
 
@@ -64,9 +63,8 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
   const c = characters.find((x) => x.accountId === accountId);
   if (!c) notFound();
 
-  const [seats, gameClan, conflicts, emission, sightings, supporter, claims] = await Promise.all([
+  const [seats, conflicts, emission, sightings, supporter, claims] = await Promise.all([
     characterSeats(accountId),
-    gameClanForAccount(accountId),
     membershipConflicts(session.playerId),
     emissionSettingsView(session.userId, session.playerId),
     alsoPlayedFromByAccount([accountId], session.userId),
@@ -136,29 +134,6 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
           it below.
         </div>
       )}
-
-      <SettingsGroup title="Visibility" id="visibility">
-        <SettingsRow
-          label="Show to other clans and on leaderboards"
-          description="When off, only the clans it’s a member or guest of can see it."
-        >
-          <SettingSwitch url={`/api/profile/accounts/${accountId}/share`} field="shared" checked={c.shared} label={`Show ${c.rsn} publicly`} />
-        </SettingsRow>
-        {gameClan && (
-          <SettingsRow
-            label={`Show my in-game clan (${gameClan.name})`}
-            description="On this character’s public page and on that clan’s Anvil page."
-          >
-            <SettingSwitch
-              url={`/api/profile/accounts/${accountId}/game-clan`}
-              field="hidden"
-              invert
-              checked={!gameClan.hidden}
-              label="Show my in-game clan"
-            />
-          </SettingsRow>
-        )}
-      </SettingsGroup>
 
       <SettingsGroup
         title={seatGroups.some((g) => g.key === 'spaces') ? 'Clans and spaces' : 'Clans'}

@@ -600,7 +600,7 @@ function extractCountLikeNumbers(text: string): number[] {
   return out;
 }
 
-// Hover hint next to a flag's label. Native title tooltip (same pattern as PlayerRatingBadge) so it
+// Hover hint next to a flag's label. Native title tooltip so it
 // works on every surface the tile editor is embedded in without a popover dependency.
 function FlagHint({ text }: { text: string }) {
   return (
@@ -1212,13 +1212,14 @@ function TileTrackingEditor({
   // chest gives an uncharged Tumeken's shadow — the charged one never drops)? Looked up in the wiki
   // drop tables server-side; the answer is kept with the query it answers, so a stale one never
   // shows against new inputs.
-  const dropCheckKey = isDrop && trackedItems.length > 0
+  const dropCheckKey = (isDrop || kind === 'gain') && trackedItems.length > 0
     ? `items=${trackedItems.map((i) => i.id).join(',')}&sources=${encodeURIComponent(sourceNpcsText)}`
     : null;
   const [dropCheck, setDropCheck] = useState<{
     key: string;
     missing: number[];
     variants: Record<number, { id: number; name: string }>;
+    versions: Record<number, number[]>;
   } | null>(null);
   useEffect(() => {
     if (!dropCheckKey) return;
@@ -1226,8 +1227,8 @@ function TileTrackingEditor({
       try {
         const res = await clanFetch(`${lookupApi}/drop-check?${dropCheckKey}`);
         if (res.ok) {
-          const body = (await res.json()) as { missing: number[]; variants?: Record<number, { id: number; name: string }> };
-          setDropCheck({ key: dropCheckKey, missing: body.missing, variants: body.variants ?? {} });
+          const body = (await res.json()) as { missing: number[]; variants?: Record<number, { id: number; name: string }>; versions?: Record<number, number[]> };
+          setDropCheck({ key: dropCheckKey, missing: body.missing, variants: body.variants ?? {}, versions: body.versions ?? {} });
         }
       } catch { /* advisory only */ }
     }, 400);
@@ -1239,9 +1240,18 @@ function TileTrackingEditor({
   const wrongVariants = freshDropCheck
     ? trackedItems.flatMap((i) => {
         const drop = freshDropCheck.variants[i.id];
-        return drop && !trackedItems.some((t) => t.id === drop.id) ? [{ item: i, drop }] : [];
+        // A plain drop tile counts every version of its items: only a per-item collection is exact.
+        const counts = kind === 'drop' && (freshDropCheck.versions[i.id] ?? []).includes(drop?.id ?? -1);
+        return drop && !counts && !trackedItems.some((t) => t.id === drop.id) ? [{ item: i, drop }] : [];
       })
     : [];
+  // "Any version counts": the item has other ids the plugin is told to count too (drop and gain tiles;
+  // a per-item collection counts the exact item).
+  const anyVersion = (id: number) => (kind === 'drop' || kind === 'gain') && (freshDropCheck?.versions[id]?.length ?? 0) > 0;
+  const versionNote = (id: number) =>
+    anyVersion(id) ? (
+      <span className="text-text-muted/80 ml-1" title="Charged, uncharged and older copies of this item count too">· any version counts</span>
+    ) : null;
   const undroppable = freshDropCheck
     ? trackedItems.filter((i) => freshDropCheck.missing.includes(i.id) && !freshDropCheck.variants[i.id])
     : [];
@@ -2505,6 +2515,7 @@ function TileTrackingEditor({
                     <span className="flex-1 min-w-0 truncate">
                       {item.name}
                       <span className="text-text-muted/60 ml-1">#{item.id}</span>
+                      {versionNote(item.id)}
                     </span>
                     {isCollection && (
                       <>
@@ -3005,6 +3016,7 @@ function TileTrackingEditor({
                     <span className="flex-1 min-w-0 truncate">
                       {item.name}
                       <span className="text-text-muted/60 ml-1">#{item.id}</span>
+                      {versionNote(item.id)}
                     </span>
                     <button
                       type="button"

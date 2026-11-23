@@ -5,7 +5,7 @@ import { formatHoursRange } from '@/lib/signup';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
 import { rosterShape } from '@/lib/rosterShape';
 import RosterShapePanel from '@/components/RosterShapePanel';
-import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './PlayerDrawer';
+import PlayerDrawer, { DOMAIN_LABEL } from './PlayerDrawer';
 import { clanFetch } from '@/lib/clanFetch';
 import Input from '@/components/Input';
 
@@ -15,14 +15,12 @@ import Input from '@/components/Input';
 
 const DOMAINS = ['raids', 'endgame-pvm', 'midgame-pvm', 'wildy-pvp'] as const;
 
-type Filter = 'all' | 'shortlist' | 'top' | 'played' | (typeof DOMAINS)[number];
+type Filter = 'all' | 'shortlist' | (typeof DOMAINS)[number];
 
 const FILTERS: { key: Filter; label: string; hint?: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'shortlist', label: 'My shortlist' },
-  { key: 'top', label: 'S & A only' },
   ...DOMAINS.map((d) => ({ key: d as Filter, label: DOMAIN_LABEL[d] })),
-  { key: 'played', label: 'Played before' },
 ];
 
 export default function WarRoomClient({ teamId }: { teamId: number }) {
@@ -144,10 +142,6 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
       switch (filter) {
         case 'shortlist':
           return order.includes(p.personKey);
-        case 'top':
-          return p.tier === 'S' || p.tier === 'A';
-        case 'played':
-          return p.evidenceEvents > 0;
         case 'all':
           return true;
         default:
@@ -193,13 +187,6 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
       <div className="grid gap-5 content-start">
-        {data.unrated && (
-          <div className="text-sm border border-yellow-500/30 bg-yellow-500/10 rounded-lg px-3 py-2.5 text-yellow-200/90">
-            Nobody in this pool has been rated yet — the tiers below are placeholders until we&apos;ve checked
-            their stats at least once.
-          </div>
-        )}
-
         {shape.answered > 0 && (
           <RosterShapePanel
             shape={shape}
@@ -262,29 +249,14 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
                       className="text-left min-w-0 group"
                     >
                       <div className="font-semibold text-sm flex items-center gap-2 flex-wrap group-hover:text-gold-light">
-                        <TierChip tier={p.tier} />
                         <span className={taken ? 'line-through' : ''}>{p.rsn}</span>
                         {at >= 0 && (
                           <span className="text-[10px] uppercase tracking-wider font-bold bg-gold/15 text-gold-light border border-gold/40 px-1.5 rounded">
                             shortlist · {at + 1}
                           </span>
                         )}
-                        {p.subbedOutBefore && (
-                          <span className="text-[10px] uppercase tracking-wider font-bold bg-red-500/10 text-red-400 border border-red-500/30 px-1.5 rounded">
-                            subbed out
-                          </span>
-                        )}
                       </div>
                       <div className="text-xs text-text-muted mt-1 flex items-center gap-2.5 flex-wrap">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="w-12 h-1 rounded-full bg-brown-light overflow-hidden">
-                            <span
-                              className="block h-full rounded-full bg-gradient-to-r from-gold-dark to-gold-light"
-                              style={{ width: `${Math.round(p.rating * 100)}%` }}
-                            />
-                          </span>
-                          <span className="font-mono">{p.rating.toFixed(2)}</span>
-                        </span>
                         {p.domains.length > 0 && (
                           <span className="flex gap-1">
                             {p.domains.map((d) => (
@@ -301,11 +273,6 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
                         {formatHoursRange(p.answers?.activeDailyHours) && (
                           <span>{formatHoursRange(p.answers?.activeDailyHours)}h/day</span>
                         )}
-                        <span>
-                          {p.evidenceEvents === 0
-                            ? 'no history'
-                            : `${p.evidenceEvents} event${p.evidenceEvents === 1 ? '' : 's'}`}
-                        </span>
                         {taken && <span className="text-foreground/70">taken by {p.teamName}</span>}
                       </div>
                     </button>
@@ -356,7 +323,6 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
                   }`}
                 >
                   <span className="font-mono text-[11px] text-text-muted w-4">{i + 1}</span>
-                  <TierChip tier={p.tier} />
                   <button
                     type="button"
                     onClick={() => setOpenKey(p.personKey)}
