@@ -4417,6 +4417,7 @@ const sv: PartialGuideDict = {
     },
     privacy: {
       title: 'Vem som ser mina karaktärer',
+      intro: 'Alla karaktärer är offentliga. Två reglage ställer du in själv:',
       rows: [
         {
           term: 'Show that my characters are one person',

@@ -4403,6 +4403,7 @@ const ko: PartialGuideDict = {
     },
     privacy: {
       title: '누가 내 캐릭터를 보나',
+      intro: '모든 캐릭터는 공개됩니다. 직접 정할 수 있는 스위치는 두 개입니다:',
       rows: [
         {
           term: 'Show that my characters are one person',

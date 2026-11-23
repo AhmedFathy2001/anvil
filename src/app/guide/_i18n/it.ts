@@ -4406,6 +4406,7 @@ const it: PartialGuideDict = {
     },
     privacy: {
       title: 'Chi vede i miei personaggi',
+      intro: 'Ogni personaggio è pubblico. Due interruttori li scegli tu:',
       rows: [
         {
           term: 'Show that my characters are one person',

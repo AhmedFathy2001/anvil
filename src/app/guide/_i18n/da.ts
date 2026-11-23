@@ -4426,6 +4426,7 @@ const da: PartialGuideDict = {
     },
     privacy: {
       title: 'Hvem der ser mine karakterer',
+      intro: 'Alle figurer er offentlige. To kontakter kan du selv sætte:',
       rows: [
         {
           term: 'Show that my characters are one person',

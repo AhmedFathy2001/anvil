@@ -4417,6 +4417,7 @@ const fi: PartialGuideDict = {
     },
     privacy: {
       title: 'Kuka näkee hahmoni',
+      intro: 'Kaikki hahmot ovat julkisia. Kaksi kytkintä voit asettaa itse:',
       rows: [
         {
           term: 'Show that my characters are one person',

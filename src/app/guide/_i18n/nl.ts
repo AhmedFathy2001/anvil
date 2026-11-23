@@ -4418,6 +4418,7 @@ const nl: PartialGuideDict = {
     },
     privacy: {
       title: 'Wie mijn characters ziet',
+      intro: 'Elk personage is openbaar. Twee schakelaars stel je zelf in:',
       rows: [
         {
           term: 'Show that my characters are one person',

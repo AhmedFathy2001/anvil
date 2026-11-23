@@ -4418,6 +4418,7 @@ const de: PartialGuideDict = {
     },
     privacy: {
       title: 'Wer meine Charaktere sieht',
+      intro: 'Jeder Charakter ist öffentlich. Zwei Schalter stellst du selbst ein:',
       rows: [
         {
           term: 'Show that my characters are one person',

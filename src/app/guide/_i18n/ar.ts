@@ -4411,6 +4411,7 @@ const ar: PartialGuideDict = {
     },
     privacy: {
       title: 'من يرى شخصياتي',
+      intro: 'كل الشخصيات عامة. يبقى لك مفتاحان:',
       rows: [
         {
           term: 'Show that my characters are one person',

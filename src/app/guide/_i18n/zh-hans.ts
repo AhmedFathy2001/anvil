@@ -4395,6 +4395,7 @@ const zhHans: PartialGuideDict = {
     },
     privacy: {
       title: '谁能看到我的角色',
+      intro: '所有角色都是公开的。有两个开关由你设置：',
       rows: [
         {
           term: '显示我的角色属于同一人',

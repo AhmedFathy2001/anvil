@@ -4389,6 +4389,7 @@ export const en = {
 
     privacy: {
       title: 'Who sees my characters',
+      intro: 'Every character is public. Two switches are yours to set:',
       rows: [
         {
           term: 'Show that my characters are one person',

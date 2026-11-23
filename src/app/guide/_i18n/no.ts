@@ -4420,6 +4420,7 @@ const no: PartialGuideDict = {
     },
     privacy: {
       title: 'Hvem som ser karakterene mine',
+      intro: 'Alle karakterer er offentlige. To brytere velger du selv:',
       rows: [
         {
           term: 'Show that my characters are one person',

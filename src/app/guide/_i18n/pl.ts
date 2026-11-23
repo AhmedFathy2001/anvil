@@ -4404,6 +4404,7 @@ const pl: PartialGuideDict = {
     },
     privacy: {
       title: 'Kto widzi moje postacie',
+      intro: 'Każda postać jest publiczna. Dwa przełączniki ustawiasz sam:',
       rows: [
         {
           term: 'Pokaż, że moje postacie to jedna osoba',

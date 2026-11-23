@@ -4421,6 +4421,7 @@ const fr: PartialGuideDict = {
     },
     privacy: {
       title: 'Qui voit mes personnages',
+      intro: 'Tous les personnages sont publics. Deux interrupteurs dépendent de vous :',
       rows: [
         {
           term: 'Show that my characters are one person',
