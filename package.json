@@ -17,6 +17,7 @@
     "data:ca": "node scripts/build-ca-dataset.mjs",
     "data:drops": "node scripts/build-drops-dataset.mjs",
     "data:slayer": "node scripts/build-slayer-dataset.mjs",
+    "data:variants": "node scripts/build-item-variants.mjs",
     "data:rates": "node scripts/build-rates-dataset.mjs",
     "data:gear": "npx tsx scripts/build-gear-dataset.ts",
     "discord:commands": "tsx scripts/register-discord-commands.mts",

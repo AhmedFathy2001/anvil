@@ -1,3 +1,4 @@
+import { withItemVariants } from '@/lib/itemVariants';
 import { dropHiddenEase, easeVisibleFor, loadEaseContext } from '@/lib/raceEaseDb';
 import { raceHideOn } from '@/lib/raceHideAheadDb';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
@@ -1220,7 +1221,8 @@ export async function buildEnrolledConfig(args: {
           description: t.description ?? null,
           points: t.points ?? 0,
           category: t.category ?? null,
-          itemIds: trackedIds,
+          // Every id the game gives the item under (a charged sceptre counts on an uncharged pick).
+          itemIds: withItemVariants(trackedIds),
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: countedItems ? countedItems.length : submissionMap[t.id] ?? 0,
           // The one-sentence rule (lib/collectionSets howItCounts) — the sidebar shows it verbatim.
@@ -1515,7 +1517,7 @@ export async function buildEnrolledConfig(args: {
         itemIds: (() => {
           try {
             const ids = JSON.parse(t.trackedItemIds || '[]');
-            return Array.isArray(ids) ? ids.filter((n) => typeof n === 'number') : [];
+            return Array.isArray(ids) ? withItemVariants(ids.filter((n) => typeof n === 'number')) : [];
           } catch { return []; }
         })(),
         requiredAmount: t.requiredAmount ?? 1,

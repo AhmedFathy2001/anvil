@@ -58,6 +58,7 @@ jobs:
           npm run data:clog
           npm run data:drops
           npm run data:slayer
+          npm run data:variants
           # Fail-soft: a wiki outage must not fail the job. The builder keeps previous values itself;
           # this only guards against a crash, which leaves the files as they were.
           npm run data:rates || echo "::warning::data:rates failed; rate tables kept at their previous values"
