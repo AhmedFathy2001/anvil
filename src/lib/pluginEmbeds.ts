@@ -313,7 +313,7 @@ export function fromPhrase(source: string | null | undefined, sourceKind: string
 }
 
 const RAID_BASES = ['chambers of xeric', 'theatre of blood', 'tombs of amascut'];
-const RAID_MODES: Record<string, string> = { 'challenge mode': 'CM', 'expert mode': 'Expert', 'hard mode': 'HM', 'entry mode': 'Entry' };
+const RAID_MODES: Record<string, string> = { 'challenge mode': 'CM', 'expert mode': 'Expert', 'hard mode': 'HMT', 'entry mode': 'Entry' };
 const foldName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 /**
