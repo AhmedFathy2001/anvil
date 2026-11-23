@@ -73,6 +73,8 @@ export interface DropFacts {
   rateRolls?: number | null;
   /** The source hands this item over every kill (server dropFacts, judged by the plugin). */
   guaranteed?: boolean;
+  /** Copies the collection log already held before this one (the site's mark, lib/notifyDropJudge withHeldBefore). */
+  heldBefore?: number | null;
   /** A rare roll on something worthless. */
   troll?: boolean;
   /** An always-notify prestige item: 'loot' (seen in a loot event) or 'unlock' (collection-log line only). */
@@ -336,20 +338,23 @@ export function countLabel(source: string | null | undefined, kcOf?: string | nu
 }
 
 /**
- * Share of players who'd already hold a drop of per-kill probability p after kc kills. An item that
- * takes `rolls` hidden rolls (lib/rollTables: a vestige lands on the third) is p × rolls per roll,
- * and held once that many have hit.
+ * Share of players who'd already hold `copies` of a drop of per-kill probability p after kc kills.
+ * An item that takes `rolls` hidden rolls (lib/rollTables: a vestige lands on the third) is p × rolls
+ * per roll, and held once that many have hit.
  */
-export function obtainedShare(p: number, kc: number, rolls = 1): number {
+export function obtainedShare(p: number, kc: number, rolls = 1, copies = 1): number {
   if (p <= 0 || kc <= 0) return 0;
   rolls = Math.min(Math.floor(rolls), 10);
-  if (rolls > 1) {
-    const q = Math.min(1, p * rolls);
+  copies = Math.min(Math.max(1, Math.floor(copies)), 50);
+  const need = rolls * copies;
+  if (need > 1) {
+    const q = Math.min(1, rolls > 1 ? p * rolls : p);
+    if (q >= 1) return kc >= need ? 1 : 0;
     let fewer = 0;
-    let term = (1 - q) ** kc; // P(exactly 0 hits), then 1, 2 … rolls-1
-    for (let j = 0; j < rolls && j <= kc; j++) {
+    let term = Math.exp(kc * Math.log1p(-q)); // P(exactly 0 hits), then 1, 2 … need-1
+    for (let j = 0; j < need && j <= kc; j++) {
       fewer += term;
-      term = q >= 1 ? 0 : (term * (kc - j) * q) / ((j + 1) * (1 - q));
+      term = (term * (kc - j) * q) / ((j + 1) * (1 - q));
     }
     return Math.max(0, 1 - fewer);
   }
@@ -357,14 +362,18 @@ export function obtainedShare(p: number, kc: number, rolls = 1): number {
   return -Math.expm1(kc * Math.log1p(-p));
 }
 
-/** The "Luck" field: "Top 8% — spooned", "Top 20%", "Dry — 93% had it by now", or null when typical/unknown. */
-export function luckLabel(dropRate: number | null | undefined, kc: number | null | undefined, rolls = 1): string | null {
+/**
+ * The "Luck" field: "Top 8% — spooned", "Top 20%", "Dry — 93% had it by now", or null when
+ * typical/unknown. `copies` is which one this is: a second copy at 350 kills is measured against
+ * players holding two by then, not one ("Dry — 76% had 2 by now").
+ */
+export function luckLabel(dropRate: number | null | undefined, kc: number | null | undefined, rolls = 1, copies = 1): string | null {
   if (dropRate == null || dropRate <= 0 || kc == null || kc <= 0) return null;
-  const share = obtainedShare(dropRate, kc, rolls);
+  const share = obtainedShare(dropRate, kc, rolls, copies);
   const pct = Math.max(1, Math.round(share * 100));
   if (share < 0.1) return `Top ${pct}% — spooned`;
   if (share < 0.35) return `Top ${pct}%`;
-  if (share >= 0.85) return `Dry — ${pct}% had it by now`;
+  if (share >= 0.85) return `Dry — ${pct}% had ${copies > 1 ? copies : 'it'} by now`;
   return null;
 }
 
@@ -453,7 +462,7 @@ function dropEmbed(f: DropFacts, random: () => number): DiscordEmbed {
     desc = `${who(f.rsn)}${f.troll ? ' got robbed' : ' received a valuable drop'}${fromPhrase(f.source, f.sourceKind)}.`;
   }
   const dropRate = f.dropRate;
-  const luck = guaranteed ? null : luckLabel(dropRate, f.kc, f.rateRolls ?? 1);
+  const luck = guaranteed ? null : luckLabel(dropRate, f.kc, f.rateRolls ?? 1, 1 + (f.heldBefore ?? 0));
   // A notable item's lucky line has to be backed by what the post shows: a rate, a count, and luck
   // that says spooned. (The route fills in what the site knows first: lib/notifyDropJudge.)
   if (f.spoon && !guaranteed && (!f.notable || luck?.endsWith('spooned'))) desc += `\n${spoonLine(random)}`;
@@ -708,6 +717,7 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
           rsn: rsnOf(o), items, source: optStr(o, 'source'), sourceKind: optStr(o, 'sourceKind', 32),
           kc: optInt(o, 'kc'), kcOf: optStr(o, 'kcOf', 64), kcAbout: flag(o, 'kcAbout'), dropRate: optRate(o, 'dropRate'),
           rateRolls: ((r) => (r != null && r >= 1 && r <= 10 ? r : null))(optInt(o, 'rateRolls')), guaranteed: flag(o, 'guaranteed'),
+          heldBefore: ((h) => (h != null && h >= 1 && h <= 100000 ? h : null))(optInt(o, 'heldBefore')),
           troll: flag(o, 'troll'), notable, earned: flag(o, 'earned'), spoon: flag(o, 'spoon'),
           note: optStr(o, 'note', 512), modeOnly: flag(o, 'modeOnly'),
         },

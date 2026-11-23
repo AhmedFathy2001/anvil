@@ -322,6 +322,11 @@ test('luck for an item that takes several hidden rolls', () => {
   assert.equal(luckLabel(1 / 720, 2, 3), 'Top 1% — spooned'); // cannot have it before the third kill
   assert.equal(luckLabel(1 / 720, 720, 3), null); // typical
   assert.equal(luckLabel(1 / 720, 1700, 3), 'Dry — 97% had it by now');
+  // A second Berserker ring at 350 kills: 94% hold one by then, only 76% hold two.
+  assert.equal(luckLabel(1 / 128, 350), 'Dry — 94% had it by now');
+  assert.equal(luckLabel(1 / 128, 350, 1, 2), null);
+  assert.equal(luckLabel(1 / 128, 700, 1, 2), 'Dry — 97% had 2 by now');
+  assert.equal(luckLabel(1 / 128, 1, 1, 2), 'Top 1% — spooned'); // two copies cannot land in one kill
 });
 
 test('a spoon line is drawn from the pool', () => {
