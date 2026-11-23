@@ -26,6 +26,7 @@ import { coHostedBoardLinks } from '@/lib/coHost';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { flaggedProofBoards } from '@/lib/flaggedProofs';
 import { pendingTransferForClan } from '@/lib/ownershipTransfers';
+import { canPayForPlan } from '@/lib/planPayers';
 import OwnershipTransferBanner from './_components/OwnershipTransferBanner';
 
 // Admin shell — wraps every page under /admin (including the login page).
@@ -299,6 +300,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // Posting news is something staff do, not something they set up.
       ...(isAdmin && features.on('announce')
         ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
+        : []),
+      // A treasurer or moderator the owner let pay (lib/planPayers); admins have it under Settings.
+      ...(!isAdmin && !creator && (await canPayForPlan(clan.id, session.userId))
+        ? [{ href: '/admin/plan', label: 'Plan and billing', icon: '💳', sprite: 'coins' as const }]
         : []),
     ],
   });

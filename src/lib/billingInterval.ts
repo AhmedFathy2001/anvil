@@ -97,6 +97,15 @@ export function withRef(base: string | null, ref: string | null | undefined): st
   return `${base}${base.includes('?') ? '&' : '?'}ref=${encodeURIComponent(ref)}`;
 }
 
+/**
+ * Adds who is paying (`payer=<their users.supporter_ref>`, lib/planPayers) to a clan checkout URL that
+ * already carries the clan's ref. Gumroad echoes it back on the sale as url_params[payer].
+ */
+export function withPayer(url: string | null, payerRef: string | null | undefined): string | null {
+  if (!url || !payerRef) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}payer=${encodeURIComponent(payerRef)}`;
+}
+
 /** Adds/removes `billing=yearly` on a site path (monthly is the default, so it is left off). */
 export function withBilling(href: string, interval: BillingInterval): string {
   const [pathAndQuery, hash] = href.split('#', 2);
