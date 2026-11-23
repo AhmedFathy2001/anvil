@@ -31,6 +31,26 @@ test('an unknown skill word is a question, not a Total XP tile', () => {
   assert.notEqual(classifyMatches(matchTasks('1m foo xp')).status, 'ready');
 });
 
+test('Barbarian Assault: gambles are the BA counter, other BA lines ask, never Barbarian Outpost laps', () => {
+  for (const q of ['10 ba gambles', '10 high gambles', '25 barbarian assault high gambles']) {
+    const c = top(q);
+    assert.deepEqual(c?.config.targetNpcs, ['Barbarian Assault high gambles'], q);
+    assert.equal(classifyMatches(matchTasks(q)).status, 'ready', q);
+  }
+  for (const q of ['10 ba games', 'barbarian assault', 'ba']) {
+    const found = matchTasks(q);
+    assert.notEqual(classifyMatches(found).status, 'ready', q);
+    assert.ok(!found.some((c) => c.confident && c.config.tileType === 'lap'), q);
+    assert.notEqual(found[0]?.config.tileType, 'lap', q);
+  }
+  // The real course still is laps.
+  assert.equal(top('50 barbarian outpost laps')?.config.tileType, 'lap');
+});
+
+test('Pest Control has no tile kind yet: never a confident wrong tile', () => {
+  for (const q of ['10 pc games', 'pest control wins']) assert.notEqual(classifyMatches(matchTasks(q)).status, 'ready', q);
+});
+
 test('boss shorthand', () => {
   const cases: [string, string][] = [
     ['50 gg kc', 'grotesqueGuardians'],

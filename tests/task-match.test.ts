@@ -501,6 +501,8 @@ const clogCtx: MatchContext = { ...ctx, clogPages: clogPages(), itemIsMonsterDro
 const pageIds = (name: string) => clogPages().find((p) => p.name === name)!.items.map((i) => i.id);
 // A page's uniques: its minor slots (lib/clogMinor — the bolt rack on Barrows) are not "an item" from it.
 const pageUniqueIds = (name: string) => clogPages().find((p) => p.name === name)!.items.filter((i) => !i.minor).map((i) => i.id);
+const allPetIds = new Set(clogPages().find((p) => p.name === 'All Pets')!.items.map((i) => i.id));
+const pagePetIds = (name: string) => pageIds(name).filter((id) => allPetIds.has(id));
 const partsOf = (c: TaskCandidate) => c.config.parts ?? [];
 
 test('the clan’s GOTR line is ONE ready combo: the GOTR log page, OR 100 searches capped by event energy', () => {
@@ -573,8 +575,8 @@ test('combo is generic: a drop page OR a hiscores KC tile — each part on its o
     const parts = partsOf(top);
     const drop = parts.find((p) => p.tileType === 'drop')!;
     const kc = parts.find((p) => p !== drop)!;
-    // "unique" / "item" is the page's uniques (no bolt racks); "pet" still reads as the whole page.
-    assert.deepEqual(drop.trackedItemIds, /\bpet\b/i.test(line) ? pageIds(page) : pageUniqueIds(page), line);
+    // "unique" / "item" is the page's uniques (no bolt racks); "pet" is just the page's pet.
+    assert.deepEqual(drop.trackedItemIds, /\bpet\b/i.test(line) ? pagePetIds(page) : pageUniqueIds(page), line);
     // The KC side is the normal hiscores boss tile now — no forcing plugin kills.
     assert.equal(kc.statType, 'boss', line);
     assert.equal(kc.trackedStat, key, line);

@@ -32,6 +32,10 @@ const idOf = (name: string) => [...items.values()].find((i) => i.name === name)!
 test('a page names its minor slots, and only boss and raid pages have them', () => {
   assert.ok(clogMinorIds('Barrows Chests').has(idOf('Bolt rack')));
   assert.ok(clogMinorIds('Tombs of Amascut').has(idOf('Jewel of the sun')));
+  // Common for their boss, but its unique all the same.
+  for (const [page, item] of [['Skotizo', 'Dark claw'], ['The Hueycoatl', 'Hueycoatl hide'], ['Sarachnis', 'Giant egg sac(full)'], ['Brutus', 'Bottomless milk bucket (empty)']]) {
+    assert.ok(!clogMinorIds(page).has(idOf(item)), item);
+  }
   assert.ok(!clogMinorIds('Tombs of Amascut').has(idOf("Tumeken's guardian")));
   assert.ok(!clogMinorIds('Tombs of Amascut').has(idOf('Osmumten\'s fang')));
   assert.equal(clogMinorIds('Wintertodt').size, 0);
@@ -101,6 +105,19 @@ test('"a unique from each dt2 boss" is one group per boss, every set, needs 1', 
   assert.equal(new Set(reqs.map((r) => r.group)).size, 4);
   assert.ok(reqs.every((r) => r.groupRequire === 1));
   assert.ok(!reqs.some((r) => r.name === "Awakener's orb" || / tablet$/.test(r.name)));
+});
+
+test('"<boss> pet" is just that boss’s pet, not its whole page', () => {
+  for (const [q, pet] of [['zulrah pet', 'Pet snakeling'], ['pet from vorkath', 'Vorki'], ['vorkath pet', 'Vorki']] as const) {
+    const c = top(q);
+    assert.equal(c.config.tileType, 'drop', q);
+    assert.deepEqual(c.config.trackedItemIds, [idOf(pet)], q);
+  }
+  const gwd = top('any pet from gwd');
+  assert.equal(gwd.config.trackedItemIds!.length, 4);
+  const each = top('a pet from each gwd boss');
+  assert.equal(each.config.groupMode, 'all');
+  assert.equal(new Set(each.config.itemRequirements!.map((r) => r.group)).size, 4);
 });
 
 test('a drop line it cannot read is never a confident kill count', () => {

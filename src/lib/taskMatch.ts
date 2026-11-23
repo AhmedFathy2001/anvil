@@ -257,6 +257,7 @@ const SHORTHANDS: Record<string, string> = {
   dk: 'dagannoth kings',
   cgs: 'corrupted gauntlet',
   pc: 'pest control',
+  ba: 'barbarian assault',
 };
 
 // Names a clan uses for ONE item only when the word is the whole task ("Scythe", "Shadow") — inside a
@@ -1379,7 +1380,7 @@ function clogTileCandidates(raw: string, q: ParsedQuery, ctx: MatchContext): Tas
 // (MatchItem.minor, lib/clogMinor — bolt racks, raid kits and jewels) are left out. A line that names
 // drops like this is never read as a kill count (see dropGuard).
 
-const DROP_NOUNS: Record<string, string> = { piece: 'piece', unique: 'unique', purple: 'unique', item: 'item', drop: 'drop', loot: 'drop' };
+const DROP_NOUNS: Record<string, string> = { piece: 'piece', unique: 'unique', purple: 'unique', item: 'item', drop: 'drop', loot: 'drop', pet: 'pet' };
 const SET_WORDS = new Set(['set']);
 const DISTINCT_RE = /\b(?:different|distinct|no\s+(?:dupes?|duplicates?|repeats?|doubles?)|without\s+(?:dupes?|duplicates?|repeats?)|each\s+(?:item\s+)?once)\b/i;
 const EACH_RE = /\b(?:each|every)\b/i;
@@ -1392,7 +1393,7 @@ const SLOT_RULES: [string, RegExp][] = [
 const SLOT_WORDS = /\b(?:helms?|helmets?|hoods?|tops?|bodies|body|legs|bottoms?|skirts?|weapons?)\b/gi;
 // Words that say what kind of line it is, never which page.
 const DROP_LINE_FILLER = new Set([
-  'piece', 'unique', 'purple', 'item', 'drop', 'loot', 'set', 'different', 'distinct', 'no', 'dupe', 'dup',
+  'piece', 'unique', 'purple', 'item', 'drop', 'loot', 'pet', 'set', 'different', 'distinct', 'no', 'dupe', 'dup',
   'duplicate', 'repeat', 'double', 'without', 'each', 'every', 'once', 'one', 'a', 'an', 'the', 'any', 'of',
   'from', 'boss', 'bosse', 'slot', 'and', 'or', 'get', 'obtain', 'helm', 'helmet', 'hood', 'top', 'body', 'bodie',
   'leg', 'legs', 'bottom', 'skirt', 'weapon', 'full', 'their', 'per', 'only', 'count', 'counts', 'piec',
@@ -1413,6 +1414,11 @@ type ClogPage = { name: string; items: MatchItem[] };
 
 const pageWord = (page: string) => page.replace(/ Chests$/, '').replace(/^The /, '');
 const uniquesOf = (page: ClogPage) => page.items.filter((i) => !i.minor);
+/** The page's pets: its slots that are also on the log's All Pets page. */
+const petsOf = (page: ClogPage, ctx: MatchContext) => {
+  const pets = new Set((ctx.clogPages ?? []).find((p) => p.name === 'All Pets')?.items.map((i) => i.id) ?? []);
+  return page.items.filter((i) => pets.has(i.id));
+};
 
 /** The pages a drop line names: a family ("dt2"), a raid's short name, or every word naming one page. */
 function dropLinePages(ws: string[], ctx: MatchContext): ClogPage[] {
@@ -1531,17 +1537,21 @@ function dropLineCandidates(raw: string, ctx: MatchContext): TaskCandidate[] {
   }
   if (pages.length === 0) return [];
   const label = pages.length > 1 ? (ws.find((w) => PAGE_FAMILIES[w])?.toUpperCase() ?? pages.map((p) => pageWord(p.name)).join('/')) : pageWord(pages[0].name);
+  // "zulrah pet", "any pet from gwd": the page's pet slots, not its whole loot.
+  const isPet = noun === 'pet';
+  const poolOf = (p: ClogPage) => (isPet ? petsOf(p, ctx) : uniquesOf(p));
 
   // "a unique from each dt2 boss": one from every page.
   if (each && pages.length > 1) {
-    const reqs = pages.flatMap((p) => reqsOf(uniquesOf(p), pageWord(p.name), 1));
+    const reqs = pages.flatMap((p) => reqsOf(poolOf(p), pageWord(p.name), 1));
+    if (reqs.length === 0) return [];
     const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: 'all', setsRequired: null };
-    const title = `A ${label} unique from each boss`;
-    return [dropLineCandidate(`dropline-each-${label}`, title, 'Get', `a unique from each ${label} boss`, config, null)];
+    const title = `A ${label} ${isPet ? 'pet' : 'unique'} from each boss`;
+    return [dropLineCandidate(`dropline-each-${label}`, title, 'Get', `a ${isPet ? 'pet' : 'unique'} from each ${label} boss`, config, null)];
   }
 
   const page = pages[0];
-  const uniques = pages.flatMap(uniquesOf);
+  const uniques = pages.flatMap(poolOf);
   const slotsSaid = new Set((text.match(SLOT_WORDS) ?? []).map((w) => w.toLowerCase()));
   // "one of each barrows slot", "1 barrows helm, 1 top, 1 legs and 1 weapon": one per armour slot.
   if (pages.length === 1 && ((each && ws.includes('slot')) || slotsSaid.size >= 2)) {
@@ -1690,7 +1700,25 @@ function matchSingle(query: string, ctx: MatchContext): TaskCandidate[] {
   // collection log's uniques first, and one it can't read is never quietly a kill count (dropGuard).
   const drops = dropLineCandidates(query, ctx);
   if (drops.length > 0) return drops;
-  return dropGuard(query, matchSingleTyped(query, ctx));
+  return counterWordGuard(query, dropGuard(query, matchSingleTyped(query, ctx)));
+}
+
+// A counter that is only what a line means when the line says its word: Barbarian Assault's only
+// counter is high gambles, so "10 ba games" is a question, never a gamble tile.
+const COUNTER_NEEDS_WORD: Record<string, string[]> = {
+  'Barbarian Assault high gambles': ['gamble'],
+};
+
+function counterWordGuard(query: string, found: TaskCandidate[]): TaskCandidate[] {
+  const said = new Set(words(expandShorthands(query)).map(stem));
+  let changed = false;
+  const out = found.map((c) => {
+    const need = c.source === 'counter' ? COUNTER_NEEDS_WORD[c.noun] : undefined;
+    if (!need || need.some((w) => said.has(w)) || !c.confident) return c;
+    changed = true;
+    return { ...c, confident: false, score: Math.min(c.score, 5.5) };
+  });
+  return changed ? out.sort((a, b) => b.score - a.score) : out;
 }
 
 function matchSingleTyped(query: string, ctx: MatchContext): TaskCandidate[] {

@@ -85,6 +85,9 @@ export const GAME_COUNTERS: GameCounter[] = [
   // Doom: one per delve cleared, any level, repeats included. Counted once per tick in case a deep
   // delve bumps both the level-8 and the 8+ var.
   { name: 'Doom of Mokhaiotl delves', group: 'Combat', note: 'Every delve completed, any level (repeats count)', sources: DOOM_LEVELS.map((l) => l.source), changes: true, maxDelta: 5, confirmed: false },
+  // BARBASSAULT_GAMBLECOUNT: the high-level gamble count the collection log shows. One gamble at a
+  // time; a jump is the value arriving late, so maxDelta 1 re-baselines it.
+  { name: 'Barbarian Assault high gambles', group: 'Minigames', note: 'High-level gambles at Barbarian Assault (the count the collection log shows)', sources: [varbit(4768)], maxDelta: 1, confirmed: false },
   ...DOOM_LEVELS.map((l): GameCounter => ({
     name: `Doom delve level ${l.label}`, group: 'Combat', note: `Doom of Mokhaiotl delve level ${l.label} completions`,
     sources: [l.source], maxDelta: 5, confirmed: false,

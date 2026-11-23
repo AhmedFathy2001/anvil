@@ -46,6 +46,11 @@ const KEEP = new Set([
   'oathplate helm', 'oathplate chest', 'oathplate legs', 'soulflame horn', // Yama: rate data reads 1/1
   "scurrius' spine", // Scurrius's one unique
   'mooleta', // Brutus's weapon
+  // Common for their boss, but what a bingo there means by its unique (Ahmed, 2026-11-23).
+  'dark claw', // Skotizo
+  'hueycoatl hide',
+  'giant egg sac(full)', // Sarachnis
+  'bottomless milk bucket (empty)', // Brutus
 ]);
 
 const clog = read('clog.json').activities;
