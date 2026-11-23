@@ -47,7 +47,7 @@ export default function PracticeBoardClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [adding, setAdding] = useState<null | 'copy' | 'pick'>(null);
-  const [boards, setBoards] = useState<{ id: number; name: string; startDate: string | null; tiles: number }[]>([]);
+  const [boards, setBoards] = useState<{ id: number; name: string; startDate: string | null; tiles: number }[] | null>(null);
   const [boardId, setBoardId] = useState<number | null>(null);
   const [copyIds, setCopyIds] = useState<number[]>([]);
   const [picked, setPicked] = useState<PickedRow[]>([]);
@@ -64,15 +64,16 @@ export default function PracticeBoardClient({
   }, [router, view.running]);
 
   useEffect(() => {
-    if (!adding || boards.length) return;
+    if (!adding || boards != null) return;
     clanFetch('/api/admin/practice')
       .then((r) => (r.ok ? r.json() : { boards: [] }))
-      .then((d: { boards: typeof boards }) => {
-        setBoards(d.boards);
-        if (d.boards[0]) setBoardId(d.boards[0].id);
+      .then((d: { boards?: { id: number; name: string; startDate: string | null; tiles: number }[] }) => {
+        const list = d.boards ?? [];
+        setBoards(list);
+        if (list[0]) setBoardId(list[0].id);
       })
-      .catch(() => null);
-  }, [adding, boards.length]);
+      .catch(() => setBoards([]));
+  }, [adding, boards]);
 
   async function act(key: string, body: Record<string, unknown>): Promise<boolean> {
     setBusy(key);
@@ -149,7 +150,9 @@ export default function PracticeBoardClient({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/50 bg-amber-950/40 px-4 py-3">
         <span className="rounded bg-amber-400 px-2 py-0.5 text-[11px] font-bold tracking-wider text-brown-dark">PRACTICE</span>
         <div className="flex-1 min-w-0 text-sm text-amber-100">
-          Only you and the people on it can see this board. {view.hook ? `Posts go to the test ${view.hook}.` : 'Nothing posts to Discord.'} Nothing counts.
+          {view.running
+            ? <>Only you and the people on it can see this board. {view.hook ? `Posts go to the test ${view.hook}.` : 'Nothing posts to Discord.'} Nothing counts.</>
+            : 'This practice board has ended. Only the clan’s admins can see it now, and it is deleted 7 days after it ended.'}
         </div>
         <span className="text-sm text-amber-100">{view.running ? `Ends in ${untilText(view.endDate, now)}` : 'Ended'}</span>
       </div>
@@ -229,7 +232,7 @@ export default function PracticeBoardClient({
             <span className="text-xs text-text-muted ml-auto">Room for {room} more</span>
           </div>
           {adding === 'copy' ? (
-            <CopyTiles boards={boards} boardId={boardId} onBoard={setBoardId} picked={copyIds} onChange={setCopyIds} max={room} />
+            <CopyTiles boards={boards} boardId={boardId} onBoard={setBoardId} picked={copyIds} onChange={setCopyIds} max={room} preselect={false} />
           ) : (
             <PickTiles picked={picked} onChange={setPicked} max={room} />
           )}
@@ -338,7 +341,7 @@ export default function PracticeBoardClient({
         ))}
         {view.endDate && (
           <div className="pt-1 text-xs text-text-muted">
-            Runs until <LocalTime date={view.forceEndedAt ?? view.endDate} format="datetime" />.
+            {view.running ? 'Runs until' : 'Ended'} <LocalTime date={view.forceEndedAt ?? view.endDate} format="datetime" />.
           </div>
         )}
       </section>

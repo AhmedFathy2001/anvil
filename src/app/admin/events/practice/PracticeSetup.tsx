@@ -226,13 +226,16 @@ export function CopyTiles({
   picked,
   onChange,
   max,
+  preselect = true,
 }: {
-  boards: Board[];
+  boards: Board[] | null;
   boardId: number | null;
   onBoard: (id: number | null) => void;
   picked: number[];
   onChange: (ids: number[]) => void;
   max: number;
+  /** Tick the board's tiles to start with (setup). Off for "Add tiles": the board likely has them already. */
+  preselect?: boolean;
 }) {
   const [tiles, setTiles] = useState<PickTile[] | null>(null);
   useEffect(() => {
@@ -243,7 +246,7 @@ export function CopyTiles({
       .then((d: { tiles: PickTile[] }) => {
         if (gone) return;
         setTiles(d.tiles);
-        onChange(d.tiles.slice(0, max).map((t) => t.id));
+        onChange(preselect ? d.tiles.slice(0, max).map((t) => t.id) : []);
       })
       .catch(() => !gone && setTiles([]));
     return () => {
@@ -261,9 +264,9 @@ export function CopyTiles({
           setTiles(null);
           onBoard(v ? Number(v) : null);
         }}
-        options={boards.map((b) => ({ value: String(b.id), label: `${b.name} · ${b.tiles} tile${b.tiles === 1 ? '' : 's'}` }))}
-        placeholder={boards.length ? 'Choose a board to copy' : 'This clan has no boards yet'}
-        disabled={boards.length === 0}
+        options={(boards ?? []).map((b) => ({ value: String(b.id), label: `${b.name} · ${b.tiles} tile${b.tiles === 1 ? '' : 's'}` }))}
+        placeholder={boards == null ? 'Loading boards…' : boards.length ? 'Choose a board to copy' : 'This clan has no boards yet'}
+        disabled={!boards?.length}
         ariaLabel="Board to copy"
       />
       {boardId != null && tiles === null && <div className="text-xs text-text-muted">Loading tiles…</div>}
@@ -326,7 +329,8 @@ export default function PracticeSetup({
   maxTiles: number;
 }) {
   const router = useRouter();
-  const [boards, setBoards] = useState<Board[]>([]);
+  // Null while loading: "no boards" is an answer, not a placeholder.
+  const [boards, setBoards] = useState<Board[] | null>(null);
   const [mode, setMode] = useState<'copy' | 'pick'>('copy');
   const [boardId, setBoardId] = useState<number | null>(null);
   const [copyIds, setCopyIds] = useState<number[]>([]);
@@ -341,7 +345,7 @@ export default function PracticeSetup({
 
   useEffect(() => {
     clanFetch('/api/admin/practice')
-      .then((r) => (r.ok ? r.json() : { boards: [] }))
+      .then((r) => (r.ok ? r.json() : { boards: [], active: null }))
       .then((d: { boards: Board[]; active: { id: number } | null }) => {
         if (d.active) {
           router.replace(clanUrl(`/events/practice/${d.active.id}`));
@@ -351,7 +355,7 @@ export default function PracticeSetup({
         if (d.boards.length === 0) setMode('pick');
         else setBoardId(d.boards[0].id);
       })
-      .catch(() => null);
+      .catch(() => setBoards([]));
   }, [router]);
 
   const tileCount = mode === 'copy' ? copyIds.length : picked.length;
@@ -405,7 +409,12 @@ export default function PracticeSetup({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {(
               [
-                { key: 'copy', title: 'Copy a board', blurb: boards.length ? 'Its tiles, rules, hidden tiles and conditions' : 'This clan has no boards yet', off: boards.length === 0 },
+                {
+                  key: 'copy',
+                  title: 'Copy a board',
+                  blurb: boards == null ? 'Loading this clan’s boards…' : boards.length ? 'Its tiles, rules, hidden tiles and conditions' : 'This clan has no boards yet',
+                  off: boards?.length === 0,
+                },
                 { key: 'pick', title: 'Pick tiles', blurb: 'From the tile library, or type them', off: false },
               ] as const
             ).map((c) => (
@@ -450,16 +459,19 @@ export default function PracticeSetup({
 
         <section className="space-y-2">
           <SectionLabel>Discord posts</SectionLabel>
-          <label className="flex gap-3 rounded-lg border border-card-border p-3 cursor-pointer">
-            <Radio name="practice-post" checked={postTo === 'hook'} onChange={() => setPostTo('hook')} />
-            <span className="flex-1 space-y-2">
-              <span className="block text-sm">A test webhook</span>
-              <span className="block text-xs text-text-muted">Tile completions, board posts and the rules card post here, as they would for the real event.</span>
-              {postTo === 'hook' && (
-                <Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="https://discord.com/api/webhooks/…" aria-label="Test webhook URL" />
-              )}
-            </span>
-          </label>
+          <div className="rounded-lg border border-card-border p-3 space-y-2">
+            {/* The field sits outside the label, so the radio's name is its words, not the pasted URL. */}
+            <label className="flex gap-3 cursor-pointer">
+              <Radio name="practice-post" checked={postTo === 'hook'} onChange={() => setPostTo('hook')} />
+              <span className="flex-1">
+                <span className="block text-sm">A test webhook</span>
+                <span className="block text-xs text-text-muted">Tile completions, board posts and the rules card post here, as they would for the real event.</span>
+              </span>
+            </label>
+            {postTo === 'hook' && (
+              <Input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="https://discord.com/api/webhooks/…" aria-label="Test webhook URL" className="sm:ml-7 sm:w-[calc(100%-1.75rem)]" />
+            )}
+          </div>
           <label className="flex gap-3 rounded-lg border border-card-border p-3 cursor-pointer">
             <Radio name="practice-post" checked={postTo === 'none'} onChange={() => setPostTo('none')} />
             <span className="text-sm">No posts</span>
