@@ -522,7 +522,7 @@ test('the clan’s GOTR line is ONE ready combo: the GOTR log page, OR 100 searc
   assert.equal(searches.requiredAmount, 100);
   assert.deepEqual(searches.capBy, [...GOTR_ENERGY_CAPS]);
   assert.equal(top.flow, 'confirm');
-  assert.match(top.title, /^Any Guardians of the Rift collection log item or 100 /);
+  assert.match(top.title, /^Guardians of the Rift log item or 100 /);
   assert.equal(top.hint, comboSentence({ mode: 'any' }, partsOf(top).map((p) => p.label)));
   assert.match(top.hint, /^Done when the team does any one of: /);
   // Saved as-is by both write paths: the rule and each part.

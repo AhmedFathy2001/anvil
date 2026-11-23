@@ -5,6 +5,7 @@ import { itemIconUrl } from '@/lib/tileIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { howItCountsLine, itemTileConfig, type ItemHow, type ItemNeed } from '@/lib/tileCreatorConfig';
+import { itemPoolTitle } from '@/lib/tileNames';
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { ItemObtainInfo } from '@/lib/itemObtain';
 import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, StepHeader } from './parts';
@@ -113,19 +114,24 @@ export default function ItemStep({
   function next() {
     if (!config || !countsLine) return;
     const one = items.length === 1 ? items[0].name : null;
-    const what = one ?? `${items.length} items`;
     const n = effectiveNeed === 'total' ? Math.max(1, amount ?? 1) : 1;
-    const plainTitle =
-      effectiveNeed === 'each' ? `One of each: ${items.map((i) => i.name).join(', ')}`.slice(0, 120)
-      : n > 1 ? `${n.toLocaleString('en-US')} × ${what}`
-      : one ? one : `Any of ${items.map((i) => i.name).join(', ')}`.slice(0, 120);
+    // Named by what the items share (lib/tileNames): "ToA unique", "Tbow or Scythe", "GWD hilt".
+    const nameOpts = {
+      items,
+      need: effectiveNeed === 'each' ? ('each' as const) : ('any' as const),
+      pagesOf: (id: number) => (info[id]?.clogPage ? [info[id]!.clogPage!] : undefined),
+      petIds: new Set(items.filter((i) => info[i.id]?.pet).map((i) => i.id)),
+    };
+    const plainTitle = itemPoolTitle({ ...nameOpts, amount: n }).slice(0, 120);
+    const template = itemPoolTitle({ ...nameOpts, amount: 2 }).replace(/^2 /, '{n} ');
+    const what = one ?? itemPoolTitle({ ...nameOpts, amount: 1 });
     const title = levelBar ? `${plainTitle} (ToA ${toaBarWords(levelBar)}${levelBar.entry ? ' or Entry' : ''})` : plainTitle;
     onNext({
       key: `items-${items.map((i) => i.id).join('+')}`,
       source: effectiveHow === 'gain' ? 'gain' : 'drop',
       badge: effectiveHow === 'gain' ? 'Items' : 'Drop',
       title,
-      titleTemplate: effectiveNeed === 'total' ? `{n} × ${what}` : title,
+      titleTemplate: effectiveNeed === 'total' && template.startsWith('{n} ') ? template : title,
       titleOne: one ?? undefined,
       hint: countsLine.text,
       engine: countsLine.engine,

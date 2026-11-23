@@ -2,6 +2,7 @@
 // components (the board, the tile modal, the editor) can say what a clog tile asks for without
 // bundling the 146 KB collection-log dataset.
 
+import { listNames, shortItem, shortPage } from '@/lib/tileNames';
 import { isIndividualMode } from '@/lib/statTracking';
 import { parseJsonArray } from '@/lib/tileKinds';
 
@@ -67,17 +68,18 @@ function orList(xs: string[]): string {
  */
 export function clogTileTitle(spec: ClogTileSpec, itemNames?: string[]): string {
   const handPicked = itemNames && itemNames.length > 0 && (spec.pages.length === 0 || itemNames.length <= 4) ? itemNames : null;
+  const pages = spec.pages.map(shortPage);
   if (spec.mode === 'complete') {
-    if (handPicked && spec.pages.length === 0) return handPicked.length <= 4 ? `Own all of: ${handPicked.join(', ')}` : `Own all ${handPicked.length} chosen collection log items`;
-    if (spec.pages.length === 1) return `Complete the ${spec.pages[0]} collection log page`;
-    if (spec.required >= spec.pages.length) return `Complete the ${spec.pages.join(' + ')} log pages`;
-    return `Complete ${spec.required} of: ${spec.pages.join(', ')} log pages`;
+    if (handPicked && spec.pages.length === 0) return handPicked.length <= 4 ? `Own ${listNames(handPicked.map(shortItem), 'and')}` : `Own all ${handPicked.length} chosen log items`;
+    if (pages.length === 1) return `Finish the ${pages[0]} log`;
+    if (spec.required >= pages.length) return `Finish the ${listNames(pages, 'and')} logs`;
+    return `Finish ${spec.required} of the ${listNames(pages)} logs`;
   }
   const n = spec.required;
   const slots = n === 1 ? 'slot' : 'slots';
-  if (handPicked && handPicked.length <= 4) return `${n} new ${slots} from: ${handPicked.join(', ')}`;
-  if (spec.pages.length > 0) return `${n} new ${orList(spec.pages)} log ${slots}`;
-  if (spec.itemIds.length > 0) return `${n} new log ${slots} from ${spec.itemIds.length} items`;
+  if (handPicked && handPicked.length <= 4) return `${n} new log ${slots} from ${listNames(handPicked.map(shortItem))}`;
+  if (pages.length > 0) return `${n} new ${listNames(pages)} log ${slots}`;
+  if (spec.itemIds.length > 0) return `${n} new log ${slots} from ${spec.itemIds.length} chosen items`;
   return `${n} new collection log ${slots}`;
 }
 

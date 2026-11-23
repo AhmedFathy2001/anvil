@@ -32,6 +32,7 @@ import type { TileConfig } from '@/lib/types';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, capPhrase } from '@/lib/tileCaps';
 import { COMBO_TILE_TYPE, MAX_PARSED_COMBO_PARTS as MAX_COMBO_PARTS, comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
 import { clogTileTitle } from '@/lib/clogTileWords';
+import { listNames, shortPage } from '@/lib/tileNames';
 import { allowedEdits, editDistance, fuzzySearch } from '@/lib/fuzzySearch';
 import {
   RAID_OPTIONS,
@@ -1248,9 +1249,9 @@ function clogCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
       key: `clog-${page.name}`,
       source: 'clog',
       badge: 'Drop',
-      titleTemplate: `Any ${page.name} collection log item`,
+      titleTemplate: `${shortPage(page.name)} log item`,
       verb: 'Get',
-      noun: `any ${page.name} collection log item`,
+      noun: `a ${shortPage(page.name)} log item`,
       amountField: null,
       defaultAmount: null,
       config: { tileType: 'drop', trackedItemIds: ids, requiredAmount: 1 },
@@ -1412,7 +1413,7 @@ const PAGE_ALIASES: Record<string, string> = {
 
 type ClogPage = { name: string; items: MatchItem[] };
 
-const pageWord = (page: string) => page.replace(/ Chests$/, '').replace(/^The /, '');
+const pageWord = shortPage;
 const uniquesOf = (page: ClogPage) => page.items.filter((i) => !i.minor);
 /** The page's pets: its slots that are also on the log's All Pets page. */
 const petsOf = (page: ClogPage, ctx: MatchContext) => {
@@ -1546,7 +1547,7 @@ function dropLineCandidates(raw: string, ctx: MatchContext): TaskCandidate[] {
     const reqs = pages.flatMap((p) => reqsOf(poolOf(p), pageWord(p.name), 1));
     if (reqs.length === 0) return [];
     const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: 'all', setsRequired: null };
-    const title = `A ${label} ${isPet ? 'pet' : 'unique'} from each boss`;
+    const title = `A ${isPet ? 'pet' : 'unique'} from each ${label} boss`;
     return [dropLineCandidate(`dropline-each-${label}`, title, 'Get', `a ${isPet ? 'pet' : 'unique'} from each ${label} boss`, config, null)];
   }
 
@@ -1564,7 +1565,8 @@ function dropLineCandidates(raw: string, ctx: MatchContext): TaskCandidate[] {
       const order = ['Helm', 'Top', 'Bottom', 'Weapon'].filter((s) => bySlot.has(s));
       const reqs = order.flatMap((s) => reqsOf(bySlot.get(s)!, s, 1));
       const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: 'all', setsRequired: null };
-      const title = `One ${label} ${order.map((s) => s.toLowerCase()).join(', ')}`.replace(/, (\w+)$/, ' and $1');
+      const SLOT_WORD: Record<string, string> = { Helm: 'helm', Top: 'body', Bottom: 'legs', Weapon: 'weapon' };
+      const title = `${label} ${listNames(order.map((s) => SLOT_WORD[s]), 'and')}`;
       return [dropLineCandidate(`dropline-slots-${page.name}`, title, 'Get', `one ${label} piece for each slot (${order.join(', ').toLowerCase()})`, config, null)];
     }
   }
@@ -1576,7 +1578,7 @@ function dropLineCandidates(raw: string, ctx: MatchContext): TaskCandidate[] {
     const n = Math.max(1, amount ?? 1);
     const reqs = [...sets].flatMap(([owner, items]) => reqsOf(items, owner, null));
     const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: null, setsRequired: n > 1 ? n : null };
-    const title = n > 1 ? `${n} full ${label} sets` : `A full ${label} set`;
+    const title = n > 1 ? `${n} ${label} sets` : `${label} set`;
     return [dropLineCandidate(`dropline-sets-${page.name}`, title, 'Complete', n > 1 ? `${n} full ${label} sets` : `any full ${label} set`, config, null)];
   }
 
@@ -1588,9 +1590,9 @@ function dropLineCandidates(raw: string, ctx: MatchContext): TaskCandidate[] {
     tileType: 'drop', trackedItemIds: uniques.map((i) => i.id), itemRequirements: null, requiredAmount: n, countMode: isDistinct ? 'distinct' : null,
   };
   const word = n === 1 ? noun : plural(noun);
-  const title = n === 1 ? `Any ${label} ${noun}` : `${n} ${isDistinct ? 'different ' : ''}${label} ${word}`;
+  const title = n === 1 ? `${label} ${noun}` : `${n} ${isDistinct ? 'different ' : ''}${label} ${word}`;
   const c = dropLineCandidate(`dropline-pool-${pages.map((p) => p.name).join('+')}-${isDistinct ? 'd' : 't'}`, title, 'Get', title.replace(/^Any/, 'any'), config, n);
-  return [{ ...c, amountField: 'requiredAmount', titleTemplate: n === 1 ? title : title.replace(/^\d+/, '{n}'), titleOne: `Any ${label} ${noun}` }];
+  return [{ ...c, amountField: 'requiredAmount', titleTemplate: n === 1 ? title : title.replace(/^\d+/, '{n}'), titleOne: `${label} ${noun}` }];
 }
 
 /**

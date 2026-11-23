@@ -42,6 +42,8 @@ import { clanFetch } from '@/lib/clanFetch';
 import ComboPartsField, { blankPart, draftsFromParts, partPayload, type ComboPartDraft } from '@/components/ComboPartsField';
 import ClogTileFields from '@/components/ClogTileFields';
 import SmartTip from '@/components/SmartTip';
+import { itemPoolTitle } from '@/lib/tileNames';
+import { clogTileTitle } from '@/lib/clogTileWords';
 import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboList, type ComboRule } from '@/lib/combo';
 import { listKillKey, listRule, readListTile } from '@/lib/listTile';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, isGotrEnergyCapped } from '@/lib/tileCaps';
@@ -1303,6 +1305,22 @@ function TileTrackingEditor({
   const isCa = kind === 'ca';
   const isCombo = kind === 'combo';
   const isClog = kind === 'clog';
+  // A name for an unnamed tile (lib/tileNames): "Tbow or Scythe", "Dharok's set", "5 new Barrows log slots".
+  const suggestedName = (() => {
+    if (kind === 'clog') {
+      if (clogPages.length === 0 && clogItemIds.length === 0) return null;
+      return clogTileTitle({ mode: clogMode, pages: clogPages, itemIds: clogItemIds, required: Math.max(1, parseInt(requiredAmount, 10) || 1) });
+    }
+    if ((kind === 'drop' || kind === 'collection' || kind === 'gain') && trackedItems.length > 0) {
+      return itemPoolTitle({
+        items: trackedItems,
+        need: kind === 'collection' ? 'each' : 'any',
+        amount: kind === 'collection' ? 1 : parseInt(requiredAmount, 10) || 1,
+        distinct: countMode === 'distinct',
+      });
+    }
+    return null;
+  })();
 
   // Load the CA task list the first time the CA kind is shown; filter locally as the admin types.
   useEffect(() => {
@@ -2297,8 +2315,12 @@ function TileTrackingEditor({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           disabled={locked}
+          placeholder={suggestedName ?? undefined}
           className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
         />
+        {!label.trim() && suggestedName && !locked && (
+          <SmartTip text={`Suggested: ${suggestedName}`} action="Use it" onAction={() => setLabel(suggestedName)} />
+        )}
         {locked && <p className="text-[10px] text-text-muted mt-0.5">{lockNote}</p>}
       </div>
 

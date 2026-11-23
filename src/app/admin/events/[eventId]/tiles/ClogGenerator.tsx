@@ -8,6 +8,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Switch from '@/components/Switch';
 import { clogTickState } from '@/lib/clogTickState';
+import { itemPoolTitle, shortPage } from '@/lib/tileNames';
 import Input from '@/components/Input';
 
 interface ClogItem {
@@ -124,6 +125,11 @@ const MODES: { key: GenMode; label: string; blurb: string }[] = [
 // /api/admin/clog (bundled OSRS Wiki dataset). Loot-fired items auto-detect via the plugin's drop
 // pipeline, and clog-only rewards (Barbarian Assault torso, gamble pets) auto-detect via the
 // plugin's collection-log-unlock crediting.
+/** A new tile's name from the page and what was kept (lib/tileNames): "ToA unique", "Every Barrows piece". */
+function autoName(kept: ClogItem[], need: 'any' | 'each', n: number, page?: string | null): string {
+  return itemPoolTitle({ items: kept, need, amount: n, pagesOf: () => (page ? [page] : undefined) });
+}
+
 export default function ClogGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, pointsMode, onCreated, onError }: Props) {
   // Controlled when the parent passes `open` (the Add tiles menu drives it); self-managed
   // otherwise, so the component still works as a standalone button.
@@ -257,7 +263,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
           ? setsOutput === 'perSet'
             ? // A collection tile per set: every item in it, 1x each.
               sets.map((set) => ({
-                label: `${activity}: ${set.name}`,
+                label: set.items.length === 1 ? set.items[0].name : /['’]s$/.test(set.name) ? `${set.name} set` : `${shortPage(activity)} ${set.name}`,
                 tileType: 'drop',
                 category: tileCategory,
                 description:
@@ -270,7 +276,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
             : // One tile, several named sets: `group` is what makes ANY ONE full set complete it.
               [
                 {
-                  label: tileLabel.trim() || `${activity}: any full set`,
+                  label: tileLabel.trim() || `${shortPage(activity)} set`,
                   tileType: 'drop',
                   category: tileCategory,
                   description: `Complete any ONE full set: ${sets.map((s) => s.name).join(', ')}.`,
@@ -293,10 +299,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
           : [
               {
                 label:
-                  tileLabel.trim() ||
-                  (mode === 'allOf'
-                    ? `${activity}: all ${kept.length} items`
-                    : `${activity}: any ${anyN} of ${kept.length}`),
+                  tileLabel.trim() || autoName(kept, mode === 'allOf' ? 'each' : 'any', anyN, activity),
                 tileType: 'drop',
                 category: tileCategory,
                 description:
@@ -584,10 +587,8 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                         maxLength={200}
                         placeholder={
                           mode === 'sets'
-                            ? `${activity}: any full set`
-                            : mode === 'allOf'
-                              ? `${activity}: all ${keptCount} items`
-                              : `${activity}: any ${Math.max(1, parseInt(anyOfAmount, 10) || 1)} of ${keptCount}`
+                            ? `${shortPage(activity)} set`
+                            : autoName((items ?? []).filter((it) => !excluded.has(it.id)), mode === 'allOf' ? 'each' : 'any', Math.max(1, parseInt(anyOfAmount, 10) || 1), activity)
                         }
                         aria-label="Tile label"
                         className="flex-1 min-w-0 rounded-lg bg-background py-1.5 focus:border-gold/50"
