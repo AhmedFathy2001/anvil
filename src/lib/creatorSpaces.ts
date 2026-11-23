@@ -221,7 +221,7 @@ export function creatorHidesSetting(id: string): boolean {
  * visitor to the space's home (lib/creatorGuard creatorPublicAway), and nothing links to them.
  * Prefixes, matched on whole path segments like CREATOR_HIDDEN_ADMIN_PATHS.
  */
-export const CREATOR_HIDDEN_PUBLIC_PATHS = ['/members', '/weekly', '/coffer', '/clan-events'] as const;
+export const CREATOR_HIDDEN_PUBLIC_PATHS = ['/members', '/weekly', '/coffer', '/clan-events', '/fund'] as const;
 
 export type CreatorHiddenPublicPath = (typeof CREATOR_HIDDEN_PUBLIC_PATHS)[number];
 

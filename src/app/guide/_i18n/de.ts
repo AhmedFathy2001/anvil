@@ -1342,16 +1342,16 @@ const de: PartialGuideDict = {
         'Du musst nicht draften. **Team placement** im Erstellformular und im Reiter **Sign-ups** legt fest, wo jede neue Anmeldung landet:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'jede Person, die sich anmeldet, kommt ins Team mit den wenigsten Spielern. Du wählst nur, wie viele Teams es gibt. Gut für große öffentliche Events.',
+          term: 'Even split',
+          body: 'jede Person, die sich anmeldet, kommt ins Team mit den wenigsten Spielern, damit die Teamgrößen gleich bleiben. Es richtet sich nach der Anzahl, nicht nach dem Können. Du wählst nur, wie viele Teams es gibt. Gut für große öffentliche Events.',
         },
         {
           term: 'Players pick',
-          body: 'du legst zuerst die Teams an, und jeder Spieler wählt eins im Anmeldeformular. Setz ein Limit pro Team, damit sie ausgeglichen bleiben.',
+          body: 'du legst zuerst die Teams an, und jeder Spieler wählt eins im Anmeldeformular. Kein Team kann mehr als zwei Spieler vor dem kleinsten liegen, damit sich nicht alle auf einem Team stapeln. Setz ein Limit pro Team, wenn du zusätzlich eine harte Obergrenze willst.',
         },
         {
           term: 'Host drafts',
-          body: 'alle warten in einem Pool, bis du oder deine Kapitäne sie draften oder von Hand zuteilen. Am besten, wenn du die Spieler kennst.',
+          body: 'alle warten in einem Pool. Deine Kapitäne wählen abwechselnd in Schlangenreihenfolge (1, 2, 3, dann 3, 2, 1) aus dem Pool, gegen eine Pick-Uhr, und sehen die Anmeldeantworten jedes Spielers. Oder du verteilst die Leute von Hand. Am besten, wenn du die Spieler kennst.',
         },
         {
           term: 'Solo',

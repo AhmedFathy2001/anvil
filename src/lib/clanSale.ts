@@ -18,6 +18,8 @@ import { runOnPaid } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, entryTierFor, gumroadPurchase, isNowPlanProduct, type BillingTier } from '@/lib/billingCatalog';
 import { extraForClanSubscription, noteToCancel, noteWaiting, resolveExtraBySubscription } from '@/lib/extraMemberships';
 import { hadMembership, hadPlanTrial } from '@/lib/planTrials';
+import { payerForSale } from '@/lib/planPayers';
+import { MEMBERSHIP_OWNS_PLAN } from '@/lib/clanFundRules';
 import { tierRankOf, usedTrialHold } from '@/lib/planTrialRules';
 
 type Clan = typeof clans.$inferSelect;
@@ -115,6 +117,14 @@ export async function applyClanSale(
   const plan = purchasedPlan(ev, clan.kind, current.free ? entryTierFor(clan.kind) : current);
   const ownMembership = !!clan.gumroadSubscriptionId && clan.gumroadSubscriptionId === ev.subscriptionId;
 
+  // A CLAN FUND RUNS (lib/clanFund): the fund and a plan membership never pay for the same clan. The
+  // purchase is recorded as the one to cancel (the owner's plan page asks them to) and not applied.
+  if (clan.fundPlan) {
+    if (ev.subscriptionId) await noteToCancel(clan.id, ev.subscriptionId, plan.id, { periodEndsAt: nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp)) });
+    await logBilling(clan.id, 'billing_fund_conflict', { plan: plan.id, subscription: ev.subscriptionId, sale: ev.saleId, fund: clan.fundPlan }, notes);
+    return { received: true, note: 'a clan fund pays for the plan; not applied' };
+  }
+
   // THE LATEST SALE DOES NOT ALWAYS WIN.
   // (a) A sale for a membership this clan already holds as the extra one to cancel (the older one
   //     after an upgrade): a redelivered notification. Applying it put the clan back on the old tier
@@ -161,6 +171,8 @@ export async function applyClanSale(
     gumroadSubscriptionId: ev.subscriptionId,
     gumroadProductId: ev.productId,
     gumroadProductPermalink: ev.productPermalink,
+    // Who started this membership (lib/planPayers): the payer ref on their checkout, if they may pay.
+    planPaidByUserId: await payerForSale(clan.id, ev.urlParams.payer),
   };
 
   if (hold.hold) {
@@ -198,6 +210,7 @@ export async function applyClanSale(
       plan: plan.id,
       memberCap: plan.memberCap,
       ...ids,
+      ...MEMBERSHIP_OWNS_PLAN,
       // The owner's own address wins: people often pay from a different email than the one they
       // gave Anvil, and the one they gave us is where they expect to hear from us.
       contactEmail: clan.contactEmail ?? ev.email,

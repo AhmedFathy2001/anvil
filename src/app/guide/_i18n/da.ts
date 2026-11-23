@@ -1349,16 +1349,16 @@ const da: PartialGuideDict = {
         'Du behøver ikke at drafte. **Team placement**, på oprettelsesformularen og fanen **Sign-ups**, bestemmer, hvor hver ny tilmelding havner:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'hver person, der tilmelder sig, kommer på holdet med færrest spillere. Du vælger kun, hvor mange hold der er. Godt til store offentlige events.',
+          term: 'Even split',
+          body: 'hver person, der tilmelder sig, kommer på holdet med færrest spillere, så holdstørrelserne forbliver ens. Det går efter antal, ikke niveau. Du vælger kun, hvor mange hold der er. Godt til store offentlige events.',
         },
         {
           term: 'Players pick',
-          body: 'du laver holdene først, og hver spiller vælger et på tilmeldingsformularen. Sæt en grænse pr. hold for at holde dem lige.',
+          body: 'du laver holdene først, og hver spiller vælger et på tilmeldingsformularen. Intet hold kan få mere end to spillere flere end det mindste, så folk ikke alle samler sig på ét. Sæt en grænse pr. hold, hvis du også vil have et hårdt loft.',
         },
         {
           term: 'Host drafts',
-          body: 'alle venter i en pulje, indtil du eller dine kaptajner drafter dem eller sætter dem på et hold i hånden. Bedst, når du kender spillerne.',
+          body: 'alle venter i en pulje. Dine kaptajner skiftes til at vælge fra den i slangeorden (1, 2, 3, derefter 3, 2, 1) mod et pickur, og ser hver spillers tilmeldingssvar, eller du placerer folk i hånden. Bedst, når du kender spillerne.',
         },
         {
           term: 'Solo',

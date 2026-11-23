@@ -1332,16 +1332,16 @@ const it: PartialGuideDict = {
         'Non sei obbligato a fare un draft. **Team placement**, nel modulo di creazione e nella scheda **Sign-ups**, decide dove finisce ogni nuova iscrizione:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'ogni persona che si iscrive entra nella squadra con meno giocatori. Tu scegli solo quante squadre. Ottimo per grandi eventi pubblici.',
+          term: 'Even split',
+          body: 'ogni persona che si iscrive entra nella squadra con meno giocatori, così le squadre restano pari. Conta il numero di persone, non il livello. Tu scegli solo quante squadre. Ottimo per grandi eventi pubblici.',
         },
         {
           term: 'Players pick',
-          body: 'prima crei le squadre, e ogni giocatore ne sceglie una nel modulo d’iscrizione. Imposta un limite per squadra per tenerle equilibrate.',
+          body: 'prima crei le squadre, e ogni giocatore ne sceglie una nel modulo d’iscrizione. Nessuna squadra può avere più di due giocatori in vantaggio sulla più piccola, così non si accalcano tutti in una. Imposta un limite per squadra se vuoi anche un tetto rigido.',
         },
         {
           term: 'Host drafts',
-          body: 'tutti aspettano in un pool finché tu o i tuoi capitani non li scegliete nel draft o li assegnate a mano. Ideale quando conosci i giocatori.',
+          body: 'tutti aspettano in un pool. I tuoi capitani scelgono a turno in ordine a serpentone (1, 2, 3, poi 3, 2, 1) contro un timer, vedendo le risposte d’iscrizione di ogni giocatore, oppure piazzi le persone a mano. Ideale quando conosci i giocatori.',
         },
         {
           term: 'Solo',

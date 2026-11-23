@@ -2,19 +2,19 @@
 
 import { formatClock } from '@/lib/clockFormat';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getTeamForPick } from '@/lib/draft';
 import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
-import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './applicants/PlayerDrawer';
+import PlayerDrawer, { DOMAIN_LABEL } from './applicants/PlayerDrawer';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 
 // The captain's pick surface. Two polls with different costs: the draft state is cheap and drives
-// the clock, so it runs on a short interval; the pool carries ratings and answers (a profile sweep)
+// the clock, so it runs on a short interval; the pool carries sign-up answers and hiscores markers (a profile sweep)
 // and is only refetched when a pick actually lands.
 //
-// Everything a captain needs to pick fast is on one screen: their own shortlist first, who they
-// can't replace if they wait, and what their roster still can't attempt.
+// Everything a captain needs to pick fast is on one screen: their own shortlist first, then what
+// their roster still can't attempt. No rating or tier is shown to a captain (member privacy, even
+// from their own clan admins), so there is no "best of what's left" view either.
 
 const DRAFT_POLL_MS = 2500;
 
@@ -63,7 +63,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
       const res = await clanFetch(`/api/team/${teamId}/pool`);
       if (res.ok) setPool((await res.json()) as WarRoom);
     } catch {
-      /* the clock keeps working without ratings */
+      /* the clock keeps working without the pool */
     }
   }, [teamId]);
 
@@ -73,8 +73,8 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
       if (!res.ok) return;
       const data = (await res.json()) as DraftState;
       setDraft(data);
-      // A pick landed (or the page just opened) — the pool's tiers are relative to who's left, so
-      // it has to be re-read, but only then.
+      // A pick landed (or the page just opened) — the pool changes with who's left, so it has to be
+      // re-read, but only then.
       if (data.totalPicked !== lastPickedCount.current) {
         lastPickedCount.current = data.totalPicked;
         void fetchPool();
@@ -196,27 +196,6 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
   const myRoster = useMemo(() => people.filter((p) => p.teamId === teamId), [people, teamId]);
   const myCoverage = useMemo(() => new Set(myRoster.flatMap((p) => p.domains)), [myRoster]);
 
-  // How many picks happen before this captain is up again — the window that decides who they can
-  // still afford to wait on.
-  const picksUntilMine = useMemo(() => {
-    if (!draft || draft.teamOrder.length === 0) return null;
-    if (!draft.teamOrder.includes(teamId)) return null;
-    // Walked with the same helper the server picks with, rather than re-deriving snake order here —
-    // two implementations of "whose turn is it" is exactly the bug that shows up at pick 14.
-    const start = draft.currentTeamId === teamId ? draft.currentPickNumber + 1 : draft.currentPickNumber;
-    for (let i = start, gap = 0; i < start + draft.teamOrder.length * 4; i++, gap++) {
-      if (getTeamForPick(draft.teamOrder, i) === teamId) return gap;
-    }
-    return null;
-  }, [draft, teamId]);
-
-  // The best of what's left, capped at what could plausibly go before this captain is up again.
-  // `available` is already rating-sorted by the server, so this is a head, not a re-sort.
-  const likelyGone = useMemo(() => {
-    if (picksUntilMine == null || picksUntilMine === 0) return [];
-    return available.slice(0, Math.min(picksUntilMine, 4));
-  }, [available, picksUntilMine]);
-
   const recent = useMemo(() => {
     const picked = (draft?.players ?? [])
       .filter((p) => p.teamId != null && p.pickedAt)
@@ -302,13 +281,13 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
             <span className="w-1 h-5 bg-gold rounded-full" />
             <h2 className="text-lg font-semibold">Pool</h2>
             <span className="ml-auto text-xs text-text-muted">
-              {/* The rated pool arrives after the draft state: until it does, the draft's own count. */}
+              {/* The pool arrives after the draft state: until it does, the draft's own count. */}
               {pool ? available.length : draft.poolRemaining} left · shortlist first
             </span>
           </div>
 
           {!pool ? (
-            <p className="text-sm text-text-muted">Rating the pool…</p>
+            <p className="text-sm text-text-muted">Loading the pool…</p>
           ) : (
             <>
               {shortlisted.length > 0 && (
@@ -360,45 +339,6 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
           )}
         </section>
 
-        {/* Who won't last */}
-        {picksUntilMine != null && picksUntilMine > 0 && likelyGone.length > 0 && (
-          <section className="border border-card-border rounded-xl bg-card-bg p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              <h2 className="text-lg font-semibold">Before your next pick</h2>
-              <span className="ml-auto text-xs text-text-muted">{picksUntilMine} picks away</span>
-            </div>
-            <p className="text-xs text-text-muted mb-3">
-              The best of what&rsquo;s left, against the {picksUntilMine} picks that happen before
-              you&rsquo;re up again. Take the ones you can&rsquo;t replace.
-            </p>
-            <div className="grid gap-1.5">
-              {likelyGone.map((p) => (
-                <div
-                  key={p.personKey}
-                  className="flex items-center gap-2.5 text-sm border border-card-border rounded-lg px-2.5 py-2 bg-brown-dark/40"
-                >
-                  <TierChip tier={p.tier} />
-                  <button
-                    type="button"
-                    onClick={() => setOpenKey(p.personKey)}
-                    className="font-medium hover:text-gold-light truncate"
-                  >
-                    {p.rsn}
-                  </button>
-                  <span className="ml-auto text-xs text-text-muted">
-                    {p.domains.filter((d) => !myCoverage.has(d)).length > 0
-                      ? `covers ${p.domains
-                          .filter((d) => !myCoverage.has(d))
-                          .map((d) => DOMAIN_LABEL[d] ?? d)
-                          .join(', ')}`
-                      : 'you already cover this'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
 
       {/* Rail */}
@@ -422,7 +362,6 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
                   key={p.personKey}
                   className="flex items-center gap-2 text-sm border border-card-border rounded-lg px-2.5 py-2 bg-brown-dark/40"
                 >
-                  <TierChip tier={p.tier} />
                   <button
                     type="button"
                     onClick={() => setOpenKey(p.personKey)}
@@ -509,12 +448,11 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
           <section className="border border-violet-500/35 bg-violet-500/[0.06] rounded-xl p-5">
             <div className="flex items-center gap-2 mb-2">
               <span className="w-1 h-5 bg-violet-400 rounded-full" />
-              <h2 className="text-lg font-semibold">Tiered snake is on</h2>
+              <h2 className="text-lg font-semibold">Balance rule is on</h2>
             </div>
             <p className="text-sm text-text-muted">
-              You can&rsquo;t take a second <b className="text-gold-light">S</b> or{' '}
-              <b className="text-violet-300">A</b> while another team has none. If a pick is refused,
-              that&rsquo;s why — the message says which tier.
+              Every team gets one of the top picks before anyone gets a second. If a pick is refused,
+              that&rsquo;s why — pick someone else that turn.
             </p>
           </section>
         )}
@@ -554,7 +492,6 @@ function PoolRow({
       }`}
     >
       {rank && <span className="font-mono text-[11px] text-gold-light w-4">{rank}</span>}
-      <TierChip tier={person.tier} />
       <button
         type="button"
         onClick={() => onOpen(person.personKey)}

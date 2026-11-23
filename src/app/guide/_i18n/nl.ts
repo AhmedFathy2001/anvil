@@ -1343,16 +1343,16 @@ const nl: PartialGuideDict = {
         'Je hoeft niet te draften. **Team placement**, op het aanmaakformulier en het tabblad **Sign-ups**, bepaalt waar elke nieuwe inschrijving terechtkomt:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'elke persoon die zich inschrijft, komt in het team met de minste spelers. Jij kiest alleen hoeveel teams er zijn. Goed voor grote openbare events.',
+          term: 'Even split',
+          body: 'elke persoon die zich inschrijft, komt in het team met de minste spelers, zodat de teams even groot blijven. Het gaat op aantal, niet op niveau. Jij kiest alleen hoeveel teams er zijn. Goed voor grote openbare events.',
         },
         {
           term: 'Players pick',
-          body: 'jij maakt eerst de teams, en elke speler kiest er een op het inschrijfformulier. Stel een limiet per team in om ze gelijk te houden.',
+          body: 'jij maakt eerst de teams, en elke speler kiest er een op het inschrijfformulier. Geen enkel team kan meer dan twee spelers voor zijn op het kleinste, dus iedereen stapt niet op één team. Stel een limiet per team in als je ook een harde grens wilt.',
         },
         {
           term: 'Host drafts',
-          body: 'iedereen wacht in een pool tot jij of je captains ze draften of met de hand indelen. Het beste als je de spelers kent.',
+          body: 'iedereen wacht in een pool. Je captains kiezen om de beurt in slangvolgorde (1, 2, 3, dan 3, 2, 1) uit de pool, tegen een pickklok, en zien de inschrijfantwoorden van elke speler, of jij plaatst mensen met de hand. Het beste als je de spelers kent.',
         },
         {
           term: 'Solo',

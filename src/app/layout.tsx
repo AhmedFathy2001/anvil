@@ -1,3 +1,4 @@
+import { clanRunsFund, fundConfigured } from '@/lib/clanFund';
 import type { Metadata, Viewport } from "next";
 import { supporterForUser } from '@/lib/supporter';
 import { provenClan, provenPath } from '@/lib/requestHeaderProof';
@@ -203,6 +204,8 @@ export default async function RootLayout({
   // And never when the clan has switched the coffer off on Admin → Features: off is off for everyone.
   const hasCoffer =
     clan && !isCreatorSpace(clan) ? (await getClanFeatures(clan.id)).on('coffer') && (await clanHasCoffer(clan.id)) : false;
+  // The clan fund (lib/clanFund), listed while the owner runs one on a deployment that sells it.
+  const hasFund = clan && !isCreatorSpace(clan) && fundConfigured() ? await clanRunsFund(clan.id) : false;
 
   // Their own picture in the chrome: the one they uploaded on Profile look (a Supporter perk; the
   // still frame, since this sits on every page), else their Discord avatar, else the shells draw the
@@ -395,6 +398,7 @@ export default async function RootLayout({
               signedIn={!!session}
               myTeams={myTeams}
               hasCoffer={hasCoffer}
+              hasFund={hasFund}
               isStaff={isStaff}
               adminHref={adminHref}
               platformBadge={isPlatformStaff ? platformBadge ?? { count: 0, title: '' } : null}

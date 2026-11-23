@@ -21,8 +21,7 @@ import AutoEnrollPanel from '@/components/AutoEnrollPanel';
 import PlayerProfileDetail, { hasProfileDetail } from '@/components/PlayerProfileDetail';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import DiscordTeamProvisioning from '@/components/DiscordTeamProvisioning';
-import PlayerRatingBadge from '@/components/PlayerRatingBadge';
-import { usePlayerRatings } from '@/hooks/usePlayerRatings';
+import { useTeamStrengths } from '@/hooks/useTeamStrengths';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { tileWeight, isPointsMode, eventNoun } from '@/lib/utils';
 import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
@@ -190,11 +189,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     startingStats: initialStartingStats,
   });
 
-  // Per-person ratings for the whole tab — one fetch, shared by the balance panel, the pool cards
-  // and every roster row (see components/PlayerRatingBadge). Only the classic draft format asks for
+  // Per-TEAM strengths for the balance panel. No per-person rating or tier reaches the browser
+  // (member privacy, even from their own clan admins). Only the classic draft format asks for
   // them: solo/one-team events have nothing to balance, so they skip the (DB-heavy) profile sweep.
   const playersSignature = draft.players.map((p) => `${p.id}:${p.teamId ?? ''}`).join(',');
-  const ratings = usePlayerRatings({
+  const strengths = useTeamStrengths({
     eventId: event.id,
     signature: playersSignature,
     enabled: !nonDraft && format !== null,
@@ -1250,7 +1249,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               eventId={event.id}
               rules={event.rules}
               teams={draftTeams.map((t) => ({ id: t.id, name: t.name, color: t.color ?? null }))}
-              ratings={ratings}
+              strengths={strengths}
               draftStatus={draft.status}
               editLocked={editLocked}
               onChanged={() => {
@@ -1480,7 +1479,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                         {tz && (
                           <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded flex-shrink-0">{tz}</span>
                         )}
-                        <PlayerRatingBadge ratings={ratings} playerId={player.id} />
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                         {canExpand && (
@@ -1622,7 +1620,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   onPick={adminPick}
                   onPlayerClick={setStatsRsn}
                   picking={picking}
-                  ratings={ratings}
                 />
               </div>
             )}
@@ -1632,7 +1629,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Team Rosters
               </h3>
-              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} />
             </div>
           </div>
         )}
@@ -1832,7 +1829,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <span className="text-sm font-medium truncate">{p.name}</span>
                             <PathChip path={paths[p.id]} />
-                            <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                           </div>
                           {/* An ACTION menu: it assigns and returns to empty, so the value is always
                               '' and the prompt is the placeholder rather than a disabled option. */}
@@ -1939,7 +1935,6 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                   <span className="truncate flex items-center gap-1.5 min-w-0">
                                     <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
                                     <PathChip path={paths[p.id]} />
-                                    <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                                     {frozen && (
                                       <span
                                         className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
@@ -2187,7 +2182,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Draft results
               </h3>
-              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
+              <DraftRosters paths={paths} players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} />
             </div>
             )}
           </div>

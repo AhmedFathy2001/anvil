@@ -1332,16 +1332,16 @@ const ptBr: PartialGuideDict = {
         'Você não precisa fazer draft. **Team placement**, no formulário de criação e na aba **Sign-ups**, decide onde cada nova inscrição cai:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'cada pessoa que se inscreve entra no time com menos jogadores. Você só escolhe quantos times. Bom para eventos públicos grandes.',
+          term: 'Even split',
+          body: 'cada pessoa que se inscreve entra no time com menos jogadores, então os times ficam equilibrados. Vai pelo número de pessoas, não pela habilidade. Você só escolhe quantos times. Bom para eventos públicos grandes.',
         },
         {
           term: 'Players pick',
-          body: 'você cria os times antes, e cada jogador escolhe um no formulário de inscrição. Defina um limite por time para manter tudo equilibrado.',
+          body: 'você cria os times antes, e cada jogador escolhe um no formulário de inscrição. Nenhum time pode ficar com mais de dois jogadores à frente do menor, então ninguém se amontoa em um só. Defina um limite por time se quiser também um teto rígido.',
         },
         {
           term: 'Host drafts',
-          body: 'todo mundo espera num pool até você ou seus capitães escolherem no draft ou distribuírem na mão. Melhor quando você conhece os jogadores.',
+          body: 'todo mundo espera num pool. Seus capitães escolhem por turnos, em ordem de serpentina (1, 2, 3, depois 3, 2, 1), contra um relógio de escolha, vendo as respostas de inscrição de cada jogador, ou você coloca as pessoas na mão. Melhor quando você conhece os jogadores.',
         },
         {
           term: 'Solo',

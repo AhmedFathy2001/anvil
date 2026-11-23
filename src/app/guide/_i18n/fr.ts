@@ -1344,16 +1344,16 @@ const fr: PartialGuideDict = {
         'Vous n’êtes pas obligé de faire un draft. **Team placement**, dans le formulaire de création et l’onglet **Sign-ups**, décide où arrive chaque nouvel inscrit :',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'chaque inscrit rejoint l’équipe qui a le moins de joueurs. Vous choisissez seulement le nombre d’équipes. Idéal pour les grands événements publics.',
+          term: 'Even split',
+          body: 'chaque inscrit rejoint l’équipe qui compte le moins de joueurs, pour que les équipes restent égales. La répartition se fait au nombre, pas au niveau. Vous choisissez seulement le nombre d’équipes. Idéal pour les grands événements publics.',
         },
         {
           term: 'Players pick',
-          body: 'vous créez d’abord les équipes, et chaque joueur en choisit une sur le formulaire d’inscription. Fixez une limite par équipe pour garder l’équilibre.',
+          body: 'vous créez d’abord les équipes, et chaque joueur en choisit une sur le formulaire d’inscription. Aucune équipe ne peut avoir plus de deux joueurs d’avance sur la plus petite, pour éviter que tout le monde se regroupe. Fixez une limite par équipe si vous voulez aussi un plafond strict.',
         },
         {
           term: 'Host drafts',
-          body: 'tout le monde attend dans un vivier jusqu’à ce que vous ou vos capitaines les draftiez ou les placiez à la main. Le mieux quand vous connaissez les joueurs.',
+          body: 'tout le monde attend dans un vivier. Vos capitaines choisissent à tour de rôle, en ordre serpent (1, 2, 3, puis 3, 2, 1), contre un chrono, en voyant les réponses d’inscription de chaque joueur, ou vous placez les gens à la main. Le mieux quand vous connaissez les joueurs.',
         },
         {
           term: 'Solo',

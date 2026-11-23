@@ -603,7 +603,7 @@ function extractCountLikeNumbers(text: string): number[] {
   return out;
 }
 
-// Hover hint next to a flag's label. Native title tooltip (same pattern as PlayerRatingBadge) so it
+// Hover hint next to a flag's label. Native title tooltip so it
 // works on every surface the tile editor is embedded in without a popover dependency.
 function FlagHint({ text }: { text: string }) {
   return (

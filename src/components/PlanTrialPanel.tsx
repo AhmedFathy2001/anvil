@@ -26,11 +26,14 @@ export default async function PlanTrialPanel({
   planHref = null,
   viewerIsStaff = false,
   earlyBird = true,
+  payerRef = null,
 }: {
   clan: { id: number; kind: string; paidPlan: string };
   billing?: BillingInterval;
-  /** Owners buy; other admins see the trial without the button. */
+  /** The owner, or staff the owner let pay (lib/planPayers), buy; others see the trial without the button. */
   canBuy: boolean;
+  /** The buyer's own ref, so the sale records who pays (lib/planPayers). */
+  payerRef?: string | null;
   planHref?: string | null;
   viewerIsStaff?: boolean;
   /** False where the page already shows the early-bird line elsewhere (once per page). */
@@ -79,7 +82,7 @@ export default async function PlanTrialPanel({
     loses = `the clan is on ${paid.name} (up to ${cap} members). A roster over ${cap} has ${CAP_GRACE_DAYS} days to subscribe or trim before new members stop being added.${
       enforced ? ` ${tier.name}'s extras switch off (hosting events together with other clans, a custom domain).` : ''
     }`;
-    buy = clanBuy(tier, ref, billing, true);
+    buy = clanBuy(tier, ref, billing, true, payerRef);
   }
   const yearly = billing === 'yearly';
   const href = canBuy && buy.kind === 'subscribe' ? buy.url : null;

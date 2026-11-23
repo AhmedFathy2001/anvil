@@ -38,6 +38,8 @@ export const CLAN_SCOPED_ROOTS = [
   '/guides',
   // A clan event (a mass, a hangout): the clan's, like its weeklies.
   '/clan-events',
+  // The clan fund (lib/clanFund): members chip in toward the clan's plan.
+  '/fund',
 ] as const;
 
 /**

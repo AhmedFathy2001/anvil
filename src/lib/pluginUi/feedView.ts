@@ -23,6 +23,7 @@ import type { FeedRow, View } from './nodes';
 import { backRow, col, eventName, gap, message, text } from './nodes';
 import { mediaRevision } from './mediaRevision';
 import { clanPathOf } from '@/lib/clanScopedPaths';
+import { clanKindOf } from '@/lib/creatorSpaces';
 
 // The Feed tab's data (view 'feed') and the event chat's actions. The look is lib/pluginUi/feedUi.
 
@@ -265,6 +266,12 @@ async function boardWebPath(eventId: number): Promise<string | null> {
   return row ? clanPathOf({ slug: encodeURIComponent(row.slug), kind: row.kind }, `/events/${eventId}/live`) : null;
 }
 
+async function clanFeedWebPath(clanId: number): Promise<string | null> {
+  // clan-scope: this clan -- the scope the viewer is already looking at; only its slug and kind.
+  const [row] = await db.select({ slug: clans.slug, kind: clans.kind }).from(clans).where(eq(clans.id, clanId)).limit(1);
+  return row && clanKindOf(row.kind) === 'clan' ? clanPathOf({ slug: encodeURIComponent(row.slug), kind: row.kind }, '/members?tab=lately') : null;
+}
+
 /** Opened from a board page on the Clan tab ("Feed" / "Chat" there): a way back over the feed. */
 function withBack(a: Args, view: View): View {
   if (!a.back) return view;
@@ -300,7 +307,8 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const filter = modeActive && requestedFilter !== 'all' && !groupOf(requestedFilter) ? 'all' : requestedFilter;
   const teamId = access?.teamId ?? null;
   // The board's Feed & chat page on the website, for its players: at the host's address.
-  const webPath = current.kind === 'event' && access?.member ? await boardWebPath(current.id) : null;
+  // The clan's: its whole feed (the Members page's Lately tab), past the panel's last row. Clans only: a creator space has none.
+  const webPath = current.kind === 'event' ? (access?.member ? await boardWebPath(current.id) : null) : await clanFeedWebPath(current.id);
 
   if (pane === 'chat' && access && viewer) {
     const chat = await chatPane(access, viewer.userId, current.id, a);

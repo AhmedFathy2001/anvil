@@ -1341,16 +1341,16 @@ const fi: PartialGuideDict = {
         'Draftia ei ole pakko pitää. **Team placement** luontilomakkeella ja **Sign-ups**-välilehdellä ratkaisee, mihin kukin uusi ilmoittautunut päätyy:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'jokainen ilmoittautuja liittyy joukkueeseen, jossa on vähiten pelaajia. Valitset vain joukkueiden määrän. Hyvä isoihin julkisiin tapahtumiin.',
+          term: 'Even split',
+          body: 'jokainen ilmoittautuja liittyy joukkueeseen, jossa on vähiten pelaajia, joten joukkuekoot pysyvät tasaisina. Jako tehdään henkilömäärän mukaan, ei taidon. Valitset vain joukkueiden määrän. Hyvä isoihin julkisiin tapahtumiin.',
         },
         {
           term: 'Players pick',
-          body: 'teet joukkueet ensin, ja jokainen pelaaja valitsee yhden ilmoittautumislomakkeella. Aseta joukkuekohtainen raja, niin joukkueet pysyvät tasaisina.',
+          body: 'teet joukkueet ensin, ja jokainen pelaaja valitsee yhden ilmoittautumislomakkeella. Yksikään joukkue ei voi kerätä yli kahta pelaajaa pienimmän edelle, joten kaikki eivät rynnää samaan. Aseta joukkuekohtainen raja, jos haluat myös kovan katon.',
         },
         {
           term: 'Host drafts',
-          body: 'kaikki odottavat poolissa, kunnes sinä tai kapteenisi draftaatte heidät tai jaatte heidät käsin. Paras, kun tunnet pelaajat.',
+          body: 'kaikki odottavat poolissa. Kapteenisi vuorottelevat valinnoissa käärmejärjestyksessä (1, 2, 3, sitten 3, 2, 1) valintakellua vastaan ja näkevät jokaisen pelaajan ilmoittautumisvastaukset, tai sijoitat pelaajat käsin. Paras, kun tunnet pelaajat.',
         },
         {
           term: 'Solo',

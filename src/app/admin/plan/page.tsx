@@ -24,6 +24,14 @@ import { SECOND_MEMBERSHIP_WARNING, extraMembershipNotice } from '@/lib/supporte
 import BuyButtons from '@/components/BuyButtons';
 import EarlyBirdBadge from '@/components/EarlyBirdBadge';
 import PlanTrialPanel from '@/components/PlanTrialPanel';
+import PlanPayers from './PlanPayers';
+import FundControls from './FundControls';
+import ClanFundProgress from '@/components/ClanFundProgress';
+import { ensureFundRef, fundConfigured, fundView, membershipPaysPlan } from '@/lib/clanFund';
+import { FUND_PLANS, fundCheckoutUrl, goalCents, usd as usdCents } from '@/lib/clanFundRules';
+import { canPayForPlan, payerCandidates, planPayerView } from '@/lib/planPayers';
+import { removePayerConfirm } from '@/lib/planPayerRules';
+import { ensureSupporterRef } from '@/lib/supporter';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,21 +72,37 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
   const fits: Plan | null = choices.find((p) => p.id === query.plan) ?? smallest;
   const session = await verifyUser();
   const isOwner = !!session && atLeast(session.role, 'owner');
+  // The owner, or an admin, treasurer or moderator the owner let pay (lib/planPayers). Their checkout
+  // carries their own ref, so the sale records whose membership it is.
+  const canPay = isOwner || (!!session && (await canPayForPlan(clan.id, session.userId)));
+  const payerRef = canPay && session ? await ensureSupporterRef(session.userId) : null;
   const viewerIsStaff = !!session && (await isPlatformStaff(session.userId));
   const ref = paying ? null : await ensureClanCheckoutRef(clan.id);
   // ONE TRIAL (lib/buyOffer): a clan that has had its trial from Anvil, a Gumroad trial or a
   // membership is only ever sent to the pay-now product, charged that day. Every clan made since
   // automatic trials began has had one, so "Start free trial" is for older clans that never did.
   const [billingRow, extras] = await Promise.all([
-    db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { id: true, trialEndsAt: true, gumroadSubscriptionId: true } }),
+    db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { id: true, plan: true, trialEndsAt: true, gumroadSubscriptionId: true, planPaidByUserId: true, currentPeriodEnd: true, cancelAtPeriodEnd: true, fundPlan: true, fundFunded: true, fundShortSince: true } }),
     openExtrasForClans([clan.id]),
   ]);
   const trialUsed = billingRow ? await clanTrialUsed(billingRow) : true;
+  // Who pays (lib/planPayers): shown to everyone on this page; the owner manages who may.
+  const payerView = billingRow ? await planPayerView(billingRow) : { payer: null, payerStopped: false };
+  const candidates = isOwner ? await payerCandidates(clan.id) : [];
+  // The clan fund (lib/clanFund): members chip in toward one plan; the payer covers the rest.
+  const fund = billingRow ? await fundView(billingRow) : null;
+  const fundOn = fundConfigured();
+  const fundBlocked = billingRow && membershipPaysPlan(billingRow) ? 'A membership already pays for the plan. To fund it with chip-ins instead, cancel that membership on Gumroad first, so nobody pays twice.' : null;
+  const coverUrl =
+    fund && fundOn && canPay && !fund.totals.funded && session
+      ? fundCheckoutUrl(process.env.GUMROAD_URL_CLAN_FUND, await ensureFundRef(clan.id), payerRef, true)
+      : null;
+  const renewsMs = billingRow?.currentPeriodEnd ? Date.parse(billingRow.currentPeriodEnd.includes('T') ? billingRow.currentPeriodEnd : `${billingRow.currentPeriodEnd.replace(' ', 'T')}Z`) : NaN;
   const yearly = fits ? yearlyPriceUsd(fits.priceUsd) : null;
   // Monthly and, once that tier's yearly checkout is set, yearly (a year costs ten months).
   const offers = fits && ref
     ? (['monthly', 'yearly'] as const)
-        .map((interval) => ({ interval, buttons: clanBuy(fits, ref, interval, trialUsed) }))
+        .map((interval) => ({ interval, buttons: clanBuy(fits, ref, interval, trialUsed, payerRef) }))
         .filter((o) => o.buttons.kind !== 'none' && (o.interval === 'monthly' || o.buttons.kind !== 'soon' || clanBuy(fits, ref, 'yearly', false).kind !== 'none'))
         .sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0))
     : [];
@@ -169,9 +193,16 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
+      {isOwner && payerView.payer && payerView.payerStopped && (
+        <div role="status" className="mt-5 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-[13.5px] leading-relaxed text-gold-light">
+          {payerView.payer.name} can no longer pay for the plan. Their membership still pays for it
+          {Number.isFinite(renewsMs) ? ` until ${dayMonth(renewsMs)}` : ''}, and we&rsquo;ve told them how to cancel. Choose who pays next before then.
+        </div>
+      )}
+
       <div className="mt-5">
         {/* A membership already waiting for its first payment: no second buy button beside it. */}
-        <PlanTrialPanel clan={clan} billing={billing} canBuy={isOwner && !held} viewerIsStaff={viewerIsStaff} earlyBird={paying || !fits} />
+        <PlanTrialPanel clan={clan} billing={billing} canBuy={canPay && !held && !billingRow?.fundPlan} payerRef={payerRef} viewerIsStaff={viewerIsStaff} earlyBird={paying || !fits} />
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -179,13 +210,34 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
           <section className="rounded-xl border border-gold/45 bg-gold/[0.05] p-5">
             <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-gold">Thank you</p>
             <h2 className="mt-1 text-xl font-semibold">You&rsquo;re on {plan.name}</h2>
+            {payerView.payer && (
+              <p className="mt-1 text-[14px] font-medium">
+                Paid by {session?.userId === payerView.payer.userId ? 'you' : payerView.payer.name}
+                {Number.isFinite(renewsMs) && (
+                  <span className="font-normal text-text-muted">
+                    {' '}· {billingRow?.cancelAtPeriodEnd ? 'ends' : 'renews'} {dayMonth(renewsMs)}
+                  </span>
+                )}
+              </p>
+            )}
             <p className="mt-2 text-[14px] leading-relaxed text-text-muted">
               Your plan keeps Anvil running for every small clan that can&rsquo;t pay. Change it or see invoices any
               time.
             </p>
-            <ClanLink href="/portal" className="mt-4 inline-block text-[14px] text-gold hover:text-gold-light">
-              Manage subscription and invoices
-            </ClanLink>
+            {session && payerView.payer?.userId === session.userId && billingRow?.gumroadSubscriptionId ? (
+              <a href={manageUrl(billingRow.gumroadSubscriptionId)} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-[14px] text-gold hover:text-gold-light">
+                Manage your membership on Gumroad
+              </a>
+            ) : isOwner ? (
+              <ClanLink href="/portal" className="mt-4 inline-block text-[14px] text-gold hover:text-gold-light">
+                Manage subscription and invoices
+              </ClanLink>
+            ) : null}
+            {payerView.payer && session?.userId !== payerView.payer.userId && (
+              <p className="mt-2 text-[12.5px] leading-relaxed text-text-muted">
+                {payerView.payer.name} holds this membership on their own Gumroad account, so only they can cancel it or change the card.
+              </p>
+            )}
             <p className="mt-3 text-[12.5px] leading-relaxed text-text-muted">Moving to another tier: {SECOND_MEMBERSHIP_WARNING}</p>
           </section>
         ) : (
@@ -210,12 +262,16 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                   <li key={f}>{f}</li>
                 ))}
               </ul>
-              {isOwner && held ? (
+              {fund ? (
+                <p className="text-[13px] leading-relaxed text-text-muted">
+                  The clan is funding {fund.planName} with chip-ins (below), so there is nothing to subscribe to here: nobody pays twice.
+                </p>
+              ) : canPay && held ? (
                 <p className="text-[13px] text-text-muted">
                   You already have a membership waiting for its first payment (see the notice above), so there is nothing to
                   buy here.
                 </p>
-              ) : isOwner ? (
+              ) : canPay ? (
                 offers.map((o) => {
                   const wording = buyWording(o.buttons, {
                     tierName: fits.name,
@@ -232,7 +288,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
                   ) : null;
                 })
               ) : (
-                <p className="text-[13px] text-text-muted">The clan&rsquo;s owner subscribes from this page.</p>
+                <p className="text-[13px] text-text-muted">The owner, or someone they choose, pays for the plan.</p>
               )}
               {choices.length > 1 && (
                 <p className="text-center text-[13px] text-text-muted">
@@ -256,15 +312,51 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
           )
         )}
 
-        <section className="flex flex-col gap-3 rounded-xl border border-card-border bg-card-bg p-5">
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-dim">Or share it · soon</p>
-          <h2 className="text-xl font-semibold">A clan fund</h2>
+        <section id="fund" className="flex scroll-mt-24 flex-col gap-3 rounded-xl border border-card-border bg-card-bg p-5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-dim">Or share it</p>
+          <h2 className="text-xl font-semibold">Clan fund</h2>
           <p className="text-[14px] leading-relaxed text-text-muted">
-            Members who want to will be able to chip in once a year, from $6. You top up whatever&rsquo;s left, or
-            nothing if they cover it. Coming soon.
+            Members chip in once a year, from $6, and it renews until they cancel. Once chip-ins reach the plan&rsquo;s yearly price the
+            clan is on it; whoever pays for the plan covers the rest.
           </p>
+          {fund && <ClanFundProgress planName={fund.planName} totals={fund.totals} graceEndsAt={fund.granted && !fund.totals.funded ? fund.graceEndsAt : null} />}
+          {coverUrl && fund && (
+            <a
+              href={coverUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-gold px-4 text-[14px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            >
+              Cover the rest · {usdCents(fund.totals.left)} (enter it on Gumroad)
+            </a>
+          )}
+          {fund && (
+            <ClanLink href="/fund" className="text-[13px] text-gold hover:text-gold-light">
+              The fund page members see
+            </ClanLink>
+          )}
+          {isOwner && fundOn ? (
+            <FundControls
+              current={fund?.plan ?? null}
+              locked={!!fund?.granted}
+              blockedReason={fundBlocked}
+              options={FUND_PLANS.map((id) => ({ id, label: PLANS[id].name, goal: usdCents(goalCents(id)) }))}
+            />
+          ) : !fundOn ? (
+            <p className="text-[13px] text-text-muted">Coming soon.{viewerIsStaff ? ' (Staff: set GUMROAD_URL_CLAN_FUND and GUMROAD_PRODUCT_CLAN_FUND to switch it on.)' : ''}</p>
+          ) : !fund ? (
+            <p className="text-[13px] text-text-muted">The owner can start one here.</p>
+          ) : null}
         </section>
       </div>
+
+      {isOwner && (
+        <PlanPayers
+          candidates={candidates}
+          payingUserId={payerView.payer && !payerView.payerStopped ? payerView.payer.userId : null}
+          confirmText={payerView.payer ? removePayerConfirm({ payerName: payerView.payer.name, renews: Number.isFinite(renewsMs) ? dayMonth(renewsMs) : null }) : null}
+        />
+      )}
 
       <section id="anvil-discord" className="mt-5 flex scroll-mt-24 flex-wrap items-center gap-4 rounded-xl border border-card-border bg-card-bg px-5 py-4">
         <p className="min-w-0 flex-[1_1_22rem] text-[14px] leading-relaxed text-text-muted">
