@@ -27,7 +27,7 @@ export interface CapabilityShares {
   shares: Map<string, { able: number; share: number }>;
 }
 
-async function poolAccountIds(eventId: number): Promise<number[]> {
+async function poolAccountIds(clanId: number, eventId: number): Promise<number[]> {
   const placed = await db
     .select({ accountId: eventParticipants.accountId })
     .from(eventParticipants)
@@ -42,7 +42,7 @@ async function poolAccountIds(eventId: number): Promise<number[]> {
   const seats = await db
     .select({ accountId: clanRoster.accountId })
     .from(clanRoster)
-    .where(inArray(clanRoster.id, signups.map((s) => s.seat)));
+    .where(and(eq(clanRoster.clanId, clanId), inArray(clanRoster.id, signups.map((s) => s.seat))));
   return [...new Set(seats.map((s) => s.accountId))];
 }
 
@@ -59,7 +59,7 @@ export async function capabilityShares(clanId: number, eventId: number, keys: Se
   const empty: CapabilityShares = { pricedFor: 'baseline', population: 0, shares: new Map() };
   if (!keys.size) return empty;
   let pricedFor: PricedFor = 'pool';
-  let ids = await poolAccountIds(eventId);
+  let ids = await poolAccountIds(clanId, eventId);
   if (ids.length < MIN_POPULATION) {
     pricedFor = 'clan';
     ids = await clanAccountIds(clanId);

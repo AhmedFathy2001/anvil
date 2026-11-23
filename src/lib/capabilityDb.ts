@@ -59,11 +59,16 @@ export async function loadAccountEvidence(accountIds: number[]): Promise<Map<num
   // clan-scope: global -- accounts are platform-wide; the caller scoped the entrant list to its event.
   const entered = await db.select({ playerId: accounts.playerId }).from(accounts).where(inArray(accounts.id, accountIds));
   const people = [...new Set(entered.map((r) => r.playerId))];
-  // clan-scope: global -- the same people's other accounts, read for know-how only, never displayed.
-  const rows = await db
-    .select({ id: accounts.id, playerId: accounts.playerId, accountType: accounts.accountType })
-    .from(accounts)
-    .where(people.length ? inArray(accounts.playerId, people) : inArray(accounts.id, accountIds));
+  // clan-scope: global -- the same people's other accounts, read for know-how only, never displayed,
+  // and only those their owner shares: a character hidden from the profile (accounts.shared = false)
+  // is nobody's business, including a balance model's. Entered accounts are always read — the owner
+  // put them in this event.
+  const rows = (
+    await db
+      .select({ id: accounts.id, playerId: accounts.playerId, accountType: accounts.accountType, shared: accounts.shared })
+      .from(accounts)
+      .where(people.length ? inArray(accounts.playerId, people) : inArray(accounts.id, accountIds))
+  ).filter((r) => r.shared || accountIds.includes(r.id));
   const ids = rows.map((r) => r.id);
   if (!ids.length) return out;
 

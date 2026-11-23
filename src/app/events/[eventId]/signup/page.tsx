@@ -21,6 +21,12 @@ import { memberAccounts } from '@/lib/entryFee';
 import { standardFee } from '@/lib/entryFeeMath';
 import { toQuestionView } from '@/lib/survey';
 import { isTeamFull, placementOf } from '@/lib/teamPlacement';
+import { loadAccountEvidence } from '@/lib/capabilityDb';
+import { activitySpecs } from '@/lib/capabilityData';
+import { suggestSignup } from '@/lib/capability';
+import { SKILLS } from '@/lib/constants';
+
+const isEditingActiveSignup = (s: { status: string } | null) => !!s && s.status !== 'withdrawn';
 import { teamLoads } from '@/lib/teamPlacementDb';
 import { resolveClanById } from '@/lib/clanContext';
 import { clanKindOf, streamedEvent } from '@/lib/creatorSpaces';
@@ -163,6 +169,19 @@ export default async function EventSignupPage({
     if (prior) {
       prefillProfile = parseProfile(prior.profileData);
       prefillClanMemberId = prior.clanMemberId;
+    }
+  }
+
+  // First sign-up for this event: pre-tick what the entered accounts are doing now (lib/capability).
+  // Their own answers still win — the form only ADDS suggestions, and labels them.
+  let suggested: { bosses: string[]; skills: string[] } | undefined;
+  if (!isEditingActiveSignup(signup) && seatRows.length) {
+    try {
+      const evidence = await loadAccountEvidence(seatRows.map((r) => r.accountId));
+      const mine = seatRows.map((r) => evidence.get(r.accountId)).filter((e): e is NonNullable<typeof e> => !!e);
+      suggested = suggestSignup(mine, activitySpecs(), SKILLS);
+    } catch {
+      /* suggestions are a convenience */
     }
   }
 
@@ -358,6 +377,7 @@ export default async function EventSignupPage({
         prefillClanMemberId={prefillClanMemberId}
         host={inlineHost}
         prefillProfile={prefillProfile}
+        suggested={suggested}
         windowOpen={window.open}
         windowReason={window.reason}
         creator={creatorEvent}
