@@ -95,6 +95,13 @@ export async function GET(request: Request) {
   // An item hunt: the dim line under each row ("412 kills, no drop"), and its drops as the highlights.
   const hunt = comp.type === 'hunt' ? await huntStandings(comp) : null;
   const huntLines = new Map((hunt ? huntPanelSubs(hunt) : []).map((s) => [weeklyRsnKey(s.rsn), s]));
+  // A hunt ranks by its own standings (drops, then how due), not by the stat gain the board sorts on:
+  // the panel lists it in the site's order. Its day-start ranks are the board's, so no arrows on a hunt.
+  if (hunt) {
+    const place = new Map(hunt.rows.map((r, i) => [weeklyRsnKey(r.rsn), i]));
+    const at = (rsn: string) => place.get(weeklyRsnKey(rsn)) ?? Number.MAX_SAFE_INTEGER;
+    board.sort((a, b) => at(a.rsn) - at(b.rsn));
+  }
   const row = (e: (typeof board)[number], i: number) => ({
     rank: i + 1,
     rsn: e.rsn,
@@ -106,7 +113,7 @@ export async function GET(request: Request) {
     // can't lose KC/XP, so floor it at 0.
     gained: Math.max(0, e.gained),
     // Places climbed since the UTC day began; null when unchanged or not yet recorded.
-    move: rankMove(since?.get(weeklyRsnKey(e.rsn)), i + 1),
+    move: hunt ? null : rankMove(since?.get(weeklyRsnKey(e.rsn)), i + 1),
     // A Hardcore Worlds character gets its "HCW" mark, and one that died there says so (lib/competitionGame).
     ...(isHardcoreEntrant(e.hiscoresTable, comp.countsOn) ? { tag: 'HCW' } : {}),
     ...(e.stoppedAt ? { stopped: true } : {}),

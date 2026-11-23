@@ -838,7 +838,11 @@ export function huntRowProgress(
 
 /** "61%": Due as the standings show it. */
 export function dueWords(due: number): string {
-  return `${Math.round(due * 100).toLocaleString('en-US')}%`;
+  const pct = due * 100;
+  // A pet at 1 in 2,500 is 0.04% a kill: whole percents read "0%" for everyone for days.
+  if (pct > 0 && pct < 0.1) return '<0.1%';
+  if (pct < 10) return `${+pct.toFixed(1)}%`;
+  return `${Math.round(pct).toLocaleString('en-US')}%`;
 }
 
 /** 1.2M, 340K, 12,450: XP the way players say it. */
@@ -867,7 +871,7 @@ export function huntPanelLine(
 ): { figure: string | null; sub: string | null } {
   const total = huntRows(config).length;
   const unit = config.rule === 'points' ? 'pts' : row.count === 1 ? 'drop' : 'drops';
-  const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? ` · ${row.held}/${total}` : ''}` : row.due != null ? `${dueWords(row.due)} due` : null;
+  const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? ` · ${row.held}/${total}` : ''}` : row.due != null ? (row.due > 0 ? `${dueWords(row.due)} due` : 'no kc yet') : null;
   const have = new Set(row.drops.map((d) => d.itemId));
   const words = (progress ?? []).filter((p) => !have.has(p.id) && (p.gain ?? 0) > 0).map(rowProgressWords).filter((w): w is string => !!w);
   return { figure, sub: words.length > 0 ? words.slice(0, 2).join(' · ') : null };
