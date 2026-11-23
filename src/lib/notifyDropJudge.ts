@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { accounts, accountStatSnapshots } from '@/db/schema';
+import { accounts, accountStatSnapshots, memberClogItems } from '@/db/schema';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { dropRarity, enrichNotable, freshSiteKc, judgeDropFor, type CandidateItem, type DropCandidate, type DropVerdict } from '@/lib/notifyDrops';
 import { parsePluginStats } from '@/lib/pluginStats';
@@ -108,6 +108,32 @@ export async function withNotableFacts(facts: unknown, accountId: number | null,
       }, nowMs)
       : undefined,
   });
+}
+
+/** A collection-log row this fresh was written by this very drop's unlock, not an earlier copy. */
+const UNLOCK_RACE_MS = 15 * 60_000;
+
+/**
+ * A single-item drop with how many copies this character's collection log already held (`heldBefore`),
+ * so its luck line measures the second ring against players holding two, not one. The count is the
+ * last log sync's, so it can trail; a slot first seen within minutes is this drop's own unlock. Facts
+ * come back unchanged when the item isn't in their synced log or there's no character.
+ */
+export async function withHeldBefore(facts: unknown, accountId: number | null, nowMs: number = Date.now()): Promise<unknown> {
+  if (accountId == null || !facts || typeof facts !== 'object' || Array.isArray(facts)) return facts;
+  const o = facts as Record<string, unknown>;
+  if (!Array.isArray(o.items) || o.items.length !== 1) return facts;
+  const id = num((o.items[0] as Record<string, unknown> | null)?.id);
+  if (id == null || id <= 0) return facts;
+  // clan-scope: global -- the collection log belongs to the account, not a seat.
+  const [row] = await db
+    .select({ quantity: memberClogItems.quantity, firstSeenAt: memberClogItems.firstSeenAt })
+    .from(memberClogItems)
+    .where(and(eq(memberClogItems.accountId, accountId), eq(memberClogItems.itemId, id)));
+  if (!row) return facts;
+  const seen = row.firstSeenAt ? Date.parse(row.firstSeenAt) : NaN;
+  const held = row.quantity - (Number.isFinite(seen) && nowMs - seen < UNLOCK_RACE_MS ? 1 : 0);
+  return held > 0 ? { ...o, heldBefore: held } : facts;
 }
 
 /**

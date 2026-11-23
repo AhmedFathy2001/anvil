@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { clogSlotPostedRecently } from '@/lib/notifySeen';
 import { duplicateClogSlot } from '@/lib/notifyDedupe';
-import { judgeDropRequest, withNotableFacts, withPetRarity } from '@/lib/notifyDropJudge';
+import { judgeDropRequest, withHeldBefore, withNotableFacts, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanDrops, characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
@@ -237,13 +237,13 @@ export async function POST(request: Request) {
     dropVerdict = judged;
   }
   // A notable item says where it came from, its rate and the kill count whenever the site knows them.
-  // `kcAbout` and `rateRolls` are the site's own marks (set by the step below): a request never sets them.
+  // `kcAbout`, `rateRolls` and `heldBefore` are the site's own marks (set by the step below): a request never sets them.
   if (kind === 'drop' && facts && typeof facts === 'object' && !Array.isArray(facts)) {
-    const { kcAbout: _a, rateRolls: _r, ...rest } = facts as Record<string, unknown>;
-    void _a; void _r;
+    const { kcAbout: _a, rateRolls: _r, heldBefore: _h, ...rest } = facts as Record<string, unknown>;
+    void _a; void _r; void _h;
     facts = rest;
   }
-  if (kind === 'drop') facts = await withNotableFacts(facts, member?.accountId ?? null);
+  if (kind === 'drop') facts = await withHeldBefore(await withNotableFacts(facts, member?.accountId ?? null), member?.accountId ?? null);
   if (kind === 'pet') facts = await withPetRarity(facts);
   // WHO POSTED IS THE TOKEN'S CHARACTER, for every kind: the `rsn` a body names is ignored and replaced
   // by the character the token resolved (its seat's name; else the poster lookup). A body name let a

@@ -24,6 +24,8 @@ import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
 import { collapseMomentRuns } from '@/lib/feedRuns';
 import MomentsFeed from '@/components/MomentsFeed';
+import { KINDS_OF } from '@/lib/pluginUi/feedLists';
+import { LATELY_FILTERS, LatelyFilters, LatelyPaging } from './LatelyNav';
 import { supporterLooksByName } from '@/lib/supporter';
 import { verifyUser } from '@/lib/auth';
 import { siteReactions } from '@/lib/siteReactions';
@@ -49,9 +51,22 @@ export async function generateMetadata(): Promise<Metadata> {
 // Roster and stats both move on the sweep, so there's nothing worth caching between requests.
 export const dynamic = 'force-dynamic';
 
-export default async function MembersPage({ searchParams }: { searchParams: Promise<{ sort?: string; tab?: string }> }) {
+/** Rows the Lately tab shows per page, a collapsed run counting as one. */
+const LATELY_PAGE = 50;
+
+/** The Lately tab's page cursor: an ISO time, nothing else (it goes into a comparison, never markup). */
+function latelyCursor(raw: string | undefined): string | null {
+  if (!raw || raw.length > 40) return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ sort?: string; tab?: string; f?: string; before?: string }> }) {
   const clan = await requireClan();
-  const { sort: requestedSort, tab: requestedTab } = await searchParams;
+  const { sort: requestedSort, tab: requestedTab, f: requestedFilter, before: requestedBefore } = await searchParams;
+  // Lately is the clan's whole feed (the plugin panel's Feed links here): its filters and pages.
+  const latelyFilter = LATELY_FILTERS.find((x) => x.key === requestedFilter)?.key ?? 'all';
+  const latelyBefore = latelyCursor(requestedBefore);
   const initialSort = requestedSort === 'xp' ? 'xp' as const : requestedSort === 'streak' ? 'streak' as const : 'week' as const;
   // A creator space has no roster (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS): its home instead.
   await creatorPublicAway('/members', clan);
@@ -95,7 +110,10 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
     // Tuesday's pet are the same news to someone reading this page.
     // Back-to-back repeats are one line with a count (lib/feedRuns), cut to 30 after.
-    momentsForClan(clan.id, 90).then((rows) => collapseMomentRuns(withoutHiddenRows(rows, hidden)).slice(0, 30)),
+    // Read past a page so back-to-back repeats still fill one; the extra says whether Older exists.
+    momentsForClan(clan.id, LATELY_PAGE * 3, latelyFilter === 'all' ? undefined : KINDS_OF[latelyFilter], latelyBefore).then((rows) =>
+      collapseMomentRuns(withoutHiddenRows(rows, hidden)).slice(0, LATELY_PAGE + 1),
+    ),
     // Supporter flair on each character's name: one query for the whole roster (the podium's names
     // are roster names, so the same record covers them).
     supporterLooksByName(members.map((m) => m.rsn)),
@@ -110,8 +128,12 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const recordHolders = withoutHiddenRows((await Promise.all(RECORD_PERIODS.map((p) => getClanRecordHolders(clan.id, p)))).flat(), hidden)
     .map((h) => ({ ...h, href: `/members/${encodeURIComponent(h.rsn)}` }));
   // GZ / Sad / Sit under each: counts for anyone, who gave them (and a press) for a clanmate.
+  const latelyRows = moments.slice(0, LATELY_PAGE);
+  const latelyLast = latelyRows[latelyRows.length - 1];
+  // The next page starts below this one's oldest entry (a run's first, when the last row is a run).
+  const latelyOlder = moments.length > LATELY_PAGE && latelyLast ? (latelyLast.run?.firstAt ?? latelyLast.occurredAt) : null;
   const session = await verifyUser();
-  const reactions = await siteReactions(moments, { clanId: clan.id }, session?.userId ?? null);
+  const reactions = await siteReactions(latelyRows, { clanId: clan.id }, session?.userId ?? null);
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -143,15 +165,19 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           </div>
         }
         lately={
+          <>
+          <LatelyFilters filter={latelyFilter} />
           <MomentsFeed
-            moments={moments}
+            moments={latelyRows}
             reactions={reactions}
             boosters={boosters}
             looks={supporterLooks}
-            title="Lately"
-            blurb="pets, big drops and combat tasks, as they happened. Nothing here scores."
-            emptyNote="Nothing yet. Moments arrive from the Anvil plugin — pets and rare drops always, and anything else that clears the floors on Admin → Integrations."
+            blurb="pets, big drops, achievements and deaths, as they happened. Nothing here scores."
+            title={latelyBefore ? 'Older' : 'Lately'}
+            emptyNote={latelyBefore ? 'Nothing older.' : 'Nothing yet. Moments arrive from the Anvil plugin — pets and rare drops always, and anything else that clears the floors on Admin → Integrations.'}
           />
+          <LatelyPaging filter={latelyFilter} before={latelyBefore} older={latelyOlder} />
+          </>
         }
       />
     </main>
