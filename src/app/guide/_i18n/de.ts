@@ -3743,7 +3743,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Vitrine',
-          body: 'deine besten Drops, Killcounts und Zeiten, an dein Profil gepinnt: 4 Plätze für Supporter, 8 für Champion, 12 für Patron. Pins von Charakteren, die du nicht teilst, bleiben privat.',
+          body: 'deine besten Drops, Killcounts und Zeiten, an dein Profil gepinnt: 4 Plätze für Supporter, 8 für Champion, 12 für Patron.',
         },
       ],
     },
@@ -4226,10 +4226,6 @@ const de: PartialGuideDict = {
     dek: 'Anvil führt eine Seite für **dich** und eine für **jeden Charakter**, den du spielst. Hier steht, was darauf zu finden ist, wer sie öffnen kann und welche Wrapped-Karten am Ende jedes Monats und jedes Events erscheinen.',
     facts: [
       {
-        strong: 'Standardmäßig geteilt',
-        rest: 'jeden Charakter mit einem Schalter privat stellen',
-      },
-      {
         strong: 'Monatliches Wrapped',
         rest: 'erscheint am 1. des nächsten Monats',
       },
@@ -4249,11 +4245,11 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Die Seite eines Charakters',
-          body: '`/p/<name>`: ein Charakter, lesbar für jeden mit dem Link, solange er geteilt ist. Sie zeigt Skills, Bosse, das Collection Log und persönliche Bestzeiten und lässt bewusst deine Clan-Platzierungen, deine Event-Historie und deinen Discord-Namen weg.',
+          body: '`/p/<name>`: ein Charakter, lesbar für jeden mit dem Link. Sie zeigt Skills, Bosse, das Collection Log und persönliche Bestzeiten und lässt bewusst deine Clan-Platzierungen, deine Event-Historie und deinen Discord-Namen weg.',
         },
         {
           term: 'Deine Personenseite',
-          body: '`/u/…`: alle deine geteilten Charaktere auf einer Seite, mit deiner Vitrine und den Streaming-Konten, die du zeigen willst. Sie existiert nur, wenn du **Show that my characters are one person** einschaltest.',
+          body: '`/u/…`: alle deine Charaktere auf einer Seite, mit deiner Vitrine und den Streaming-Konten, die du zeigen willst. Sie existiert nur, wenn du **Show that my characters are one person** einschaltest.',
         },
         {
           term: 'Die Mitgliederseite eines Clans',
@@ -4264,9 +4260,8 @@ const de: PartialGuideDict = {
     sharing: {
       title: 'Wer was sehen kann',
       body: [
-        'Jeder Charakter startet als **geteilt**: Seine Seite öffnet sich für jeden mit dem Link, und er kann in Ranglisten und bei anderen Clans auftauchen. Schalte einen unter **Who sees my characters** in den Einstellungen aus, und seine Seite zeigt für alle außer dir _not found_. Du siehst **Private — only you can see this page.** mit einem Link **Share it →**.',
-        'Eine geteilte Seite hat **Copy link** unter dem Namen. Angemeldete Besucher, die eine Seite für missbräuchlich halten, können **Report this profile** drücken.',
-        'Für jeden Charakter erlauben die Einstellungen außerdem, zu verbergen, in welchem Ingame-Clan er ist (**Show my in-game clan**), sodass er von der Seite dieses Charakters und der Anvil-Seite dieses Clans verschwindet.',
+        'Jeder Charakter: Seine Seite öffnet sich für jeden mit dem Link, und er kann in Ranglisten und bei anderen Clans auftauchen.',
+        'Die Seite eines Charakters hat **Copy link** unter dem Namen. Angemeldete Besucher, die eine Seite für missbräuchlich halten, können **Report this profile** drücken.',
       ],
     },
     wrapped: {
@@ -4274,7 +4269,7 @@ const de: PartialGuideDict = {
       body: [
         'Jeden Monat bekommt jeder Charakter eine Wrapped-Karte: **XP gained**, **Boss kills**, **New slots** im Collection Log, **Efficient**-Stunden, **PBs**, dazu Pets und der größte Drop. Sie erscheint am **1. des Folgemonats** (UTC). Bis dahin kannst nur du sie als Vorschau öffnen.',
         'Das Jahr bekommt auch eine, unter `/p/<name>/wrapped/<year>`, ab dem **1. Dezember**. `/p/<name>/wrapped` führt dich immer zur neuesten vorhandenen.',
-        'Drücke **Copy link to your Wrapped**, um sie zu teilen. In Discord eingefügt wird daraus ein Bild der Karte. Das Wrapped eines privaten Charakters öffnet sich nur für dich, und sein Link zeigt in der Vorschau eine schlichte Anvil-Karte.',
+        'Drücke **Copy link to your Wrapped**, um sie zu teilen. In Discord eingefügt wird daraus ein Bild der Karte.',
       ],
       note: {
         tag: 'Ein leerer Monat',
@@ -4293,7 +4288,6 @@ const de: PartialGuideDict = {
       title: 'Zwei Charaktere vergleichen',
       body: [
         'Öffne [Compare](/compare) und tippe zwei Namen ein. Du bekommst Skills, Bosse und Collection-Log-Seiten nebeneinander. Der Führende in jeder Zählung steht in Gold. Darunter folgen eine Analyse, XP pro Skill, jeder Boss, den einer von euch beiden getötet hat, und jede Log-Seite Gegenstand für Gegenstand: beide haben ihn, keiner oder nur einer von euch. **Swap sides** dreht die Seiten um.',
-        'Nur geteilte Charaktere können verglichen werden. Ein privater oder ein Name, den Anvil nicht kennt, kommt als _not on Anvil, or not shared_ zurück. Deine eigenen privaten Charaktere kannst du immer vergleichen, solange du angemeldet bist.',
       ],
     },
     news: {
@@ -4424,15 +4418,10 @@ const de: PartialGuideDict = {
     },
     privacy: {
       title: 'Wer meine Charaktere sieht',
-      intro: 'Deine Charaktere sind zu Beginn geteilt. Drei Schalter ändern das:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'ein Schalter pro Charakter. An (der Start), ist seine Seite **Public**. Aus ist sie **Only its clans**: seine Clans sehen ihn weiterhin in ihren Listen und Events, sonst niemand, und er verschwindet aus den Ranglisten.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'bei zwei oder mehr Charakteren erstellt das deine Personenseite, die deine geteilten Charaktere gemeinsam auflistet. Aus, kann niemand erkennen, dass sie alle dir gehören.',
+          body: 'bei zwei oder mehr Charakteren erstellt das deine Personenseite, die deine Charaktere gemeinsam auflistet. Aus, kann niemand erkennen, dass sie alle dir gehören.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4466,10 +4455,6 @@ const de: PartialGuideDict = {
       title: 'Jeder Charakter',
       intro: 'Unter **Characters** hat jeder Charakter seine eigene Seite: seinen Typ, ob er verifiziert ist, und Links zu seiner öffentlichen Seite und dem vollständigen Profil.',
       rows: [
-        {
-          term: 'Sichtbarkeit',
-          body: '**Show to other clans and on leaderboards** und **Show my in-game clan**.',
-        },
         {
           term: 'Clans',
           body: 'jeder Clan und jeder Space, in dem er ist, als **member** oder **guest**, mit **Announce drops & achievements** pro Clan und **Leave**. Hat Anvil ihn im falschen Clan, sagt **Which clan is it really in?** dem Staff Bescheid.',
@@ -4949,7 +4934,7 @@ const de: PartialGuideDict = {
     ghost: {
       title: 'Ingame-Clans, die nicht auf Anvil sind',
       body: [
-        'Die Seite eines Charakters nennt den Ingame-Clan, in dem er ist. Ist dieser Clan nicht auf Anvil, öffnet der Link eine schlichte Seite, die die Anvil-Spieler auflistet, die darin sind und es zu zeigen gewählt haben. Es ist nicht die Mitgliederliste dieses Clans, und nichts darauf macht jemanden zum Mitglied.',
+        'Die Seite eines Charakters nennt den Ingame-Clan, in dem er ist. Ist dieser Clan nicht auf Anvil, öffnet der Link eine schlichte Seite, die die Anvil-Spieler auflistet, die darin sind. Es ist nicht die Mitgliederliste dieses Clans, und nichts darauf macht jemanden zum Mitglied.',
         'Ist es dein Clan, richtet **Bring your clan to Anvil** einen ein. Sobald er ein öffentlicher Anvil-Clan ist, führt der Link direkt dorthin.',
       ],
     },

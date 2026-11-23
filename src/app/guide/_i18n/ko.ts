@@ -3734,7 +3734,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '진열장',
-          body: '최고의 드롭, 킬 수, 기록을 프로필에 걸어 둡니다: Supporter는 4칸, Champion은 8칸, Patron은 12칸. 공유하지 않는 캐릭터에서 건 것은 비공개로 남습니다.',
+          body: '최고의 드롭, 킬 수, 기록을 프로필에 걸어 둡니다: Supporter는 4칸, Champion은 8칸, Patron은 12칸.',
         },
       ],
     },
@@ -4211,10 +4211,6 @@ const ko: PartialGuideDict = {
     dek: 'Anvil은 **여러분**을 위한 페이지 하나와, 여러분이 플레이하는 **캐릭터마다** 하나씩 페이지를 보관합니다. 그 페이지에 무엇이 있는지, 누가 열어 볼 수 있는지, 그리고 매달과 이벤트가 끝날 때마다 나오는 Wrapped 카드를 정리했습니다.',
     facts: [
       {
-        strong: '기본값은 공유',
-        rest: '스위치 하나로 어떤 캐릭터든 비공개로 전환',
-      },
-      {
         strong: '월간 Wrapped',
         rest: '다음 달 1일에 공개',
       },
@@ -4234,11 +4230,11 @@ const ko: PartialGuideDict = {
         },
         {
           term: '캐릭터 페이지',
-          body: '`/p/<name>`: 공유되는 동안 링크를 가진 누구나 읽을 수 있는 캐릭터 하나. 스킬, 보스, 컬렉션 로그, 개인 최고 기록을 보여 주며, 일부러 클랜 순위, 이벤트 기록, Discord 이름은 빼 둡니다.',
+          body: '`/p/<name>`: 링크를 가진 누구나 읽을 수 있는 캐릭터 하나. 스킬, 보스, 컬렉션 로그, 개인 최고 기록을 보여 주며, 일부러 클랜 순위, 이벤트 기록, Discord 이름은 빼 둡니다.',
         },
         {
           term: '개인 페이지',
-          body: '`/u/…`: 공유된 캐릭터를 모두 한 페이지에 모아 보여 주며, 전시 진열대와 골라서 보여 주기로 한 스트리밍 계정이 함께 있습니다. **Show that my characters are one person**을 켰을 때만 존재합니다.',
+          body: '`/u/…`: 캐릭터를 모두 한 페이지에 모아 보여 주며, 전시 진열대와 골라서 보여 주기로 한 스트리밍 계정이 함께 있습니다. **Show that my characters are one person**을 켰을 때만 존재합니다.',
         },
         {
           term: '클랜의 멤버 페이지',
@@ -4249,9 +4245,8 @@ const ko: PartialGuideDict = {
     sharing: {
       title: '누가 무엇을 볼 수 있나',
       body: [
-        '모든 캐릭터는 처음에 **shared** 상태로 시작합니다. 페이지는 링크를 가진 누구에게나 열리며, 리더보드와 다른 클랜에도 나타날 수 있습니다. 설정의 **Who sees my characters**에서 끄면 나 말고는 모두에게 그 페이지가 _not found_로 나옵니다. 나에게는 **Private — only you can see this page.**와 **Share it →** 링크가 보입니다.',
-        '공유된 페이지에는 이름 아래 **Copy link**가 있습니다. 로그인한 방문자가 페이지가 악의적이라고 생각하면 **Report this profile**을 누를 수 있습니다.',
-        '캐릭터별로 설정에서 그 캐릭터가 속한 게임 내 클랜을 숨길 수도 있습니다(**Show my in-game clan**). 그러면 그 캐릭터의 페이지와 그 클랜의 Anvil 페이지에서 사라집니다.',
+        '모든 캐릭터의 페이지는 링크를 가진 누구에게나 열리며, 리더보드와 다른 클랜에도 나타날 수 있습니다.',
+        '캐릭터 페이지에는 이름 아래 **Copy link**가 있습니다. 로그인한 방문자가 페이지가 악의적이라고 생각하면 **Report this profile**을 누를 수 있습니다.',
       ],
     },
     wrapped: {
@@ -4259,7 +4254,7 @@ const ko: PartialGuideDict = {
       body: [
         '매달 캐릭터마다 Wrapped 카드가 하나씩 생깁니다: **XP gained**, **Boss kills**, 컬렉션 로그의 **New slots**, **Efficient** 시간, **PBs**, 그리고 펫과 가장 큰 드롭. **다음 달 1일**(UTC)에 공개됩니다. 그 전까지는 나만 미리보기로 열 수 있습니다.',
         '연간 카드도 있으며 `/p/<name>/wrapped/<year>`에서 **12월 1일**부터 볼 수 있습니다. `/p/<name>/wrapped`는 언제나 가장 최근 카드로 이동합니다.',
-        '**Copy link to your Wrapped**를 눌러 공유하세요. Discord에 붙여 넣으면 카드 그림으로 펼쳐집니다. 비공개 캐릭터의 Wrapped는 나만 열 수 있으며, 그 링크는 평범한 Anvil 카드로 미리보기됩니다.',
+        '**Copy link to your Wrapped**를 눌러 공유하세요. Discord에 붙여 넣으면 카드 그림으로 펼쳐집니다.',
       ],
       note: {
         tag: '빈 달',
@@ -4278,7 +4273,6 @@ const ko: PartialGuideDict = {
       title: '캐릭터 두 개 비교',
       body: [
         '[Compare](/compare)를 열고 이름 두 개를 입력하세요. 스킬, 보스, 컬렉션 로그 페이지를 나란히 볼 수 있습니다. 각 항목에서 앞서는 쪽은 금색으로 표시됩니다. 그 아래에는 분석, 스킬별 XP, 둘 중 한 명이라도 잡은 모든 보스, 그리고 로그 페이지의 항목별 비교(둘 다 가짐, 둘 다 없음, 한 명만 가짐)가 있습니다. **Swap sides**로 좌우를 바꿉니다.',
-        '공유된 캐릭터만 비교할 수 있습니다. 비공개 캐릭터나 Anvil이 모르는 이름이면 _not on Anvil, or not shared_가 나옵니다. 로그인한 상태라면 내 비공개 캐릭터는 언제든 비교할 수 있습니다.',
       ],
     },
     news: {
@@ -4409,15 +4403,10 @@ const ko: PartialGuideDict = {
     },
     privacy: {
       title: '누가 내 캐릭터를 보나',
-      intro: '내 캐릭터는 처음에 공유됩니다. 세 가지 스위치로 바꿀 수 있습니다:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: '캐릭터마다 스위치 하나. 켜면(시작 시 기본) 페이지가 **Public**이 됩니다. 끄면 **Only its clans**가 되어, 그 클랜들은 여전히 명단과 이벤트에서 보지만 다른 누구도 보지 못하고 리더보드에서도 빠집니다.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: '캐릭터가 둘 이상일 때, 공유된 캐릭터들을 함께 나열하는 개인 페이지를 만듭니다. 끄면 그것들이 모두 나라는 사실을 아무도 알 수 없습니다.',
+          body: '캐릭터가 둘 이상일 때, 캐릭터들을 함께 나열하는 개인 페이지를 만듭니다. 끄면 그것들이 모두 나라는 사실을 아무도 알 수 없습니다.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4451,10 +4440,6 @@ const ko: PartialGuideDict = {
       title: '캐릭터별 설정',
       intro: '**Characters** 아래에서 모든 캐릭터는 자기 페이지를 갖습니다. 유형, 인증 여부, 공개 페이지와 전체 프로필 링크가 있습니다.',
       rows: [
-        {
-          term: '공개 범위',
-          body: '**Show to other clans and on leaderboards**와 **Show my in-game clan**.',
-        },
         {
           term: '클랜',
           body: '그 캐릭터가 속한 각 클랜과 스페이스가 **member** 또는 **guest**로 표시되며, 클랜별 **Announce drops & achievements**와 **Leave**가 있습니다. Anvil이 엉뚱한 클랜에 넣어 두었다면, **Which clan is it really in?**으로 운영진에게 알릴 수 있습니다.',
@@ -4934,7 +4919,7 @@ const ko: PartialGuideDict = {
     ghost: {
       title: 'Anvil에 없는 게임 내 클랜',
       body: [
-        '캐릭터 페이지에는 그 캐릭터가 속한 게임 내 클랜의 이름이 나옵니다. 그 클랜이 Anvil에 없다면, 링크는 그 클랜에 속해 있고 보여 주기로 한 Anvil 플레이어들을 나열하는 평범한 페이지를 엽니다. 그 클랜의 명단이 아니며, 그 페이지의 무엇도 누군가를 멤버로 만들지 않습니다.',
+        '캐릭터 페이지에는 그 캐릭터가 속한 게임 내 클랜의 이름이 나옵니다. 그 클랜이 Anvil에 없다면, 링크는 그 클랜에 속해 있는 Anvil 플레이어들을 나열하는 평범한 페이지를 엽니다. 그 클랜의 명단이 아니며, 그 페이지의 무엇도 누군가를 멤버로 만들지 않습니다.',
         '우리 클랜이라면 **Bring your clan to Anvil**이 하나를 만들어 줍니다. 공개 Anvil 클랜이 되면 링크가 곧장 그곳으로 갑니다.',
       ],
     },

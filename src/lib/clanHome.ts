@@ -6,7 +6,7 @@
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
 import { notPractice } from '@/lib/practiceScope';
-import { unsharedRosterNames } from '@/lib/clanInsider';
+import { bannedRosterNames } from '@/lib/clanInsider';
 import { withoutHiddenRows } from '@/lib/rosterVisibility';
 import { sceneFor } from '@/lib/scenes';
 import { clanTenure, clanTenureLine } from '@/lib/clanTenure';
@@ -202,7 +202,7 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
     : [];
   const hidden = new Set(invited.map((r) => r.id));
   const analytics = await getClanAnalytics(members).catch(() => null);
-  const unshared = await unsharedRosterNames(clanId).catch(() => new Set<string>());
+  const banned = await bannedRosterNames(clanId).catch(() => new Set<string>());
 
   const board = (b: (typeof hub.live.boards)[number]): VisitorItem => ({
     key: `e${b.id}`,
@@ -253,9 +253,9 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
         // The art the events list already draws for it, so a visitor is shown nothing new.
         badge: { kind: i.kind, pictureUrl: i.group === 'boards' ? i.iconUrl : null, iconUrl: i.group === 'weeks' ? i.iconUrl : null },
       })),
-    // This is the page a visitor from outside gets, so it names only characters whose owner left
-    // "Show publicly" on (lib/rosterVisibility); the active count still covers everyone.
-    week: { top: withoutHiddenRows(analytics?.topWeek ?? [], unshared).slice(0, 5), activeThisWeek: analytics?.activeThisWeek ?? 0 },
-    moments: withoutHiddenRows(moments, unshared),
+    // This is the page a visitor from outside gets, so it names no character of a platform-banned
+    // owner (lib/rosterVisibility); the active count still covers everyone.
+    week: { top: withoutHiddenRows(analytics?.topWeek ?? [], banned).slice(0, 5), activeThisWeek: analytics?.activeThisWeek ?? 0 },
+    moments: withoutHiddenRows(moments, banned),
   };
 }

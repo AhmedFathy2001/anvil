@@ -246,9 +246,9 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills) }, c: gap(0) } : main;
 }
 
-/** "Not on Anvil" — the same words whether the name is unknown or simply not shared. */
+/** "Not on Anvil" — the same words whether the name is unknown or hidden. */
 export function notFoundUi(rsn: string): Node {
-  return card([text(rsn, 'white', { font: 'bold' }), gap(4), muted('Not on Anvil yet — or they haven’t shared their profile.', { wrap: true })]);
+  return card([text(rsn, 'white', { font: 'bold' }), gap(4), muted('Not on Anvil yet.', { wrap: true })]);
 }
 
 function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, tint?: string | null): Node {

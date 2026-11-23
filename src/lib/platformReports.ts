@@ -65,7 +65,7 @@ export interface ReportInput {
   category: unknown;
   note: unknown;
   reporterUserId: number;
-  /** The reporter's player id, for "may they see this?" (an event, an unshared character). */
+  /** The reporter's player id, for "may they see this?" (an event). */
   reporterPlayerId: number | null;
 }
 
@@ -144,9 +144,8 @@ async function resolveTarget(type: ReportTarget, id: number, playerId: number | 
     }
     case 'character': {
       // clan-scope: global -- a character belongs to a person, not to a clan.
-      const a = await db.query.accounts.findFirst({ where: eq(accounts.id, id), columns: { id: true, rsn: true, shared: true, playerId: true } });
-      // The same rule as /p/<rsn>: shared, or the viewer's own.
-      if (!a || (!a.shared && a.playerId !== playerId)) return null;
+      const a = await db.query.accounts.findFirst({ where: eq(accounts.id, id), columns: { id: true, rsn: true } });
+      if (!a) return null;
       return { clanId: null, snapshot: buildSnapshot([['Character', a.rsn], ['Address', `/p/${encodeURIComponent(a.rsn)}`]]) };
     }
     case 'person': {

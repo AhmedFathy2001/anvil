@@ -3,7 +3,7 @@ import { apexCharacter } from '@/lib/apexProfiles';
 import { comparePlayers } from '@/lib/compare';
 import { headToHeadValue, headToHeadVerdict } from '@/lib/linkText';
 import { headToHeadCard, siteCard } from '@/lib/ogCard';
-import { cachedCard, cardParam, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, cardParam } from '@/lib/ogKit';
 import { loadPlayerCard } from '@/lib/playerCard';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * /compare's card: two characters facing off, every headline number with its leader lit.
  *
- * Asked as nobody, like /api/og/player — both characters must be shared, or it is the plain card.
- * Which of the two wasn't is deliberately not said, as on the page.
+ * Asked as nobody, like /api/og/player — an unknown or banned character is the plain card.
  */
 async function load(_request: Request, { params }: { params: Promise<{ a: string; b: string }> }): Promise<Response> {
   const p = await params;
@@ -29,7 +28,7 @@ async function load(_request: Request, { params }: { params: Promise<{ a: string
     [accountTypeLabel(type), clan?.name ?? null].filter((x): x is string => !!x && x.toLowerCase() !== 'regular').join(' · ') || null;
   const leads = (s: 'a' | 'b') => headline.filter((r) => r.leader === s).length;
 
-  const res = await headToHeadCard({
+  return headToHeadCard({
     eyebrow: 'Head to head · Old School RuneScape',
     a: { name: cardA.rsn, line: sideLine(cardA.accountType, a.clan) },
     b: { name: cardB.rsn, line: sideLine(cardB.accountType, b.clan) },
@@ -37,7 +36,6 @@ async function load(_request: Request, { params }: { params: Promise<{ a: string
     verdict: headToHeadVerdict(cardA.rsn, cardB.rsn, headline),
     verdictSide: leads('a') === leads('b') ? null : leads('a') > leads('b') ? 'a' : 'b',
   });
-  return showingAccounts(res, [a.accountId, b.accountId]);
 }
 
 export function GET(request: Request, ctx: { params: Promise<{ a: string; b: string }> }) {

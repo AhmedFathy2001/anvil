@@ -18,7 +18,6 @@ export interface SettingsCharacter {
   rsnNormalized: string;
   accountHash: string | null;
   isPrimary: boolean;
-  shared: boolean;
   accountType: string | null;
   verified: boolean;
   /** May be used to sign up, enter or apply (lib/characterState mayJoinWith): proved, or waiting on a clan's staff. */
@@ -36,7 +35,6 @@ export async function settingsCharacters(playerId: number): Promise<SettingsChar
       rsnNormalized: accounts.rsnNormalized,
       accountHash: accounts.accountHash,
       isPrimary: accounts.isPrimary,
-      shared: accounts.shared,
       accountType: accounts.accountType,
       verifiedAt: accounts.verifiedAt,
       verificationMethod: accounts.verificationMethod,
@@ -51,7 +49,6 @@ export async function settingsCharacters(playerId: number): Promise<SettingsChar
     rsnNormalized: r.rsnNormalized,
     accountHash: r.accountHash,
     isPrimary: r.isPrimary === 1,
-    shared: !!r.shared,
     accountType: r.accountType,
     verified: r.verifiedAt != null,
     joinable: mayJoinWith(r),

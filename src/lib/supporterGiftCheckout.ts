@@ -1,7 +1,7 @@
 // Paid Supporter gifts, the database half (the rules are lib/supporterGiftPurchase).
 //
-//   1. The buyer names a character on anvilosrs.com. It must be shared publicly (a hidden
-//      character is never confirmed to exist) and its person must have a login to receive it.
+//   1. The buyer names a character on anvilosrs.com. It must be verified (an unverified one is
+//      never confirmed to exist) and its person must have a login to receive it.
 //   2. createGiftIntent stores an opaque token naming buyer and recipient, and hands back the
 //      Gumroad checkout with `gift=<token>` and the buyer's own `ref`.
 //   3. The sale comes back through the webhook: handleGiftEvent turns it into a granted row on the

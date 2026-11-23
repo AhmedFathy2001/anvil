@@ -8,13 +8,9 @@
 // the URLs: "Ahmed" is a user, "Drenvox mdps" is a character they play, and conflating them is what
 // the old one-clan-per-database model did.
 //
-// WHAT THE APEX MAY SHOW. lib/accountVisibility says a clan sees an account if it holds a seat for
-// it or the account is shared. The apex holds no seats — it is nobody's clan — so only the second
-// half applies: **on the apex, an account is visible iff it is shared.** That falls out of the rule
-// rather than being a second policy, which is the point of having the rule.
-//
-// Everything here is therefore opt-in, and mostly empty until people opt in. That is the correct
-// resting state for cross-clan visibility, not a defect.
+// WHAT THE APEX MAY SHOW. Every character is public on the apex, unless its owner is banned from
+// the platform. Tying characters together into one PERSON is still opt-in
+// (players.linkAccountsPublicly), and so is everything that names the human behind them.
 
 import { notPractice } from '@/lib/practiceScope';
 import { clanBeforeSpace, slugWhere } from '@/lib/clanSlugLookup';
@@ -121,7 +117,7 @@ export interface ApexCharacter {
   /** The clan this character is a MEMBER of — at most one, and only if that clan is listed. */
   clan: { slug: string; kind?: string | null; name: string; logoUrl: string | null; joinedOn: string | null } | null;
   /**
-   * The person, ONLY if they have agreed to be shown as one — and named by another of their shared
+   * The person, ONLY if they have agreed to be shown as one — and named by another of their
    * RSNs, never by anything from Discord.
    *
    * This field used to carry players.displayName, which is the Discord display name in practice, so
@@ -129,15 +125,9 @@ export interface ApexCharacter {
    * once, neither asked for: who they are off-game, and that these characters are one person.
    */
   owner: { playerId: number; label: string } | null;
-  /** True when the page is shown ONLY because the viewer owns this character and it is NOT shared —
-      so the page can say "private, only you can see this" instead of the "shown because shared" note. */
-  privateToViewer: boolean;
   /**
-   * Whether the person reading this owns the character, shared or not.
-   *
-   * Distinct from `privateToViewer`, which only fires on the private half of that: an owner looking
-   * at their own PUBLISHED page still needs the one control nobody else does — the link to hand
-   * somebody.
+   * Whether the person reading this owns the character: the owner needs the one control nobody else
+   * does — the link to hand somebody.
    */
   viewerOwns: boolean;
   /**
@@ -155,8 +145,7 @@ export interface ApexCharacter {
 /**
  * One character, by RSN.
  *
- * Null unless the account is shared. A character nobody published is not a public page, and saying
- * "this exists but you may not see it" would leak the thing being withheld.
+ * Null for an unknown RSN, or one whose owner is banned from the platform.
  */
 export async function apexCharacter(rsn: string, viewerPlayerId?: number | null): Promise<ApexCharacter | null> {
   const normalized = rsn.trim().toLowerCase().replace(/[\s_]+/g, ' ');
@@ -165,11 +154,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
   // the account being global.
   const acct = await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalized) });
   if (!acct) return null;
-  // Shared characters are public. An UNSHARED one is still visible to its OWNER — a private character
-  // is hidden from other people, not from yourself, and 404ing the owner off their own account read
-  // as data loss. Anyone else still gets the indistinguishable-from-nonexistent 404.
   const ownedByViewer = viewerPlayerId != null && acct.playerId === viewerPlayerId;
-  if (!acct.shared && !ownedByViewer) return null;
   // A person banned from the platform has no public page (lib/bannedPeople). They cannot sign in, so
   // there is no owner's view to keep.
   // clan-scope: global -- a ban is the platform's.
@@ -203,18 +188,18 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     ? await db.query.players.findFirst({ where: eq(players.id, acct.playerId) })
     : null;
 
-  // Named by ANOTHER of their shared RSNs, and only when linking is on — so the label is a name they
-  // published and the link is one they agreed to. Falls away entirely otherwise: this character
+  // Named by ANOTHER of their RSNs, and only when linking is on — so the link is one they agreed
+  // to. Falls away entirely otherwise: this character
   // stays public, and nothing here says whose it is.
   //
   // ANOTHER, not their primary. The primary is simply first in the list, and it is very often THIS
   // character — it is both the account most likely to be published and the one most likely to be
   // looked up — so the page said "Drenvox mdps · also plays Drenvox mdps". Excluding the account
   // being viewed is the fix; hiding the line when the names happened to match was papering over it,
-  // and still picked a useless label whenever a person shared three accounts and you were on the
+  // and still picked a useless label whenever a person had three accounts and you were on the
   // primary.
   //
-  // Null when there is no other. Somebody who publishes one character has no "also", and the person
+  // Null when there is no other. Somebody with one character has no "also", and the person
   // page behind the link would list only the character you are already reading.
   let ownerOut: { playerId: number; label: string } | null = null;
   if (owner && !owner.banned && owner.linkAccountsPublicly) {
@@ -222,7 +207,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
       .select({ rsn: accounts.rsn })
       .from(accounts)
       .where(
-        and(eq(accounts.playerId, owner.id), eq(accounts.shared, true), ne(accounts.id, acct.id)),
+        and(eq(accounts.playerId, owner.id), ne(accounts.id, acct.id)),
       )
       .orderBy(desc(accounts.isPrimary), accounts.rsn)
       .limit(1)
@@ -239,7 +224,6 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     lastSeenAt: acct.liveStatsAt,
     clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, kind: seat.kind, name: seat.name, logoUrl: seat.logoUrl ?? null, joinedOn: seat.joinedOn ?? null } : null,
     owner: ownerOut,
-    privateToViewer: !acct.shared && ownedByViewer,
     viewerOwns: ownedByViewer,
     personId: acct.playerId ?? null,
     personPublic: !!owner && !owner.banned && !!owner.linkAccountsPublicly,
@@ -250,18 +234,16 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
 export interface ApexPerson {
   playerId: number;
   /**
-   * What to call them in public: their primary shared RSN.
+   * What to call them in public: their primary RSN.
    *
    * NOT players.displayName, which is the Discord display name in all but name — every path that
    * creates a person from a login seeds it from there, and on the real data it matches
    * users.display_name for every row that has one. A page about an OSRS account has no business
-   * publishing what someone called themselves on Discord. An RSN they chose to share is a name they
-   * published on purpose.
+   * publishing what someone called themselves on Discord. An RSN is already public: it is on the
+   * hiscores and above the player's head.
    */
   label: string;
   /**
-   * Only the shared ones. The rest are not this page's to mention.
-   *
    * Carries enough to be worth reading. The page was a column of names and a clan beside each, which
    * said nothing a search result would not; these are the account's own numbers — the same ones
    * /p/<rsn> opens with — so the person page is a way IN to the characters rather than an index of
@@ -278,7 +260,7 @@ export interface ApexPerson {
 /**
  * One person, by id.
  *
- * Null when they have published nothing — and also when they have not agreed to be shown as one
+ * Null when they have no characters — and also when they have not agreed to be shown as one
  * person at all. A page listing someone's name and then no characters would confirm they exist and
  * are keeping quiet, which is not a thing the apex should say about someone.
  *
@@ -289,19 +271,18 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
   const person = await db.query.players.findFirst({ where: eq(players.id, playerId) });
   if (!person || person.banned) return null;
 
-  // The linkage switch, which is not the sharing switch. Sharing publishes a character; this says
-  // two characters are the same human. Off means there is no person page — the characters remain
+  // The linkage switch: it says two characters are the same human. Off means there is no person page — the characters remain
   // individually visible and nothing on the apex ties them together.
   if (!person.linkAccountsPublicly) return null;
 
-  // clan-scope: global -- a person's published characters are global by definition.
-  const shared = await db
+  // clan-scope: global -- a person's characters are global by definition.
+  const owned = await db
     .select({ id: accounts.id, rsn: accounts.rsn, overallXp: accounts.statsOverallXp })
     .from(accounts)
-    .where(and(eq(accounts.playerId, playerId), eq(accounts.shared, true)))
+    .where(eq(accounts.playerId, playerId))
     .orderBy(desc(accounts.isPrimary), accounts.rsn);
 
-  if (shared.length === 0) return null;
+  if (owned.length === 0) return null;
 
   // ONE grouped query for the week, not one per character. Somebody with eight published accounts
   // should not cost eight round trips to draw a column.
@@ -313,7 +294,7 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
       and(
         inArray(
           memberDailyStats.accountId,
-          shared.map((a) => a.id),
+          owned.map((a) => a.id),
         ),
         gte(memberDailyStats.day, weekAgo),
       ),
@@ -322,7 +303,7 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
   const weekBy = new Map(weekRows.map((r) => [r.accountId, Number(r.n ?? 0)]));
 
   const characters = await Promise.all(
-    shared.map(async (a) => {
+    owned.map(async (a) => {
       const seat = await db
         .select({ name: clans.name, clanId: clans.id })
         .from(clanMemberships)
@@ -350,8 +331,8 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
     }),
   );
 
-  // Ordered primary-first above, so the first shared RSN is the one they'd want to be known by.
-  return { playerId: person.id, label: shared[0].rsn, characters };
+  // Ordered primary-first above, so the first RSN is the one they'd want to be known by.
+  return { playerId: person.id, label: owned[0].rsn, characters };
 }
 
 /** The person behind a login, for linking a signed-in visitor to their own page. */

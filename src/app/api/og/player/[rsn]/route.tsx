@@ -5,7 +5,7 @@ import { SKILLS } from '@/lib/constants';
 import { ourImageAsDataUrl } from '@/lib/crestImage';
 import { compact } from '@/lib/linkText';
 import { memberCard, siteCard } from '@/lib/ogCard';
-import { cachedCard, remoteSprite, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, remoteSprite } from '@/lib/ogKit';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { bossItemForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 
@@ -16,9 +16,8 @@ const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
 /**
  * A character's card, for /p/<rsn>: the member card's layout, told from the character's side.
  *
- * Asked as NOBODY. `apexCharacter` with no viewer is the stranger's answer — a character its owner
- * hasn't shared gets the plain Anvil card, even when the owner is the one pasting the link, because
- * the picture is cached and fetched by Discord for everybody in the channel.
+ * Asked as NOBODY. `apexCharacter` with no viewer is the stranger's answer, because the picture is
+ * cached and fetched by Discord for everybody in the channel.
  */
 async function load(_request: Request, { params }: { params: Promise<{ rsn: string }> }): Promise<Response> {
   const c = await apexCharacter(decodeURIComponent((await params).rsn), null);
@@ -53,7 +52,7 @@ async function load(_request: Request, { params }: { params: Promise<{ rsn: stri
     card.ehb && card.ehb > 0 ? { value: compact(Math.round(card.ehb)), label: 'Hours bossed', icon: null } : null,
   ].filter((s): s is NonNullable<typeof s> => s !== null);
 
-  const res = await memberCard({
+  return memberCard({
     rsn: card.rsn,
     clanName: c.clan?.name ?? null,
     clanLogo,
@@ -62,7 +61,6 @@ async function load(_request: Request, { params }: { params: Promise<{ rsn: stri
     stats,
     loot,
   });
-  return showingAccounts(res, [c.accountId]);
 }
 
 export function GET(request: Request, ctx: { params: Promise<{ rsn: string }> }) {

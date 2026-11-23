@@ -23,7 +23,7 @@ after(async () => {
 });
 
 let n = 0;
-async function supporter(name: string, opts: { months: number; shared?: boolean; wall?: boolean }) {
+async function supporter(name: string, opts: { months: number; verified?: boolean; wall?: boolean }) {
   const { db, schema: s } = await loadDb();
   n++;
   const [player] = await db.insert(s.players).values({}).returning();
@@ -32,18 +32,17 @@ async function supporter(name: string, opts: { months: number; shared?: boolean;
     playerId: player.id,
     rsn: name,
     rsnNormalized: name.toLowerCase(),
-    shared: opts.shared ?? true,
-    verifiedAt: new Date().toISOString(),
+    verifiedAt: opts.verified === false ? null : new Date().toISOString(),
   });
   const start = new Date(Date.now() - opts.months * 31 * 86_400_000).toISOString();
   await db.insert(s.supporterSubscriptions).values({ userId: u.id, tier: 'supporter', status: 'active', startedAt: start, tenureStartedAt: start });
   return u;
 }
 
-test('every supporter is on the wall by default, longest first; opted-out and hidden characters are counted, never named', async () => {
+test('every supporter is on the wall by default, longest first; opted-out and unverified characters are counted, never named', async () => {
   await supporter('Old Timer', { months: 40 });
   await supporter('Newbie', { months: 0 });
-  await supporter('Hidden One', { months: 10, shared: false });
+  await supporter('Unverified One', { months: 10, verified: false });
   const quiet = await supporter('Quiet One', { months: 20, wall: false });
   // Opted out on a SECOND login with no subscription of its own: still off the wall.
   const two = await supporter('Two Logins', { months: 5 });

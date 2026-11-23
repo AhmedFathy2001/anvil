@@ -1541,6 +1541,13 @@
       "when": 1795275000000,
       "tag": "0282_practice_boards",
       "breakpoints": true
+    },
+    {
+      "idx": 283,
+      "version": "7",
+      "when": 1795276000000,
+      "tag": "0283_remove_user_hiding",
+      "breakpoints": true
     }
   ]
 }

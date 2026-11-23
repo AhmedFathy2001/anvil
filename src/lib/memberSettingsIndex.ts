@@ -241,17 +241,9 @@ export const MEMBER_SETTINGS: readonly MemberSettingEntry[] = [
     section: 'Characters',
   },
   {
-    id: 'character-visibility',
-    label: 'Who sees each character',
-    description: 'Give a character a public page and a place on cross-clan leaderboards, or keep it to its clans.',
-    keywords: ['public', 'private', 'hide', 'share', 'leaderboards', 'visibility', 'visible', 'invisible', 'show', 'show to other clans', 'other clans', 'who can see', 'privacy', 'accounts', 'characters'],
-    href: '/settings/account#character-visibility',
-    section: 'Account',
-  },
-  {
     id: 'link-characters',
     label: 'Show my characters are one person',
-    description: 'Link your public characters to each other, and choose whether other clans’ boards show on your home.',
+    description: 'Link your characters to each other, and choose whether other clans’ boards show on your home.',
     keywords: ['link accounts', 'alts', 'same person', 'discover', 'public boards', 'privacy'],
     href: '/settings/account#across-anvil',
     section: 'Account',

@@ -13,7 +13,7 @@ import { jsonWithEtag } from '@/lib/httpEtag';
  *
  * Every slot on the page in the game's order, each marked owned or not (with how many), so the panel
  * can draw the page the way the game does — lit and dim. Same visibility as the card and /p/<rsn>
- * (apexCharacter): shared characters are public, an unshared one is its owner's. Part of the
+ * (apexCharacter). Part of the
  * `player-card` capability.
  */
 

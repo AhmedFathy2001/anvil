@@ -51,8 +51,7 @@ export function Switch({
 
 /**
  * A switch that writes one boolean to one endpoint, then re-renders the page from the server.
- * `field` is the body key the endpoint reads; `invert` is for endpoints that store the opposite
- * of what the row says (e.g. the row reads "Show", the column is `hidden`).
+ * `field` is the body key the endpoint reads.
  */
 export function SettingSwitch({
   url,
@@ -60,7 +59,6 @@ export function SettingSwitch({
   field,
   checked,
   label,
-  invert = false,
   extra,
 }: {
   url: string;
@@ -68,7 +66,6 @@ export function SettingSwitch({
   field: string;
   checked: boolean;
   label: string;
-  invert?: boolean;
   extra?: Record<string, unknown>;
 }) {
   const router = useRouter();
@@ -85,7 +82,7 @@ export function SettingSwitch({
       const res = await clanFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...extra, [field]: invert ? !next : next }),
+        body: JSON.stringify({ ...extra, [field]: next }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));

@@ -223,9 +223,8 @@ export async function topPlayers(
       accountType: accounts.accountType,
       clanName: clans.name,
       clanSlug: clans.slug,
-      // Read alongside the name so the row can be stripped below. THE PLAYER OPTED IN, THE CLAN DID
-      // NOT: `accounts.shared` is what puts somebody on this table, and it says nothing about
-      // whether their clan agreed to be named next to them.
+      // Read alongside the name so the row can be stripped below. Every character is on this table,
+      // and that says nothing about whether their clan agreed to be named next to them.
       clanStatus: clans.status,
       clanVisibility: clans.visibility,
       clanHidden: clans.platformHidden,
@@ -246,7 +245,6 @@ export async function topPlayers(
     .leftJoin(settings, showcaseJoinOn())
     .where(
       and(
-        eq(accounts.shared, true),
         ownerNotBanned,
         since ? gte(memberDailyStats.day, since) : sql`true`,
         // Only a clan has members to rank; a same-slug space must not pull its namesake's rows in.
@@ -316,10 +314,7 @@ export interface PlayerStanding {
  * would place a person somewhere no row exists. Somebody who wants their alt counted separately
  * already has it counted separately.
  *
- * Only shared characters rank, which is the same filter `topPlayers` applies — the table has to be
- * readable by whoever is on it. Since drizzle/0080 that is the default rather than the exception,
- * and before it this whole surface was empty: every account on the first real database was unshared,
- * so the platform's own leaderboard had nothing in it at all.
+ * A platform-banned owner's characters do not rank, the same filter `topPlayers` applies.
  */
 export async function standingFor(
   accountIds: number[],
@@ -339,7 +334,6 @@ export async function standingFor(
     .innerJoin(accounts, eq(accounts.id, memberDailyStats.accountId))
     .where(
       and(
-        eq(accounts.shared, true),
         ownerNotBanned,
         inArray(accounts.id, accountIds),
         since ? gte(memberDailyStats.day, since) : sql`true`,
@@ -361,8 +355,7 @@ export async function standingFor(
     with totals as (
       select d.account_id, coalesce(sum(d.xp_gained), 0) as gained
         from member_daily_stats d
-        join accounts a on a.id = d.account_id
-       where a.shared = true ${sinceClause}
+       where true ${sinceClause}
        group by d.account_id
     )
     select

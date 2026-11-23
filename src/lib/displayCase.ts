@@ -8,10 +8,6 @@
 // proven theirs. All are re-checked on every read, so a character that leaves them, an item that
 // drops out of the log, or a deleted moment stops showing with no write — and a kill count or a time
 // shows its CURRENT value, never the one at pinning.
-//
-// PRIVACY. A pin names the character it came from. On a public page that is only allowed for a
-// character its owner SHARES — the same rule as /u/ and /p/ — so a pin from a private character is
-// shown to its owner alone, and never tells a stranger that the private character exists.
 
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
@@ -58,8 +54,6 @@ export interface DisplayCaseEntry {
   kind: PinKind;
   accountId: number;
   rsn: string;
-  /** The character is published (accounts.shared); only these show to anybody but the owner. */
-  shared: boolean;
   /** 0 for a kill count or a time. */
   itemId: number;
   /** 'kc' / 'pb' only: what the pin is of (lib/displayCaseStats). */
@@ -102,7 +96,7 @@ export interface DisplayCaseCandidate {
 /** The person's characters that may supply pins: theirs, and proven theirs. */
 async function verifiedAccounts(playerId: number) {
   return db
-    .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
+    .select({ id: accounts.id, rsn: accounts.rsn })
     .from(accounts)
     .where(and(eq(accounts.playerId, playerId), isNotNull(accounts.verifiedAt), eq(accounts.provisional, 0)));
 }
@@ -270,7 +264,6 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
       position: p.position,
       accountId: p.accountId,
       rsn: acct.rsn,
-      shared: !!acct.shared,
       itemId: p.itemId,
       statKey: null,
       headline: null,
@@ -301,7 +294,7 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
       }
       continue;
     }
-    const proofHref = acct.shared ? clogHref(acct.rsn, p.itemId) : null;
+    const proofHref = clogHref(acct.rsn, p.itemId);
     if (p.kind === 'clog') {
       const row = clogByKey.get(`${p.accountId}:${p.itemId}`);
       if (!row) continue;
@@ -338,14 +331,14 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
 }
 
 /**
- * What a page shows: the stored pins that still stand, cut to the tier's slots. `publicView` drops
- * pins from characters that are not shared; `accountId` keeps one character's (its own /p/ page).
+ * What a page shows: the stored pins that still stand, cut to the tier's slots. `accountId` keeps
+ * one character's (its own /p/ page).
  */
 export async function displayCaseFor(
   userId: number,
   playerId: number | null,
   tier: SupporterTierId | null | undefined,
-  opts: { publicView?: boolean; accountId?: number } = {},
+  opts: { accountId?: number } = {},
 ): Promise<DisplayCaseEntry[]> {
   if (displayCaseSlots(tier) === 0) return [];
   try {
@@ -353,7 +346,7 @@ export async function displayCaseFor(
     // Champion's ninth pin must not resurface on a character page because the first eight were
     // from other characters.
     return visiblePins(await readDisplayCase(userId, playerId), tier).filter(
-      (e) => (opts.accountId == null || e.accountId === opts.accountId) && (!opts.publicView || e.shared),
+      (e) => opts.accountId == null || e.accountId === opts.accountId,
     );
   } catch {
     // Decoration: a failed read is an empty case, never a broken profile.
@@ -367,7 +360,7 @@ export async function displayCaseFor(
  */
 export async function displayCaseForPlayer(
   playerId: number,
-  opts: { publicView?: boolean; accountId?: number } = {},
+  opts: { accountId?: number } = {},
 ): Promise<DisplayCaseEntry[]> {
   try {
     const owner = await db

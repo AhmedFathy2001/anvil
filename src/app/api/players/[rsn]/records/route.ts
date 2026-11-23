@@ -13,8 +13,7 @@ import { RECORD_PERIODS } from '@/lib/recordsRules';
  * A character's records — best gain per skill / boss / hours metric in a day, week, month and
  * year: GET /api/players/<rsn>/records. For the plugin panel and anything else that wants them.
  *
- * Same visibility as the player card (apexCharacter): shared characters are anyone's to look at, an
- * unshared one only its owner's (via the plugin token).
+ * Same visibility as the player card (apexCharacter).
  *
  *   → { rsn, periods: ['day','week','month','year'], records: [{ metric, period, value, startedAt, endedAt }] }
  *

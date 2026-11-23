@@ -21,8 +21,8 @@ function compact(n: number): string {
  * Find a character by name.
  *
  * The one primitive a profile page needs and could not be reached by: before this you got to /p/ by
- * placing in a top-25 table or by already knowing the URL. Shared accounts only — the same rule the
- * page itself enforces, so a search can never confirm that a private character exists.
+ * placing in a top-25 table or by already knowing the URL. The same rule the page itself enforces:
+ * a platform-banned owner's characters are left out.
  *
  * Debounced rather than searched per keystroke, and it asks for nothing under two characters: the
  * answer to "a" is most of the platform, which is not an answer.
@@ -71,7 +71,7 @@ export default function PlayerSearch({ placeholder = 'Look up a character…' }:
         <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-card-border bg-card-bg shadow-lg sm:w-72">
           {hits.length === 0 ? (
             <p className="px-3.5 py-2.5 text-[12.5px] text-text-muted">
-              {loading ? 'Looking…' : 'Nobody by that name has shared a profile.'}
+              {loading ? 'Looking…' : 'Nobody by that name is on Anvil.'}
             </p>
           ) : (
             hits.map((h) => (

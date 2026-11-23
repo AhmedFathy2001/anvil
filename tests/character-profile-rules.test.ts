@@ -6,17 +6,16 @@ const base: ProfileSectionInput = {
   context: 'clan',
   viewerOwns: false,
   signedIn: true,
-  shared: false,
   personId: 7,
   owner: { banned: false, linkAccountsPublicly: false },
 };
 
 test('clan-only sections never reach the public profile', () => {
-  const pub = profileSections({ ...base, context: 'public', shared: true });
+  const pub = profileSections({ ...base, context: 'public' });
   assert.equal(pub.clanSections, false);
   assert.equal(pub.persona, false);
   assert.equal(pub.platformHeader, true);
-  const clan = profileSections({ ...base, shared: true });
+  const clan = profileSections({ ...base });
   assert.equal(clan.clanSections, true);
   assert.equal(clan.persona, true);
   assert.equal(clan.platformHeader, false);
@@ -26,30 +25,22 @@ test('persona needs a signed-in viewer', () => {
   assert.equal(profileSections({ ...base, signedIn: false }).persona, false);
 });
 
-test('owner pictures follow the "show me as one person" switch, or the owner', () => {
-  assert.equal(profileSections(base).personMedia, false);
-  assert.equal(profileSections({ ...base, shared: true, owner: { banned: false, linkAccountsPublicly: true } }).personMedia, true);
-  // A character its owner keeps private never wears their pictures, even on a clan page with "show as
-  // one person" on: that would tie the private character to their public ones.
-  assert.equal(profileSections({ ...base, shared: false, owner: { banned: false, linkAccountsPublicly: true } }).personMedia, false);
-  assert.equal(profileSections({ ...base, shared: true, owner: { banned: true, linkAccountsPublicly: true } }).personMedia, false);
+test('owner pictures show unless the owner is banned', () => {
+  assert.equal(profileSections(base).personMedia, true);
+  assert.equal(profileSections({ ...base, owner: { banned: false, linkAccountsPublicly: true } }).personMedia, true);
+  assert.equal(profileSections({ ...base, owner: { banned: true, linkAccountsPublicly: true } }).personMedia, false);
   assert.equal(profileSections({ ...base, viewerOwns: true }).personMedia, true);
   assert.equal(profileSections({ ...base, personId: null, viewerOwns: true }).personMedia, false);
 });
 
-test('an unshared character keeps head-to-head and platform links to its owner, even in its clan', () => {
-  const stranger = profileSections(base);
-  assert.equal(stranger.h2h, false);
-  assert.equal(stranger.platformLinks, false);
-  const owner = profileSections({ ...base, viewerOwns: true });
-  assert.equal(owner.h2h, true);
-  assert.equal(owner.platformLinks, true);
-  assert.equal(profileSections({ ...base, shared: true }).h2h, true);
+test('connected streams follow the "show me as one person" switch, or the owner', () => {
+  assert.equal(profileSections(base).personStreams, false);
+  assert.equal(profileSections({ ...base, owner: { banned: false, linkAccountsPublicly: true } }).personStreams, true);
+  assert.equal(profileSections({ ...base, viewerOwns: true }).personStreams, true);
 });
 
-test('the display case filters private pins for everyone but the owner', () => {
-  assert.equal(profileSections(base).displayCasePublicView, true);
-  assert.equal(profileSections({ ...base, viewerOwns: true }).displayCasePublicView, false);
+test('the display case needs a person', () => {
+  assert.equal(profileSections(base).displayCase, true);
   assert.equal(profileSections({ ...base, personId: null }).displayCase, false);
 });
 

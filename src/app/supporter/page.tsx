@@ -350,7 +350,7 @@ function Wall({ wall }: { wall: SupporterWall }) {
         ))}
       </div>
       <p className="mt-2 text-[12px] text-text-dim">
-        Supporters show under a character they share publicly. Anyone can leave the wall in Settings → Profile &amp; look.
+        Supporters show under one of their verified characters. Anyone can leave the wall in Settings → Profile &amp; look.
       </p>
     </section>
   );

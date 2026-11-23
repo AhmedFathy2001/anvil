@@ -57,14 +57,12 @@ const HISTORY_LIMIT = 6;
 /** Daily rows to read for the activity streak. */
 const STREAK_WINDOW_DAYS = 140;
 
-/** An account of theirs this clan has no seat for. Deliberately thin: a name and its switch. */
+/** An account of theirs this clan has no seat for. Deliberately thin. */
 export interface LockerOtherAccount {
   accountId: number;
   rsn: string;
   /** Their main (accounts.is_primary) — the card's character list badges it. */
   isPrimary: boolean;
-  /** "Show on my public profile": its own profile and the cross-clan boards. Nothing to do with this clan. */
-  shared: boolean;
   /** Verified characters are the only ones a clan's door will consider. */
   verified: boolean;
   /** Already waiting on this clan's moderators for a guest seat with this character. */
@@ -96,11 +94,8 @@ export interface LockerAccount {
   inActiveEvent: boolean;
   /** Name of a live event this account is playing, for the account row's status line. */
   playingIn: string | null;
-  /** Published to clans this account is NOT in. Off by default; see lib/accountVisibility. */
-  shared: boolean;
   /**
-   * The underlying ACCOUNT — the character Jagex tracks. Sharing is set on it, and so is every
-   * stats table: history, milestones, records, the collection log, account progress. A DIFFERENT
+   * The underlying ACCOUNT — the character Jagex tracks. Every stats table is keyed by it: history, milestones, records, the collection log, account progress. A DIFFERENT
    * number from `id`, always, because seats and accounts come from two sequences. See MemberProfile
    * for what came of passing the seat where this was wanted.
    */
@@ -298,13 +293,11 @@ export async function buildLocker(
     }
   }
 
-  // Sharing state for every account they own, in one read. Keyed by account id because that is what
-  // sharing is set on — a seat id is per clan, and the same account has a different one in each.
+  // Every account they own, in one read.
   const allOwnedAccounts = await db
     .select({
       id: accountsTable.id,
       rsn: accountsTable.rsn,
-      shared: accountsTable.shared,
       isPrimary: accountsTable.isPrimary,
       // Only a verified character can be offered to a clan's door — see the guest offer below.
       verifiedAt: accountsTable.verifiedAt,
@@ -346,7 +339,6 @@ export async function buildLocker(
     inActiveEvent: false,
     playingIn: null,
     lastPingAt: a.liveStatsAt,
-    shared: a.shared === true,
     accountId: a.id,
     joinedOn: null,
   });
@@ -420,8 +412,6 @@ export async function buildLocker(
     liveEventNameByMember.set(p.clanMemberId, p.eventName);
   }
 
-  const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
-
   const joinedBySeat = await ingameJoinDates(memberRows.map((m) => m.id));
   const seatAccounts: LockerAccount[] = memberRows.map((m) => ({
     id: m.id,
@@ -434,7 +424,6 @@ export async function buildLocker(
     inActiveEvent: activeMemberIds.has(m.id),
     playingIn: liveEventNameByMember.get(m.id) ?? null,
     lastPingAt: m.liveStatsAt,
-    shared: sharedByAccount.get(m.accountId) === true,
     accountId: m.accountId,
     joinedOn: joinedBySeat.get(m.id) ?? null,
   }));
@@ -479,7 +468,6 @@ export async function buildLocker(
       accountId: a.id,
       rsn: a.rsn,
       isPrimary: a.isPrimary === 1,
-      shared: a.shared === true,
       verified: a.verifiedAt != null,
       guestRequestPending: door?.pending ?? false,
       guestDeclinedAt: door?.declinedAt ?? null,

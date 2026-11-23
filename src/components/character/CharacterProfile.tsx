@@ -5,7 +5,6 @@ import { getAccountRecords, type AccountRecord } from '@/lib/records';
 import Persona from '@/app/members/[rsn]/Persona';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import ProfileShare from '@/app/p/[rsn]/ProfileShare';
-import GameClanToggle from '@/app/p/[rsn]/GameClanToggle';
 import { accountTypeLabel } from '@/lib/accountType';
 import {
   getActivityStandings,
@@ -149,7 +148,7 @@ function TotalLevelDial({ level }: { level: number }) {
 /**
  * Where the profile is being shown.
  *
- *   public — /p/<rsn>: the caller has already applied apexCharacter's rule (shared, or the owner).
+ *   public — /p/<rsn>: the caller has already applied apexCharacter's rule.
  *   clan   — a clan's view of its seat: /c/<clan>/members/<rsn>, and the owner's locker /profile.
  */
 export type CharacterProfileContext =
@@ -203,13 +202,12 @@ export default async function CharacterProfile({
   const rsn = profile.rsn;
   const viewerPlayerId = viewer?.playerId ?? null;
 
-  // The character behind the page: who owns it (goals are theirs to edit), whether it is published
-  // (the platform links and head-to-head only make sense if it is) and whether it is verified; and
-  // that person's "show my characters as one person" switch.
+  // The character behind the page: who owns it (goals are theirs to edit) and whether it is
+  // verified; and that person's "show my characters as one person" switch.
   // clan-scope: global -- an OSRS account is one account however many clans roster it.
   const acct = await db.query.accounts.findFirst({
     where: eq(accounts.id, accountId),
-    columns: { playerId: true, shared: true, verifiedAt: true },
+    columns: { playerId: true, verifiedAt: true },
   });
   const personId = acct?.playerId ?? null;
   // clan-scope: global -- the person's own switches, not a clan's.
@@ -221,7 +219,6 @@ export default async function CharacterProfile({
     context: context.kind,
     viewerOwns,
     signedIn: !!viewer,
-    shared: !!acct?.shared,
     personId,
     owner,
   });
@@ -243,7 +240,7 @@ export default async function CharacterProfile({
     milestones, records, series, collection, progress, questItems, caItems, trackingSince, supporterLooks,
     media, showcase, connected,
     joinedOn, standings, history, persona, activityStandings, moments, roster,
-    gameClanRow, myCharacters,
+    gameClan, myCharacters,
   ] = await Promise.all([
     getMilestones(accountId, 50),
     getAccountRecords(accountId),
@@ -258,9 +255,9 @@ export default async function CharacterProfile({
 
     // This character's own banner/avatar where it has one, else the person's (lib/profileMedia).
     show.personMedia ? mediaForCharacter(accountId, personId) : Promise.resolve({ avatar: null, banner: null }),
-    // This character's own pins only; a pin from a non-shared character reaches only its owner.
+    // This character's own pins only.
     show.displayCase
-      ? displayCaseForPlayer(personId!, { accountId, publicView: show.displayCasePublicView })
+      ? displayCaseForPlayer(personId!, { accountId })
       : Promise.resolve([]),
     show.personStreams ? profileConnectedAccounts(personId!, viewerOwns) : Promise.resolve([]),
 
@@ -309,8 +306,6 @@ export default async function CharacterProfile({
       })
     : null;
 
-  // The in-game clan their plugin reported (lib/gameClans). A hidden one is the owner's to see.
-  const gameClan = gameClanRow && (!gameClanRow.hidden || viewerOwns) ? gameClanRow : null;
   const character = pubCtx?.character ?? null;
   // The same clan as their Anvil seat: the rank title joins that chip instead of a second one.
   const seatIsGameClan = !!gameClan && !!character?.clan && gameClan.anvilClan?.slug === character.clan.slug;
@@ -377,7 +372,6 @@ export default async function CharacterProfile({
             </ClanLink>
           )}
           {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
-          {gameClan && show.ownerControls && <GameClanToggle accountId={accountId} hidden={gameClan.hidden} />}
           {character.clan ? (
             // The same character, seen by its clan: standings, competition history, moments.
             <ClanLink
@@ -394,8 +388,8 @@ export default async function CharacterProfile({
               ⚙ Settings
             </ClanLink>
           )}
-          {/* Only present when its owner turned linking on, and named by another RSN they
-              shared — never by anything from Discord (apexCharacter). */}
+          {/* Only present when its owner turned linking on, and named by another of their
+              RSNs — never by anything from Discord (apexCharacter). */}
           {character.owner && (
             <span>
               also plays{' '}
@@ -419,36 +413,32 @@ export default async function CharacterProfile({
             </span>
           </>
         )}
-        {show.platformLinks && (
+        {show.clanSections && (
           <>
-            {show.clanSections && (
-              <>
-                {' · '}
-                {/* The same character on the platform — the two pages used to have no way between them. */}
-                <ClanLink href={`/p/${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
-                  Public profile ↗
-                </ClanLink>
-              </>
-            )}
             {' · '}
-            {/* Their year and finished months as shareable cards (app/p/[rsn]/wrapped). */}
-            <ClanLink href={`/p/${encodeURIComponent(rsn)}/wrapped`} className="text-gold hover:underline">
-              Wrapped
+            {/* The same character on the platform — the two pages used to have no way between them. */}
+            <ClanLink href={`/p/${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
+              Public profile ↗
             </ClanLink>
+          </>
+        )}
+        {' · '}
+        {/* Their year and finished months as shareable cards (app/p/[rsn]/wrapped). */}
+        <ClanLink href={`/p/${encodeURIComponent(rsn)}/wrapped`} className="text-gold hover:underline">
+          Wrapped
+        </ClanLink>
+        {' · '}
+        {/* Side by side with somebody else — the compare page asks for the other name. */}
+        <ClanLink href={`/compare?a=${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
+          Compare ↗
+        </ClanLink>
+        {/* Someone else's character: buy them Supporter. Quiet, last, never a pitch on your own page. */}
+        {!show.ownerControls && (
+          <>
             {' · '}
-            {/* Side by side with somebody else — the compare page asks for the other name. */}
-            <ClanLink href={`/compare?a=${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
-              Compare ↗
+            <ClanLink href={`/supporter/gift?to=${encodeURIComponent(rsn)}`} className="text-text-muted hover:text-gold">
+              Gift Supporter
             </ClanLink>
-            {/* Someone else's character: buy them Supporter. Quiet, last, never a pitch on your own page. */}
-            {!show.ownerControls && (
-              <>
-                {' · '}
-                <ClanLink href={`/supporter/gift?to=${encodeURIComponent(rsn)}`} className="text-text-muted hover:text-gold">
-                  Gift Supporter
-                </ClanLink>
-              </>
-            )}
           </>
         )}
       </p>
@@ -588,9 +578,8 @@ export default async function CharacterProfile({
       )}
 
       {/* Head-to-head (lib/h2h): this character's public record and a Challenge button; the owner
-          sees their whole record and anything waiting on them. Its record is cross-clan, so it shows
-          only where /p/ would. */}
-      {show.h2h && <H2hCard accountId={accountId} rsn={rsn} viewerPlayerId={viewerPlayerId} />}
+          sees their whole record and anything waiting on them. */}
+      <H2hCard accountId={accountId} rsn={rsn} viewerPlayerId={viewerPlayerId} />
 
       <GoalsCard accountId={accountId} goals={goals.goals} editable={show.ownerControls} options={goals.options} />
 
@@ -615,15 +604,8 @@ export default async function CharacterProfile({
         }
       />
 
-      {/* /p/ only: the owner's share link (or the private notice); anyone else is told why they can see it. */}
-      {character &&
-        (show.ownerControls ? (
-          <ProfileShare rsn={rsn} shared={!character.privateToViewer} />
-        ) : (
-          <p className="mt-8 text-xs text-text-dim">
-            Shown because this account is shared. Its owner can turn that off from their profile.
-          </p>
-        ))}
+      {/* /p/ only: the owner's share link. */}
+      {character && show.ownerControls && <ProfileShare rsn={rsn} />}
     </>
   );
 }

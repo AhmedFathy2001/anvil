@@ -296,16 +296,15 @@ export const players = pgTable('players', {
   // INTERNAL ONLY. In practice this IS the Discord display name — every path that creates a person
   // from a login seeds it from there (lib/roster, lib/discord-login), and on the real data it is
   // identical to users.display_name for every row that has one. So it must never reach a public
-  // page: the apex identifies a person by their primary SHARED RSN, which is a name they chose to
-  // publish, not one Discord chose for them.
+  // page: the apex identifies a person by their primary RSN, which is a name they chose, not one
+  // Discord chose for them.
   displayName: text('display_name'),
   /**
    * May the apex show that these characters belong to one person?
    *
-   * Separate from `accounts.shared`, and off by default, because they are different disclosures.
-   * Sharing a character publishes THAT character. Linking says two RSNs are the same human, which
-   * is the fact someone is most likely to want kept — a main and an ironman can each be public
-   * without their owner wanting them connected. Sharing two accounts used to imply this silently.
+   * Off by default. Every character is public on its own; linking says two RSNs are the same
+   * human, which is the fact someone is most likely to want kept — a main and an ironman can each
+   * be public without their owner wanting them connected.
    */
   linkAccountsPublicly: boolean('link_accounts_publicly').notNull().default(false),
   /**
@@ -381,22 +380,6 @@ export const accounts = pgTable('accounts', {
   verifiedByUserId: integer('verified_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   // On the watchlist: matched by a signal weak enough to be coincidence, awaiting a mod's confirm.
   provisional: integer('provisional').default(0).notNull(),
-  // Whether clans this account is NOT in may see it.
-  //
-  // DEFAULT TRUE, because this is a cross-clan record and a record nobody may read is a filing
-  // cabinet. Off by default, the leaderboards and the clan directory could only describe a person
-  // through whichever clan you happened to be looking at — the per-clan silo that putting clans on
-  // one site was meant to end. An OSRS name is public anyway: it is on the hiscores and above the
-  // player's head.
-  //
-  // The rule it feeds is unchanged (lib/accountVisibility — seat in the clan, or shared); only its
-  // default answer moved. A clan still sees its own roster regardless, and still cannot see an
-  // account belonging to somebody with no seat who has turned this off.
-  //
-  // Per account rather than per person, because "my main is public, my ironman is nobody's
-  // business" is the real want and a person-level flag cannot express it — and that want is now
-  // expressed by turning ONE character off rather than by turning every character on.
-  shared: boolean('shared').notNull().default(true),
   claimedAt: text('claimed_at'),
 
   // ── Game mode ────────────────────────────────────────────────────────────────────────────
@@ -514,8 +497,6 @@ export const accountGameClans = pgTable('account_game_clans', {
   joinedOn: text('joined_on'),
   /** Last time the plugin confirmed this. Throttled to once a day when nothing changed. */
   observedAt: text('observed_at').notNull(),
-  /** The owner turned it off: never shown on profiles or ghost pages. */
-  hidden: boolean('hidden').notNull().default(false),
 }, (table) => [
   index('account_game_clans_clan_idx').on(table.gameClanId),
 ]);
@@ -1606,9 +1587,6 @@ export const users = pgTable('users', {
   // lib/emissionRouting.
   // DEFAULT ON: a clan you merely guest in stays quiet until you say otherwise.
   //
-  // It defaulted to off while `accounts.shared` was itself off by default — the two together meant
-  // silence, and turning sharing on was a deliberate act that fairly read as "announce me". Sharing
-  // is the default now (drizzle/0080), and it says only that the leaderboards may see the character.
   // true = QUIET in guest clans. It DEFAULTS TO TRUE (drizzle/0263): nothing posts in a clan where the
   // person only guests until they switch it on in Settings ("Post my drops and levels in clans where
   // I am a guest" — the UI shows the inverse of this column), or allow one clan from a character's
@@ -1638,7 +1616,7 @@ export const users = pgTable('users', {
   // Post "<name> became an Anvil <tier>" in the Anvil Discord when their membership starts
   // (lib/anvilDiscord). Default on; a toggle on /profile turns it off.
   announceSupporter: boolean('announce_supporter').notNull().default(true),
-  // On the public supporters wall (/supporter, lib/supporterWall) under a shared character. Default on;
+  // On the public supporters wall (/supporter, lib/supporterWall) under a verified character. Default on;
   // a toggle in Settings → Supporter takes them off (drizzle/0255).
   supporterWall: boolean('supporter_wall').notNull().default(true),
   // Show their Supporter colours (and a Patron's star) on their characters' names in normal game chat,
@@ -3701,16 +3679,14 @@ export type Moment = typeof moments.$inferSelect;
 
 // ── Emission routing (H5) ──────────────────────────────────────────────────────────────────────
 // Where a person's social notifications go once one account plays in several clans. The default is
-// computed from seats + accounts.shared; these rows only hold the deviations. See lib/emissionRouting
+// computed from seats; these rows only hold the deviations. See lib/emissionRouting
 // and drizzle/0073 for the model.
 
 export const accountClanEmission = pgTable('account_clan_emission', {
   id: serial('id').primaryKey(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
-  // The override. false silences this clan; true is an explicit opt-in — but the `shared` gate on a
-  // GUEST clan is not overridable to true (an unshared account never announces to a clan it only
-  // guests in), which lib/emissionRouting enforces rather than the column.
+  // The override. false silences this clan; true is an explicit opt-in (lib/emissionRouting).
   enabled: boolean('enabled').notNull(),
   updatedAt: text('updated_at')
     .default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`)

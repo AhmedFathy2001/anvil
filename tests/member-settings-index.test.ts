@@ -108,7 +108,7 @@ test('the hub has one card per page, and every old address redirects to a sectio
     ['/settings/in-game', ['plugin-token', 'chat-feed']],
     ['/settings/characters', ['detected', 'link-account', 'claims-on-yours', 'your-claims']],
     ['/settings/posts', ['plugin-posts', 'where-posts-go', 'per-character', 'posts-drops', 'screenshot-privacy', 'your-webhooks']],
-    ['/settings/account', ['plugin-sign-ins', 'sessions', 'plan', 'perks', 'clan-billing', 'twitch', 'youtube', 'kick', 'medal', 'character-visibility', 'across-anvil']],
+    ['/settings/account', ['plugin-sign-ins', 'sessions', 'plan', 'perks', 'clan-billing', 'twitch', 'youtube', 'kick', 'medal', 'across-anvil']],
   ];
   for (const [page, ids] of kept) for (const id of ids) assert.ok(pageSource(page).includes(`id="${id}"`), `${page}: no id="${id}"`);
 });
@@ -170,11 +170,6 @@ test('every keyword finds its own entry', () => {
 test('nothing typed, nothing found', () => {
   assert.deepEqual(searchMemberSettings(''), []);
   assert.deepEqual(searchMemberSettings('zzzzqqq'), []);
-});
-
-test('"visible" finds who sees each character', () => {
-  assert.equal(top('visible'), 'character-visibility');
-  assert.ok(searchMemberSettings('show to other clans').some((e) => e.id === 'character-visibility'));
 });
 
 test('chat colours live on one page, In game', () => {

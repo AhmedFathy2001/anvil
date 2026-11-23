@@ -58,9 +58,6 @@ export interface QuickFacts {
   blockGuestPosts: boolean;
   /** The person's characters that hold a GUEST seat in this clan, with their per-clan allow. */
   guestCharacters: { accountId: number; allowed: boolean }[];
-  /** Their main character, for the visibility switch; null when none is linked. */
-  main: { accountId: number; rsn: string; shared: boolean } | null;
-  characterCount: number;
   /** "DM me important updates" (users.anvil_dms = 'yes'). */
   dms: boolean;
 }
@@ -107,23 +104,6 @@ export function buildQuickSettings(f: QuickFacts): QuickSettingsView | null {
     });
   }
   if (posts.length) groups.push({ heading: f.seat === 'member' ? 'What is posted about you' : `Posts about you in ${clan}`, items: posts });
-
-  if (f.main) {
-    const others = f.characterCount - 1;
-    groups.push({
-      heading: 'Who can see you',
-      items: [
-        {
-          id: 'visible',
-          label: `Show ${f.main.rsn} publicly`,
-          sentence: `Gives ${f.main.rsn} its own public page and puts it on the leaderboards that span clans. Off keeps it to the clans it plays in.${others > 0 ? ` Your other characters are set in Settings.` : ''}`,
-          checked: f.main.shared,
-          on: [{ url: `/api/profile/accounts/${f.main.accountId}/share`, method: 'PATCH', body: { shared: true } }],
-          off: [{ url: `/api/profile/accounts/${f.main.accountId}/share`, method: 'PATCH', body: { shared: false } }],
-        },
-      ],
-    });
-  }
 
   groups.push({
     heading: 'Messages to you',
