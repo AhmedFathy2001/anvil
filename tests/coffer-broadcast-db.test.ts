@@ -40,7 +40,7 @@ before(async () => {
     ids.push(p.id);
   }
   for (const [rsn, who] of [['Nisbro', 0], ['Drenvox', 1], ['Steeldeck', 2], ['Drenvox alt', 1]] as const) {
-    const [a] = await db.insert(s.accounts).values({ playerId: ids[who], rsn, rsnNormalized: rsn.toLowerCase(), shared: false }).returning();
+    const [a] = await db.insert(s.accounts).values({ playerId: ids[who], rsn, rsnNormalized: rsn.toLowerCase() }).returning();
     const [m] = await db.insert(s.clanMemberships).values({ clanId, accountId: a.id, kind: 'member' }).returning();
     seats.push({ seat: m.id, rsn });
   }

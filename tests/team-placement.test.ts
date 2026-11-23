@@ -110,3 +110,15 @@ test('host inputs are validated', () => {
   assert.equal(normaliseTeamCap(10), 10);
   assert.equal(normaliseTeamCap(-1), 'invalid');
 });
+
+test('players pick: with no cap, a team may not run more than two ahead of the smallest', () => {
+  const all = [t(1, 3), t(2, 1), t(3, 1)];
+  assert.deepEqual(checkPick(all[0], null, 1, all), { ok: false, reason: 'ahead' });
+  assert.deepEqual(checkPick(all[1], null, 1, all), { ok: true });
+  // Friends joining together still fit, and an empty team always takes a group.
+  const fresh = [t(1, 0), t(2, 0)];
+  assert.deepEqual(checkPick(fresh[0], null, 2, fresh), { ok: true });
+  assert.deepEqual(checkPick(t(1, 0), null, 3, [t(1, 0), t(2, 0)]), { ok: true });
+  assert.equal(isTeamFull(all[0], null, all), true);
+  assert.equal(isTeamFull(all[1], null, all), false);
+});

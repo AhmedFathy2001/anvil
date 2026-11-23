@@ -193,9 +193,6 @@ export default function DisplayCaseEditor({
               {i >= slots && (
                 <p className="mt-1 text-center text-[11px] text-gold">Only you see this · {TIER_LABEL[tierForDisplaySlot(i)]}</p>
               )}
-              {!e.shared && (
-                <p className="mt-1 text-center text-[11px] text-text-dim">Only you see this — {e.rsn} isn&rsquo;t shared</p>
-              )}
             </li>
           ))}
         </ul>

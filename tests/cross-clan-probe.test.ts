@@ -72,11 +72,11 @@ before(async () => {
   G.pB = (await mkMember(G.B, 'BravoPlayer')).playerId;
   G.pC = (await mkMember(G.C, 'CharliePlayer')).playerId;
 
-  // A dual person: a main that's a member of A, and a SEPARATE account that's a member of B, unshared.
+  // A dual person: a main that's a member of A, and a SEPARATE account that's a member of B.
   const [pd] = await db.insert(s.players).values({ displayName: 'Dual' }).returning();
   G.pD = pd.id;
-  await db.insert(s.accounts).values({ playerId: pd.id, rsn: 'DualMain', rsnNormalized: 'dualmain', shared: false }).returning();
-  const [dualB] = await db.insert(s.accounts).values({ playerId: pd.id, rsn: 'DualAlt', rsnNormalized: 'dualalt', shared: false }).returning();
+  await db.insert(s.accounts).values({ playerId: pd.id, rsn: 'DualMain', rsnNormalized: 'dualmain' }).returning();
+  const [dualB] = await db.insert(s.accounts).values({ playerId: pd.id, rsn: 'DualAlt', rsnNormalized: 'dualalt' }).returning();
   await db.insert(s.clanMemberships).values({ clanId: G.A, accountId: (await db.select({ id: s.accounts.id }).from(s.accounts).where(eq(s.accounts.rsnNormalized, 'dualmain')).then((r) => r[0])).id, kind: 'member' });
   await db.insert(s.clanMemberships).values({ clanId: G.B, accountId: dualB.id, kind: 'member' });
 
@@ -137,7 +137,7 @@ test('3 · access follows the relationship: host + accepted co-host in; declined
 test('4 · the S3 privacy rule holds across clans: a clan sees only its own accounts of a shared person', async () => {
   const seenByA = (await accountsVisibleToClan(G.A, G.pD)).map((a) => a.rsn.toLowerCase());
   assert.ok(seenByA.includes('dualmain'), 'Alpha sees the account that plays in Alpha');
-  assert.ok(!seenByA.includes('dualalt'), 'Alpha does NOT learn about the unshared Bravo alt');
+  assert.ok(!seenByA.includes('dualalt'), 'Alpha does NOT learn about the Bravo alt');
 });
 
 test('5 · cash policy reconciles per clan', async () => {

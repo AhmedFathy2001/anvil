@@ -1314,16 +1314,16 @@ export const en = {
         'You don’t have to draft. **Team placement**, on the create form and the **Sign-ups** tab, decides where each new sign-up lands:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'each person who signs up joins the team with the fewest players. You only choose how many teams. Good for big public events.',
+          term: 'Even split',
+          body: 'each person who signs up joins the team with the fewest players, so team sizes stay even. It goes by headcount, not skill. You only choose how many teams. Good for big public events.',
         },
         {
           term: 'Players pick',
-          body: 'you make the teams first, and each player picks one on the sign-up form. Set a limit per team to keep them even.',
+          body: 'you make the teams first, and each player picks one on the sign-up form. No team can get more than two players ahead of the smallest, so people can’t all pile onto one. Set a limit per team if you want a hard cap too.',
         },
         {
           term: 'Host drafts',
-          body: 'everyone waits in a pool until you or your captains draft them or assign them by hand. Best when you know the players.',
+          body: 'everyone waits in a pool. Your captains take turns picking from it in snake order (1, 2, 3, then 3, 2, 1) against a pick clock, seeing each player’s sign-up answers, or you place people by hand. Best when you know the players.',
         },
         {
           term: 'Solo',
@@ -3727,7 +3727,7 @@ export const en = {
         },
         {
           term: 'Display case',
-          body: 'your best drops, kill counts and times pinned to your profile: 4 slots for Supporter, 8 for Champion, 12 for Patron. Pins from characters you don’t share stay private.',
+          body: 'your best drops, kill counts and times pinned to your profile: 4 slots for Supporter, 8 for Champion, 12 for Patron.',
         },
       ],
     },
@@ -4194,7 +4194,6 @@ export const en = {
     title: 'Your profile, Wrapped and Compare',
     dek: 'Anvil keeps one page for **you** and one for **each character** you play. This is what is on them, who can open them, and the Wrapped cards that come out at the end of every month and every event.',
     facts: [
-      { strong: 'Shared by default', rest: 'turn any character private in one switch' },
       { strong: 'Monthly Wrapped', rest: 'out on the 1st of the next month' },
       { strong: 'Event Wrapped', rest: 'out when the event ends' },
     ],
@@ -4211,11 +4210,11 @@ export const en = {
         },
         {
           term: 'A character’s page',
-          body: '`/p/<name>`: one character, readable by anyone with the link while it is shared. It shows skills, bosses, the collection log and personal bests, and on purpose leaves out your clan standings, your event history and your Discord name.',
+          body: '`/p/<name>`: one character, readable by anyone with the link. It shows skills, bosses, the collection log and personal bests, and on purpose leaves out your clan standings, your event history and your Discord name.',
         },
         {
           term: 'Your person page',
-          body: '`/u/…`: all your shared characters on one page, with your display case and the streaming accounts you chose to show. It only exists if you turn on **Show that my characters are one person**.',
+          body: '`/u/…`: all your characters on one page, with your display case and the streaming accounts you chose to show. It only exists if you turn on **Show that my characters are one person**.',
         },
         {
           term: 'A clan’s member page',
@@ -4227,9 +4226,8 @@ export const en = {
     sharing: {
       title: 'Who can see what',
       body: [
-        'Every character starts **shared**: its page opens for anyone with the link, and it can appear on leaderboards and to other clans. Turn one off under **Who sees my characters** in Settings and its page answers _not found_ for everyone except you. You see **Private — only you can see this page.** with a **Share it →** link.',
-        'A shared page has **Copy link** under the name. Signed-in visitors who think a page is abusive can press **Report this profile**.',
-        'Per character, Settings also lets you hide which in-game clan it is in (**Show my in-game clan**), so it leaves that character’s page and that clan’s Anvil page.',
+        'Every character’s page opens for anyone with the link, and it can appear on leaderboards and to other clans.',
+        'A character’s page has **Copy link** under the name. Signed-in visitors who think a page is abusive can press **Report this profile**.',
       ],
     },
 
@@ -4238,7 +4236,7 @@ export const en = {
       body: [
         'Every month, each character gets a Wrapped card: **XP gained**, **Boss kills**, **New slots** in the collection log, **Efficient** hours, **PBs**, plus pets and the biggest drop. It comes out on the **1st of the following month** (UTC). Until then only you can open it, as a preview.',
         'The year gets one too, at `/p/<name>/wrapped/<year>`, from **1 December**. `/p/<name>/wrapped` always takes you to the newest one there is.',
-        'Press **Copy link to your Wrapped** to share it. Pasted into Discord it unfurls as a picture of the card. A private character’s Wrapped opens only for you, and its link previews as a plain Anvil card.',
+        'Press **Copy link to your Wrapped** to share it. Pasted into Discord it unfurls as a picture of the card.',
       ],
       note: {
         tag: 'An empty month',
@@ -4259,7 +4257,6 @@ export const en = {
       title: 'Compare two characters',
       body: [
         'Open [Compare](/compare) and type two names. You get skills, bosses and collection-log pages side by side. The leader on each count is in gold. Below that are an analysis, per-skill XP, every boss either of you has killed, and each log page item by item: both have it, neither, or only one of you. **Swap sides** flips them.',
-        'Only shared characters can be compared. A private one, or a name Anvil doesn’t know, comes back as _not on Anvil, or not shared_. You can always compare your own private characters while signed in.',
       ],
     },
     news: {
@@ -4392,15 +4389,11 @@ export const en = {
 
     privacy: {
       title: 'Who sees my characters',
-      intro: 'Your characters are shared to start with. Three switches change that:',
+      intro: 'Every character is public. Two switches are yours to set:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'one switch per character. On (the start), its page is **Public**. Off, it is **Only its clans**: its clans still see it in their rosters and events, nobody else does, and it leaves leaderboards.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'with two or more characters, this makes your person page, which lists your shared characters together. Off, nobody can tell they are all you.',
+          body: 'with two or more characters, this makes your person page, which lists your characters together. Off, nobody can tell they are all you.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4437,10 +4430,6 @@ export const en = {
       intro:
         'Under **Characters**, every character has its own page: its type, whether it is verified, and links to its public page and full profile.',
       rows: [
-        {
-          term: 'Visibility',
-          body: '**Show to other clans and on leaderboards**, and **Show my in-game clan**.',
-        },
         {
           term: 'Clans',
           body: 'each clan and space it is in, as **member** or **guest**, with **Announce drops & achievements** per clan and **Leave**. If Anvil has it in the wrong clan, **Which clan is it really in?** tells staff.',
@@ -4961,7 +4950,7 @@ export const en = {
     ghost: {
       title: 'In-game clans not on Anvil',
       body: [
-        'A character’s page names the in-game clan it is in. If that clan isn’t on Anvil, the link opens a plain page listing the Anvil players who are in it and chose to show it. It is not that clan’s roster, and nothing on it makes anyone a member.',
+        'A character’s page names the in-game clan it is in. If that clan isn’t on Anvil, the link opens a plain page listing the Anvil players who are in it. It is not that clan’s roster, and nothing on it makes anyone a member.',
         'If it is your clan, **Bring your clan to Anvil** sets one up. Once it is a public Anvil clan, the link goes straight to it.',
       ],
     },

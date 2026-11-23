@@ -12,8 +12,7 @@ import { getMemberItems } from '@/lib/memberProgressRead';
 /**
  * A character's combat achievements for the plugin's Lookup "CAs" tab: GET /api/players/<rsn>/cas.
  *
- * Same visibility as the player card (apexCharacter): shared characters are anyone's to look at, an
- * unshared one only its owner's. Fetched only when the tab is opened, so a lookup stays light. The
+ * Same visibility as the player card (apexCharacter). Fetched only when the tab is opened, so a lookup stays light. The
  * hiscores don't publish CAs, so a name without an Anvil profile — or one that never synced its
  * tasks — is a 404 and the tab says so. Advertised as `player-cas`.
  */

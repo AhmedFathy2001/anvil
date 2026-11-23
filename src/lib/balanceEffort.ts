@@ -26,6 +26,7 @@ import { xpPerHourAt } from '@/lib/efficiency';
 import { expectedKillsForAll, itemChance } from '@/lib/dropOdds';
 import { clogTileGroups, clogTileItemIds, clogTileSpec } from '@/lib/clogTiles';
 import { clogItemNames } from '@/lib/clogDataset';
+import { boardActivityKeys } from '@/lib/draftCoverage';
 
 export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
@@ -34,7 +35,16 @@ const FLOOR_ORDER: Floor[] = ['anyone', 'mid', 'high', 'elite'];
 // Difficulty is a modest execution premium. Attempt duration / success rate already prices most
 // mechanical difficulty, so a large multiplier here would count the same failures twice. Floors
 // map onto the 0–5 rubric used by the scoring design: routine=0, mid=1, high≈2.5, elite=4.
-const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.05, high: 1.125, elite: 1.2 };
+const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.1, high: 1.3, elite: 1.5 };
+/**
+ * Skill premium from WHO CAN DO IT, when the pool (or clan) is known: 1 when everyone can, rising to
+ * 1 + SCARCITY_PREMIUM when almost nobody can. Replaces the floor guess above, which is only the
+ * fallback for a board with no players to read (a new clan, a creator space).
+ */
+const SCARCITY_PREMIUM = 0.7;
+export function scarcityDifficulty(share: number): number {
+  return 1 + SCARCITY_PREMIUM * Math.pow(1 - Math.min(1, Math.max(0, share)), 1.5);
+}
 
 // Nobody should ever be told to drop a hard tile to 2 points. A tile's suggested value is
 // clamped up to this floor by difficulty — prestige has a price regardless of throughput.
@@ -45,6 +55,12 @@ const FLOOR_MIN_POINTS: Record<Floor, number> = { anyone: 5, mid: 15, high: 50, 
 // count===1 shortcut was why a 20-hour one-drop tile received the same 15-point floor as a trivial
 // completion instead of being priced from its effort.
 const ONE_OFF_TINY_HOURS = 0.08;
+// Points concentration (the "one hard tile is where all the points are" guard). Boards smaller
+// than CONCENTRATION_MIN_TILES are left alone: on a 5-tile board 20% each is simply arithmetic.
+// Suggestions never push a single tile past SINGLE_TILE_SHARE_CAP of the board.
+const CONCENTRATION_MIN_TILES = 10;
+const SINGLE_TILE_SHARE_CAP = 0.1;
+const TOP3_SHARE_CAP = 0.25;
 
 // Realizability — the troll axis. Points measure value-vs-time and stay author-owned: a fairly
 // EV-priced 800pt 3rd-age tile is STILL a lottery, because P(it lands inside one event) is a few
@@ -990,16 +1006,21 @@ function suggestionStatus(tile: TileEffort): TileEffort['suggestionStatus'] {
  * redistributed. Lower difficulty floors are applied with a water-filling pass, then the small
  * rounding remainder is assigned where it introduces the least error so the budget remains exact.
  */
-function allocateSuggestionBudget(candidates: TileEffort[]): void {
+function allocateSuggestionBudget(candidates: TileEffort[], ceiling = Infinity): void {
   if (candidates.length === 0) return;
   const budget = candidates.reduce((sum, tile) => sum + tile.weight, 0);
   const rows = candidates.map((tile) => ({
     tile,
     score: Math.max(1e-9, tile.pricingHours! * tile.difficulty),
     floor: minimumSuggestedPoints(tile),
+    ceiling,
     exact: 0,
     points: 0,
   }));
+  // A ceiling the budget cannot respect (too few candidates to hold it) is dropped, never forced:
+  // the budget staying exact matters more than the cap.
+  if (!Number.isFinite(ceiling) || ceiling * rows.length < budget) for (const row of rows) row.ceiling = Infinity;
+  for (const row of rows) if (row.floor > row.ceiling) row.ceiling = row.floor;
   const floorTotal = rows.reduce((sum, row) => sum + row.floor, 0);
 
   // A tiny author budget cannot satisfy every prestige floor. In that unusual case retain the
@@ -1013,36 +1034,50 @@ function allocateSuggestionBudget(candidates: TileEffort[]): void {
   while (active.length > 0) {
     const scoreTotal = active.reduce((sum, row) => sum + row.score, 0);
     const scale = remaining / scoreTotal;
+    // Floors first (they only take budget), then the ceiling (it only gives budget back). Fixing one
+    // side per pass keeps the water-filling monotone, so it always terminates.
     const belowFloor = active.filter((row) => row.score * scale < row.floor);
-    if (belowFloor.length === 0) {
+    const aboveCeiling = belowFloor.length ? [] : active.filter((row) => row.score * scale > row.ceiling);
+    if (belowFloor.length === 0 && aboveCeiling.length === 0) {
       for (const row of active) row.exact = row.score * scale;
       break;
     }
-    const fixed = new Set(belowFloor);
+    const fixed = new Set([...belowFloor, ...aboveCeiling]);
     for (const row of belowFloor) {
       row.exact = row.floor;
       remaining -= row.floor;
     }
+    for (const row of aboveCeiling) {
+      row.exact = row.ceiling;
+      remaining -= row.ceiling;
+    }
     active = active.filter((row) => !fixed.has(row));
+    if (active.length === 0 && remaining > 1e-9) {
+      // Everything left is pinned at a bound; spread the remainder evenly rather than lose it.
+      for (const row of fixed) row.exact += remaining / fixed.size;
+    }
   }
 
   // Nice five-point values first (whole points below 20), then repair the rounding delta exactly.
   for (const row of rows) {
     row.points = row.exact >= 20 ? Math.round(row.exact / 5) * 5 : Math.max(row.floor, Math.round(row.exact));
+    if (Number.isFinite(row.ceiling) && row.points > row.ceiling) row.points = Math.max(row.floor, Math.floor(row.ceiling));
   }
   let delta = budget - rows.reduce((sum, row) => sum + row.points, 0);
   while (delta !== 0) {
     const direction = Math.sign(delta);
     let magnitude = Math.abs(delta) >= 5 ? 5 : 1;
     let step = direction * magnitude;
-    let options = rows.filter((row) => row.points + step >= row.floor);
+    const fits = (row: (typeof rows)[number], st: number) => row.points + st >= row.floor && row.points + st <= Math.max(row.ceiling, row.floor);
+    let options = rows.filter((row) => fits(row, step));
     // Several rows can each sit only 1–4 points above their floor after five-point rounding.
     // Repair those one point at a time instead of giving up with an over-budget result.
     if (options.length === 0 && magnitude === 5) {
       magnitude = 1;
       step = direction;
-      options = rows.filter((row) => row.points + step >= row.floor);
+      options = rows.filter((row) => fits(row, step));
     }
+    if (options.length === 0) options = rows.filter((row) => row.points + step >= row.floor);
     if (options.length === 0) break;
     options.sort((a, b) => {
       const costA = Math.abs(a.points + step - a.exact) - Math.abs(a.points - a.exact);
@@ -1067,6 +1102,11 @@ export function analyzeEffort(
     eventDays?: number | null;
     /** Players per team — a team-tracked XP/KC goal is fed by all of them at once. */
     teamSize?: number | null;
+    /**
+     * Boss key → share of the priced population (pool, else clan) able to do it — lib/capabilityPool.
+     * Absent = no players to read; the floors' difficulty stands.
+     */
+    capabilityShares?: Map<string, number> | null;
   },
 ): EffortReport {
   const rates = mergeRates(opts.ratesOverride);
@@ -1099,7 +1139,20 @@ export function analyzeEffort(
     const weight = tileWeight(scoringMode, t.points ?? 1);
     const avg = hours && Number.isFinite(hours[1]) && hours[1] > 0 ? hours[1] : null;
     const skillRating = effortConfig?.skillRating ?? null;
-    const difficulty = skillRating != null ? 1 + 0.05 * skillRating : FLOOR_EFFORT_MULTIPLIER[floor];
+    // The hardest activity the tile asks for sets its share; a tile naming none keeps the floor.
+    let share: number | null = null;
+    if (opts.capabilityShares?.size) {
+      for (const key of boardActivityKeys([t])) {
+        const v = opts.capabilityShares.get(key);
+        if (v != null) share = share == null ? v : Math.min(share, v);
+      }
+    }
+    const difficulty =
+      skillRating != null
+        ? 1 + 0.1 * skillRating
+        : share != null && (floor === 'high' || floor === 'elite' || floor === 'mid')
+          ? Math.max(FLOOR_EFFORT_MULTIPLIER[floor] * 0.85, scarcityDifficulty(share))
+          : FLOOR_EFFORT_MULTIPLIER[floor];
     // Assignee-band pricing (plan A2): high/elite tiles price against 60/40 fast/avg — and when
     // the avg band literally can't do it (Infinity) but the fast band can, the fast band alone
     // carries the price: that's exactly the Inferno case, a real tile for the one who'll get it.
@@ -1216,7 +1269,10 @@ export function analyzeEffort(
 
   for (const tile of perTile) tile.suggestionStatus = suggestionStatus(tile);
   const suggestionCandidates = perTile.filter((tile) => tile.suggestionStatus === 'eligible');
-  if (opts.pointsMode) allocateSuggestionBudget(suggestionCandidates);
+  const boardFace = perTile.reduce((s, t) => s + t.weight, 0);
+  const suggestionCeiling =
+    perTile.length >= CONCENTRATION_MIN_TILES ? Math.floor(boardFace * SINGLE_TILE_SHARE_CAP) : Infinity;
+  if (opts.pointsMode) allocateSuggestionBudget(suggestionCandidates, suggestionCeiling);
   const suggestionBudget = suggestionCandidates.reduce((sum, tile) => sum + tile.weight, 0);
   const suggestedBudget = suggestionCandidates.reduce(
     (sum, tile) => sum + (tile.suggestedPoints ?? tile.weight),
@@ -1267,6 +1323,59 @@ export function analyzeEffort(
             ? ` ${underAlsoUnreachable} of these also don't fit inside the event — shrinking those is the fix that solves both.`
             : ''),
         tileIds: under.map((t) => t.tileId),
+      });
+    }
+  }
+
+  // Hard content that pays LESS per effort-hour than the board's typical tile: the skill premium is
+  // already in the denominator, so below-median means the team is better off skipping it. Tiles
+  // already flagged as badly underpaid (<⅓ median) are not repeated here.
+  if (medianPph && opts.pointsMode && graded.length >= 5) {
+    const alreadyUnder = new Set(graded.filter((t) => t.pphFlag === 'under').map((t) => t.tileId));
+    const hardCheap = graded.filter(
+      (t) => (t.floor === 'high' || t.floor === 'elite') && t.ptsPerHour! < medianPph * 0.8 && !alreadyUnder.has(t.tileId),
+    );
+    if (hardCheap.length) {
+      checks.push({
+        id: 'hard-not-worth-it',
+        level: 'warn',
+        title: `${hardCheap.length} hard tile${hardCheap.length === 1 ? ' pays' : 's pay'} less than the easy ones`,
+        detail:
+          `${hardCheap.slice(0, 4).map((t) => `"${t.label}"`).join(', ')}${hardCheap.length > 4 ? '…' : ''} need ` +
+          `high-end players but pay less per hour than the board's typical tile, so a smart team skips them. ` +
+          `Raise their points so they're worth the skill they ask for.`,
+        tileIds: hardCheap.map((t) => t.tileId),
+      });
+    }
+  }
+
+  // Points concentration: one tile (or three) holding the board. On face value — that's what the
+  // scoreboard swings on, lottery or not.
+  if (opts.pointsMode && perTile.length >= CONCENTRATION_MIN_TILES && boardFace > 0) {
+    const byWeight = [...perTile].sort((a, b) => b.weight - a.weight);
+    const heavy = byWeight.filter((t) => t.weight / boardFace > SINGLE_TILE_SHARE_CAP);
+    const top3 = byWeight.slice(0, 3);
+    const top3Share = top3.reduce((s, t) => s + t.weight, 0) / boardFace;
+    if (heavy.length) {
+      checks.push({
+        id: 'points-concentration',
+        level: 'warn',
+        title: `${heavy.length === 1 ? `"${heavy[0].label}" holds` : `${heavy.length} tiles each hold`} over ${pct(SINGLE_TILE_SHARE_CAP)} of the board`,
+        detail:
+          `${heavy.slice(0, 4).map((t) => `"${t.label}" ${pct(t.weight / boardFace)}`).join(', ')} — one completion ` +
+          `there decides the event, whatever else teams do. Keep any single tile under ${pct(SINGLE_TILE_SHARE_CAP)}; ` +
+          `suggested points already respect that.`,
+        tileIds: heavy.map((t) => t.tileId),
+      });
+    } else if (top3Share > TOP3_SHARE_CAP) {
+      checks.push({
+        id: 'points-concentration',
+        level: 'warn',
+        title: `The top 3 tiles hold ${pct(top3Share)} of the board`,
+        detail:
+          `${top3.map((t) => `"${t.label}"`).join(', ')} together outweigh the rest of a normal team's day. ` +
+          `Under ${pct(TOP3_SHARE_CAP)} keeps the small tiles worth doing.`,
+        tileIds: top3.map((t) => t.tileId),
       });
     }
   }
@@ -1371,7 +1480,9 @@ export function analyzeEffort(
     'pph-underpaid': 1,
     'unreachable-tiles': 2,
     'pph-overpaid': 3,
-    'inaccessible-average': 4,
+    'points-concentration': 4,
+    'hard-not-worth-it': 5,
+    'inaccessible-average': 6,
   };
   checks.sort((a, b) => (RANK[a.id] ?? 50) - (RANK[b.id] ?? 50));
 

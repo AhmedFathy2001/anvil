@@ -30,9 +30,8 @@ export const dynamic = 'force-dynamic';
  * search result would not. Each character now carries its own numbers — the same figures /p/<rsn>
  * opens with — because the only reason to look someone up is to see what they have been doing.
  *
- * Lists only their SHARED characters, because the apex is nobody's clan and the visibility rule
- * therefore reduces to sharing alone. Somebody who has published nothing is a 404 rather than a
- * page with their name and an empty list — the empty list would itself say something about them.
+ * Somebody with no characters is a 404 rather than a page with their name and an empty list — the
+ * empty list would itself say something about them.
  */
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -50,14 +49,14 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   if (!person) notFound();
   // Only reached once apexPerson has said this person chose to be public as one person.
   // Their own pictures and display case (Anvil Supporter), gated by tier on read. This IS their
-  // profile page, so the pictures may move; only shared characters' pins are shown.
+  // profile page, so the pictures may move.
   const session = await verifyUser();
   // Their connected Twitch/YouTube/Kick/Medal (lib/connectedAccounts): this page already says they are
   // one person, so showing where they stream says nothing new about which characters are theirs.
   const [supporter, media, showcase, connected] = await Promise.all([
     supporterForPlayer(id),
     profileMediaForPlayer(id),
-    displayCaseForPlayer(id, { publicView: true }),
+    displayCaseForPlayer(id),
     profileConnectedAccounts(id, session?.playerId === id),
   ]);
 
@@ -72,7 +71,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           size={180}
           className="pointer-events-none absolute -top-8 right-0 hidden text-gold/[0.04] sm:block"
         />
-        {/* Their primary shared RSN. The Discord display name used to be the page's h1 and its title. */}
+        {/* Their primary RSN. The Discord display name used to be the page's h1 and its title. */}
         <div className="relative flex items-center gap-3.5">
           <ProfileAvatar avatar={media.avatar} size={64} eager className="border-2 border-gold/45" />
           <h1 className="display display-lg text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
@@ -136,11 +135,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         </p>
       )}
 
-      <div className="mt-8 flex flex-wrap items-start justify-between gap-3">
-        <p className="text-xs text-text-dim">
-          Only shared characters appear here. Anything else this person plays is between them and the
-          clans they&rsquo;re in.
-        </p>
+      <div className="mt-8 flex flex-wrap items-start justify-end gap-3">
         {/* To Anvil staff, never the player (lib/platformReports). Signed in, and not yourself. */}
         {session?.userId && session.playerId !== id && <ReportButton type="person" id={id} label="Report this profile" />}
       </div>

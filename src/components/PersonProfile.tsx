@@ -15,7 +15,6 @@ import { clanPathOf } from '@/lib/clanScopedPaths';
 export interface PersonCharacter {
   id: number;
   rsn: string;
-  shared: boolean;
   /** Where it stands with the clans — lib/characterStanding. */
   standing?: string;
   isPrimary?: boolean;
@@ -194,7 +193,6 @@ export default function PersonProfile({
                       <SupporterName name={a.rsn} tier={supporter?.tier} style={supporter?.style} plain className="max-w-full" />
                     </ClanLink>
                     {a.isPrimary && <span className="rounded-full border border-gold-dark px-1.5 text-[10.5px] text-gold">main</span>}
-                    {!a.shared && <span className="rounded-full border border-card-border px-1.5 text-[10.5px] text-text-muted">private</span>}
                     <ClanLink href={`/settings/characters/${a.id}`} className="ml-auto text-[12px] text-text-muted hover:text-gold" aria-label={`Settings for ${a.rsn}`}>
                       ⚙
                     </ClanLink>

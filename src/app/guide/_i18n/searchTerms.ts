@@ -135,14 +135,14 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'ehp', 'ehb', 'leaderboard', 'standings', 'autocomplete', 'share', 'help',
   ],
   profile: [
-    'profile', 'my profile', 'character page', 'public page', 'person page', 'share profile', 'private profile',
+    'profile', 'my profile', 'character page', 'public page', 'person page', 'share profile',
     'wrapped', 'monthly wrapped', 'year in review', 'recap card', 'event wrapped', 'share card', 'compare',
     'compare players', 'side by side', 'report profile',
   ],
   settings: [
     'settings', 'preferences', 'screenshot privacy', 'private messages', 'pms', 'hide chat', 'death message',
     'rare drop value', 'drop value', 'webhook', 'my webhook', 'personal webhook', 'devices', 'revoke',
-    'sign out everywhere', 'who sees my characters', 'hide character', 'privacy', 'main character', 'make main',
+    'sign out everywhere', 'who sees my characters', 'privacy', 'main character', 'make main',
     'remove character', 'ownership claim', 'claims', 'object', 'this is my account', 'login brief', 'chat feed',
   ],
   challenges: [

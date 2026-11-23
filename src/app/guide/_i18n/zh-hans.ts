@@ -1336,16 +1336,16 @@ const zhHans: PartialGuideDict = {
         '你不一定要选秀。创建表单和 **Sign-ups** 标签页里的 **Team placement** 决定每个新报名的人进哪里：',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: '每个报名的人都会加入人数最少的队伍。你只需要决定有几支队伍。适合大型公开活动。',
+          term: 'Even split',
+          body: '每个报名的人都会加入人数最少的队伍，因此队伍人数保持均衡。按人数分配，不看水平。你只需要决定有几支队伍。适合大型公开活动。',
         },
         {
           term: 'Players pick',
-          body: '你先建好队伍，每位玩家在报名表上自己选一支。给每队设个上限，人数就能保持均衡。',
+          body: '你先建好队伍，每位玩家在报名表上自己选一支。任何队伍都不能比最少的那支多出两名以上玩家，因此不会全挤到同一队。如果还想设硬性上限，可以给每队设个人数上限。',
         },
         {
           term: 'Host drafts',
-          body: '所有人都在池子里等，直到你或你的队长通过选秀挑走他们，或者手动分配。最适合你认识这些玩家的时候。',
+          body: '所有人都在池子里等。队长按蛇形顺序（1、2、3，然后 3、2、1）轮流从池中选人，并有选人倒计时，可以看到每位玩家的报名回答；也可以由你手动分配。最适合你认识这些玩家的时候。',
         },
         {
           term: 'Solo',
@@ -3729,7 +3729,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '展示柜',
-          body: '把你最好的掉落、击杀数和用时钉在资料页上：Supporter 4 格，Champion 8 格，Patron 12 格。来自你没有公开的角色的展示项保持私密。',
+          body: '把你最好的掉落、击杀数和用时钉在资料页上：Supporter 4 格，Champion 8 格，Patron 12 格。',
         },
       ],
     },
@@ -4203,10 +4203,6 @@ const zhHans: PartialGuideDict = {
     dek: 'Anvil 为**你**保留一个页面，为你游玩的**每个角色**各保留一个页面。这里说明了页面上有什么、谁可以打开它们，以及每个月和每场活动结束时推出的 Wrapped 卡片。',
     facts: [
       {
-        strong: '默认公开',
-        rest: '一个开关即可把任一角色设为私密',
-      },
-      {
         strong: '月度 Wrapped',
         rest: '在下个月 1 号推出',
       },
@@ -4226,11 +4222,11 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '角色页面',
-          body: '`/p/<name>`：一个角色，只要它处于公开分享状态，拥有链接的任何人都可以阅读。它显示技能、首领、收藏册和个人最佳，并且刻意不显示你的氏族排名、活动记录和 Discord 名称。',
+          body: '`/p/<name>`：一个角色，拥有链接的任何人都可以阅读。它显示技能、首领、收藏册和个人最佳，并且刻意不显示你的氏族排名、活动记录和 Discord 名称。',
         },
         {
           term: '你的个人页面',
-          body: '`/u/…`：你所有公开分享的角色汇集在一个页面上，包括你的展示柜以及你选择显示的直播账号。只有在你开启 **Show that my characters are one person** 时它才存在。',
+          body: '`/u/…`：你所有的角色汇集在一个页面上，包括你的展示柜以及你选择显示的直播账号。只有在你开启 **Show that my characters are one person** 时它才存在。',
         },
         {
           term: '氏族的成员页面',
@@ -4241,9 +4237,8 @@ const zhHans: PartialGuideDict = {
     sharing: {
       title: '谁能看到什么',
       body: [
-        '每个角色一开始都是**公开分享**的：其页面对拥有链接的任何人开放，并且可以出现在排行榜上，也可以向其他氏族展示。在设置的 **Who sees my characters** 下关闭某个角色后，其页面对除你以外的所有人都会返回 _not found_。你会看到 **Private — only you can see this page.** 以及一个 **Share it →** 链接。',
-        '公开的页面在名字下方有 **Copy link**。登录的访客如果认为某个页面有不当内容，可以按 **Report this profile**。',
-        '在设置中，你还可以针对每个角色隐藏其所在的游戏内氏族（**Show my in-game clan**），使其从该角色的页面和该氏族的 Anvil 页面中消失。',
+        '每个角色的页面对拥有链接的任何人开放，并且可以出现在排行榜上，也可以向其他氏族展示。',
+        '角色的页面在名字下方有 **Copy link**。登录的访客如果认为某个页面有不当内容，可以按 **Report this profile**。',
       ],
     },
     wrapped: {
@@ -4251,7 +4246,7 @@ const zhHans: PartialGuideDict = {
       body: [
         '每个月，每个角色都会获得一张 Wrapped 卡片：**XP gained**、**Boss kills**、收藏册中的 **New slots**、**Efficient** 小时数、**PBs**，以及宠物和最大的一次掉落。它会在**次月 1 号**（UTC）推出。在此之前，只有你能以预览的形式打开它。',
         '每年也有一张，位于 `/p/<name>/wrapped/<year>`，从 **12 月 1 日**开始提供。`/p/<name>/wrapped` 总是带你前往现存的最新一张。',
-        '按 **Copy link to your Wrapped** 即可分享。粘贴到 Discord 中时，它会展开为该卡片的图片。私人角色的 Wrapped 只对你开放，其链接会以普通的 Anvil 卡片形式预览。',
+        '按 **Copy link to your Wrapped** 即可分享。粘贴到 Discord 中时，它会展开为该卡片的图片。',
       ],
       note: {
         tag: '空的月份',
@@ -4270,7 +4265,6 @@ const zhHans: PartialGuideDict = {
       title: '对比两个角色',
       body: [
         '打开 [Compare](/compare)，输入两个名字。你会看到技能、首领和收藏册页面并排展示。每项数量领先的一方以金色显示。其下是分析、每项技能的经验、你们任一方击杀过的所有首领，以及逐项对比的收藏册：双方都有、都没有，或只有一方有。**Swap sides** 会互换两边。',
-        '只有已公开分享的角色才能被对比。私人角色或 Anvil 不认识的名字，会返回 _not on Anvil, or not shared_。登录后，你永远可以对比你自己的私人角色。',
       ],
     },
     news: {
@@ -4401,15 +4395,11 @@ const zhHans: PartialGuideDict = {
     },
     privacy: {
       title: '谁能看到我的角色',
-      intro: '你的角色一开始是公开分享的。以下三个开关可以改变这一点：',
+      intro: '所有角色都是公开的。有两个开关由你设置：',
       rows: [
         {
-          term: '公开显示 <name>',
-          body: '每个角色一个开关。开启（默认）时，其页面为**公开**。关闭后则为**仅其氏族可见**：其氏族仍能在名单和活动中看到它，其他人都看不到，并且它会退出排行榜。',
-        },
-        {
           term: '显示我的角色属于同一人',
-          body: '拥有两个或更多角色时，此开关会生成你的个人页面，把你公开分享的角色汇集在一起。关闭时，没有人能看出它们都属于你。',
+          body: '拥有两个或更多角色时，此开关会生成你的个人页面，把你的角色汇集在一起。关闭时，没有人能看出它们都属于你。',
         },
         {
           term: '显示其他氏族的棋盘',
@@ -4443,10 +4433,6 @@ const zhHans: PartialGuideDict = {
       title: '每个角色',
       intro: '在 **Characters** 下，每个角色都有自己的页面：它的类型、是否已验证，以及通往其公开页面和完整资料的链接。',
       rows: [
-        {
-          term: '可见性',
-          body: '**Show to other clans and on leaderboards**，以及 **Show my in-game clan**。',
-        },
         {
           term: '氏族',
           body: '该角色所在的每个氏族和空间，身份为 **member** 或 **guest**，并可按氏族设置 **Announce drops & achievements** 以及 **Leave**。如果 Anvil 把它放在了错误的氏族里，**Which clan is it really in?** 会通知工作人员。',
@@ -4926,7 +4912,7 @@ const zhHans: PartialGuideDict = {
     ghost: {
       title: '不在 Anvil 上的游戏内氏族',
       body: [
-        '角色的页面会显示其所在的游戏内氏族。如果该氏族不在 Anvil 上，链接会打开一个普通页面，列出在 Anvil 上且选择显示的、属于该氏族的玩家。它并不是该氏族的名单，页面上的任何内容都不会使任何人成为成员。',
+        '角色的页面会显示其所在的游戏内氏族。如果该氏族不在 Anvil 上，链接会打开一个普通页面，列出在 Anvil 上、属于该氏族的玩家。它并不是该氏族的名单，页面上的任何内容都不会使任何人成为成员。',
         '如果这是你的氏族，**Bring your clan to Anvil** 会为其设置一个。一旦它成为公开的 Anvil 氏族，链接就会直接指向它。',
       ],
     },

@@ -1,6 +1,6 @@
 // Which of a person's accounts a clan may see.
 //
-//   A clan may see an account iff it holds a seat in that clan, OR the account is shared.
+//   A clan may see an account iff it holds a seat in that clan.
 //
 // The globalised account token forces the question. One token covers every account a person owns
 // across every clan, which is the right model — Jagex tracks accounts, and re-linking per clan was
@@ -56,14 +56,10 @@ before(async () => {
 
   const accts = await db
     .insert(s.accounts)
-    // EXPLICITLY UNSHARED. These cases are about the SEAT half of the rule — what a clan may see of
-    // somebody through its own roster — so they must not inherit the column default, which is now
-    // `true` (drizzle/0080). A fixture that leans on a default tests whatever the default happens to
-    // be that month rather than the thing it is named after.
     .values([
-      { playerId: person, rsn: 'The Main', rsnNormalized: 'the main', isPrimary: 1, shared: false },
-      { playerId: person, rsn: 'The Alt', rsnNormalized: 'the alt', shared: false },
-      { playerId: person, rsn: 'The Hermit', rsnNormalized: 'the hermit', shared: false },
+      { playerId: person, rsn: 'The Main', rsnNormalized: 'the main', isPrimary: 1 },
+      { playerId: person, rsn: 'The Alt', rsnNormalized: 'the alt' },
+      { playerId: person, rsn: 'The Hermit', rsnNormalized: 'the hermit' },
     ])
     .returning();
   mainId = accts[0].id;
@@ -99,14 +95,8 @@ test('a clan holding neither sees nothing at all', async () => {
   assert.deepEqual(await accountsVisibleToClan(stranger.id, person), []);
 });
 
-test('publishing a character does NOT show it to a clan it is not in', async () => {
-  // THE RULE CHANGED HERE, and this is the test that used to assert the opposite. `shared` meant
-  // "any clan may see this", which no clan surface ever honoured — and it conflated being public on
-  // the platform with being known to a particular clan. A clan sees what it holds a seat for; being
-  // seen by one is now the same act as guesting with it.
-  const { db, schema: s } = await loadDb();
-  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, hermitId));
-
+test('a public character is NOT shown to a clan it is not in', async () => {
+  // A clan sees what it holds a seat for; being seen by one is the same act as guesting with it.
   const seen = await accountsVisibleToClan(alpha, person);
   assert.deepEqual(seen.map((a) => a.rsn), ['The Main'], 'still only the seat');
 });
@@ -138,20 +128,15 @@ test('and taking the seat away takes the visibility with it', async () => {
   // which is what a clan that never admitted them looks like.
   await db.delete(s.clanMemberships).where(eq(s.clanMemberships.id, seat!.id));
   assert.deepEqual((await accountsVisibleToClan(alpha, person)).map((a) => a.rsn), ['The Main']);
-  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, hermitId));
   await db.update(s.clans).set({ guestPolicy: 'approval' }).where(eq(s.clans.id, alpha));
 });
 
-test('public on Anvil is ON by default, and says nothing about any clan', async () => {
-  // Flipped in drizzle/0080, and it is still the right default: an OSRS name is public anyway, and
-  // the cross-clan boards would otherwise describe a person through whichever clan you were
-  // standing in. What changed is its SCOPE — it is the platform's answer, not a clan's.
+test('a new character says nothing to any clan without a seat', async () => {
   const { db, schema: s } = await loadDb();
   const [fresh] = await db
     .insert(s.accounts)
     .values({ playerId: person, rsn: 'Brand New', rsnNormalized: 'brand new' })
     .returning();
-  assert.equal(fresh.shared, true, 'public by default');
   assert.equal(
     (await accountsVisibleToClan(alpha, person)).some((a) => a.rsn === 'Brand New'),
     false,
@@ -179,18 +164,6 @@ test('the hidden count is honest about there being more', async () => {
   // lie to somebody deciding whether to admit a guest.
   assert.equal(await hiddenAccountCount(alpha, person), 2, 'the alt and the hermit');
   assert.equal(await hiddenAccountCount(bravo, person), 2, 'the main and the hermit');
-});
-
-test('public is per character, not per person', async () => {
-  // "My main is public, my ironman is nobody's business" is the actual want, and a person-level flag
-  // could not say it. It governs the public pages; neither answer moves a clan's roster.
-  const { db, schema: s } = await loadDb();
-  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, mainId));
-
-  const fromBravo = await accountsVisibleToClan(bravo, person);
-  assert.deepEqual(fromBravo.map((a) => a.rsn), ['The Alt'], 'bravo still sees only its own seat');
-
-  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, mainId));
 });
 
 // ── The clan's People list ────────────────────────────────────────────────────────────────────
@@ -266,7 +239,7 @@ test('and never a character belonging to whoever shares an id number', async () 
 
 // ── Your own page is not the clan's view ──────────────────────────────────────────────────────
 //
-// The locker lists the accounts a clan CANNOT see, so the Share switch is reachable for exactly the
+// The locker lists the accounts a clan CANNOT see, so the guest offer is reachable for exactly the
 // accounts a person most wants to decide about. That is safe only because the page is always the
 // signed-in person's own — buildLocker is called in one place, with session.playerId. Read as the
 // clan's view instead, the same list would be a disclosure of everything the rule exists to hide.
@@ -288,7 +261,7 @@ test("the locker lists a person's accounts that this clan has no seat for", asyn
   assert.deepEqual(
     locker.otherAccounts.map((a) => a.rsn).sort(),
     ['The Alt', 'The Hermit'],
-    'and the rest are reachable so their switch is',
+    'and the rest are reachable so they can be offered',
   );
 });
 
@@ -314,13 +287,10 @@ test('but the clan itself still sees only what the rule allows', async () => {
   assert.deepEqual(seen.map((a) => a.rsn), ['The Main']);
 });
 
-test('an unshared account is invisible to a clan even while its owner sees it listed', async () => {
+test('an unseated account is invisible to a clan even while its owner sees it listed', async () => {
   const { buildLocker } = await import('../src/lib/profileLocker.ts');
   const { db, schema: s } = await loadDb();
   const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
-
-  const hermit = await db.query.accounts.findFirst({ where: eq(s.accounts.id, hermitId) });
-  assert.equal(hermit!.shared, false, 'nothing has been shared');
 
   const locker = await buildLocker(bravo, person, loginId);
   assert.ok(
@@ -337,8 +307,7 @@ test('an unshared account is invisible to a clan even while its owner sees it li
 // ── The rule on a clan surface ───────────────────────────────────────────────
 //
 // The persona card on a member's profile is where a clan learns who else somebody is, so it is the
-// surface that shows what the rule decided. It briefly listed published characters — that was the
-// "seat OR shared" rule, and it is gone.
+// surface that shows what the rule decided.
 
 test('a member with one seat here has no persona — a persona of one is the page you are on', async () => {
   const { getPersona } = await import('../src/lib/memberProfile.ts');
@@ -349,10 +318,9 @@ test('a member with one seat here has no persona — a persona of one is the pag
   assert.equal(await getPersona(seat!.id), null);
 });
 
-test('publishing a character does not put it on the card', async () => {
+test('a public character without a seat here does not put it on the card', async () => {
   const { getPersona } = await import('../src/lib/memberProfile.ts');
   const { db, schema: s } = await loadDb();
-  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, hermitId));
 
   const seat = await db.query.clanMemberships.findFirst({
     where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),

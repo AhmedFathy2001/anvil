@@ -3,8 +3,7 @@
 // have never heard of Anvil.
 //
 // WHAT IT IS. A fact about a CHARACTER (Anvil owns characters), surfaced on the character's profile
-// and gathered onto a hidden, unlisted page per clan. Only Anvil users appear, only their own rows,
-// only while their account is shared and they have not hidden it.
+// and gathered onto an unlisted page per clan. Only Anvil users appear, and only their own rows.
 //
 // WHAT IT IS NOT. Membership. Nothing here creates a seat, a staff grant or any access in an Anvil
 // clan — those come from a roster sync or an admin, and a client-reported clan name is exactly the
@@ -82,7 +81,6 @@ export async function recordGameClan(
   await db
     .insert(accountGameClans)
     .values({ accountId, ...next, observedAt: nowIso })
-    // `hidden` is left alone: the owner's choice outlives a clan change.
     .onConflictDoUpdate({ target: accountGameClans.accountId, set: { ...next, observedAt: nowIso } });
   return { stored: true };
 }
@@ -141,7 +139,6 @@ export type CharacterGameClan = {
   title: string | null;
   rank: number | null;
   joinedOn: string | null;
-  hidden: boolean;
   /** The Anvil clan this is, when it is one and is listed. */
   anvilClan: AnvilClanRef | null;
   /**
@@ -167,7 +164,7 @@ export async function reportedAnvilClanId(accountId: number): Promise<number | n
   return (await anvilClansByKey([row.key])).get(row.key)?.id ?? null;
 }
 
-/** A character's in-game clan for its profile, or null when unknown or stale. Hidden rows are returned (the owner sees them). */
+/** A character's in-game clan for its profile, or null when unknown or stale. */
 export async function gameClanForAccount(accountId: number): Promise<CharacterGameClan | null> {
   const [row] = await db
     .select({
@@ -176,7 +173,6 @@ export async function gameClanForAccount(accountId: number): Promise<CharacterGa
       title: accountGameClans.title,
       rank: accountGameClans.rank,
       joinedOn: accountGameClans.joinedOn,
-      hidden: accountGameClans.hidden,
     })
     .from(accountGameClans)
     .innerJoin(gameClans, eq(gameClans.id, accountGameClans.gameClanId))
@@ -210,10 +206,6 @@ export async function gameClanForAccount(accountId: number): Promise<CharacterGa
   };
 }
 
-export async function setGameClanHidden(accountId: number, hidden: boolean): Promise<void> {
-  await db.update(accountGameClans).set({ hidden }).where(eq(accountGameClans.accountId, accountId));
-}
-
 export type GhostClanMember = { rsn: string; title: string | null; rank: number | null; joinedOn: string | null };
 
 export type GhostClanPage =
@@ -221,7 +213,7 @@ export type GhostClanPage =
   | { kind: 'ghost'; name: string; firstSeenAt: string; members: GhostClanMember[] };
 
 /**
- * The hidden page for one in-game clan. Null = nothing to show (unknown, nobody visible, or an
+ * The unlisted page for one in-game clan. Null = nothing to show (unknown, nobody visible, or an
  * Anvil clan that keeps itself private — a page listing its members would undo that choice).
  */
 export async function ghostClanPage(rawKey: string): Promise<GhostClanPage | null> {
@@ -245,8 +237,6 @@ export async function ghostClanPage(rawKey: string): Promise<GhostClanPage | nul
     .where(
       and(
         eq(accountGameClans.gameClanId, clan.id),
-        eq(accountGameClans.hidden, false),
-        eq(accounts.shared, true),
         gte(accountGameClans.observedAt, freshSince()),
       ),
     )

@@ -65,7 +65,6 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     title,
     description,
     alternates: { canonical: `${configuredOrigin()}${path}` },
-    ...(character.privateToViewer ? { robots: { index: false, follow: false } } : {}),
     openGraph: { type: 'profile', title, description, url: `${configuredOrigin()}${path}`, images: [{ url: image, width: 1200, height: 630 }] },
     twitter: { card: 'summary_large_image', title, description, images: [image] },
   };
@@ -188,22 +187,13 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
       ) : (
         <>
           <div className="max-w-3xl space-y-3">
-            {!character.privateToViewer && !preview && (
+            {!preview && (
               <CardImage src={`/api/og/monthly/${encodeURIComponent(character.rsn)}/${key}`} alt={`${character.rsn}'s ${monthLabel(key)} Wrapped`} />
             )}
             {!preview && (
               <div className="flex flex-wrap items-center gap-3">
                 <CopyLink label={character.viewerOwns ? 'Copy link to your Wrapped' : 'Copy link'} />
-                <span className="text-xs text-text-muted">
-                  {character.privateToViewer ? (
-                    <>
-                      This character isn&rsquo;t shared, so only you can open the link.{' '}
-                      <ClanLink href="/profile" className="text-gold hover:underline">Share it from your profile</ClanLink>.
-                    </>
-                  ) : (
-                    'Paste it in Discord and it shows as this card.'
-                  )}
-                </span>
+                <span className="text-xs text-text-muted">Paste it in Discord and it shows as this card.</span>
               </div>
             )}
           </div>

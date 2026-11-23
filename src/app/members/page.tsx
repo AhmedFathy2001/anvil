@@ -70,8 +70,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const initialSort = requestedSort === 'xp' ? 'xp' as const : requestedSort === 'streak' ? 'streak' as const : 'week' as const;
   // A creator space has no roster (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS): its home instead.
   await creatorPublicAway('/members', clan);
-  // A visitor from outside the clan is shown only the characters whose owner left "Show publicly"
-  // on (lib/rosterVisibility). Counts and clan totals below still come from the whole roster.
+  // A visitor from outside the clan is not shown the characters of a platform-banned owner
+  // (lib/rosterVisibility). Counts and clan totals below still come from the whole roster.
   const hidden = await hiddenNamesForViewer(clan.id);
   // "Hide guests from the Members page" (members_hide_guests): the clan lists its members only.
   // Dropped at the source, so the roster, its counts, the podium and the totals all agree, and no

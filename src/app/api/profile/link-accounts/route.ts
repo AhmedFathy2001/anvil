@@ -7,13 +7,10 @@ import { verifyUser } from '@/lib/auth';
 
 // PATCH /api/profile/link-accounts — { link: boolean }
 //
-// Whether the apex may say that your shared characters are the same person.
+// Whether the apex may say that your characters are the same person.
 //
-// A SECOND decision, not a consequence of the first. `accounts.shared` publishes one character;
-// this publishes the connection between them. Before it existed, sharing a second character
-// silently announced that both belonged to one human — and that is the fact people are most likely
-// to want kept, which is exactly why sharing is per-account. A main and an ironman can each be
-// public without their owner wanting them tied together.
+// Every character is public on its own; this publishes the connection between them. A main and an
+// ironman can each be public without their owner wanting them tied together.
 //
 // Off by default, and instantly reversible: nothing is copied anywhere, so turning it off removes
 // the person page and the "also plays" line and that is the whole of it.

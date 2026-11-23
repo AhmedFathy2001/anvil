@@ -99,13 +99,10 @@ async function memberClanIdsOfPerson(playerId: number): Promise<Set<number>> {
  *                      clan back in past the person's global block, and is how an ALT is pointed at a
  *                      clan its owner is a member of (a whitelisted alt may reach a clan it holds no
  *                      seat in, but only one its owner is a member of),
- *                   4. otherwise: the person's global "guest clans stay quiet" preference, and then
- *                      the `shared` floor — an unshared account never announces to a clan it only
- *                      guests in.
+ *                   4. otherwise: the person's global "guest clans stay quiet" preference.
  *
  * THE PREFERENCE DEFAULTS TO QUIET (users.block_guest_emissions = true, drizzle/0263): a player's
  * drops post in a clan they only guest in once they turn that on in Settings, or allow that one clan.
- * `shared` says "the leaderboards may see this character", not "post my drops in a clan I visited".
  *
  * MEMBER clans are unaffected: your own clan announces for you unless you silence it. The default
  * still needs no rows at all — account_clan_emission, the clan setting and the user column hold only
@@ -114,13 +111,13 @@ async function memberClanIdsOfPerson(playerId: number): Promise<Set<number>> {
 
 export interface EmissionClan {
   clanId: number;
-  /** Why this clan is in the list — a member seat, or a shared guest seat. */
+  /** Why this clan is in the list — a member seat, or a guest seat. */
   kind: 'member' | 'guest';
 }
 
 export async function socialEmissionClans(accountId: number): Promise<EmissionClan[]> {
   const [account] = await db
-    .select({ shared: accounts.shared, playerId: accounts.playerId })
+    .select({ playerId: accounts.playerId })
     .from(accounts)
     .where(eq(accounts.id, accountId))
     .limit(1);

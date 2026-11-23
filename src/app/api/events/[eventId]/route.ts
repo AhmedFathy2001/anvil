@@ -23,6 +23,7 @@ import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/draftBalance';
+import { boardActivityKeys, coverageGaps, describeGap } from '@/lib/draftCoverage';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules, mergeEventRulesPatch } from '@/lib/eventRules';
 import { announceNextMission } from '@/lib/revealEngine';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
@@ -402,23 +403,34 @@ export async function PATCH(
     // Balance advisory (never a blocker — lopsided teams can be a deliberate social choice): if
     // the projected strength spread is wide, say so and hand back the single swap that would
     // shrink it most. Best-effort; a profile hiccup never delays the start we just performed.
-    let balanceWarning: { spreadPct: number; message: string; suggestedSwap: unknown } | null = null;
+    let balanceWarning: { spreadPct: number; message: string; suggestedSwap: unknown; coverage: string[] } | null = null;
     try {
-      const eventTeams = await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, id));
+      const eventTeams = await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, id));
       if (eventTeams.length >= 2) {
         const balance = await buildDraftBalance(clan.id, id);
         const teamIds = eventTeams.map((t) => t.id);
         const spreadPct = projectedSpreadPct(balance, teamIds);
-        if (spreadPct >= 25) {
-          const swap = bestBalancingSwap(balance, teamIds);
+        // Hard content on THIS board that a team has nobody for — level bars can hide it.
+        const boardTiles = await db
+          .select({ trackedStat: tiles.trackedStat, timedActivity: tiles.timedActivity, sourceNpcs: tiles.sourceNpcs })
+          .from(tiles)
+          .where(eq(tiles.eventId, id));
+        const nameOf = new Map(eventTeams.map((t) => [t.id, t.name]));
+        const coverage = coverageGaps(balance.profiles, teamIds, boardActivityKeys(boardTiles)).map((g) =>
+          describeGap(g, (tid) => nameOf.get(tid) ?? 'A team'),
+        );
+        if (spreadPct >= 25 || coverage.length) {
+          const swap = spreadPct >= 25 ? bestBalancingSwap(balance, teamIds) : null;
           balanceWarning = {
             spreadPct,
             message:
-              `Projected team strength is ${spreadPct}% apart top-to-bottom.` +
+              (spreadPct >= 25 ? `Projected team strength is ${spreadPct}% apart top-to-bottom.` : '') +
               (swap
                 ? ` Swapping ${swap.give} and ${swap.take} would bring it to ~${swap.spreadAfterPct}%.`
-                : ''),
+                : '') +
+              (coverage.length ? ` ${coverage.slice(0, 3).join(' ')}` : ''),
             suggestedSwap: swap,
+            coverage,
           };
         }
       }

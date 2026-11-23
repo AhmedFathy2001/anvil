@@ -1341,16 +1341,16 @@ const fi: PartialGuideDict = {
         'Draftia ei ole pakko pitää. **Team placement** luontilomakkeella ja **Sign-ups**-välilehdellä ratkaisee, mihin kukin uusi ilmoittautunut päätyy:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'jokainen ilmoittautuja liittyy joukkueeseen, jossa on vähiten pelaajia. Valitset vain joukkueiden määrän. Hyvä isoihin julkisiin tapahtumiin.',
+          term: 'Even split',
+          body: 'jokainen ilmoittautuja liittyy joukkueeseen, jossa on vähiten pelaajia, joten joukkuekoot pysyvät tasaisina. Jako tehdään henkilömäärän mukaan, ei taidon. Valitset vain joukkueiden määrän. Hyvä isoihin julkisiin tapahtumiin.',
         },
         {
           term: 'Players pick',
-          body: 'teet joukkueet ensin, ja jokainen pelaaja valitsee yhden ilmoittautumislomakkeella. Aseta joukkuekohtainen raja, niin joukkueet pysyvät tasaisina.',
+          body: 'teet joukkueet ensin, ja jokainen pelaaja valitsee yhden ilmoittautumislomakkeella. Yksikään joukkue ei voi kerätä yli kahta pelaajaa pienimmän edelle, joten kaikki eivät rynnää samaan. Aseta joukkuekohtainen raja, jos haluat myös kovan katon.',
         },
         {
           term: 'Host drafts',
-          body: 'kaikki odottavat poolissa, kunnes sinä tai kapteenisi draftaatte heidät tai jaatte heidät käsin. Paras, kun tunnet pelaajat.',
+          body: 'kaikki odottavat poolissa. Kapteenisi vuorottelevat valinnoissa käärmejärjestyksessä (1, 2, 3, sitten 3, 2, 1) valintakellua vastaan ja näkevät jokaisen pelaajan ilmoittautumisvastaukset, tai sijoitat pelaajat käsin. Paras, kun tunnet pelaajat.',
         },
         {
           term: 'Solo',
@@ -3743,7 +3743,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Vitriini',
-          body: 'parhaat droppisi, tappomääräsi ja aikasi kiinnitettyinä profiiliisi: 4 paikkaa Supporterille, 8 Championille, 12 Patronille. Kiinnitykset hahmoista, joita et jaa, pysyvät yksityisinä.',
+          body: 'parhaat droppisi, tappomääräsi ja aikasi kiinnitettyinä profiiliisi: 4 paikkaa Supporterille, 8 Championille, 12 Patronille.',
         },
       ],
     },
@@ -4225,10 +4225,6 @@ const fi: PartialGuideDict = {
     dek: 'Anvil pitää yhden sivun **sinulle** ja yhden **jokaiselle hahmolle**, jolla pelaat. Tässä on, mitä niillä on, kuka niitä voi avata, ja Wrapped-kortit, jotka tulevat jokaisen kuukauden ja tapahtuman lopussa.',
     facts: [
       {
-        strong: 'Oletuksena jaettu',
-        rest: 'vaihda minkä tahansa hahmon yksityiseksi yhdellä kytkimellä',
-      },
-      {
         strong: 'Kuukausittainen Wrapped',
         rest: 'ilmestyy seuraavan kuukauden 1. päivänä',
       },
@@ -4248,11 +4244,11 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Hahmon sivu',
-          body: '`/p/<name>`: yksi hahmo, jonka kuka tahansa linkin omaava voi lukea, kun se on jaettu. Se näyttää taidot, bossit, kokoelmalokin ja henkilökohtaiset ennätykset, ja tarkoituksella jättää pois klaanisijoituksesi, tapahtumahistoriasi ja Discord-nimesi.',
+          body: '`/p/<name>`: yksi hahmo, jonka kuka tahansa linkin omaava voi lukea. Se näyttää taidot, bossit, kokoelmalokin ja henkilökohtaiset ennätykset, ja tarkoituksella jättää pois klaanisijoituksesi, tapahtumahistoriasi ja Discord-nimesi.',
         },
         {
           term: 'Henkilösivusi',
-          body: '`/u/…`: kaikki jaetut hahmosi yhdellä sivulla, näyttelyhyllysi ja ne suoratoistotilit, jotka valitsit näytettäviksi. Se on olemassa vain, jos käytät **Show that my characters are one person** -asetusta.',
+          body: '`/u/…`: kaikki hahmosi yhdellä sivulla, näyttelyhyllysi ja ne suoratoistotilit, jotka valitsit näytettäviksi. Se on olemassa vain, jos käytät **Show that my characters are one person** -asetusta.',
         },
         {
           term: 'Klaanin jäsensivu',
@@ -4263,9 +4259,8 @@ const fi: PartialGuideDict = {
     sharing: {
       title: 'Kuka näkee mitä',
       body: [
-        'Jokainen hahmo alkaa **shared**-tilassa: sen sivu aukeaa kenelle tahansa linkin kanssa, ja se voi näkyä tulostauluilla ja muille klaaneille. Kytke yksi pois kohdasta **Who sees my characters** Asetuksissa, ja sen sivu vastaa kaikille muille _not found_ paitsi sinulle. Näet **Private — only you can see this page.** ja linkin **Share it →**.',
-        'Jaetulla sivulla on nimen alla **Copy link**. Kirjautuneet kävijät, jotka pitävät sivua väärinkäyttävänä, voivat painaa **Report this profile**.',
-        'Hahmokohtaisesti Asetuksissa voi myös piilottaa, minkä pelin klaanin jäsen hahmo on (**Show my in-game clan**), jolloin se poistuu hahmon sivulta ja kyseisen klaanin Anvil-sivulta.',
+        'Jokainen hahmo: sen sivu aukeaa kenelle tahansa linkin kanssa, ja se voi näkyä tulostauluilla ja muille klaaneille.',
+        'Hahmon sivulla on nimen alla **Copy link**. Kirjautuneet kävijät, jotka pitävät sivua väärinkäyttävänä, voivat painaa **Report this profile**.',
       ],
     },
     wrapped: {
@@ -4273,7 +4268,7 @@ const fi: PartialGuideDict = {
       body: [
         'Joka kuukausi jokainen hahmo saa Wrapped-kortin: **XP gained**, **Boss kills**, **New slots** kokoelmalokissa, **Efficient**-tunnit, **PBs**, sekä lemmikit ja isoin drop. Se ilmestyy **seuraavan kuukauden 1. päivänä** (UTC). Siihen asti vain sinä voit avata sen esikatseluna.',
         'Vuodesta tulee myös oma, osoitteessa `/p/<name>/wrapped/<year>`, **1. joulukuuta** alkaen. `/p/<name>/wrapped` vie aina uusimpaan.',
-        'Paina **Copy link to your Wrapped** jakaaksesi sen. Liitettynä Discordiin se avautuu kuvana kortista. Yksityisen hahmon Wrapped avautuu vain sinulle, ja sen linkin esikatselu näkyy tavallisena Anvil-korttina.',
+        'Paina **Copy link to your Wrapped** jakaaksesi sen. Liitettynä Discordiin se avautuu kuvana kortista.',
       ],
       note: {
         tag: 'Tyhjä kuukausi',
@@ -4292,7 +4287,6 @@ const fi: PartialGuideDict = {
       title: 'Vertaile kahta hahmoa',
       body: [
         'Avaa [Compare](/compare) ja kirjoita kaksi nimeä. Saat taidot, bossit ja kokoelmalokisivut rinnakkain. Johtaja kussakin luvussa on kullalla. Sen alla ovat analyysi, XP per taito, jokainen boss, jonka kumpikin on tappanut, ja jokainen lokisivu kohde kohteelta: molemmilla on, kummallakaan ei, tai vain toisella teistä. **Swap sides** vaihtaa puolet.',
-        'Vain jaettuja hahmoja voi verrata. Yksityinen tai nimi, jota Anvil ei tunne, palauttaa _ei Anvilissa tai ei jaettu_. Voit aina verrata omia yksityisiä hahmojasi kirjautuneena.',
       ],
     },
     news: {
@@ -4423,15 +4417,11 @@ const fi: PartialGuideDict = {
     },
     privacy: {
       title: 'Kuka näkee hahmoni',
-      intro: 'Hahmosi ovat alussa jaettuja. Kolme kytkintä muuttaa sen:',
+      intro: 'Kaikki hahmot ovat julkisia. Kaksi kytkintä voit asettaa itse:',
       rows: [
         {
-          term: 'Show <name> publicly',
-          body: 'yksi kytkin hahmoa kohden. Päällä (alussa) sen sivu on **Public**. Pois päältä se on **Only its clans**: sen klaanit näkevät sen yhä rostereissaan ja tapahtumissaan, muut eivät, ja se poistuu tulostauluilta.',
-        },
-        {
           term: 'Show that my characters are one person',
-          body: 'kahdella tai useammalla hahmolla tämä tekee henkilösivustasi, joka listaa jaetut hahmosi yhdessä. Pois päältä kukaan ei voi tietää, että ne ovat kaikki sinun.',
+          body: 'kahdella tai useammalla hahmolla tämä tekee henkilösivustasi, joka listaa hahmosi yhdessä. Pois päältä kukaan ei voi tietää, että ne ovat kaikki sinun.',
         },
         {
           term: 'Show other clans’ boards',
@@ -4465,10 +4455,6 @@ const fi: PartialGuideDict = {
       title: 'Jokainen hahmo',
       intro: 'Kohdassa **Characters** jokaisella hahmolla on oma sivunsa: sen tyyppi, onko se vahvistettu, sekä linkit julkiselle sivulle ja täyteen profiiliin.',
       rows: [
-        {
-          term: 'Näkyvyys',
-          body: '**Show to other clans and on leaderboards** ja **Show my in-game clan**.',
-        },
         {
           term: 'Klaanit',
           body: 'jokainen klaani ja tila, johon se kuuluu, **member**- tai **guest**-roolilla, kullekin klaanille **Announce drops & achievements** ja **Leave**. Jos Anvil on laittanut sen väärään klaaniin, **Which clan is it really in?** kertoo henkilökunnalle.',
@@ -4948,7 +4934,7 @@ const fi: PartialGuideDict = {
     ghost: {
       title: 'Peliklaanit, jotka eivät ole Anvilissa',
       body: [
-        'Hahmon sivu nimeää pelissä olevan klaanin. Jos se klaani ei ole Anvilissa, linkki avaa tavallisen sivun, jossa listataan Anvil-pelaajat, jotka ovat siinä ja päättivät näyttää sen. Se ei ole kyseisen klaanin rosteri, eikä mikään sivulla tee kenestäkään jäsentä.',
+        'Hahmon sivu nimeää pelissä olevan klaanin. Jos se klaani ei ole Anvilissa, linkki avaa tavallisen sivun, jossa listataan Anvil-pelaajat, jotka ovat siinä. Se ei ole kyseisen klaanin rosteri, eikä mikään sivulla tee kenestäkään jäsentä.',
         'Jos se on sinun klaanisi, **Bring your clan to Anvil** perustaa sellaisen. Kun se on julkinen Anvil-klaani, linkki vie suoraan siihen.',
       ],
     },

@@ -180,7 +180,7 @@ test('ordinary monster drops use the mob fallback and wait for calibration befor
   assert.equal(effort.suggestedPoints, null);
 });
 
-test('tile effort config is defensive and skill rating controls only the small premium', () => {
+test('tile effort config is defensive and skill rating sets the skill premium', () => {
   assert.deepEqual(parseTileEffortConfig('{"skillRating":4}'), { skillRating: 4 });
   assert.equal(parseTileEffortConfig('{not json'), null);
   assert.equal(parseTileEffortConfig({ skillRating: 9 }), null);
@@ -188,10 +188,10 @@ test('tile effort config is defensive and skill rating controls only the small p
   const tile = raidDropTile({ effortConfig: JSON.stringify({ skillRating: 4 }) });
   const effort = analyzeEffort([tile], { pointsMode: true }).perTile[0];
   assert.equal(effort.skillRating, 4);
-  assert.equal(effort.difficulty, 1.2);
+  assert.equal(effort.difficulty, 1.4);
 });
 
-test('skill floors add only a modest premium after attempt success is priced', () => {
+test('skill floors add a premium after attempt success is priced', () => {
   const elite = analyzeEffort([
     {
       ...raidDropTile(),
@@ -204,7 +204,7 @@ test('skill floors add only a modest premium after attempt success is priced', (
   ], { pointsMode: true }).perTile[0];
 
   assert.equal(elite.floor, 'elite');
-  assert.equal(elite.difficulty, 1.2);
+  assert.equal(elite.difficulty, 1.5);
 });
 
 test('Inferno benchmarks price one KC, GM speed, and five-KC marginal work as 100/150/200', () => {
@@ -251,7 +251,7 @@ test('manual expected hours model bespoke objectives without folding in the skil
   }], { pointsMode: true }).perTile[0];
 
   assert.deepEqual(ca.hours, [1.6, 2, 2.7]);
-  assert.equal(ca.difficulty, 1.2);
+  assert.equal(ca.difficulty, 1.4);
   assert.equal(ca.pricingHours, 2);
   assert.match(ca.note ?? '', /manual calibration/);
 });
@@ -571,4 +571,73 @@ test('collection-log slot tiles are priced from drop rates', () => {
   assert.ok(single.hours && Number.isFinite(single.hours[1]) && single.hours[1] > 0, single.note ?? 'unpriced');
   assert.ok(two.hours![1] > single.hours![1], 'two slots cost more than one');
   assert.match(single.note ?? '', /fresh log/);
+});
+
+// ── Points concentration + worth-it guard rails ─────────────────────────────────────────────────
+
+function skillBoard(hoursList: number[], pointsList: number[], floor: 'anyone' | 'elite' = 'anyone', eliteIdx: number[] = []) {
+  const base = {
+    ...raidDropTile(),
+    tileType: 'standard',
+    trackedItemIds: null,
+    sourceNpcs: null,
+    statType: 'skill',
+    effortConfig: null,
+  };
+  const skills: Record<string, { xpPerHour: [number, number, number]; floor: string }> = {};
+  const tiles = hoursList.map((h, i) => {
+    const stat = `skill${i}`;
+    skills[stat] = { xpPerHour: [100, 100, 100], floor: eliteIdx.includes(i) ? 'elite' : floor };
+    return { ...base, id: i + 1, label: `Tile ${i + 1}`, trackedStat: stat, statGoal: h * 100, points: pointsList[i] };
+  });
+  return { tiles, ratesOverride: { skills } };
+}
+
+test('one tile holding over 10% of a big board is flagged, and suggestions keep it under the cap', () => {
+  // Eleven tiles; the last is a 40-hour grind the effort model would otherwise hand ~45% of the budget.
+  const hours = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 40];
+  const points = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 400];
+  const { tiles, ratesOverride } = skillBoard(hours, points);
+  const report = analyzeEffort(tiles as Tile[], { pointsMode: true, ratesOverride, eventDays: 30 });
+  const check = report.checks.find((c) => c.id === 'points-concentration');
+  assert.ok(check, 'concentration should be flagged');
+  assert.deepEqual(check!.tileIds, [11]);
+  const cap = Math.floor(500 * 0.1);
+  const big = report.perTile[10].suggestedPoints!;
+  assert.ok(big <= cap, `suggested ${big} should respect the ${cap} cap`);
+  assert.equal(report.suggestedBudget, report.suggestionBudget, 'budget stays exact');
+});
+
+test('small boards are never flagged for concentration', () => {
+  const { tiles, ratesOverride } = skillBoard([1, 1, 10], [10, 10, 100]);
+  const report = analyzeEffort(tiles as Tile[], { pointsMode: true, ratesOverride });
+  assert.equal(report.checks.find((c) => c.id === 'points-concentration'), undefined);
+});
+
+test('hard tiles paying less per effort-hour than the board are called out as not worth it', () => {
+  // Six 1-hour tiles at 10 pts, one 2-hour elite tile at 12 pts: 6 pts/effort-hour vs a 10 median.
+  const { tiles, ratesOverride } = skillBoard([1, 1, 1, 1, 1, 1, 2], [10, 10, 10, 10, 10, 10, 12], 'anyone', [6]);
+  const report = analyzeEffort(tiles as Tile[], { pointsMode: true, ratesOverride });
+  const check = report.checks.find((c) => c.id === 'hard-not-worth-it');
+  assert.ok(check, 'cheap hard tile should be flagged');
+  assert.deepEqual(check!.tileIds, [7]);
+});
+
+test('a tile few players can do carries a bigger skill premium than one everyone can do', () => {
+  const tile = {
+    ...raidDropTile(),
+    tileType: 'standard',
+    trackedItemIds: null,
+    sourceNpcs: null,
+    trackedStat: 'tzKalZuk',
+    statType: 'boss',
+    statGoal: 1,
+    effortConfig: null,
+  } as Tile;
+  const rare = analyzeEffort([tile], { pointsMode: true, capabilityShares: new Map([['tzKalZuk', 0.03]]) }).perTile[0];
+  const common = analyzeEffort([tile], { pointsMode: true, capabilityShares: new Map([['tzKalZuk', 0.9]]) }).perTile[0];
+  const unknown = analyzeEffort([tile], { pointsMode: true }).perTile[0];
+  assert.ok(rare.difficulty > 1.6, `rare ${rare.difficulty}`);
+  assert.ok(common.difficulty < unknown.difficulty);
+  assert.equal(unknown.difficulty, 1.5, 'no players to read: the elite floor stands');
 });

@@ -8,7 +8,9 @@ import { eventBoardTiles } from '@/lib/comboSql';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
-import { computePlayerProfiles } from '@/lib/playerProfile';
+import { capabilityShares, type CapabilityShares } from '@/lib/capabilityPool';
+import { boardActivityKeys } from '@/lib/draftCoverage';
+import { BOSSES } from '@/lib/constants';
 import { isPointsMode } from '@/lib/utils';
 import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
 import { RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
@@ -87,12 +89,22 @@ export async function GET(
   const players = (placed[0]?.n ?? 0) || (approved[0]?.n ?? 0);
   const teamSize = nTeams > 0 && players > 0 ? players / nTeams : null;
 
+  // Who it's priced for: the sign-up pool, else the clan, else the curated floors (lib/capabilityPool).
+  // Best-effort: a read hiccup prices on the floors rather than failing the audit.
+  let capability: CapabilityShares = { pricedFor: 'baseline', population: 0, shares: new Map() };
+  try {
+    capability = await capabilityShares(clan.id, eId, boardActivityKeys(eventTiles));
+  } catch {
+    /* advisory */
+  }
+
   const report = analyzeEffort(eventTiles, {
     pointsMode: isPointsMode(event.scoringMode),
     ratesOverride,
     raidRatesOverride,
     eventDays,
     teamSize,
+    capabilityShares: new Map([...capability.shares].map(([k, v]) => [k, v.share])),
   });
 
   // Drop tiles restricted to a monster that doesn't drop the item can never complete — and neither
@@ -137,48 +149,41 @@ export async function GET(
     });
   }
 
-  // Pool-aware pass (plan A3): the assignee-band pricing above assumes SOMEONE capable exists —
-  // check that against the actual sign-up pool (or, before anyone signs up, the whole clan as the
-  // prior). An elite-gated board over a pool with no endgame markers is a dead board, and the
-  // best moment to hear that is while points are still editable. Best-effort: a profile hiccup
-  // never blocks the audit itself.
-  try {
-    const enrolled = await computePlayerProfiles(clan.id, { eventId: eId });
-    const pool = enrolled.length > 0 ? enrolled : await computePlayerProfiles(clan.id, {});
-    const poolLabel = enrolled.length > 0 ? 'sign-up pool' : 'clan (nobody signed up yet)';
-    const gatedTiles = report.perTile.filter((t) => t.floor === 'elite' || t.floor === 'high');
-    if (pool.length > 0 && gatedTiles.length > 0) {
-      const capable = pool.filter((p) =>
-        p.capabilityMarkers.some((m) => (m.domain === 'endgame-pvm' || m.domain === 'raids') && m.kc >= 1),
-      );
-      const gatedWeight = gatedTiles.reduce((s, t) => s + t.weight, 0);
-      const totalWeight = report.perTile.reduce((s, t) => s + t.weight, 0) || 1;
-      if (capable.length === 0) {
-        report.checks.push({
-          id: 'pool-capability',
-          level: 'warn',
-          title: `Nobody in the ${poolLabel} has endgame-PvM/raid experience`,
-          detail:
-            `${gatedTiles.length} high/elite tile${gatedTiles.length === 1 ? '' : 's'} ` +
-            `(${Math.round((gatedWeight / totalWeight) * 100)}% of the board's weight) assume a capable assignee — ` +
-            `for this pool they're effectively dead tiles. Reprice or swap before the draft.`,
-          tileIds: gatedTiles.map((t) => t.tileId),
-        });
-      } else if (capable.length <= 2) {
-        report.checks.push({
-          id: 'pool-capability',
-          level: 'info',
-          title: `Only ${capable.length} in the ${poolLabel} carry the gated tiles`,
-          detail:
-            `${capable.map((p) => p.rsn).join(', ')} hold the endgame/raid markers behind ` +
-            `${Math.round((gatedWeight / totalWeight) * 100)}% of the board's weight — make sure the draft ` +
-            `spreads them across teams, or the balance math won't save it.`,
-          tileIds: gatedTiles.map((t) => t.tileId),
-        });
-      }
+  // Pool-aware pass: hard content nobody (or almost nobody) here can do. Counts only, never names —
+  // pricing is a board question, and who can't do the Inferno is nobody else's business.
+  if (capability.pricedFor !== 'baseline') {
+    const poolLabel = capability.pricedFor === 'pool' ? 'sign-up pool' : 'clan (nobody signed up yet)';
+    const label = new Map(BOSSES.map((b) => [b.key, b.label]));
+    const totalWeight = report.perTile.reduce((s, t) => s + t.weight, 0) || 1;
+    const tilesFor = (key: string) =>
+      eventTiles.filter((t) => boardActivityKeys([t]).has(key)).map((t) => t.id);
+    const nobody = [...capability.shares].filter(([, v]) => v.able === 0);
+    const few = [...capability.shares].filter(([, v]) => v.able > 0 && v.able <= 2);
+    if (nobody.length) {
+      const ids = nobody.flatMap(([k]) => tilesFor(k));
+      const weight = report.perTile.filter((t) => ids.includes(t.tileId)).reduce((s, t) => s + t.weight, 0);
+      report.checks.push({
+        id: 'pool-capability',
+        level: 'warn',
+        title: `Nobody in the ${poolLabel} can realistically do ${nobody.length === 1 ? label.get(nobody[0][0]) : `${nobody.length} of the board's activities`}`,
+        detail:
+          `${nobody.map(([k]) => label.get(k) ?? k).join(', ')} — by stats and experience nobody here is set up for ` +
+          `${nobody.length === 1 ? 'it' : 'these'}, so ${Math.round((weight / totalWeight) * 100)}% of the board's points ` +
+          `are effectively dead. Reprice or swap them before the draft.`,
+        tileIds: ids,
+      });
     }
-  } catch {
-    /* pool read is advisory */
+    if (few.length) {
+      report.checks.push({
+        id: 'pool-capability-thin',
+        level: 'info',
+        title: `Only one or two people here can do ${few.length === 1 ? label.get(few[0][0]) : `${few.length} activities`}`,
+        detail:
+          few.map(([k, v]) => `${label.get(k) ?? k} (${v.able})`).join(', ') +
+          ` — spread them across teams in the draft, or those tiles go to whoever lands them.`,
+        tileIds: few.flatMap(([k]) => tilesFor(k)),
+      });
+    }
   }
 
   // Infinity doesn't survive JSON — encode as null and let the client re-read hours[1] == null
@@ -193,5 +198,7 @@ export async function GET(
     // The bulk review sends this back when applying. It prevents an old preview from overwriting
     // changes made by another editor while the dialog was open.
     revision: tileBalanceRevision(eventTiles),
+    // What the skill premium was read from: 'pool' | 'clan' | 'baseline' (and how many accounts).
+    pricedFor: { source: capability.pricedFor, population: capability.population },
   });
 }
