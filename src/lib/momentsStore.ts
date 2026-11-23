@@ -6,6 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import { notPracticeEventId } from '@/lib/practiceScope';
 import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, notInArray, or, sql } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
@@ -772,7 +773,21 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
     )
     .orderBy(desc(moments.occurredAt))
     .limit(window);
-  return rows.filter((row) => isClanWorthy(row, clan)).slice(0, limit);
+  // A drop filed on a board whose standings are hidden stays out of every clan feed (the board's own
+  // feed shows each team its own): checked here so the panel, the site's Lately pages and the clan
+  // card all leave it out alike.
+  const boardIds = [...new Set(rows.map((r) => r.eventId).filter((e): e is number => e != null))];
+  const hiddenBoards = new Set<number>();
+  if (boardIds.length) {
+    const now = Date.now();
+    // clan-scope: this clan -- the boards this clan's own moments were filed on
+    const boards = await db
+      .select({ id: events.id, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt, rules: events.rules })
+      .from(events)
+      .where(inArray(events.id, boardIds));
+    for (const b of boards) if (standingsHidden(b, now)) hiddenBoards.add(b.id);
+  }
+  return rows.filter((row) => (row.eventId == null || !hiddenBoards.has(row.eventId)) && isClanWorthy(row, clan)).slice(0, limit);
 }
 
 /** Separate-save activity for the compact Modes timeline, never mixed into the ordinary clan feed. */

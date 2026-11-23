@@ -4,7 +4,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { completions, events, teams, tiles } from '@/db/schema';
-import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
+import { boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
 import { labMomentsForEvent } from '@/lib/lab';
@@ -42,13 +42,8 @@ export async function clanFeedList(clanId: number, filter: string, skip?: Readon
     .filter((m) => !skip?.has(m.id))
     .filter((m) => panelFeedWorthy(m, scope.minLootGp) && isClanWorthy(m, scope))
     .filter((m) => !g || kindGroup(m.kind) === g);
-  // Drops filed on a board with hidden standings stay out of the clan's feed (the board's own feed
-  // shows each team its own). Checked fresh per board.
-  const boards = [...new Set(raw.map((m) => m.eventId).filter((e): e is number => e != null))];
-  const hidden = new Set<number>();
-  for (const e of boards) if (await boardHidden(e)) hidden.add(e);
-  const shown = raw.filter((m) => m.eventId == null || !hidden.has(m.eventId));
-  return { list: collapseRuns(shown, runKey, (m) => stampMs(m.occurredAt)).map(withRun), floor: scope.minLootGp };
+  // Drops filed on a board with hidden standings are already left out (momentsStore momentsForClan).
+  return { list: collapseRuns(raw, runKey, (m) => stampMs(m.occurredAt)).map(withRun), floor: scope.minLootGp };
 }
 
 export type BoardCompletion = Awaited<ReturnType<typeof boardCompletions>>[number];
