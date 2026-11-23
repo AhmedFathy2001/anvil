@@ -181,11 +181,11 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
       )}
 
       <p className="mt-6 text-center text-[13px] text-text-dim">
-        Bigger than {PLANS.gold.capLabel.replace(/^Up to /, '')}?{' '}
-        <ClanLink href="/clans/new" className="text-gold hover:text-gold-light">
-          Start a clan
-        </ClanLink>{' '}
-        and get in touch — {PLANS.custom.name.toLowerCase()} plans are set by hand, never a form.
+        Bigger than {PLANS.gold.capLabel.replace(/^Up to /, '')}, or want to work with Anvil?{' '}
+        <a href={SITE.supportDiscord} target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light">
+          Request a custom plan or a partnership
+        </a>{' '}
+        on the Anvil Discord.
       </p>
 
       <section className="mt-14 rounded-2xl border border-card-border bg-card-bg p-6 sm:p-8">
