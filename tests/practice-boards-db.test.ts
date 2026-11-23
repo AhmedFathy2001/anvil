@@ -281,10 +281,14 @@ test('the event settings routes refuse a practice board, and still take a real o
   const { refusePractice } = await import('../src/lib/practiceGuard.ts');
   assert.equal((await refusePractice(Promise.resolve({ eventId: String(practiceId) })))?.status, 404);
   assert.equal(await refusePractice({ eventId: String(realEventId) }), null);
-  assert.equal(await refusePractice({ eventId: 'nope' }), null);
+  // Fail closed: an id that isn't plain digits never passes, so no handler can read "12abc" as 12.
+  for (const odd of ['nope', `${practiceId}abc`, ` ${practiceId}`, `${practiceId} `, '1e3', '0x1f', `+${practiceId}`, '-1', '0', '', '1234567890']) {
+    assert.equal((await refusePractice({ eventId: odd }))?.status, 404, `"${odd}" is refused`);
+  }
+  assert.equal(await refusePractice({ eventId: realEventId }), null, 'a numeric id is fine');
 
   type Handler = (req: Request, ctx: { params: Promise<{ eventId: string }> }) => Promise<Response>;
-  const call = async (handler: Handler, eventId: number, method: string): Promise<{ status: number; error?: string } | 'past-guard'> => {
+  const call = async (handler: Handler, eventId: number | string, method: string): Promise<{ status: number; error?: string } | 'past-guard'> => {
     const req = new Request(`http://localhost/api/x/${eventId}`, { method, headers: { 'content-type': 'application/json' }, body: method === 'GET' ? undefined : '{}' });
     try {
       const res = await handler(req, { params: Promise.resolve({ eventId: String(eventId) }) });
@@ -309,6 +313,8 @@ test('the event settings routes refuse a practice board, and still take a real o
   for (const [name, handler, method] of routes) {
     assert.deepEqual(await call(handler, practiceId, method), refused, `${name} refuses a practice board`);
     assert.notDeepEqual(await call(handler, realEventId, method), refused, `${name} still takes a real board`);
+    // "<practice id>abc" would read as the practice board under a handler's parseInt: refused first.
+    assert.deepEqual(await call(handler, `${practiceId}abc`, method), { status: 404, error: 'Not found' }, `${name} refuses a mangled id`);
   }
   // What the practice page itself uses is not refused: the tile import behind "Add tiles".
   const importer = (await import('../src/app/api/events/[eventId]/tiles/import/route.ts')).POST as Handler;
