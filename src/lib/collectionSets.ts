@@ -285,7 +285,7 @@ function collectionSentence(reqs: CollectionRequirement[], groupMode: string | n
         : `Get any ${r} pieces from each of the ${k} sets below.`) + always;
     }
     return (partial
-      ? 'Complete EVERY set below — each needs the number of pieces shown.'
+      ? `Get pieces from each of the ${k} sets below: ${state.groups.map((g) => `${g.require} of ${g.items.length} from ${setName(g.name)}`).join(', ')}.`
       : 'Complete EVERY set below in full.') + always;
   }
 
