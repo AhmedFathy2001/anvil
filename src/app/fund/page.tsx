@@ -3,9 +3,9 @@ import type { Metadata } from 'next';
 import ClanFundProgress from '@/components/ClanFundProgress';
 import ClanLink from '@/components/ClanLink';
 import { verifyUser } from '@/lib/auth';
-import { ensureClanCheckoutRef } from '@/lib/billing';
 import { requireClan } from '@/lib/clanContext';
-import { fundConfigured, fundView } from '@/lib/clanFund';
+import { ensureFundRef, fundConfigured, fundView } from '@/lib/clanFund';
+import { hasClanPresence } from '@/lib/clanGrants';
 import { fundCheckoutUrl } from '@/lib/clanFundRules';
 import { creatorPublicAway } from '@/lib/creatorGuard';
 import { db } from '@/db';
@@ -28,9 +28,11 @@ export default async function FundPage() {
   const view = row ? await fundView(row) : null;
   const session = await verifyUser();
   const configured = fundConfigured();
+  // The chip-in link carries the fund's own token, and only signed-in members of the clan get it.
+  const member = !!session && (await hasClanPresence(clan.id, session.userId));
   const chipUrl =
-    view && configured && !view.totals.funded
-      ? fundCheckoutUrl(process.env.GUMROAD_URL_CLAN_FUND, await ensureClanCheckoutRef(clan.id), session ? await ensureSupporterRef(session.userId) : null)
+    view && configured && !view.totals.funded && member && session
+      ? fundCheckoutUrl(process.env.GUMROAD_URL_CLAN_FUND, await ensureFundRef(clan.id), await ensureSupporterRef(session.userId))
       : null;
 
   return (
@@ -65,19 +67,19 @@ export default async function FundPage() {
                 <p className="text-[12.5px] leading-relaxed text-text-muted">
                   A yearly membership on Gumroad: you pick the amount, it renews once a year until you cancel, and you can cancel any time
                   from Gumroad.
-                  {!session && (
-                    <>
-                      {' '}
-                      <ClanLink href="/login?return=/fund" className="text-gold hover:text-gold-light">
-                        Sign in
-                      </ClanLink>{' '}
-                      first if you want it linked to your account.
-                    </>
-                  )}
                 </p>
               </>
-            ) : (
+            ) : !configured ? (
               <p className="text-[13px] text-text-muted">Chipping in isn&rsquo;t open yet.</p>
+            ) : !session ? (
+              <p className="text-[13px] text-text-muted">
+                <ClanLink href="/login?return=/fund" className="text-gold hover:text-gold-light">
+                  Sign in
+                </ClanLink>{' '}
+                to chip in. It&rsquo;s for the clan&rsquo;s members.
+              </p>
+            ) : (
+              <p className="text-[13px] text-text-muted">Chipping in is for the clan&rsquo;s members.</p>
             )}
           </section>
           <p className="mt-4 text-[12.5px] text-text-muted">The clan never sees how much anyone gave.</p>

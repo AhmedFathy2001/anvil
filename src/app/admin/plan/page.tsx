@@ -27,7 +27,7 @@ import PlanTrialPanel from '@/components/PlanTrialPanel';
 import PlanPayers from './PlanPayers';
 import FundControls from './FundControls';
 import ClanFundProgress from '@/components/ClanFundProgress';
-import { fundConfigured, fundView, membershipPaysPlan } from '@/lib/clanFund';
+import { ensureFundRef, fundConfigured, fundView, membershipPaysPlan } from '@/lib/clanFund';
 import { FUND_PLANS, fundCheckoutUrl, goalCents, usd as usdCents } from '@/lib/clanFundRules';
 import { canPayForPlan, payerCandidates, planPayerView } from '@/lib/planPayers';
 import { removePayerConfirm } from '@/lib/planPayerRules';
@@ -95,7 +95,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
   const fundBlocked = billingRow && membershipPaysPlan(billingRow) ? 'A membership already pays for the plan. To fund it with chip-ins instead, cancel that membership on Gumroad first, so nobody pays twice.' : null;
   const coverUrl =
     fund && fundOn && canPay && !fund.totals.funded && session
-      ? fundCheckoutUrl(process.env.GUMROAD_URL_CLAN_FUND, await ensureClanCheckoutRef(clan.id), payerRef, true)
+      ? fundCheckoutUrl(process.env.GUMROAD_URL_CLAN_FUND, await ensureFundRef(clan.id), payerRef, true)
       : null;
   const renewsMs = billingRow?.currentPeriodEnd ? Date.parse(billingRow.currentPeriodEnd.includes('T') ? billingRow.currentPeriodEnd : `${billingRow.currentPeriodEnd.replace(' ', 'T')}Z`) : NaN;
   const yearly = fits ? yearlyPriceUsd(fits.priceUsd) : null;
@@ -202,7 +202,7 @@ export default async function AdminPlanPage({ searchParams }: { searchParams: Pr
 
       <div className="mt-5">
         {/* A membership already waiting for its first payment: no second buy button beside it. */}
-        <PlanTrialPanel clan={clan} billing={billing} canBuy={canPay && !held} payerRef={payerRef} viewerIsStaff={viewerIsStaff} earlyBird={paying || !fits} />
+        <PlanTrialPanel clan={clan} billing={billing} canBuy={canPay && !held && !billingRow?.fundPlan} payerRef={payerRef} viewerIsStaff={viewerIsStaff} earlyBird={paying || !fits} />
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">

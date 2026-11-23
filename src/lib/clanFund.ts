@@ -19,6 +19,7 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, clanFundPledges, clanStaff, clans, userNotices, users } from '@/db/schema';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
+import { newCheckoutRef } from '@/lib/billing';
 import { isFreePlanId } from '@/lib/billingCatalog';
 import { log } from '@/lib/logger';
 import { PLANS } from '@/lib/plans';
@@ -26,6 +27,7 @@ import { canPayForPlan } from '@/lib/planPayers';
 import {
   FUND_PLANS,
   WARN_DAYS,
+  fundPaysPlan,
   fundStep,
   fundTotals,
   isFundPlan,
@@ -79,10 +81,42 @@ export async function pledgesFor(clanId: number): Promise<Pledge[]> {
   return db.select().from(clanFundPledges).where(eq(clanFundPledges.clanId, clanId));
 }
 
-/** Another membership pays for this clan's plan: the fund must not grant over it, nor start. */
-export function membershipPaysPlan(clan: Pick<Clan, 'plan' | 'gumroadSubscriptionId' | 'fundFunded'>): boolean {
-  return !!clan.gumroadSubscriptionId && !isFreePlanId(clan.plan) && !clan.fundFunded;
+/**
+ * Another membership pays for this clan's plan: the fund must not grant over it, nor start. A plan is
+ * the fund's only when it is the fund's own plan and the fund says it pays (every membership grant
+ * clears that, lib/clanFundRules MEMBERSHIP_OWNS_PLAN).
+ */
+export function membershipPaysPlan(clan: Pick<Clan, 'plan' | 'gumroadSubscriptionId' | 'fundFunded' | 'fundPlan'>): boolean {
+  return !!clan.gumroadSubscriptionId && !isFreePlanId(clan.plan) && !fundPaysPlan(clan);
 }
+
+/** The fund's own checkout token, made on first use. Never the plan's `gumroadRef`. */
+export async function ensureFundRef(clanId: number): Promise<string> {
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { fundRef: true } });
+  if (row?.fundRef) return row.fundRef;
+  const ref = newCheckoutRef();
+  await db.update(clans).set({ fundRef: ref }).where(eq(clans.id, clanId));
+  return ref;
+}
+
+/** Is this a clan fund's token? The plan webhook refuses a sale carrying one. */
+export async function isFundRef(ref: string): Promise<boolean> {
+  const row = await db.query.clans.findFirst({ where: eq(clans.fundRef, ref), columns: { id: true } });
+  return !!row;
+}
+
+/** The sale ids already applied to a chip-in. */
+function appliedSales(row: Pick<Pledge, 'appliedSaleIds' | 'gumroadSaleId'>): string[] {
+  let ids: string[] = [];
+  try {
+    const v = JSON.parse(row.appliedSaleIds || '[]');
+    if (Array.isArray(v)) ids = v.filter((x): x is string => typeof x === 'string');
+  } catch { /* treat as none */ }
+  return row.gumroadSaleId && !ids.includes(row.gumroadSaleId) ? [...ids, row.gumroadSaleId] : ids;
+}
+
+const withSale = (row: Pick<Pledge, 'appliedSaleIds' | 'gumroadSaleId'>, saleId: string | null) =>
+  JSON.stringify(saleId ? [...appliedSales(row), saleId].slice(-50) : appliedSales(row));
 
 /**
  * Tell someone about the fund once: an in-site notice and a DM where a bot can reach them. `tag`
@@ -129,12 +163,13 @@ export async function recomputeFund(clanId: number, now = Date.now()): Promise<{
   }
   const totals = fundTotals(plan, pledges, now);
   const shortSince = clan.fundShortSince ? stampMs(clan.fundShortSince) : null;
-  const step = fundStep({ funded: totals.funded, granted: clan.fundFunded, shortSince, blocked: membershipPaysPlan(clan), now });
+  // Granted = the plan in force is the fund's own (a membership or staff edit clears fundFunded).
+  const step = fundStep({ funded: totals.funded, granted: fundPaysPlan(clan), shortSince, blocked: membershipPaysPlan(clan), now });
   const tier = PLANS[plan];
   const contacts = step.kind === 'keep' || step.kind === 'none' ? [] : await fundContacts(clan, pledges);
 
   if (step.kind === 'grant') {
-    const was = clan.fundFunded;
+    const was = fundPaysPlan(clan);
     await db.update(clans).set({ plan: plan, memberCap: tier.memberCap, fundFunded: true, fundShortSince: null }).where(eq(clans.id, clan.id));
     if (!was) {
       await audit(clan.id, 'fund_funded', { plan, total: totals.total, goal: totals.goal });
@@ -244,7 +279,10 @@ export async function handleFundEvent(ev: GumroadEvent): Promise<Result> {
       : undefined;
 
   if (ev.kind === 'sale' || ev.kind === 'recurring_charge') {
-    if (row && ev.saleId && row.gumroadSaleId === ev.saleId) return ok({ note: 'already applied' });
+    // Any sale already applied to this chip-in, not only the last one, never applies again.
+    if (row && ev.saleId && appliedSales(row).includes(ev.saleId)) return ok({ note: 'already applied' });
+    // Money taken back stays taken back: a refunded chip-in never counts again (a new one is a new row).
+    if (row?.status === 'refunded') return ok({ note: 'refunded' });
     const check = await checkSaleWithGumroad(ev.saleId, ev.productId);
     if (check === 'error') return { status: 503, body: { error: 'Could not confirm the sale with Gumroad' } };
     if (check === 'rejected') return ok({ note: 'sale not confirmed by Gumroad' });
@@ -259,11 +297,14 @@ export async function handleFundEvent(ev: GumroadEvent): Promise<Result> {
       if (!ev.subscriptionId) return ok({ note: 'not a membership' });
       const periodEnd = nextChargeDue(recurrence, chargedAt(ev.saleTimestamp));
       if (row) {
-        await db.update(clanFundPledges).set({ status: 'active', cents: ev.priceCents ?? row.cents, gumroadSaleId: ev.saleId, currentPeriodEnd: periodEnd, endedAt: null }).where(eq(clanFundPledges.id, row.id));
+        // A new sale on a chip-in we hold that has stopped: only once Gumroad says it runs.
+        if (row.status !== 'active' && (await checkSubscriptionWithGumroad(ev.subscriptionId)) !== 'alive') return ok({ note: 'subscription not running' });
+        await db.update(clanFundPledges).set({ status: 'active', cents: ev.priceCents ?? row.cents, gumroadSaleId: ev.saleId, appliedSaleIds: withSale(row, ev.saleId), currentPeriodEnd: periodEnd, cancelledAt: null, endedAt: null }).where(eq(clanFundPledges.id, row.id));
         break;
       }
-      // The clan whose checkout ref came back, never the email. The person, when their ref rode along.
-      const clan = ev.urlParams.ref ? await db.query.clans.findFirst({ where: eq(clans.gumroadRef, ev.urlParams.ref) }) : undefined;
+      // The clan whose FUND token came back (never the plan's ref, never the email). The person, when
+      // their ref rode along.
+      const clan = ev.urlParams.ref ? await db.query.clans.findFirst({ where: eq(clans.fundRef, ev.urlParams.ref) }) : undefined;
       if (!clan) {
         log.warn('clan-fund.no-clan', { sale: ev.saleId, subscription: ev.subscriptionId });
         return ok({ note: 'no matching clan' });
@@ -282,6 +323,7 @@ export async function handleFundEvent(ev: GumroadEvent): Promise<Result> {
         status: 'active',
         gumroadSubscriptionId: ev.subscriptionId,
         gumroadSaleId: ev.saleId,
+        appliedSaleIds: withSale({ appliedSaleIds: '[]', gumroadSaleId: null }, ev.saleId),
         currentPeriodEnd: periodEnd,
         startedAt: nowIso(),
       });
@@ -291,12 +333,15 @@ export async function handleFundEvent(ev: GumroadEvent): Promise<Result> {
 
     case 'recurring_charge': {
       if (!row) return unknown(ev);
+      // A charge on a chip-in that had stopped or was leaving: only once Gumroad says it runs.
+      if (row.status !== 'active' && (await checkSubscriptionWithGumroad(ev.subscriptionId)) !== 'alive') return ok({ note: 'subscription not running' });
       await db
         .update(clanFundPledges)
         .set({
           status: 'active',
           cents: ev.priceCents ?? row.cents,
           gumroadSaleId: ev.saleId ?? row.gumroadSaleId,
+          appliedSaleIds: withSale(row, ev.saleId),
           currentPeriodEnd: nextChargeDue(row.recurrence ?? recurrence, chargedAt(ev.saleTimestamp)),
           cancelledAt: null,
           endedAt: null,
@@ -323,7 +368,7 @@ export async function handleFundEvent(ev: GumroadEvent): Promise<Result> {
       if (row.status === 'refunded') return ok({ note: 'refunded' });
       const check = await checkSubscriptionWithGumroad(ev.subscriptionId);
       if (check === 'error') return { status: 503, body: { error: 'Could not confirm the subscription with Gumroad' } };
-      if (check === 'dead') return ok({ note: 'subscription not running' });
+      if (check !== 'alive') return ok({ note: 'subscription not running' });
       await db.update(clanFundPledges).set({ status: 'active', cancelledAt: null, endedAt: null }).where(eq(clanFundPledges.id, row.id));
       break;
     }

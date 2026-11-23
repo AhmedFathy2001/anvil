@@ -12,6 +12,7 @@
 // The webhook looks here by subscription id when no clans row holds the id. Nothing in this file
 // calls Gumroad except to confirm a charge or a running membership before granting off it.
 
+import { MEMBERSHIP_OWNS_PLAN } from '@/lib/clanFundRules';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -178,6 +179,7 @@ export async function fallBackToOlderMembership(
         plan: tier.id,
         memberCap: tier.memberCap,
         gumroadSubscriptionId: extra.gumroadSubscriptionId,
+        ...MEMBERSHIP_OWNS_PLAN,
         // Its own term end when we know it; else the next charge sets it, and the daily check asks
         // Gumroad about a row with no date.
         currentPeriodEnd: extra.periodEndsAt?.toISOString() ?? null,
@@ -295,6 +297,7 @@ async function takeOver(clan: Clan, extra: ExtraMembership, ev: GumroadEvent): P
       plan: plan.id,
       memberCap: plan.memberCap,
       gumroadSubscriptionId: extra.gumroadSubscriptionId,
+      ...MEMBERSHIP_OWNS_PLAN,
       gumroadSaleId: ev.saleId ?? clan.gumroadSaleId,
       gumroadProductId: ev.productId ?? clan.gumroadProductId,
       gumroadProductPermalink: ev.productPermalink ?? clan.gumroadProductPermalink,

@@ -13,7 +13,9 @@ import { log } from '@/lib/logger';
 import { recordLedger } from '@/lib/moneyLedger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
 import { handleGiftEvent, isSupporterGiftEvent } from '@/lib/supporterGiftCheckout';
-import { handleFundEvent, isFundEvent } from '@/lib/clanFund';
+import { handleFundEvent, isFundEvent, isFundRef } from '@/lib/clanFund';
+import { MEMBERSHIP_OWNS_PLAN } from '@/lib/clanFundRules';
+import { noteToCancel } from '@/lib/extraMemberships';
 import { planKindOf } from '@/lib/unmatchedPurchaseRules';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
@@ -110,6 +112,11 @@ function wrongCatalog(ev: ReturnType<typeof parseWebhook>, kind: string): string
  */
 async function clanForEvent(ev: ReturnType<typeof parseWebhook>) {
   if (ev.kind === 'sale' && ev.urlParams.ref) {
+    // A clan fund's token (lib/clanFund) only ever buys a chip-in: on a plan product it matches nothing.
+    if (await isFundRef(ev.urlParams.ref)) {
+      log.warn('gumroad.fund-ref-on-plan', { sale: ev.saleId, product: ev.productId });
+      return null;
+    }
     const byRef = await db.query.clans.findFirst({ where: eq(clans.gumroadRef, ev.urlParams.ref) });
     if (byRef) return byRef;
   }
@@ -221,6 +228,12 @@ export async function POST(req: NextRequest) {
 
     // ── Renewed ──────────────────────────────────────────────────────────────────────────────
     case 'recurring_charge': {
+      // A clan fund runs: a membership charge is the one to cancel, never the clan's plan (lib/clanFund).
+      if (clan.fundPlan) {
+        if (ev.subscriptionId) await noteToCancel(clan.id, ev.subscriptionId, clan.plan, { periodEndsAt: nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp)) });
+        await logBilling(clan.id, 'billing_fund_conflict', { kind: ev.kind, subscription: ev.subscriptionId, sale: ev.saleId, fund: clan.fundPlan });
+        return Response.json({ received: true, note: 'a clan fund pays for the plan' });
+      }
       // A charge on a clan already dropped to free is a membership taken up again (the restart's own
       // notification may come after it, or not at all): it gets back the plan it had.
       // The first charge of a sale that was HELD (trial already used) applies the tier that sale bought.
@@ -242,6 +255,7 @@ export async function POST(req: NextRequest) {
           currentPeriodEnd: nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp)),
           cancelAtPeriodEnd: false,
           trialEndsAt: null, // a charge means the trial converted
+          ...MEMBERSHIP_OWNS_PLAN,
           ...runOnPaid(clan),
         })
         .where(eq(clans.id, clan.id));
@@ -266,6 +280,11 @@ export async function POST(req: NextRequest) {
 
     // ── Taken up again after it ended or was cancelled ───────────────────────────────────────
     case 'restarted': {
+      if (clan.fundPlan) {
+        if (ev.subscriptionId) await noteToCancel(clan.id, ev.subscriptionId, clan.plan, {});
+        await logBilling(clan.id, 'billing_fund_conflict', { kind: ev.kind, subscription: ev.subscriptionId, fund: clan.fundPlan });
+        return Response.json({ received: true, note: 'a clan fund pays for the plan' });
+      }
       if (clan.status === 'suspended') {
         // A suspension is for a person to lift, never a webhook with no money attached.
         await logBilling(clan.id, 'billing_restart_ignored', { reason: 'suspended' });
@@ -300,6 +319,7 @@ export async function POST(req: NextRequest) {
           memberCap: plan.memberCap,
           currentPeriodEnd: nextChargeDue(ev.recurrence, Date.now()),
           cancelAtPeriodEnd: false,
+          ...MEMBERSHIP_OWNS_PLAN,
           ...runOnPaid(clan),
         })
         .where(eq(clans.id, clan.id));
@@ -330,6 +350,7 @@ export async function POST(req: NextRequest) {
           status: 'suspended',
           gumroadSubscriptionId: null,
           cancelAtPeriodEnd: false,
+          ...MEMBERSHIP_OWNS_PLAN,
           // Money taken back is not tenure.
           ...runOnRefund(),
         })

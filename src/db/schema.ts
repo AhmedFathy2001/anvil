@@ -174,6 +174,9 @@ export const clans = pgTable('clans', {
   fundPlan: text('fund_plan'),
   fundFunded: boolean('fund_funded').notNull().default(false),
   fundShortSince: text('fund_short_since'),
+  // The fund's own checkout token (lib/clanFund), never the plan's `gumroadRef`: the fund page is shown
+  // to members, and the plan webhook refuses a sale carrying it.
+  fundRef: text('fund_ref'),
   // Where the owner said they found Anvil, asked once on /clans/new (lib/foundVia FOUND_VIA). NULL =
   // skipped or created before the question. `foundViaNote` is their free text for 'other'.
   foundVia: text('found_via'),
@@ -220,6 +223,7 @@ export const clans = pgTable('clans', {
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),
   uniqueIndex('clans_gumroad_ref_unique').on(table.gumroadRef),
+  uniqueIndex('clans_fund_ref_unique').on(table.fundRef),
   uniqueIndex('clans_friends_owner_unique').on(table.friendsOwnerUserId).where(sql`friends_owner_user_id is not null`),
   // A creator space is billed from the creator catalogue (lib/creatorCatalog, ids 'creator_…') and a
   // clan from the clan ladder (lib/plans), never the other way round (migration 0203).
@@ -4791,7 +4795,9 @@ export const clanFundPledges = pgTable('clan_fund_pledges', {
   recurrence: text('recurrence'),
   status: text('status').notNull(), // 'active' | 'cancelling' | 'failed' | 'ended' | 'refunded'
   gumroadSubscriptionId: text('gumroad_subscription_id'),
-  gumroadSaleId: text('gumroad_sale_id'), // the last applied charge: the replay latch
+  gumroadSaleId: text('gumroad_sale_id'), // the last applied charge
+  // Every charge applied, JSON array of sale ids (the replay latch: no applied sale ever applies again).
+  appliedSaleIds: text('applied_sale_ids').notNull().default('[]'),
   currentPeriodEnd: text('current_period_end'),
   startedAt: text('started_at').notNull(),
   cancelledAt: text('cancelled_at'),

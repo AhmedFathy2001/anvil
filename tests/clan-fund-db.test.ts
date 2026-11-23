@@ -17,6 +17,9 @@ let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let fund: typeof import('../src/lib/clanFund.ts');
 let gumroad: typeof import('../src/lib/gumroad.ts');
+let sale: typeof import('../src/lib/clanSale.ts');
+let lapse: typeof import('../src/lib/billingLapse.ts');
+let fundRef: string;
 
 let clanId: number;
 let owner: number;
@@ -32,6 +35,8 @@ before(async () => {
   ({ db, pool, schema: s } = await loadDb());
   fund = await import('../src/lib/clanFund.ts');
   gumroad = await import('../src/lib/gumroad.ts');
+  sale = await import('../src/lib/clanSale.ts');
+  lapse = await import('../src/lib/billingLapse.ts');
   fund.fundDeps.dm = async (userId) => {
     told.push(userId);
     return true;
@@ -42,6 +47,7 @@ before(async () => {
   const [p2] = await db.insert(s.players).values({ displayName: 'Member' }).returning();
   member = (await db.insert(s.users).values({ displayName: 'Member', playerId: p2.id, supporterRef: 'ref-member' }).returning())[0].id;
   await db.insert(s.clanStaff).values({ clanId, userId: owner, role: 'owner' });
+  fundRef = await fund.ensureFundRef(clanId);
 });
 
 after(async () => {
@@ -54,20 +60,37 @@ test('fund events are the fund product\'s', () => {
   assert.equal(fund.isFundEvent({ productId: null, productPermalink: 'silver' }), false);
 });
 
+test('the fund has its own token: never the plan ref, and the plan ref buys no chip-in', async () => {
+  assert.notEqual(fundRef, 'fundref');
+  assert.equal(await fund.isFundRef(fundRef), true);
+  assert.equal(await fund.isFundRef('fundref'), false);
+  assert.equal(await fund.ensureFundRef(clanId), fundRef, 'stable');
+  const r = await fund.handleFundEvent(ev({ sale_id: 'x1', subscription_id: 'fx', price: '600', 'url_params[ref]': 'fundref' }));
+  assert.equal(r.body.note, 'no matching clan');
+});
+
 test('the owner starts a fund for one plan; a chip-in below the goal changes nothing', async () => {
   assert.deepEqual(await fund.setFundPlan(clanId, owner, 'silver'), { ok: true });
-  const r = await fund.handleFundEvent(ev({ sale_id: 'a1', subscription_id: 'fa', price: '4000', 'url_params[ref]': 'fundref', 'url_params[payer]': 'ref-member' }));
+  const r = await fund.handleFundEvent(ev({ sale_id: 'a1', subscription_id: 'fa', price: '4000', 'url_params[ref]': fundRef, 'url_params[payer]': 'ref-member' }));
   assert.equal(r.status, 200);
   const [p] = await db.select().from(s.clanFundPledges).where(eq(s.clanFundPledges.gumroadSubscriptionId, 'fa'));
   assert.deepEqual([p.userId, p.isPayer, p.cents, p.status], [member, false, 4000, 'active']);
   assert.equal((await clan()).plan, 'free');
   // Replayed: applied once.
-  const again = await fund.handleFundEvent(ev({ sale_id: 'a1', subscription_id: 'fa', price: '4000', 'url_params[ref]': 'fundref' }));
+  const again = await fund.handleFundEvent(ev({ sale_id: 'a1', subscription_id: 'fa', price: '4000', 'url_params[ref]': fundRef }));
   assert.equal(again.body.note, 'already applied');
 });
 
+test('while a fund runs, a plan membership sale is not applied (exclusive)', async () => {
+  const [c] = await db.select().from(s.clans).where(eq(s.clans.id, clanId));
+  const plan = gumroad.parseWebhook(new URLSearchParams({ sale_id: 'p1', subscription_id: 'psub', price: '699', recurrence: 'monthly', 'url_params[ref]': 'fundref' }).toString());
+  const r = await sale.applyClanSale(c, plan);
+  assert.match(r.note ?? '', /clan fund/);
+  assert.equal((await clan()).plan, 'free');
+});
+
 test('the payer covering the rest reaches the goal: the clan gets exactly that plan', async () => {
-  await fund.handleFundEvent(ev({ sale_id: 'b1', subscription_id: 'fb', price: '2990', 'url_params[ref]': 'fundref', 'url_params[payer]': 'ref-owner', 'url_params[cover]': '1' }));
+  await fund.handleFundEvent(ev({ sale_id: 'b1', subscription_id: 'fb', price: '2990', 'url_params[ref]': fundRef, 'url_params[payer]': 'ref-owner', 'url_params[cover]': '1' }));
   const [p] = await db.select().from(s.clanFundPledges).where(eq(s.clanFundPledges.gumroadSubscriptionId, 'fb'));
   assert.equal(p.isPayer, true);
   const c = await clan();
@@ -86,6 +109,22 @@ test('a cancel keeps counting until its year runs out', async () => {
   assert.equal((await clan()).plan, 'silver');
 });
 
+test('an old membership ending never takes the fund\'s plan; a membership\'s own plan is never shielded', async () => {
+  await db.update(s.clans).set({ gumroadSubscriptionId: 'old-sub' }).where(eq(s.clans.id, clanId));
+  let c = await clan();
+  await lapse.endMembership(c);
+  assert.equal((await clan()).plan, 'silver', 'the fund still pays');
+  // A plan a membership (or staff) set is not the fund's, even if the flag were left on.
+  await db.update(s.clans).set({ plan: 'gold' }).where(eq(s.clans.id, clanId));
+  c = await clan();
+  await lapse.endMembership(c);
+  assert.equal((await clan()).plan, 'free');
+  // The next recompute puts the fund's own plan back while it is funded.
+  await db.update(s.clans).set({ fundFunded: true }).where(eq(s.clans.id, clanId));
+  await fund.recomputeFund(clanId);
+  assert.equal((await clan()).plan, 'silver');
+});
+
 test('a refund stops counting at once: a week of grace, then free', async () => {
   await fund.handleFundEvent(ev({ sale_id: 'a1', subscription_id: 'fa', refunded: 'true', resource_name: 'refund' }));
   const [p] = await db.select().from(s.clanFundPledges).where(eq(s.clanFundPledges.gumroadSubscriptionId, 'fa'));
@@ -98,6 +137,20 @@ test('a refund stops counting at once: a week of grace, then free', async () => 
   assert.equal(r.step, 'drop');
   c = await clan();
   assert.deepEqual([c.plan, c.fundFunded, c.fundPlan], ['free', false, 'silver']);
+  // A refunded chip-in never counts again, whatever charge or sale arrives for it after.
+  const r1 = await fund.handleFundEvent(ev({ sale_id: 'a2', subscription_id: 'fa', price: '4000', is_recurring_charge: 'true' }));
+  assert.equal(r1.body.note, 'refunded');
+  const [again] = await db.select().from(s.clanFundPledges).where(eq(s.clanFundPledges.gumroadSubscriptionId, 'fa'));
+  assert.equal(again.status, 'refunded');
+});
+
+test('any sale already applied to a chip-in never applies again, not only the last', async () => {
+  // fb was sold with b1; a renewal b2 lands; replaying b1 is refused.
+  const before = (await db.select().from(s.clanFundPledges).where(eq(s.clanFundPledges.gumroadSubscriptionId, 'fb')))[0];
+  assert.equal(before.status, 'active');
+  await fund.handleFundEvent(ev({ sale_id: 'b2', subscription_id: 'fb', price: '2990', is_recurring_charge: 'true' }));
+  const r = await fund.handleFundEvent(ev({ sale_id: 'b1', subscription_id: 'fb', price: '2990', 'url_params[ref]': fundRef }));
+  assert.equal(r.body.note, 'already applied');
 });
 
 test('a fund never starts over a membership that pays for the plan', async () => {

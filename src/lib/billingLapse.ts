@@ -17,6 +17,7 @@ import { checkSubscriptionWithGumroad } from '@/lib/gumroad';
 import { freeTierFor, isFreePlanId } from '@/lib/billingCatalog';
 import { fallBackToOlderMembership } from '@/lib/extraMemberships';
 import { log } from '@/lib/logger';
+import { fundPaysPlan } from '@/lib/clanFundRules';
 
 export async function logBilling(clanId: number, eventType: string, detail: unknown, notes = 'gumroad webhook') {
   await db
@@ -37,9 +38,11 @@ export async function logBilling(clanId: number, eventType: string, detail: unkn
  * creator free, lib/billingCatalog). Status is NOT touched: the site, roster and history stay.
  */
 export async function endMembership(clan: { id: number; kind: string; plan: string }, notes = 'gumroad webhook', reason?: string) {
-  // The clan fund pays for the plan now (lib/clanFund): an old membership ending takes nothing away.
-  const funded = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { fundFunded: true } });
-  if (funded?.fundFunded) {
+  // The clan fund pays for the plan in force (lib/clanFund): an old membership ending takes nothing
+  // away. Only the fund's OWN plan, while it says it pays: every membership grant clears the flag
+  // (MEMBERSHIP_OWNS_PLAN), so a membership's plan is never shielded here.
+  const funded = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { plan: true, fundPlan: true, fundFunded: true } });
+  if (funded && fundPaysPlan(funded)) {
     await logBilling(clan.id, 'billing_ended', { from: clan.plan, kept: 'clan fund', ...(reason ? { reason } : {}) }, notes);
     return;
   }
@@ -91,12 +94,13 @@ export async function sweepLapsedBilling(now = Date.now()): Promise<LapseSweepRe
       subscriptionId: clans.gumroadSubscriptionId,
       currentPeriodEnd: clans.currentPeriodEnd,
       fundFunded: clans.fundFunded,
+      fundPlan: clans.fundPlan,
     })
     .from(clans);
 
   const due = paying.filter((c) => {
     // A plan the clan fund pays for (lib/clanFund) has its own daily check.
-    if (!c.subscriptionId || isFreePlanId(c.plan) || c.status === 'suspended' || c.fundFunded) return false;
+    if (!c.subscriptionId || isFreePlanId(c.plan) || c.status === 'suspended' || fundPaysPlan(c)) return false;
     const days = daysUntil(c.currentPeriodEnd, now);
     // No date at all is a subscription from before renewals recorded one — the case that hid lfl.
     return days == null || days < -GRACE_DAYS;

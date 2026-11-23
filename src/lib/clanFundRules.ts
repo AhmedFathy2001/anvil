@@ -114,6 +114,18 @@ export function fundStep(args: { funded: boolean; granted: boolean; shortSince: 
   return now >= graceEndsAt ? { kind: 'drop' } : { kind: 'short', graceEndsAt };
 }
 
+/**
+ * Spread into every write that gives a clan its plan from a MEMBERSHIP (a sale, a renewal, a restart,
+ * an older membership taking over, a staff edit): from then on the plan is not the fund's, so a fund
+ * recompute or a lapse check never treats it as one.
+ */
+export const MEMBERSHIP_OWNS_PLAN = { fundFunded: false, fundShortSince: null } as const;
+
+/** Does the clan fund pay for the plan in force? Only its own plan, and only while it says so. */
+export function fundPaysPlan(clan: { plan: string; fundPlan?: string | null; fundFunded?: boolean | null }): boolean {
+  return !!clan.fundFunded && !!clan.fundPlan && clan.plan === clan.fundPlan;
+}
+
 export function usd(cents: number): string {
   return `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
 }
