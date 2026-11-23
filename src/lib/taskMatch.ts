@@ -243,6 +243,20 @@ const SHORTHANDS: Record<string, string> = {
   zgs: 'zamorak godsword',
   sang: 'sanguinesti staff',
   dpick: 'dragon pickaxe',
+  // Bosses and raids by the name clans actually use.
+  gg: 'grotesque guardians',
+  ggs: 'grotesque guardians',
+  verzik: 'tob',
+  sote: 'tob',
+  sotetseg: 'tob',
+  warden: 'toa',
+  wardens: 'toa',
+  cm: 'cox cm',
+  brother: 'barrows',
+  brothers: 'barrows',
+  dk: 'dagannoth kings',
+  cgs: 'corrupted gauntlet',
+  pc: 'pest control',
 };
 
 // Names a clan uses for ONE item only when the word is the whole task ("Scythe", "Shadow") — inside a

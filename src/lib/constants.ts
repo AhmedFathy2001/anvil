@@ -385,14 +385,18 @@ export function canonicalAgilityCourse(name: string): string {
 
 // Same idea for skills — shorthand players type into filter boxes. Lowercase.
 export const SKILL_ALIASES: Record<string, string[]> = {
-  attack: ["atk"],
+  attack: ["atk", "att"],
   strength: ["str"],
   defence: ["def", "defense"],
   hitpoints: ["hp"],
-  runecraft: ["runecrafting", "rc"],
-  woodcutting: ["wc"],
-  firemaking: ["fm"],
+  magic: ["mage"],
+  runecraft: ["runecrafting", "rc", "rcing", "rune crafting"],
+  woodcutting: ["wc", "wcing"],
+  firemaking: ["fm", "fming"],
   construction: ["con"],
+  agility: ["agi", "agil"],
+  thieving: ["thieve", "thiev", "thief"],
+  mining: ["mine"],
 };
 
 // ── Efficiency metrics (EHP / EHB) ─────────────────────────────────────────────────────────────
