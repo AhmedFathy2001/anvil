@@ -255,8 +255,8 @@ export async function createPracticeBoard(actorUserId: number, clanId: number, i
         rules,
         // The copied board's in-game chat feed comes along — it is one of the things being tested.
         chatFeed: source?.chatFeed ?? false,
-        // Teams are placed here, by hand; nothing joins on its own.
-        teamPlacement: 'draft',
+        // Teams are placed here, by hand; nothing joins on its own. Solo reads as a real solo board.
+        teamPlacement: input.sides === 1 ? 'solo' : 'draft',
         draftStatus: 'complete',
         startDate: new Date(startMs).toISOString(),
         endDate: new Date(endMs).toISOString(),
@@ -291,7 +291,7 @@ export async function createPracticeBoard(actorUserId: number, clanId: number, i
       await tx.insert(eventEditors).values({ eventId: event.id, userId: actorUserId, role: 'editor', grantedByUserId: actorUserId }).onConflictDoNothing();
     }
 
-    for (const plan of practiceTeams(seats.map((s) => s.id), input.sides)) {
+    for (const plan of practiceTeams(seats, input.sides)) {
       const [team] = await tx.insert(teams).values({ eventId: event.id, name: plan.name, color: plan.color }).returning({ id: teams.id });
       for (const seatId of plan.seats) {
         const seat = seats.find((s) => s.id === seatId)!;
@@ -529,6 +529,13 @@ export async function practiceView(event: EventRow, board: typeof practiceBoards
       ])
     : [[], []];
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
+  // Who finished a team's tile, as the event feed says it: the stored finisher (one member's count),
+  // else whoever made the team's latest credit on it (a team total stores none). Newest rows first.
+  const finisherOf = (c: { teamId: number; tileId: number; creditPlayerId: number | null }): string | null => {
+    if (c.creditPlayerId != null) return nameOf.get(c.creditPlayerId) ?? null;
+    const last = subRows.find((s) => s.teamId === c.teamId && s.tileId === c.tileId && (s.creditPlayerId ?? s.playerId) != null);
+    return last ? nameOf.get((last.creditPlayerId ?? last.playerId)!) ?? null : null;
+  };
   const live = await liveStatsForMembers(players.map((p) => p.clanMemberId));
   const modes = countedModes(parseEventRules(event.rules));
 
@@ -570,7 +577,7 @@ export async function practiceView(event: EventRow, board: typeof practiceBoards
           teamId: team.id,
           progress,
           done: !!done,
-          doneBy: done?.creditPlayerId != null ? nameOf.get(done.creditPlayerId) ?? null : null,
+          doneBy: done ? finisherOf(done) : null,
           doneAt: done?.completedAt ?? null,
         };
       }),
@@ -592,7 +599,7 @@ export async function practiceView(event: EventRow, board: typeof practiceBoards
   for (const c of doneRows) {
     const ms = parseStamp(c.completedAt) ?? 0;
     if (ms < since) continue;
-    const who = c.creditPlayerId != null ? nameOf.get(c.creditPlayerId) ?? 'Someone' : (teamRows.find((t) => t.id === c.teamId)?.name ?? 'A team');
+    const who = finisherOf(c) ?? teamRows.find((t) => t.id === c.teamId)?.name ?? 'A team';
     lines.push({ ms, at: new Date(ms).toISOString(), who, kind: 'done', text: `finished ${labelOf.get(c.tileId) ?? 'a tile'}${board.webhookUrl ? ' · post sent to the test hook' : ''}` });
   }
   const seatIds = players.map((p) => p.clanMemberId).filter((id): id is number => id != null);

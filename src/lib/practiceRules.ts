@@ -5,6 +5,7 @@
 // work before a real event — and it counts for NOTHING outside itself.
 
 import { parseDiscordWebhook } from '@/lib/discordWebhookUrl';
+import { nextTeamColour, soloTeamName } from '@/lib/teamPlacement';
 
 /** Most board tiles one practice board may hold (a combo's parts ride along with it, uncounted). */
 export const PRACTICE_MAX_TILES = 25;
@@ -102,13 +103,21 @@ export function parsePracticeInput(body: unknown): { ok: true; value: PracticeIn
 }
 
 /**
- * Who goes on which side. Solo: everyone on one team. Two teams: alternate, the creator first on
- * Team Gold, so a 2-person board is one each. `seats` keeps the order the admin added people in.
+ * Who goes on which side. Solo, as on a real solo board: everyone their own team, named after their
+ * character. Two teams: alternate, the creator first on Team Gold, so a 2-person board is one each.
+ * `seats` keeps the order the admin added people in.
  */
-export function practiceTeams(seats: number[], sides: PracticeSides): { name: string; color: string; seats: number[] }[] {
-  if (sides === 1) return [{ name: 'Practice', color: '#d4a84b', seats: [...seats] }];
-  const gold = seats.filter((_, i) => i % 2 === 0);
-  const blue = seats.filter((_, i) => i % 2 === 1);
+export function practiceTeams(seats: { id: number; rsn: string }[], sides: PracticeSides): { name: string; color: string; seats: number[] }[] {
+  if (sides === 1) {
+    const out: { name: string; color: string; seats: number[] }[] = [];
+    for (const s of seats) {
+      out.push({ name: soloTeamName(s.rsn, out.map((t) => t.name)), color: nextTeamColour(out.map((t) => t.color)), seats: [s.id] });
+    }
+    return out;
+  }
+  const ids = seats.map((s) => s.id);
+  const gold = ids.filter((_, i) => i % 2 === 0);
+  const blue = ids.filter((_, i) => i % 2 === 1);
   return [
     { name: 'Team Gold', color: '#d4a84b', seats: gold },
     { name: 'Team Blue', color: '#5b8fd9', seats: blue },

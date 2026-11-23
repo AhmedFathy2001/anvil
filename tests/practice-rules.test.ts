@@ -78,9 +78,14 @@ test('the setup body is checked: tiles, people, sides, length', () => {
   assert.equal(dup.ok && dup.value.webhookUrl, null);
 });
 
-test('sides: solo is one team, two teams alternate with the creator first', () => {
-  assert.deepEqual(practiceTeams([1, 2, 3], 1).map((t) => t.seats), [[1, 2, 3]]);
-  const two = practiceTeams([1, 2, 3, 4, 5], 2);
+const seat = (id: number, rsn = `P${id}`) => ({ id, rsn });
+
+test('sides: solo is a team each named after the character, two teams alternate with the creator first', () => {
+  const solo = practiceTeams([seat(1, 'muhmadd'), seat(2, 'Titoc'), seat(3, 'titoc')], 1);
+  assert.deepEqual(solo.map((t) => t.seats), [[1], [2], [3]]);
+  assert.deepEqual(solo.map((t) => t.name), ['muhmadd', 'Titoc', 'titoc (2)']);
+  assert.equal(new Set(solo.map((t) => t.color)).size, 3);
+  const two = practiceTeams([1, 2, 3, 4, 5].map((i) => seat(i)), 2);
   assert.deepEqual(two.map((t) => t.seats), [[1, 3, 5], [2, 4]]);
   assert.equal(two[0].name, 'Team Gold');
 });
