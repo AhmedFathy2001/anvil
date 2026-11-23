@@ -2,7 +2,7 @@
  * Which sections the one character profile (components/character/CharacterProfile) shows, by where
  * it is rendered and who is looking. Pure, so the whole matrix is testable without a database.
  *
- *   public — /p/<rsn> on the apex. Only reachable for a shared character, or by its owner.
+ *   public — /p/<rsn> on the apex.
  *   clan   — /c/<clan>/members/<rsn> and the owner's own locker (/c/<clan>/profile).
  *
  * "Owner" is not a page, it is a viewer: an owner sees their editable bits on every surface.
@@ -18,8 +18,6 @@ export interface ProfileSectionInput {
   /** The viewer owns this character. */
   viewerOwns: boolean;
   signedIn: boolean;
-  /** accounts.shared — published beyond the clans it is in. */
-  shared: boolean;
   /** The person behind the character (players.id), if any. */
   personId: number | null;
   /** That person's own switches. */
@@ -34,19 +32,13 @@ export interface ProfileSections {
   personStreams: boolean;
   /** The Supporter display case. Always this character's pins only. */
   displayCase: boolean;
-  /** Filter out pins from non-shared characters — everyone but the owner. */
-  displayCasePublicView: boolean;
-  /** Head-to-head record + Challenge. Its record is cross-clan, so only where /p/ would show it. */
-  h2h: boolean;
-  /** Links onto the platform pages (/p/, Wrapped, Compare), which answer only for shared or owner. */
-  platformLinks: boolean;
   /** Clan placings, rank/guest/joined badges, account type, competition history, moments, radar. */
   clanSections: boolean;
   /** The persona (who plays this, their other accounts): signed-in clan viewers only. */
   persona: boolean;
   /** Clan chip, in-game clan chip, "also plays" — the apex's answer to "which clan?". */
   platformHeader: boolean;
-  /** GoalsCard editing, the share link/toggle, the in-game clan toggle. */
+  /** GoalsCard editing, the share link. */
   ownerControls: boolean;
   /** "Your characters" switcher on /p/ (the locker switches with its own card chips). */
   publicSwitcher: boolean;
@@ -66,16 +58,10 @@ export function personSectionsVisible(input: Pick<ProfileSectionInput, 'personId
 
 export function profileSections(i: ProfileSectionInput): ProfileSections {
   const clan = i.context === 'clan';
-  const platformOpen = i.shared || i.viewerOwns;
   return {
-    // Shared (or the owner looking) as well: a banner or connected stream on a private character's
-    // clan page would tie that private character to the person's public ones.
-    personMedia: platformOpen && personMediaVisible(i),
-    personStreams: platformOpen && personSectionsVisible(i),
+    personMedia: personMediaVisible(i),
+    personStreams: personSectionsVisible(i),
     displayCase: i.personId != null,
-    displayCasePublicView: !i.viewerOwns,
-    h2h: platformOpen,
-    platformLinks: platformOpen,
     clanSections: clan,
     persona: clan && i.signedIn,
     platformHeader: !clan,

@@ -477,11 +477,6 @@ export function Lately({ milestones, flair }: { milestones: RecentMilestone[]; f
  *
  * A RANK WITHOUT ITS GAP IS TRIVIA. "14th" is a fact you read once; "14th — 40K off 13th" is
  * something to go and do, and the difference between the two is one number.
- *
- * This could not have existed until characters were public by default (drizzle/0080). Before it,
- * every account on the first real database was unshared and the platform's own leaderboard had zero
- * rows in it — a record of a hundred and sixty-one active players that nobody, including them, could
- * read.
  */
 export function Standing({ standing, flair }: { standing: PlayerStanding; flair?: OwnFlair | null }) {
   const top = standing.rank === 1;

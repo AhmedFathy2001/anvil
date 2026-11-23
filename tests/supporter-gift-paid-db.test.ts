@@ -41,12 +41,12 @@ async function post(fields: Record<string, string>): Promise<Response> {
 }
 
 let n = 0;
-async function person(name: string, shared = true) {
+async function person(name: string, verified = true) {
   const { db, schema: s } = await loadDb();
   n++;
   const [player] = await db.insert(s.players).values({}).returning();
   const [u] = await db.insert(s.users).values({ displayName: `P ${n}`, discordId: `gift-${n}`, playerId: player.id }).returning();
-  await db.insert(s.accounts).values({ playerId: player.id, rsn: name, rsnNormalized: name.toLowerCase(), shared, verifiedAt: new Date().toISOString() });
+  await db.insert(s.accounts).values({ playerId: player.id, rsn: name, rsnNormalized: name.toLowerCase(), verifiedAt: verified ? new Date().toISOString() : null });
   return u;
 }
 
@@ -83,7 +83,7 @@ test('a gift lands on the recipient once, counts for the giver, and a refund tak
   assert.equal((await giftedMonthsFor([buyer.id])).get(buyer.id) ?? 0, 0, 'and it no longer counts');
 });
 
-test('a hidden character can’t be gifted (and isn’t confirmed to exist); nor can yourself', async () => {
+test('an unverified character can’t be gifted (and isn’t confirmed to exist); nor can yourself', async () => {
   const buyer = await person('Self Gifter');
   await person('Secret Sam', false);
   const { giftRecipient } = await import('../src/lib/supporterGiftCheckout.ts');

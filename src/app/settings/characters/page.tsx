@@ -67,7 +67,6 @@ export default async function CharactersSettingsPage({ searchParams }: { searchP
                   {c.provisional ? <Pill tone="yellow">in review</Pill> : c.verified ? <Pill tone="green">verified</Pill> : <Pill tone="yellow">not verified</Pill>}
                 </>
               }
-              description={c.shared ? 'Public' : 'Only its clans'}
             >
               <ClanLink href={`/settings/characters/${c.accountId}`} className="text-[13px] text-gold hover:text-gold-light">
                 Clans &amp; settings →

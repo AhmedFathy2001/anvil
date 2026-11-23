@@ -40,9 +40,8 @@ export type CardLookup =
   | { kind: 'limited'; retryAfterSec: number };
 
 /**
- * A character's card, with the /p/<rsn> visibility rule (apexCharacter): a shared character is
- * anyone's, an unshared one only its owner's, and everyone else is told the same as for a name not on
- * Anvil. Such a name falls back to the OSRS hiscores (lib/publicHiscoresCard) — the only path here
+ * A character's card, with the /p/<rsn> visibility rule (apexCharacter): a hidden character is told
+ * the same as for a name not on Anvil. Such a name falls back to the OSRS hiscores (lib/publicHiscoresCard) — the only path here
  * that reaches Jagex, so it alone carries the per-IP limit.
  */
 export async function lookupPlayerCard(request: Request, rsn: string): Promise<CardLookup> {
@@ -88,7 +87,7 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
   const [media, discordAvatar, displayCase] = await Promise.all([
     mediaForCharacter(character.accountId, character.personId).catch(() => ({ avatar: null, banner: null })),
     discordOk ? panelDiscordAvatar(character.personId) : Promise.resolve(null),
-    displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns }),
+    displayCaseForPlayer(character.personId, { accountId: character.accountId }),
   ]);
   card.panelMedia = {
     avatar: !!media.avatar || !!discordAvatar,

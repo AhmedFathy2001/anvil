@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   // Live numbers only for a public clan. A private clan's page shows strangers the "this clan is
   // private" card, and its link preview must say no more than that card does.
   const found = clanVisibilityOf(clan.visibility) === 'public' ? await getMemberProfile(clan.id, name) : null;
-  // A link preview is read by nobody in particular: a character kept to its clans gets no numbers in one.
+  // A link preview is read by nobody in particular: a banned owner's character gets no numbers in one.
   const profile = found && !(await characterHiddenFromViewer(clan.id, found.accountId, false)) ? found : null;
   return clanSectionMetadata({
     title: `${profile?.rsn ?? name} — ${clanName}`,
@@ -55,7 +55,7 @@ export default async function MemberProfilePage({
   await creatorPublicAway('/members', clan);
   const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
   if (!profile) notFound();
-  // "Only its clans" (Settings → Privacy): to anyone outside this clan the page does not exist.
+  // A platform-banned owner's character: to anyone outside this clan the page does not exist.
   if (await characterHiddenFromViewer(clan.id, profile.accountId)) notFound();
   // Public page: the viewer only unlocks the persona and the owner's editing (components/character).
   const viewer = await verifyUser();

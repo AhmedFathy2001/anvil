@@ -48,8 +48,8 @@ export default function AccountSettingsPage({ searchParams }: { searchParams: Pr
         title="Who sees my characters"
         intro={
           <>
-            What people outside your clans can see. A clan always sees the characters on its own roster; these choices are about everyone
-            else. Hiding chat in screenshots is under{' '}
+            Every character’s page is public. These choices are about showing your characters as one person and what your home page
+            lists. Hiding chat in screenshots is under{' '}
             <ClanLink href="/settings/posts#screenshot-privacy" className="text-gold hover:text-gold-light">
               Discord posts &amp; screenshots →
             </ClanLink>

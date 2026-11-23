@@ -17,7 +17,7 @@ import {
   teamCardStats,
 } from '@/lib/eventWrappedRules';
 import { siteCard, wrappedCard } from '@/lib/ogCard';
-import { cachedCard, cardId, remoteSprite, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, cardId, remoteSprite } from '@/lib/ogKit';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { isEventEnded } from '@/lib/survey';
 
@@ -73,7 +73,7 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
   const player = wrappedPlayerFor(wrapped, id);
   if (!player) return siteCard();
   const feature = cardFeature(player);
-  const res = await wrappedCard({
+  return wrappedCard({
     ...base,
     name: player.name,
     accent: player.team?.color ?? null,
@@ -84,8 +84,6 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
     nearMisses: nearMisses(player),
     luck: luckLine(player),
   });
-  const accounts = player.playerIds.map((pid) => wrapped.accountOf[pid]).filter((a): a is number => a != null);
-  return showingAccounts(res, accounts);
 }
 
 export function GET(request: Request, ctx: { params: Promise<Params> }) {

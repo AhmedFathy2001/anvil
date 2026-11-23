@@ -1,4 +1,5 @@
 import { ownerNotBanned } from '@/lib/bannedPeople';
+import { notErasedStandIn } from '@/lib/erasedCharacters';
 import { NextResponse } from 'next/server';
 import { and, asc, desc, eq, isNull, like, ne, sql } from 'drizzle-orm';
 
@@ -12,9 +13,8 @@ import { accounts, clanMemberships, clans } from '@/db/schema';
  * page — you could reach a profile by being in the top twenty-five of a table or by already knowing
  * the URL. For a page whose whole job is to be looked at, that is the missing half.
  *
- * SHARED ONLY, which is the same rule /p/ enforces and for the same reason: an unshared character is
- * indistinguishable from one that does not exist. A search that confirmed "this RSN is on Anvil but
- * you may not see it" would leak exactly what the sharing switch is for.
+ * A platform-banned owner's characters, and characters left behind by an account deletion, are left
+ * out: the same rule /p/ enforces.
  *
  * Public on purpose — everything it can return is already public — and capped so it cannot be walked
  * as an enumeration of the platform.
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         eq(clans.visibility, 'public'),
       ),
     )
-    .where(and(eq(accounts.shared, true), ownerNotBanned, like(accounts.rsnNormalized, `${term}%`)))
+    .where(and(ownerNotBanned, notErasedStandIn, like(accounts.rsnNormalized, `${term}%`)))
     // A name that STARTS with what was typed, best-known first — somebody typing three letters is
     // far more often after the account with numbers on it than the one nobody has seen.
     .orderBy(desc(sql`coalesce(${accounts.statsOverallXp}, 0)`), asc(accounts.rsnNormalized))

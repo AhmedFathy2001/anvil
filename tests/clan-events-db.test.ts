@@ -30,7 +30,7 @@ before(async () => {
   clanId = (await db.insert(s.clans).values({ slug: 'masses', name: 'Masses' }).returning())[0].id;
   const [me] = await db.insert(s.players).values({ displayName: 'Me' }).returning();
   meUser = (await db.insert(s.users).values({ displayName: 'Massgoer', discordId: 'ce-me', pluginTokenHash: tokenHash(TOKEN), playerId: me.id }).returning())[0].id;
-  const [main] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Mass Main', rsnNormalized: 'mass main', shared: false, claimedAt: new Date().toISOString() }).returning();
+  const [main] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Mass Main', rsnNormalized: 'mass main', claimedAt: new Date().toISOString() }).returning();
   await db.insert(s.clanMemberships).values({ clanId, accountId: main.id, kind: 'member' });
   const [other] = await db.insert(s.players).values({ displayName: 'Stranger' }).returning();
   await db.insert(s.users).values({ displayName: 'Stranger', discordId: 'ce-x', pluginTokenHash: tokenHash(STRANGER), playerId: other.id });

@@ -34,11 +34,8 @@ export const dynamic = 'force-dynamic';
  * numbers with the leader in gold, then every skill, boss and log page where the two actually differ
  * — is the comparison and the bragging rights in one URL.
  *
- * SAME VISIBILITY AS /p/<rsn>, and for the same reason: `apexCharacter` is the one rule. A shared
- * character is anyone's to compare; an unshared one only its owner's (so you can line yourself up
- * against a friend before you publish). Everybody else gets the form back with "not on Anvil, or not
- * shared" — one sentence for both cases, because telling them apart would disclose what the owner
- * withheld.
+ * SAME VISIBILITY AS /p/<rsn>, and for the same reason: `apexCharacter` is the one rule. A name it
+ * does not answer for gets the form back with "not on Anvil".
  *
  * The numbers come off `loadPlayerCard`, the loader the plugin's card already uses, so a comparison
  * can never disagree with the profile each name links to.
@@ -75,17 +72,11 @@ export async function generateMetadata({
   if (!a || !b) return { title: 'Compare players — Anvil' };
   const title = `${a.rsn} vs ${b.rsn} — Anvil`;
   const tail = 'Levels, XP, efficiency, boss kills and collection log, side by side on Anvil.';
-  // A private character is in this comparison only because its owner is the one looking — and the
-  // preview Discord fetches is for everybody else, so it says nothing past the names.
-  const shared = !a.privateToViewer && !b.privateToViewer;
-  const description = shared
-    ? headToHeadDescription(a.rsn, b.rsn, comparePlayers(...(await Promise.all([loadPlayerCard(a), loadPlayerCard(b)]))).headline, tail)
-    : `${a.rsn} and ${b.rsn}: ${tail.charAt(0).toLowerCase()}${tail.slice(1)}`;
+  const description = headToHeadDescription(a.rsn, b.rsn, comparePlayers(...(await Promise.all([loadPlayerCard(a), loadPlayerCard(b)]))).headline, tail);
   const image = `/api/og/compare/${encodeURIComponent(a.rsn)}/${encodeURIComponent(b.rsn)}`;
   return {
     title,
     description,
-    ...(shared ? {} : { robots: { index: false, follow: false } }),
     openGraph: { title, description, type: 'website', siteName: 'Anvil', images: [{ url: image, width: 1200, height: 630, alt: title }] },
     twitter: { card: 'summary_large_image', title, description, images: [image] },
   };

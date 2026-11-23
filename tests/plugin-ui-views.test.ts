@@ -28,13 +28,12 @@ before(async () => {
 
   const [me] = await db.insert(s.players).values({ displayName: 'Me' }).returning();
   await db.insert(s.users).values({ displayName: 'me', discordId: 'disc-me', pluginTokenHash: tokenHash(TOKEN), playerId: me.id });
-  const [mine] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Ui Main', rsnNormalized: 'ui main', shared: false, claimedAt: new Date().toISOString() }).returning();
+  const [mine] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Ui Main', rsnNormalized: 'ui main', claimedAt: new Date().toISOString() }).returning();
   await db.insert(s.memberClog).values({ accountId: mine.id, obtained: 1, total: 1600, pagesSynced: 1, pagesTotal: 1, syncedAt: new Date().toISOString() });
   await db.insert(s.memberClogItems).values({ accountId: mine.id, itemId: 12921, pageName: 'Zulrah', quantity: 1 });
 
   const [other] = await db.insert(s.players).values({ displayName: 'Other' }).returning();
-  await db.insert(s.accounts).values({ playerId: other.id, rsn: 'Ui Shared', rsnNormalized: 'ui shared', shared: true, claimedAt: new Date().toISOString() });
-  await db.insert(s.accounts).values({ playerId: other.id, rsn: 'Ui Hidden', rsnNormalized: 'ui hidden', shared: false });
+  await db.insert(s.accounts).values({ playerId: other.id, rsn: 'Ui Shared', rsnNormalized: 'ui shared', claimedAt: new Date().toISOString() });
 });
 
 after(async () => {
@@ -59,12 +58,10 @@ function texts(n: Node): string[] {
   return out;
 }
 
-test('a shared character is anyone’s card; a private one reads as not on Anvil, except to its owner', async () => {
+test('a character is anyone’s card, and its owner’s', async () => {
   const shared = await V.pluginView(req(), 'player', { rsn: 'Ui Shared' });
   assert.ok(texts(shared!.ui).includes('Ui Shared'));
 
-  // The hiscores fallback would go to Jagex for a name it can't show; a private name must not leak
-  // either way, so only the owner's own token turns it into a card.
   const mine = await V.pluginView(asMe(), 'player', { rsn: 'Ui Main' });
   assert.ok(texts(mine!.ui).includes('Ui Main'));
   assert.ok(!texts(mine!.ui).some((t) => t.startsWith('Not on Anvil')));

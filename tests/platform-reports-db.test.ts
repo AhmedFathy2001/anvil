@@ -44,7 +44,6 @@ let panelId: number;
 let eventId: number;
 let privateEventId: number;
 let sharedAccount: number;
-let unsharedAccount: number;
 let highlightId: number;
 
 const file = (who: { userId: number; playerId: number }, type: string, id: number, extra: { category?: unknown; note?: unknown } = {}) =>
@@ -92,10 +91,8 @@ before(async () => {
     .returning();
   privateEventId = pe.id;
 
-  const [a1] = await db.insert(s.accounts).values({ playerId: streamerPerson.playerId, rsn: 'Shared Guy', rsnNormalized: 'shared guy', shared: true }).returning();
+  const [a1] = await db.insert(s.accounts).values({ playerId: streamerPerson.playerId, rsn: 'Shared Guy', rsnNormalized: 'shared guy' }).returning();
   sharedAccount = a1.id;
-  const [a2] = await db.insert(s.accounts).values({ playerId: streamerPerson.playerId, rsn: 'Hidden Guy', rsnNormalized: 'hidden guy', shared: false }).returning();
-  unsharedAccount = a2.id;
 
   const [h] = await db
     .insert(s.streamHighlights)
@@ -148,8 +145,6 @@ test('each kind of thing can be reported, and lands in the staff queue with its 
     assert.match(row.snapshot, snap, type);
     assert.ok(row.href, `${type} links through`);
   }
-  // The person page has no hidden characters in its snapshot.
-  assert.ok(!queue.find((q) => q.targetType === 'person')!.snapshot.includes('Hidden Guy'));
   // Filters: by kind, and profiles as one.
   assert.equal((await R.listReports({ status: 'open', type: 'clan' })).length, 1);
   assert.deepEqual((await R.listReports({ status: 'open', type: 'character' })).map((r) => r.targetType).sort(), ['character', 'person']);
@@ -179,8 +174,6 @@ test('one open report per person per thing; another person is another report', a
 });
 
 test('what the reporter cannot see cannot be reported, and bad input is refused', async () => {
-  assert.equal((await file(viewer, 'character', unsharedAccount)).ok, false, 'an unshared character');
-  assert.equal((await file(streamerPerson, 'character', unsharedAccount)).ok, true, 'but its owner sees it');
   assert.equal((await file(viewer, 'event', privateEventId)).ok, false, 'an invite-only event');
   assert.equal((await file(viewer, 'person', viewer.playerId)).ok, false, 'a person who has not linked publicly');
   assert.equal((await file(viewer, 'space', clanId)).ok, false, 'a regular clan is not a creator page');
@@ -346,8 +339,7 @@ test('no existence oracle: what the reporter may not see answers exactly like a 
     })
     .returning();
   await sameAsMissing('highlight', clip.id);
-  // An unshared character, and a person who is not public.
-  await sameAsMissing('character', unsharedAccount);
+  // A person who is not public.
   await sameAsMissing('person', viewer2.playerId);
 
   // Someone with a grant in the private clan can see it, so can report it.

@@ -24,11 +24,11 @@ const T0 = '2026-10-20T12:00:00.000Z';
 const T1 = '2026-10-20T18:00:00.000Z'; // same day
 const T2 = '2026-10-22T12:00:00.000Z'; // two days on
 
-async function account(rsn: string, shared = true): Promise<number> {
+async function account(rsn: string): Promise<number> {
   const [pl] = await db.insert(s.players).values({ displayName: rsn }).returning();
   const [a] = await db
     .insert(s.accounts)
-    .values({ playerId: pl.id, rsn, rsnNormalized: rsn.toLowerCase(), shared })
+    .values({ playerId: pl.id, rsn, rsnNormalized: rsn.toLowerCase() })
     .returning();
   return a.id;
 }
@@ -39,7 +39,7 @@ before(async () => {
   G = await import('../src/lib/gameClans.ts');
   alice = await account('Alice');
   bob = await account('Bob');
-  carol = await account('Carol', false);
+  carol = await account('Carol');
 });
 
 after(async () => {
@@ -67,24 +67,23 @@ test('another spelling of the same name lands on the same clan', async () => {
   assert.equal((await db.select().from(s.gameClans)).length, 1);
 });
 
-test('the ghost page lists shared, unhidden characters by rank — never an unshared one', async () => {
+test('the ghost page lists every reported character by rank', async () => {
   const page = await G.ghostClanPage('Iron Foundry');
   assert.equal(page?.kind, 'ghost');
   if (page?.kind !== 'ghost') return;
-  assert.deepEqual(page.members.map((m) => m.rsn), ['Alice', 'Bob']);
+  assert.deepEqual(page.members.map((m) => m.rsn), ['Alice', 'Bob', 'Carol']);
   assert.equal(page.members[0].title, 'Dragonstone');
 });
 
-test('hiding leaves the page, and survives leaving and rejoining a clan', async () => {
-  await G.setGameClanHidden(bob, true);
-  const page = await G.ghostClanPage('iron foundry');
-  assert.deepEqual(page?.kind === 'ghost' && page.members.map((m) => m.rsn), ['Alice']);
-
+test('changing clan moves the character to the other page', async () => {
   await G.recordGameClan(bob, null, T2);
   await G.recordGameClan(bob, { name: 'Other Clan', rank: 1, title: null, joinedOn: null }, T2);
   const [row] = await db.select().from(s.accountGameClans).where(eq(s.accountGameClans.accountId, bob));
-  assert.equal(row.hidden, true);
-  assert.equal(await G.ghostClanPage('Other Clan'), null, 'only a hidden member: nothing to show');
+  assert.ok(row.gameClanId != null);
+  const page = await G.ghostClanPage('iron foundry');
+  assert.deepEqual(page?.kind === 'ghost' && page.members.map((m) => m.rsn), ['Alice', 'Carol']);
+  const other = await G.ghostClanPage('Other Clan');
+  assert.deepEqual(other?.kind === 'ghost' && other.members.map((m) => m.rsn), ['Bob']);
 });
 
 test('the profile reads the clan, and stops once the sighting goes stale', async () => {
@@ -96,7 +95,7 @@ test('the profile reads the clan, and stops once the sighting goes stale', async
   await G.recordGameClan(alice, { name: 'Iron Foundry', rank: 100, title: 'Dragonstone', joinedOn: '2025-03-14' });
 });
 
-test('leads count every fresh member, hidden too, and drop clans already on Anvil', async () => {
+test('leads count every fresh member, and drop clans already on Anvil', async () => {
   const leads = await G.ghostClanLeads();
   assert.deepEqual(leads.map((l) => [l.name, l.members]), [['Iron Foundry', 2], ['Other Clan', 1]]);
 });

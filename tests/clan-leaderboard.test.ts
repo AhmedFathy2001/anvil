@@ -32,7 +32,7 @@ let hidden: number;
 
 const today = new Date().toISOString().slice(0, 10);
 
-async function gainer(clanId: number | null, rsn: string, xp: number, opts: { kind?: 'member' | 'guest'; shared?: boolean } = {}) {
+async function gainer(clanId: number | null, rsn: string, xp: number, opts: { kind?: 'member' | 'guest' } = {}) {
   const { db, schema: s } = await loadDb();
   const [pl] = await db.insert(s.players).values({ displayName: rsn }).returning();
   const [acct] = await db
@@ -41,7 +41,6 @@ async function gainer(clanId: number | null, rsn: string, xp: number, opts: { ki
       playerId: pl.id,
       rsn,
       rsnNormalized: rsn.toLowerCase(),
-      shared: opts.shared ?? false,
     })
     .returning();
   if (clanId != null) {
@@ -83,10 +82,10 @@ before(async () => {
   // The shy clan opted out of being listed — the same switch the directory reads.
   await db.insert(s.settings).values({ clanId: hidden, key: 'public_showcase', value: 'off' });
 
-  await gainer(verifiedA, 'Alpha One', 1_000_000, { shared: true });
+  await gainer(verifiedA, 'Alpha One', 1_000_000);
   await gainer(verifiedA, 'Alpha Two', 500_000);
-  await gainer(verifiedB, 'Bravo One', 400_000, { shared: true });
-  await gainer(unverified, 'Ghost', 9_000_000, { shared: true });
+  await gainer(verifiedB, 'Bravo One', 400_000);
+  await gainer(unverified, 'Ghost', 9_000_000);
   await gainer(hidden, 'Shy One', 8_000_000);
 });
 
@@ -197,25 +196,22 @@ test('a clan with members but no gains still appears, at zero', async () => {
 
 // ── Players ───────────────────────────────────────────────────────────────────────────────────
 
-test('only shared accounts are named in the player table', async () => {
-  // The apex holds no seats, so the visibility rule reduces to sharing. A cross-clan table is not a
-  // way around a privacy setting.
+test('every character is named in the player table', async () => {
   const players = await L.topPlayers('7d');
   const names = players.map((p) => p.rsn);
-  assert.ok(names.includes('Alpha One'), 'shared');
-  assert.equal(names.includes('Alpha Two'), false, 'not shared, so not named');
+  assert.ok(names.includes('Alpha One'));
+  assert.ok(names.includes('Alpha Two'));
 });
 
-test('an unshared player still counts towards their clan’s total', async () => {
-  // Which is the point: private about yourself, still part of your clan.
+test('a clan total counts every member', async () => {
   const alpha = (await L.clanStandings('7d')).find((r) => r.slug === 'alpha')!;
-  assert.equal(alpha.xpGained, 1_500_000, 'includes the unshared member');
+  assert.equal(alpha.xpGained, 1_500_000);
 });
 
-test('a shared player in an unlisted clan is named without their clan being ranked', async () => {
-  // Sharing is the person's decision; listing is the clan's. Neither overrides the other.
+test('a player in an unlisted clan is named without their clan being ranked', async () => {
+  // Listing is the clan's decision; it does not take the player off the table.
   const players = await L.topPlayers('7d');
   const ghost = players.find((p) => p.rsn === 'Ghost');
-  assert.ok(ghost, 'their own choice to be visible stands');
+  assert.ok(ghost, 'the player stands');
   assert.equal((await L.clanStandings('7d')).some((r) => r.slug === 'nobadge'), false);
 });
