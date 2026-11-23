@@ -33,6 +33,7 @@ export function parseCandidate(raw: unknown): DropCandidate | null {
     source: str(o.source),
     sourceKind: str(o.sourceKind, 32),
     kc: num(o.kc),
+    kcOf: str(o.kcOf, 64),
     items,
     key: o.key === true,
     note: str(o.note, 512),

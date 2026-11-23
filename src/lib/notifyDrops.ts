@@ -171,6 +171,8 @@ export interface DropCandidate {
   source?: string | null;
   sourceKind?: string | null;
   kc?: number | null;
+  /** The count line a raid drop's KC came from ("Chambers of Xeric Challenge Mode"): names the mode. */
+  kcOf?: string | null;
   /** The items the plugin's gate let through (loot keys themselves already left out). */
   items: CandidateItem[];
   /** A loot key's contents: one post for the lot, gated only by its total. */
@@ -200,7 +202,7 @@ export interface JudgeContext {
 export function judgeDrop(c: DropCandidate, ctx: JudgeContext, gatesOverride?: DropGates): Record<string, unknown> | null {
   const { prefs } = ctx;
   if (!prefs.drops || !c.items.length) return null;
-  const base = { rsn: c.rsn ?? null, source: c.source ?? null, sourceKind: c.sourceKind ?? null, kc: c.kc ?? null };
+  const base = { rsn: c.rsn ?? null, source: c.source ?? null, sourceKind: c.sourceKind ?? null, kc: c.kc ?? null, ...(c.kcOf ? { kcOf: c.kcOf } : {}) };
   const gates = gatesOverride ?? dropGates(prefs, ctx.clan);
   const mainRarity = gates.rarity;
 

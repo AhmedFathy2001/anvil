@@ -21,6 +21,7 @@ import {
   huntFromInput,
   huntKindWord,
   huntPanelLine,
+  dueWords,
   huntReportItemIdsOf,
   huntRowProgress,
   huntRowStatKeys,
@@ -257,6 +258,16 @@ test('"all of them": the first to hold every row wins and ends it; the rest rank
   ]);
   const line = huntPanelLine(c, rows[1], null);
   assert.equal(line.figure, '8 pts · 2/3');
+});
+
+test('how due reads: tenths under 10%, never a flat 0% for a few kills of a rare pet', () => {
+  assert.equal(dueWords(0.0004), '<0.1%');
+  assert.equal(dueWords(0.004), '0.4%');
+  assert.equal(dueWords(0.0612), '6.1%');
+  assert.equal(dueWords(0.61), '61%');
+  const c = v2({ items: v2Input().items.slice(0, 2) });
+  assert.equal(huntPanelLine(c, { count: 0, held: 0, due: 0, drops: [] }, null).figure, 'no kc yet');
+  assert.equal(huntPanelLine(c, { count: 0, held: 0, due: 0.004, drops: [] }, null).figure, '0.4% due');
 });
 
 test('"all of them" with nobody finishing runs to the end date', () => {
