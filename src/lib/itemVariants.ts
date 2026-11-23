@@ -10,13 +10,16 @@ import variantData from '@/data/itemVariants.json';
 import npcDrops from '@/data/npcDrops.json';
 
 let groupOf: Map<number, number[]> | null = null;
+let formed: Set<number[]> | null = null;
 let clogShared: Set<number> | null = null;
 let droppedBy: Map<number, Set<string>> | null = null;
 
 function load() {
   if (groupOf) return;
   groupOf = new Map();
-  for (const g of (variantData as { groups: number[][] }).groups) for (const id of g) groupOf.set(id, g);
+  const data = variantData as { groups: number[][]; forms?: number[] };
+  for (const g of data.groups) for (const id of g) groupOf.set(id, g);
+  formed = new Set((data.forms ?? []).map((i) => data.groups[i]));
   const byName = new Map<string, number[]>();
   for (const items of Object.values((clogData as { activities?: Record<string, { id: number; name: string }[]> }).activities ?? {})) {
     for (const it of items) {
@@ -64,6 +67,23 @@ export function withItemVariants(ids: readonly number[]): number[] {
       seen.add(v);
       out.push(v);
     }
+  }
+  return out;
+}
+
+/**
+ * Each item's other ids that count as it, for an item that comes in other forms (charged and
+ * uncharged) — not one whose only other ids are its noted and placeholder copies. The editor's
+ * "any version counts" note.
+ */
+export function otherVersions(ids: readonly number[]): Record<number, number[]> {
+  load();
+  const out: Record<number, number[]> = {};
+  for (const id of ids) {
+    const g = groupOf!.get(id);
+    if (!g || !formed!.has(g)) continue;
+    const rest = withItemVariants([id]).slice(1);
+    if (rest.length) out[id] = rest;
   }
   return out;
 }

@@ -40,3 +40,10 @@ test('a cave kraken trident never counts as the Kraken\'s', () => {
   assert.ok(!withItemVariants([11908]).includes(11905));
   assert.ok(!withItemVariants([11905]).includes(11908));
 });
+
+test('the editor\'s note: other versions per item, none for a one-id item', async () => {
+  const { otherVersions } = await import('../src/lib/itemVariants.ts');
+  const v = otherVersions([9044, 12922]);
+  assert.ok(v[9044].includes(26950));
+  assert.equal(v[12922], undefined);
+});
