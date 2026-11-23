@@ -18,6 +18,7 @@ import { runOnPaid } from '@/lib/clanTenure';
 import { billingTierOf, catalogOfKind, entryTierFor, gumroadPurchase, isNowPlanProduct, type BillingTier } from '@/lib/billingCatalog';
 import { extraForClanSubscription, noteToCancel, noteWaiting, resolveExtraBySubscription } from '@/lib/extraMemberships';
 import { hadMembership, hadPlanTrial } from '@/lib/planTrials';
+import { payerForSale } from '@/lib/planPayers';
 import { tierRankOf, usedTrialHold } from '@/lib/planTrialRules';
 
 type Clan = typeof clans.$inferSelect;
@@ -161,6 +162,8 @@ export async function applyClanSale(
     gumroadSubscriptionId: ev.subscriptionId,
     gumroadProductId: ev.productId,
     gumroadProductPermalink: ev.productPermalink,
+    // Who started this membership (lib/planPayers): the payer ref on their checkout, if they may pay.
+    planPaidByUserId: await payerForSale(clan.id, ev.urlParams.payer),
   };
 
   if (hold.hold) {

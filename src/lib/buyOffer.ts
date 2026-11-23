@@ -10,7 +10,7 @@
 //
 // Pure: no database import.
 
-import { usd, yearlyPriceUsd, type BillingInterval } from './billingInterval.ts';
+import { usd, withPayer, yearlyPriceUsd, type BillingInterval } from './billingInterval.ts';
 import { TRIAL_DAYS, checkoutUrlWithRef, trialDaysFrom, type Plan } from './plans.ts';
 import { creatorCheckoutUrlWithRef, type CreatorPlan } from './creatorCatalog.ts';
 import { buyButtons, type BuyButtons } from './planTrialRules.ts';
@@ -23,12 +23,13 @@ import { buyButtons, type BuyButtons } from './planTrialRules.ts';
 export const SUPPORTER_TRIAL_DAYS = trialDaysFrom(process.env.GUMROAD_SUPPORTER_TRIAL_DAYS);
 
 /** A clan tier's buttons for the clan whose checkout `ref` this is. */
-export function clanBuy(plan: Plan, ref: string | null | undefined, interval: BillingInterval, trialUsed: boolean): BuyButtons {
+export function clanBuy(plan: Plan, ref: string | null | undefined, interval: BillingInterval, trialUsed: boolean, payerRef?: string | null): BuyButtons {
   return buyButtons({
     gumroadTrialDays: TRIAL_DAYS,
     trialUsed,
-    trialUrl: checkoutUrlWithRef(plan, ref, interval, 'trial'),
-    nowUrl: checkoutUrlWithRef(plan, ref, interval, 'now'),
+    // `payerRef`: who is buying (lib/planPayers), so the sale records whose membership it is.
+    trialUrl: withPayer(checkoutUrlWithRef(plan, ref, interval, 'trial'), payerRef),
+    nowUrl: withPayer(checkoutUrlWithRef(plan, ref, interval, 'now'), payerRef),
   });
 }
 

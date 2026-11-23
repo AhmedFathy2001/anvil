@@ -88,6 +88,9 @@ const MODERATOR_PATHS = [
   // A co-hosted board's own corner: this clan's sign-ups, its team, the board if the host allows it,
   // and its Discord. The page re-checks the co-host seat; Discord setup is admin-only within it.
   '/admin/cohosted',
+  // Plan and billing: a moderator or treasurer the owner let pay buys from it (lib/planPayers); the
+  // rest of the tier sees the plan and who pays, read-only.
+  '/admin/plan',
 ];
 
 /**

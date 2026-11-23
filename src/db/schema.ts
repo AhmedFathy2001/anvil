@@ -163,6 +163,10 @@ export const clans = pgTable('clans', {
   // The correlation token appended to the checkout URL and echoed back by Gumroad — how a payment
   // finds the clan that started it.
   gumroadRef: text('gumroad_ref'),
+  // Who started the membership paying for `plan` (lib/planPayers): the owner, or a staff member the
+  // owner let pay (clan_staff.can_pay_plan). Display and notices only: what the clan is entitled to is
+  // still `plan`. Null = not known (a purchase from before this, or a checkout without the payer ref).
+  planPaidByUserId: integer('plan_paid_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   // Where the owner said they found Anvil, asked once on /clans/new (lib/foundVia FOUND_VIA). NULL =
   // skipped or created before the question. `foundViaNote` is their free text for 'other'.
   foundVia: text('found_via'),
@@ -265,6 +269,10 @@ export const clanStaff = pgTable('clan_staff', {
   // Discord. Another capability on top of the tier, like canEditTiles — admins hold it implicitly, and
   // a plain member may hold it too (lib/adminAccess then confines them to /admin/guides).
   canEditGuides: boolean('can_edit_guides').notNull().default(false),
+  // The owner let this admin, treasurer or moderator pay for the clan's plan (lib/planPayers): they
+  // see the buy buttons and the membership they start is theirs. Only the owner sets it; it means
+  // nothing on a member row or once the role drops below moderator.
+  canPayPlan: boolean('can_pay_plan').notNull().default(false),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   // One grant per person per clan; a second would make "what is their role here?" ambiguous.

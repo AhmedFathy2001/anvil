@@ -3,6 +3,7 @@ import { NextResponse, after } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { sweepLapsedBilling } from '@/lib/billingLapse';
 import { sweepLapsedSupporters } from '@/lib/supporterBilling';
+import { sweepPlanPayers } from '@/lib/planPayers';
 import { sweepSupporterMoments } from '@/lib/supporterMoments';
 import { startDueQueuedGifts } from '@/lib/supporterGifts';
 import { sendTrialReminders } from '@/lib/trialReminders';
@@ -44,6 +45,9 @@ export async function GET(request: Request) {
   // "add time" whose paid membership has stopped (lib/supporterGifts). Neither touches Gumroad.
   const reminders = await sendTrialReminders().catch((e) => { log.error('trial-reminders.failed', { error: String(e) }); return { sent: 0 }; });
   const started = await startDueQueuedGifts().catch((e) => { log.error('queued-gifts.failed', { error: String(e) }); return { started: 0 }; });
+  // A plan payer who left the clan or lost the role while their membership runs is told (lib/planPayers).
+  const payers = await sweepPlanPayers().catch((e) => { log.error('plan-payers.failed', { error: String(e) }); return { told: 0 }; });
+  log.info('plan-payers.done', payers);
   log.info('billing-cron.followups', { reminders: reminders.sent, queuedGiftsStarted: started.started });
   log.info('billing-cron.done', { ...result, ended: result.ended.length });
   // Daily too, but after the answer: tenure steps and streak milestones walk every clan, and the
