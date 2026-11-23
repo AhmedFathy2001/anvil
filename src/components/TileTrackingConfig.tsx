@@ -42,7 +42,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ComboPartsField, { blankPart, draftsFromParts, partPayload, type ComboPartDraft } from '@/components/ComboPartsField';
 import ClogTileFields from '@/components/ClogTileFields';
 import SmartTip from '@/components/SmartTip';
-import { itemPoolTitle } from '@/lib/tileNames';
+import { itemPoolTitle, listNames } from '@/lib/tileNames';
 import { clogTileTitle } from '@/lib/clogTileWords';
 import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboList, type ComboRule } from '@/lib/combo';
 import { listKillKey, listRule, readListTile } from '@/lib/listTile';
@@ -1310,6 +1310,13 @@ function TileTrackingEditor({
     if (kind === 'clog') {
       if (clogPages.length === 0 && clogItemIds.length === 0) return null;
       return clogTileTitle({ mode: clogMode, pages: clogPages, itemIds: clogItemIds, required: Math.max(1, parseInt(requiredAmount, 10) || 1) });
+    }
+    // An item set with named sets reads by its sets: "Bow or Staff set", "Helm, Top & Weapon (one each)".
+    if (kind === 'collection' && collectionGroups.length >= 2) {
+      const names = collectionGroups.map((g) => g.name);
+      if (groupMode === 'any') return `${listNames(names)} set`;
+      const oneEach = collectionGroups.every((g) => (groupRequires[g.key] ?? g.size) === 1);
+      return `${listNames(names, 'and')}${oneEach ? ' (one each)' : ''}`;
     }
     if ((kind === 'drop' || kind === 'collection' || kind === 'gain') && trackedItems.length > 0) {
       return itemPoolTitle({

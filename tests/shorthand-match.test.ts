@@ -47,8 +47,17 @@ test('Barbarian Assault: gambles are the BA counter, other BA lines ask, never B
   assert.equal(top('50 barbarian outpost laps')?.config.tileType, 'lap');
 });
 
-test('Pest Control has no tile kind yet: never a confident wrong tile', () => {
-  for (const q of ['10 pc games', 'pest control wins']) assert.notEqual(classifyMatches(matchTasks(q)).status, 'ready', q);
+test('Pest Control: games won and commendation points (plugin 1.17.3+ chat counter)', () => {
+  for (const q of ['10 pc games', 'pest control wins', '10 pest control games']) {
+    assert.deepEqual(top(q)?.config.targetNpcs, ['Pest Control games won'], q);
+    assert.equal(classifyMatches(matchTasks(q)).status, 'ready', q);
+  }
+  for (const q of ['500 pc points', '500 commendation points']) {
+    assert.deepEqual(top(q)?.config.targetNpcs, ['Pest Control points'], q);
+    assert.equal(classifyMatches(matchTasks(q)).status, 'ready', q);
+  }
+  // Just "pest control" could be either: it asks.
+  assert.equal(classifyMatches(matchTasks('pest control')).status, 'pick');
 });
 
 test('boss shorthand', () => {

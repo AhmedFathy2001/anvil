@@ -127,7 +127,9 @@ const MODES: { key: GenMode; label: string; blurb: string }[] = [
 // plugin's collection-log-unlock crediting.
 /** A new tile's name from the page and what was kept (lib/tileNames): "ToA unique", "Every Barrows piece". */
 function autoName(kept: ClogItem[], need: 'any' | 'each', n: number, page?: string | null): string {
-  return itemPoolTitle({ items: kept, need, amount: n, pagesOf: () => (page ? [page] : undefined) });
+  const title = itemPoolTitle({ items: kept, need, amount: n, pagesOf: () => (page ? [page] : undefined) });
+  // Minor slots kept (the switch off): it is the page's items, not its uniques.
+  return kept.some((it) => it.minor) ? title.replace(/\b(?:unique|piece)(s?)$/, 'log item$1') : title;
 }
 
 export default function ClogGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, pointsMode, onCreated, onError }: Props) {

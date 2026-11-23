@@ -672,12 +672,18 @@ function counterVerb(c: { name: string; group: string }): string {
   return 'Complete';
 }
 
+// Other names a counter goes by ("pest control wins" is "Pest Control games won").
+const COUNTER_ALIASES: Record<string, string[]> = {
+  'Pest Control games won': ['pest control wins', 'pest control games', 'pest control win'],
+  'Pest Control points': ['pest control commendation points', 'commendation points', 'void knight commendation points', 'pest control pts'],
+};
+
 function counterDrafts(ctx: MatchContext): (Draft & Named)[] {
   return (ctx.counters ?? COUNTER_TARGETS).map((c) => ({
     key: `counter-${c.name}`,
     source: 'counter',
     badge: 'Counter',
-    names: [c.name],
+    names: [c.name, ...(COUNTER_ALIASES[c.name] ?? [])],
     aliases: [],
     titleTemplate: `{n} ${c.name}`,
     verb: counterVerb(c),
@@ -1718,7 +1724,8 @@ function counterWordGuard(query: string, found: TaskCandidate[]): TaskCandidate[
     const need = c.source === 'counter' ? COUNTER_NEEDS_WORD[c.noun] : undefined;
     if (!need || need.some((w) => said.has(w)) || !c.confident) return c;
     changed = true;
-    return { ...c, confident: false, score: Math.min(c.score, 5.5) };
+    // Still offered as a choice (classifyMatches keeps 6+), never picked on its own.
+    return { ...c, confident: false, score: Math.min(c.score, 6) };
   });
   return changed ? out.sort((a, b) => b.score - a.score) : out;
 }

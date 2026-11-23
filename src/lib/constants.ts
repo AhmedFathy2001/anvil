@@ -299,6 +299,11 @@ export const COUNTER_TARGETS: { name: string; group: string; note: string; confi
   { name: 'GOTR total energy', group: 'Minigames', note: 'Elemental + catalytic energy attuned per game', actionMax: 14 },
   { name: 'Vale research points', group: 'Skilling', note: 'Vale Totems offerings searched — 1 point each, 5 for a "five times" search', actionMax: 5 },
   { name: 'Sunstone golems crafted', group: 'Skilling', note: 'One per golem completed ("As you complete the golem it leaves a gift…")' },
+  // Pest Control (chat-patterns.json "counter.pest_control_win", plugin 1.17.3+): the "awarded you N
+  // Void Knight Commendation points" line of a won game. Wording not yet seen in game, so beta.
+  // Points per game: 3/4/5 by lander plus the Combat Achievement bonus → at most 10.
+  { name: 'Pest Control games won', group: 'Minigames', note: 'One per won game (the commendation points line). Needs plugin 1.17.3+', confirmed: false, actionMax: 1 },
+  { name: 'Pest Control points', group: 'Minigames', note: 'Void Knight commendation points earned from won games. Needs plugin 1.17.3+', confirmed: false, actionMax: 10 },
   // Chests are credited off the LOOT EVENT (one event per open), NOT off the game's "You have
   // opened the crystal chest N times." line — that one is a query response (it has a "never
   // opened" form), so counting occurrences of it would credit nothing for a real open and

@@ -65,7 +65,7 @@ test('new chat counters have their patterns in the site copy of the catalog', ()
     patterns: { key: string }[];
   };
   const keys = new Set(catalog.patterns.map((p) => p.key));
-  for (const k of ['counter.gotr_energy', 'counter.reward_search', 'counter.vale_offerings', 'counter.sunstone_golem', 'counter.doom_delve']) {
+  for (const k of ['counter.gotr_energy', 'counter.reward_search', 'counter.vale_offerings', 'counter.sunstone_golem', 'counter.doom_delve', 'counter.pest_control_win']) {
     assert.ok(keys.has(k), k);
   }
 });
