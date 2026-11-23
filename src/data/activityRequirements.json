@@ -1,0 +1,1224 @@
+{
+ "_comment": "Per-activity account requirements for the ability table (lib/capability). hard = game-enforced skill gates; realistic = the low end of the OSRS Wiki recommended stats (raid/endgame floors hand-lowered to the realistic minimum); ironGear = for irons, every group needs any one item in the collection log. Overridable per clan via balance_rates.requirements (merged by key). Gear names must be collection-log item names (the blowpipe is proven by its Tanzanite fang).",
+ "source": "OSRS Wiki strategy pages, curated 2026-11-23",
+ "activities": {
+  "abyssalSire": {
+   "hard": {
+    "slayer": 85
+   },
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 75,
+    "prayer": 70,
+    "hitpoints": 80
+   },
+   "pureFriendly": false,
+   "related": [
+    "alchemicalHydra",
+    "cerberus"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Abyssal_Sire/Strategies"
+  },
+  "alchemicalHydra": {
+   "hard": {
+    "slayer": 95
+   },
+   "realistic": {
+    "ranged": 85,
+    "defence": 80,
+    "prayer": 74,
+    "hitpoints": 85
+   },
+   "pureFriendly": false,
+   "related": [
+    "cerberus",
+    "abyssalSire",
+    "kraken"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Alchemical_Hydra/Strategies"
+  },
+  "amoxliatl": {
+   "hard": {},
+   "realistic": {
+    "attack": 60,
+    "strength": 60,
+    "defence": 60,
+    "prayer": 37,
+    "hitpoints": 60
+   },
+   "pureFriendly": true,
+   "related": [
+    "hueycoatl",
+    "shellbaneGryphon"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Amoxliatl/Strategies"
+  },
+  "araxxor": {
+   "hard": {
+    "slayer": 92
+   },
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 85,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "abyssalSire",
+    "nightmare"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Araxxor/Strategies"
+  },
+  "artio": {
+   "hard": {},
+   "realistic": {
+    "ranged": 60,
+    "defence": 60,
+    "prayer": 44,
+    "magic": 75
+   },
+   "pureFriendly": false,
+   "related": [
+    "callisto",
+    "venenatis"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Artio/Strategies"
+  },
+  "barrows": {
+   "hard": {},
+   "realistic": {
+    "attack": 50,
+    "strength": 50,
+    "defence": 50,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "giantMole",
+    "sarachnis"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Barrows/Strategies"
+  },
+  "brutus": {
+   "hard": {},
+   "realistic": {
+    "attack": 40,
+    "strength": 40,
+    "defence": 40,
+    "hitpoints": 40
+   },
+   "pureFriendly": true,
+   "related": [
+    "scurrius"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Brutus/Strategies"
+  },
+  "bryophyta": {
+   "hard": {},
+   "realistic": {
+    "attack": 40,
+    "strength": 40,
+    "defence": 40,
+    "hitpoints": 40
+   },
+   "pureFriendly": true,
+   "related": [
+    "obor",
+    "scurrius"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Bryophyta"
+  },
+  "callisto": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 60,
+    "prayer": 44,
+    "hitpoints": 75
+   },
+   "pureFriendly": true,
+   "related": [
+    "artio",
+    "venenatis",
+    "vetion"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Callisto/Strategies"
+  },
+  "calvarion": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "strength": 70,
+    "defence": 70,
+    "ranged": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "vetion",
+    "spindel"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Calvar%27ion/Strategies"
+  },
+  "cerberus": {
+   "hard": {
+    "slayer": 91
+   },
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 85,
+    "ranged": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "alchemicalHydra",
+    "abyssalSire"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Cerberus/Strategies"
+  },
+  "chambersOfXeric": {
+   "hard": {},
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 80,
+    "ranged": 80,
+    "magic": 80,
+    "prayer": 70,
+    "hitpoints": 80
+   },
+   "pureFriendly": false,
+   "related": [
+    "chambersOfXericChallengeMode",
+    "tombsOfAmascut",
+    "theatreOfBlood"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Chambers_of_Xeric/Strategies"
+  },
+  "chaosElemental": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "strength": 70,
+    "defence": 70,
+    "prayer": 44
+   },
+   "pureFriendly": true,
+   "related": [
+    "chaosFanatic",
+    "scorpia"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Chaos_Elemental/Strategies"
+  },
+  "chaosFanatic": {
+   "hard": {},
+   "realistic": {
+    "ranged": 70,
+    "magic": 70,
+    "defence": 60,
+    "prayer": 37
+   },
+   "pureFriendly": true,
+   "related": [
+    "crazyArchaeologist",
+    "chaosElemental"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Chaos_Fanatic/Strategies"
+  },
+  "commanderZilyana": {
+   "hard": {
+    "strength": 70
+   },
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 70,
+    "ranged": 80,
+    "magic": 70,
+    "prayer": 44
+   },
+   "pureFriendly": false,
+   "related": [
+    "generalGraardor",
+    "krilTsutsaroth",
+    "kreeArra"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Commander_Zilyana/Strategies"
+  },
+  "corporealBeast": {
+   "hard": {},
+   "realistic": {
+    "attack": 85,
+    "strength": 94,
+    "defence": 94,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "nex",
+    "generalGraardor"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Corporeal_Beast/Strategies"
+  },
+  "corruptedGauntlet": {
+   "hard": {},
+   "realistic": {
+    "attack": 80,
+    "ranged": 80,
+    "magic": 80,
+    "defence": 77,
+    "prayer": 77
+   },
+   "pureFriendly": false,
+   "related": [
+    "gauntlet",
+    "tzKalZuk"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies"
+  },
+  "chambersOfXericChallengeMode": {
+   "hard": {},
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 75,
+    "ranged": 90,
+    "magic": 90,
+    "prayer": 77
+   },
+   "pureFriendly": false,
+   "ironGear": [
+    [
+     "twisted bow",
+     "dragon hunter crossbow",
+     "tumeken's shadow (uncharged)"
+    ]
+   ],
+   "related": [
+    "chambersOfXeric",
+    "tombsOfAmascutExpertMode"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Chambers_of_Xeric_Challenge_Mode"
+  },
+  "crazyArchaeologist": {
+   "hard": {},
+   "realistic": {
+    "ranged": 50,
+    "magic": 50,
+    "defence": 40,
+    "prayer": 40
+   },
+   "pureFriendly": true,
+   "related": [
+    "derangedArchaeologist",
+    "chaosFanatic"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Crazy_archaeologist/Strategies"
+  },
+  "dagannothPrime": {
+   "hard": {},
+   "realistic": {
+    "magic": 75,
+    "defence": 70,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "dagannothRex",
+    "dagannothSupreme"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Dagannoth_Kings"
+  },
+  "dagannothRex": {
+   "hard": {},
+   "realistic": {
+    "ranged": 75,
+    "defence": 70,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "dagannothPrime",
+    "dagannothSupreme"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Dagannoth_Kings"
+  },
+  "dagannothSupreme": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 70,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "dagannothPrime",
+    "dagannothRex"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Dagannoth_Kings"
+  },
+  "derangedArchaeologist": {
+   "hard": {},
+   "realistic": {
+    "ranged": 75,
+    "magic": 50,
+    "defence": 40,
+    "prayer": 40
+   },
+   "pureFriendly": true,
+   "related": [
+    "crazyArchaeologist"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Deranged_archaeologist/Strategies"
+  },
+  "doomOfMokhaiotl": {
+   "hard": {},
+   "realistic": {
+    "ranged": 90,
+    "magic": 90,
+    "defence": 85,
+    "prayer": 77,
+    "hitpoints": 90
+   },
+   "pureFriendly": false,
+   "related": [
+    "yama",
+    "fracturedArchive"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies"
+  },
+  "dukeSucellus": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 70,
+    "ranged": 80,
+    "prayer": 70,
+    "hitpoints": 75
+   },
+   "pureFriendly": false,
+   "related": [
+    "vardorvis",
+    "leviathan",
+    "whisperer"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Duke_Sucellus/Strategies"
+  },
+  "generalGraardor": {
+   "hard": {
+    "strength": 70
+   },
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 70,
+    "ranged": 80,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "commanderZilyana",
+    "krilTsutsaroth",
+    "kreeArra"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/General_Graardor/Strategies"
+  },
+  "giantMole": {
+   "hard": {},
+   "realistic": {
+    "attack": 60,
+    "strength": 60,
+    "defence": 60,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "barrows",
+    "kingBlackDragon"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Giant_Mole/Strategies"
+  },
+  "grotesqueGuardians": {
+   "hard": {
+    "slayer": 75
+   },
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 70,
+    "ranged": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "abyssalSire",
+    "cerberus"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Grotesque_Guardians/Strategies"
+  },
+  "hespori": {
+   "hard": {
+    "farming": 65
+   },
+   "realistic": {
+    "attack": 60,
+    "strength": 60,
+    "defence": 60
+   },
+   "pureFriendly": true,
+   "related": [],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Hespori/Strategies"
+  },
+  "kalphiteQueen": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 75,
+    "ranged": 70,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "kingBlackDragon",
+    "giantMole"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Kalphite_Queen/Strategies"
+  },
+  "kingBlackDragon": {
+   "hard": {},
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 70,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "giantMole",
+    "kalphiteQueen"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/King_Black_Dragon/Strategies"
+  },
+  "kraken": {
+   "hard": {
+    "slayer": 87
+   },
+   "realistic": {
+    "ranged": 75,
+    "magic": 70,
+    "defence": 75
+   },
+   "pureFriendly": false,
+   "related": [
+    "thermonuclearSmokeDevil",
+    "alchemicalHydra"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Kraken/Strategies"
+  },
+  "kreeArra": {
+   "hard": {
+    "ranged": 70
+   },
+   "realistic": {
+    "ranged": 80,
+    "defence": 70,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "commanderZilyana",
+    "generalGraardor",
+    "krilTsutsaroth"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Kree%27arra/Strategies"
+  },
+  "krilTsutsaroth": {
+   "hard": {
+    "hitpoints": 70
+   },
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "commanderZilyana",
+    "generalGraardor",
+    "kreeArra"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/K%27ril_Tsutsaroth/Strategies"
+  },
+  "lunarChests": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "strength": 70,
+    "defence": 70,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "yama"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Lunar_Chest"
+  },
+  "madAngel": {
+   "hard": {},
+   "realistic": {},
+   "pureFriendly": false,
+   "related": [],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Mad_Angel"
+  },
+  "maggotKing": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "ranged": 70,
+    "defence": 70,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Maggot_King"
+  },
+  "mimic": {
+   "hard": {},
+   "realistic": {},
+   "pureFriendly": false,
+   "related": [],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Mimic"
+  },
+  "nex": {
+   "hard": {},
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 80,
+    "ranged": 85,
+    "magic": 85,
+    "prayer": 74
+   },
+   "pureFriendly": false,
+   "related": [
+    "commanderZilyana",
+    "generalGraardor",
+    "krilTsutsaroth"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Nex/Strategies"
+  },
+  "nightmare": {
+   "hard": {},
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 85,
+    "ranged": 85,
+    "magic": 85,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "phosanisNightmare",
+    "araxxor"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Nightmare/Strategies"
+  },
+  "obor": {
+   "hard": {},
+   "realistic": {
+    "attack": 50,
+    "strength": 50,
+    "defence": 50,
+    "hitpoints": 50
+   },
+   "pureFriendly": true,
+   "related": [
+    "bryophyta",
+    "hespori"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Obor"
+  },
+  "phantomMuspah": {
+   "hard": {},
+   "realistic": {
+    "ranged": 85,
+    "magic": 85,
+    "defence": 75,
+    "prayer": 74
+   },
+   "pureFriendly": false,
+   "related": [
+    "vardorvis",
+    "dukeSucellus"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Phantom_Muspah/Strategies"
+  },
+  "phosanisNightmare": {
+   "hard": {},
+   "realistic": {
+    "attack": 95,
+    "strength": 95,
+    "defence": 85,
+    "ranged": 95,
+    "magic": 95,
+    "prayer": 77
+   },
+   "pureFriendly": false,
+   "related": [
+    "nightmare",
+    "nex"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Phosani%27s_Nightmare/Strategies"
+  },
+  "sarachnis": {
+   "hard": {},
+   "realistic": {
+    "attack": 65,
+    "strength": 65,
+    "defence": 65,
+    "ranged": 65,
+    "magic": 60,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "barrows",
+    "giantMole"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Sarachnis/Strategies"
+  },
+  "scorpia": {
+   "hard": {},
+   "realistic": {
+    "magic": 70,
+    "defence": 40,
+    "prayer": 40
+   },
+   "pureFriendly": true,
+   "related": [
+    "venenatis",
+    "chaosElemental"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Scorpia/Strategies"
+  },
+  "scurrius": {
+   "hard": {},
+   "realistic": {
+    "attack": 50,
+    "strength": 50,
+    "defence": 50,
+    "ranged": 50,
+    "magic": 50,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "brutus",
+    "giantMole"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Scurrius/Strategies"
+  },
+  "shellbaneGryphon": {
+   "hard": {},
+   "realistic": {
+    "attack": 65,
+    "strength": 65,
+    "defence": 70,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "amoxliatl"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Shellbane_Gryphon/Strategies"
+  },
+  "skotizo": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 75,
+    "ranged": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "abyssalSire",
+    "grotesqueGuardians"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Skotizo/Strategies"
+  },
+  "solHeredit": {
+   "hard": {},
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 80,
+    "ranged": 85,
+    "magic": 85,
+    "prayer": 77
+   },
+   "pureFriendly": false,
+   "related": [
+    "tzKalZuk",
+    "tzTokJad"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Fortis_Colosseum/Strategies"
+  },
+  "spindel": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "strength": 70,
+    "defence": 70,
+    "ranged": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "calvarion",
+    "vetion"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Spindel/Strategies"
+  },
+  "tempoross": {
+   "hard": {
+    "fishing": 35
+   },
+   "realistic": {},
+   "pureFriendly": true,
+   "related": [
+    "wintertodt",
+    "zalcano"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Tempoross/Strategies"
+  },
+  "fracturedArchive": {
+   "hard": {},
+   "realistic": {
+    "attack": 90,
+    "strength": 90,
+    "defence": 90,
+    "ranged": 90,
+    "magic": 90,
+    "prayer": 77,
+    "hitpoints": 90
+   },
+   "pureFriendly": false,
+   "related": [
+    "tombsOfAmascut",
+    "chambersOfXeric",
+    "theatreOfBlood"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Fractured_Archive"
+  },
+  "gauntlet": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "ranged": 70,
+    "magic": 70,
+    "defence": 70,
+    "prayer": 77
+   },
+   "pureFriendly": false,
+   "related": [
+    "corruptedGauntlet"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Gauntlet/Strategies"
+  },
+  "hueycoatl": {
+   "hard": {},
+   "realistic": {
+    "attack": 60,
+    "strength": 60,
+    "defence": 60,
+    "ranged": 70,
+    "prayer": 43
+   },
+   "pureFriendly": true,
+   "related": [
+    "amoxliatl"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Hueycoatl/Strategies"
+  },
+  "leviathan": {
+   "hard": {},
+   "realistic": {
+    "ranged": 75,
+    "magic": 70,
+    "defence": 80,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "dukeSucellus",
+    "vardorvis",
+    "whisperer"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Leviathan/Strategies"
+  },
+  "royalTitans": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 75,
+    "defence": 75,
+    "ranged": 75,
+    "magic": 75,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "dukeSucellus"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Royal_Titans"
+  },
+  "whisperer": {
+   "hard": {},
+   "realistic": {
+    "magic": 75,
+    "defence": 80,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "dukeSucellus",
+    "vardorvis",
+    "leviathan"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Whisperer/Strategies"
+  },
+  "theatreOfBlood": {
+   "hard": {},
+   "realistic": {
+    "attack": 85,
+    "strength": 85,
+    "defence": 75,
+    "ranged": 85,
+    "magic": 85,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "theatreOfBloodHardMode",
+    "chambersOfXeric"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Theatre_of_Blood/Strategies"
+  },
+  "thermonuclearSmokeDevil": {
+   "hard": {
+    "slayer": 93
+   },
+   "realistic": {
+    "attack": 90,
+    "strength": 90,
+    "defence": 90,
+    "ranged": 90,
+    "magic": 90,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "kraken"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Thermonuclear_smoke_devil/Strategies"
+  },
+  "tombsOfAmascutExpertMode": {
+   "hard": {},
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 80,
+    "ranged": 85,
+    "magic": 80,
+    "prayer": 77,
+    "hitpoints": 85
+   },
+   "pureFriendly": false,
+   "related": [
+    "tombsOfAmascut",
+    "chambersOfXericChallengeMode"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Tombs_of_Amascut/Strategies"
+  },
+  "theatreOfBloodHardMode": {
+   "hard": {},
+   "realistic": {
+    "attack": 90,
+    "strength": 90,
+    "defence": 80,
+    "ranged": 90,
+    "magic": 90,
+    "prayer": 77
+   },
+   "pureFriendly": false,
+   "related": [
+    "theatreOfBlood",
+    "chambersOfXericChallengeMode"
+   ],
+   "confidence": "low",
+   "wiki": "https://oldschool.runescape.wiki/w/Theatre_of_Blood:_Hard_Mode"
+  },
+  "tombsOfAmascut": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "strength": 70,
+    "defence": 70,
+    "ranged": 75,
+    "magic": 70,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "tombsOfAmascutExpertMode",
+    "chambersOfXeric"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Tombs_of_Amascut/Strategies"
+  },
+  "tzKalZuk": {
+   "hard": {},
+   "realistic": {
+    "ranged": 90,
+    "magic": 85,
+    "defence": 75,
+    "prayer": 70,
+    "hitpoints": 85
+   },
+   "pureFriendly": false,
+   "ironGear": [
+    [
+     "twisted bow",
+     "tanzanite fang"
+    ]
+   ],
+   "related": [
+    "corruptedGauntlet",
+    "tzTokJad",
+    "solHeredit"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/The_Inferno"
+  },
+  "tzTokJad": {
+   "hard": {},
+   "realistic": {
+    "ranged": 70,
+    "defence": 60,
+    "prayer": 43,
+    "hitpoints": 70
+   },
+   "pureFriendly": true,
+   "related": [
+    "tzKalZuk",
+    "solHeredit"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/TzHaar_Fight_Cave"
+  },
+  "vardorvis": {
+   "hard": {},
+   "realistic": {
+    "attack": 80,
+    "strength": 85,
+    "defence": 80,
+    "ranged": 85
+   },
+   "pureFriendly": false,
+   "related": [
+    "dukeSucellus",
+    "leviathan",
+    "whisperer"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Vardorvis/Strategies"
+  },
+  "venenatis": {
+   "hard": {},
+   "realistic": {
+    "attack": 75,
+    "strength": 80,
+    "defence": 70,
+    "ranged": 75,
+    "prayer": 70,
+    "magic": 94
+   },
+   "pureFriendly": true,
+   "related": [
+    "artio",
+    "callisto",
+    "scorpia"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Venenatis/Strategies"
+  },
+  "vetion": {
+   "hard": {},
+   "realistic": {
+    "attack": 70,
+    "strength": 70,
+    "defence": 70,
+    "ranged": 75,
+    "prayer": 70
+   },
+   "pureFriendly": true,
+   "related": [
+    "calvarion",
+    "callisto",
+    "spindel"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Vet%27ion/Strategies"
+  },
+  "vorkath": {
+   "hard": {},
+   "realistic": {
+    "ranged": 85,
+    "defence": 75,
+    "prayer": 74,
+    "hitpoints": 85
+   },
+   "pureFriendly": false,
+   "related": [
+    "zulrah",
+    "alchemicalHydra"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Vorkath/Strategies"
+  },
+  "wintertodt": {
+   "hard": {
+    "firemaking": 50
+   },
+   "realistic": {
+    "hitpoints": 40
+   },
+   "pureFriendly": true,
+   "related": [
+    "tempoross",
+    "zalcano"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Wintertodt/Strategies"
+  },
+  "yama": {
+   "hard": {},
+   "realistic": {
+    "attack": 80,
+    "strength": 80,
+    "defence": 75,
+    "magic": 80,
+    "prayer": 70
+   },
+   "pureFriendly": false,
+   "related": [
+    "doomOfMokhaiotl",
+    "nex"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Yama/Strategies"
+  },
+  "zalcano": {
+   "hard": {
+    "mining": 70,
+    "smithing": 70
+   },
+   "realistic": {},
+   "pureFriendly": true,
+   "related": [
+    "tempoross",
+    "wintertodt"
+   ],
+   "confidence": "medium",
+   "wiki": "https://oldschool.runescape.wiki/w/Zalcano/Strategies"
+  },
+  "zulrah": {
+   "hard": {},
+   "realistic": {
+    "ranged": 80,
+    "magic": 75,
+    "defence": 70,
+    "prayer": 70,
+    "hitpoints": 80
+   },
+   "pureFriendly": false,
+   "related": [
+    "vorkath"
+   ],
+   "confidence": "high",
+   "wiki": "https://oldschool.runescape.wiki/w/Zulrah/Strategies"
+  }
+ }
+}

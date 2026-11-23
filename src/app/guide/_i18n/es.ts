@@ -1343,16 +1343,16 @@ const es: PartialGuideDict = {
         'No tienes por qué hacer un draft. **Team placement**, en el formulario de creación y en la pestaña **Sign-ups**, decide dónde acaba cada nueva inscripción:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'cada persona que se inscribe entra en el equipo con menos jugadores. Tú solo eliges cuántos equipos hay. Bueno para eventos públicos grandes.',
+          term: 'Even split',
+          body: 'cada persona que se inscribe entra en el equipo con menos jugadores, así los equipos quedan parejos. Se basa en el número de personas, no en el nivel. Tú solo eliges cuántos equipos hay. Bueno para eventos públicos grandes.',
         },
         {
           term: 'Players pick',
-          body: 'primero creas los equipos, y cada jugador elige uno en el formulario de inscripción. Pon un límite por equipo para que queden parejos.',
+          body: 'primero creas los equipos, y cada jugador elige uno en el formulario de inscripción. Ningún equipo puede superar en dos jugadores al más pequeño, así no se amontonan todos en uno. Pon un límite por equipo si quieres también un tope fijo.',
         },
         {
           term: 'Host drafts',
-          body: 'todos esperan en un grupo hasta que tú o tus capitanes los elijáis en el draft o los asignéis a mano. Lo mejor si conoces a los jugadores.',
+          body: 'todos esperan en un grupo. Tus capitanes eligen por turnos en orden serpiente (1, 2, 3, luego 3, 2, 1) contra un reloj de selección, viendo las respuestas de inscripción de cada jugador, o tú colocas a las personas a mano. Lo mejor si conoces a los jugadores.',
         },
         {
           term: 'Solo',

@@ -79,7 +79,8 @@ export function tierPickBlockReason(
     (p) => p.teamId == null && balance.tierByPersonKey.get(p.personKey) === tier,
   );
   if (!poolHasTier) return null;
-  return `Tier-${tier} coverage: every team takes a tier-${tier} player before anyone takes another. Pick from a lower tier this turn.`;
+  // No tier named: a captain reading "tier-S" would learn who the S players are (member privacy).
+  return 'Balance rule: every team gets one of the top picks before anyone gets a second. Pick someone else this turn.';
 }
 
 /**

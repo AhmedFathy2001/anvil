@@ -1342,16 +1342,16 @@ const no: PartialGuideDict = {
         'Du trenger ikke å drafte. **Team placement**, på opprettingsskjemaet og fanen **Sign-ups**, bestemmer hvor hver nye påmelding havner:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'hver person som melder seg på, havner på laget med færrest spillere. Du velger bare hvor mange lag det skal være. Bra for store, åpne eventer.',
+          term: 'Even split',
+          body: 'hver person som melder seg på, havner på laget med færrest spillere, så lagstørrelsene forblir jevne. Det går etter antall, ikke ferdighet. Du velger bare hvor mange lag det skal være. Bra for store, åpne eventer.',
         },
         {
           term: 'Players pick',
-          body: 'du lager lagene først, og hver spiller velger ett i påmeldingsskjemaet. Sett en grense per lag for å holde dem jevne.',
+          body: 'du lager lagene først, og hver spiller velger ett i påmeldingsskjemaet. Ingen lag kan få mer enn to spillere foran det minste, så folk ikke alle havner på ett lag. Sett en grense per lag hvis du også vil ha et hardt tak.',
         },
         {
           term: 'Host drafts',
-          body: 'alle venter i en pulje til du eller kapteinene dine drafter dem eller fordeler dem for hånd. Best når du kjenner spillerne.',
+          body: 'alle venter i en pulje. Kapteinene dine velger på tur fra den i slangerekkefølge (1, 2, 3, deretter 3, 2, 1) mot en tidtaker, og ser påmeldingssvarene til hver spiller, eller du plasserer folk for hånd. Best når du kjenner spillerne.',
         },
         {
           term: 'Solo',

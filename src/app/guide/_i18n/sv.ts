@@ -1342,16 +1342,16 @@ const sv: PartialGuideDict = {
         'Du måste inte drafta. **Team placement**, i skapa-formuläret och på fliken **Sign-ups**, avgör var varje ny anmälan hamnar:',
       placementRows: [
         {
-          term: 'Auto-balance',
-          body: 'varje person som anmäler sig hamnar i laget med minst spelare. Du väljer bara hur många lag det ska vara. Bra för stora öppna event.',
+          term: 'Even split',
+          body: 'varje person som anmäler sig hamnar i laget med minst spelare, så lagen blir jämna. Det styrs av antal, inte skicklighet. Du väljer bara hur många lag det ska vara. Bra för stora öppna event.',
         },
         {
           term: 'Players pick',
-          body: 'du skapar lagen först, och varje spelare väljer ett i anmälningsformuläret. Sätt en gräns per lag för att hålla dem jämna.',
+          body: 'du skapar lagen först, och varje spelare väljer ett i anmälningsformuläret. Inget lag kan få fler än två spelare före det minsta, så folk inte samlas i ett. Sätt en gräns per lag om du också vill ha ett hårt tak.',
         },
         {
           term: 'Host drafts',
-          body: 'alla väntar i en pool tills du eller dina kaptener draftar dem eller placerar dem för hand. Bäst när du känner spelarna.',
+          body: 'alla väntar i en pool. Dina kaptener turas om att plocka ur den i ormordning (1, 2, 3, sedan 3, 2, 1) mot en pickklocka, och ser varje spelares anmälningssvar, eller så placerar du folk för hand. Bäst när du känner spelarna.',
         },
         {
           term: 'Solo',

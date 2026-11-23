@@ -9,8 +9,8 @@ import type { WarRoomPerson } from '@/lib/warRoom';
 // about someone is still choosing between them and four others, so this is a drawer, not a modal.
 //
 // Order is deliberate: their own answers first (the thing a captain can't get anywhere else), then
-// their record here, then what the rating is actually built on. The number comes last because it's
-// the least trustworthy part and a captain should be able to disagree with it on purpose.
+// their public hiscores facts. No rating, tier or history is shown to a captain — member privacy,
+// even from their own clan admins — so the choice rests on what the player said and what's public.
 
 export const DOMAIN_LABEL: Record<string, string> = {
   raids: 'Raids',
@@ -20,29 +20,6 @@ export const DOMAIN_LABEL: Record<string, string> = {
 };
 
 const BOSS_LABEL: Record<string, string> = Object.fromEntries(BOSSES.map((b) => [b.key, b.label]));
-
-const BAND_COPY: Record<WarRoomPerson['band'], { label: string; cls: string }> = {
-  tight: { label: 'tight', cls: 'text-accent-green-light border-accent-green/40' },
-  medium: { label: 'medium', cls: 'text-yellow-400 border-yellow-500/40' },
-  wide: { label: 'wide', cls: 'text-text-muted border-card-border' },
-};
-
-export function TierChip({ tier }: { tier: string | null }) {
-  if (!tier) return null;
-  const cls =
-    tier === 'S'
-      ? 'bg-gold/15 text-gold-light border-gold/45'
-      : tier === 'A'
-        ? 'bg-violet-500/15 text-violet-300 border-violet-500/40'
-        : tier === 'B'
-          ? 'bg-blue-500/15 text-blue-400 border-blue-500/35'
-          : 'bg-brown-light text-text-muted border-card-border';
-  return (
-    <span className={`w-[18px] h-[18px] shrink-0 grid place-items-center rounded font-mono text-[10px] font-bold border ${cls}`}>
-      {tier}
-    </span>
-  );
-}
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -98,7 +75,6 @@ function DrawerBody({
   onPick,
 }: DrawerProps & { person: WarRoomPerson }) {
   const [note, setNote] = useState(person.shortlistNote ?? '');
-  const band = BAND_COPY[person.band];
   const answers = person.answers;
   const taken = person.teamId != null;
 
@@ -111,7 +87,6 @@ function DrawerBody({
       >
         <div className="p-4 border-b border-card-border">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <TierChip tier={person.tier} />
             <h3 className="text-xl font-bold tracking-tight truncate">{person.rsn}</h3>
             <button
               type="button"
@@ -123,16 +98,6 @@ function DrawerBody({
             </button>
           </div>
           <div className="flex items-center gap-2.5 mt-2 flex-wrap text-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-14 h-1.5 rounded-full bg-brown-light overflow-hidden">
-                <span
-                  className="block h-full rounded-full bg-gradient-to-r from-gold-dark to-gold-light"
-                  style={{ width: `${Math.round(person.rating * 100)}%` }}
-                />
-              </span>
-              <span className="font-mono text-xs text-text-muted">{person.rating.toFixed(2)}</span>
-            </span>
-            <span className={`text-[10px] px-1.5 rounded border ${band.cls}`}>{band.label} confidence</span>
             <span className="text-xs text-text-muted">
               {taken ? `taken by ${person.teamName}` : 'in the pool'}
             </span>
@@ -216,22 +181,7 @@ function DrawerBody({
             )}
           </Section>
 
-          <Section title="Track record">
-            <div className="grid gap-2">
-              <Row k="Events played" v={person.evidenceEvents} />
-              <Row
-                k="Days active"
-                v={person.reliability != null ? `${Math.round(person.reliability * 100)}%` : '—'}
-              />
-              <Row k="Subbed out" v={person.subbedOutBefore ? 'once' : 'never'} />
-              {person.activityKc != null && <Row k="Recent KC" v={person.activityKc.toLocaleString()} />}
-              {person.activityXp != null && (
-                <Row k="Recent XP" v={`${(person.activityXp / 1_000_000).toFixed(1)}m`} />
-              )}
-            </div>
-          </Section>
-
-          <Section title="What the rating is built on">
+          <Section title="Boss kill counts">
             {person.markers.length > 0 ? (
               <div className="grid gap-1.5">
                 {person.markers.map((m) => (
@@ -248,17 +198,8 @@ function DrawerBody({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-text-muted">
-                No capability markers hit yet — the rating leans on volume and activity instead.
-              </p>
+              <p className="text-sm text-text-muted">No marker bosses on the hiscores yet.</p>
             )}
-            <p className="text-[11px] text-text-muted mt-2.5">
-              {person.evidenceEvents === 0
-                ? 'No event history yet — a wide band. Trust your own read over the number.'
-                : person.evidenceEvents === 1
-                  ? 'One event of history — the rating leans on markers and recent activity rather than results.'
-                  : `${person.evidenceEvents} events of history — past results carry most of the rating.`}
-            </p>
           </Section>
 
           <Section

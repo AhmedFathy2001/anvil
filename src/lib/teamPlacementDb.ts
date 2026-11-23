@@ -61,7 +61,7 @@ export async function teamLoads(eventId: number, exec: Exec = db): Promise<TeamL
 
 export type PlacementResult =
   | { ok: true; row: Participant; created: boolean; teamId: number | null }
-  | { ok: false; reason: 'full' | 'no-such-team' };
+  | { ok: false; reason: 'full' | 'no-such-team' | 'ahead' };
 
 /** Thrown inside the transaction to roll back a team made for a player who turned out to be here. */
 class AlreadyOnBoard extends Error {}
@@ -145,14 +145,14 @@ async function decideTeam(
   event: PlacementEvent,
   playerName: string,
   requestedTeamId: number | null,
-): Promise<{ ok: true; teamId: number | null } | { ok: false; reason: 'full' | 'no-such-team' }> {
+): Promise<{ ok: true; teamId: number | null } | { ok: false; reason: 'full' | 'no-such-team' | 'ahead' }> {
   if (placement === 'draft') return { ok: true, teamId: null };
 
   const loads = await teamLoads(eventId, tx);
 
   if (placement === 'pick') {
     if (requestedTeamId == null) return { ok: true, teamId: null };
-    const verdict = checkPick(loads.find((t) => t.id === requestedTeamId), event.teamCap);
+    const verdict = checkPick(loads.find((t) => t.id === requestedTeamId), event.teamCap, 1, loads);
     return verdict.ok ? { ok: true, teamId: requestedTeamId } : verdict;
   }
 
@@ -186,12 +186,12 @@ export async function switchPickedTeam(
   event: PlacementEvent,
   participantId: number,
   toTeamId: number,
-): Promise<{ ok: true } | { ok: false; reason: 'full' | 'no-such-team' }> {
+): Promise<{ ok: true } | { ok: false; reason: 'full' | 'no-such-team' | 'ahead' }> {
   const out = await db.transaction(async (tx) => {
     // clan-scope: global -- a row lock on one event the caller already resolved by id; it reads nothing.
     await tx.execute(sql`select id from events where id = ${event.id} for update`);
     const loads = await teamLoads(event.id, tx);
-    const verdict = checkPick(loads.find((t) => t.id === toTeamId), event.teamCap);
+    const verdict = checkPick(loads.find((t) => t.id === toTeamId), event.teamCap, 1, loads);
     if (!verdict.ok) return verdict;
     await tx
       .update(eventParticipants)
@@ -241,7 +241,7 @@ export async function seatSignupAccounts(input: {
    * plugin track and credit on a board the host hasn't let them into.
    */
   poolOnly?: boolean;
-}): Promise<{ ok: true; teamId: number | null } | { ok: false; reason: 'full' | 'no-such-team' }> {
+}): Promise<{ ok: true; teamId: number | null } | { ok: false; reason: 'full' | 'no-such-team' | 'ahead' }> {
   const { event, inviteTeamId, pickTeamId, now } = input;
   const placement = input.poolOnly && inviteTeamId == null ? 'draft' : placementOf(event);
   const accounts = [...input.accounts].sort((a, b) =>

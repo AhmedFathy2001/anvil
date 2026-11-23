@@ -1,9 +1,8 @@
 import { db } from '@/db';
 import { draftShortlists, eventSignups, eventParticipants, teams, events } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { buildDraftBalance, tierOf, type Tier } from '@/lib/draftBalance';
+import { buildDraftBalance } from '@/lib/draftBalance';
 import { parseProfile, type SignupProfile } from '@/lib/signup';
-import type { PlayerProfile } from '@/lib/playerProfile';
 
 /**
  * The captain's view of the draft pool: everyone they could take, everything known about them, and
@@ -13,8 +12,10 @@ import type { PlayerProfile } from '@/lib/playerProfile';
  * question ("who's left and who do I want") and any disagreement between those two screens is a
  * bug a captain finds at the worst possible moment.
  *
- * Captain-safe by construction: it carries ratings and sign-up answers, which staff surfaces
- * already show, and nothing fee-related, which is admin-only (see api/team/[teamId]/applicants).
+ * Captain-safe by construction: it carries sign-up answers and public hiscores facts (markers,
+ * domains), and nothing fee-related, which is admin-only (see api/team/[teamId]/applicants). No
+ * rating, tier, confidence band or past-event history is sent — member privacy, even from their
+ * own clan admins — and the pool is ordered by name so the order itself can't rank anyone.
  */
 
 export interface WarRoomPerson {
@@ -31,17 +32,8 @@ export interface WarRoomPerson {
   /** Which pick took them, when that's known. */
   pickNumber: number | null;
 
-  rating: number;
-  tier: Tier | null;
-  band: PlayerProfile['band'];
   domains: string[];
   markers: { key: string; label: string; domain: string; kc: number }[];
-  evidenceEvents: number;
-  /** 0..1 attendance from prior events; null when they have no history. */
-  reliability: number | null;
-  subbedOutBefore: boolean;
-  activityKc: number | null;
-  activityXp: number | null;
 
   /** Frozen sign-up answers. Null when they were added to the pool without signing up. */
   answers: SignupProfile | null;
@@ -61,8 +53,6 @@ export interface WarRoom {
   /** Their roster so far, as person rows (same shape, already filtered to their team). */
   roster: WarRoomPerson[];
   draftStatus: string;
-  /** Set only when the pool has never been rated (no snapshots yet) so the UI can say why. */
-  unrated: boolean;
 }
 
 /** Every domain the roster has at least one marker in — the coverage view. */
@@ -155,16 +145,8 @@ export async function buildWarRoom(params: {
         teamName: team?.name ?? null,
         teamColor: team?.color ?? null,
         pickNumber: lead?.pickNumber ?? null,
-        rating: profile.rating,
-        tier: tierOf(balance, leadPlayerId),
-        band: profile.band,
         domains: profile.domains,
         markers: profile.capabilityMarkers,
-        evidenceEvents: profile.evidenceEvents,
-        reliability: profile.reliability,
-        subbedOutBefore: profile.subbedOutBefore,
-        activityKc: profile.activityKc,
-        activityXp: profile.activityXp,
         // Seat first, so an ordinary board resolves exactly as it did; then the person, which is
         // what a swapped character is still recognisable by.
         answers:
@@ -176,9 +158,9 @@ export async function buildWarRoom(params: {
       };
     });
 
-  // Best-rated first — the order a captain reads a pool in. The client re-sorts for its own views
-  // (shortlist first on the clock), but the default has to be an opinion, not insertion order.
-  people.sort((a, b) => b.rating - a.rating || a.rsn.localeCompare(b.rsn));
+  // By name, never by rating: a rating-ordered list would hand a captain the ranking we refuse to
+  // show. The client re-sorts for its own views (shortlist first on the clock).
+  people.sort((a, b) => a.rsn.localeCompare(b.rsn));
 
   return {
     eventId,
@@ -187,8 +169,5 @@ export async function buildWarRoom(params: {
     team: myTeam ? { id: myTeam.id, name: myTeam.name, color: myTeam.color } : null,
     roster: people.filter((p) => p.teamId === teamId),
     draftStatus: event.draftStatus,
-    // Ratings are pool-relative: with no snapshots at all every rating lands identical, and the
-    // tiers become noise. Say so rather than showing a confident-looking S next to a C.
-    unrated: people.length > 0 && people.every((p) => p.rating === people[0].rating),
   };
 }

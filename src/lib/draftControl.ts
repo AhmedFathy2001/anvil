@@ -8,7 +8,6 @@ import {
   spreadCapBlockReason,
   tierPickBlockReason,
   type DraftBalance,
-  type Tier,
 } from '@/lib/draftBalance';
 import { rotateOrderSoNextIs, spreadPct, strengthOf } from '@/lib/draftMath';
 import { parseEventRules } from '@/lib/eventRules';
@@ -22,7 +21,8 @@ import { parseStamp } from '@/lib/dbTime';
  * swap the server could already describe was never shown. This is the running-draft half: the same
  * numbers kept live, plus what to do about them.
  *
- * Everything here is advisory arithmetic over ratings. Nothing in it blocks a pick or a start; the
+ * Team-level only: no per-person rating or tier is sent (member privacy, even from their own clan
+ * admins). Everything here is advisory arithmetic over ratings. Nothing in it blocks a pick or a start; the
  * enforcement that exists (tiered-snake) lives in the pick route and is only *previewed* here.
  */
 
@@ -37,12 +37,11 @@ export interface ControlTeam {
   strength: number;
   /** Distance from the average roster, as a signed pct. The imbalance, not the rank. */
   deviationPct: number;
-  tiers: Record<Tier, number>;
   domains: string[];
   /** People this team may not take right now under tiered-snake, and why. */
   lockedCount: number;
   lockedReason: string | null;
-  roster: { personKey: string; rsn: string; tier: Tier | null; playerIds: number[]; pickNumber: number | null }[];
+  roster: { personKey: string; rsn: string; playerIds: number[]; pickNumber: number | null }[];
 }
 
 export interface ControlPick {
@@ -51,7 +50,6 @@ export interface ControlPick {
   teamId: number | null;
   teamName: string | null;
   teamColor: string | null;
-  tier: Tier | null;
   /** What this pick did to the spread, in points. Positive = made it worse. */
   swing: number;
   spreadAfter: number;
@@ -85,8 +83,6 @@ export interface DraftControl {
   /** True when the pool has no usable ratings — every number below is then meaningless. */
   unrated: boolean;
 }
-
-const EMPTY_TIERS: Record<Tier, number> = { S: 0, A: 0, B: 0, C: 0 };
 
 export async function buildDraftControl(clanId: number, eventId: number): Promise<DraftControl | null> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
@@ -128,11 +124,6 @@ export async function buildDraftControl(clanId: number, eventId: number): Promis
 
   const controlTeams: ControlTeam[] = eventTeams.map((t) => {
     const mine = balance.profiles.filter((p) => p.teamId === t.id);
-    const tiers = { ...EMPTY_TIERS };
-    for (const p of mine) {
-      const tier = balance.tierByPersonKey.get(p.personKey);
-      if (tier) tiers[tier] += 1;
-    }
     const strength = strengthByTeam.get(t.id) ?? 0;
 
     // What tiered-snake would refuse this team right now. Only computed when the mode is armed —
@@ -159,7 +150,6 @@ export async function buildDraftControl(clanId: number, eventId: number): Promis
       size: mine.length,
       strength,
       deviationPct: mean > 0 ? Math.round(((strength - mean) / mean) * 100) : 0,
-      tiers,
       domains: [...new Set(mine.flatMap((p) => p.domains))],
       lockedCount,
       lockedReason,
@@ -167,7 +157,6 @@ export async function buildDraftControl(clanId: number, eventId: number): Promis
         .map((p) => ({
           personKey: p.personKey,
           rsn: p.rsn,
-          tier: balance.tierByPersonKey.get(p.personKey) ?? null,
           playerIds: p.playerIds,
           pickNumber:
             eventPlayers.find((row) => p.playerIds.includes(row.id))?.pickNumber ?? null,
@@ -204,7 +193,6 @@ export async function buildDraftControl(clanId: number, eventId: number): Promis
       teamId,
       teamName: team?.name ?? null,
       teamColor: team?.color ?? null,
-      tier: person ? balance.tierByPersonKey.get(person.personKey) ?? null : null,
       swing: after - prevSpread,
       spreadAfter: after,
     });

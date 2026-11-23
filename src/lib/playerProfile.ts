@@ -3,6 +3,10 @@ import { getSetting } from '@/lib/settings';
 import { events, eventParticipants, playerSnapshots, playerEventFacts, clanRoster } from '@/db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
 import defaultMarkers from '@/data/capabilityMarkers.json';
+import { abilityTable, claimedWeeklyHours, hoursFactor, type AccountEvidence, type SignupInterest } from '@/lib/capability';
+import { activitySpecs } from '@/lib/capabilityData';
+import { loadAccountEvidence, accountsByPerson } from '@/lib/capabilityDb';
+import { loadEventProfiles } from '@/lib/draftProfiles';
 
 export const CAPABILITY_MARKERS_SETTING_KEY = 'capability_markers';
 
@@ -113,6 +117,13 @@ export interface PlayerProfile {
   /** 0..1 attendance signal from facts (activeDays/eventDays), collapse-discounted. Null = no history. */
   reliability: number | null;
   subbedOutBefore: boolean;
+  /**
+   * How much of the pool's typical play time they'll put in (lib/capability hoursFactor): sign-up
+   * hours taken with a grain of salt, past attendance trusted more. Multiplies the rating.
+   */
+  hoursFactor: number;
+  /** Best ENTERED-account ability (0..1) per capability-marker activity — the team-coverage view. */
+  abilities: Record<string, number>;
 }
 
 interface PoolMember {
@@ -123,6 +134,8 @@ interface PoolMember {
   playerIds: number[];
   teamId: number | null;
   snapshotJson: string | null;
+  /** The accounts this person is entering (or, clan-wide, their roster account). */
+  accountIds: number[];
 }
 
 const normalizeRsn = (name: string) => name.toLowerCase().replaceAll('-', ' ').replaceAll('_', ' ').trim();
@@ -188,10 +201,13 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
             playerIds: [],
             teamId: p.teamId,
             snapshotJson: null,
+            accountIds: [],
           }),
         );
       }
       entry.playerIds.push(p.id);
+      const accountId = p.accountId ?? member?.accountId ?? null;
+      if (accountId != null && !entry.accountIds.includes(accountId)) entry.accountIds.push(accountId);
       if (entry.teamId == null && p.teamId != null) entry.teamId = p.teamId;
       // Merge multi-account snapshots by taking the richer one for capability and summing XP later
       // is overkill here — the enrollment snapshot of the LEAD (first) account is the profile body,
@@ -227,10 +243,18 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
         playerIds: [],
         teamId: null,
         snapshotJson: latestByAccount.get(m.accountId) ?? null,
+        accountIds: [m.accountId],
       });
     }
   }
   if (pool.size === 0) return [];
+
+  // ── the ability table (lib/capability): per entered account, know-how from all their accounts ──
+  const abilityEvidence = await loadAccountEvidence([...pool.values()].flatMap((p) => p.accountIds));
+  const evByPerson = accountsByPerson(abilityEvidence);
+  const specs = activitySpecs();
+  const markerSpecs = specs.filter((s) => markers.some((m) => m.key === s.key));
+  const signups = opts.eventId != null ? await loadEventProfiles(opts.eventId) : new Map();
 
   // ── prior snapshots (activity baselines) + facts (evidence + reliability) ──
   // A person's baseline = their most recent enrollment snapshot from an event that STARTED before
@@ -302,14 +326,36 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
     evidenceEvents: number;
     reliability: number | null;
     subbedOutBefore: boolean;
+    claimedWeekly: number | null;
+    abilities: Record<string, number>;
   }
   const raws: Raw[] = [];
+  const anyDated = [...abilityEvidence.values()].some((e) => e.recentKc != null);
   for (const person of pool.values()) {
     const bosses = parseBosses(person.snapshotJson);
+    const entered = person.accountIds.map((id) => abilityEvidence.get(id)).filter((e): e is AccountEvidence => !!e);
+    const mine = entered.length ? (evByPerson.get(entered[0].personKey) ?? entered) : [];
+    const signup = person.clanMemberId != null ? signups.get(person.clanMemberId) : undefined;
+    const interest: SignupInterest | null = signup
+      ? { answered: true, bosses: new Set(signup.bosses ?? []), skills: new Set(signup.skills ?? []) }
+      : null;
+    // Best entered account per marker: the account they actually play this event on.
+    const abilities: Record<string, number> = {};
+    for (const acc of entered) {
+      const table = abilityTable(acc, mine, markerSpecs, interest);
+      for (const [key, a] of table) abilities[key] = Math.max(abilities[key] ?? 0, a.ability);
+    }
     let cap = 0;
     const capHits: PlayerProfile['capabilityMarkers'] = [];
     for (const m of markers) {
-      const kc = bosses[m.key] ?? 0;
+      const kc = Math.max(bosses[m.key] ?? 0, ...entered.map((e) => e.kc[m.key] ?? 0));
+      if (entered.length) {
+        const a = abilities[m.key] ?? 0;
+        cap += m.weight * a;
+        if (a > 0) capHits.push({ key: m.key, label: m.label, domain: m.domain, kc });
+        continue;
+      }
+      // No account evidence (an unlinked RSN): the snapshot-only rule, as validated.
       if (kc <= 0) continue;
       const ramp = Math.min(1, Math.log1p(kc) / Math.log1p(Math.max(2, m.fullKc)));
       cap += m.weight * (0.3 + 0.7 * ramp);
@@ -318,8 +364,28 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
     const vol = volumeScore(bosses);
     const xp = parseOverallXp(person.snapshotJson);
     const baseline = baselineByPerson.get(person.personKey);
-    const actKc = baseline ? Math.max(0, vol - baseline.vol) : null;
-    const actXp = baseline && xp > 0 ? Math.max(0, xp - baseline.xp) : null;
+    let actKc = baseline ? Math.max(0, vol - baseline.vol) : null;
+    let actXp = baseline && xp > 0 ? Math.max(0, xp - baseline.xp) : null;
+    // Dated activity beats "since their last event": member_daily_stats says what moved in the last
+    // RECENT_DAYS. Used for everyone it covers once ANY entrant is covered, so the pool is compared
+    // on one yardstick; people it doesn't cover impute the pool median below.
+    if (anyDated) {
+      const dated = entered.filter((e) => e.recentKc != null);
+      if (dated.length) {
+        actKc = 0;
+        actXp = 0;
+        for (const e of dated) {
+          for (const [k, gained] of Object.entries(e.recentKc!)) {
+            const now = e.kc[k] ?? gained;
+            actKc += Math.log1p(now) - Math.log1p(Math.max(0, now - gained));
+          }
+          for (const [k, gained] of Object.entries(e.recentXp!)) if (k !== 'overall') actXp += gained;
+        }
+      } else {
+        actKc = null;
+        actXp = null;
+      }
+    }
 
     // Evidence: recency-decayed points per prior event. Reliability: attendance share, with a
     // collapse discount — a bottom-ranked team at <35% of the winner's points demoralizes; those
@@ -361,8 +427,18 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
       evidenceEvents: personFacts.length,
       reliability: relW > 0 ? relSum / relW : null,
       subbedOutBefore,
+      claimedWeekly: claimedWeeklyHours(signup),
+      abilities,
     });
   }
+
+  // Hours, with a grain of salt: the pool's medians are the "typical" the factor is relative to.
+  const median = (xs: number[]) => {
+    const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : null;
+  };
+  const medianClaimed = median(raws.map((r) => r.claimedWeekly ?? NaN));
+  const medianAttendance = median(raws.map((r) => r.reliability ?? NaN));
 
   // ── normalize + v5 blend ──
   const max = (xs: number[]) => Math.max(1e-9, ...xs);
@@ -383,8 +459,12 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
     const capW = CAP_WEIGHT + (EVIDENCE_WEIGHT - evW);
     const volBlend = 0.75 * Math.pow(r.vol / volMax, 3) + 0.25 * Math.pow(r.xp / xpMax, 3);
     const actBlend = actBlendOf(r) ?? medianAct;
+    const hf = hoursFactor(
+      { claimedWeekly: r.claimedWeekly, pastAttendance: r.reliability != null ? [r.reliability] : [] },
+      { medianClaimed, medianAttendance },
+    );
     const rating =
-      capW * (r.cap / capMax) + VOLUME_WEIGHT * volBlend + ACTIVITY_WEIGHT * actBlend + evW * (r.evidence / evMax);
+      hf * (capW * (r.cap / capMax) + VOLUME_WEIGHT * volBlend + ACTIVITY_WEIGHT * actBlend + evW * (r.evidence / evMax));
     return {
       personKey: r.personKey,
       rsn: r.rsn,
@@ -405,6 +485,8 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
       evidenceEvents: r.evidenceEvents,
       reliability: r.reliability,
       subbedOutBefore: r.subbedOutBefore,
+      hoursFactor: hf,
+      abilities: r.abilities,
     };
   });
   return profiles.sort((a, b) => b.rating - a.rating);

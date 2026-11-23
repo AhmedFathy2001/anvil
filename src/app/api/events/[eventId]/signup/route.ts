@@ -116,7 +116,7 @@ export async function GET(
   const placement = placementOf(event);
   const choosableTeams =
     placement === 'pick'
-      ? (await teamLoads(id)).map((t) => ({ id: t.id, name: t.name, color: t.color ?? '', size: t.size, full: isTeamFull(t, event.teamCap) }))
+      ? await teamLoads(id).then((ls) => ls.map((t) => ({ id: t.id, name: t.name, color: t.color ?? '', size: t.size, full: isTeamFull(t, event.teamCap, ls) })))
       : rules.teamChoice
         ? await db
             .select({ id: teams.id, name: teams.name, color: teams.color })
@@ -383,13 +383,15 @@ export async function POST(
         const p = await participantForSeat(id, cid);
         if (!p || p.teamId !== wantedId) adding++;
       }
-      const verdict = checkPick(wanted, event.teamCap, adding);
+      const verdict = checkPick(wanted, event.teamCap, adding, loads);
       if (!verdict.ok) {
         return NextResponse.json(
           verdict.reason === 'full'
             ? { error: `${wanted?.name ?? 'That team'} is full. Pick another team.`, reason: 'team-full' }
-            : { error: 'That team is not in this event.' },
-          { status: verdict.reason === 'full' ? 409 : 400 },
+            : verdict.reason === 'ahead'
+              ? { error: `${wanted?.name ?? 'That team'} is already ahead of the others. Pick a smaller team for now.`, reason: 'team-full' }
+              : { error: 'That team is not in this event.' },
+          { status: verdict.reason === 'no-such-team' ? 400 : 409 },
         );
       }
       pickTeamId = wantedId;
@@ -511,10 +513,10 @@ export async function POST(
   if (!seated.ok) {
     await releaseInviteSeat();
     return NextResponse.json(
-      seated.reason === 'full'
-        ? { error: 'That team just filled up. Pick another team.', reason: 'team-full' }
-        : { error: 'That team is not in this event.' },
-      { status: seated.reason === 'full' ? 409 : 400 },
+      seated.reason === 'no-such-team'
+        ? { error: 'That team is not in this event.' }
+        : { error: 'That team just filled up. Pick another team.', reason: 'team-full' },
+      { status: seated.reason === 'no-such-team' ? 400 : 409 },
     );
   }
   const placedTeamId = seated.teamId;
