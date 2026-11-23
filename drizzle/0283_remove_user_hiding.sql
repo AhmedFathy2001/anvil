@@ -12,6 +12,18 @@ CREATE TRIGGER anvil_flair_accounts_upd AFTER UPDATE OF player_id, rsn_normalize
     OR OLD.supporter_style IS DISTINCT FROM NEW.supporter_style
   ) EXECUTE FUNCTION anvil_flair_dirty();
 --> statement-breakpoint
+-- Characters left behind by "Delete me" (lib/erasePerson) get erased_at, which keeps them off every
+-- public page (lib/erasedCharacters). Already-erased ones are recognised by the shape erasePerson
+-- left: switched private, unclaimed and unproven, no account hash, under a stand-in person named
+-- after the RSN that has no login. An ordinary roster placeholder was never switched private.
+ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "erased_at" text;
+--> statement-breakpoint
+UPDATE "accounts" a SET "erased_at" = to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+  WHERE a."shared" = false AND a."claimed_at" IS NULL AND a."verified_at" IS NULL AND a."account_hash" IS NULL
+    AND a."erased_at" IS NULL
+    AND EXISTS (SELECT 1 FROM "players" p WHERE p."id" = a."player_id" AND p."display_name" = a."rsn")
+    AND NOT EXISTS (SELECT 1 FROM "users" u WHERE u."player_id" = a."player_id");
+--> statement-breakpoint
 ALTER TABLE "accounts" DROP COLUMN IF EXISTS "shared";
 --> statement-breakpoint
 ALTER TABLE "account_game_clans" DROP COLUMN IF EXISTS "hidden";

@@ -10,6 +10,7 @@ import { ownerNotBanned } from '@/lib/bannedPeople';
 import { clanGrant } from '@/lib/clanGrants';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { hiddenNameSet } from '@/lib/rosterVisibility';
+import { isErasedStandIn } from '@/lib/erasedCharacters';
 import { clanSeat } from '@/lib/seatScope';
 
 /**
@@ -48,17 +49,18 @@ export async function hiddenNamesForViewer(clanId: number, insider?: boolean): P
 
 /**
  * Is this one character's page in this clan closed to the viewer? True when its owner was banned
- * from the platform and the viewer is outside the clan. (Covers a departed seat too, which the
+ * from the platform, or it was left behind by an account deletion (lib/erasedCharacters), and the
+ * viewer is outside the clan. (Covers a departed seat too, which the
  * roster list above does not carry.)
  */
 export async function characterHiddenFromViewer(clanId: number, accountId: number, insider?: boolean): Promise<boolean> {
   // clan-scope: global -- one account's owner's platform ban, read by its id.
   const [row] = await db
-    .select({ banned: players.banned })
+    .select({ banned: players.banned, erasedAt: accounts.erasedAt, claimedAt: accounts.claimedAt })
     .from(accounts)
     .innerJoin(players, eq(players.id, accounts.playerId))
     .where(eq(accounts.id, accountId))
     .limit(1);
-  if (!row || !row.banned) return false;
+  if (!row || (!row.banned && !isErasedStandIn(row))) return false;
   return !(insider ?? (await viewerIsClanInsider(clanId)));
 }

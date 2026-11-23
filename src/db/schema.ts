@@ -380,6 +380,9 @@ export const accounts = pgTable('accounts', {
   verifiedByUserId: integer('verified_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   // On the watchlist: matched by a signal weak enough to be coincidence, awaiting a mod's confirm.
   provisional: integer('provisional').default(0).notNull(),
+  // Left behind by "Delete me" (lib/erasePerson): no public page while it stays unclaimed
+  // (lib/erasedCharacters). Its clans keep the name on their records.
+  erasedAt: text('erased_at'),
   claimedAt: text('claimed_at'),
 
   // ── Game mode ────────────────────────────────────────────────────────────────────────────

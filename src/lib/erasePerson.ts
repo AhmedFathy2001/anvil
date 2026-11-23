@@ -388,7 +388,8 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
       // The clan's record of an in-game name stays; the person leaves it. The same shape
       // lib/accountRelease leaves behind (a stand-in person named after the RSN, unclaimed, proof
       // gone), and further: the account hash, Discord id, name look and plugin-pushed stats are
-      // theirs too. The clans that seat the name still see it (lib/accountVisibility).
+      // theirs too. The clans that seat the name still see it (lib/accountVisibility); erased_at
+      // keeps it off every public page (lib/erasedCharacters).
       const [placeholder] = await tx.insert(players).values({ displayName: account.rsn }).returning({ id: players.id });
       await tx
         .update(accounts)
@@ -403,6 +404,7 @@ async function erasePersonWith(tx: Tx, userId: number, storedImages: string[]): 
           accountHash: null,
           ...storedDiscordLink(null, null),
           supporterStyle: null,
+          erasedAt: new Date().toISOString(),
           liveStats: null,
           liveStatsAt: null,
           liveStatKeyTimes: null,

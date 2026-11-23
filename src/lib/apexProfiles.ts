@@ -23,6 +23,7 @@ import { apexDomain } from '@/lib/clanContext';
 import { getPublicShowcase } from '@/lib/pluginConfig';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
+import { isErasedStandIn } from '@/lib/erasedCharacters';
 
 // ── Clans ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -145,7 +146,8 @@ export interface ApexCharacter {
 /**
  * One character, by RSN.
  *
- * Null for an unknown RSN, or one whose owner is banned from the platform.
+ * Null for an unknown RSN, one whose owner is banned from the platform, or one left behind by an
+ * account deletion.
  */
 export async function apexCharacter(rsn: string, viewerPlayerId?: number | null): Promise<ApexCharacter | null> {
   const normalized = rsn.trim().toLowerCase().replace(/[\s_]+/g, ' ');
@@ -154,6 +156,8 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
   // the account being global.
   const acct = await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalized) });
   if (!acct) return null;
+  // Left behind by "Delete me": the person asked to be gone (lib/erasedCharacters).
+  if (isErasedStandIn(acct)) return null;
   const ownedByViewer = viewerPlayerId != null && acct.playerId === viewerPlayerId;
   // A person banned from the platform has no public page (lib/bannedPeople). They cannot sign in, so
   // there is no owner's view to keep.
