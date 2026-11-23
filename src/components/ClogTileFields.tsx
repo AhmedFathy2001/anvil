@@ -7,15 +7,20 @@ import { CheckboxBox } from '@/components/Checkbox';
 import { fuzzySearch } from '@/lib/fuzzySearch';
 import { bossIconUrl, itemIconUrl } from '@/lib/tileIcons';
 import ThingIcon from '@/components/ThingIcon';
+import Switch from '@/components/Switch';
+import { clogTickIds, clogTickState } from '@/lib/clogTickState';
 
 // The collection-log tile's own fields in the tile editor (lib/clogTiles). Pages are a shortcut for
-// picking items: adding a page ticks every item on it, untick any to leave it out, and items from
+// picking items: adding a page ticks its uniques ("Uniques only", lib/clogMinor — bolt racks, raid
+// kits and jewels stay unticked) or the whole page, untick any to leave it out, and items from
 // several pages mix. The tile stores the item ids — so a page Jagex grows later never changes it.
 // No pages and no items = any slot in the whole log (new-slots mode only).
 
 interface PageItem {
   id: number;
   name: string;
+  /** Not what a bingo means by a unique (lib/clogMinor): left unticked when the page is added. */
+  minor?: boolean;
 }
 
 export interface ClogTileFieldsProps {
@@ -62,7 +67,7 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
       missing.map((p) =>
         clanFetch(`${lookupApi}/clog?activity=${encodeURIComponent(p)}`)
           .then((r) => (r.ok ? r.json() : { items: [] }))
-          .then((d: { items?: PageItem[] }) => [p, (d.items ?? []).map((i) => ({ id: i.id, name: i.name }))] as const),
+          .then((d: { items?: PageItem[] }) => [p, (d.items ?? []).map((i) => ({ id: i.id, name: i.name, minor: !!i.minor }))] as const),
       ),
     )
       .then((rows) => {
@@ -86,12 +91,12 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
     if (!items) {
       const res = await clanFetch(`${lookupApi}/clog?activity=${encodeURIComponent(page)}`).catch(() => null);
       const d = res && res.ok ? ((await res.json()) as { items?: PageItem[] }) : { items: [] };
-      items = (d.items ?? []).map((i) => ({ id: i.id, name: i.name }));
+      items = (d.items ?? []).map((i) => ({ id: i.id, name: i.name, minor: !!i.minor }));
       setPageItems((prev) => ({ ...prev, [page]: items! }));
     }
     onPages([...pages, page]);
-    // All on: untick to exclude.
-    onItemIds([...new Set([...itemIds, ...items.map((i) => i.id)])]);
+    // Its uniques on (the whole page when it has no minor slots): untick to exclude, tick to add.
+    onItemIds([...new Set([...itemIds, ...clogTickIds(items, true)])]);
     setOpen(page);
   }
 
@@ -101,6 +106,17 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
     const drop = new Set((pageItems[page] ?? []).map((i) => i.id));
     onPages(rest);
     onItemIds(itemIds.filter((id) => !drop.has(id) || keep.has(id)));
+  }
+
+  // The page's "Uniques only" switch: on = its uniques ticked, minor slots unticked; off = all of it.
+  function setUniquesOnly(items: PageItem[], on: boolean) {
+    const ids = new Set(items.map((i) => i.id));
+    onItemIds([...itemIds.filter((id) => !ids.has(id)), ...clogTickIds(items, on)]);
+  }
+
+  function setGroup(items: PageItem[], on: boolean) {
+    const ids = new Set(items.map((i) => i.id));
+    onItemIds(on ? [...new Set([...itemIds, ...ids])] : itemIds.filter((id) => !ids.has(id)));
   }
 
   function toggle(id: number) {
@@ -161,6 +177,12 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
         {pages.map((page) => {
           const items = pageItems[page] ?? [];
           const on = items.filter((i) => chosen.has(i.id)).length;
+          const tick = clogTickState(items, chosen);
+          const minor = items.filter((i) => i.minor);
+          const minorOn = minor.filter((i) => chosen.has(i.id)).length;
+          const groups: [string, PageItem[]][] = minor.length > 0
+            ? [['Uniques', items.filter((i) => !i.minor)], ['Also on this page — tick to count', minor]]
+            : [['Items', items]];
           return (
             <div key={page} className="mt-2 rounded border border-card-border bg-brown-dark/40">
               <div className="flex items-center justify-between gap-2 px-3 min-h-10">
@@ -172,23 +194,49 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
                   Remove
                 </button>
               </div>
+              {minor.length > 0 && (
+                <div className="px-3 pb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Switch
+                    disabled={locked}
+                    checked={tick === 'uniques'}
+                    mixed={tick === 'custom'}
+                    onChange={(next) => setUniquesOnly(items, next)}
+                  >
+                    Uniques only{tick === 'custom' && <span className="text-text-dim"> · custom picks</span>}
+                  </Switch>
+                  <span className="text-[11px] text-text-dim">
+                    {tick === 'uniques'
+                      ? `${minor.length} minor item${minor.length === 1 ? '' : 's'} left out (${minor[0].name}${minor.length > 1 ? '…' : ''})`
+                      : tick === 'all'
+                        ? `Whole page counts, ${minor[0].name}${minor.length > 1 ? ` and ${minor.length - 1} more minor item${minor.length === 2 ? '' : 's'}` : ''} too`
+                        : minorOn > 0
+                          ? `Ticked by hand · ${minorOn} minor item${minorOn === 1 ? '' : 's'} count${minorOn === 1 ? 's' : ''}`
+                          : 'Ticked by hand'}
+                  </span>
+                </div>
+              )}
               {open === page && (
-                <div className="px-3 pb-2">
-                  <div className="flex gap-3 text-xs mb-1">
-                    <button type="button" disabled={locked} className="text-gold" onClick={() => onItemIds([...new Set([...itemIds, ...items.map((i) => i.id)])])}>All</button>
-                    <button type="button" disabled={locked} className="text-gold" onClick={() => onItemIds(itemIds.filter((id) => !items.some((i) => i.id === id)))}>None</button>
-                  </div>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
-                    {items.map((it) => (
-                      <li key={it.id}>
-                        <label className="flex items-center gap-2 min-h-8 text-xs">
-                          <CheckboxBox disabled={locked} checked={chosen.has(it.id)} onChange={() => toggle(it.id)} />
-                          <ThingIcon src={itemIconUrl(it.id)} alt={it.name} size={20} />
-                          <span className={chosen.has(it.id) ? '' : 'text-text-muted line-through'}>{it.name}</span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="px-3 pb-2 space-y-2">
+                  {groups.map(([title, list]) => (
+                    <div key={title}>
+                      <div className="flex gap-3 text-xs mb-1 items-center">
+                        {groups.length > 1 && <span className="text-text-muted">{title}</span>}
+                        <button type="button" disabled={locked} className="text-gold" onClick={() => setGroup(list, true)}>All</button>
+                        <button type="button" disabled={locked} className="text-gold" onClick={() => setGroup(list, false)}>None</button>
+                      </div>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
+                        {list.map((it) => (
+                          <li key={it.id}>
+                            <label className="flex items-center gap-2 min-h-8 text-xs">
+                              <CheckboxBox disabled={locked} checked={chosen.has(it.id)} onChange={() => toggle(it.id)} />
+                              <ThingIcon src={itemIconUrl(it.id)} alt={it.name} size={20} />
+                              <span className={chosen.has(it.id) ? '' : 'text-text-muted line-through'}>{it.name}</span>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

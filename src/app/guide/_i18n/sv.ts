@@ -1768,6 +1768,25 @@ const sv: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Drops: uniques, olika föremål och set",
+      intro: "Tre inställningar avgör vad en drop-ruta egentligen ber om. Varje är ett klick i rutredigeraren, och redigeraren föreslår den när en ruta verkar behöva det.",
+      rows: [
+        { term: "Bara olika föremål", body: "på en drop-ruta med flera föremål låter **Upprepningar räknas** samma föremål klara den: tre Dharok’s helms klarar ”få 3”. **Bara olika föremål** räknar varje föremål en gång, per lag på en lagruta och per spelare på en soloruta, så ”4 olika Barrows-delar” betyder fyra olika delar." },
+        { term: "Set: Ett set eller Varje set", body: "på en **Föremålsset**-ruta skriver du ett setnamn på varje föremål. **Ett set** klaras av det första hela setet; **Antal set** kräver fler. **Varje set** kräver alla, och **Föremål per set** satt till 1 betyder ett från varje. Barrows per plats: de sex hjälmarna i setet Helm, överdelarna i Top, ben och kjolar i Bottom och vapnen i Weapon, välj **Varje set** och sätt varje till 1." },
+        { term: "Bara uniques", body: "när du lägger till en collection log-sida bockas dess uniques i och mindre föremål lämnas utanför: bolt racks från Barrows, ToA:s juveler, svepningar och kits, en raids kosmetika och en boss vanliga drops och teleportrullar. Slå av sidans **Bara uniques** för att räkna hela sidan. Du kan fortfarande bocka i eller ur vilket föremål som helst; reglaget visar då sidan som egna val. Sidor utan mindre föremål har inget reglage." },
+      ],
+      examplesIntro: "Snabbtillägg läser dessa som de står:",
+      examples: [
+        "`toa unique` / `any toa purple`: en drop bland ToA:s uniques",
+        "`4 different barrows pieces`: fyra delar, var och en räknad en gång",
+        "`dharok set`, `2 barrows sets`: hela set",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: en hjälm, en överdel, en underdel och ett vapen",
+        "`a unique from each dt2 boss`: en från var och en av de fyra",
+      ],
+      note: { tag: "En drop-rad den inte kan läsa", body: "blir aldrig en kill count-ruta. Granskningen frågar vad du menade och visar hur du skriver det." },
+    },
+
     bulk: {
       title: 'Skriv dem i klump, inte i webbläsaren',
       body: [

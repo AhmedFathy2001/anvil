@@ -19,6 +19,7 @@ import { clogPages, isMonsterDrop } from '@/lib/itemObtain';
 import { getMonsterNames } from '@/lib/npcNames';
 import {
   classifyMatches,
+  dropLineHelp,
   libraryCandidate,
   matchTasks,
   parseBulkLine,
@@ -102,6 +103,8 @@ export interface BulkLineResult {
   choices: TaskSuggestion[];
   /** What a "screenshot" line becomes — always available as the last resort. */
   fallback: TaskSuggestion;
+  /** How to say a drop line that wasn't read ("Try “4 different barrows pieces”"), when it is one. */
+  tip?: string | null;
 }
 
 /** "Quick add: paste your list" — every line through the same matcher, with a verdict per line. */
@@ -110,7 +113,8 @@ export async function suggestBulk(clanId: number, lines: string[]): Promise<Bulk
   return lines.map((line) => {
     const { text, points, name } = readQuickLine(line, parseBulkLine);
     const verdict = classifyMatches(matchTasks(text, ctx));
-    return { line, text, points, name, status: verdict.status, choices: verdict.choices, fallback: screenshotCandidate(text) };
+    const tip = verdict.status === 'ready' ? null : dropLineHelp(text, ctx);
+    return { line, text, points, name, status: verdict.status, choices: verdict.choices, fallback: screenshotCandidate(text), tip };
   });
 }
 

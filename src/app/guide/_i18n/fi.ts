@@ -1767,6 +1767,25 @@ const fi: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Dropit: uniikit, eri esineet ja setit",
+      intro: "Kolme asetusta ratkaisee, mitä drop-ruutu oikeasti pyytää. Jokainen on yksi klikkaus ruutueditorissa, ja editori ehdottaa sitä, kun ruutu näyttää tarvitsevan sitä.",
+      rows: [
+        { term: "Vain eri esineet", body: "drop-ruudussa, jossa on useita esineitä, **Toistot lasketaan** antaa saman esineen täyttää sen: kolme Dharok’s helmiä täyttää ”hanki 3”. **Vain eri esineet** laskee jokaisen esineen kerran, joukkueittain joukkueruudussa ja pelaajittain soloruudussa, joten ”4 eri Barrows-osaa” tarkoittaa neljää eri osaa." },
+        { term: "Setit: Yksi setti tai Jokainen setti", body: "**Esinesetti**-ruudussa kirjoita settinimi jokaiselle esineelle. **Yksi setti** valmistuu ensimmäisestä täydestä setistä; **Settien määrä** vaatii lisää. **Jokainen setti** vaatii ne kaikki, ja **Esineitä per setti** arvolla 1 tarkoittaa yhtä kustakin. Barrows paikoittain: kuusi kypärää Helm-settiin, yläosat Top-settiin, jalat ja hameet Bottom-settiin ja aseet Weapon-settiin, valitse **Jokainen setti** ja aseta kukin arvoon 1." },
+        { term: "Vain uniikit", body: "kun lisäät collection log -sivun, sen uniikit valitaan ja pienet esineet jätetään pois: Barrowsin bolt rackit, ToA:n jalokivet, käärinliinat ja kitit, raidin kosmetiikka sekä bossin yleiset dropit ja teleporttikääröt. Kytke sivun **Vain uniikit** pois laskeaksesi koko sivun. Voit yhä valita tai poistaa minkä tahansa esineen itse; kytkin näyttää silloin sivun omina valintoina. Sivuilla ilman pieniä esineitä ei ole kytkintä." },
+      ],
+      examplesIntro: "Pikalisäys lukee nämä sellaisinaan:",
+      examples: [
+        "`toa unique` / `any toa purple`: yksi drop ToA:n uniikeista",
+        "`4 different barrows pieces`: neljä osaa, kukin laskettu kerran",
+        "`dharok set`, `2 barrows sets`: täydet setit",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: kypärä, yläosa, alaosa ja ase",
+        "`a unique from each dt2 boss`: yksi kustakin neljästä",
+      ],
+      note: { tag: "Drop-rivi, jota se ei ymmärrä", body: "ei koskaan muutu kill count -ruuduksi. Tarkistus kysyy, mitä tarkoitit, ja näyttää, miten sen voi kirjoittaa." },
+    },
+
     bulk: {
       title: 'Laadi ne massana, ei selaimessa',
       body: [

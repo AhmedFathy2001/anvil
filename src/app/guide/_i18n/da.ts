@@ -1774,6 +1774,25 @@ const da: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Drops: uniques, forskellige genstande og sæt",
+      intro: "Tre indstillinger afgør, hvad et drop-felt egentlig beder om. Hver er ét klik i felteditoren, og editoren foreslår den, når et felt ser ud til at have brug for det.",
+      rows: [
+        { term: "Kun forskellige genstande", body: "på et drop-felt med flere genstande lader **Gentagelser tæller** den samme genstand fuldføre det: tre Dharok’s helms fuldfører “få 3”. **Kun forskellige genstande** tæller hver genstand én gang, pr. hold på et holdfelt og pr. spiller på et solofelt, så “4 forskellige Barrows-dele” betyder fire forskellige dele." },
+        { term: "Sæt: Ét sæt eller Hvert sæt", body: "på et **Sæt**-felt skriver du et sætnavn på hver genstand. **Ét sæt** fuldføres af det første hele sæt; **Antal sæt** kræver flere. **Hvert sæt** kræver dem alle, og **Genstande pr. sæt** sat til 1 betyder én fra hvert. Barrows efter plads: læg de seks hjelme i et Helm-sæt, overdelene i Top, benene og skørterne i Bottom og våbnene i Weapon, vælg **Hvert sæt** og sæt hvert til 1." },
+        { term: "Kun uniques", body: "når du tilføjer en collection log-side, afkrydses dens uniques, og de mindre genstande udelades: bolt racks fra Barrows, ToA’s juveler, shrouds og kits, en raids kosmetik og en boss’ almindelige drops og teleport-ruller. Slå sidens **Kun uniques** fra for at tælle hele siden. Du kan stadig selv afkrydse enhver genstand; kontakten viser så siden som egne valg. Sider uden mindre genstande har ingen kontakt." },
+      ],
+      examplesIntro: "Hurtig tilføjelse læser disse, som de står:",
+      examples: [
+        "`toa unique` / `any toa purple`: én drop fra ToA’s uniques",
+        "`4 different barrows pieces`: fire dele, hver talt én gang",
+        "`dharok set`, `2 barrows sets`: hele sæt",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: en hjelm, en overdel, en underdel og et våben",
+        "`a unique from each dt2 boss`: én fra hver af de fire",
+      ],
+      note: { tag: "En drop-linje, den ikke kan læse", body: "bliver aldrig til et kill count-felt. Gennemgangen spørger, hvad du mente, og viser, hvordan du kan skrive det." },
+    },
+
     bulk: {
       title: 'Skriv dem i bulk, ikke i browseren',
       body: [

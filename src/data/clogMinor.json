@@ -1,0 +1,126 @@
+{
+ "rule": "Bosses and Raids pages: drops more often than 1 in 50 from the page's boss, plus cosmetics, kits, dusts, shrouds, point capes, invocation unlocks, DT2 tablets/orbs and teleports. See scripts/build-clog-minor.mjs.",
+ "pages": {
+  "Amoxliatl": [
+   29895
+  ],
+  "Araxxor": [
+   29781,
+   29782,
+   29784
+  ],
+  "Barrows Chests": [
+   4740
+  ],
+  "Brutus": [
+   33091
+  ],
+  "Cerberus": [
+   13249
+  ],
+  "Chambers of Xeric": [
+   22386,
+   22388,
+   22390,
+   22392,
+   22394,
+   22396,
+   24670
+  ],
+  "Doom of Mokhaiotl": [
+   31099,
+   31111
+  ],
+  "Duke Sucellus": [
+   28333,
+   28334
+  ],
+  "Giant Mole": [
+   7416,
+   7418
+  ],
+  "Grotesque Guardians": [
+   21726
+  ],
+  "Nex": [
+   26231
+  ],
+  "Phantom Muspah": [
+   27616,
+   27622,
+   27643
+  ],
+  "Sarachnis": [
+   23517
+  ],
+  "Shellbane Gryphon": [
+   31235
+  ],
+  "Skotizo": [
+   19677,
+   21275
+  ],
+  "The Hueycoatl": [
+   30068,
+   30085,
+   30088
+  ],
+  "The Leviathan": [
+   28332,
+   28334
+  ],
+  "The Mad Angel": [
+   21726,
+   34033
+  ],
+  "The Whisperer": [
+   28331,
+   28334
+  ],
+  "Theatre of Blood": [
+   22494,
+   22496,
+   22498,
+   22500,
+   22502,
+   25742,
+   25744,
+   25746
+  ],
+  "Tombs of Amascut": [
+   27255,
+   27257,
+   27259,
+   27261,
+   27263,
+   27265,
+   27279,
+   27283,
+   27285,
+   27289,
+   27293,
+   27372,
+   27377,
+   27378,
+   27379,
+   27380,
+   27381,
+   30893
+  ],
+  "Vardorvis": [
+   28330,
+   28334
+  ],
+  "Yama": [
+   30763,
+   30765,
+   30775,
+   30795,
+   30805
+  ],
+  "Zulrah": [
+   12934,
+   12938
+  ]
+ }
+}

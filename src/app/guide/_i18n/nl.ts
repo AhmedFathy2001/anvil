@@ -1769,6 +1769,25 @@ const nl: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Drops: uniques, verschillende items en sets",
+      intro: "Drie instellingen bepalen wat een droptegel echt vraagt. Elk is één klik in de tegeleditor, en de editor stelt het voor als een tegel het nodig lijkt te hebben.",
+      rows: [
+        { term: "Alleen verschillende items", body: "op een droptegel met meerdere items laat **Herhalingen tellen** hetzelfde item hem afmaken: drie Dharok’s helms maken “haal 3” af. **Alleen verschillende items** telt elk item één keer, per team op een teamtegel en per speler op een solotegel, dus “4 verschillende Barrows-stukken” betekent vier verschillende stukken." },
+        { term: "Sets: Eén set of Elke set", body: "op een **Itemset**-tegel geef je elk item een setnaam. **Eén set** is klaar bij de eerste volledige set; **Hoeveel sets** vraagt er meer. **Elke set** vraagt ze allemaal, en **Items per set** op 1 betekent er één uit elke set. Barrows per slot: de zes helmen in set Helm, de bovenstukken in Top, benen en rokken in Bottom en de wapens in Weapon, kies **Elke set** en zet elk op 1." },
+        { term: "Alleen uniques", body: "een collection log-pagina toevoegen vinkt de uniques aan en laat kleine items weg: bolt racks bij Barrows, de juwelen, lijkwaden en kits van ToA, de cosmetica van een raid en de veelvoorkomende drops en teleportrollen van een baas. Zet **Alleen uniques** van de pagina uit om de hele pagina te tellen. Je kunt elk item nog zelf aan- of uitvinken; de schakelaar toont de pagina dan als eigen keuze. Pagina’s zonder kleine items hebben geen schakelaar." },
+      ],
+      examplesIntro: "Snel toevoegen leest deze zoals ze er staan:",
+      examples: [
+        "`toa unique` / `any toa purple`: één drop uit de uniques van ToA",
+        "`4 different barrows pieces`: vier stukken, elk één keer geteld",
+        "`dharok set`, `2 barrows sets`: volledige sets",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: een helm, een bovenstuk, een onderstuk en een wapen",
+        "`a unique from each dt2 boss`: één van elk van de vier",
+      ],
+      note: { tag: "Een dropregel die het niet kan lezen", body: "wordt nooit een killcount-tegel. De controle vraagt wat je bedoelde en laat zien hoe je het schrijft." },
+    },
+
     bulk: {
       title: 'Stel ze in bulk op, niet in de browser',
       body: [

@@ -6,12 +6,16 @@ import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { BOSSES } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import Switch from '@/components/Switch';
+import { clogTickState } from '@/lib/clogTickState';
 import Input from '@/components/Input';
 
 interface ClogItem {
   id: number;
   name: string;
   manualOnly?: boolean;
+  /** Not what a bingo means by a unique (lib/clogMinor): starts excluded ("Uniques only"). */
+  minor?: boolean;
 }
 interface ActivityMeta {
   name: string;
@@ -187,7 +191,10 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
         onError(data.error || 'Could not load items for that page.');
         return;
       }
-      setItems(data.items as ClogItem[]);
+      const loaded = data.items as ClogItem[];
+      setItems(loaded);
+      // "Uniques only" starts on: a page's minor slots (bolt racks, raid kits, jewels) start excluded.
+      setExcluded(new Set(loaded.filter((it) => it.minor).map((it) => it.id)));
     } finally {
       setLoading(false);
     }
@@ -339,6 +346,13 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
     a.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
   const keptCount = items ? items.length - excluded.size : 0;
+  const minorItems = items ? items.filter((it) => it.minor) : [];
+  const tickState = clogTickState(items ?? [], new Set((items ?? []).filter((it) => !excluded.has(it.id)).map((it) => it.id)));
+  const itemGroups: [string, ClogItem[]][] = !items
+    ? []
+    : minorItems.length > 0
+      ? [['Uniques', items.filter((it) => !it.minor)], ['Also on this page — tick to count', minorItems]]
+      : [['Items', items]];
   const keptManual = items ? items.filter((it) => it.manualOnly && !excluded.has(it.id)).length : 0;
 
   return (
@@ -360,7 +374,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
 
       {open && (
         <DialogFrame
-          dirty={tileLabel.trim() !== '' || excluded.size > 0 || points.trim() !== ''}
+          dirty={tileLabel.trim() !== '' || points.trim() !== '' || (items != null && excluded.size !== items.filter((it) => it.minor).length)}
           onClose={close}
           ariaLabel="Generate from collection log"
           overlayClassName="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
@@ -424,38 +438,47 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
               <>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <button onClick={reset} className="text-xs text-text-muted hover:text-foreground transition-colors">← All pages</button>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setExcluded(new Set())} className="text-xs text-gold hover:underline">All</button>
-                    <span className="text-text-muted text-xs">·</span>
-                    <button
-                      onClick={() => setExcluded(new Set((items ?? []).map((i) => i.id)))}
-                      className="text-xs text-text-muted hover:text-foreground"
+                  {minorItems.length > 0 && (
+                    <Switch
+                      checked={tickState === 'uniques'}
+                      mixed={tickState === 'custom'}
+                      onChange={(next) => setExcluded(new Set(next ? minorItems.map((i) => i.id) : []))}
                     >
-                      None
-                    </button>
-                  </div>
+                      Uniques only{tickState === 'custom' && <span className="text-text-dim"> · custom picks</span>}
+                    </Switch>
+                  )}
                 </div>
                 <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-[8rem]">
                   {loading || !items ? (
                     <p className="text-xs text-text-muted py-4 text-center">Loading items…</p>
                   ) : (
-                    <ul className="space-y-1">
-                      {items.map((it) => {
-                        const on = !excluded.has(it.id);
-                        return (
-                          <li key={it.id}>
-                            <Checkbox
-                              className="px-2.5 py-1.5 rounded-lg hover:bg-white/5"
-                              checked={on}
-                              onChange={() => toggle(it.id)}
-                              labelClassName={on ? 'text-sm text-foreground' : 'text-sm text-text-muted line-through'}
-                              label={it.name}
-                              trailing={it.manualOnly ? <ManualOnlyBadge compact /> : null}
-                            />
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    itemGroups.map(([title, list]) => (
+                      <div key={title} className="mb-2">
+                        <div className="flex items-center gap-2 px-1 mb-1 text-xs">
+                          {itemGroups.length > 1 && <span className="text-text-muted">{title}</span>}
+                          <button onClick={() => setExcluded((prev) => new Set([...prev].filter((id) => !list.some((i) => i.id === id))))} className="text-gold hover:underline">All</button>
+                          <span className="text-text-muted">·</span>
+                          <button onClick={() => setExcluded((prev) => new Set([...prev, ...list.map((i) => i.id)]))} className="text-text-muted hover:text-foreground">None</button>
+                        </div>
+                        <ul className="space-y-1">
+                          {list.map((it) => {
+                            const on = !excluded.has(it.id);
+                            return (
+                              <li key={it.id}>
+                                <Checkbox
+                                  className="px-2.5 py-1.5 rounded-lg hover:bg-white/5"
+                                  checked={on}
+                                  onChange={() => toggle(it.id)}
+                                  labelClassName={on ? 'text-sm text-foreground' : 'text-sm text-text-muted line-through'}
+                                  label={it.name}
+                                  trailing={it.manualOnly ? <ManualOnlyBadge compact /> : null}
+                                />
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))
                   )}
                 </div>
                 {/* How the kept items become tiles + per-run config */}

@@ -1747,6 +1747,38 @@ export const en = {
       },
     },
 
+    drops: {
+      title: 'Drops: uniques, different items and sets',
+      intro:
+        'Three settings decide what a drop tile really asks for. Each is one click in the tile editor, and the editor suggests it when a tile looks like it needs it.',
+      rows: [
+        {
+          term: 'Different items only',
+          body: 'on a drop tile with several items, **Repeats count** lets the same item finish it: three Dharok’s helms finish “get 3”. **Different items only** counts each item once, per team on a team tile and per player on a solo one, so “4 different Barrows pieces” means four different pieces.',
+        },
+        {
+          term: 'Item sets: Any one set or Every set',
+          body: 'on an **Item set** tile, type a set name on each item. **Any one set** finishes on the first complete set (“a full Barrows set”; **How many sets** asks for more). **Every set** needs all of them, and **Items needed per set** set to 1 means one from each. Barrows by slot: put the six helms in a Helm set, the tops in Top, the legs and skirts in Bottom and the weapons in Weapon, pick **Every set** and set each to need 1.',
+        },
+        {
+          term: 'Uniques only',
+          body: 'adding a collection-log page ticks its uniques and leaves its minor items out: bolt racks on Barrows, ToA’s jewels, shrouds and kits, a raid’s cosmetics, and a boss’s common drops and teleport scrolls. Turn the page’s **Uniques only** switch off to count the whole page. You can still tick or untick any item yourself; the switch then shows the page as custom picks. Pages without minor items have no switch.',
+        },
+      ],
+      examplesIntro: 'The quick-add box reads these as written:',
+      examples: [
+        '`toa unique` or `any toa purple`: one drop from ToA’s uniques',
+        '`4 different barrows pieces`: four pieces, each counted once',
+        '`dharok set`, `2 barrows sets`: full sets',
+        '`one of each barrows slot` or `1 barrows helm, 1 top, 1 legs and 1 weapon`: a helm, a top, a bottom and a weapon',
+        '`a unique from each dt2 boss`: one from each of the four',
+      ],
+      note: {
+        tag: 'A drop line it can’t read',
+        body: 'is never turned into a kill-count tile. The review asks which one you meant and shows how to say it.',
+      },
+    },
+
     bulk: {
       title: 'Author in bulk, not in the browser',
       body: [

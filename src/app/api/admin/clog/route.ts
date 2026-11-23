@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import clogData from '@/data/clog.json';
+import { clogMinorIds } from '@/lib/clogMinor';
 
 // Serves the bundled collection-log dataset (src/data/clog.json, built by scripts/build-clog-dataset.mjs)
 // to the admin "generate tiles from a collection log page" flow.
 //   • GET                    → { activities: [{ name, count }] } for the page picker
-//   • GET ?activity=<name>   → { activity, items: [{ id, name }] } for the exclusion checklist
+//   • GET ?activity=<name>   → { activity, items: [{ id, name, manualOnly, minor }] } for the exclusion checklist
 // Admin-only (tile editors). The data is static and version-controlled, so it's cheap to import.
 
 // A slot whose in-game name other slots share ("Decorative armour") is shown under its label, so an
@@ -33,7 +34,8 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({
       activity: activityParam,
-      items: items.map((it) => ({ ...it, manualOnly: manualOnly.has(it.id) })),
+      // `minor`: not what a bingo means by a unique (lib/clogMinor) — the editor leaves these unticked.
+      items: items.map((it) => ({ ...it, manualOnly: manualOnly.has(it.id), minor: clogMinorIds(activityParam).has(it.id) })),
     });
   }
 

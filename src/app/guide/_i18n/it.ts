@@ -1756,6 +1756,25 @@ const it: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Drop: unique, oggetti diversi e set",
+      intro: "Tre impostazioni decidono cosa chiede davvero una casella di drop. Ognuna è un clic nell’editor, e l’editor la suggerisce quando una casella sembra averne bisogno.",
+      rows: [
+        { term: "Solo oggetti diversi", body: "su una casella di drop con più oggetti, **Le ripetizioni contano** lascia che lo stesso oggetto la completi: tre Dharok’s helm completano “ottieni 3”. **Solo oggetti diversi** conta ogni oggetto una volta, per squadra su una casella di squadra e per giocatore su una solo, quindi “4 pezzi Barrows diversi” significa quattro pezzi diversi." },
+        { term: "Set: Un set o Ogni set", body: "su una casella **Set di oggetti**, scrivi un nome di set su ogni oggetto. **Un set** termina al primo set completo; **Quanti set** ne chiede di più. **Ogni set** li richiede tutti, e **Oggetti per set** a 1 significa uno da ciascuno. Barrows per slot: i sei elmi nel set Helm, le parti superiori in Top, gambali e gonne in Bottom e le armi in Weapon, scegli **Ogni set** e imposta ciascuno a 1." },
+        { term: "Solo unique", body: "aggiungendo una pagina del collection log si spuntano i suoi unique e si escludono gli oggetti minori: i bolt rack di Barrows, gioielli, sudari e kit di ToA, i cosmetici di un raid e i drop comuni e le pergamene di teletrasporto di un boss. Disattiva **Solo unique** sulla pagina per contare l’intera pagina. Puoi sempre spuntare o togliere qualsiasi oggetto; l’interruttore mostrerà la pagina come scelta personalizzata. Le pagine senza oggetti minori non hanno l’interruttore." },
+      ],
+      examplesIntro: "L’aggiunta rapida legge queste righe così come sono:",
+      examples: [
+        "`toa unique` / `any toa purple`: un drop tra gli unique di ToA",
+        "`4 different barrows pieces`: quattro pezzi, ciascuno contato una volta",
+        "`dharok set`, `2 barrows sets`: set completi",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: un elmo, una parte superiore, una inferiore e un’arma",
+        "`a unique from each dt2 boss`: uno da ciascuno dei quattro",
+      ],
+      note: { tag: "Una riga di drop che non capisce", body: "non diventa mai una casella di kill count. La revisione chiede cosa intendevi e mostra come scriverlo." },
+    },
+
     bulk: {
       title: 'Scrivi in blocco, non nel browser',
       body: [

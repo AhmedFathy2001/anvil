@@ -1754,6 +1754,25 @@ const pl: PartialGuideDict = {
       },
     },
 
+    drops: {
+      title: "Dropy: unikaty, różne przedmioty i zestawy",
+      intro: "Trzy ustawienia decydują, o co naprawdę prosi pole dropu. Każde to jedno kliknięcie w edytorze pól, a edytor podpowiada je, gdy pole wygląda, jakby go potrzebowało.",
+      rows: [
+        { term: "Tylko różne przedmioty", body: "na polu dropu z kilkoma przedmiotami **Powtórzenia się liczą** pozwala temu samemu przedmiotowi je zakończyć: trzy Dharok’s helm kończą „zdobądź 3”. **Tylko różne przedmioty** liczy każdy przedmiot raz, na drużynę na polu drużynowym i na gracza na polu solo, więc „4 różne części Barrows” to cztery różne części." },
+        { term: "Zestawy: Dowolny zestaw lub Każdy zestaw", body: "na polu **Zestaw przedmiotów** wpisz nazwę zestawu przy każdym przedmiocie. **Dowolny zestaw** kończy się na pierwszym pełnym zestawie; **Ile zestawów** wymaga więcej. **Każdy zestaw** wymaga wszystkich, a **Przedmiotów na zestaw** ustawione na 1 oznacza po jednym z każdego. Barrows według slotu: sześć hełmów do zestawu Helm, górne części do Top, nogi i spódnice do Bottom, bronie do Weapon, wybierz **Każdy zestaw** i ustaw każdy na 1." },
+        { term: "Tylko unikaty", body: "dodanie strony collection logu zaznacza jej unikaty i pomija drobne przedmioty: bolt racki z Barrows, klejnoty, całuny i zestawy z ToA, kosmetyki z rajdu oraz częste dropy i zwoje teleportacji bossa. Wyłącz **Tylko unikaty** na stronie, by liczyć całą stronę. Nadal możesz sam zaznaczać i odznaczać dowolne przedmioty; przełącznik pokaże wtedy stronę jako własny wybór. Strony bez drobnych przedmiotów nie mają przełącznika." },
+      ],
+      examplesIntro: "Szybkie dodawanie czyta te linie dosłownie:",
+      examples: [
+        "`toa unique` / `any toa purple`: jeden drop z unikatów ToA",
+        "`4 different barrows pieces`: cztery części, każda liczona raz",
+        "`dharok set`, `2 barrows sets`: pełne zestawy",
+        "`one of each barrows slot` / `1 barrows helm, 1 top, 1 legs and 1 weapon`: hełm, góra, dół i broń",
+        "`a unique from each dt2 boss`: po jednym z każdego z czterech",
+      ],
+      note: { tag: "Linia dropu, której nie rozumie", body: "nigdy nie staje się polem kill countu. Przegląd pyta, o co chodziło, i pokazuje, jak to zapisać." },
+    },
+
     bulk: {
       title: 'Pisz hurtem, nie w przeglądarce',
       body: [

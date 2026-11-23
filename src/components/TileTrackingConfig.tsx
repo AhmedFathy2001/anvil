@@ -41,6 +41,7 @@ import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import ComboPartsField, { blankPart, draftsFromParts, partPayload, type ComboPartDraft } from '@/components/ComboPartsField';
 import ClogTileFields from '@/components/ClogTileFields';
+import SmartTip from '@/components/SmartTip';
 import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboList, type ComboRule } from '@/lib/combo';
 import { listKillKey, listRule, readListTile } from '@/lib/listTile';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, isGotrEnergyCapped } from '@/lib/tileCaps';
@@ -2631,6 +2632,25 @@ function TileTrackingEditor({
                       ? 'Every set must be satisfied — with "needs 1" below, that\u2019s one item from each source.'
                       : 'Sets are alternatives: satisfying one finishes the tile, and pieces don\u2019t mix.'}
                   </p>
+                  {groupMode === 'any' && collectionGroups.length >= 2 && setsRequired <= 1 && (
+                    <SmartTip
+                      text="One set finishes the tile. Want one item from each set (a helm, a top, legs and a weapon)?"
+                      action="Every set, needs 1"
+                      disabled={locked}
+                      onAction={() => {
+                        setGroupMode('all');
+                        setGroupRequires(Object.fromEntries(collectionGroups.map((g) => [g.key, 1])));
+                      }}
+                    />
+                  )}
+                  {groupMode === 'all' && collectionGroups.some((g) => g.size > 1 && (groupRequires[g.key] ?? g.size) === g.size) && (
+                    <SmartTip
+                      text="Every item in each set is needed. Want just one from each?"
+                      action="Needs 1 each"
+                      disabled={locked}
+                      onAction={() => setGroupRequires(Object.fromEntries(collectionGroups.map((g) => [g.key, 1])))}
+                    />
+                  )}
                 </div>
                 {groupMode === 'any' && (
                   <div>
@@ -2830,6 +2850,17 @@ function TileTrackingEditor({
                     </button>
                   ))}
                 </div>
+              )}
+              {trackedItems.length > 1 && countMode === 'total' && (parseInt(requiredAmount, 10) || 0) > 1 && (
+                <SmartTip
+                  text={`Repeats count: ${parseInt(requiredAmount, 10)}× the same item finishes it. Want each item to count once?`}
+                  action="Different items only"
+                  disabled={locked}
+                  onAction={() => setCountMode('distinct')}
+                />
+              )}
+              {trackedItems.length > 1 && countMode === 'distinct' && (parseInt(requiredAmount, 10) || 0) > trackedItems.length && (
+                <SmartTip text={`Only ${trackedItems.length} different items are listed, so ${parseInt(requiredAmount, 10)} different ones can never happen.`} />
               )}
             </div>
           )}

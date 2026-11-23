@@ -115,6 +115,8 @@ export interface TaskCandidate {
 export interface MatchItem {
   id: number;
   name: string;
+  /** A collection-log page's minor slot (lib/clogMinor): left out of "a unique" from that page. */
+  minor?: boolean;
 }
 
 export interface MatchContext {
@@ -1356,6 +1358,240 @@ function clogTileCandidates(raw: string, q: ParsedQuery, ctx: MatchContext): Tas
   return [];
 }
 
+// ─── Drop lines: uniques, pieces, sets ───────────────────────────────────────────────────────
+//
+// "toa unique", "4 different barrows pieces", "dharok set", "2 barrows sets", "one of each barrows
+// slot", "a unique from each dt2 boss". The pool is a collection-log page's UNIQUES: its minor slots
+// (MatchItem.minor, lib/clogMinor — bolt racks, raid kits and jewels) are left out. A line that names
+// drops like this is never read as a kill count (see dropGuard).
+
+const DROP_NOUNS: Record<string, string> = { piece: 'piece', unique: 'unique', purple: 'unique', item: 'item', drop: 'drop', loot: 'drop' };
+const SET_WORDS = new Set(['set']);
+const DISTINCT_RE = /\b(?:different|distinct|no\s+(?:dupes?|duplicates?|repeats?|doubles?)|without\s+(?:dupes?|duplicates?|repeats?)|each\s+(?:item\s+)?once)\b/i;
+const EACH_RE = /\b(?:each|every)\b/i;
+// Barrows-style armour slots, read off the item's name.
+const SLOT_RULES: [string, RegExp][] = [
+  ['Helm', /\b(?:helm|helmet|hood|coif|hat|mask|cowl|headdress)\b/i],
+  ['Top', /\b(?:body|top|platebody|robetop|leathertop|brassard|chestplate|chest|torso)\b/i],
+  ['Bottom', /\b(?:legs|skirt|chaps|robeskirt|platelegs|plateskirt|chainskirt|leatherskirt|bottoms?|tassets)\b/i],
+];
+const SLOT_WORDS = /\b(?:helms?|helmets?|hoods?|tops?|bodies|body|legs|bottoms?|skirts?|weapons?)\b/gi;
+// Words that say what kind of line it is, never which page.
+const DROP_LINE_FILLER = new Set([
+  'piece', 'unique', 'purple', 'item', 'drop', 'loot', 'set', 'different', 'distinct', 'no', 'dupe', 'dup',
+  'duplicate', 'repeat', 'double', 'without', 'each', 'every', 'once', 'one', 'a', 'an', 'the', 'any', 'of',
+  'from', 'boss', 'bosse', 'slot', 'and', 'or', 'get', 'obtain', 'helm', 'helmet', 'hood', 'top', 'body', 'bodie',
+  'leg', 'legs', 'bottom', 'skirt', 'weapon', 'full', 'their', 'per', 'only', 'count', 'counts', 'piec',
+]);
+// Several pages under one name.
+const PAGE_FAMILIES: Record<string, string[]> = {
+  dt2: ['Duke Sucellus', 'The Leviathan', 'The Whisperer', 'Vardorvis'],
+  gwd: ['General Graardor', "Kree'arra", "K'ril Tsutsaroth", 'Commander Zilyana'],
+};
+const PAGE_ALIASES: Record<string, string> = {
+  toa: 'Tombs of Amascut', cox: 'Chambers of Xeric', tob: 'Theatre of Blood', barrows: 'Barrows Chests',
+  dks: 'Dagannoth Kings', nightmare: 'The Nightmare', hydra: 'Alchemical Hydra', cg: 'The Gauntlet',
+  gauntlet: 'The Gauntlet', colo: 'Fortis Colosseum', colosseum: 'Fortis Colosseum', muspah: 'Phantom Muspah',
+  sire: 'Abyssal Sire', cerb: 'Cerberus', kq: 'Kalphite Queen',
+};
+
+type ClogPage = { name: string; items: MatchItem[] };
+
+const pageWord = (page: string) => page.replace(/ Chests$/, '').replace(/^The /, '');
+const uniquesOf = (page: ClogPage) => page.items.filter((i) => !i.minor);
+
+/** The pages a drop line names: a family ("dt2"), a raid's short name, or every word naming one page. */
+function dropLinePages(ws: string[], ctx: MatchContext): ClogPage[] {
+  const pages = ctx.clogPages ?? [];
+  const byName = new Map(pages.map((p) => [p.name, p]));
+  for (const w of ws) {
+    const fam = PAGE_FAMILIES[w];
+    if (fam) {
+      const got = fam.map((n) => byName.get(n)).filter((p): p is ClogPage => !!p);
+      if (got.length > 1) return got;
+    }
+  }
+  const named = new Set<ClogPage>();
+  for (const w of ws) {
+    const alias = PAGE_ALIASES[w];
+    const p = alias ? byName.get(alias) : undefined;
+    if (p) named.add(p);
+  }
+  const core = ws.filter((w) => !DROP_LINE_FILLER.has(w) && !/^\d+$/.test(w) && !PAGE_ALIASES[w] && !SPELLED_N[w]);
+  if (named.size > 0) return core.length === 0 ? [...named] : [];
+  if (core.length === 0) return [];
+  let best: { page: ClogPage; extra: number } | null = null;
+  for (const page of pages) {
+    if (page.name === 'All Pets') continue;
+    const have = tokens(page.name);
+    if (!core.every((t) => have.some((h) => tokMatch(t, h)))) continue;
+    const extra = have.length - core.length;
+    if (!best || extra < best.extra) best = { page, extra };
+  }
+  return best ? [best.page] : [];
+}
+
+/** A page's sets by the owner in the item's name ("Dharok's helm" → Dharok's), when it has two or more. */
+function namedSets(page: ClogPage): Map<string, MatchItem[]> {
+  const sets = new Map<string, MatchItem[]>();
+  for (const it of uniquesOf(page)) {
+    const m = /^(.+?['’]s)\s/.exec(it.name);
+    if (!m) continue;
+    const list = sets.get(m[1]) ?? [];
+    list.push(it);
+    sets.set(m[1], list);
+  }
+  for (const [k, v] of sets) if (v.length < 2) sets.delete(k);
+  return sets.size >= 2 ? sets : new Map();
+}
+
+const slotOf = (name: string) => SLOT_RULES.find(([, re]) => re.test(name))?.[0] ?? 'Weapon';
+
+function dropLineCandidate(
+  key: string, title: string, verb: string, noun: string, config: Partial<TileConfig>, amount: number | null,
+): TaskCandidate {
+  const how = howItCountsLine(config);
+  return {
+    key,
+    source: 'drop',
+    badge: config.itemRequirements ? 'Item set' : 'Drop',
+    title,
+    titleTemplate: title,
+    hint: how.text,
+    engine: how.engine,
+    verb,
+    noun,
+    amountField: null,
+    amount,
+    config,
+    flow: 'confirm',
+    category: 'items',
+    score: 14,
+    confident: true,
+  };
+}
+
+const reqsOf = (items: MatchItem[], group: string | null, groupRequire: number | null) =>
+  items.map((i) => ({ itemId: i.id, name: i.name, requiredAmount: 1, group, groupRequire }));
+
+/** Does this line name drops (pieces, uniques, purples, sets, items) rather than kills? */
+export function namesDrops(text: string): boolean {
+  const ws = words(expandShorthands(text)).map(stem);
+  if (ws.includes('clog') || ws.includes('collection') || (ws.includes('log') && (ws.includes('slot') || ws.includes('page')))) return false;
+  if (ws.some((w) => w in DROP_NOUNS || SET_WORDS.has(w))) return true;
+  // "one of each barrows slot", "1 barrows helm, 1 top, 1 legs and 1 weapon".
+  return (ws.includes('slot') && EACH_RE.test(text)) || new Set((text.match(SLOT_WORDS) ?? []).map((w) => w.toLowerCase())).size >= 2;
+}
+
+function dropLineCandidates(raw: string, ctx: MatchContext): TaskCandidate[] {
+  if (!ctx.clogPages || ctx.clogPages.length === 0 || !namesDrops(raw)) return [];
+  const text = expandShorthands(raw);
+  const q = parseTaskQuery(raw);
+  const ws = words(text).map(stem);
+  const amount = q.amount ?? (ws.find((w) => SPELLED_N[w] != null && w !== 'one') ? SPELLED_N[ws.find((w) => SPELLED_N[w] != null && w !== 'one')!] : null);
+  const distinct = DISTINCT_RE.test(text);
+  const each = EACH_RE.test(text);
+  const pages = dropLinePages(ws, ctx);
+  const nounWord = ws.find((w) => w in DROP_NOUNS);
+  const noun = nounWord ? DROP_NOUNS[nounWord] : 'unique';
+  const plural = (n: string) => (n.endsWith('s') ? n : `${n}s`);
+
+  // "dharok set": a set named by its owner, on whichever page has it.
+  if (ws.includes('set') && pages.length === 0) {
+    const core = ws.filter((w) => !DROP_LINE_FILLER.has(w) && !/^\d+$/.test(w));
+    if (core.length === 1) {
+      for (const page of ctx.clogPages) {
+        for (const [owner, items] of namedSets(page)) {
+          if (!tokens(owner).some((t) => tokMatch(core[0], t))) continue;
+          const sets = Math.max(1, amount ?? 1);
+          const config: Partial<TileConfig> = {
+            tileType: 'drop', trackedItemIds: null, requiredAmount: null,
+            itemRequirements: reqsOf(items, owner, null), groupMode: null, setsRequired: sets > 1 ? sets : null,
+          };
+          const title = sets > 1 ? `${sets} ${owner} sets` : `${owner} set`;
+          return [dropLineCandidate(`dropline-set-${owner}`, title, 'Complete', title, config, null)];
+        }
+      }
+    }
+    return [];
+  }
+  if (pages.length === 0) return [];
+  const label = pages.length > 1 ? (ws.find((w) => PAGE_FAMILIES[w])?.toUpperCase() ?? pages.map((p) => pageWord(p.name)).join('/')) : pageWord(pages[0].name);
+
+  // "a unique from each dt2 boss": one from every page.
+  if (each && pages.length > 1) {
+    const reqs = pages.flatMap((p) => reqsOf(uniquesOf(p), pageWord(p.name), 1));
+    const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: 'all', setsRequired: null };
+    const title = `A ${label} unique from each boss`;
+    return [dropLineCandidate(`dropline-each-${label}`, title, 'Get', `a unique from each ${label} boss`, config, null)];
+  }
+
+  const page = pages[0];
+  const uniques = pages.flatMap(uniquesOf);
+  const slotsSaid = new Set((text.match(SLOT_WORDS) ?? []).map((w) => w.toLowerCase()));
+  // "one of each barrows slot", "1 barrows helm, 1 top, 1 legs and 1 weapon": one per armour slot.
+  if (pages.length === 1 && ((each && ws.includes('slot')) || slotsSaid.size >= 2)) {
+    const bySlot = new Map<string, MatchItem[]>();
+    for (const it of uniques) {
+      const s = slotOf(it.name);
+      bySlot.set(s, [...(bySlot.get(s) ?? []), it]);
+    }
+    if (bySlot.size >= 2) {
+      const order = ['Helm', 'Top', 'Bottom', 'Weapon'].filter((s) => bySlot.has(s));
+      const reqs = order.flatMap((s) => reqsOf(bySlot.get(s)!, s, 1));
+      const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: 'all', setsRequired: null };
+      const title = `One ${label} ${order.map((s) => s.toLowerCase()).join(', ')}`.replace(/, (\w+)$/, ' and $1');
+      return [dropLineCandidate(`dropline-slots-${page.name}`, title, 'Get', `one ${label} piece for each slot (${order.join(', ').toLowerCase()})`, config, null)];
+    }
+  }
+
+  // "2 barrows sets", "a barrows set": any full set, counted.
+  if (ws.includes('set') && pages.length === 1) {
+    const sets = namedSets(page);
+    if (sets.size === 0) return [];
+    const n = Math.max(1, amount ?? 1);
+    const reqs = [...sets].flatMap(([owner, items]) => reqsOf(items, owner, null));
+    const config: Partial<TileConfig> = { tileType: 'drop', trackedItemIds: null, requiredAmount: null, itemRequirements: reqs, groupMode: null, setsRequired: n > 1 ? n : null };
+    const title = n > 1 ? `${n} full ${label} sets` : `A full ${label} set`;
+    return [dropLineCandidate(`dropline-sets-${page.name}`, title, 'Complete', n > 1 ? `${n} full ${label} sets` : `any full ${label} set`, config, null)];
+  }
+
+  // "toa unique", "4 different barrows pieces": a pool over the page's uniques.
+  if (uniques.length === 0) return [];
+  const n = Math.max(1, amount ?? 1);
+  const isDistinct = distinct && n > 1 && uniques.length > 1;
+  const config: Partial<TileConfig> = {
+    tileType: 'drop', trackedItemIds: uniques.map((i) => i.id), itemRequirements: null, requiredAmount: n, countMode: isDistinct ? 'distinct' : null,
+  };
+  const word = n === 1 ? noun : plural(noun);
+  const title = n === 1 ? `Any ${label} ${noun}` : `${n} ${isDistinct ? 'different ' : ''}${label} ${word}`;
+  const c = dropLineCandidate(`dropline-pool-${pages.map((p) => p.name).join('+')}-${isDistinct ? 'd' : 't'}`, title, 'Get', title.replace(/^Any/, 'any'), config, n);
+  return [{ ...c, amountField: 'requiredAmount', titleTemplate: n === 1 ? title : title.replace(/^\d+/, '{n}'), titleOne: `Any ${label} ${noun}` }];
+}
+
+/**
+ * How to say a drop line the matcher couldn't read, or null when it read it (or it isn't one): the
+ * quick-add review shows this beside the line.
+ */
+export function dropLineHelp(text: string, ctx: MatchContext): string | null {
+  if (!namesDrops(text) || dropLineCandidates(text, ctx).length > 0) return null;
+  const pages = dropLinePages(words(expandShorthands(text)).map(stem), ctx);
+  if (pages.length === 0) return 'Name the boss or raid it drops from. Try “3 different toa uniques”, “dharok set” or “a unique from each dt2 boss”.';
+  const label = pageWord(pages[0].name).toLowerCase();
+  return `Try “any ${label} unique”, “4 different ${label} uniques” or “one of each ${label} slot”.`;
+}
+
+/**
+ * A line that names drops is never a kill count: when it has no drop reading of its own, the kill,
+ * boss and monster readings stop being confident, so the review asks instead of guessing.
+ */
+function dropGuard(raw: string, found: TaskCandidate[]): TaskCandidate[] {
+  if (!namesDrops(raw)) return found;
+  if (found.some((c) => c.confident && (c.config.tileType === 'drop' || c.config.tileType === 'gain' || c.source === 'library' && c.config.tileType !== 'kill' && c.config.tileType !== 'standard'))) return found;
+  const killish = (c: TaskCandidate) => ['boss', 'monster', 'raid', 'activity', 'family', 'counter'].includes(c.source) || c.config.tileType === 'kill' || (c.config.tileType === 'standard' && !!c.config.trackedStat);
+  return found.map((c) => (killish(c) ? { ...c, confident: false, score: Math.min(c.score, 5) } : c)).sort((a, b) => b.score - a.score);
+}
+
 // ─── The catalogue ───────────────────────────────────────────────────────────────────────────
 
 function staticDrafts(ctx: MatchContext, q: ParsedQuery | null): (Draft & Named)[] {
@@ -1436,6 +1672,14 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
  * line with many "or"s.
  */
 function matchSingle(query: string, ctx: MatchContext): TaskCandidate[] {
+  // "toa unique", "4 different barrows pieces", "one of each barrows slot": a drop line reads off the
+  // collection log's uniques first, and one it can't read is never quietly a kill count (dropGuard).
+  const drops = dropLineCandidates(query, ctx);
+  if (drops.length > 0) return drops;
+  return dropGuard(query, matchSingleTyped(query, ctx));
+}
+
+function matchSingleTyped(query: string, ctx: MatchContext): TaskCandidate[] {
   const exact = matchExact(query, ctx);
   const fix = correctQueryDetail(query, ctx);
   if (fix == null) return exact;
