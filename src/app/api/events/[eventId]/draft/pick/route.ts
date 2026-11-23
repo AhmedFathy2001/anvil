@@ -14,11 +14,15 @@ import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams
 import { assertEventEditable } from '@/lib/eventLock';
 import { track } from '@/lib/analytics';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);

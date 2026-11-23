@@ -10,6 +10,7 @@ import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { newInviteToken, withHostEventSlot } from '@/lib/friendEvents';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { track } from '@/lib/analytics';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Clone an event: copy its configuration, full tile board, and survey questions into a brand-new
 // event, resetting everything run-specific — no teams/players/completions/submissions/sign-ups, no
@@ -19,6 +20,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

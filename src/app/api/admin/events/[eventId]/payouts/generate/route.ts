@@ -13,6 +13,7 @@ import {
   suggestPlaceAmounts,
   getEventPrizePool,
 } from '@/lib/payouts';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // POST — (re)generate per-player payout rows from the final standings, and persist the prize-per-
 // placement structure it used. Body: { paidPlaces?, placeAmounts?: number[] (gp per placement),
@@ -22,6 +23,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.

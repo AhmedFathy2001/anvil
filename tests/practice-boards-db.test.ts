@@ -242,9 +242,16 @@ test('the plugin is told it is a practice board', async () => {
   const built = await buildEnrolledConfig({ eventId: practiceId, teamId: team.id, clan: (await resolveClanById(alpha))!, viewer: null });
   assert.equal(built.ok, true);
   assert.equal((built as { body: { event: { practice?: boolean } } }).body.event.practice, true);
+  // Its own (active, untagged) tile lists carry the prefix; the panel keeps the plain names.
+  const pb = (built as { body: { trackedKills?: { label: string }[]; panel: { tiles: { label?: string }[] } } }).body;
+  assert.ok((pb.trackedKills ?? []).length > 0);
+  assert.ok((pb.trackedKills ?? []).every((k) => k.label.startsWith('[Practice] ')), JSON.stringify(pb.trackedKills));
+  assert.ok(pb.panel.tiles.every((t) => !t.label?.startsWith('[Practice]')));
   const realTeam = await db.insert(s.teams).values({ eventId: realEventId, name: 'Real', color: '#123456' }).returning();
   const real = await buildEnrolledConfig({ eventId: realEventId, teamId: realTeam[0].id, clan: (await resolveClanById(alpha))!, viewer: null });
   assert.equal('practice' in (real as { body: { event: Record<string, unknown> } }).body.event, false);
+  const rk = (real as { body: { trackedKills?: { label: string }[] } }).body.trackedKills ?? [];
+  assert.ok(rk.every((k) => !k.label.startsWith('[Practice]')), 'a real board’s labels are untouched');
 });
 
 test('lower target: a real couple of kills finish the practice copy, the real tile is untouched', async () => {
@@ -268,6 +275,44 @@ test('lower target: a real couple of kills finish the practice copy, the real ti
   assert.equal((await db.select().from(s.submissions).where(eq(s.submissions.tileId, copy.id))).length, 0);
   // A tile from another board can't be reset through this one.
   await assert.rejects(practice.resetPracticeTile(practiceId, killTileId), practice.PracticeError);
+});
+
+test('the event settings routes refuse a practice board, and still take a real one', async () => {
+  const { refusePractice } = await import('../src/lib/practiceGuard.ts');
+  assert.equal((await refusePractice(Promise.resolve({ eventId: String(practiceId) })))?.status, 404);
+  assert.equal(await refusePractice({ eventId: String(realEventId) }), null);
+  assert.equal(await refusePractice({ eventId: 'nope' }), null);
+
+  type Handler = (req: Request, ctx: { params: Promise<{ eventId: string }> }) => Promise<Response>;
+  const call = async (handler: Handler, eventId: number, method: string): Promise<{ status: number; error?: string } | 'past-guard'> => {
+    const req = new Request(`http://localhost/api/x/${eventId}`, { method, headers: { 'content-type': 'application/json' }, body: method === 'GET' ? undefined : '{}' });
+    try {
+      const res = await handler(req, { params: Promise.resolve({ eventId: String(eventId) }) });
+      const body = (await res.clone().json().catch(() => ({}))) as { error?: string };
+      return { status: res.status, error: body.error };
+    } catch {
+      // Outside a Next request there is no cookie store: a route that got as far as asking who is
+      // calling has already passed the practice guard.
+      return 'past-guard';
+    }
+  };
+  const refused = { status: 404, error: 'Not available on a practice board.' };
+  const routes: [string, Handler, string][] = [
+    ['co-hosts', (await import('../src/app/api/events/[eventId]/co-hosts/route.ts')).POST as Handler, 'POST'],
+    ['teams', (await import('../src/app/api/events/[eventId]/teams/route.ts')).POST as Handler, 'POST'],
+    ['event settings', (await import('../src/app/api/events/[eventId]/route.ts')).PATCH as Handler, 'PATCH'],
+    ['webhooks', (await import('../src/app/api/admin/events/[eventId]/webhooks/route.ts')).POST as Handler, 'POST'],
+    ['sign-ups', (await import('../src/app/api/admin/events/[eventId]/signups/route.ts')).GET as Handler, 'GET'],
+    ['prize pool', (await import('../src/app/api/admin/events/[eventId]/prize-pool/route.ts')).PUT as Handler, 'PUT'],
+    ['editors', (await import('../src/app/api/events/[eventId]/editors/route.ts')).POST as Handler, 'POST'],
+  ];
+  for (const [name, handler, method] of routes) {
+    assert.deepEqual(await call(handler, practiceId, method), refused, `${name} refuses a practice board`);
+    assert.notDeepEqual(await call(handler, realEventId, method), refused, `${name} still takes a real board`);
+  }
+  // What the practice page itself uses is not refused: the tile import behind "Add tiles".
+  const importer = (await import('../src/app/api/events/[eventId]/tiles/import/route.ts')).POST as Handler;
+  assert.notDeepEqual(await call(importer, practiceId, 'POST'), refused);
 });
 
 test('ended, it is swept a week later — and only practice boards are', async () => {

@@ -4,12 +4,16 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { eventInClan } from '@/lib/eventScope';
 import { sendFinalHour } from '@/lib/finalHour';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * Send the final-hour heads-up (lib/finalHour): the countdown post to every clan on the board, and a
  * ping of each team's role in its own channel. Host staff only — it reaches co-host servers too.
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const id = Number((await params).eventId);
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

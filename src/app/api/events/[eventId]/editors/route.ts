@@ -12,6 +12,7 @@ import { personOf } from '@/lib/roster';
 import { getPeopleWithCharacters } from '@/lib/identity';
 import { grantEventEditor, revokeEventEditor, type BoardRole } from '@/lib/eventEditors';
 import { STAFF_HIDE_GRANT_ERROR, editorGrantBlocked } from '@/lib/raceHideAheadDb';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Board-scoped staff grants for one event. Admin-only — this hands out authoring or money access.
 // GET   → current grants (with their job) + assignable users
@@ -29,6 +30,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,6 +84,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -144,6 +151,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

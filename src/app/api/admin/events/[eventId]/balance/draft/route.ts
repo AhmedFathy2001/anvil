@@ -13,6 +13,7 @@ import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
 import { RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
 import type { Tile } from '@/lib/types';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // POST /api/admin/events/<id>/balance/draft { tileId?, tile } → what the effort model says about ONE
 // tile the creator is about to add: its suggested points on this board and its expected hours.
@@ -36,6 +37,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);

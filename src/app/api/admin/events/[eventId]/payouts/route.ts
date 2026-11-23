@@ -9,6 +9,7 @@ import { MAX_PAYOUT_GP, getEventPrizePool, parsePlacementSplit, placementAmounts
 import { getTeamStandings } from '@/lib/statStandings';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Order payouts for display: by finishing place (manual/null-place rows last), then amount desc.
 function sortPayouts<T extends { place: number | null; amount: number }>(rows: T[]): T[] {
@@ -21,6 +22,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -64,6 +68,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.

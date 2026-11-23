@@ -9,6 +9,7 @@ import { resolveClanById } from '@/lib/clanContext';
 import { normalizeHex } from '@/lib/artPalette';
 import { isHiddenHost } from '@/lib/friendEventsSql';
 import { overlayKeyFor, removeOverlayKey, rotateOverlayKey } from '@/lib/overlay/overlayData';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // The host's side of an event's stream overlay (lib/overlay). Admin of the event's clan only: the
 // key is a public capability once it is on a stream, so only the people who run the event mint it.
@@ -36,6 +37,9 @@ async function guard(request: Request, raw: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const g = await guard(request, (await params).eventId);
   if ('error' in g) return g.error;
   const [key, host] = await Promise.all([overlayKeyFor(g.eventId), resolveClanById(g.clanId)]);
@@ -43,6 +47,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const g = await guard(request, (await params).eventId);
   if ('error' in g) return g.error;
   const had = (await overlayKeyFor(g.eventId)) != null;
@@ -52,6 +59,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const g = await guard(request, (await params).eventId);
   if ('error' in g) return g.error;
   await removeOverlayKey(g.eventId);

@@ -18,11 +18,15 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { track } from '@/lib/analytics';
 import { startingStatsFor } from '@/lib/startingStats';
 import { spectatorPlayer, staffPlayer } from '@/lib/clientRows';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
@@ -169,6 +173,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {

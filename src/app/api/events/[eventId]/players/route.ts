@@ -19,11 +19,15 @@ import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { boardPlayer, staffPlayer } from '@/lib/clientRows';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   // Admins only, and only what a roster screen reads (lib/clientRows). Nothing on the site calls
   // this GET any more; it used to hand moderators every column of every participant — Discord
   // handle, timezone, loot, deaths, plugin stats.
@@ -49,6 +53,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   // The same gate as verifyAdmin, keeping the login: a Discord id typed beside a player is stored
   // with who entered it (lib/discordLink).
   const actor = await verifyUser();
@@ -161,6 +168,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -206,6 +216,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

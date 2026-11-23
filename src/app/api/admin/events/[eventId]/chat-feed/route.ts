@@ -11,6 +11,7 @@ import { mergeEventRulesPatch, parseEventRules, validateEventRules } from '@/lib
 import { requireClan } from '@/lib/clanContext';
 import { eventInClan } from '@/lib/eventScope';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // The board's in-game chat feed switch (lib/chatFeed): every team's notable drops and tile completions
 // in every participant's RuneLite chat. Host admins only — it shows each team what the others are
@@ -50,6 +51,9 @@ async function view(eventId: number) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if (s === 'forbidden') return NextResponse.json({ error: 'Admins only' }, { status: 403 });
   if (!s) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -57,6 +61,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId);
   if (s === 'forbidden') return NextResponse.json({ error: 'Admins only' }, { status: 403 });
   if (!s) return NextResponse.json({ error: 'Not found' }, { status: 404 });

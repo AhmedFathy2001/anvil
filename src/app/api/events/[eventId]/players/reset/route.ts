@@ -8,6 +8,7 @@ import { parseContributionSnapshot, buildContributionSnapshot } from '@/lib/stat
 import { assertEventEditable } from '@/lib/eventLock';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { afterPartCompletion } from '@/lib/comboCompletion';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Reset a single player's participation in an event — the "nuclear" option, minus the whole-team blast
 // radius. Per the product decision: this resets THIS player's own progress only. Their solo/individual
@@ -19,6 +20,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

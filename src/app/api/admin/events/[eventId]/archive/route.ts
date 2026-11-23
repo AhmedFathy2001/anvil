@@ -22,6 +22,7 @@ import { csvOf, safeName, archiveIndexHtml, type ArchiveProof } from '@/lib/even
 import { isExpiredProof } from '@/lib/eventMediaRetentionRules';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { publicSubmission } from '@/lib/proofAfter';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // The whole event as one zip, for the clan's own records: the board, teams, every completion and
 // submission with who, when and for what, the payouts and fees — and every proof image, filed by tile
@@ -36,6 +37,9 @@ export const maxDuration = 300;
 const FETCH_CONCURRENCY = 6;
 
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdminOrModerator())) return new Response('Unauthorized', { status: 401 });
   const { eventId } = await params;
   const id = Number(eventId);

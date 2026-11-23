@@ -8,6 +8,7 @@ import { onAccountConflict } from '@/lib/participants';
 import { assertEventEditable } from '@/lib/eventLock';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { withHostEventRoom } from '@/lib/friendEvents';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Bulk: turn every still-eligible signup into a draft pool entry. Captains already have
 // player rows on their teams (created by promote-captain) — those are skipped.
@@ -22,6 +23,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const isAdmin = await verifyAdmin();
   if (!isAdmin) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });

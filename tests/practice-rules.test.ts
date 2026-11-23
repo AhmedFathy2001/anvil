@@ -17,7 +17,9 @@ import {
   practiceTeams,
 } from '../src/lib/practiceRules';
 import { pickActivePluginEvent } from '../src/lib/pluginEventPick';
-import { appendBoardTiles } from '../src/lib/pluginBoardTiles';
+import { appendBoardTiles, boardLabel, prefixPracticeLabels } from '../src/lib/pluginBoardTiles';
+import { named } from '../src/lib/pluginFacts/rules';
+import { notCounted } from '../src/lib/pluginFacts/match';
 
 const HOOK = 'https://discord.com/api/webhooks/123456789012345678/abcDEF_-token';
 
@@ -130,4 +132,35 @@ test('a practice board’s folded-in tiles carry practice: true, a real board’
   assert.equal(rows[0].board, undefined, 'the active board’s own entries stay untagged');
   assert.equal(rows[1].board?.practice, true);
   assert.equal(rows[2].board && 'practice' in rows[2].board, false);
+});
+
+test('a practice board’s popups say [Practice] — once — and a real board’s keep the board suffix', () => {
+  const practice = { eventId: 9, teamId: 1, playerId: 2, clan: 'alpha', name: 'Practice · Winter Bingo', practice: true };
+  const real = { eventId: 8, teamId: 1, playerId: 3, clan: 'alpha', name: 'Winter' };
+  assert.equal(boardLabel('50 Zulrah kills', practice), '[Practice] 50 Zulrah kills');
+  assert.equal(boardLabel('[Practice] 50 Zulrah kills', practice), '[Practice] 50 Zulrah kills', 'idempotent');
+  assert.equal(boardLabel('50 Zulrah kills', real), '50 Zulrah kills · Winter');
+  assert.equal(boardLabel('50 Zulrah kills · Winter', real), '50 Zulrah kills · Winter');
+  assert.equal(boardLabel('50 Zulrah kills', null), '50 Zulrah kills');
+
+  // Folded in as another board: every list's label carries the prefix (drops and kills too, which
+  // the site's rules would name anyway), and the rules' named() leaves it as it is.
+  const body: Record<string, unknown> = {};
+  appendBoardTiles(body, { trackedKills: [{ label: 'Zulrah' }], trackedPvp: [{ label: 'PK' }] }, practice);
+  appendBoardTiles(body, { trackedKills: [{ label: 'Vorkath' }], trackedPvp: [{ label: 'PK' }] }, real);
+  const kills = body.trackedKills as { label: string; board: unknown }[];
+  assert.deepEqual(kills.map((k) => k.label), ['[Practice] Zulrah', 'Vorkath']);
+  assert.deepEqual((body.trackedPvp as { label: string }[]).map((k) => k.label), ['[Practice] PK', 'PK · Winter']);
+  assert.equal(named(kills[0]), '[Practice] Zulrah');
+  assert.equal(named(kills[1]), 'Vorkath · Winter');
+  assert.equal(notCounted({ label: 'Zulrah', board: practice }, 'party too small'), 'Not counted: [Practice] Zulrah: party too small.');
+
+  // The ACTIVE board's untagged lists, when it is the practice board.
+  const active: Record<string, unknown> = { trackedDrops: [{ label: 'Any Barrows item' }], completedTiles: [{ label: 'Done one' }], notAList: 'x' };
+  const before = active.trackedDrops;
+  prefixPracticeLabels(active);
+  prefixPracticeLabels(active);
+  assert.deepEqual((active.trackedDrops as { label: string }[]).map((d) => d.label), ['[Practice] Any Barrows item']);
+  assert.deepEqual((active.completedTiles as { label: string }[]).map((d) => d.label), ['[Practice] Done one']);
+  assert.deepEqual((before as { label: string }[])[0].label, 'Any Barrows item', 'new rows, the originals untouched');
 });

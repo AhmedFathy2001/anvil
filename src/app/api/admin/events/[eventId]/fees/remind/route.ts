@@ -6,6 +6,7 @@ import { getClanFeatures } from '@/lib/clanFeatures';
 import { eventForRequest, type ScopedEvent } from '@/lib/eventScope';
 import { cooldownRemainingMs } from '@/lib/feeReminderText';
 import { lastFeeReminder, remindUnpaidFees, unpaidFeeRecipients } from '@/lib/feeReminders';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * "Remind unpaid" on Admin → Fees: DM everyone on this event who still owes an entry fee.
@@ -34,6 +35,9 @@ async function guard(
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const g = await guard(request, params);
   if ('error' in g) return g.error;
   const now = Date.now();
@@ -49,6 +53,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const g = await guard(request, params);
   if ('error' in g) return g.error;
   const clan = await requireClan();

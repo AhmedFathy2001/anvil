@@ -6,6 +6,7 @@ import { events } from '@/db/schema';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireEventForPage } from '@/lib/eventScope';
 import { DEFAULT_SIGNUP_FIELDS, parseEventRules, parseSignupFields, type SignupFields } from '@/lib/eventRules';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * Which optional sections this board's sign-up form asks for.
@@ -16,6 +17,9 @@ import { DEFAULT_SIGNUP_FIELDS, parseEventRules, parseSignupFields, type SignupF
  * to send back would be silently reset. This merges one key and leaves the rest exactly as stored.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const id = Number((await params).eventId);
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const event = await requireEventForPage(id);
@@ -23,6 +27,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const id = Number((await params).eventId);
   if (!(await verifyAdminOrModerator())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const event = await requireEventForPage(id);

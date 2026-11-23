@@ -5,6 +5,7 @@ import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { MAX_PAYOUT_GP, savePlacementPrizes, savePlacementSplit } from '@/lib/payouts';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // POST — save the prize-per-placement structure on the event WITHOUT generating payout rows. Lets an
 // admin advertise the reward per place ahead of time (shown on the event page); the rows are built
@@ -13,6 +14,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.

@@ -14,11 +14,15 @@ import { atLeast } from '@/lib/clanRoles';
 import { signUpOnBehalf } from '@/lib/signupOnBehalf';
 import { assertEventEditable } from '@/lib/eventLock';
 import { memberAccounts } from '@/lib/entryFee';
+import { refusePractice } from '@/lib/practiceGuard';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -192,6 +196,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });

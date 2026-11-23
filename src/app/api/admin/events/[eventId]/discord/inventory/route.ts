@@ -12,6 +12,7 @@ import {
   teardownTeamDiscord,
   type TeamDiscordPart,
 } from '@/lib/discord-teams';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * The event Discord tab's "In your Discord now": what Anvil made in the clan's own server for this
@@ -34,6 +35,9 @@ async function scope(eventIdRaw: string, write: boolean) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId, false);
   if ('error' in s) return s.error;
   const inventory = await inspectTeamDiscord(s.eventId);
@@ -48,6 +52,9 @@ const PARTS: TeamDiscordPart[] = ['role', 'text', 'voice'];
  * Answers with the fresh inventory so the tab redraws from what Discord now says.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const s = await scope((await params).eventId, true);
   if ('error' in s) return s.error;
   const body = (await request.json().catch(() => ({}))) as { action?: string; teamId?: unknown; part?: unknown };

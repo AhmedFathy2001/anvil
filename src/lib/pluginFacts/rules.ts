@@ -8,6 +8,7 @@
  *
  * Built from the exact config the plugin tracks (the config route's body), so the two never disagree.
  */
+import { boardLabel } from '@/lib/pluginBoardTiles';
 import { statKeys } from '@/lib/tileKinds';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { killTargetKeys, type DropTile, type KillTile, type PlainTile, type RaidTile, type ValueTile } from '@/lib/pluginFacts/match';
@@ -333,8 +334,8 @@ export function buildEventRules(cfg: RulesConfigIn, opts: RulesOpts = {}): Event
  * on two boards reads as two lines that can be told apart. Plugin-judged kinds arrive suffixed already.
  */
 export function named(r: { label: string; board?: unknown }): string {
-  const name = (r.board as { name?: string } | null | undefined)?.name;
-  return name && !r.label.endsWith(` \u00b7 ${name}`) ? `${r.label} \u00b7 ${name}` : r.label;
+  // A practice board's row starts "[Practice] " instead (lib/pluginBoardTiles boardLabel).
+  return boardLabel(r.label, r.board as { name?: string | null; practice?: boolean | null } | null | undefined);
 }
 
 function isSimpleDrop(d: DropTile): boolean {

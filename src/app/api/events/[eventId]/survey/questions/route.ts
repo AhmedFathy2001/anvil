@@ -12,6 +12,7 @@ import {
   type SurveyQuestionType,
   type SurveyStage,
 } from '@/lib/survey';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Admin survey builder. GET returns the ordered question set; PUT saves the whole set at once,
 // upserting by id (so questions that persist keep their id — and therefore stay linked to any answers
@@ -29,6 +30,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
@@ -52,6 +56,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);

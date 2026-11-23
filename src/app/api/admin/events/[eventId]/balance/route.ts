@@ -16,6 +16,7 @@ import { tileBalanceRevision } from '@/lib/tileBalanceRevision';
 import { unobtainableItems } from '@/lib/dropSourceCheck';
 import { dropVariants } from '@/lib/dropVariants';
 import { parseJsonArray } from '@/lib/tileKinds';
+import { refusePractice } from '@/lib/practiceGuard';
 
 // Effort-model side of the board-balance auditor. Runs server-side because the wiki
 // drop-rate dataset (~700KB) shouldn't ship to the client; the Tiles tab fetches this
@@ -25,6 +26,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const clan = await requireClan();
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);

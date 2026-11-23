@@ -16,6 +16,7 @@ import {
   teardownEventServer,
 } from '@/lib/eventDiscord';
 import { assignCohostBingoRoleToApprovedSignups, unassignCohostBingoRole } from '@/lib/discord-teams';
+import { refusePractice } from '@/lib/practiceGuard';
 
 /**
  * The event Discord server for a co-hosted event (lib/eventDiscord).
@@ -39,6 +40,9 @@ async function authorize(params: Promise<{ eventId: string }>) {
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const auth = await authorize(params);
   if ('error' in auth) return auth.error;
   const status = await adminStatus(auth.id, auth.clan.id);
@@ -47,6 +51,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // A practice board (lib/practice) has none of this (lib/practiceGuard).
+  const practiceRefused = await refusePractice(params);
+  if (practiceRefused) return practiceRefused;
   const auth = await authorize(params);
   if ('error' in auth) return auth.error;
   const { id, actor, clan, role } = auth;
