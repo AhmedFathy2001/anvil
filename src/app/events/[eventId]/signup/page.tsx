@@ -228,7 +228,7 @@ export default async function EventSignupPage({
   // seats them straight away, so a full team is shown and cannot be picked.
   const placement = placementOf(event);
   const choosableTeams = placement === 'pick'
-    ? (await teamLoads(event.id)).map((t) => ({ id: t.id, name: t.name, color: t.color ?? '', size: t.size, full: isTeamFull(t, event.teamCap) }))
+    ? await teamLoads(event.id).then((ls) => ls.map((t) => ({ id: t.id, name: t.name, color: t.color ?? '', size: t.size, full: isTeamFull(t, event.teamCap, ls) })))
     : eventRules.teamChoice
     ? await db
         .select({ id: teams.id, name: teams.name, color: teams.color })

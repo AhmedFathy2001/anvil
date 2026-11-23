@@ -54,12 +54,12 @@ export const PLACEMENT_META: Record<TeamPlacement, { label: string; short: strin
   pick: {
     label: 'Players pick',
     short: 'Players choose a team when they sign up',
-    help: 'You create the teams first, then each player picks one on the sign-up form and goes straight onto it. Set a limit per team if you want them to stay even.',
+    help: 'You create the teams first, then each player picks one on the sign-up form and goes straight onto it. No team can get more than two players ahead of the smallest, so nobody can pile onto one team. Set a limit per team for a hard cap.',
   },
   draft: {
     label: 'Host drafts',
     short: 'Sign-ups wait in a pool for you or captains to pick',
-    help: 'Everyone who signs up waits in a pool. You or your captains run a draft, or assign people by hand. Best when you know the players.',
+    help: 'Everyone who signs up waits in a pool. Your captains take turns picking in snake order (1, 2, 3, then 3, 2, 1) against a pick clock, or you place people by hand. Best when you know the players.',
   },
   solo: {
     label: 'Solo',
@@ -173,23 +173,42 @@ export function soloTeamName(rsn: string, existingNames: readonly string[]): str
   }
 }
 
-export type PickVerdict = { ok: true } | { ok: false; reason: 'no-such-team' | 'full' };
+export type PickVerdict = { ok: true } | { ok: false; reason: 'no-such-team' | 'full' | 'ahead' };
+
+/**
+ * Players pick, with no per-team limit set, still may not pile onto one team: a team can be at most
+ * this many players ahead of the smallest team on the board. Friends can still join together (a
+ * pair always fits), but "everyone joins the streamer's team" can't happen.
+ */
+export const MAX_PICK_LEAD = 2;
 
 /**
  * Players pick: may `adding` more players join this team?
  *
- * `cap` null or 0 means no limit. A team that is not on this board is refused rather than ignored —
- * an id from another event would otherwise seat somebody where they were never offered a place.
+ * `cap` null or 0 means no hard limit — the lead rule (MAX_PICK_LEAD, needs `allTeams`) still keeps
+ * teams within reach of each other. A team that is not on this board is refused rather than
+ * ignored — an id from another event would otherwise seat somebody where they were never offered a
+ * place.
  */
-export function checkPick(team: TeamLoad | null | undefined, cap: number | null | undefined, adding = 1): PickVerdict {
+export function checkPick(
+  team: TeamLoad | null | undefined,
+  cap: number | null | undefined,
+  adding = 1,
+  allTeams?: readonly TeamLoad[],
+): PickVerdict {
   if (!team) return { ok: false, reason: 'no-such-team' };
   if (cap != null && cap > 0 && team.size + adding > cap) return { ok: false, reason: 'full' };
+  if (allTeams && allTeams.length > 1) {
+    const smallest = Math.min(...allTeams.filter((t) => t.id !== team.id).map((t) => t.size));
+    // A group bigger than the lead (three accounts of one person) may still start an empty team.
+    if (team.size > 0 && team.size + adding - smallest > Math.max(MAX_PICK_LEAD, adding)) return { ok: false, reason: 'ahead' };
+  }
   return { ok: true };
 }
 
 /** Whether a team still has room, for the sign-up form's list. */
-export function isTeamFull(team: TeamLoad, cap: number | null | undefined): boolean {
-  return cap != null && cap > 0 && team.size >= cap;
+export function isTeamFull(team: TeamLoad, cap: number | null | undefined, allTeams?: readonly TeamLoad[]): boolean {
+  return !checkPick(team, cap, 1, allTeams).ok;
 }
 
 /** Clamp a host-typed team count to something placement can use; null clears it. */

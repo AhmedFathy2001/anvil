@@ -572,3 +572,53 @@ test('collection-log slot tiles are priced from drop rates', () => {
   assert.ok(two.hours![1] > single.hours![1], 'two slots cost more than one');
   assert.match(single.note ?? '', /fresh log/);
 });
+
+// ── Points concentration + worth-it guard rails ─────────────────────────────────────────────────
+
+function skillBoard(hoursList: number[], pointsList: number[], floor: 'anyone' | 'elite' = 'anyone', eliteIdx: number[] = []) {
+  const base = {
+    ...raidDropTile(),
+    tileType: 'standard',
+    trackedItemIds: null,
+    sourceNpcs: null,
+    statType: 'skill',
+    effortConfig: null,
+  };
+  const skills: Record<string, { xpPerHour: [number, number, number]; floor: string }> = {};
+  const tiles = hoursList.map((h, i) => {
+    const stat = `skill${i}`;
+    skills[stat] = { xpPerHour: [100, 100, 100], floor: eliteIdx.includes(i) ? 'elite' : floor };
+    return { ...base, id: i + 1, label: `Tile ${i + 1}`, trackedStat: stat, statGoal: h * 100, points: pointsList[i] };
+  });
+  return { tiles, ratesOverride: { skills } };
+}
+
+test('one tile holding over 10% of a big board is flagged, and suggestions keep it under the cap', () => {
+  // Eleven tiles; the last is a 40-hour grind the effort model would otherwise hand ~45% of the budget.
+  const hours = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 40];
+  const points = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 400];
+  const { tiles, ratesOverride } = skillBoard(hours, points);
+  const report = analyzeEffort(tiles as Tile[], { pointsMode: true, ratesOverride, eventDays: 30 });
+  const check = report.checks.find((c) => c.id === 'points-concentration');
+  assert.ok(check, 'concentration should be flagged');
+  assert.deepEqual(check!.tileIds, [11]);
+  const cap = Math.floor(500 * 0.1);
+  const big = report.perTile[10].suggestedPoints!;
+  assert.ok(big <= cap, `suggested ${big} should respect the ${cap} cap`);
+  assert.equal(report.suggestedBudget, report.suggestionBudget, 'budget stays exact');
+});
+
+test('small boards are never flagged for concentration', () => {
+  const { tiles, ratesOverride } = skillBoard([1, 1, 10], [10, 10, 100]);
+  const report = analyzeEffort(tiles as Tile[], { pointsMode: true, ratesOverride });
+  assert.equal(report.checks.find((c) => c.id === 'points-concentration'), undefined);
+});
+
+test('hard tiles paying less per effort-hour than the board are called out as not worth it', () => {
+  // Six 1-hour tiles at 10 pts, one 2-hour elite tile at 12 pts: 6 pts/effort-hour vs a 10 median.
+  const { tiles, ratesOverride } = skillBoard([1, 1, 1, 1, 1, 1, 2], [10, 10, 10, 10, 10, 10, 12], 'anyone', [6]);
+  const report = analyzeEffort(tiles as Tile[], { pointsMode: true, ratesOverride });
+  const check = report.checks.find((c) => c.id === 'hard-not-worth-it');
+  assert.ok(check, 'cheap hard tile should be flagged');
+  assert.deepEqual(check!.tileIds, [7]);
+});

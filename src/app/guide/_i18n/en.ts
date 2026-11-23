@@ -1319,11 +1319,11 @@ export const en = {
         },
         {
           term: 'Players pick',
-          body: 'you make the teams first, and each player picks one on the sign-up form. Set a limit per team to keep them even.',
+          body: 'you make the teams first, and each player picks one on the sign-up form. No team can get more than two players ahead of the smallest, so people can’t all pile onto one. Set a limit per team if you want a hard cap too.',
         },
         {
           term: 'Host drafts',
-          body: 'everyone waits in a pool until you or your captains draft them or assign them by hand. Best when you know the players.',
+          body: 'everyone waits in a pool. Your captains take turns picking from it in snake order (1, 2, 3, then 3, 2, 1) against a pick clock, seeing each player’s sign-up answers, or you place people by hand. Best when you know the players.',
         },
         {
           term: 'Solo',
