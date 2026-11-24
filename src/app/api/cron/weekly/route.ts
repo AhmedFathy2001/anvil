@@ -2,6 +2,7 @@ import { weeklyBoard } from '@/lib/rankMoves';
 import { NextResponse } from 'next/server';
 import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
 import { finishCompetition } from '@/lib/weeklyFinish';
+import { startFinalReadBudget } from '@/lib/weeklyFinalRead';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
@@ -54,6 +55,8 @@ export async function GET(request: Request) {
   }
 
   const now = new Date().toISOString();
+  // Every competition finishing this tick reads its players once more first; they share one budget.
+  startFinalReadBudget();
 
   // Update competition statuses based on dates
   // clan-scope: global -- the lifecycle tick flips statuses for every clan's competitions.

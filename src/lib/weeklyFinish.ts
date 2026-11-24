@@ -15,6 +15,7 @@ import { competitionBoard } from '@/lib/itemHuntDb';
 import { log } from '@/lib/logger';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
+import { finalHiscoresRead } from '@/lib/weeklyFinalRead';
 
 type Comp = typeof weeklyCompetitions.$inferSelect;
 
@@ -56,6 +57,10 @@ export async function claimFinish(competitionId: number): Promise<Comp | null> {
 export async function finishCompetition(competitionId: number): Promise<boolean> {
   const comp = await claimFinish(competitionId);
   if (!comp) return false;
+  // One last hiscores read for everybody before anything is posted or paid: the sweep's last visit
+  // can be 15 minutes old, and players who logged out since then would otherwise lose their kills
+  // (lib/weeklyFinalRead). Claimed first, so the sweep has already stopped touching it.
+  await finalHiscoresRead(comp);
   try {
     await announceCompetitionResults(comp, await finalStandings(comp));
   } catch (err) {

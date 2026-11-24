@@ -1,6 +1,6 @@
 {
   "name": "anvil",
-  "version": "1.23.2",
+  "version": "1.23.3",
   "private": true,
   "scripts": {
     "test:proofattachments": "npx tsx --test tests/proof-attachments.test.ts",
