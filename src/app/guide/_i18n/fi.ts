@@ -34,10 +34,10 @@ const fi: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'Oppaat — Anvil',
+    metaTitle: 'Ohjeet — Anvil',
     metaDescription:
       'Näin pääset alkuun Anvilin kanssa: RuneLite-plugin pelaajille, tapahtuman pyörittäminen klaanin henkilökunnalle, ja vierailevan klaanin isännöinti.',
-    title: 'Oppaat',
+    title: 'Ohjeet',
     dek: 'Kaikki mitä tarvitset päästäksesi alkuun, kirjoitettuna juuri sille Anvilin versiolle, joka pyörii täällä.',
     groups: {
       playing: 'Pelaaminen',

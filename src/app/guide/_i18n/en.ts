@@ -38,10 +38,10 @@ export const en = {
   },
 
   index: {
-    metaTitle: 'Guides — Anvil',
+    metaTitle: 'Help — Anvil',
     metaDescription:
       'Setup guides for Anvil: the RuneLite plugin for players, running an event for clan staff, and hosting a visiting clan.',
-    title: 'Guides',
+    title: 'Help',
     dek: 'Everything you need to get set up, written for the version of Anvil running right here.',
     groups: {
       playing: 'Playing',

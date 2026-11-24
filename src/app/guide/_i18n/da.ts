@@ -40,10 +40,10 @@ const da: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'Vejledninger — Anvil',
+    metaTitle: 'Hjælp — Anvil',
     metaDescription:
       'Kom i gang med Anvil: RuneLite-pluginnet til spillere, afvikling af et event for klanens stab, og hvordan man er vært for en gæsteklan.',
-    title: 'Vejledninger',
+    title: 'Hjælp',
     dek: 'Alt hvad du skal bruge for at komme i gang, skrevet til præcis den version af Anvil, der kører her.',
     groups: {
       playing: 'At spille',

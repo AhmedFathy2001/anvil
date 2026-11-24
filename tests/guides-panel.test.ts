@@ -155,7 +155,9 @@ test('guide panel: every guide view has the back header to the Guides list and a
   assert.deepEqual(backTo(guidePanelUi({ ...DATA, region: '9023' }))!.args, { region: '9023' });
   // The alternatives page goes back to the guide.
   const alt = backTo(guidePanelUi({ ...DATA, alternatives: ALTS }));
-  assert.equal(alt!.act, 'guide-pick');
+  assert.equal(alt!.a, 'load');
+  assert.equal(alt!.v, 'guide');
+  assert.equal((alt!.args as Record<string, string>).setup, 'intermediate-dhcb');
 });
 
 test('guide panel: a guide with no setups shows its sections, steps, notes and a video link — never a bare card', () => {
@@ -181,10 +183,11 @@ test('guide panel: a guide with no setups shows its sections, steps, notes and a
 test('guide panel: the alternatives are closed until a slot is clicked, then a page of their own', () => {
   const closed = guidePanelUi(DATA);
   assert.equal(actions(closed).some((a) => a.act === 'guide-skip' || a.act === 'guide-budget'), false);
-  assert.ok(actions(closed).some((a) => a.act === 'guide-alt'), 'slots open them');
+  // A slot opens them as a load (a refresh then shows the same slot again).
+  assert.ok(actions(closed).some((a) => a.a === 'load' && (a.args as Record<string, string> | undefined)?.alt === 'weapon'), 'slots open them');
   const open = guidePanelUi({ ...DATA, alternatives: ALTS });
   const acts = actions(open).filter((a) => a.a === 'post').map((a) => a.act);
-  for (const name of ['guide-pick', 'guide-skip', 'guide-budget']) assert.ok(acts.includes(name), name);
+  for (const name of ['guide-skip', 'guide-budget']) assert.ok(acts.includes(name), name);
   let tabs = 0;
   walk(open, (o) => {
     if (o.t === 'tabs') tabs++;
@@ -196,9 +199,9 @@ test('guide panel: level chips fit (short labels), the picker lists every setup,
   const ui = guidePanelUi(DATA);
   const t = texts(ui);
   assert.ok(t.includes('Mid') && !t.some((s) => s.startsWith('Intermedi') && s.length < 12));
-  // The picker: "1 of 2 ▾", then each setup posts guide-pick with its key.
+  // The picker: "1 of 2 ▾", then each setup loads the guide with its key.
   assert.ok(t.includes('1 of 2 ▾'));
-  const picks = actions(ui).filter((a) => a.act === 'guide-pick').map((a) => (a.args as Record<string, string>).setup);
+  const picks = actions(ui).filter((a) => a.a === 'load' && a.v === 'guide').map((a) => (a.args as Record<string, string>).setup);
   assert.ok(picks.includes('intermediate-dhl'));
   // An empty slot shows the game's slot picture; a missing one its own well colour.
   let sprites = 0;

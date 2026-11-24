@@ -34,10 +34,10 @@ const ar: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'الأدلة — Anvil',
+    metaTitle: 'المساعدة — Anvil',
     metaDescription:
       'أدلة البدء مع Anvil: إضافة RuneLite للاعبين، وإدارة فعالية لطاقم العشيرة، واستضافة عشيرة زائرة.',
-    title: 'الأدلة',
+    title: 'المساعدة',
     dek: 'كل ما تحتاجه للبدء، مكتوبًا لنسخة Anvil التي تعمل هنا تحديدًا.',
     groups: {
       playing: 'اللعب',

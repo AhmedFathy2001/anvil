@@ -90,7 +90,8 @@ export default function PlatformRail({
   const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null, hint?: string) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
     // /clans/new is the create form, not the hall, and lighting the hall there says you are browsing.
-    const active = exact ? pathname === href : pathname.startsWith(href);
+    // A segment prefix, not a string one: /guides must not light Help (/guide).
+    const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
     return (
       <ClanLink
         key={href}
@@ -159,7 +160,9 @@ export default function PlatformRail({
         {/* No in-game clan needed: a streamer or a friend group hosts from a creator space. */}
         {item('/host', 'Host an event', <PlusIcon />)}
         {item('/leaderboard', 'Hall of Records', <ChartIcon />)}
-        {item('/guide', 'Guides', <BookIcon />)}
+        {/* In-game guides (gear, routes) and Anvil's own help are two things: Guides is the game, Help is Anvil. */}
+        {item('/guides', 'Guides', <BookIcon />)}
+        {item('/guide', 'Help', <BookIcon />, false, null, 'Using Anvil: the plugin, events, proofs')}
         {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan
             role confers it — so an operator had to know the URL to reach the platform's own admin. */}
         {platformStaff && item('/staff', 'Platform', <ShieldIcon />, false, platformBadge)}
