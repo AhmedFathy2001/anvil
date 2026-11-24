@@ -59,6 +59,12 @@ export interface HuntItem {
   count: HuntCountMode;
   /** Rule 'points': what one drop (or one piece, under 'quantity') of it scores. Absent = 1. */
   points?: number;
+  /**
+   * A bounty on this row, in the competition's prize currency: what the 1st, 2nd, 3rd… player to get
+   * one is paid. Its length is how many players it pays. Each player claims it once. Absent = none.
+   * Any rule; alongside the place prizes or instead of them (huntBountyClaims).
+   */
+  bounty?: number[];
   /** v2: the row is a pet. It counts from wherever it came, one at a time, like a v1 pet hunt's. */
   pet?: true;
   /**
@@ -203,7 +209,8 @@ export function huntFromInput(
         return { ok: false, error: `Choose where ${name} counts from: one or more sources, or any source.` };
       }
       const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
-      items.push({ id, name, sources, count: it.count === 'quantity' ? 'quantity' : 'drops', ...(rule === 'points' ? { points: Math.min(MAX_ITEM_POINTS, Math.max(1, pts)) } : {}) });
+      const bounty = bountyFromInput(it.bounty);
+      items.push({ id, name, sources, count: it.count === 'quantity' ? 'quantity' : 'drops', ...(rule === 'points' ? { points: Math.min(MAX_ITEM_POINTS, Math.max(1, pts)) } : {}), ...(bounty ? { bounty } : {}) });
     }
     if (items.length === 0) return { ok: false, error: 'Pick at least one item to hunt.' };
   }
@@ -362,6 +369,7 @@ function huntV2FromInput(body: Record<string, unknown>, opts: { lenient?: boolea
     const pts = typeof it.points === 'number' && Number.isFinite(it.points) ? Math.round(it.points) : 1;
     // Absent = picked for you; null = "Nothing"; anything else is checked, and an unreadable one is nothing.
     const stat = it.stat === undefined ? autoRowStat({ id, name, sources, pet }) : rowStatFromInput(it.stat);
+    const bounty = bountyFromInput(it.bounty);
     items.push({
       id,
       name,
@@ -369,6 +377,7 @@ function huntV2FromInput(body: Record<string, unknown>, opts: { lenient?: boolea
       count: !pet && it.count === 'quantity' ? 'quantity' : 'drops',
       ...(rule === 'points' ? { points: Math.min(MAX_ITEM_POINTS, Math.max(1, pts)) } : {}),
       ...(pet ? { pet: true as const } : {}),
+      ...(bounty ? { bounty } : {}),
       stat,
     });
   }
@@ -866,9 +875,11 @@ export function rowProgressWords(p: Pick<HuntRowProgress, 'label' | 'unit' | 'ga
  */
 export function huntPanelLine(
   config: HuntConfig,
-  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'>,
+  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'> & { rank?: number },
   progress: HuntRowProgress[] | null,
 ): { figure: string | null; sub: string | null } {
+  // "First to get it": one drop and they are finished, in their place. Progress no longer matters.
+  if (config.rule === 'first' && row.count > 0 && row.rank != null) return { figure: firstDoneWords(row.rank), sub: null };
   const total = huntRows(config).length;
   const unit = config.rule === 'points' ? 'pts' : row.count === 1 ? 'drop' : 'drops';
   const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? ` · ${row.held}/${total}` : ''}` : row.due != null ? (row.due > 0 ? `${dueWords(row.due)} due` : 'no kc yet') : null;
@@ -1140,6 +1151,174 @@ export function rankHunt(
   });
   rows.forEach((r, i) => (r.rank = i + 1));
   return rows;
+}
+
+/** "1st", "2nd", "11th". */
+export function placeWords(place: number): string {
+  const mod100 = place % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${place}th`;
+  return `${place}${['th', 'st', 'nd', 'rd'][place % 10] ?? 'th'}`;
+}
+
+/**
+ * A "first to get it" player with a drop: finished, in the place their first counting drop gave them
+ * (rankHunt orders them by firstAt). "Done · 1st".
+ */
+export function firstDoneWords(rank: number): string {
+  return `Done · ${placeWords(rank)}`;
+}
+
+/**
+ * What "first to get it" means with several targets. A drop is never used up for everyone: any one
+ * target finishes a player, places go by when each got their first, and whoever has none yet can
+ * still take the next place.
+ */
+export function firstRuleWords(targets: number): string {
+  return targets > 1
+    ? `Any one of the ${targets} targets counts. A player is done once they get one, placed by when they got it. Everyone else can still place: the next to get any of them takes the next place.`
+    : 'A player is done once they get it, placed by when they got it. Everyone else can still place: the next to get one takes the next place.';
+}
+
+// ── Bounties: per row, the first N players to get one ──────────────────────────────────────────
+
+/** How many players one row's bounty may pay. */
+export const MAX_BOUNTY_PLACES = 10;
+/** The same guard the place prizes have (lib/weeklyPrizes): a typo must not reserve a number nobody meant. */
+const MAX_BOUNTY_GP = 5_000_000_000;
+/** The editor's default taper: each next place gets this much less. */
+export const DEFAULT_BOUNTY_TAPER = 50;
+
+/**
+ * A row's bounty as stored: whole positive amounts, first place first, at most MAX_BOUNTY_PLACES. A
+ * single number pays only the first. The list ends at the first place with no amount, so [20m, 0, 5m]
+ * pays one place. Undefined when it pays nobody.
+ */
+export function bountyFromInput(raw: unknown): number[] | undefined {
+  const list = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+  const out: number[] = [];
+  for (const v of list.slice(0, MAX_BOUNTY_PLACES)) {
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isFinite(n) || n < 1) break;
+    out.push(Math.min(MAX_BOUNTY_GP, Math.floor(n)));
+  }
+  return out.length ? out : undefined;
+}
+
+/**
+ * The editor's fill: `first` for the first place and `n` places in all, each next one `taperPct`
+ * percent less (null = the same for all). Rounded to a thousand once it is that big, so 20m tapers to
+ * 10m and 5m, not 9,999,999. Staff can change any place by hand after; what is stored is the list.
+ */
+export function taperBounty(first: number, n: number, taperPct: number | null): number[] {
+  const places = Math.max(0, Math.min(MAX_BOUNTY_PLACES, Math.floor(n)));
+  const top = Math.max(0, Math.min(MAX_BOUNTY_GP, Math.floor(first)));
+  if (top < 1 || places === 0) return [];
+  const cut = taperPct == null ? 0 : Math.max(0, Math.min(100, taperPct)) / 100;
+  const out: number[] = [];
+  let amount = top;
+  for (let i = 0; i < places; i++) {
+    const rounded = amount >= 10_000 ? Math.round(amount / 1000) * 1000 : Math.round(amount);
+    if (rounded < 1) break;
+    out.push(rounded);
+    amount *= 1 - cut;
+  }
+  return out;
+}
+
+/** The rows with a bounty on them. */
+export function huntBountyRows(config: HuntConfig | null): HuntItem[] {
+  return config ? huntRows(config).filter((r) => (r.bounty?.length ?? 0) > 0) : [];
+}
+
+/** The bounties as one comparable value: what a change to them is judged by (only staff who pay prizes may make one). */
+export function huntBountyKey(config: HuntConfig | null): string {
+  return JSON.stringify(huntBountyRows(config).map((r) => [r.id, r.bounty]));
+}
+
+/** Everything the bounties could pay, if every place of every one is claimed. */
+export function huntBountyTotal(config: HuntConfig | null): number {
+  return huntBountyRows(config).reduce((sum, r) => sum + (r.bounty ?? []).reduce((a, b) => a + b, 0), 0);
+}
+
+/** One place of one row's bounty, claimed by a drop. */
+export interface BountyClaim {
+  itemId: number;
+  itemName: string;
+  /** 1 = the first player to get this row. */
+  place: number;
+  amount: number;
+  rsnKey: string;
+  dropId: number;
+  occurredAt: string;
+}
+
+/**
+ * Who has claimed which bounty, place by place. Only COUNTED drops inside the window claim (a held
+ * report or a waiting proof claims once staff approve it; a turned-down one never does), oldest
+ * first, so the place a drop takes goes by when it happened. Each player claims a row's bounty once:
+ * their second Baron is not the Baron's second place. `who` narrows it to the players who can be paid
+ * (the prize settle's eligible list); everyone else's drops neither claim nor block a place.
+ */
+export function huntBountyClaims(
+  config: HuntConfig,
+  drops: HuntDrop[],
+  window: { startMs: number | null; endMs: number | null },
+  who?: Set<string>,
+): BountyClaim[] {
+  const rows = huntBountyRows(config);
+  if (rows.length === 0) return [];
+  const counted = countedDrops(drops, window).filter((d) => !who || who.has(d.rsnKey));
+  const out: BountyClaim[] = [];
+  for (const row of rows) {
+    const amounts = row.bounty ?? [];
+    const claimed = new Set<string>();
+    for (const d of counted) {
+      if (claimed.size >= amounts.length) break;
+      if (d.itemId !== row.id || claimed.has(d.rsnKey)) continue;
+      claimed.add(d.rsnKey);
+      out.push({ itemId: row.id, itemName: row.name, place: claimed.size, amount: amounts[claimed.size - 1], rsnKey: d.rsnKey, dropId: d.id, occurredAt: d.occurredAt });
+    }
+  }
+  return out;
+}
+
+/**
+ * The drops behind claimed bounties that staff have not confirmed yet: the bounty settle waits on
+ * them, as the place prizes wait on theirs (unconfirmedPrizeDrops). None when plugin drops count
+ * automatically.
+ */
+export function unconfirmedBountyDrops(config: HuntConfig, claims: BountyClaim[], drops: HuntDrop[]): HuntDrop[] {
+  if (config.confirm === 'auto' || claims.length === 0) return [];
+  const ids = new Set(claims.map((c) => c.dropId));
+  return drops.filter((d) => ids.has(d.id) && !d.confirmed);
+}
+
+/** Each bounty row with who has claimed it so far, in claim order: the page's and the panel's list. */
+export function huntBountyBoard(
+  config: HuntConfig,
+  drops: HuntDrop[],
+  window: { startMs: number | null; endMs: number | null },
+  nameOf: (rsnKey: string) => string,
+): { itemId: number; name: string; amounts: number[]; claimedBy: string[] }[] {
+  const claims = huntBountyClaims(config, drops, window);
+  return huntBountyRows(config).map((r) => ({
+    itemId: r.id,
+    name: r.name,
+    amounts: r.bounty ?? [],
+    claimedBy: claims.filter((c) => c.itemId === r.id).map((c) => nameOf(c.rsnKey)),
+  }));
+}
+
+/** "20m / 10m / 5m": a row's bounty ladder, in the short gp words the posts use. */
+export function bountyLadderWords(amounts: number[], gp: (n: number) => string): string {
+  return amounts.map(gp).join(' / ');
+}
+
+/** "1 of 3 claimed (Minyol)" / "open": how far one row's bounty has gone. */
+export function bountyClaimWords(amounts: number[], claimedBy: string[]): string {
+  if (claimedBy.length === 0) return 'open';
+  if (amounts.length === 1) return `claimed (${claimedBy[0]})`;
+  return `${claimedBy.length} of ${amounts.length} claimed (${claimedBy.join(', ')})`;
 }
 
 /** "got it at 1,204 kc" / "at 13,034,431 Woodcutting XP", or null when the drop carries neither. */

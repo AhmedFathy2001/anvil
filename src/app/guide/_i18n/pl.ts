@@ -34,10 +34,10 @@ const pl: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'Przewodniki — Anvil',
+    metaTitle: 'Pomoc — Anvil',
     metaDescription:
       'Przewodniki konfiguracyjne Anvil: plugin do RuneLite dla graczy, prowadzenie wydarzenia dla sztabu klanu i goszczenie klanu z zewnątrz.',
-    title: 'Przewodniki',
+    title: 'Pomoc',
     dek: 'Wszystko, czego potrzeba, żeby wystartować, napisane dla tej wersji Anvil, która działa właśnie tutaj.',
     groups: {
       playing: 'Granie',

@@ -19,7 +19,7 @@ import { setWeeklyPool } from '@/lib/coffer';
 import { track } from '@/lib/analytics';
 import { setWeeklyRepeat } from '@/lib/weeklyRepeat';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
-import { huntFromInput, huntTargetsLabel, killsOfForItems, serializeHunt } from '@/lib/itemHunt';
+import { huntBountyTotal, huntFromInput, huntTargetsLabel, killsOfForItems, serializeHunt } from '@/lib/itemHunt';
 import { checkWeeklyMetric } from '@/lib/weeklyMetricInput';
 
 export async function GET() {
@@ -72,6 +72,10 @@ export async function POST(request: Request) {
     const checked = huntFromInput(body.hunt);
     if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
     const config = checked.config;
+    // A bounty spends the clan's money, so it asks what the prize ladder below asks.
+    if (huntBountyTotal(config) > 0 && !(await verifyFeeCollector())) {
+      return NextResponse.json({ error: 'Only a treasurer or admin can set a bounty. Create the hunt without one and ask one of them to add it.' }, { status: 403 });
+    }
     // Kills at the source come from the chosen sources when every one is a hiscores boss. With
     // "any source" the organiser may have picked a boss to show instead. A pet hunt's come from the
     // pets' own bosses, worked out in huntFromInput. A v2 hunt's comes from its rows' own stats.

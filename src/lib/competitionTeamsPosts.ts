@@ -12,7 +12,9 @@ import { buildGroupStandings, racingClans } from '@/lib/competitionTeamsDb';
 import { notifyWeeklyDaily, notifyWeeklyHalfway, notifyWeeklyResults, notifyWeeklyStart, type WeeklyGroupPost, type WeeklyHuntPost } from '@/lib/discord';
 import { getSetting } from '@/lib/settings';
 import { WEEKLY_DAILY_KEY, WEEKLY_HALFWAY_KEY, dailyLines, dailyWindowOpen, dayBest, dayClimber, dayWorthPosting, switchOn, type DayStart } from '@/lib/weeklyDaily';
-import { huntIconUrl, huntKindWord, huntLine, parseHunt } from '@/lib/itemHunt';
+import { huntIconUrl, huntKindWord, huntLine, huntRsnKey, parseHunt, placeWords } from '@/lib/itemHunt';
+import { huntBounties } from '@/lib/itemHuntDb';
+import { formatGp } from '@/lib/adminEventsFormat';
 import { BEST_DROPS_IN_RESULTS, bestDropLine, rankBestDrops } from '@/lib/bestDrops';
 import { bestDropMoments } from '@/lib/momentsStore';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
@@ -71,6 +73,24 @@ async function prizeWinnings(comp: Comp, standings: { rsn: string; gained: numbe
   return [...won].map(([rsn, gp]) => ({ rsn, gp }));
 }
 
+/**
+ * A hunt's claimed bounties for its results post, one line per item, every claimed place in order:
+ * "Baron: 20m Minyol · 2nd 10m Bravo". None on any other competition, or a hunt without bounties.
+ */
+async function resultsBounties(comp: Comp, standings: { rsn: string }[]): Promise<string[]> {
+  if (comp.type !== 'hunt') return [];
+  const got = await huntBounties(comp);
+  if (!got || got.claims.length === 0) return [];
+  const nameOf = new Map(standings.map((s) => [huntRsnKey(s.rsn), s.rsn]));
+  const unit = comp.prizeCurrency === 'hcw' ? ' HCW gp' : '';
+  const byItem = new Map<string, string[]>();
+  for (const c of got.claims) {
+    const who = nameOf.get(c.rsnKey) ?? c.rsnKey;
+    byItem.set(c.itemName, [...(byItem.get(c.itemName) ?? []), `${c.place === 1 ? '' : `${placeWords(c.place)} `}${formatGp(c.amount)}${unit} **${who}**`]);
+  }
+  return [...byItem].map(([item, parts]) => `${item}: ${parts.join(' · ')}`);
+}
+
 async function groupPost(comp: Comp): Promise<WeeklyGroupPost | null> {
   const view = await buildGroupStandings(comp);
   if (!view || view.mode === 'solo') return null;
@@ -115,6 +135,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
   // Prizes are matched on the plain names, then both carry the HCW tag.
   const hcw = await hardcoreKeys(comp);
   const prizes = await prizeWinnings(comp, standings).catch(() => null);
+  const bounties = await resultsBounties(comp, standings).catch(() => [] as string[]);
   for (const t of await targets(comp)) {
     try {
       await notifyWeeklyResults({
@@ -129,6 +150,7 @@ export async function announceCompetitionResults(comp: Comp, standings: { rsn: s
         countsOn: comp.countsOn,
         prizes: prizes ? tagHardcore(prizes, hcw) : null,
         prizeCurrency: parsePrizeCurrency(comp.prizeCurrency),
+        bounties,
         pingRoleId: comp.pingOnEnd && t.clanId === comp.clanId ? comp.pingRoleId : null,
       });
     } catch (err) {

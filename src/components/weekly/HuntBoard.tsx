@@ -13,7 +13,8 @@ import Textarea from '@/components/Textarea';
 import ThingIcon from '@/components/ThingIcon';
 import { clanFetch } from '@/lib/clanFetch';
 import { SKILLS, SKILL_LABELS } from '@/lib/constants';
-import { dueWords, rowProgressWords, type HuntRowProgress } from '@/lib/itemHunt';
+import { bountyClaimWords, bountyLadderWords, dueWords, firstDoneWords, firstRuleWords, placeWords, rowProgressWords, type HuntRowProgress } from '@/lib/itemHunt';
+import { formatGp } from '@/lib/adminEventsFormat';
 import type { HuntView, HuntViewDrop, HuntViewRow } from '@/lib/itemHuntView';
 import { itemIconUrl } from '@/lib/tileIcons';
 import { EntrantTags } from './GameTags';
@@ -102,9 +103,36 @@ function ProgressChips({ row }: { row: HuntViewRow }) {
   );
 }
 
+/** "Baron · 20m / 10m / 5m · 1 of 3 claimed (Minyol)": each bounty, and how far it has gone. */
+function BountyList({ view }: { view: HuntView }) {
+  const unit = view.currency === 'hcw' ? ' HCW gp' : '';
+  return (
+    <div className="mt-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">Bounties{unit && ` · paid in${unit}`}</p>
+      <ul className="mt-1 flex flex-wrap gap-1.5 text-xs">
+        {view.bounties.map((b) => {
+          const open = b.claimedBy.length < b.amounts.length;
+          return (
+            <li key={b.itemId} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 ${open ? 'border-gold/40 text-foreground/90' : 'border-card-border text-text-muted'}`}>
+              <ThingIcon src={itemIconUrl(b.itemId)} alt="" size={16} />
+              <span>
+                {b.name} · <b className="tabular-nums text-gold-light">{bountyLadderWords(b.amounts, formatGp)}</b> · {bountyClaimWords(b.amounts, b.claimedBy)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-1 text-[11px] text-text-muted">Each is paid to the first players whose drop of it counts, in that order, once each. Paid with the prizes when the hunt ends.</p>
+    </div>
+  );
+}
+
 function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?: boolean }) {
   const stat = statGainWords(row, view);
   const has = row.count > 0;
+  // "First to get it": one drop and they are finished, in their place. The rows still to get and the
+  // progress toward them only matter while a player is still hunting.
+  const done = view.rule === 'first' && has;
   return (
     <div
       className={`border-b border-card-border/60 px-3 py-2.5 last:border-b-0 ${
@@ -122,7 +150,8 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
             {row.isMe && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-accent-green-light">you</span>}
           </span>
           {/* "2 of 3": the rows they hold, as their icons. */}
-          {view.v2 && view.targets.length > 1 && row.held > 0 && (
+          {done && <span className="block text-xs font-semibold text-accent-green-light">{firstDoneWords(row.rank)}</span>}
+          {view.v2 && !done && view.targets.length > 1 && row.held > 0 && (
             <span className="mt-0.5 flex items-center gap-1 text-xs text-text-muted">
               {row.heldIds.slice(0, 6).map((id) => (
                 <ThingIcon key={id} src={itemIconUrl(id)} alt="" size={18} />
@@ -131,7 +160,7 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
               {row.completeAt && <span className="ml-1 rounded-full border border-gold/50 px-1.5 text-[10px] text-gold-light">has all of them</span>}
             </span>
           )}
-          {view.v2 && <ProgressChips row={row} />}
+          {view.v2 && !done && <ProgressChips row={row} />}
           {stat && <span className={`block text-xs ${!has && (row.statGain ?? 0) > 0 ? 'text-amber-300/90' : 'text-text-muted'}`}>{stat}</span>}
           {/* A hunt over several bosses: where those kills were, and each count's start and now on hover. */}
           {row.statParts && (
@@ -153,8 +182,8 @@ function Row({ row, view, pinned }: { row: HuntViewRow; view: HuntView; pinned?:
           </span>
         )}
         <span className="shrink-0 text-right">
-          <span className={`block font-mono text-lg font-bold leading-none tabular-nums ${has ? 'text-gold-light' : 'text-text-muted'}`}>{row.count.toLocaleString()}</span>
-          <span className="block text-[10px] uppercase tracking-wider text-text-muted">{view.rule === 'first' && has ? 'got it' : view.rule === 'points' ? (row.count === 1 ? 'point' : 'points') : row.count === 1 ? 'drop' : 'drops'}</span>
+          <span className={`block font-mono text-lg font-bold leading-none tabular-nums ${has ? 'text-gold-light' : 'text-text-muted'}`}>{done ? placeWords(row.rank) : row.count.toLocaleString()}</span>
+          <span className="block text-[10px] uppercase tracking-wider text-text-muted">{done ? 'place' : view.rule === 'points' ? (row.count === 1 ? 'point' : 'points') : row.count === 1 ? 'drop' : 'drops'}</span>
         </span>
       </div>
       {row.drops.length > 0 && (
@@ -176,10 +205,11 @@ export function HuntStandingsTable({ view }: { view: HuntView }) {
         <span className="h-5 w-1 rounded-full bg-gold" />
         Standings
         <span className="text-xs font-normal text-text-muted">
-          {view.rows.length} entered · {view.rule === 'first' ? 'in the order they got it' : view.rule === 'points' ? 'most points first' : 'most drops first'}
+          {view.rows.length} entered · {view.rule === 'first' ? 'in the order they got their first' : view.rule === 'points' ? 'most points first' : 'most drops first'}
           {!view.v2 && view.statLabel && view.statUnit === 'kills' && ` · kills at ${view.statLabel} since the start`}
         </span>
       </h2>
+      {view.rule === 'first' && <p className="mb-1 max-w-3xl text-xs text-foreground/80">{firstRuleWords(view.targets.length)}</p>}
       <p className="mb-3 text-xs text-text-muted">Drops count from the Anvil plugin, or from a screenshot with the kill count or XP that staff approve.</p>
 
       {view.awaiting.length > 0 && (
@@ -486,6 +516,7 @@ export function HuntHero({ title, view, startDate, endDate, countsOn }: { title:
                 {view.firstOfEach && <span className="px-1 py-0.5 text-text-muted">only each player&rsquo;s first of each item scores</span>}
               </div>
             )}
+            {view.bounties.length > 0 && <BountyList view={view} />}
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">
                 <LocalTime date={startDate} format="short" /> – <LocalTime date={endDate} format="short" />

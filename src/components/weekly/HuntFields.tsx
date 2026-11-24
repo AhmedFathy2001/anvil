@@ -13,7 +13,19 @@ import { clanFetch } from '@/lib/clanFetch';
 import { BOSSES, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS, metricKeys } from '@/lib/constants';
 import { parseTypedHunt, type TypedHunt } from '@/lib/huntTyped';
 import { decodeStat, encodeStat, huntFormRow, type HuntFormItem, type HuntFormValue } from '@/lib/huntForm';
-import { MAX_ENDING_DROPS, MAX_HUNT_ITEMS, MAX_HUNT_ROWS, MAX_ITEM_POINTS, type HuntConfirm, type HuntEnding, autoRowStat, rowStatLabel } from '@/lib/itemHunt';
+import {
+  DEFAULT_BOUNTY_TAPER,
+  MAX_BOUNTY_PLACES,
+  MAX_ENDING_DROPS,
+  MAX_HUNT_ITEMS,
+  MAX_HUNT_ROWS,
+  MAX_ITEM_POINTS,
+  type HuntConfirm,
+  type HuntEnding,
+  autoRowStat,
+  rowStatLabel,
+  taperBounty,
+} from '@/lib/itemHunt';
 import NumberInput from '@/components/NumberInput';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { itemIconUrl } from '@/lib/tileIcons';
@@ -477,6 +489,7 @@ export default function HuntFields({ value, onChange, prizes = false }: { value:
                       {rate && <span className="text-xs text-text-muted">{rate}</span>}
                     </div>
                   </div>
+                  <BountyField name={it.name} value={it.bounty} onChange={(bounty) => setItem(it.id, { bounty })} />
                 </li>
               );
             })}
@@ -587,6 +600,109 @@ function HuntPrizesField({ places, onChange }: { places: number[]; onChange: (ne
         {count > 0 && places.some((gp) => !(gp > 0))
           ? 'Give every place an amount, or lower the number of places.'
           : 'The same prize ladder every competition has, set from here; change it later on the competition’s page. Places nobody reaches are not paid. Only a treasurer or admin can set prizes.'}
+      </p>
+    </div>
+  );
+}
+
+/** A gp amount typed the way people say it ("20m", "1.5b"): kept as typed until it reads as one. */
+function GpInput({ gp, onChange, className, label }: { gp: number; onChange: (gp: number) => void; className: string; label: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={draft ?? formatGp(gp)}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const n = parseGpInput(e.target.value);
+        if (n != null && n >= 1) onChange(n);
+      }}
+      onBlur={() => setDraft(null)}
+      placeholder="e.g. 20m"
+      className={`min-h-11 ${className}`}
+      aria-label={label}
+    />
+  );
+}
+
+/**
+ * One row's bounty: what the first N players to get it are paid, each one claim per player. The
+ * first amount, how many it pays and the taper fill the list; any place can then be changed by hand.
+ * What is saved is the list, not the formula. Paid in the competition's prize currency, through the
+ * same settle as the place prizes; only a treasurer or admin can set one, and the server says so.
+ */
+function BountyField({ name, value, onChange }: { name: string; value: number[]; onChange: (next: number[]) => void }) {
+  const [taper, setTaper] = useState<'less' | 'same'>(value.length > 1 && value.every((v) => v === value[0]) ? 'same' : 'less');
+  const [pct, setPct] = useState(DEFAULT_BOUNTY_TAPER);
+  if (value.length === 0) {
+    return (
+      <button type="button" onClick={() => onChange([1_000_000])} className="mt-2 min-h-11 rounded px-1 text-xs text-gold-light hover:underline">
+        + Add a bounty
+      </button>
+    );
+  }
+  const fill = (first: number, n: number, mode = taper, by = pct) => onChange(taperBounty(first, n, mode === 'same' ? null : by));
+  return (
+    <div className="mt-2.5 rounded-md border border-card-border/70 bg-brown-dark/40 p-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="font-medium text-foreground/80">Bounty</span>
+        <GpInput gp={value[0]} onChange={(gp) => fill(gp, value.length)} className="w-28" label={`Bounty for the first to get ${name}`} />
+        <span className="flex items-center gap-1.5">
+          <span className="text-foreground/70">Pays the first</span>
+          <NumberInput value={value.length} onChange={(n) => fill(value[0], n)} min={1} max={MAX_BOUNTY_PLACES} fallback={1} className="w-16" aria-label={`How many players the ${name} bounty pays`} />
+        </span>
+        {value.length > 1 && (
+          <div className="w-full sm:w-56">
+            <Select
+              value={taper}
+              onChange={(v) => {
+                const mode = v === 'same' ? 'same' : 'less';
+                setTaper(mode);
+                fill(value[0], value.length, mode);
+              }}
+              ariaLabel={`How the ${name} bounty tapers`}
+              options={[
+                { value: 'less', label: 'Each next place gets less' },
+                { value: 'same', label: 'Same for all' },
+              ]}
+            />
+          </div>
+        )}
+        {value.length > 1 && taper === 'less' && (
+          <span className="flex items-center gap-1.5">
+            <NumberInput
+              value={pct}
+              onChange={(v) => {
+                setPct(v);
+                fill(value[0], value.length, 'less', v);
+              }}
+              min={1}
+              max={99}
+              fallback={DEFAULT_BOUNTY_TAPER}
+              className="w-16"
+              aria-label={`How much less each next place of the ${name} bounty gets`}
+            />
+            <span className="text-text-muted">% less</span>
+          </span>
+        )}
+        <button type="button" onClick={() => onChange([])} className="min-h-11 rounded px-1 text-xs text-text-muted hover:text-red-400">
+          Remove bounty
+        </button>
+      </div>
+      {value.length > 1 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {value.map((gp, i) => (
+            <label key={i} className="flex items-center gap-1.5 text-xs text-text-muted">
+              <span className="w-8 font-semibold text-gold">{ORDINALS[i] ?? `${i + 1}th`}</span>
+              <GpInput gp={gp} onChange={(next) => onChange(value.map((p, j) => (j === i ? next : p)))} className="w-24" label={`${name} bounty for the ${ORDINALS[i] ?? `${i + 1}th`} player`} />
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="mt-1.5 text-xs text-text-muted">
+        {value.length === 1 ? `The first player whose ${name} counts gets ${formatGp(value[0])}.` : `The first ${value.length} players whose ${name} counts are paid in that order, once each.`} A held or
+        waiting drop claims once staff approve it. Paid with the prizes when the hunt ends.
       </p>
     </div>
   );

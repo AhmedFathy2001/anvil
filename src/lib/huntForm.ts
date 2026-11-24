@@ -20,6 +20,8 @@ export interface HuntFormItem {
   points: number;
   /** A pet: no source to choose, one at a time. */
   pet: boolean;
+  /** Its bounty: what the 1st, 2nd… player to get one is paid. Empty = none (lib/itemHunt bountyFromInput). */
+  bounty: number[];
   /** "Closest to it": 'boss:<keys>' / 'skill:<key>', '' for nothing (encodeStat). */
   stat: string;
   /** Still the one picked for it: an item's follows its sources until someone picks by hand. */
@@ -58,6 +60,7 @@ export function huntFormRow(t: { id: number; name: string; known?: string[]; sou
     count: 'drops',
     points: t.points ?? 1,
     pet,
+    bounty: [],
     stat: encodeStat(autoRowStat({ id: t.id, name: t.name, sources, pet })),
     statAuto: true,
   };
@@ -74,6 +77,7 @@ export function huntPayload(v: HuntFormValue) {
       anySource: it.anySource,
       count: it.count,
       points: it.points,
+      ...(it.bounty.length ? { bounty: it.bounty } : {}),
       // Sent as chosen, "Nothing" included, so the server never re-picks what someone changed.
       stat: decodeStat(it.stat),
     })),
@@ -97,7 +101,7 @@ export function huntUnchosen(v: HuntFormValue): HuntFormItem | null {
 
 export function huntFormFromConfig(config: HuntConfig): HuntFormValue {
   const items = huntRows(config).map((it) => {
-    if (config.v !== 2) return { ...huntFormRow({ id: it.id, name: it.name, known: it.sources, sources: it.sources, pet: it.pet }), anySource: !it.pet && it.sources.length === 0, count: it.count, points: it.points ?? 1 };
+    if (config.v !== 2) return { ...huntFormRow({ id: it.id, name: it.name, known: it.sources, sources: it.sources, pet: it.pet }), anySource: !it.pet && it.sources.length === 0, count: it.count, points: it.points ?? 1, bounty: it.bounty ?? [] };
     return {
       id: it.id,
       name: it.name,
@@ -107,6 +111,7 @@ export function huntFormFromConfig(config: HuntConfig): HuntFormValue {
       count: it.count,
       points: it.points ?? 1,
       pet: !!it.pet,
+      bounty: it.bounty ?? [],
       stat: encodeStat(it.stat),
       // What was saved is what was chosen: it does not follow the sources any more.
       statAuto: false,

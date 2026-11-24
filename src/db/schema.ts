@@ -1944,9 +1944,16 @@ export const huntDrops = pgTable('hunt_drops', {
   decidedByName: text('decided_by_name'),
   decidedAt: text('decided_at'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /** When this drop's Discord post was claimed (lib/huntDropPosts): set once, so it is never posted twice. */
+  postedAt: text('posted_at'),
+  /** That post, so a screenshot that lands later is added to it. */
+  discordMessageId: text('discord_message_id'),
+  /** Plugin drops: the key its screenshot is uploaded under (POST /api/plugin/facts/proof); a tombstone once used. */
+  proofKey: text('proof_key'),
 }, (table) => [
   uniqueIndex('hunt_drops_dedup_unique').on(table.competitionId, table.rsnNormalized, table.dedupKey),
   index('hunt_drops_comp_idx').on(table.competitionId, table.status),
+  uniqueIndex('hunt_drops_proof_key_unique').on(table.proofKey).where(sql`proof_key is not null`),
 ]);
 export type HuntDropRow = typeof huntDrops.$inferSelect;
 
@@ -3962,6 +3969,13 @@ export const cofferEntries = pgTable('coffer_entries', {
    */
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'set null' }),
   place: integer('place'),
+  /**
+   * An item hunt BOUNTY award (lib/itemHunt huntBountyClaims): the row's item and which player to get
+   * it this pays (1 = the first). `place` is null on these, so they never meet the place prizes'
+   * index; (competition, item, item place) is their own.
+   */
+  itemId: integer('item_id'),
+  itemPlace: integer('item_place'),
   // Storage URL of a proof screenshot (donation evidence, or the treasurer's payment shot).
   proofBlobUrl: text('proof_blob_url'),
   /** Which pot: 'gp' (the main game coffer) or 'hcw' (a Hardcore Worlds coffer staff keep by hand). */
@@ -3980,6 +3994,10 @@ export const cofferEntries = pgTable('coffer_entries', {
   uniqueIndex('coffer_entries_weekly_place_unique')
     .on(t.weeklyCompetitionId, t.place)
     .where(sql`${t.weeklyCompetitionId} IS NOT NULL`),
+  // One award per (competition, bounty item, item place): a second settle pass is a no-op here too.
+  uniqueIndex('coffer_entries_weekly_bounty_unique')
+    .on(t.weeklyCompetitionId, t.itemId, t.itemPlace)
+    .where(sql`${t.weeklyCompetitionId} IS NOT NULL AND ${t.itemId} IS NOT NULL`),
 ]);
 export type CofferEntry = typeof cofferEntries.$inferSelect;
 

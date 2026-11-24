@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { parseCompetitionMode } from '@/lib/competitionTeams';
 import { clearHostEntrants, competitionNotStarted, setCompetitionMode } from '@/lib/competitionTeamsDb';
 import { enrollAllPlayers } from '@/lib/weekly';
+import { paysMoney } from '@/lib/weeklyPrizes';
 import { releaseWeeklyPool } from '@/lib/coffer';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
@@ -71,7 +72,7 @@ export async function PUT(
   // What it counts (the skills or bosses, or what a hunt hunts): only before it starts, and on its
   // own, so a refusal changes nothing else (lib/weeklyRetarget).
   if (body.target !== undefined) {
-    const result = await retargetCompetition(scoped, (body.target ?? {}) as Record<string, unknown>, { userId: user.userId });
+    const result = await retargetCompetition(scoped, (body.target ?? {}) as Record<string, unknown>, { userId: user.userId, canSetPrizes: !!(await verifyFeeCollector()) });
     return result.ok ? NextResponse.json(result.competition) : NextResponse.json({ error: result.error }, { status: 400 });
   }
   const { title, startDate, endDate, status, includeGuests, repeat } = body;
@@ -109,12 +110,13 @@ export async function PUT(
   // Repeat on (with an optional rotation) or off. Off on the current week stops the series: the cron
   // only ever makes the next one from a week that still says repeat.
   if (repeat !== undefined) {
-    // A repeating competition with prizes commits the clan's coffer again every week, so switching
-    // that on is a treasurer's decision, the same bar setting the prizes sits behind. A moderator may
-    // still repeat a prize-free competition, and anyone may switch repeat off.
-    if (repeat && scoped.prizes && !(await verifyFeeCollector())) {
+    // A repeating competition with prizes (or an item hunt with bounties) commits the clan's coffer
+    // again every week, so switching that on is a treasurer's decision, the same bar setting the
+    // prizes sits behind. A moderator may still repeat one that pays nothing, and anyone may switch
+    // repeat off.
+    if (repeat && paysMoney(scoped) && !(await verifyFeeCollector())) {
       return NextResponse.json(
-        { error: 'This competition has prizes, so only a treasurer or admin can make it repeat — each new week holds the prize money again.' },
+        { error: 'This competition pays prizes or bounties, so only a treasurer or admin can make it repeat — each new run promises that money again.' },
         { status: 403 },
       );
     }

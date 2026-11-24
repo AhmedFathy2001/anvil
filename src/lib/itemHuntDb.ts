@@ -22,6 +22,7 @@ import { clanAuditLog, clanRoster, huntDrops, users, weeklyCompetitions, weeklyP
 import { parseStamp } from '@/lib/dbTime';
 import { dropCounts } from '@/lib/h2hRules';
 import {
+  type BountyClaim,
   type DropSighting,
   type HuntConfig,
   type HuntDrop,
@@ -29,6 +30,8 @@ import {
   type HuntRates,
   type HuntRowProgress,
   huntReportItemIdsOf,
+  huntBountyClaims,
+  unconfirmedBountyDrops,
   huntPets,
   huntRsnKey,
   defaultHuntTitle,
@@ -57,6 +60,7 @@ import {
 } from '@/lib/itemHunt';
 import { huntRates } from '@/lib/huntRates';
 import { log } from '@/lib/logger';
+import { newProofKey } from '@/lib/proofAfter';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { clogItemIdByName } from '@/lib/moments';
 import { computeLeaderboard, countsTowardLeaderboard, getEffectiveParticipants, type LeaderboardEntry } from '@/lib/weekly';
@@ -109,6 +113,41 @@ function toHuntDrop(r: HuntDropRow): HuntDrop {
 export async function huntDropRows(competitionId: number): Promise<HuntDropRow[]> {
   // clan-scope: global -- one competition's rows by its id; the caller settled the owning clan.
   return db.select().from(huntDrops).where(eq(huntDrops.competitionId, competitionId)).orderBy(asc(huntDrops.occurredAt), asc(huntDrops.id));
+}
+
+/**
+ * Each drop that counts goes to the clan's Discord once (lib/huntDropPosts), after the reply and never
+ * in its way: a failed post is logged and the drop counts all the same. Imported here, since that
+ * module reads the standings from this one.
+ */
+function postHuntDrops(ids: number[], what: 'post' | 'retract' = 'post'): void {
+  if (ids.length === 0) return;
+  void import('@/lib/huntDropPosts')
+    .then((m) => m.afterHuntDrops(ids, what))
+    .catch((err) => log.warn('hunt.post-failed', { ids }, err));
+}
+
+/**
+ * One drop's standing as it stood once that drop was in: the drops up to it count, later ones don't,
+ * so the post and the edit that adds its screenshot say the same thing.
+ */
+export async function huntDropStanding(
+  comp: CompetitionLike,
+  dropId: number,
+): Promise<{ config: HuntConfig; drop: HuntDrop; row: HuntRow | null; bounty: BountyClaim | null } | null> {
+  const config = parseHunt(comp.hunt);
+  if (comp.type !== 'hunt' || !config) return null;
+  const [participants, all] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id)]);
+  const drops = all.map(toHuntDrop);
+  const drop = drops.find((d) => d.id === dropId);
+  if (!drop) return null;
+  const at = parseStamp(drop.occurredAt) ?? 0;
+  const upTo = drops.filter((d) => d.id === dropId || (parseStamp(d.occurredAt) ?? 0) <= at);
+  const rates = config.v === 2 ? huntRates(config) : {};
+  const rows = rankHunt(config, huntEntrants(config, participants, rates, huntStat(config) != null), upTo, windowOf(comp));
+  // The bounty place this drop claimed, if any: decided over the same drops, so it is the place it took.
+  const bounty = huntBountyClaims(config, upTo, windowOf(comp)).find((c) => c.dropId === dropId) ?? null;
+  return { config, drop, row: rows.find((r) => huntRsnKey(r.rsn) === drop.rsnKey) ?? null, bounty };
 }
 
 export interface HuntStandings {
@@ -231,6 +270,19 @@ function sightingOf(row: HuntDropRow): DropSighting {
   return { kind, itemId: row.itemId, itemName: row.itemName, source: row.source, kc: row.kc, quantity: row.quantity, atMs: parseStamp(row.occurredAt) ?? 0, dedupKey: row.dedupKey };
 }
 
+/** A plugin drop's screenshot key, by the item it is for: the moments reply hands these to the plugin. */
+export interface HuntProofKey {
+  itemId: number;
+  key: string;
+}
+
+export interface HuntReportsResult {
+  /** New rows filed. */
+  stored: number;
+  /** One key per new row: where its screenshot goes (POST /api/plugin/facts/proof). */
+  proofs: HuntProofKey[];
+}
+
 /** What one character may add to a hunt through the plugin: far above real play, well below a loop. */
 const HUNT_DROP_LIMIT = { limit: 30, windowMs: 10 * 60_000 };
 
@@ -258,11 +310,12 @@ export async function recordHuntReports(
   now: Date = new Date(),
   /** The game mode the drops came from (lib/worldModes key); null = the main game. */
   modeKey: string | null = null,
-): Promise<number> {
-  if (reports.length === 0) return 0;
+): Promise<HuntReportsResult> {
+  const none = { stored: 0, proofs: [] };
+  if (reports.length === 0) return none;
   // Only the hunts that count this world: the main game, or the mode a hunt is set to (lib/competitionGame).
   const hunts = (await activeHunts(clanId, now.getTime())).filter((h) => countsWorld(h.comp.countsOn, modeKey));
-  if (hunts.length === 0) return 0;
+  if (hunts.length === 0) return none;
   // clan-scope: this clan -- the member's own seat in this clan's running hunts.
   const seats = await db
     .select()
@@ -277,6 +330,8 @@ export async function recordHuntReports(
       ),
     );
   let stored = 0;
+  const proofs: HuntProofKey[] = [];
+  const counted: number[] = [];
   for (const { comp, config } of hunts) {
     const seat = seats.find((s) => s.competitionId === comp.id);
     if (!seat) continue;
@@ -315,7 +370,8 @@ export async function recordHuntReports(
       const cap = await rateLimitByKey('hunt-drops', String(member.clanMemberId), HUNT_DROP_LIMIT);
       if (!cap.ok) {
         log.warn('hunt.rate-limited', { competitionId: comp.id, clanMemberId: member.clanMemberId });
-        return stored;
+        postHuntDrops(counted);
+        return { stored, proofs };
       }
 
       // Kill-count checks need one boss to compare against: the hunt shows kills for exactly one
@@ -331,6 +387,9 @@ export async function recordHuntReports(
       // last hiscores read), marked as such.
       const kc = report.kc ?? (stat?.type === 'boss' ? seat.currentValue : null);
       const xp = stat?.type === 'skill' ? seat.currentValue : null;
+      // The screenshot the plugin takes of it comes up under this key (lib/huntDropPosts). Held reports
+      // get one too, for the staff who look at them; an older plugin never uses it, and nothing waits.
+      const proofKey = newProofKey();
       const inserted = await db
         .insert(huntDrops)
         .values({
@@ -353,18 +412,22 @@ export async function recordHuntReports(
           status: flagReason ? 'review' : 'counted',
           flagReason,
           dedupKey,
+          proofKey,
         })
         .onConflictDoNothing()
         .returning({ id: huntDrops.id });
       if (inserted.length > 0) {
         stored++;
+        if (hit.itemId != null) proofs.push({ itemId: hit.itemId, key: proofKey });
+        if (!flagReason) counted.push(inserted[0].id);
         // Only a clan that chose "count plugin drops automatically" lets a report end its hunt, and
         // a held report is not counted, so it cannot be the one that does.
         if (config.confirm === 'auto' && !flagReason) await closeIfDue(comp, config);
       }
     }
   }
-  return stored;
+  postHuntDrops(counted);
+  return { stored, proofs };
 }
 
 /**
@@ -453,11 +516,23 @@ export async function huntPrizeBoard(
   comp: Competition,
   entrants: EntrantSource[],
   prizePlaces: number,
-): Promise<{ rows: HuntRow[]; holds: HuntDrop[] } | null> {
+): Promise<{ rows: HuntRow[]; holds: HuntDrop[]; bounties: BountyClaim[] } | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
-  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}), (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp));
-  return { rows, holds: unconfirmedPrizeDrops(config, rows, prizePlaces) };
+  const drops = (await huntDropRows(comp.id)).map(toHuntDrop);
+  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}), drops, windowOf(comp));
+  // Bounties over the same list: only these entrants' drops claim one, and the drops behind a claim
+  // wait for staff exactly as a paying place's do.
+  const bounties = huntBountyClaims(config, drops, windowOf(comp), new Set(entrants.map((e) => huntRsnKey(e.rsn))));
+  const holds = [...unconfirmedPrizeDrops(config, rows, prizePlaces), ...unconfirmedBountyDrops(config, bounties, drops)];
+  return { rows, holds: holds.filter((d, i) => holds.findIndex((x) => x.id === d.id) === i), bounties };
+}
+
+/** Every bounty claimed so far on a hunt, over its whole board (the page, the posts). */
+export async function huntBounties(comp: CompetitionLike): Promise<{ config: HuntConfig; claims: BountyClaim[] } | null> {
+  const config = parseHunt(comp.hunt);
+  if (comp.type !== 'hunt' || !config) return null;
+  return { config, claims: huntBountyClaims(config, (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp)) };
 }
 
 // ── Manual proofs ─────────────────────────────────────────────────────────────────────────────
@@ -562,6 +637,7 @@ export async function addManualDrop(
     .returning({ id: huntDrops.id });
   if (by.staff) {
     await audit(comp, seat.clanMemberId, 'hunt_drop_added', by.userId, { dropId: row.id, rsn: seat.rsn, item: itemName, source: input.source, kc: input.kc, xp: input.xp, at: input.occurredAt });
+    postHuntDrops([row.id]);
     await closeIfDue(comp, config);
   }
   return { ok: true, id: row.id };
@@ -623,6 +699,9 @@ export async function decideHuntDrop(
     by.userId,
     { dropId: row.id, rsn: row.rsn, item: row.itemName, source: row.source, kc: row.kc, xp: row.xp, origin: row.origin, was: row.status, flag: row.flagReason, at: row.occurredAt },
   );
+  // A drop that starts counting now goes to Discord (a plugin drop already counted went when it came);
+  // one turned down after it went out is taken down.
+  postHuntDrops([row.id], decision === 'confirm' ? 'post' : 'retract');
   // Either answer can be the last one an "after N drops" ending was waiting for.
   await closeIfDue(comp, config);
   return { ok: true };

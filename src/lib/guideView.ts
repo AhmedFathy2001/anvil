@@ -15,6 +15,7 @@ import { communitySetups, guideCredits, libraryIdOf, tipsFor, type CommunitySetu
 import { bankTagString, inventorySetupJson } from '@/lib/runeliteExport';
 import { groundMarkersJson } from '@/lib/groundMarkers';
 import { parseRouteBlock, type RouteBlock } from '@/lib/guideRoutes';
+import { setupResult, withSlot } from '@/lib/gearNow';
 import type { Guide } from '@/db/schema';
 
 /** Dizana's quiver and the max cape that holds it: both give the second ammo slot. */
@@ -185,9 +186,7 @@ export async function ladderFor(view: SetupView, all: SetupView[], block: GearBl
     if (ids.size < 2) continue;
     const scored = [...ids]
       .map((id) => {
-        const g = { ...base.gear, [slot]: id };
-        if (slot === 'weapon' && idx.item(id)?.h2) delete g.shield;
-        const r = bestStyle(setupLoadout({ ...base, gear: g }), m, idx.item, idx.rules)?.result;
+        const r = setupResult(withSlot(base, slot, id, idx), m, idx);
         return { id, dps: r?.dps ?? 0 };
       })
       .sort((a, b) => a.dps - b.dps);

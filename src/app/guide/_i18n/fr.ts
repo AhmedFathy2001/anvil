@@ -36,10 +36,10 @@ const fr: PartialGuideDict = {
   },
 
   index: {
-    metaTitle: 'Guides — Anvil',
+    metaTitle: 'Aide — Anvil',
     metaDescription:
       'Bien démarrer avec Anvil : le plugin RuneLite pour les joueurs, organiser un événement pour l’équipe du clan, et accueillir un clan invité.',
-    title: 'Guides',
+    title: 'Aide',
     dek: 'Tout ce qu’il faut pour démarrer, écrit pour exactement la version d’Anvil qui tourne ici.',
     groups: {
       playing: 'Jouer',

@@ -26,6 +26,8 @@ export interface SelectOption {
   keywords?: string[];
   /** Optional indicator colour rendered as a leading dot (e.g. difficulty-tier ramp). */
   dot?: string;
+  /** Optional small picture URL rendered before the label (a potion, an item). */
+  icon?: string;
 }
 
 interface Props {
@@ -247,6 +249,7 @@ export default function Select({
         )}
       >
         <span className="truncate flex items-center gap-2 min-w-0">
+          {selected?.icon && <img src={selected.icon} alt="" className="h-5 w-5 shrink-0 object-contain" aria-hidden />}
           {selected?.dot && (
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selected.dot }} aria-hidden />
           )}
@@ -337,6 +340,7 @@ export default function Select({
                           : 'text-foreground',
                   )}
                 >
+                  {opt.icon && <img src={opt.icon} alt="" className="h-5 w-5 shrink-0 object-contain" aria-hidden />}
                   {opt.dot && (
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: opt.dot }} aria-hidden />
                   )}
