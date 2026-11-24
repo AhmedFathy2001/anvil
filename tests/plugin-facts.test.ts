@@ -348,8 +348,14 @@ test('killTargetKeys: clue tiers fold to the plugin name, game-named qualifiers 
   assert.deepEqual(killTargetKeys('Casket (Tempoross)'), ['casket (tempoross)']);
   assert.deepEqual(killTargetKeys('Supply crate (Wintertodt)'), ['supply crate (wintertodt)']);
   assert.deepEqual(killTargetKeys("Armoured zombie (Zemouregal's Fort)"), ['armoured zombie', "armoured zombie (zemouregal's fort)"]);
-  assert.deepEqual(killTargetKeys('Vorkath'), ['vorkath']);
-  assert.deepEqual(killTargetKeys('Tombs of Amascut: Expert Mode'), ['tombs of amascut: expert mode']);
+  assert.equal(killTargetKeys('Vorkath')[0], 'vorkath');
+  // A boss's other names that lead back to it: the game's "Your Lunar Chest count is" reaches a
+  // "Lunar Chests" / "Moons of Peril" tile, and a normal CoX tile never takes Challenge Mode's name.
+  assert.ok(killTargetKeys('Lunar Chests').includes('lunar chest'));
+  assert.ok(killTargetKeys('Moons of Peril').includes('lunar chest'));
+  assert.ok(!killTargetKeys('Chambers of Xeric').includes('chambers of xeric challenge mode'));
+  assert.equal(killTargetKeys('Tombs of Amascut: Expert Mode')[0], 'tombs of amascut: expert mode');
+  assert.ok(!killTargetKeys('Tombs of Amascut: Expert Mode').includes('tombs of amascut'));
   assert.deepEqual(killTargetKeys('  '), []);
   assert.equal(killTargetKey('Clue Scroll (Elite)'), 'clue scroll (elite)');
 });

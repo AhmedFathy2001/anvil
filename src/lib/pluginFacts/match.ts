@@ -9,6 +9,7 @@
  * request see each other's progress the way the plugin's in-memory copies did.
  */
 import { boardLabel } from '@/lib/pluginBoardTiles';
+import { bossKeyForName, kcNamesForKey } from '@/lib/pluginStats';
 import { itemCap } from '@/lib/collectionSets';
 import {
   countLineAllows,
@@ -332,7 +333,13 @@ export function killTargetKeys(target: string | null | undefined): string[] {
   if (clue) return [clue];
   if (GAME_QUALIFIER.test(trimmed)) return [lower];
   const stripped = inGameNpcName(trimmed).toLowerCase();
-  return !stripped || stripped === lower ? [lower] : [stripped, lower];
+  const keys = !stripped || stripped === lower ? [lower] : [stripped, lower];
+  // A hiscores boss also answers to its other names, so a tile named "Lunar Chests" (or "Moons of
+  // Peril") counts the game's "Your Lunar Chest count is" line. Only names that lead back to the
+  // same boss: a shared alias ("raids") or another mode's name never joins.
+  const boss = bossKeyForName(trimmed);
+  if (boss) for (const n of kcNamesForKey(boss)) if (!keys.includes(n) && bossKeyForName(n) === boss) keys.push(n);
+  return keys;
 }
 
 /** The primary kill-index key for a target (see killTargetKeys). */
