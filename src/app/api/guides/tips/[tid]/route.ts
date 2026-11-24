@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { bad, intParam, readJson, signedIn } from '@/lib/guideApi';
-import { canCurateUser, hideTip, reportTip, toggleTipUseful } from '@/lib/guideCommunity';
+import { hideTip, mayModerateTip, reportTip, toggleTipUseful } from '@/lib/guideCommunity';
 
 type Ctx = { params: Promise<{ tid: string }> };
 
@@ -19,7 +19,8 @@ export async function POST(request: Request, ctx: Ctx) {
       await reportTip(id, gate.user.userId, String(body.reason ?? ''));
       return NextResponse.json({ ok: true });
     case 'hide':
-      if (!(await canCurateUser(gate.user.userId))) return bad('Curators only.', 403);
+      // A clan's tip is that clan's guide editors' (or platform staff's) to hide; library tips are curators'.
+      if (!(await mayModerateTip(gate.user.userId, id))) return bad('Not found', 404);
       await hideTip(id);
       return NextResponse.json({ ok: true });
     default:

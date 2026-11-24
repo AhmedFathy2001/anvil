@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { bad, intParam, readJson, signedIn } from '@/lib/guideApi';
-import { canCurateUser, isEditTag, reportContribution, reviewContribution } from '@/lib/guideCommunity';
+import { isEditTag, mayReviewContribution, reportContribution, reviewContribution } from '@/lib/guideCommunity';
 
 type Ctx = { params: Promise<{ cid: string }> };
 
@@ -19,7 +19,8 @@ export async function POST(request: Request, ctx: Ctx) {
     return NextResponse.json({ ok: true });
   }
   if (action !== 'promote' && action !== 'hide' && action !== 'keep') return bad('Bad request');
-  if (!(await canCurateUser(gate.user.userId))) return bad('Curators only.', 403);
+  // Scoped to the row: library rows for curators, a clan's rows for that clan's guide editors.
+  if (!(await mayReviewContribution(gate.user.userId, id))) return bad('Not found', 404);
   const r = await reviewContribution({ id, action, userId: gate.user.userId, tag: isEditTag(body?.tag) ? body.tag : null });
   if (!r.ok) return bad(r.error);
   return NextResponse.json({ ok: true });

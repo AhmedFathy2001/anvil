@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { bad, intParam, readJson, refusal, signedIn } from '@/lib/guideApi';
-import { canCurateUser, closeWanted, listWanted, requestWanted } from '@/lib/guideCommunity';
+import { closeWanted, listWanted, mayModerateWanted, requestWanted } from '@/lib/guideCommunity';
 
 export async function GET() {
   return NextResponse.json({ wanted: await listWanted() });
@@ -15,9 +15,9 @@ export async function POST(request: Request) {
   const body = await readJson(request);
   if (!body) return bad('Bad request');
   if (body.action === 'close') {
-    if (!(await canCurateUser(gate.user.userId))) return bad('Curators only.', 403);
     const id = intParam(body.id);
-    if (id) await closeWanted(id);
+    if (!id || !(await mayModerateWanted(gate.user.userId, id))) return bad('Not found', 404);
+    await closeWanted(id);
     return NextResponse.json({ ok: true });
   }
   const str = (v: unknown) => (typeof v === 'string' ? v : null);

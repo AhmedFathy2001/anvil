@@ -146,3 +146,70 @@ test('a post selection survives a resync: stored, read back, and new setups stay
   assert.equal(body.includes('Late add'), false);
   assert.match(body, /Ranged · DHCB/);
 });
+
+// ── Scoping: global/curator rights never reach a clan's rows ───────────────────────────────────
+
+async function clanWithGuide(slug: string) {
+  const clan = await pool.query(`INSERT INTO clans (slug, name, created_at) VALUES ($1, $1, $2) RETURNING id`, [slug, now()]);
+  const clanId = clan.rows[0].id as number;
+  const g = await pool.query(
+    `INSERT INTO guides (clan_id, slug, title, body, status, created_at, updated_at) VALUES ($1, 'own', 'Own guide', 'Body', 'published', $2, $2) RETURNING id`,
+    [clanId, now()],
+  );
+  return { clanId, guideId: g.rows[0].id as number };
+}
+
+test('scope: an outside curator cannot review, hide or close a clan’s rows; its editors and staff can', async () => {
+  const store = await import('../src/lib/guideCommunity.ts');
+  const { clanId, guideId } = await clanWithGuide('scopeclan');
+  const writer = await user('ClanWriter');
+  const curator = await user('OutsideCurator', { editor: true });
+  const clanEditor = await user('ClanEditor');
+  const staff = await user('PlatformStaff', { platformRole: 'staff' });
+  await pool.query(`INSERT INTO clan_staff (clan_id, user_id, role, can_edit_guides) VALUES ($1, $2, 'member', true)`, [clanId, clanEditor.userId]);
+
+  // A pin on the clan's guide, and a community row on its clan-original guide (clan_id null on the row).
+  const pin = await store.submitSetup({ guideId, userId: writer.userId, tier: 'beginner', setup: { name: 'Pin', gear: { weapon: 4151 } }, clanId });
+  const onClanGuide = await store.submitSetup({ guideId, userId: writer.userId, tier: 'beginner', setup: { name: 'Community on clan guide', gear: { weapon: 4151 } } });
+  for (const id of [pin.id, onClanGuide.id]) {
+    assert.equal(await store.mayReviewContribution(curator.userId, id), false, 'outside curator');
+    assert.equal(await store.mayReviewContribution(clanEditor.userId, id), true, 'that clan’s guide editor');
+    assert.equal(await store.mayReviewContribution(staff.userId, id), true, 'platform staff');
+  }
+  const queue = await store.curatorQueue('new');
+  assert.equal(queue.some((q) => q.id === pin.id || q.id === onClanGuide.id), false, 'clan rows stay out of the library queue');
+
+  await store.addTip({ guideId, userId: writer.userId, kind: 'tip', text: 'A clan tip with words', clanId });
+  const { rows: tips } = await pool.query(`SELECT id FROM guide_tips WHERE clan_id = $1`, [clanId]);
+  assert.equal(await store.mayModerateTip(curator.userId, tips[0].id), false);
+  assert.equal(await store.mayModerateTip(clanEditor.userId, tips[0].id), true);
+
+  await store.requestWanted({ userId: writer.userId, guideId, tier: 'advanced' });
+  const { rows: w } = await pool.query(`SELECT id FROM guide_wanted WHERE guide_id = $1`, [guideId]);
+  assert.equal(await store.mayModerateWanted(curator.userId, w[0].id), false);
+  assert.equal(await store.mayModerateWanted(clanEditor.userId, w[0].id), true);
+
+  assert.equal(await store.upkeepTarget(guideId), null, 'upkeep flags only touch library guides');
+  const { rows: lib } = await pool.query(`SELECT id FROM guides WHERE clan_id IS NULL AND slug = 'vorkath-guide'`);
+  assert.ok(await store.upkeepTarget(lib[0].id));
+});
+
+test('scope: library rows are curators’ and not a clan editor’s', async () => {
+  const store = await import('../src/lib/guideCommunity.ts');
+  const { rows } = await pool.query(`SELECT id FROM guides WHERE clan_id IS NULL AND slug = 'vorkath-guide'`);
+  const writer = await user('LibWriter');
+  const clanOnlyEditor = await user('ClanOnlyEditor');
+  const curator = await user('LibCurator', { editor: true });
+  const c = await store.submitSetup({ guideId: rows[0].id, userId: writer.userId, tier: 'beginner', setup: { name: 'Lib setup', gear: { weapon: 4151 } } });
+  assert.equal(await store.mayReviewContribution(curator.userId, c.id), true);
+  assert.equal(await store.mayReviewContribution(clanOnlyEditor.userId, c.id), false);
+});
+
+test('scope: item snapshots, skips and follows are the owner’s own rows', async () => {
+  const items = await import('../src/lib/playerItems.ts');
+  const a = await user('OwnerA');
+  const b = await user('StaffB', { platformRole: 'staff' });
+  await items.saveSnapshot(a.accountId, { inventory: { items: [{ id: 4151 }], readAt: now() } });
+  assert.equal(await items.snapshotForViewer(b.userId, a.accountId), null, 'platform staff read nothing of it');
+  assert.equal(await items.ownsAccount(b.userId, a.accountId), false);
+});

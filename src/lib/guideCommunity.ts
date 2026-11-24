@@ -271,11 +271,15 @@ export async function unvote(guideId: number, setupKey: string, userId: number):
 }
 
 export async function reportContribution(contributionId: number, userId: number, reason: string): Promise<void> {
+  const c = await db.query.guideContributions.findFirst({ where: eq(guideContributions.id, contributionId), columns: { status: true } });
+  if (!c || c.status === 'hidden') return;
   const text = plainText(reason, 200) || 'Reported';
   await db.insert(guideReports).values({ contributionId, userId, reason: text, createdAt: nowIso() }).onConflictDoNothing();
 }
 
 export async function reportTip(tipId: number, userId: number, reason: string): Promise<void> {
+  const t = await db.query.guideTips.findFirst({ where: eq(guideTips.id, tipId), columns: { status: true } });
+  if (!t || t.status !== 'live') return;
   await db.insert(guideReports).values({ tipId, userId, reason: plainText(reason, 200) || 'Reported', createdAt: nowIso() }).onConflictDoNothing();
 }
 
@@ -288,6 +292,45 @@ export async function canCurateUser(userId: number | null | undefined): Promise<
   if (!row) return false;
   if (hasPlatformRole(row.platformRole, 'staff') || row.platformGuideEditor) return true;
   return canCurate({ lifetime: (await writerStats(userId)).lifetime });
+}
+
+/**
+ * May this person moderate a row that belongs to `clanId`? THE TWO AXES STAY APART (lib/guideAccess):
+ * a library row (clanId null) is for curators; a clan's row is for that clan's guide editors and
+ * platform staff only — earned curator rights never reach into a clan.
+ */
+export async function mayModerate(userId: number, clanId: number | null): Promise<boolean> {
+  if (clanId == null) return canCurateUser(userId);
+  const row = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { platformRole: true } });
+  if (row && hasPlatformRole(row.platformRole, 'staff')) return true;
+  const { clanGrant } = await import('@/lib/clanGrants');
+  return (await clanGrant(clanId, userId))?.canEditGuides === true;
+}
+
+/** The clan a row really belongs to: its own clan_id, else its guide's (a clan-original guide). */
+async function effectiveClan(rowClanId: number | null, guideId: number): Promise<number | null> {
+  if (rowClanId != null) return rowClanId;
+  const g = await db.query.guides.findFirst({ where: eq(guides.id, guideId), columns: { clanId: true } });
+  return g?.clanId ?? null;
+}
+
+/** May this person review this contribution? Loads it and scopes it first. */
+export async function mayReviewContribution(userId: number, contributionId: number): Promise<boolean> {
+  const c = await db.query.guideContributions.findFirst({ where: eq(guideContributions.id, contributionId), columns: { clanId: true, guideId: true } });
+  if (!c) return false;
+  return mayModerate(userId, await effectiveClan(c.clanId, c.guideId));
+}
+
+export async function mayModerateTip(userId: number, tipId: number): Promise<boolean> {
+  const t = await db.query.guideTips.findFirst({ where: eq(guideTips.id, tipId), columns: { clanId: true, guideId: true } });
+  if (!t) return false;
+  return mayModerate(userId, await effectiveClan(t.clanId, t.guideId));
+}
+
+export async function mayModerateWanted(userId: number, wantedId: number): Promise<boolean> {
+  const w = await db.query.guideWanted.findFirst({ where: eq(guideWanted.id, wantedId), columns: { guideId: true } });
+  if (!w) return false;
+  return mayModerate(userId, w.guideId != null ? await effectiveClan(null, w.guideId) : null);
 }
 
 export interface QueueRow {
@@ -317,12 +360,13 @@ export async function curatorQueue(tab: 'new' | 'reported' | 'promoted', limit =
         ? reportedIds.length
           ? and(inArray(guideContributions.id, reportedIds), inArray(guideContributions.status, ['live', 'kept', 'pending', 'promoted']))
           : sql`false`
-        : and(inArray(guideContributions.status, ['live', 'pending']), isNull(guideContributions.reviewedAt), isNull(guideContributions.clanId));
+        : and(inArray(guideContributions.status, ['live', 'pending']), isNull(guideContributions.reviewedAt));
   const rows = await db
     .select({ c: guideContributions, title: guides.title, slug: guides.slug })
     .from(guideContributions)
     .innerJoin(guides, eq(guides.id, guideContributions.guideId))
-    .where(where)
+    // The curator queue is the LIBRARY's: clan pins and clan guides' rows are their clan's to review.
+    .where(and(where, isNull(guideContributions.clanId), isNull(guides.clanId)))
     .orderBy(tab === 'promoted' ? desc(guideContributions.reviewedAt) : guideContributions.createdAt)
     .limit(limit);
   const names = await userNames(rows.map((r) => r.c.authorUserId ?? 0));
@@ -491,7 +535,7 @@ export async function tipsFor(guide: Pick<Guide, 'id' | 'clanId' | 'sourceGuideI
 
 export async function toggleTipUseful(tipId: number, userId: number): Promise<boolean> {
   const tip = await db.query.guideTips.findFirst({ where: eq(guideTips.id, tipId) });
-  if (!tip || tip.authorUserId === userId) return false;
+  if (!tip || tip.status !== 'live' || tip.authorUserId === userId) return false;
   const gone = await db.delete(guideTipVotes).where(and(eq(guideTipVotes.tipId, tipId), eq(guideTipVotes.userId, userId))).returning();
   if (gone.length) return false;
   await db.insert(guideTipVotes).values({ tipId, userId, createdAt: nowIso() }).onConflictDoNothing();
@@ -593,6 +637,13 @@ export async function markStale(guideId: number, note: string, userId: number): 
   await db.update(guides).set({ staleNote: text, staleAt: nowIso() }).where(eq(guides.id, guideId));
   const open = await db.select({ id: guideWanted.id }).from(guideWanted).where(and(eq(guideWanted.guideId, guideId), eq(guideWanted.reason, 'stale'), eq(guideWanted.status, 'open'))).limit(1);
   if (!open.length) await db.insert(guideWanted).values({ guideId, reason: 'stale', note: text, requestedByUserId: userId, createdAt: nowIso() });
+}
+
+/** The guide an upkeep flag may touch: published LIBRARY guides only; anything else is null (404). */
+export async function upkeepTarget(id: number | null): Promise<Guide | null> {
+  if (!id) return null;
+  const g = await getGuide(id);
+  return g && g.clanId == null && g.status === 'published' ? g : null;
 }
 
 export async function clearStale(guideId: number): Promise<void> {
