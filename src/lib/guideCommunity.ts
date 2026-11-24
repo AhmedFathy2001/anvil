@@ -149,11 +149,19 @@ async function fillWanted(row: GuideContribution, setup: GearSetup): Promise<voi
     (w) =>
       (!w.tier || w.tier === row.tier) &&
       (!w.accountType || !(setup.accounts?.length) || setup.accounts.includes(w.accountType)) &&
-      (!w.build || w.build === 'any' || !(setup.builds?.length) || setup.builds.includes(w.build)),
+      (!w.build || w.build === 'any' || !(setup.builds?.length) || setup.builds.includes(w.build)) &&
+      // No self-dealing: filling your own request earns no "first to write it".
+      w.requestedByUserId !== row.authorUserId,
   );
   if (!hit) return;
   const at = nowIso();
-  await db.update(guideWanted).set({ status: 'filled', filledByContributionId: row.id, filledByUserId: row.authorUserId, filledAt: at }).where(eq(guideWanted.id, hit.id));
+  // Claim first: only one setup ever fills a request, however many land at once.
+  const [claimed] = await db
+    .update(guideWanted)
+    .set({ status: 'filled', filledByContributionId: row.id, filledByUserId: row.authorUserId, filledAt: at })
+    .where(and(eq(guideWanted.id, hit.id), eq(guideWanted.status, 'open')))
+    .returning({ id: guideWanted.id });
+  if (!claimed) return;
   await db.update(guideContributions).set({ wantedId: hit.id, firstToWrite: true }).where(eq(guideContributions.id, row.id));
 }
 
@@ -407,29 +415,61 @@ export const isEditTag = (v: unknown): v is EditTag => EDIT_TAGS.some((t) => t.k
 export async function reviewContribution(input: { id: number; action: 'promote' | 'hide' | 'keep'; userId: number; tag?: EditTag | null }): Promise<{ ok: true } | { ok: false; error: string }> {
   const c = await db.query.guideContributions.findFirst({ where: eq(guideContributions.id, input.id) });
   if (!c) return { ok: false, error: 'Not found.' };
+  // No self-dealing: promoting or keeping a piece earns its writer credit, so they can't review it.
+  if (input.action !== 'hide' && c.authorUserId != null && c.authorUserId === input.userId) return { ok: false, error: 'Someone else has to review your own edit.' };
   const at = nowIso();
   if (input.action !== 'promote') {
-    await db.update(guideContributions).set({ status: input.action === 'hide' ? 'hidden' : 'kept', reviewedByUserId: input.userId, reviewedAt: at, updatedAt: at }).where(eq(guideContributions.id, c.id));
+    // Claim-first: the row changes only from a state this action may leave, and only once.
+    const from = input.action === 'hide' ? ['live', 'kept', 'pending', 'promoted'] : ['live', 'pending'];
+    const [done] = await db
+      .update(guideContributions)
+      .set({ status: input.action === 'hide' ? 'hidden' : 'kept', reviewedByUserId: input.userId, reviewedAt: at, updatedAt: at })
+      .where(and(eq(guideContributions.id, c.id), inArray(guideContributions.status, from)))
+      .returning({ id: guideContributions.id });
+    if (!done) return { ok: false, error: 'Already reviewed.' };
     await db.update(guideReports).set({ resolvedAt: at }).where(and(eq(guideReports.contributionId, c.id), isNull(guideReports.resolvedAt)));
     return { ok: true };
   }
+  // CLAIM FIRST: flip it to promoted atomically; a second promote (or a racing one) gets nothing back.
+  const [claimed] = await db
+    .update(guideContributions)
+    .set({ status: 'promoted', reviewTag: input.tag ?? null, reviewedByUserId: input.userId, reviewedAt: at, updatedAt: at })
+    .where(and(eq(guideContributions.id, c.id), inArray(guideContributions.status, ['live', 'kept', 'pending'])))
+    .returning({ id: guideContributions.id });
+  if (!claimed) return { ok: false, error: 'Already reviewed.' };
+  const undo = async () => {
+    await db.update(guideContributions).set({ status: c.status, reviewTag: c.reviewTag, reviewedByUserId: c.reviewedByUserId, reviewedAt: c.reviewedAt }).where(eq(guideContributions.id, c.id));
+  };
+  try {
+    return await promoteClaimed(c, input, at);
+  } catch (err) {
+    await undo();
+    throw err;
+  }
+}
+
+async function promoteClaimed(c: GuideContribution, input: { userId: number; tag?: EditTag | null }, at: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const fail = async (error: string) => {
+    await db.update(guideContributions).set({ status: c.status, reviewTag: c.reviewTag, reviewedByUserId: c.reviewedByUserId, reviewedAt: c.reviewedAt }).where(eq(guideContributions.id, c.id));
+    return { ok: false as const, error };
+  };
   const guide = await getGuide(c.guideId);
-  if (!guide) return { ok: false, error: 'The guide is gone.' };
+  if (!guide) return fail('The guide is gone.');
   const names = await userNames([c.authorUserId ?? 0]);
   const by = c.authorUserId ? { userId: c.authorUserId, name: names.get(c.authorUserId) ?? 'A player' } : null;
   let body = guide.body;
   let pieceKey = 'guide';
   if (c.kind === 'setup') {
     const block = firstGearBlock(body);
-    if (!block) return { ok: false, error: 'This guide has no gear block to promote into.' };
+    if (!block) return fail('This guide has no gear block to promote into.');
     const setup = { ...(c.data as unknown as GearSetup), tier: (tierOf(c.tier)?.key ?? 'beginner') as TierKey, id: `c${c.id}`, communityId: c.id, by };
-    if (block.setups.some((s) => s.communityId === c.id)) return { ok: false, error: 'Already promoted.' };
+    if (block.setups.some((s) => s.communityId === c.id)) return { ok: true };
     body = upsertGearBlock(body, { ...block, setups: [...block.setups, setup] });
     pieceKey = `c${c.id}`;
   } else {
     const seg = splitSegments(body).find((s) => s.kind === 'route');
     const route = seg ? parseRouteBlock(seg.text) : null;
-    if (!route) return { ok: false, error: 'This guide has no route to add to.' };
+    if (!route) return fail('This guide has no route to add to.');
     const d = c.data as { chapter?: number; step?: RouteStep; stepId?: string; title?: string; why?: string };
     if (c.kind === 'step' && d.step) {
       const ch = route.chapters[Math.max(0, Math.min(route.chapters.length - 1, d.chapter ?? route.chapters.length - 1))];
@@ -437,18 +477,21 @@ export async function reviewContribution(input: { id: number; action: 'promote' 
       pieceKey = `s${c.id}`;
     } else if (c.kind === 'edit' && d.stepId) {
       const st = route.chapters.flatMap((x) => x.steps).find((x) => x.id === d.stepId);
-      if (!st) return { ok: false, error: 'That step is gone.' };
+      if (!st) return fail('That step is gone.');
       if (d.title) st.title = plainText(d.title, 80);
       if (d.why != null) st.why = plainText(d.why, 200);
       pieceKey = d.stepId;
-    } else return { ok: false, error: 'Nothing to promote.' };
+    } else return fail('Nothing to promote.');
     body = upsertFencedBlock(body, 'route', serializeRouteBlock(parseRouteBlock(serializeRouteBlock(route))!));
   }
   const saved = await saveGuide(guide, { body }, input.userId, `Promoted from the community: ${c.name}${by ? ` by ${by.name}` : ''}`);
-  await db.update(guideContributions).set({ status: 'promoted', reviewTag: input.tag ?? null, reviewedByUserId: input.userId, reviewedAt: at, updatedAt: at }).where(eq(guideContributions.id, c.id));
   await db.update(guideReports).set({ resolvedAt: at }).where(and(eq(guideReports.contributionId, c.id), isNull(guideReports.resolvedAt)));
   if (c.kind !== 'setup' && c.authorUserId) {
-    await db.insert(guideEditCredits).values({ guideId: guide.id, pieceKey, userId: c.authorUserId, tag: input.tag && isEditTag(input.tag) ? input.tag : 'substantive', month: monthOf(at), version: saved.version, createdAt: at });
+    // One credit row per contribution (a unique index): a duplicate insert does nothing.
+    await db
+      .insert(guideEditCredits)
+      .values({ guideId: guide.id, pieceKey, userId: c.authorUserId, tag: input.tag && isEditTag(input.tag) ? input.tag : 'substantive', month: monthOf(at), version: saved.version, contributionId: c.id, createdAt: at })
+      .onConflictDoNothing();
   }
   // A promotion may make another setup the old way of doing the same thing; curators hide that one
   // by hand, which stops its credit (clawback).

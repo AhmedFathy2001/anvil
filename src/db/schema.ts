@@ -4455,9 +4455,16 @@ export const guideEditCredits = pgTable('guide_edit_credits', {
   // The guide version it produced; a later revert marks it reverted.
   version: integer('version'),
   reverted: boolean('reverted').notNull().default(false),
+  // The source the credit came from: one row per approved proposal, one per promoted contribution
+  // (unique), so a repeated or racing approval can never credit twice.
   proposalId: integer('proposal_id'),
+  contributionId: integer('contribution_id'),
   createdAt: text('created_at').notNull(),
-}, (t) => [index('guide_edit_credits_user_idx').on(t.userId, t.month)]);
+}, (t) => [
+  index('guide_edit_credits_user_idx').on(t.userId, t.month),
+  uniqueIndex('guide_edit_credits_proposal_unique').on(t.proposalId).where(sql`proposal_id is not null`),
+  uniqueIndex('guide_edit_credits_contribution_unique').on(t.contributionId).where(sql`contribution_id is not null`),
+]);
 
 /** A month's featured writers and the curator-picked reward. Never granted automatically. */
 export const guideWriterAwards = pgTable('guide_writer_awards', {

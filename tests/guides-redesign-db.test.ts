@@ -213,3 +213,65 @@ test('scope: item snapshots, skips and follows are the owner’s own rows', asyn
   assert.equal(await items.snapshotForViewer(b.userId, a.accountId), null, 'platform staff read nothing of it');
   assert.equal(await items.ownsAccount(b.userId, a.accountId), false);
 });
+
+// ── Self-dealing and races: one review, one save, one credit ───────────────────────────────────
+
+async function editProposal(proposerUserId: number) {
+  const { rows } = await pool.query(`SELECT id, title, summary, category, body, version FROM guides WHERE clan_id IS NULL AND slug = 'vorkath-guide'`);
+  const g = rows[0];
+  const p = await pool.query(
+    `INSERT INTO guide_proposals (proposer_user_id, target_guide_id, base_version, title, summary, category, body, status, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $8) RETURNING *`,
+    [proposerUserId, g.id, g.version, g.title, g.summary, g.category, `${g.body}\n\nOne more tip line ${Math.random()}.`, now()],
+  );
+  return { guideId: g.id as number, proposalId: p.rows[0].id as number };
+}
+
+test('proposals: self-approval is refused', async () => {
+  const props = await import('../src/lib/guideProposals.ts');
+  const me = await user('SelfReviewer', { platformRole: 'staff' });
+  const { proposalId } = await editProposal(me.userId);
+  const p = (await props.getProposal(proposalId))!;
+  await assert.rejects(props.approveProposal(p, me.userId, { tag: 'substantive' }), /Someone else has to review your own edit/);
+  const { rows } = await pool.query(`SELECT status FROM guide_proposals WHERE id = $1`, [proposalId]);
+  assert.equal(rows[0].status, 'pending');
+});
+
+test('proposals: two approvals at once make one save and one credit row', async () => {
+  const props = await import('../src/lib/guideProposals.ts');
+  const writer = await user('RaceWriter');
+  const r1 = await user('RaceReviewer1', { platformRole: 'staff' });
+  const r2 = await user('RaceReviewer2', { platformRole: 'staff' });
+  const { guideId, proposalId } = await editProposal(writer.userId);
+  const before = (await pool.query(`SELECT count(*)::int AS n FROM guide_revisions WHERE guide_id = $1`, [guideId])).rows[0].n;
+  const p = (await props.getProposal(proposalId))!;
+  const results = await Promise.allSettled([props.approveProposal(p, r1.userId, { tag: 'fix' }), props.approveProposal(p, r2.userId, { tag: 'fix' })]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, 'exactly one approval wins');
+  const credits = (await pool.query(`SELECT count(*)::int AS n FROM guide_edit_credits WHERE proposal_id = $1`, [proposalId])).rows[0].n;
+  assert.equal(credits, 1);
+  const after = (await pool.query(`SELECT count(*)::int AS n FROM guide_revisions WHERE guide_id = $1`, [guideId])).rows[0].n;
+  assert.equal(after - before, 1, 'one save');
+  // The unique index refuses a second credit row for the same proposal outright.
+  await assert.rejects(pool.query(`INSERT INTO guide_edit_credits (guide_id, user_id, tag, month, proposal_id, created_at) VALUES ($1, $2, 'fix', '2026-11', $3, $4)`, [guideId, writer.userId, proposalId, now()]));
+});
+
+test('contributions: authors cannot promote their own; racing promotes save once', async () => {
+  const store = await import('../src/lib/guideCommunity.ts');
+  const { rows } = await pool.query(`SELECT id FROM guides WHERE clan_id IS NULL AND slug = 'ironman-first-100-hours'`);
+  const routeId = rows[0].id as number;
+  const author = await user('StepAuthor', { platformRole: 'staff' });
+  const c1 = await store.suggestStep({ guideId: routeId, userId: author.userId, chapter: 0, step: { title: 'Own step', goal: { kind: 'manual' } } });
+  const self = await store.reviewContribution({ id: c1.id, action: 'promote', userId: author.userId, tag: 'substantive' });
+  assert.deepEqual(self, { ok: false, error: 'Someone else has to review your own edit.' });
+
+  const s1 = await user('StepReviewer1', { platformRole: 'staff' });
+  const s2 = await user('StepReviewer2', { platformRole: 'staff' });
+  const before = (await pool.query(`SELECT count(*)::int AS n FROM guide_revisions WHERE guide_id = $1`, [routeId])).rows[0].n;
+  const res = await Promise.all([
+    store.reviewContribution({ id: c1.id, action: 'promote', userId: s1.userId, tag: 'substantive' }),
+    store.reviewContribution({ id: c1.id, action: 'promote', userId: s2.userId, tag: 'substantive' }),
+  ]);
+  assert.equal(res.filter((r) => r.ok).length, 1);
+  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM guide_edit_credits WHERE contribution_id = $1`, [c1.id])).rows[0].n, 1);
+  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM guide_revisions WHERE guide_id = $1`, [routeId])).rows[0].n - before, 1);
+});

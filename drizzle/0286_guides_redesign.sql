@@ -115,10 +115,15 @@ CREATE TABLE IF NOT EXISTS "guide_edit_credits" (
   "version" integer,
   "reverted" boolean DEFAULT false NOT NULL,
   "proposal_id" integer,
+  "contribution_id" integer,
   "created_at" text NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "guide_edit_credits_user_idx" ON "guide_edit_credits" ("user_id", "month");
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "guide_edit_credits_proposal_unique" ON "guide_edit_credits" ("proposal_id") WHERE "proposal_id" IS NOT NULL;
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "guide_edit_credits_contribution_unique" ON "guide_edit_credits" ("contribution_id") WHERE "contribution_id" IS NOT NULL;
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "guide_writer_awards" (
   "id" serial PRIMARY KEY NOT NULL,
