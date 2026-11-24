@@ -54,7 +54,7 @@ export async function autoUsedFromKills(accountId: number, bossKeys: string[]): 
   ]);
   const worn = (equipment?.items ?? []).map((i) => i.id);
   if (!user || !worn.length) return 0;
-  const same = equivalentsFor(worn);
+  const same = equivalentsFor(worn, 'holds');
   const since = new Date(Date.now() - DAY_MS).toISOString();
   let cast = 0;
   for (const g of hit) {

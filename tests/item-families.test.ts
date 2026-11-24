@@ -1,4 +1,4 @@
-// Item families (lib/itemFamilies): a kit, recolour, imbued or fortified form counts as its base for
+// Item families (lib/itemFamilies): a kit or recolour counts as its base (an upgrade only one way) for
 // ownership ("Missing from your bank") and for the worn-gear match (the automatic "used it").
 //
 // Run: npx tsx --test tests/item-families.test.ts
@@ -43,10 +43,15 @@ test('an ornament-kitted item counts as its base, and the base as the kitted one
   assert.deepEqual(own(setup({ neck: TORTURE_OR }), [TORTURE]).missing, []);
 });
 
-test('an imbued ring and a fortified body count as the base the guide asks for, and the other way round', () => {
+test('an upgrade (imbued, fortified) covers the plain item a guide asks for, never the reverse', () => {
   assert.deepEqual(own(setup({ ring: BERSERKER }), [BERSERKER_I]).missing, []);
-  assert.deepEqual(own(setup({ ring: BERSERKER_I }), [BERSERKER]).missing, []);
   assert.deepEqual(own(setup({ body: MASORI_BODY }), [MASORI_BODY_F]).missing, []);
+  // Masori body (f) is different, better armour: plain Masori doesn't have it.
+  assert.equal(own(setup({ body: MASORI_BODY_F }), [MASORI_BODY]).missing.length, 1);
+  assert.equal(own(setup({ ring: BERSERKER_I }), [BERSERKER]).missing.length, 1);
+  // A guide naming both: each answers for itself.
+  const both = equivalentsFor([MASORI_BODY, MASORI_BODY_F]);
+  assert.equal(both(MASORI_BODY_F).includes(MASORI_BODY), false);
 });
 
 test('the families stay tight: different items with similar names are not joined', () => {
@@ -67,18 +72,23 @@ test('the Missing list names the base item', () => {
 test('the worn-gear match uses the same families', () => {
   const s = { key: 'adv-0', gear: { head: ANCESTRAL_HAT, body: ANCESTRAL_TOP, legs: ANCESTRAL_BOTTOM, neck: TORTURE } };
   const worn = [TWISTED_HAT, TWISTED_TOP, TWISTED_BOTTOM, TORTURE_OR];
-  assert.equal(matchWornSetup(worn, [s], equivalentsFor(worn)), 'adv-0');
+  assert.equal(matchWornSetup(worn, [s], equivalentsFor(worn, 'holds')), 'adv-0');
+  // Wearing the upgrade wears the plain item; wearing the plain one doesn't wear the upgrade.
+  const f = { key: 'f-0', gear: { body: MASORI_BODY_F, ring: BERSERKER_I, neck: TORTURE } };
+  assert.equal(matchWornSetup([MASORI_BODY, BERSERKER, TORTURE], [f], equivalentsFor([MASORI_BODY, BERSERKER, TORTURE], 'holds')), null);
+  const p = { key: 'p-0', gear: { body: MASORI_BODY, ring: BERSERKER, neck: TORTURE } };
+  assert.equal(matchWornSetup([MASORI_BODY_F, BERSERKER_I, TORTURE], [p], equivalentsFor([MASORI_BODY_F, BERSERKER_I, TORTURE], 'holds')), 'p-0');
 });
 
 test('the rule from names and bonuses alone', () => {
   const items: GearEntry[] = [
     { id: 1, n: 'Helm', s: 'head', b: [1, 1] },
     { id: 2, n: 'Gilded helm', s: 'head', b: [1, 1] }, // a recolour: same bonuses
-    { id: 3, n: 'Helm (i)', s: 'head', b: [2, 1] }, // imbued: better is fine
+    { id: 3, n: 'Helm (i)', s: 'head', b: [2, 1] }, // imbued: an upgrade, its own item (one-way, upgradeOf)
     { id: 4, n: 'Spiked helm', s: 'head', b: [3, 1] }, // a different item: other bonuses
     { id: 5, n: 'Helm (wrapped)', s: 'head', b: [2, 2] }, // an upgrade with another tag: its own item
     { id: 6, n: 'Ruby bolts (e)', s: 'ammo', b: [0, 0] },
     { id: 7, n: 'Ruby bolts', s: 'ammo', b: [0, 0] }, // ammo is never joined
   ];
-  assert.deepEqual(itemFamilies(items).map((g) => [...g].sort()), [[1, 2, 3]]);
+  assert.deepEqual(itemFamilies(items).map((g) => [...g].sort()), [[1, 2]]);
 });
