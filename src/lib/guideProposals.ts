@@ -10,7 +10,7 @@
 import { and, count, desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { guideProposals, users, type GuideProposal } from '@/db/schema';
+import { guideEditCredits, guideProposals, users, type GuideProposal } from '@/db/schema';
 import { GuideInputError, assertLibraryCoverage, cleanInput, createGuide, getScopedGuide, saveGuide, type GuideInput } from '@/lib/guides';
 import { GUIDE_LIMITS } from '@/lib/guideCategories';
 import { categoryUsable } from '@/lib/guideCategoryStore';
@@ -136,7 +136,7 @@ async function proposerName(userId: number): Promise<string> {
 export async function approveProposal(
   p: GuideProposal,
   reviewerId: number,
-  opts: { reviewNote?: string | null; publish?: boolean },
+  opts: { reviewNote?: string | null; publish?: boolean; /** The reviewer's credit tag for an edit (lib/guideCredit). */ tag?: string | null },
 ): Promise<GuideProposal> {
   if (p.status !== 'pending') throw new GuideInputError('This proposal has already been answered.');
   const by = await proposerName(p.proposerUserId);
@@ -150,8 +150,16 @@ export async function approveProposal(
     // What clans offered the update read: the reviewer's words if given, else the proposer's.
     const why = reviewNote || p.note;
     const note = `Suggested by ${by}${why ? ` — ${why}` : ''}`.slice(0, GUIDE_LIMITS.note);
-    await saveGuide(target, content, reviewerId, note);
+    const saved = await saveGuide(target, content, reviewerId, note);
     resultId = target.id;
+    // Credit for the edit's delta: the reviewer's tag decides how much it earns (lib/guideCredit).
+    const tag = ['fix', 'clarification', 'substantive', 'upkeep'].includes(opts.tag ?? '') ? opts.tag! : 'substantive';
+    await db.insert(guideEditCredits).values({ guideId: target.id, pieceKey: 'guide', userId: p.proposerUserId, tag, month: nowIso().slice(0, 7), version: saved.version, proposalId: p.id, createdAt: nowIso() });
+    // Upkeep brings a stale guide current again.
+    if (tag === 'upkeep' && target.staleNote) {
+      const { clearStale } = await import('@/lib/guideCommunity');
+      await clearStale(target.id);
+    }
   } else {
     const created = await createGuide(
       null,

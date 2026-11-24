@@ -44,6 +44,7 @@ export default function RouteView({
   const router = useRouter();
   const [acct, setAcct] = useState<GuideAccount | null>(account ?? route?.accounts?.[0] ?? null);
   const [suggest, setSuggest] = useState(false);
+  const [editing, setEditing] = useState<{ stepId: string; title: string; why: string } | null>(null);
   const [showDone, setShowDone] = useState<Record<number, boolean>>({});
   if (!route || !progress) return <p className="text-sm text-text-muted">This route could not be read.</p>;
   // The account switch re-runs the forks over the same facts the server ticked.
@@ -153,6 +154,11 @@ export default function RouteView({
                         <strong className={s.done ? 'text-text-muted line-through' : ''}>{s.step.title}</strong>
                         {s.source && <span className="text-[11px] text-emerald-300">{s.source}</span>}
                         {s.step.by && <span className="text-[11px] text-text-muted">suggested by {s.step.by.name}</span>}
+                        {signedIn && (
+                          <button type="button" onClick={() => setEditing({ stepId: s.step.id, title: s.step.title, why: s.step.why ?? '' })} className="ml-auto text-[11px] text-text-muted hover:text-gold">
+                            Suggest an edit
+                          </button>
+                        )}
                       </div>
                       {s.line && <p className="text-sm text-text-muted">{s.line}</p>}
                       {s.reqs.length > 0 && (
@@ -189,6 +195,7 @@ export default function RouteView({
         </aside>
       </div>
       {suggest && <SuggestStep guideId={guide.id} chapters={route.chapters.map((c) => c.name)} onClose={() => setSuggest(false)} />}
+      {editing && <SuggestEdit guideId={guide.id} step={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -250,6 +257,48 @@ function SuggestStep({ guideId, chapters, onClose }: { guideId: number; chapters
               Cancel
             </button>
             <button type="button" disabled={!title.trim()} onClick={send} className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark disabled:opacity-40">
+              Send suggestion
+            </button>
+          </div>
+        </div>
+      )}
+    </DialogFrame>
+  );
+}
+
+/** Suggest a change to one step's words: current text, your edit, why. Reviewed like any suggestion. */
+function SuggestEdit({ guideId, step, onClose }: { guideId: number; step: { stepId: string; title: string; why: string }; onClose: () => void }) {
+  const [title, setTitle] = useState(step.title);
+  const [why, setWhy] = useState(step.why);
+  const [reason, setReason] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  async function send() {
+    const r = await post(`/api/guides/${guideId}/suggest`, { edit: { stepId: step.stepId, title, why, reason } });
+    setMsg(r.ok ? 'Sent for light review · usually within a day.' : r.error ?? 'Could not send it.');
+  }
+  const changed = title !== step.title || why !== step.why;
+  return (
+    <DialogFrame dirty={changed} onClose={onClose} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" panelClassName="w-full max-w-lg rounded-xl border border-card-border bg-card-bg p-5" ariaLabel="Suggest an edit">
+      {(close) => (
+        <div className="space-y-3 text-sm">
+          <h2 className="text-lg font-bold">Suggest an edit</h2>
+          <div className="space-y-1">
+            <span className="text-xs font-semibold">Current text</span>
+            <p className="rounded-lg border border-card-border bg-black/20 px-3 py-2 text-text-muted">
+              <strong className="text-foreground">{step.title}</strong>
+              {step.why ? ` — ${step.why}` : ''}
+            </p>
+          </div>
+          <Input value={title} onChange={(e) => setTitle(e.target.value.slice(0, 80))} aria-label="Step title" />
+          <Input value={why} onChange={(e) => setWhy(e.target.value.slice(0, 200))} aria-label="Why it matters" placeholder="Why it matters, in one line" />
+          <Input value={reason} onChange={(e) => setReason(e.target.value.slice(0, 200))} placeholder="Why (one line), for the reviewer" />
+          <p className="text-xs text-text-muted">Accepted edits earn credit by how many players they help; a small fix earns a little.</p>
+          {msg && <p className="text-xs text-amber-200">{msg}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={close} className="rounded-lg border border-card-border px-3 py-2">
+              Cancel
+            </button>
+            <button type="button" disabled={!changed} onClick={send} className="rounded-lg bg-gold px-4 py-2 font-semibold text-brown-dark disabled:opacity-40">
               Send suggestion
             </button>
           </div>

@@ -98,7 +98,7 @@ export default async function GuideReadPage({ params }: Props) {
   return (
     <div className="mx-auto max-w-6xl">
       <GuidePage
-        guide={{ id: g.id, slug: g.slug, title: g.title, summary: g.summary, body: g.body, updatedAt: g.updatedAt, staleNote: g.staleNote, categoryLabel: cat.label }}
+        guide={{ id: g.id, slug: g.slug, title: g.title, summary: g.summary, body: g.body, updatedAt: g.updatedAt, staleNote: g.staleNote, categoryLabel: cat.label, editId: g.clanId == null ? g.id : g.followsSource ? g.sourceGuideId : null, library: g.clanId == null }}
         block={view.block}
         setups={setups}
         ladders={ladders}

@@ -35,10 +35,10 @@ export async function POST(request: Request, { params }: Ctx) {
   if ('response' in gate) return gate.response;
   const p = await getProposal(Number((await params).id));
   if (!p) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const body = (await request.json().catch(() => null)) as { action?: string; reviewNote?: string; publish?: boolean } | null;
+  const body = (await request.json().catch(() => null)) as { action?: string; reviewNote?: string; publish?: boolean; tag?: string } | null;
   try {
     if (body?.action === 'approve') {
-      const r = await approveProposal(p, gate.actor.user.userId, { reviewNote: body.reviewNote ?? null, publish: body.publish !== false });
+      const r = await approveProposal(p, gate.actor.user.userId, { reviewNote: body.reviewNote ?? null, publish: body.publish !== false, tag: typeof body.tag === 'string' ? body.tag : null });
       return NextResponse.json({ proposal: r });
     }
     if (body?.action === 'reject') {

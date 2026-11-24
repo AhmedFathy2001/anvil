@@ -72,7 +72,7 @@ export interface WriterWire {
 }
 
 export interface GuidePageProps {
-  guide: { id: number; slug: string; title: string; summary: string; body: string; updatedAt: string | null; staleNote: string | null; categoryLabel: string };
+  guide: { id: number; slug: string; title: string; summary: string; body: string; updatedAt: string | null; staleNote: string | null; categoryLabel: string; /** The library guide edits are suggested to (null: a clan's own guide). */ editId: number | null; library: boolean };
   block: GearBlock | null;
   setups: SetupWire[];
   ladders: Record<string, LadderWire[]>;
@@ -208,9 +208,26 @@ export default function GuidePage(p: GuidePageProps) {
               </span>
             ))}
             {p.guide.updatedAt && <span>· updated {p.guide.updatedAt.slice(0, 10)}</span>}
-            <ClanLink href={`/guides/propose?edit=${p.guide.id}`} className="text-gold hover:underline">
-              Suggest an edit
-            </ClanLink>
+            {p.guide.editId != null && (
+              <ClanLink href={`/guides/propose?edit=${p.guide.editId}`} className="text-gold hover:underline">
+                Suggest an edit
+              </ClanLink>
+            )}
+            {p.canCurate && p.guide.library && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const stale = !p.guide.staleNote;
+                  const note = stale ? window.prompt('What changed in the game? (shown on the guide, and it goes on Wanted)') : '';
+                  if (stale && !note) return;
+                  await post(`/api/staff/guides/${p.guide.id}/stale`, { stale, note });
+                  router.refresh();
+                }}
+                className="text-text-muted hover:text-gold"
+              >
+                {p.guide.staleNote ? 'Mark up to date' : 'Flag as out of date'}
+              </button>
+            )}
           </p>
           {p.guide.staleNote && <p className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">May be out of date: {p.guide.staleNote}</p>}
         </div>
