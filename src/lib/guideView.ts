@@ -17,6 +17,9 @@ import { groundMarkersJson } from '@/lib/groundMarkers';
 import { parseRouteBlock, type RouteBlock } from '@/lib/guideRoutes';
 import type { Guide } from '@/db/schema';
 
+/** Dizana's quiver and the max cape that holds it: both give the second ammo slot. */
+const QUIVER_CAPES = [28951, 28947, 28902];
+
 export interface SetupView {
   key: string;
   index: number;
@@ -30,6 +33,10 @@ export interface SetupView {
   /** DPS with the reader's version. */
   myDps: number | null;
   community: boolean;
+  /** The weapon is two-handed (the shield slot reads "two-handed"). */
+  twoHanded: boolean;
+  /** Dizana's quiver (or its max cape) is worn: the quiver ammo slot shows. */
+  hasQuiver: boolean;
 }
 
 export interface GuideViewData {
@@ -99,7 +106,20 @@ export async function loadGuideView(guide: Guide, viewer: GuideViewer, over: { a
     const resolved = viewer.snapshot ? resolveSetup(s, viewer.snapshot, eq, prefs) : null;
     const n = block ? numbers(s, block, idx) : { dps: null, ttk: null };
     const mine = resolved && block ? numbers(personalSetup(s, resolved), block, idx) : null;
-    setups.push({ key, index: i, setup: s, fit: setupFit(s, filters), resolved, dps: n.dps, ttk: n.ttk, myDps: mine?.dps ?? null, community: isCommunity });
+    const cape = resolved?.gear.cape ?? s.gear.cape;
+    setups.push({
+      key,
+      index: i,
+      setup: s,
+      fit: setupFit(s, filters),
+      resolved,
+      dps: n.dps,
+      ttk: n.ttk,
+      myDps: mine?.dps ?? null,
+      community: isCommunity,
+      twoHanded: !!idx.item(s.gear.weapon)?.h2,
+      hasQuiver: QUIVER_CAPES.includes(cape ?? 0) || !!s.quiver,
+    });
   });
   const main = setups.filter((x) => !x.community);
   const defaults = Object.fromEntries(
@@ -124,6 +144,73 @@ export async function loadGuideView(guide: Guide, viewer: GuideViewer, over: { a
     kcKey: kcKeyOf(block),
     libraryId: libraryIdOf(guide),
   };
+}
+
+export interface LadderStep {
+  id: number;
+  dps: number;
+  /** % DPS over the step before it (null for the first). */
+  gainPct: number | null;
+  price: number | null;
+  current: boolean;
+}
+export interface LadderRow {
+  slot: string;
+  steps: LadderStep[];
+  /** The next step up from the reader's item, when there is one. */
+  next: { id: number; gainPct: number; price: number | null; perMillion: number | null } | null;
+}
+
+/**
+ * The gear progression ladder for one setup, per slot: every item the guide uses in that slot for
+ * this combat style (any level, plus the setup's fallbacks), ordered by the DPS it gives in this
+ * setup. The reader's item (their resolved version, else the guide's) is marked; the next step up
+ * carries its DPS gain and price. Numbers from lib/dps — the same engine as everywhere else.
+ */
+export async function ladderFor(view: SetupView, all: SetupView[], block: GearBlock | null, prices: Record<number, number>): Promise<LadderRow[]> {
+  if (!block) return [];
+  const idx = await effectiveGearIndex();
+  const m = idx.monster(block.monsters?.[0] ?? block.monster) as Monster | null;
+  if (!m) return [];
+  const base = view.resolved ? personalSetup(view.setup, view.resolved) : view.setup;
+  const kindOf = (s: GearSetup) => bestStyle(setupLoadout(s), m, idx.item, idx.rules)?.result.kind ?? null;
+  const kind = kindOf(base);
+  const same = all.filter((x) => !x.community && kindOf(x.setup) === kind);
+  const rows: LadderRow[] = [];
+  for (const slot of ['weapon', 'ammo', 'head', 'cape', 'neck', 'body', 'legs', 'shield', 'hands', 'feet', 'ring']) {
+    const ids = new Set<number>();
+    for (const x of same) if (x.setup.gear[slot]) ids.add(x.setup.gear[slot]);
+    for (const a of view.setup.alts?.[slot] ?? []) ids.add(a);
+    if (base.gear[slot]) ids.add(base.gear[slot]);
+    if (ids.size < 2) continue;
+    const scored = [...ids]
+      .map((id) => {
+        const g = { ...base.gear, [slot]: id };
+        if (slot === 'weapon' && idx.item(id)?.h2) delete g.shield;
+        const r = bestStyle(setupLoadout({ ...base, gear: g }), m, idx.item, idx.rules)?.result;
+        return { id, dps: r?.dps ?? 0 };
+      })
+      .sort((a, b) => a.dps - b.dps);
+    const cur = base.gear[slot];
+    const steps: LadderStep[] = scored.map((x, i) => ({
+      id: x.id,
+      dps: x.dps,
+      gainPct: i === 0 || !scored[i - 1].dps ? null : Math.round(((x.dps - scored[i - 1].dps) / scored[i - 1].dps) * 1000) / 10,
+      price: prices[x.id] ?? null,
+      current: x.id === cur,
+    }));
+    const curDps = scored.find((x) => x.id === cur)?.dps ?? 0;
+    const nextStep = scored.find((x) => x.dps > curDps + 1e-9);
+    const next = nextStep
+      ? (() => {
+          const gainPct = curDps ? Math.round(((nextStep.dps - curDps) / curDps) * 1000) / 10 : 0;
+          const price = prices[nextStep.id] ?? null;
+          return { id: nextStep.id, gainPct, price, perMillion: price ? Math.round((gainPct / (price / 1e6)) * 100) / 100 : null };
+        })()
+      : null;
+    rows.push({ slot, steps, next });
+  }
+  return rows;
 }
 
 export type ExportKind = 'banktag' | 'setup' | 'markers';

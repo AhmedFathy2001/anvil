@@ -77,6 +77,8 @@ export default function GuideBody({ body, storageKey }: { body: string; storageK
               <span className="h-px flex-1 bg-gold/20" />
             </div>
           ) : null;
+        // A route block is drawn by the route page, never as raw text.
+        if (seg.kind === 'route') return null;
         if (seg.kind === 'gear') {
           const block = parseGearBlock(seg.text);
           return (

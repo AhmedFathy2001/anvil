@@ -793,6 +793,24 @@ export async function writerStats(userId: number, month = monthOf(nowIso())): Pr
   return { lifetime, month: current, rank: writerRank(lifetime) };
 }
 
+/** Ranks for several writers at once (bylines): one credit pass, one sum. */
+export async function ranksFor(userIds: number[], month = monthOf(nowIso())): Promise<Map<number, WriterStats>> {
+  const ids = [...new Set(userIds)].filter((x) => Number.isInteger(x) && x > 0);
+  const out = new Map<number, WriterStats>();
+  if (!ids.length) return out;
+  const credit = await monthCredits(month);
+  const past = await db
+    .select({ userId: guideWriterAwards.userId, n: sql<number>`coalesce(sum(${guideWriterAwards.credit}), 0)::float` })
+    .from(guideWriterAwards)
+    .where(and(inArray(guideWriterAwards.userId, ids), sql`${guideWriterAwards.month} <> ${month}`))
+    .groupBy(guideWriterAwards.userId);
+  for (const id of ids) {
+    const lifetime = (past.find((p) => p.userId === id)?.n ?? 0) + (credit.get(id) ?? 0);
+    out.set(id, { lifetime, month: credit.get(id) ?? 0, rank: writerRank(lifetime) });
+  }
+  return out;
+}
+
 /**
  * Record a month: every writer's credit (so lifetime sums stay cheap), and the featured group of
  * about ten. Re-running a month refreshes it. Nothing is granted here.
