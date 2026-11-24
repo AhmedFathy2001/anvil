@@ -7,7 +7,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { gearNow, withSlot, wornGear } from '../src/lib/gearNow.ts';
+import { gearNow, otherTargets, unreadWorn, withSlot, wornGear } from '../src/lib/gearNow.ts';
+import { equivalentsFor } from '../src/lib/itemFamilies.ts';
 import { indexGear, type GearData } from '../src/lib/dps/summary.ts';
 import type { GearBlock, GearSetup } from '../src/lib/guideTiers.ts';
 import { guidePanelUi, type GuidePanelData } from '../src/lib/pluginUi/guidesUi.ts';
@@ -134,31 +135,155 @@ const glyphs = (n: unknown) => {
   return out;
 };
 
-test('the card: hidden without a worn reading, one row per target, the change ▲ or ▼, the gap and the note', () => {
-  assert.ok(!texts(guidePanelUi(PANEL)).includes('Your gear now vs this setup'), 'no reading, no card');
-  assert.ok(!texts(guidePanelUi({ ...PANEL, gearNow: null })).includes('Your gear now vs this setup'));
+const KEY = 'gear-now';
+/** The fold's two faces: `shut` (the default) and `open` (flipped). */
+function fold(ui: unknown): { shut: unknown; open: unknown } | null {
+  let out: { shut: unknown; open: unknown } | null = null;
+  walk(ui, (o) => {
+    if (o.t === 'toggle' && o.key === KEY) out = { shut: o.off, open: o.lit };
+  });
+  return out;
+}
+
+test('the card: hidden with no worn reading, one shut line by default under one fixed key', () => {
+  assert.equal(fold(guidePanelUi(PANEL)), null, 'no reading, no card');
+  assert.equal(fold(guidePanelUi({ ...PANEL, gearNow: null })), null);
   const rows = [
-    { name: 'Ahrim', you: 3.1, guide: 4.2 },
-    { name: 'Dharok', you: 6.6, guide: 6.0 },
+    { name: 'Dharok', you: 8.0, guide: 10.0 },
+    { name: 'Karil', you: 8.6, guide: 10.0 },
+  ];
+  const f = fold(guidePanelUi({ ...PANEL, gearNow: { rows } }))!;
+  assert.ok(f, 'a fold keyed gear-now');
+  // Shut: the title and the overall change (17% behind), no table.
+  const shut = texts(f.shut);
+  assert.ok(shut.includes('Your gear now') && shut.includes('17%') && shut.includes('vs guide'), shut.join(' | '));
+  assert.ok(!shut.includes('Dharok'));
+  assert.deepEqual(glyphs(f.shut), ['down']);
+  // The head flips the same key, shut or open.
+  let flips = 0;
+  walk(f.shut, (o) => {
+    if ((o.on as { a?: string; key?: string } | undefined)?.key === KEY) flips++;
+  });
+  assert.equal(flips, 1);
+});
+
+test('the card with nothing worn: still there, the shut line says so', () => {
+  const f = fold(guidePanelUi({ ...PANEL, gearNow: { empty: true, rows: [] } }))!;
+  assert.ok(f, 'banked gear keeps the card');
+  assert.ok(texts(f.shut).includes('Your gear now') && texts(f.shut).includes('nothing worn'));
+  assert.ok(texts(f.open).some((t) => t.startsWith('Nothing worn right now')));
+});
+
+test('the card open: one row per target, the change ▲ or ▼, the other targets, the note and ↻', () => {
+  const rows = [
+    { name: 'Dharok', you: 3.1, guide: 4.2 },
+    { name: 'Guthan', you: 6.6, guide: 6.0 },
     { name: 'Karil', you: 5.0, guide: 5.0 },
   ];
-  const ui = guidePanelUi({ ...PANEL, gearNow: { rows, ttk: null, gap: { slot: 'weapon', guide: 'Toxic blowpipe', worn: 'Trident of the Swamp' } } });
-  const t = texts(ui);
-  assert.ok(t.includes('Your gear now vs this setup'));
-  for (const r of rows) assert.ok(t.includes(r.name), r.name);
-  // Behind on Ahrim (▼ 26%), ahead on Dharok (▲ 10%), even on Karil.
+  const others = [{ name: 'Ahrim', setup: 'advanced-toxic-blowpipe-5', setupName: 'Toxic blowpipe' }];
+  const open = fold(guidePanelUi({ ...PANEL, gearNow: { rows, others } }))!.open;
+  const t = texts(open);
+  for (const r of rows) assert.ok(t.some((x) => x.endsWith(r.name)), r.name);
+  // Behind on Dharok (▼ 26%), ahead on Guthan (▲ 10%), even on Karil.
   assert.ok(t.includes('26%') && t.includes('10%') && t.includes('even'));
-  assert.deepEqual(glyphs(ui), ['down', 'up']);
-  assert.ok(t.includes('Biggest gap: weapon (Toxic blowpipe vs your Trident of the Swamp)'));
+  // Ahrim has his own setup: a row that opens it.
+  assert.ok(t.includes('Ahrim') && t.includes('own setup ›'));
+  let toAhrim: Record<string, unknown> | null = null;
+  walk(open, (o) => {
+    if (o.s === 'own setup ›') toAhrim = o.on as Record<string, unknown>;
+  });
+  assert.equal((toAhrim as { args?: Record<string, string> } | null)?.args?.setup, 'advanced-toxic-blowpipe-5');
   assert.ok(t.includes("Assumes the guide's prayers, boosts and levels."), 'no levels known');
-  assert.ok(texts(guidePanelUi({ ...PANEL, gearNow: { rows, ttk: null, gap: null, ownLevels: true } })).includes("Your levels; the guide's prayers and boosts."));
-  assert.ok(!t.includes('Per kill'), 'kill times only for one target');
+  assert.ok(texts(fold(guidePanelUi({ ...PANEL, gearNow: { rows, ownLevels: true } }))!.open).includes("Your levels; the guide's prayers and boosts."));
   // ↻ loads this guide again, on this setup.
   let again: Record<string, unknown> | null = null;
-  walk(ui, (o) => {
+  walk(open, (o) => {
     if (o.t === 'text' && o.s === '↻') again = o.on as Record<string, unknown>;
   });
   assert.deepEqual(again, { a: 'load', v: 'guide', args: { id: '3', tier: 'beginner', setup: 'beginner-magic' } });
-  const one = guidePanelUi({ ...PANEL, gearNow: { rows: rows.slice(0, 1), ttk: { you: '0:32', guide: '0:24' }, gap: null } });
-  assert.ok(texts(one).includes('Per kill') && texts(one).includes('0:32'));
+});
+
+test('the card open: max hit, accuracy, speed and time per kill, You against Guide', () => {
+  const mine = { maxHit: 38, accuracy: 0.72, speed: 4, ttk: 32 };
+  const theirs = { maxHit: 41, accuracy: 0.8, speed: 4, ttk: 24 };
+  const open = fold(guidePanelUi({ ...PANEL, gearNow: { rows: [{ name: 'Vorkath', you: 3, guide: 4, mine, theirs }] } }))!.open;
+  const t = texts(open);
+  for (const s of ['Max hit', '38', '41', 'Accuracy', '72%', '80%', 'Speed', '2.4s', 'Per kill', '0:32', '0:24']) assert.ok(t.includes(s), s);
+});
+
+test('the card open: slot by slot, worse first in the dry tone, better in green, the same on one line', () => {
+  const it = (id: number, name: string) => ({ id, name });
+  const slots = [
+    { slot: 'cape', worn: it(29613, 'Imbued Zamorak cape (Deadman)'), guide: it(21791, 'Imbued Saradomin cape'), pct: null },
+    { slot: 'weapon', worn: it(27275, "Tumeken's shadow"), guide: it(22323, 'Sanguinesti staff'), pct: 38.2 },
+    { slot: 'body', worn: it(24666, 'Twisted ancestral robe top'), guide: it(21021, 'Ancestral robe top'), pct: null },
+    { slot: 'hands', worn: null, guide: it(31106, 'Confliction gauntlets'), pct: -12.4 },
+    { slot: 'ring', worn: it(25975, 'Lightbearer'), guide: it(28313, 'Magus ring'), pct: -2 },
+  ];
+  const open = fold(guidePanelUi({ ...PANEL, gearNow: { rows: [{ name: 'Dharok', you: 3, guide: 4 }], slots, unknown: ['Mystery ring'] } }))!.open;
+  const t = texts(open);
+  const signs: { s: string; color: unknown }[] = [];
+  walk(open, (o) => {
+    if (o.t === 'text' && typeof o.s === 'string' && /^[+−]\d+%$/.test(o.s)) signs.push({ s: o.s, color: o.color });
+  });
+  assert.deepEqual(signs.map((x) => x.s), ['−12%', '−2%', '+38%']);
+  assert.equal(signs[2].color, '#5fd35f', 'yours better: green');
+  assert.notEqual(signs[0].color, '#5fd35f', 'yours worse: not green');
+  assert.ok(t.includes('Same or even: Cape, Body'));
+  assert.ok(t.includes('Also worn: Mystery ring (unknown stats, not counted)'));
+});
+
+test('per slot: the sign is that one slot swapped, averaged over the targets', () => {
+  const guide = melee({ weapon: id('Abyssal whip'), body: id('Bandos chestplate'), cape: id('Fire cape') });
+  const now = gearNow(guide, barrows(guide), { weapon: id('Abyssal whip'), body: id('Rune platebody'), cape: id('Fire cape'), ring: id('Berserker ring') }, idx)!;
+  const by = Object.fromEntries(now.slots.map((x) => [x.slot, x.pct]));
+  assert.equal(by.weapon, null, 'same weapon');
+  assert.equal(by.cape, null, 'same cape');
+  assert.ok(by.body! < 0, 'a weaker body: worse');
+  assert.ok(by.ring! > 0, 'a ring where the guide wears none: better');
+  assert.equal(now.gap?.slot, 'body');
+});
+
+test('max hit and accuracy come with every row, from the same best-style result', () => {
+  const guide = melee({ weapon: id('Abyssal whip'), body: id('Bandos chestplate') });
+  const now = gearNow(guide, barrows(guide), { weapon: id('Abyssal whip') }, idx)!;
+  for (const r of now.rows) {
+    assert.ok(r.mine && r.theirs, r.monster.n);
+    assert.equal(r.mine!.dps, r.you);
+    assert.ok(r.mine!.maxHit > 0 && r.theirs!.maxHit >= r.mine!.maxHit);
+    assert.ok(r.mine!.accuracy > 0 && r.mine!.accuracy <= 1);
+    assert.equal(r.mine!.speed, 4);
+  }
+});
+
+test("his real worn gear is read: the Deadman cape and the Lightbearer are known, none of it reads as empty", () => {
+  const ids = [12002, 21018, 21024, 24666, 25975, 27275, 29613, 31097, 31106];
+  const eq = equivalentsFor(ids, 'holds');
+  const worn = wornGear(ids.map((x) => ({ id: x })), idx, eq);
+  assert.deepEqual(unreadWorn(ids.map((x) => ({ id: x })), idx, eq), []);
+  assert.equal(worn.cape, 29613);
+  assert.equal(worn.ring, 25975);
+  assert.equal(Object.keys(worn).length, ids.length);
+  // The Deadman copy is the imbued god cape: the guide's Imbued Saradomin cape is the same.
+  const sara = id('Imbued Saradomin cape');
+  assert.ok(eq(29613).includes(sara), 'Deadman Zamorak counts as the Saradomin one');
+  assert.ok(equivalentsFor([sara])(sara).includes(29617), 'Imbued Saradomin cape (Deadman) in the bank counts');
+  // An id nothing knows stays unread (named by the panel), not an empty slot.
+  assert.deepEqual(unreadWorn([{ id: 999_998 }, { id: 25975 }], idx), [999_998]);
+});
+
+test("Ahrim's row: the Barrows magic setup is for the other five, so Ahrim shows as another setup's", () => {
+  const magic: GearSetup = { tier: 'advanced', name: 'Sanguinesti staff', gear: { weapon: id('Sanguinesti staff') }, style: 0, stats: STATS, targets: BROTHERS.slice(1) };
+  const pipe: GearSetup = { tier: 'advanced', name: 'Toxic blowpipe', gear: { weapon: id('Toxic blowpipe') }, style: 0, stats: STATS, targets: [BROTHERS[0]] };
+  const block: GearBlock = { monster: BROTHERS[0], monsters: BROTHERS, setups: [magic, pipe] };
+  const now = gearNow(magic, block, { weapon: id("Tumeken's shadow") }, idx)!;
+  assert.deepEqual(now.rows.map((r) => r.monster.n), BROTHERS.slice(1), 'the setup is for five brothers');
+  // Ahrim comes back as the blowpipe setup's target.
+  const setups = [{ key: 'magic', setup: magic }, { key: 'pipe', setup: pipe }];
+  assert.deepEqual(otherTargets(setups[0], setups, block), [{ name: 'Ahrim the Blighted', setup: 'pipe', setupName: 'Toxic blowpipe' }]);
+  assert.deepEqual(otherTargets(setups[0], setups.slice(0, 1), block), [{ name: 'Ahrim the Blighted', setup: null, setupName: null }], 'no setup for him: a row all the same');
+  assert.deepEqual(otherTargets(setups[1], setups, block).map((o) => o.setup), ['magic', 'magic', 'magic', 'magic', 'magic']);
+  const ui = guidePanelUi({ ...PANEL, gearNow: { rows: now.rows.map((r) => ({ name: r.monster.n.split(' the ')[0], you: r.you, guide: r.guide })), others: [{ name: 'Ahrim', setup: 'pipe', setupName: 'Toxic blowpipe' }] } });
+  const t = texts(fold(ui)!.open);
+  assert.ok(t.includes('Ahrim') && t.includes('own setup ›'));
 });

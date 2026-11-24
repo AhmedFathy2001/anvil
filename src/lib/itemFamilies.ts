@@ -9,7 +9,8 @@
 // gear data (src/data/gearItems.json, the wiki's equipment bonuses), so new kits join without a hand list:
 //
 //   - a parenthesised tag on the same slot with the same bonuses: ornament kits (or), trims (t)/(g),
-//     locked (l), heraldic and god kits, broken-and-repaired (bh)…
+//     locked (l), heraldic and god kits, broken-and-repaired (bh)… A (Deadman) reward copy on the
+//     same slot counts whatever its bonuses (COPY_TAG).
 //   - one or two words in front on the same slot with the same bonuses: recolours and cosmetic kits
 //     (Twisted ancestral, Sanguine torva, Volcanic abyssal whip, Black slayer helmet, Blessed Dizana's quiver)
 //
@@ -40,6 +41,8 @@ export interface GearEntry {
 /** Tags that make an item better than its base and still count as it (imbued, fortified, enchanted). */
 const UPGRADE_TAGS = new Set(['i', 'ei', 'f', 'e']);
 const TAG_RE = /^(.*?)\s*\(([^()]{1,24})\)$/;
+/** A Deadman reward copy ("Imbued Zamorak cape (Deadman)", "… (Deadman Mode)") is the item it copies, whatever the wiki lists for it. */
+const COPY_TAG = /^deadman( mode)?$/;
 
 const same = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 const atLeast = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x >= b[i]);
@@ -52,7 +55,8 @@ export function variantBase(variant: GearEntry, byName: Map<string, GearEntry>):
   const m = TAG_RE.exec(name);
   if (m) {
     const base = byName.get(m[1].trim());
-    if (ok(base)) return base;
+    const copy = COPY_TAG.test(m[2].trim()) && !!base && base.id !== variant.id && base.s === variant.s;
+    if (copy || ok(base)) return base!;
   }
   const words = name.split(/\s+/);
   for (const k of [1, 2]) {

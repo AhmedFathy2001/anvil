@@ -26,7 +26,9 @@ import { baseItem } from '@/lib/itemFamilies';
 import { formatGp } from '@/lib/itemPrices';
 import { fmtDuration } from '@/lib/dps/summary';
 import { effectiveGearIndex } from '@/lib/dps/store';
-import { gearNow, wornGear } from '@/lib/gearNow';
+import { gearNow, otherTargets, unreadWorn, wornGear } from '@/lib/gearNow';
+import type { DpsResult } from '@/lib/dps/engine';
+import { getItemMapping } from '@/lib/osrsItems';
 import { spellbookName } from '@/lib/guideSelection';
 import { clearSkip, isSkipReason, setBudgetCap, setSkip } from '@/lib/playerItems';
 import { rateLimit } from '@/lib/rate-limit';
@@ -34,7 +36,7 @@ import { supporterForUsers } from '@/lib/supporter';
 import { hasGuidesPanel } from './load';
 import { gap, message, type Node, type View } from './nodes';
 import { plainLine, sectionsForTier, textTiers } from './guideBody';
-import { GUIDE_REGIONS, guideGoneUi, guidePanelUi, guidesSearchUi, nextUpUi, type GuidePic, type GuideRowData, type PanelAlternatives, type PanelCheck, type PanelGearNow, type PanelRoute } from './guidesUi';
+import { GUIDE_REGIONS, guideGoneUi, guidePanelUi, guidesSearchUi, nextUpUi, type GuidePic, type GuideRowData, type PanelAlternatives, type PanelCheck, type GearNowStats, type PanelGearNow, type PanelRoute } from './guidesUi';
 
 type Args = Record<string, string>;
 
@@ -158,26 +160,33 @@ async function routePanel(viewer: GuideViewer, guideId: number, body: string): P
 /** "Ahrim the Blighted" → "Ahrim", "Great Olm (Head)" → "Great Olm": a name for a ~70px column. */
 const shortTarget = (name: string) => name.split(' the ')[0].replace(/\s*\(.*\)\s*$/, '').trim() || name;
 
-/** "1:12" per kill; an hour or more (or never) is past what a 30px column says. */
-const killTime = (t: number | null) => (t == null ? '—' : t >= 3600 ? '1h+' : fmtDuration(t));
+const statsOf = (r: DpsResult | null): GearNowStats | null => (r ? { maxHit: r.maxHit, accuracy: r.accuracy, speed: r.speed, ttk: Number.isFinite(r.ttk) ? r.ttk : null } : null);
 
 /**
  * "Your gear now vs this setup" from the worn-gear push (owner only: viewer.snapshot is). Null with no
- * equipment reading, or nothing to compare against.
+ * equipment reading at all; with one, always a card, "nothing worn" included. `others` are the guide's
+ * targets this setup isn't for (Ahrim, beside a magic setup for the other five brothers).
  */
-async function gearNowPanel(setup: GearSetup, block: GearBlock, viewer: GuideViewer): Promise<PanelGearNow | null> {
-  const items = viewer.snapshot?.equipment?.items ?? [];
-  if (!items.length) return null;
+async function gearNowPanel(setup: GearSetup, block: GearBlock, viewer: GuideViewer, others: PanelGearNow['others']): Promise<PanelGearNow | null> {
+  const reading = viewer.snapshot?.equipment;
+  if (!reading) return null;
+  const items = reading.items ?? [];
+  if (!items.length) return { empty: true, rows: [] };
   const idx = await effectiveGearIndex();
   const eq = equivalentsFor(items.map((i) => i.id), 'holds');
-  const now = gearNow(setup, block, wornGear(items, idx, eq), idx, eq, viewer.levels);
-  if (!now) return null;
-  const single = now.rows.length === 1 ? now.rows[0] : null;
-  const name = (id: number | null) => (id == null ? null : idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`);
+  const worn = wornGear(items, idx, eq);
+  const unread = unreadWorn(items, idx, eq);
+  // Names for what the gear data can't place: the item names data (wiki prices + RuneLite's cache).
+  const mapping = unread.length ? await getItemMapping().catch(() => []) : [];
+  const unknown = unread.map((id) => baseItem(id)?.name ?? mapping.find((m) => m.id === id)?.name ?? `Item ${id}`);
+  const now = gearNow(setup, block, worn, idx, eq, viewer.levels);
+  if (!now) return { rows: [], unknown, ownLevels: false };
+  const named = (id: number | null) => (id == null ? null : { id, name: idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}` });
   return {
-    rows: now.rows.map((r) => ({ name: shortTarget(r.monster.n), you: r.you, guide: r.guide })),
-    ttk: single ? { you: killTime(single.youTtk), guide: killTime(single.guideTtk) } : null,
-    gap: now.gap ? { slot: now.gap.slot, guide: name(now.gap.guide)!, worn: name(now.gap.worn) } : null,
+    rows: now.rows.map((r) => ({ name: shortTarget(r.monster.n), you: r.you, guide: r.guide, mine: statsOf(r.mine), theirs: statsOf(r.theirs) })),
+    others,
+    slots: now.slots.map((x) => ({ slot: x.slot, worn: named(x.worn), guide: named(x.guide), pct: x.pct })),
+    unknown,
     ownLevels: now.ownLevels,
   };
 }
@@ -248,7 +257,7 @@ export async function guidePanelView(request: Request, args: Args, extra: { alte
     };
   }
   const tone = top ? (supporter ? 'quill-star' : `quill-${top.quill}`) : null;
-  const nowCard = current && view.block ? await gearNowPanel(current.setup, view.block, viewer) : null;
+  const nowCard = current && view.block ? await gearNowPanel(current.setup, view.block, viewer, otherTargets(current, [...pills, ...comm], view.block).map((o) => ({ ...o, name: shortTarget(o.name) }))) : null;
   const all = [...pills, ...comm];
   return {
     ui: guidePanelUi({

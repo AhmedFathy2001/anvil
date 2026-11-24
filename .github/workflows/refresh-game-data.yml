@@ -1,7 +1,8 @@
 name: Refresh game data
 
 # Keeps the wiki-sourced catalogues current so new Jagex content flows in without a manual run:
-# combat achievements, the collection log, drop tables and slayer. Each is a snapshot of the OSRS
+# combat achievements, the collection log, drop tables, slayer and the gear calculator's equipment and
+# monsters (src/data/gearItems.json, gearMonsters.json). Each is a snapshot of the OSRS
 # Wiki that a `data:*` script regenerates; left alone, the totals go stale (a new CA release, say,
 # never appears until someone remembers to rebuild).
 #
@@ -59,6 +60,7 @@ jobs:
           npm run data:drops
           npm run data:slayer
           npm run data:variants
+          npm run data:gear
           npm run data:clogminor
           # Fail-soft: a wiki outage must not fail the job. The builder keeps previous values itself;
           # this only guards against a crash, which leaves the files as they were.
@@ -89,7 +91,7 @@ jobs:
           # it used to be swallowed by `|| echo`, and every weekly run since went nowhere.
           if [ -z "$(gh pr list --head "$BRANCH" --base beta --state open --json number --jq '.[].number')" ]; then
             gh pr create --base beta --head "$BRANCH" \
-              --title "chore(data): refresh CA / clog / drops / slayer / rates catalogues" \
+              --title "chore(data): refresh CA / clog / drops / slayer / gear / rates catalogues" \
               --body "Automated wiki refresh of the wiki-sourced datasets (timestamp-only rewrites dropped, shrunken catalogues refused). **Review the diff** before merging."
           fi
 
