@@ -43,7 +43,8 @@ const COLUMNS: { title: string; links: FooterLink[] }[] = [
     title: 'Support',
     links: [
       { href: '/supporter', label: 'Support Anvil', highlight: true },
-      { href: '/guide', label: 'Guides' },
+      // Help for Anvil itself. The in-game guides are "Guides" in the main nav (/guides).
+      { href: '/guide', label: 'Help & plugin docs' },
       { href: '/feedback', label: 'Feedback & bug reports' },
       { href: '/portal', label: 'Billing', apexOnly: true },
     ],

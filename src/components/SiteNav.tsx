@@ -162,6 +162,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, hasFund 
         { href: '/events', label: 'Events' },
         // A creator space has no members — its players are on its home page (lib/creatorSpaces).
         ...(clan.kind === 'creator' ? [] : [{ href: '/members', label: 'Members' }]),
+        // In-game guides: the clan's own and its copies, the Anvil library for the rest.
+        { href: '/guides', label: 'Guides' },
         ...(signedIn && myTeams > 0
           ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
           : []),
@@ -172,6 +174,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, hasFund 
         { href: '/clans', label: 'Clans' },
         { href: '/events', label: 'Events' },
         { href: '/leaderboard', label: 'Leaderboard' },
+        // The Anvil library of in-game guides. Help for Anvil itself stays at /guide (the footer).
+        { href: '/guides', label: 'Guides' },
       ];
 
   const avatar = user?.avatarUrl && !avatarFailed ? (
