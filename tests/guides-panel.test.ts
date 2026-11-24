@@ -277,10 +277,16 @@ test('guides search: no switch of its own (the plugin draws it), a region card w
     if (o.t === 'filter') filter = o;
   });
   assert.ok(filter && (filter as Record<string, unknown>).hint, 'the box has a hint');
-  // Each section is a one-column grid, so the search filters its rows.
-  const lists = ((filter as unknown as { c: Node[] }).c).filter((n) => n.t === 'grid');
+  // Each section is a gapless column (a grid gave every row the tallest row's height), one child per
+  // row so the search filters them; each row is spaced inside its own wrapper.
+  const lists = ((filter as unknown as { c: Node[] }).c).filter((n) => n.t === 'col' && !(n as { gap?: number }).gap);
   assert.equal(lists.length, 2);
-  for (const l of lists) for (const r of (l as { c: Node[] }).c.slice(1, -1)) assert.ok((r as { l?: { icon?: unknown } }).l?.icon, 'a picture');
+  for (const l of lists)
+    for (const w of (l as { c: Node[] }).c.slice(1, -1)) {
+      const r = (w as { c: Node[] }).c[1] as { l?: { icon?: unknown } };
+      assert.ok(r.l?.icon, 'a picture');
+      assert.ok((w as { k?: string }).k, 'searchable by its key');
+    }
 });
 
 test('guides search: three short filter chips that fit a third of the panel; choices carry the region', () => {

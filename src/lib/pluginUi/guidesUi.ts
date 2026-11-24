@@ -122,11 +122,14 @@ function picWell(p: GuidePic, size = 32): Node {
 function guideRow(r: GuideRowData, region?: string): Node {
   return row(
     picWell(r.pic),
-    col([text(r.title, 'white'), small(r.meta, FAINT), r.by ? small(r.by, '#8c8c8c') : null], { gap: 1 }),
+    col([text(r.title, 'white', { wrap: 125 }), small(r.meta, FAINT), r.by ? small(r.by, '#8c8c8c') : null], { gap: 1 }),
     icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }),
     { bg: 'raised', pad: 5, inset: 6, gap: 7, on: openGuide(r.id, region), k: `${r.title} ${r.category} ${r.meta} ${r.by}`, tip: `Open ${r.title}` },
   );
 }
+
+/** A row with a 4px gap above it, searchable by the row's own key. */
+const spaced = (n: Node): Node => ({ t: 'col', c: [gap(4), n], ...('k' in n && n.k != null ? { k: n.k } : {}) }) as Node;
 
 /** A list's section name: muted capitals, the count in gold. Hidden while searching (key ''). */
 const listHead = (label: string, count?: string): Node =>
@@ -164,18 +167,19 @@ export function guidesSearchUi(d: GuidesSearchData): Node {
     parts.push(
       row(
         picWell(d.here.pic),
-        col([text(`You're at ${d.here.title}`, 'white', { font: 'bold' }), small(`${d.here.where} · open guide?`, FAINT)], { gap: 1 }),
+        col([text(`You're at ${d.here.title}`, 'white', { font: 'bold', wrap: 112 }), small(`${d.here.where} · open guide?`, FAINT, { wrap: 112 })], { gap: 1 }),
         small('Open ›', GOLD),
         { bg: 'card', edge: GOLD, pad: 7, inset: 8, gap: 8, on: openGuide(d.here.id, d.region), tip: `Open the ${d.here.title} guide` },
       ),
     );
   }
   const lists: Node[] = [filterChips(d)];
+  // A column, not a one-column grid: a grid gives every cell the tallest row's height, so the header and
+  // the spacer became tall blanks. Each row brings its own gap above it (one component per row, as the
+  // filter's search needs).
   const list = (label: string, rows: GuideRowData[], count: boolean): Node => ({
-    t: 'grid',
-    cols: 1,
-    vgap: 4,
-    c: [listHead(label, count ? String(rows.length) : undefined), ...rows.map((r) => guideRow(r, d.region)), { ...gap(6), k: '' }],
+    t: 'col',
+    c: [listHead(label, count ? String(rows.length) : undefined), ...rows.map((r) => spaced(guideRow(r, d.region))), { ...gap(8), k: '' }],
   });
   if (d.recent.length) lists.push(list('Recent', d.recent, false));
   for (const s of d.sections) lists.push(list(s.label, s.rows, true));
@@ -411,7 +415,9 @@ function setupTab(d: GuidePanelData): Node {
   const anyMissing = d.slots.some((s) => s.missing);
   const anyFallback = d.slots.some((s) => s.fallback);
   const card1: (Node | null)[] = [
-    row(undefined, title(cur.name), small(d.dps, PROGRESS), { gap: 6 }),
+    // Name on its own line (a long one wraps instead of cutting off), the DPS under it.
+    text(cur.name, 'white', { font: 'bold', wrap: W_CARD }),
+    small(d.dps, PROGRESS),
     d.usingFallbacks ? small(`↓ Using a fallback: ${d.usingFallbacks}`, SOFT, { wrap: W_CARD }) : null,
     equipmentGrid(d),
     anyMissing || anyFallback
@@ -448,7 +454,7 @@ function setupTab(d: GuidePanelData): Node {
         d.missing.length
           ? row(undefined, title('Missing from your bank'), text(String(d.missing.length), PROGRESS, { font: 'bold' }), { gap: 6 })
           : title('You own every item in this setup', GREEN),
-        ...d.missing.map((m) => row(icon({ item: m.id, w: 28, h: 25 }), text(m.name, 'white', { wrap: 105 }), small(m.price, m.price === 'untradeable' ? FAINT : PROGRESS), { gap: 6 })),
+        ...d.missing.map((m) => row(icon({ item: m.id, w: 28, h: 25 }), col([text(m.name, 'white', { wrap: 115 }), small(m.price, m.price === 'untradeable' ? FAINT : PROGRESS)], { gap: 1 }), undefined, { gap: 6 })),
         small(`Checked bank, inventory and worn gear${d.checkedAt ? ` · ${d.checkedAt}` : ''}. Kits and variants you own count.`, FAINT, { wrap: W_CARD }),
       ]),
     );
@@ -521,7 +527,7 @@ function beforeYouGo(d: GuidePanelData): Node | null {
         ? icon({ skill: c.pic.skill })
         : icon({ sprite: QUEST_SPRITE, w: 20, h: 20, or: icon({ glyph: 'star', w: 12, h: 12, color: GOLD }) });
     const mark = c.ok === true ? icon({ glyph: 'check', w: 12, h: 12, color: GREEN }) : c.ok === false ? icon({ glyph: 'close', w: 11, h: 11, color: CORAL }) : undefined;
-    return row(text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), text(c.text, c.ok === false ? 'white' : SOFT, { wrap: 125 }), mark, { gap: 6 });
+    return row(text('', 'muted', { w: 26, align: 'c', icon: pic as Extract<Node, { t: 'icon' }> }), text(c.text, c.ok === false ? 'white' : SOFT, { wrap: 105 }), mark, { gap: 6 });
   });
   return foldCard(`guide-sec:${d.id}:${d.tier}:before`, 'Before you go', known ? small(`${done}/${d.checklist.length}`, PROGRESS) : undefined, [
     ...rows,
@@ -561,7 +567,7 @@ function upgradesTab(d: GuidePanelData): Node {
   if (!d.upgrades.length) return section([muted('Nothing in this guide beats what you have for this style.', { wrap: W_CARD })]);
   return section([
     title('Next upgrades'),
-    ...d.upgrades.map((u) => row(icon({ item: u.id, w: 28, h: 25 }), text(u.name, 'white', { wrap: 100 }), row(small(u.gain, PROGRESS), undefined, small(u.price, FAINT, { w: 34, align: 'r' }), { gap: 4 }), { gap: 6 })),
+    ...d.upgrades.map((u) => row(icon({ item: u.id, w: 28, h: 25 }), text(u.name, 'white', { wrap: 84 }), row(small(u.gain, PROGRESS), undefined, small(u.price, FAINT, { w: 34, align: 'r' }), { gap: 4 }), { gap: 6 })),
     small('Best DPS gain per gp first, for this setup.', FAINT, { wrap: W_CARD }),
   ]);
 }
@@ -586,7 +592,7 @@ function routeParts(d: GuidePanelData, r: PanelRoute): Node[] {
         c.name,
         r.signedIn ? small(`${got}/${c.steps.filter((s) => !s.skipped).length}`, got === c.steps.length ? GREEN : PROGRESS) : small(`${c.steps.length} steps`, FAINT),
         c.steps.slice(0, 20).map((s) =>
-          row(s.item ? icon({ item: s.item, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(s.title, s.done ? GREEN : s.skipped ? FAINT : 'white', { wrap: 120 }), s.why ? small(s.why, FAINT, { wrap: 120 }) : null], { gap: 1 }), s.done ? icon({ glyph: 'check', w: 12, h: 12, color: GREEN }) : undefined, { gap: 6 }),
+          row(s.item ? icon({ item: s.item, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(s.title, s.done ? GREEN : s.skipped ? FAINT : 'white', { wrap: 112 }), s.why ? small(s.why, FAINT, { wrap: 112 }) : null], { gap: 1 }), s.done ? icon({ glyph: 'check', w: 12, h: 12, color: GREEN }) : undefined, { gap: 6 }),
         ),
       ),
     );
@@ -614,8 +620,8 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
       row(
         icon({ item: r.id, w: 30, h: 27, dim: r.skipped }),
         col([
-          text(r.name, r.skipped ? FAINT : 'white', { wrap: 110 }),
-          text('', 'muted', { font: 'small', runs: [{ s: r.price, color: r.price === 'untradeable' ? FAINT : PROGRESS }, { s: ` · ${r.note}${r.skipped ? ' · skipped' : ''}`, color: FAINT }], wrap: 110 }),
+          text(r.name, r.skipped ? FAINT : 'white', { wrap: 92 }),
+          text('', 'muted', { font: 'small', runs: [{ s: r.price, color: r.price === 'untradeable' ? FAINT : PROGRESS }, { s: ` · ${r.note}${r.skipped ? ' · skipped' : ''}`, color: FAINT }], wrap: 92 }),
           r.owned ? small('owned ✓', GREEN, { font: 'bold' }) : null,
         ], { gap: 1 }),
         r.inUse ? chip('In use', 'gold') : undefined,
@@ -643,7 +649,7 @@ export function alternativesUi(d: GuidePanelData, a: PanelAlternatives): Node {
     if (a.skipped.length) {
       parts.push(row(undefined, small(`Skipped items (${a.skipped.length})`, FAINT), undefined));
       for (const s of a.skipped) {
-        parts.push(row(icon({ item: s.id, w: 26, h: 23 }), text(s.name, 'white', { wrap: 115 }), small('undo', GOLD), { gap: 6, on: { a: 'post', act: 'guide-unskip', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot, item: String(s.id) }, d.region) }, tip: 'Use it again' }));
+        parts.push(row(icon({ item: s.id, w: 26, h: 23 }), text(s.name, 'white', { wrap: 96 }), small('undo', GOLD), { gap: 6, on: { a: 'post', act: 'guide-unskip', args: withRegion({ id: String(d.id), tier: d.tier ?? '', setup: d.current ?? '', slot: a.slot, item: String(s.id) }, d.region) }, tip: 'Use it again' }));
       }
     }
   } else {
@@ -704,7 +710,7 @@ const toGuides: Action = { a: 'tab', tab: 'lookup', args: { mode: 'guides' } };
 
 /** A recent guide in the You tab's card: picture, name, its level line. */
 const recentRow = (r: GuideRowData): Node =>
-  row(picWell(r.pic, 28), text(r.title, 'white'), r.meta ? small(r.meta, FAINT) : icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 4, inset: 6, gap: 6, on: openGuide(r.id), tip: `Open ${r.title}` });
+  row(picWell(r.pic, 28), col([text(r.title, 'white', { wrap: 125 }), r.meta ? small(r.meta, FAINT) : null], { gap: 1 }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: FAINT }), { bg: 'raised', pad: 4, inset: 6, gap: 6, on: openGuide(r.id), tip: `Open ${r.title}` });
 
 /**
  * The You tab's guides card, a section like Goals: the route followed ("Next up") when there is one,
@@ -722,11 +728,11 @@ export function nextUpUi(d: NextUpData): Node | null {
       ], { bg: 'panel', inset: 8, gap: 4 }),
     );
     if (d.lastDone) {
-      parts.push(row(d.lastDone.icon ? icon({ item: d.lastDone.icon, w: 28, h: 25 }) : undefined, col([text(d.lastDone.title, SOFT, { wrap: 120 }), small(`Done · ${d.lastDone.source}`, GREEN)], { gap: 1 }), icon({ glyph: 'check', w: 12, h: 12, color: GREEN }), { gap: 6 }));
+      parts.push(row(d.lastDone.icon ? icon({ item: d.lastDone.icon, w: 28, h: 25 }) : undefined, col([text(d.lastDone.title, SOFT, { wrap: 100 }), small(`Done · ${d.lastDone.source}`, GREEN)], { gap: 1 }), icon({ glyph: 'check', w: 12, h: 12, color: GREEN }), { gap: 6 }));
     }
     d.next.forEach((n, i) =>
       parts.push(
-        row(n.icon ? icon({ item: n.icon, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(n.title, 'white', { font: 'bold', wrap: 125 }), n.line ? small(n.line, FAINT, { wrap: 125 }) : null, ...(n.reqs.length ? [small(n.reqs.map((r) => r.text).join(' · '), n.reqs.every((r) => r.met !== false) ? GREEN : PROGRESS, { wrap: 125 })] : [])], { gap: 2 }), undefined, {
+        row(n.icon ? icon({ item: n.icon, w: 28, h: 25 }) : icon({ glyph: 'star', w: 12, h: 12, color: GOLD }), col([text(n.title, 'white', { font: 'bold', wrap: 105 }), n.line ? small(n.line, FAINT, { wrap: 105 }) : null, ...(n.reqs.length ? [small(n.reqs.map((r) => r.text).join(' · '), n.reqs.every((r) => r.met !== false) ? GREEN : PROGRESS, { wrap: 105 })] : [])], { gap: 2 }), undefined, {
           bg: 'raised',
           pad: 5,
           inset: 6,

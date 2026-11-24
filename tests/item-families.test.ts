@@ -92,3 +92,15 @@ test('the rule from names and bonuses alone', () => {
   ];
   assert.deepEqual(itemFamilies(items).map((g) => [...g].sort()), [[1, 2]]);
 });
+
+test('stat twins: same slot, stats and kind under another name count as each other', () => {
+  // Blazing blowpipe 28688 = Toxic blowpipe 12926; imbued god capes and their max capes are one cape.
+  assert.ok(equivalentsFor([12926])(12926).includes(28688));
+  assert.ok(equivalentsFor([21791])(21791).includes(21795), 'Imbued Saradomin cape → Imbued Zamorak cape');
+  assert.ok(equivalentsFor([21791])(21791).includes(21780), 'Imbued Saradomin cape → Imbued Zamorak max cape');
+  // A better blowpipe is not the same one; a plain god cape is not an imbued one.
+  assert.equal(equivalentsFor([12926])(12926).includes(30374), false);
+  assert.equal(equivalentsFor([21791])(21791).includes(2414), false);
+  // The Missing list keeps the guide's own item name.
+  assert.equal(baseItem(21791)?.name, 'Imbued Saradomin cape');
+});
