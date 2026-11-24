@@ -2,7 +2,8 @@
 // via equivalentsFor) and "are they wearing it" (lib/guideSetupMatch via lib/guideAutoUsed).
 //
 // THE RULE: an item and its COSMETIC variants are one family, either way round: same slot, same
-// bonuses (Twisted ancestral robe top is an Ancestral robe top). An UPGRADE — imbued or fortified,
+// bonuses (Twisted ancestral robe top is an Ancestral robe top). So are stat twins (statTwins): same
+// slot, bonuses and kind under another name (Blazing blowpipe, the imbued god capes). An UPGRADE — imbued or fortified,
 // (i) (ei) (f) (e), with better bonuses — is a different item (Masori body (f) is not Masori body):
 // holding it covers a guide that asks for the plain one, never the reverse. Built from the bundled
 // gear data (src/data/gearItems.json, the wiki's equipment bonuses), so new kits join without a hand list:
@@ -29,6 +30,11 @@ export interface GearEntry {
   n: string;
   s: string;
   b: number[];
+  /** Attack speed, two-handed, combat style, defence total: two items alike in every one are interchangeable. */
+  sp?: number;
+  h2?: number;
+  c?: string;
+  df?: number;
 }
 
 /** Tags that make an item better than its base and still count as it (imbued, fortified, enchanted). */
@@ -89,7 +95,25 @@ export function itemFamilies(items: readonly GearEntry[]): number[][] {
   return [...groups.values()].filter((g) => g.length > 1);
 }
 
+/**
+ * Stat twins: the same slot, the same bonuses (none of them all zero) and the same kind of item, the
+ * name's last word: Blazing blowpipe is a Toxic blowpipe, and the imbued god capes and their max capes
+ * are one cape. Different names, one item for a guide. Ammo is left out (enchanted bolts).
+ */
+export function statTwins(items: readonly GearEntry[]): number[][] {
+  const groups = new Map<string, number[]>();
+  for (const it of items) {
+    if (it.s === 'ammo' || !it.b.some((x) => x !== 0)) continue;
+    const kind = it.n.trim().toLowerCase().replace(/\s*\([^()]*\)$/, '').split(/\s+/).pop();
+    const key = [it.s, kind, it.b.join(','), it.sp ?? '', it.h2 ?? '', it.c ?? '', it.df ?? ''].join('|');
+    groups.set(key, [...(groups.get(key) ?? []), it.id]);
+  }
+  return [...groups.values()].filter((g) => g.length > 1);
+}
+
 let familyOf: Map<number, number[]> | null = null;
+/** Each id's kit family only (no stat twins): what the Missing list names it by. */
+let kitOf: Map<number, number[]> | null = null;
 let nameOf: Map<number, string> | null = null;
 /** Plain id → the upgrades made from it; upgrade id → the plain ids it covers. */
 const ups = new Map<number, number[]>();
@@ -99,8 +123,16 @@ function load() {
   if (familyOf) return;
   const items = (gearData as unknown as { items: GearEntry[] }).items;
   familyOf = new Map();
+  kitOf = new Map();
   nameOf = new Map(items.map((x) => [x.id, x.n]));
-  for (const g of itemFamilies(items)) for (const id of g) familyOf.set(id, g);
+  for (const g of itemFamilies(items)) for (const id of g) kitOf.set(id, g);
+  // Kits and twins merged: a twin of a kitted item brings its kits too.
+  for (const g of [...itemFamilies(items), ...statTwins(items)]) {
+    const merged = new Set<number>();
+    for (const id of g) for (const x of familyOf.get(id) ?? [id]) merged.add(x);
+    const all = [...merged];
+    for (const id of all) familyOf.set(id, all);
+  }
   const byName = new Map(items.map((x) => [x.n.trim().toLowerCase(), x]));
   for (const it of items) {
     const base = upgradeOf(it, byName);
@@ -120,7 +152,7 @@ export function familyIds(id: number): number[] {
 /** The plain item a variant is a form of (the family member with the shortest name), with its name. */
 export function baseItem(id: number): { id: number; name: string } | null {
   load();
-  const g = familyOf!.get(id);
+  const g = kitOf!.get(id);
   if (!g) return nameOf!.has(id) ? { id, name: nameOf!.get(id)! } : null;
   const best = [...g].sort((a, b) => nameOf!.get(a)!.length - nameOf!.get(b)!.length || a - b)[0];
   return { id: best, name: nameOf!.get(best)! };
