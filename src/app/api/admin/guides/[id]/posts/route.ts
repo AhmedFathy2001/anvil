@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireClanGuideEditorApi } from '@/lib/guideAccess';
 import { getScopedGuide } from '@/lib/guides';
 import { postGuide } from '@/lib/guidePosting';
+import { cleanSelection } from '@/lib/guideSelection';
 
 // POST — post the guide to Discord: { channelId, tagIds?, autoUpdate? }.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (guide.status !== 'published') {
     return NextResponse.json({ error: 'Publish the guide before posting it — drafts stay off Discord.' }, { status: 400 });
   }
-  const body = (await request.json().catch(() => null)) as { channelId?: unknown; tagIds?: unknown; autoUpdate?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { channelId?: unknown; tagIds?: unknown; autoUpdate?: unknown; selection?: unknown } | null;
   if (typeof body?.channelId !== 'string' || !body.channelId) {
     return NextResponse.json({ error: 'Pick a channel.' }, { status: 400 });
   }
@@ -25,6 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     tagIds: Array.isArray(body.tagIds) ? body.tagIds.filter((t): t is string => typeof t === 'string') : [],
     autoUpdate: body.autoUpdate !== false,
     userId: user.userId,
+    selection: cleanSelection(body.selection),
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
   return NextResponse.json({ post: r.post });

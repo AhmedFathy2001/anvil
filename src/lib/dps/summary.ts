@@ -5,6 +5,8 @@ import { SLOTS } from './tables';
 import type { EffectRule } from './effects';
 import { TIERS, blockTargets, bodyForDiscord, setupTargets, type GearBlock, type GearSetup } from '../guideTiers';
 import { encounter } from './encounter';
+import { selectedGearMarkdown, type PostSelection } from '../guideSelection';
+import { parseRouteBlock, routeDiscordMarkdown } from '../guideRoutes';
 
 export interface GearData {
   items: GearItem[];
@@ -106,9 +108,30 @@ export function gearSummaryMarkdown(block: GearBlock | null, idx: GearIndex, sit
   return lines.join('\n');
 }
 
-/** The body Discord gets: tiers as headed messages, gear blocks as summaries. */
-export function discordBody(body: string, idx: GearIndex | null, siteUrl: string | null): string {
-  return bodyForDiscord(body, (block) =>
-    idx ? gearSummaryMarkdown(block, idx, siteUrl) : block ? `-# ⚔️ Gear progression vs ${block.monster} — ${block.setups.length} setups` : '',
+/** Options for a post that chose its parts (lib/guideSelection). */
+export interface DiscordBodyOptions {
+  /** Null/absent = a post from before selections: the original compact gear summary, unchanged. */
+  selection?: PostSelection | null;
+  /** Item names for ids the gear data doesn't hold (inventory supplies). */
+  names?: Record<number, string>;
+  title?: string;
+}
+
+/** The body Discord gets: tiers as headed messages, gear blocks as summaries, routes as checklists. */
+export function discordBody(body: string, idx: GearIndex | null, siteUrl: string | null, opts: DiscordBodyOptions = {}): string {
+  const sel = opts.selection ?? null;
+  const route = (json: string) => routeDiscordMarkdown(parseRouteBlock(json), siteUrl);
+  if (!sel) {
+    return bodyForDiscord(
+      body,
+      (block) => (idx ? gearSummaryMarkdown(block, idx, siteUrl) : block ? `-# ⚔️ Gear progression vs ${block.monster} — ${block.setups.length} setups` : ''),
+      route,
+    );
+  }
+  return bodyForDiscord(
+    body,
+    (block) => selectedGearMarkdown(block, sel, idx, opts.names ?? {}, { guideTitle: opts.title ?? '', siteUrl }),
+    route,
+    (tier) => !sel.tiers.includes(tier),
   );
 }

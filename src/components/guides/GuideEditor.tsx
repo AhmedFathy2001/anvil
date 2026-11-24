@@ -366,6 +366,7 @@ export default function GuideEditor({
             uploadUrl={`${api}/upload`}
             strictLevels={scope === 'library'}
             categories={data.categories}
+            draftKey={`${scope}:${g.id}`}
           />
 
           {!readOnly && (
@@ -404,6 +405,8 @@ export default function GuideEditor({
           botConnected={data.botConnected === true}
           posts={data.posts ?? []}
           onChange={load}
+          body={g.body}
+          title={g.title}
         />
       )}
 

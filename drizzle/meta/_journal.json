@@ -1562,6 +1562,20 @@
       "when": 1795278000000,
       "tag": "0285_clan_fund",
       "breakpoints": true
+    },
+    {
+      "idx": 286,
+      "version": "7",
+      "when": 1795520645691,
+      "tag": "0286_guides_redesign",
+      "breakpoints": true
+    },
+    {
+      "idx": 287,
+      "version": "7",
+      "when": 1795520705691,
+      "tag": "0287_guides_redesign_seed",
+      "breakpoints": true
     }
   ]
 }

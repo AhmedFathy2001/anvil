@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import Textarea from '@/components/Textarea';
+import Select from '@/components/Select';
+import { EDIT_TAGS, type EditTag } from '@/lib/guideCredit';
 import { useDialog } from '@/components/Confirm';
 import { GuidePreviewPane } from '@/components/guides/GuideFields';
 import GuideDiffView from '@/components/guides/GuideDiffView';
@@ -39,6 +41,8 @@ export default function ProposalReviewClient({ id, origin }: { id: number; origi
   const [data, setData] = useState<Data | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [publish, setPublish] = useState(true);
+  // How much the edit earns its writer (lib/guideCredit): a fix little and once, substantive a share.
+  const [tag, setTag] = useState<EditTag>('substantive');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +71,7 @@ export default function ProposalReviewClient({ id, origin }: { id: number; origi
       const res = await fetch(`/api/staff/guides/proposals/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, reviewNote, publish }),
+        body: JSON.stringify({ action, reviewNote, publish, tag }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) return setError(j.error ?? `Failed (${res.status})`);
@@ -143,6 +147,12 @@ export default function ProposalReviewClient({ id, origin }: { id: number; origi
             maxLength={500}
             placeholder="A note for the writer (required to reject). Approving an edit also shows it to clans as what changed."
           />
+          {target && (
+            <label className="block max-w-sm text-xs text-text-muted">
+              Credit for the writer
+              <Select value={tag} onChange={(v) => setTag(v as EditTag)} options={EDIT_TAGS.map((t) => ({ value: t.key, label: t.label }))} ariaLabel="Edit credit tag" />
+            </label>
+          )}
           {!target && <Checkbox checked={publish} onChange={setPublish} label="Publish straight away" description="Untick to approve it as a draft you finish first." />}
           {error && <p className="text-sm text-red-300">{error}</p>}
           <div className="flex gap-2">

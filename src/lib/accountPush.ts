@@ -99,17 +99,23 @@ export async function applyAccountPush(
   const before = parsePluginStats(row?.liveStats);
   const live = { ...before };
   const keyTimes = parseStatKeyTimes(row?.liveStatKeyTimes);
-  let changed = false;
+  const rose: string[] = [];
   for (const [key, val] of Object.entries(pushed)) {
     if (val > (live[key] ?? 0)) {
       live[key] = val;
+      rose.push(key);
       // Stamp per-key recency ONLY on a real increase — this is the "grinding THIS stat right now"
       // signal "Active now" reads, so one fishing push no longer lights up every tile they've touched.
       keyTimes[key] = nowIso;
-      changed = true;
     }
   }
+  const changed = rose.length > 0;
   if (!changed) return { live, changed };
+  // A kill worn in one of that boss's guide setups is an automatic "used it" (lib/guideAutoUsed).
+  // Loaded lazily and never awaited: the stat push doesn't wait on guides.
+  void import('@/lib/guideAutoUsed')
+    .then((m) => m.autoUsedFromKills(accountId, rose))
+    .catch((e) => log.warn('guides.auto-used.failed', { accountId, error: String(e) }));
 
   // Drop stale stamps so the map stays small and an old grind doesn't linger as "active".
   const nowMs = Date.parse(nowIso);

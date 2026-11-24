@@ -20,6 +20,8 @@ import { categoryOf, slugify } from '@/lib/guideCategories';
 import { listCategories } from '@/lib/guideCategoryStore';
 import { BOT_SELF_GRANT, discordError, goneChannels, listGuideChannels, postToChannel, pruneDeletedPosts, removeCreated, unpost, type Creds } from '@/lib/guidePosting';
 import { log } from '@/lib/logger';
+import { selectionFromFilter, type PostFilter } from '@/lib/guideSelection';
+import { firstGearBlock } from '@/lib/guideTiers';
 
 export type BulkLayout = 'channels' | 'forum' | 'existing';
 
@@ -39,6 +41,8 @@ export interface BulkRequest {
   readOnly?: boolean;
   autoUpdate?: boolean;
   userId: number | null;
+  /** Post only these levels / setups (lib/guideSelection). Absent = everything, the original format. */
+  filter?: PostFilter | null;
 }
 
 export interface BulkResult {
@@ -50,6 +54,11 @@ export interface BulkResult {
 
 /** Bulk is bounded: Discord caps a category at 50 channels, and a request has to end sometime. */
 export const BULK_MAX = 25;
+
+/** A guide's selection under the bulk filter; null without one (everything, the original format). */
+function selFor(req: BulkRequest, guide: { body: string }) {
+  return req.filter ? selectionFromFilter(firstGearBlock(guide.body), req.filter) : null;
+}
 
 const CH_TEXT = 0;
 const CH_CATEGORY = 4;
@@ -157,7 +166,7 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
         results.push({ guideId: guide.id, title: guide.title, ok: false, error: `Already posted in #${target.name}.` });
         continue;
       }
-      const r = await postToChannel(creds, { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId }, target, []);
+      const r = await postToChannel(creds, { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId, selection: selFor(req, guide) }, target, []);
       results.push({ guideId: guide.id, title: guide.title, ok: r.ok, error: r.ok ? undefined : r.error, postId: r.ok ? r.post.id : undefined });
     }
     return { ok: results.every((r) => r.ok), results, created: { channelIds: [] } };
@@ -221,7 +230,7 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
         }
         const r = await postToChannel(
           creds,
-          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId, ownsChannel: true },
+          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId, ownsChannel: true, selection: selFor(req, guide) },
           { id: channelId, name: slugify(guide.title), kind: 'text' },
           [],
         );
@@ -249,7 +258,7 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
         const tag = tagFor.get(guide.category);
         const r = await postToChannel(
           creds,
-          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId },
+          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId, selection: selFor(req, guide) },
           { id: forum.id, name: forumName, kind: 'forum' },
           tag ? [tag] : [],
         );

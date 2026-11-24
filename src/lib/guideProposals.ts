@@ -10,7 +10,7 @@
 import { and, count, desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { guideProposals, users, type GuideProposal } from '@/db/schema';
+import { guideEditCredits, guideProposals, users, type GuideProposal } from '@/db/schema';
 import { GuideInputError, assertLibraryCoverage, cleanInput, createGuide, getScopedGuide, saveGuide, type GuideInput } from '@/lib/guides';
 import { GUIDE_LIMITS } from '@/lib/guideCategories';
 import { categoryUsable } from '@/lib/guideCategoryStore';
@@ -136,38 +136,63 @@ async function proposerName(userId: number): Promise<string> {
 export async function approveProposal(
   p: GuideProposal,
   reviewerId: number,
-  opts: { reviewNote?: string | null; publish?: boolean },
+  opts: { reviewNote?: string | null; publish?: boolean; /** The reviewer's credit tag for an edit (lib/guideCredit). */ tag?: string | null },
 ): Promise<GuideProposal> {
+  // No self-dealing: an approval earns its writer credit, so the writer can't be the reviewer.
+  if (reviewerId === p.proposerUserId) throw new GuideInputError('Someone else has to review your own edit.');
   if (p.status !== 'pending') throw new GuideInputError('This proposal has already been answered.');
   const by = await proposerName(p.proposerUserId);
   const reviewNote = opts.reviewNote?.trim().slice(0, 500) || null;
   const content = { title: p.title, summary: p.summary, category: p.category, coverUrl: p.coverUrl, body: p.body };
 
+  // CLAIM FIRST, atomically: only the approval that flips pending → approved goes on to save and
+  // credit. A second click, or a second reviewer at the same moment, gets no row back and stops.
+  const at = nowIso();
+  const [claimed] = await db
+    .update(guideProposals)
+    .set({ status: 'approved', reviewNote, reviewedByUserId: reviewerId, reviewedAt: at, updatedAt: at })
+    .where(and(eq(guideProposals.id, p.id), eq(guideProposals.status, 'pending')))
+    .returning();
+  if (!claimed) throw new GuideInputError('This proposal has already been answered.');
+
   let resultId: number;
-  if (p.targetGuideId) {
-    const target = await getScopedGuide(p.targetGuideId, null);
-    if (!target) throw new GuideInputError('The library guide this edits no longer exists — reject it, or approve it as a new guide.');
-    // What clans offered the update read: the reviewer's words if given, else the proposer's.
-    const why = reviewNote || p.note;
-    const note = `Suggested by ${by}${why ? ` — ${why}` : ''}`.slice(0, GUIDE_LIMITS.note);
-    await saveGuide(target, content, reviewerId, note);
-    resultId = target.id;
-  } else {
-    const created = await createGuide(
-      null,
-      { ...content, status: opts.publish === false ? 'draft' : 'published' },
-      reviewerId,
-      `Written by ${by}`.slice(0, GUIDE_LIMITS.note),
-    );
-    resultId = created.id;
+  try {
+    if (p.targetGuideId) {
+      const target = await getScopedGuide(p.targetGuideId, null);
+      if (!target) throw new GuideInputError('The library guide this edits no longer exists — reject it, or approve it as a new guide.');
+      // What clans offered the update read: the reviewer's words if given, else the proposer's.
+      const why = reviewNote || p.note;
+      const note = `Suggested by ${by}${why ? ` — ${why}` : ''}`.slice(0, GUIDE_LIMITS.note);
+      const saved = await saveGuide(target, content, reviewerId, note);
+      resultId = target.id;
+      // Credit for the edit's delta: the reviewer's tag decides how much it earns (lib/guideCredit).
+      // One row per proposal (a unique index), so a duplicate insert can't double it.
+      const tag = ['fix', 'clarification', 'substantive', 'upkeep'].includes(opts.tag ?? '') ? opts.tag! : 'substantive';
+      await db
+        .insert(guideEditCredits)
+        .values({ guideId: target.id, pieceKey: 'guide', userId: p.proposerUserId, tag, month: at.slice(0, 7), version: saved.version, proposalId: p.id, createdAt: at })
+        .onConflictDoNothing();
+      // Upkeep brings a stale guide current again.
+      if (tag === 'upkeep' && target.staleNote) {
+        const { clearStale } = await import('@/lib/guideCommunity');
+        await clearStale(target.id);
+      }
+    } else {
+      const created = await createGuide(
+        null,
+        { ...content, status: opts.publish === false ? 'draft' : 'published' },
+        reviewerId,
+        `Written by ${by}`.slice(0, GUIDE_LIMITS.note),
+      );
+      resultId = created.id;
+    }
+  } catch (err) {
+    // The save failed: the proposal goes back to the queue rather than sitting "approved" with nothing.
+    await db.update(guideProposals).set({ status: 'pending', reviewNote: null, reviewedByUserId: null, reviewedAt: null }).where(eq(guideProposals.id, p.id));
+    throw err;
   }
 
-  const at = nowIso();
-  const [row] = await db
-    .update(guideProposals)
-    .set({ status: 'approved', reviewNote, reviewedByUserId: reviewerId, reviewedAt: at, updatedAt: at, resultGuideId: resultId })
-    .where(eq(guideProposals.id, p.id))
-    .returning();
+  const [row] = await db.update(guideProposals).set({ resultGuideId: resultId }).where(eq(guideProposals.id, p.id)).returning();
   return row;
 }
 
@@ -179,7 +204,9 @@ export async function rejectProposal(p: GuideProposal, reviewerId: number, revie
   const [row] = await db
     .update(guideProposals)
     .set({ status: 'rejected', reviewNote: note, reviewedByUserId: reviewerId, reviewedAt: at, updatedAt: at })
-    .where(eq(guideProposals.id, p.id))
+    // Claim-first like approval: a reject racing an approve can't overwrite it.
+    .where(and(eq(guideProposals.id, p.id), eq(guideProposals.status, 'pending')))
     .returning();
+  if (!row) throw new GuideInputError('This proposal has already been answered.');
   return row;
 }

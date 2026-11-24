@@ -679,6 +679,23 @@ local player's line as its own client shows it and sends a copy. Nothing is stor
   Sends go through the Feed tab's own action: `POST /api/plugin/ui` act `chat-send`, args `{e, to}`,
   fields `{msg}`.
 
+### `guides-panel`
+
+Guides in the side panel (lib/pluginUi/guidesView). The plugin offers the Lookup tab's Guides mode and
+pushes items only against a site that lists this; the site sends the pieces below only to a plugin at
+or past `GUIDES_PANEL_MIN_PLUGIN` (lib/pluginUi/load).
+
+- View `guides` takes `region` (the map region the player stands in) for the "You're at …" card; its
+  filter posts carry it back. Actions `{a:'copy', path}` (GET the site path, put `text` on the
+  clipboard) and `{a:'tab', tab:'lookup', args:{mode:'players'|'guides'}}`. Icon glyphs
+  `quill-bronze|silver|gold|star`.
+- `POST /api/plugin/items` `{bank?, inventory?, equipment?, lootingBag?}`, each `{items:[{id,q}], readAt?}`:
+  the containers that changed, a few seconds after the change. Only the token owner's own character is
+  stored. `DELETE /api/plugin/items` when "Share my bank with Anvil for guides" is turned off (sent once
+  per character, at its next login if it could not go at once).
+- A boss kill in the stat push, worn (the pushed `equipment`) in one of that boss's guide setups, is an
+  automatic "used it" for a plugin-verified character (lib/guideAutoUsed), once a day per setup.
+
 ## Checklist: shipping a new plugin-facing feature
 
 On the site:

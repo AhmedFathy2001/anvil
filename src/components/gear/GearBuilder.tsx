@@ -10,6 +10,8 @@ import InventoryPanel, { useItemNames } from './InventoryPanel';
 import LoadoutEditor, { DEFAULT_STATS, ResultLine } from './LoadoutEditor';
 import { useGearData } from './useGearData';
 import Select from '@/components/Select';
+import SetupExtrasEditor from '@/components/guides/SetupExtrasEditor';
+import { BankTagPreviewToggle } from '@/components/guides/osrs';
 
 /**
  * Build a guide's gear progression: pick the monster, then a setup (or several) for each level,
@@ -217,6 +219,15 @@ export default function GearBuilder({
                                 ]}
                               />
                             </label>
+                          </div>
+                        </details>
+                        <details className="rounded-lg border border-card-border bg-black/20">
+                          <summary className="cursor-pointer px-2 py-1.5 text-xs text-text-muted">
+                            Setup pill: who it&apos;s for, fallbacks, spells, steps, tile markers, import
+                          </summary>
+                          <div className="space-y-3 p-2">
+                            <SetupExtrasEditor value={s} onChange={(patch) => update(i, patch)} idx={idx} names={itemNames} curator />
+                            <BankTagPreviewToggle setup={{ name: s.name, gear: s.gear, inventory: s.inventory, runePouch: s.runePouch, spellbook: s.spellbook, quiver: s.quiver }} names={itemNames} />
                           </div>
                         </details>
                         <input

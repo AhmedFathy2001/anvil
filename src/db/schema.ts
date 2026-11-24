@@ -20,6 +20,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import type { ClanEventChannels, PickedChannel } from '../lib/clanEventChannels';
+import type { PostSelection } from '../lib/guideSelection';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -4136,6 +4137,11 @@ export const guides = pgTable('guides', {
   sourceGuideId: integer('source_guide_id').references((): AnyPgColumn => guides.id, { onDelete: 'set null' }),
   sourceVersion: integer('source_version'),
   followsSource: boolean('follows_source').notNull().default(false),
+  // 'guide' | 'route' (a progression route: its body holds a route block, lib/guideRoutes).
+  kind: text('kind').notNull().default('guide'),
+  // Upkeep: a game update made part of it stale (lib/guideCommunity markStale). Null = current.
+  staleNote: text('stale_note'),
+  staleAt: text('stale_at'),
   createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: text('created_at').notNull(),
@@ -4193,6 +4199,9 @@ export const guidePosts = pgTable('guide_posts', {
   ownsChannel: boolean('owns_channel').notNull().default(false),
   // The bulk post this came from (guide_bulk_runs), so a whole run can be undone at once.
   bulkRunId: integer('bulk_run_id'),
+  // Which levels and setups this post carries (lib/guideSelection PostSelection). NULL = a post from
+  // before selections: the original compact format, so it keeps editing in place unchanged.
+  selection: jsonb('selection').$type<PostSelection | null>(),
   lastError: text('last_error'),
   postedByUserId: integer('posted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: text('created_at').notNull(),
@@ -4317,6 +4326,206 @@ export const guideBulkRuns = pgTable('guide_bulk_runs', {
   index('guide_bulk_runs_clan_idx').on(t.clanId),
 ]);
 export type GuideBulkRun = typeof guideBulkRuns.$inferSelect;
+
+// ── Guides redesign (2026-11): community setups, votes, tips, wanted, credit, routes, items ─────
+//
+// Everything community belongs to the LIBRARY guide (clan_id NULL on the row): a clan copy shows the
+// library's community setups and tips too. A row with clan_id set is that clan's own pinned setup,
+// shown only on its copy. lib/guideCommunity is the store.
+
+/** A community piece: a setup on a guide level (live at once), or a suggested route step / edit. */
+export const guideContributions = pgTable('guide_contributions', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  // NULL = community, on the library guide. Set = this clan's own pin (its copy only).
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  // 'setup' | 'step' (a suggested route step) | 'edit' (a suggested change to a step's text)
+  kind: text('kind').notNull().default('setup'),
+  tier: text('tier'),
+  // A GearSetup (setup), a RouteStep + { chapter } (step), or { stepId, text, why } (edit).
+  data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+  name: text('name').notNull(),
+  notes: text('notes'),
+  authorUserId: integer('author_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // setups: 'live' → 'kept' / 'promoted' / 'hidden'. steps and edits: 'pending' → 'promoted' / 'hidden'.
+  status: text('status').notNull().default('live'),
+  // The reviewer's tag for credit (lib/guideCredit EditTag) when promoted.
+  reviewTag: text('review_tag'),
+  reviewedByUserId: integer('reviewed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: text('reviewed_at'),
+  // The Wanted request it filled first, if any (+credit).
+  wantedId: integer('wanted_id'),
+  firstToWrite: boolean('first_to_write').notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  index('guide_contributions_guide_idx').on(t.guideId, t.status),
+  index('guide_contributions_author_idx').on(t.authorUserId),
+]);
+export type GuideContribution = typeof guideContributions.$inferSelect;
+
+/**
+ * "Used it": one row per person per setup of a library guide. `setup_key` is the setup's key in the
+ * gear block, or "c<id>" for a community setup (a promoted one keeps "c<id>" through communityId).
+ * source 'manual' = the button (needs kc on the boss); 'auto' = the plugin saw the setup worn there
+ * (phase 2). last_used_at moves with each auto sighting: a month's reach is the rows used that month.
+ */
+export const guideSetupVotes = pgTable('guide_setup_votes', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  setupKey: text('setup_key').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+  source: text('source').notNull().default('manual'),
+  kc: integer('kc').notNull().default(0),
+  voterClanId: integer('voter_clan_id'),
+  weight: real('weight').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  lastUsedAt: text('last_used_at').notNull(),
+}, (t) => [
+  uniqueIndex('guide_setup_votes_unique').on(t.guideId, t.setupKey, t.userId),
+  index('guide_setup_votes_used_idx').on(t.lastUsedAt),
+]);
+
+/** A report on a community setup or tip, for the curator queue's Reported tab. */
+export const guideReports = pgTable('guide_reports', {
+  id: serial('id').primaryKey(),
+  contributionId: integer('contribution_id').references(() => guideContributions.id, { onDelete: 'cascade' }),
+  tipId: integer('tip_id'),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason: text('reason').notNull(),
+  createdAt: text('created_at').notNull(),
+  resolvedAt: text('resolved_at'),
+}, (t) => [
+  unique('guide_reports_unique').on(t.contributionId, t.tipId, t.userId).nullsNotDistinct(),
+]);
+
+/** Community tips and common mistakes on a guide (optionally one level). Plain text. */
+export const guideTips = pgTable('guide_tips', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  tier: text('tier'),
+  // 'tip' | 'mistake'
+  kind: text('kind').notNull().default('tip'),
+  text: text('text').notNull(),
+  authorUserId: integer('author_user_id').references(() => users.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('live'),
+  createdAt: text('created_at').notNull(),
+}, (t) => [index('guide_tips_guide_idx').on(t.guideId, t.status)]);
+
+/** "Found this useful" on a tip, one per person. */
+export const guideTipVotes = pgTable('guide_tip_votes', {
+  tipId: integer('tip_id').notNull().references(() => guideTips.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull(),
+}, (t) => [primaryKey({ columns: [t.tipId, t.userId] })]);
+
+/** The Wanted board: a gap players asked for (or a stale piece that needs upkeep). */
+export const guideWanted = pgTable('guide_wanted', {
+  id: serial('id').primaryKey(),
+  // NULL = a guide that doesn't exist yet (`topic` names it).
+  guideId: integer('guide_id').references(() => guides.id, { onDelete: 'cascade' }),
+  topic: text('topic'),
+  tier: text('tier'),
+  accountType: text('account_type'),
+  build: text('build'),
+  note: text('note'),
+  // 'request' | 'stale'
+  reason: text('reason').notNull().default('request'),
+  requestedByUserId: integer('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  requesters: integer('requesters').notNull().default(1),
+  // 'open' | 'filled' | 'closed'
+  status: text('status').notNull().default('open'),
+  filledByContributionId: integer('filled_by_contribution_id'),
+  filledByUserId: integer('filled_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  filledAt: text('filled_at'),
+  createdAt: text('created_at').notNull(),
+}, (t) => [index('guide_wanted_status_idx').on(t.status)]);
+
+/** Accepted edits with the reviewer's tag, for credit (lib/guideCredit Edit). */
+export const guideEditCredits = pgTable('guide_edit_credits', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  // The piece it touched: "guide", a setup key, "c<id>", a route step id.
+  pieceKey: text('piece_key').notNull().default('guide'),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tag: text('tag').notNull(),
+  month: text('month').notNull(),
+  // The guide version it produced; a later revert marks it reverted.
+  version: integer('version'),
+  reverted: boolean('reverted').notNull().default(false),
+  // The source the credit came from: one row per approved proposal, one per promoted contribution
+  // (unique), so a repeated or racing approval can never credit twice.
+  proposalId: integer('proposal_id'),
+  contributionId: integer('contribution_id'),
+  createdAt: text('created_at').notNull(),
+}, (t) => [
+  index('guide_edit_credits_user_idx').on(t.userId, t.month),
+  uniqueIndex('guide_edit_credits_proposal_unique').on(t.proposalId).where(sql`proposal_id is not null`),
+  uniqueIndex('guide_edit_credits_contribution_unique').on(t.contributionId).where(sql`contribution_id is not null`),
+]);
+
+/** A month's featured writers and the curator-picked reward. Never granted automatically. */
+export const guideWriterAwards = pgTable('guide_writer_awards', {
+  id: serial('id').primaryKey(),
+  month: text('month').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  credit: real('credit').notNull().default(0),
+  featured: boolean('featured').notNull().default(true),
+  // The curator's pick for the month's Supporter reward, and when staff granted it (lib/supporterGifts).
+  picked: boolean('picked').notNull().default(false),
+  rewardGrantedAt: text('reward_granted_at'),
+  grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+}, (t) => [uniqueIndex('guide_writer_awards_unique').on(t.month, t.userId)]);
+
+/** A person following a progression route, with the manual steps they ticked. */
+export const guideRouteFollows = pgTable('guide_route_follows', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  manualDone: jsonb('manual_done').$type<string[]>().notNull().default([]),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [uniqueIndex('guide_route_follows_unique').on(t.userId, t.guideId)]);
+
+/** Guides a person opened lately (the plugin's "Recent guides"). */
+export const guideViews = pgTable('guide_views', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  viewedAt: text('viewed_at').notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.guideId] })]);
+
+/** Items an account chose to skip in setups ('cant_afford' / 'dont_want'). Owner-only. */
+export const guideItemSkips = pgTable('guide_item_skips', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  itemId: integer('item_id').notNull(),
+  reason: text('reason').notNull().default('cant_afford'),
+  createdAt: text('created_at').notNull(),
+}, (t) => [uniqueIndex('guide_item_skips_unique').on(t.accountId, t.itemId)]);
+
+/** Per-account guide preferences: the budget cap (gp) over which unowned items count as skipped. */
+export const guideViewerPrefs = pgTable('guide_viewer_prefs', {
+  accountId: integer('account_id').primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
+  budgetCap: bigint('budget_cap', { mode: 'number' }),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/**
+ * The latest items the plugin read on an account, per container (phase 2: POST /api/plugin/items).
+ * The plugin sends; the site never pulls. OWNER-ONLY: read only for the account's own person
+ * (lib/playerItems), never shown to clan staff or anyone else. Deleted when sharing is turned off.
+ */
+export const playerItemSnapshots = pgTable('player_item_snapshots', {
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  // 'bank' | 'inventory' | 'equipment' | 'lootingBag'
+  container: text('container').notNull(),
+  items: jsonb('items').$type<{ id: number; q?: number }[]>().notNull(),
+  readAt: text('read_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [primaryKey({ columns: [t.accountId, t.container] })]);
 
 /**
  * Per-team Discord resources in servers OTHER than the host's bound one (lib/eventDiscord). The

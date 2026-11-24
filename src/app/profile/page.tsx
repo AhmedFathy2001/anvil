@@ -1,3 +1,5 @@
+import { ranksFor } from '@/lib/guideCommunity';
+import { impactBand } from '@/lib/guideCredit';
 import { currentClan } from '@/lib/clanContext';
 import { clanBasePath, clanPathOf } from '@/lib/clanScopedPaths';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -143,6 +145,9 @@ export default async function ProfilePage({
     const boosts = await myBoosts(session.userId, session.playerId ?? null).catch(() => null);
     // The "Getting started" guide strip for somebody in no clan (the same one their home page shows).
     // The same strip their home page shows, chosen the same way: running a clan counts as being in it.
+    // Their guide writer rank, when they have one (lib/guideCommunity ranksFor).
+    const rank = (await ranksFor([session.userId]).catch(() => new Map())).get(session.userId);
+    const writer = rank?.rank ? { rank: rank.rank.label, tone: rank.rank.quill as 'bronze' | 'silver' | 'gold', band: impactBand(rank.lifetime) } : null;
     const startGuide = await personStartGuide(session.userId, session.playerId ?? null, myClans, null);
     return (
       <>
@@ -173,6 +178,7 @@ export default async function ProfilePage({
           media={media}
           discordAvatar={user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null}
           boosts={boosts}
+          writer={writer}
         />
       </>
     );

@@ -69,7 +69,8 @@ import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
-import { hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { guideAct, guideNextView, guidePanelView, guidesSearchView } from './guidesView';
+import { hasGuidesPanel, hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevels } from '@/lib/clanBoosts';
@@ -193,7 +194,8 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         afterTop: challenges.length ? [h2hUi(challenges)] : [],
         tint: (await supporterInksForRsns([me.rsn]).catch(() => null))?.get(me.rsn)?.color ?? null,
         above: ownership ? [ownership] : [],
-        below: [goalsNode],
+        // The followed route's Next up card (pluginUi/guidesView), once the plugin takes the guide panel.
+        below: [goalsNode, ...(owner && hasGuidesPanel(request) ? [(await guideNextView(request, {}).catch(() => null))?.ui].filter((n): n is Node => !!n) : [])],
       })
     : notFoundUi(me.rsn);
   return { ui: character ? cardUi : col([...(ownership ? [ownership] : []), cardUi, goalsNode], { gap: 8 }) };
@@ -1055,6 +1057,13 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
       return momentsView(request, a);
     case 'feed':
       return feedView(request, a);
+    // Guides (pluginUi/guidesView): the Lookup tab's Guides half, one guide, the You tab's route card.
+    case 'guides':
+      return guidesSearchView(request, a);
+    case 'guide':
+      return guidePanelView(request, a);
+    case 'guide-next':
+      return guideNextView(request, a);
     default:
       return null;
   }
@@ -1080,6 +1089,10 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (act === 'react') return reactAct(request, args);
   if (act === 'react-row') return reactRowAct(request, args);
   if (act === 'h2h-accept' || act === 'h2h-decline') return h2hAct(request, act, args);
+  if (act.startsWith('guide')) {
+    const g = await guideAct(request, act, args, fields);
+    if (g) return g;
+  }
   if (act === 'notice-hide') {
     // Hide a "From Anvil" card on this login, then the home list again (lib/notices).
     const viewer = await verifyPluginTokenUser(request).catch(() => null);
