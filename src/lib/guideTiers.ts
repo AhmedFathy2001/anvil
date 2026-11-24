@@ -27,6 +27,9 @@ export const tierOf = (key: string | null | undefined) => TIERS.find((t) => t.ke
 const MARKER_RE = /^\s*:::\s*([a-z]*)\s*$/i;
 const FENCE_RE = /^\s*```/;
 const GEAR_OPEN_RE = /^\s*```\s*gear\s*$/i;
+// A progression route's steps (lib/guideRoutes): the same idea as the gear block, a fenced JSON
+// block the route builder writes, so routes ride on guides' revisions, copies and Discord posts.
+const ROUTE_OPEN_RE = /^\s*```\s*route\s*$/i;
 
 /** Categories whose library guides must cover every tier. Clan info and general notes need not. */
 export function requiresTiers(category: string): boolean {
@@ -36,7 +39,7 @@ export function requiresTiers(category: string): boolean {
 export interface Segment {
   /** null = shared (shown at every level). */
   tier: TierKey | null;
-  kind: 'text' | 'gear';
+  kind: 'text' | 'gear' | 'route';
   text: string;
 }
 
@@ -47,6 +50,7 @@ export function splitSegments(body: string): Segment[] {
   let buf: string[] = [];
   let inFence = false;
   let gear: string[] | null = null;
+  let blockKind: 'gear' | 'route' = 'gear';
 
   const flush = () => {
     const text = buf.join('\n').replace(/^\n+|\s+$/g, '');
@@ -57,13 +61,14 @@ export function splitSegments(body: string): Segment[] {
   for (const line of body.replace(/\r\n?/g, '\n').split('\n')) {
     if (gear) {
       if (FENCE_RE.test(line)) {
-        out.push({ tier, kind: 'gear', text: gear.join('\n') });
+        out.push({ tier, kind: blockKind, text: gear.join('\n') });
         gear = null;
       } else gear.push(line);
       continue;
     }
-    if (!inFence && GEAR_OPEN_RE.test(line)) {
+    if (!inFence && (GEAR_OPEN_RE.test(line) || ROUTE_OPEN_RE.test(line))) {
       flush();
+      blockKind = ROUTE_OPEN_RE.test(line) ? 'route' : 'gear';
       gear = [];
       continue;
     }
@@ -77,9 +82,21 @@ export function splitSegments(body: string): Segment[] {
     }
     buf.push(line);
   }
-  if (gear) out.push({ tier, kind: 'gear', text: gear.join('\n') });
+  if (gear) out.push({ tier, kind: blockKind, text: gear.join('\n') });
   flush();
   return out;
+}
+
+/** Replace the first ```route block in a body (or append one). */
+export function upsertFencedBlock(body: string, lang: 'gear' | 'route', json: string): string {
+  const open = lang === 'gear' ? GEAR_OPEN_RE : ROUTE_OPEN_RE;
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const start = lines.findIndex((l) => open.test(l));
+  const fresh = '```' + lang + '\n' + json + '\n```';
+  if (start === -1) return `${body.replace(/\s+$/, '')}\n\n${fresh}\n`;
+  let end = start + 1;
+  while (end < lines.length && !FENCE_RE.test(lines[end])) end++;
+  return [...lines.slice(0, start), fresh, ...lines.slice(end + 1)].join('\n');
 }
 
 // ── Gear block ───────────────────────────────────────────────────────────────────────────────
@@ -105,6 +122,47 @@ export interface GearSetup {
   runePouch?: InvItem[];
   /** 0 standard, 1 ancient, 2 lunar, 3 arceuus — the Inventory Setups plugin's numbering. */
   spellbook?: number;
+
+  // ── Setup pills (2026-11 redesign; all optional, so every older block still reads) ──────────
+  /** Stable key for votes, Discord post selections and the plugin. Absent = derived (setupKey). */
+  id?: string;
+  /** A short chip on the pill: "Budget", "Iron-friendly". */
+  tag?: string;
+  /** The curator's pick for its level: starred, and the default pill when it fits. */
+  pick?: boolean;
+  /** Account types it is for (lib/guideSetups GUIDE_ACCOUNTS). Absent/empty = every type. */
+  accounts?: string[];
+  /** Builds it is for (GUIDE_BUILDS). Absent/empty = any build. */
+  builds?: string[];
+  /** What it needs beyond the gear's own requirements: levels (skill → level) and quests. */
+  req?: { levels?: Record<string, number>; quests?: string[] };
+  /** Spells the setup casts (names as the wiki spells them: "Crumble Undead"). */
+  spells?: string[];
+  /** The second ammo slot Dizana's quiver gives (item id), drawn above Ammo. */
+  quiver?: number | null;
+  /**
+   * Fallbacks per equipment slot, best first, AFTER the slot's own item in `gear`: cape
+   * Dizana's quiver → [Ava's assembler, Ava's accumulator]. lib/gearOwnership picks the best owned.
+   */
+  alts?: Partial<Record<string, number[]>>;
+  /** How to do it with this setup: short static steps (no timers, no live cues). */
+  steps?: string[];
+  /** A RuneLite Ground Markers export (lib/groundMarkers) for this setup. */
+  markers?: GroundMarkerPoint[];
+  /** Who wrote it, when it came from a community submission (lib/guideCommunity). */
+  by?: { userId: number; name: string } | null;
+  /** The community submission it was promoted from: its "used it" votes stay attached. */
+  communityId?: number | null;
+}
+
+/** One tile of RuneLite's Ground Markers plugin export (GroundMarkerPoint). See lib/groundMarkers. */
+export interface GroundMarkerPoint {
+  regionId: number;
+  regionX: number;
+  regionY: number;
+  z: number;
+  color?: string | null;
+  label?: string | null;
 }
 
 export interface InvItem {
@@ -122,6 +180,10 @@ export interface GearBlock {
    */
   monsters?: string[];
   setups: GearSetup[];
+  /** Ground Markers for a whole level (a setup's own `markers` win over its level's). */
+  markers?: Partial<Record<TierKey, GroundMarkerPoint[]>>;
+  /** Boss hiscores key for "used it" kc checks and picks (e.g. "vorkath"). Absent = from the monster name. */
+  kcKey?: string;
 }
 
 /** A block's targets, in order: `monsters` when it has several, else its one `monster`. */
@@ -144,7 +206,13 @@ export function parseGearBlock(text: string): GearBlock | null {
     const setups = j.setups.filter(
       (s): s is GearSetup => !!s && typeof s === 'object' && !!tierOf((s as GearSetup).tier) && typeof (s as GearSetup).gear === 'object',
     );
-    return { monster: j.monster, ...(monsters?.length ? { monsters } : {}), setups };
+    return {
+      monster: j.monster,
+      ...(monsters?.length ? { monsters } : {}),
+      setups,
+      ...(j.markers && typeof j.markers === 'object' ? { markers: j.markers } : {}),
+      ...(typeof j.kcKey === 'string' ? { kcKey: j.kcKey } : {}),
+    };
   } catch {
     return null;
   }
@@ -201,11 +269,18 @@ export function coverage(body: string): Coverage {
  * text after `:::` does too, and gear blocks are replaced by `renderGear` (a text summary — Discord
  * can't run a calculator). Code fences are left alone.
  */
-export function bodyForDiscord(body: string, renderGear: (block: GearBlock | null) => string): string {
+export function bodyForDiscord(
+  body: string,
+  renderGear: (block: GearBlock | null) => string,
+  renderRoute: (json: string) => string = () => '',
+  /** Levels to leave out (a post's selection, lib/guideSelection). Shared text always goes. */
+  skipTier: (tier: TierKey) => boolean = () => false,
+): string {
   const parts: string[] = [];
   let current: TierKey | null | undefined; // undefined = nothing written yet
   for (const seg of splitSegments(body)) {
-    const text = seg.kind === 'gear' ? renderGear(parseGearBlock(seg.text)) : seg.text;
+    if (seg.tier && skipTier(seg.tier)) continue;
+    const text = seg.kind === 'gear' ? renderGear(parseGearBlock(seg.text)) : seg.kind === 'route' ? renderRoute(seg.text) : seg.text;
     if (!text.trim()) continue;
     if (seg.tier !== current) {
       const t = tierOf(seg.tier);
