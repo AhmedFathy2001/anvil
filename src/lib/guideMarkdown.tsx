@@ -1,5 +1,8 @@
 import React from 'react';
 
+import YouTubeEmbed from '@/components/guides/YouTubeEmbed';
+import { parseYouTube } from '@/lib/youtube';
+
 /**
  * A guide's Discord markdown, rendered for the site.
  *
@@ -183,7 +186,7 @@ function renderToken(tok: string, key: string): React.ReactNode {
     const mm = /^\[([^\]]+)\]\(\s*<?([^\s>)]+)>?\s*\)$/.exec(tok);
     if (mm && SAFE_LINK.test(mm[2])) {
       return (
-        <a key={key} href={mm[2]} target="_blank" rel="noopener noreferrer nofollow" className="text-sky-300 hover:underline">
+        <a key={key} href={mm[2]} target="_blank" rel="noopener noreferrer nofollow ugc" className="text-sky-300 hover:underline">
           {renderInline(mm[1], key)}
         </a>
       );
@@ -227,14 +230,14 @@ function renderToken(tok: string, key: string): React.ReactNode {
   if (tok.startsWith('<http')) {
     const url = tok.slice(1, -1);
     return (
-      <a key={key} href={url} target="_blank" rel="noopener noreferrer nofollow" className="text-sky-300 hover:underline">
+      <a key={key} href={url} target="_blank" rel="noopener noreferrer nofollow ugc" className="text-sky-300 hover:underline">
         {url}
       </a>
     );
   }
   if (/^https?:/i.test(tok)) {
     return (
-      <a key={key} href={tok} target="_blank" rel="noopener noreferrer nofollow" className="break-all text-sky-300 hover:underline">
+      <a key={key} href={tok} target="_blank" rel="noopener noreferrer nofollow ugc" className="break-all text-sky-300 hover:underline">
         {tok}
       </a>
     );
@@ -470,6 +473,14 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
       // A Discord message boundary. On the site it is only a little extra space — the reader is not
       // reading messages, and a divider saying so was noise.
       out.push(<div key={`b${k++}`} className="my-5" aria-hidden />);
+      continue;
+    }
+
+    // A YouTube link on its own line: a click-to-load player (lib/youtube keeps only the id + start).
+    const yt = !line.includes(' ') ? parseYouTube(line) : null;
+    if (yt) {
+      flushAll();
+      out.push(<YouTubeEmbed key={`y${k++}`} video={yt} />);
       continue;
     }
 

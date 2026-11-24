@@ -27,6 +27,8 @@ export interface ExportSetup {
   runePouch?: InvItem[];
   spellbook?: number;
   notes?: string;
+  /** Dizana's quiver's second ammo slot: in the bank tag it sits above Ammo, like the paper doll. */
+  quiver?: number | null;
 }
 
 const BANK_WIDTH = 8;
@@ -43,6 +45,7 @@ export function bankLayout(s: ExportSetup): Map<number, number> {
     if (id != null && id > 0) at.set(row * BANK_WIDTH + col, id);
   };
   for (const [slot, [r, c]] of Object.entries(GEAR_CELLS) as [EquipSlot, [number, number]][]) put(r, c, s.gear[slot]);
+  put(0, 2, s.quiver);
   (s.inventory ?? []).slice(0, 28).forEach((it, i) => put(Math.floor(i / 4), 4 + (i % 4), it?.id));
   (s.runePouch ?? []).slice(0, 4).forEach((it, i) => put(6, i, it?.id));
   return at;
