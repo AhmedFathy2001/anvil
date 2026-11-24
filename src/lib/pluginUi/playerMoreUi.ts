@@ -2,6 +2,7 @@ import type { CaLookup } from '@/lib/combatTasks';
 import { BOSSES, SKILLS } from '@/lib/constants';
 import type { GoalView } from '@/lib/goalProgress';
 import type { PlayerCard } from '@/lib/playerCardShape';
+import type { LuckLine, PageBestRow } from '@/lib/logPageFacts';
 
 import { type Action, type Color, type Node, backRow, button, card, col, count, fmt, gap, header, icon, muted, percent, row, seg, text } from './nodes';
 import { SKILL_GRID, backHeader, profilePath } from './playerCardUi';
@@ -18,11 +19,24 @@ export interface ClogPageData {
   page: string;
   obtained: number;
   total: number;
-  items: { id: number; name: string; owned: boolean; quantity: number }[];
+  /** `luck`: how an owned drop went against its rate (lib/logPageFacts itemLuck), only where both are known. */
+  items: { id: number; name: string; owned: boolean; quantity: number; luck?: LuckLine | null }[];
+  /** Each mode of the page's boss: its best time and kill count (lib/logPageFacts pageBestRows). */
+  bests?: PageBestRow[];
 }
 
-/** The page's slots in the game's order: owned in full colour, the rest faint — as the log draws them. */
+/** A luck chip's ground and ink: green lucky, gold dry, grey on rate. */
+const LUCK_CHIP = { green: 'green', dry: 'gold', muted: 'grey' } as const;
+/** A chip's wrap width beside a 36px item, inside a card (~225 panel). */
+const LUCK_WRAP = 140;
+
+/**
+ * The page's slots in the game's order: owned in full colour, the rest faint — as the log draws them.
+ * Above them each mode's best time and kills; under them how each owned drop went against its rate.
+ */
 export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: number | null): Node {
+  const bests = p.bests ?? [];
+  const lucky = p.items.filter((i) => i.owned && i.luck);
   return col([
     backHeader(
       p.page,
@@ -32,6 +46,25 @@ export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: numbe
       `${profilePath(rsn)}?tab=collection&page=${seg(p.page)}`,
     ),
     gap(8),
+    bests.length
+      ? section([
+          text('Personal bests', 'brand', { font: 'bold' }),
+          ...bests.map((b) =>
+            row(
+              undefined,
+              text(b.name, 'white', { tip: b.name }),
+              row(
+                text(b.time ?? '—', b.time ? 'white' : 'muted', { font: 'bold' }),
+                undefined,
+                muted(b.kc != null ? `${fmt(b.kc)} kc` : '', { font: 'small', w: 58, align: 'r' }),
+                { gap: 6 },
+              ),
+              { gap: 6 },
+            ),
+          ),
+        ])
+      : null,
+    bests.length ? gap(8) : null,
     {
       t: 'grid',
       cols: 5,
@@ -48,6 +81,21 @@ export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: numbe
         }),
       ),
     },
+    lucky.length ? gap(8) : null,
+    lucky.length
+      ? section([
+          text('Luck', 'brand', { font: 'bold' }),
+          ...lucky.map((i) =>
+            row(
+              icon({ item: i.id, w: 36, h: 32 }),
+              col([text(i.name, 'white', { wrap: LUCK_WRAP }), chip(i.luck!.text, LUCK_CHIP[i.luck!.tone], { wrap: LUCK_WRAP })], { gap: 3 }),
+              undefined,
+              { gap: 6 },
+            ),
+          ),
+          small('Only where the drop rate and kills are known.', 'muted', { wrap: true }),
+        ])
+      : null,
   ]);
 }
 

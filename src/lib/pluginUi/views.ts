@@ -11,7 +11,10 @@ import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
-import { clans, eventParticipants, events, eventStartProofs, memberClogItems, settings, tiles, users } from '@/db/schema';
+import { clans, eventParticipants, events, eventStartProofs, memberClogItems, memberClogKc, memberPersonalBests, settings, tiles, users } from '@/db/schema';
+import { bossKillsFor, luckCandidates } from '@/lib/clogLuckBoard';
+import { formatPersonalBest, matchBestsToPages, titleCaseActivity } from '@/lib/clogProfile';
+import { itemLuck, pageBestRows } from '@/lib/logPageFacts';
 import { challengesForAccount, respondToChallenge } from '@/lib/h2h';
 import { h2hUi } from './h2hUi';
 import { apexCharacter } from '@/lib/apexProfiles';
@@ -236,16 +239,46 @@ async function clogPageView(request: Request, a: Args): Promise<View> {
   const character = page ? await apexCharacter(a.rsn ?? '', await viewerPlayerId(request)) : null;
   if (!page || !character) return message('Couldn’t load this page — try again in a moment.');
   // Owned is by ITEM, not by the page it was stored under: an item shows on every page it belongs to.
-  // clan-scope: global -- an OSRS account is one account however many clans roster it.
-  const owned = await db
-    .select({ itemId: memberClogItems.itemId, quantity: memberClogItems.quantity })
-    .from(memberClogItems)
-    .where(eq(memberClogItems.accountId, character.accountId));
-  const qty = new Map(owned.map((o) => [o.itemId, o.quantity]));
-  const items = clogPageItems(page).map((i) => ({ id: i.id, name: i.name, owned: qty.has(i.id), quantity: qty.get(i.id) ?? 0 }));
+  // clan-scope: global -- an OSRS account is one account however many clans roster it (and the
+  // kill counts and best times read with it are facts about the character too).
+  const [owned, lines, bestRows, bossKills] = await Promise.all([
+    db
+      .select({ itemId: memberClogItems.itemId, quantity: memberClogItems.quantity, kcAtUnlock: memberClogItems.kcAtUnlock })
+      .from(memberClogItems)
+      .where(eq(memberClogItems.accountId, character.accountId)),
+    db
+      .select({ label: memberClogKc.label, count: memberClogKc.count })
+      .from(memberClogKc)
+      .where(and(eq(memberClogKc.accountId, character.accountId), eq(memberClogKc.pageName, page))),
+    db
+      .select({ activity: memberPersonalBests.activity, teamSize: memberPersonalBests.teamSize, centis: memberPersonalBests.centis })
+      .from(memberPersonalBests)
+      .where(eq(memberPersonalBests.accountId, character.accountId)),
+    // Decoration: a failed read is a page without kill counts or luck.
+    bossKillsFor(character.accountId).catch(() => ({}) as Record<string, number>),
+  ]);
+  const have = new Map(owned.map((o) => [o.itemId, o]));
+  const rates = new Map(luckCandidates().map((c) => [c.itemId, c.sources]));
+  const items = clogPageItems(page).map((i) => {
+    const o = have.get(i.id);
+    // How the drop went against its rate; only where both the rate and the kills behind it are known.
+    const luck = o ? itemLuck({ quantity: o.quantity, kcAtUnlock: o.kcAtUnlock }, rates.get(i.id) ?? [], bossKills) : null;
+    return { id: i.id, name: i.name, owned: !!o, quantity: o?.quantity ?? 0, ...(luck ? { luck } : {}) };
+  });
+  // Matched to this page the way the profile matches them (lib/clogRead), then labelled as the card labels them (lib/playerCard).
+  const raw = bestRows.map((b) => ({ activity: b.activity, teamSize: b.teamSize, time: formatPersonalBest(b.centis) }));
+  const mine = new Set((matchBestsToPages(raw, clogPageNames()).get(page) ?? []).map((b) => `${b.activity}|${b.time}`));
+  const onPage = raw
+    .filter((b) => mine.has(`${b.activity}|${b.time}`))
+    .map((b) => ({ activity: titleCaseActivity(b.activity) + (b.teamSize > 0 ? ` (${b.teamSize})` : ''), time: b.time }));
   const kc = Number(a.kc);
   return {
-    ui: clogPageUi(character.rsn, { page, obtained: items.filter((i) => i.owned).length, total: items.length, items }, a.back || 'main', kc > 0 ? kc : null),
+    ui: clogPageUi(
+      character.rsn,
+      { page, obtained: items.filter((i) => i.owned).length, total: items.length, items, bests: pageBestRows(page, onPage, lines, bossKills) },
+      a.back || 'main',
+      kc > 0 ? kc : null,
+    ),
   };
 }
 

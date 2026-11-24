@@ -10,7 +10,7 @@ import { type Action, type Node, col } from '../src/lib/pluginUi/nodes';
 import { completionRow, feedTabUi, momentRow } from '../src/lib/pluginUi/feedUi';
 import { h2hUi } from '../src/lib/pluginUi/h2hUi';
 import { milestoneSubject, notFoundUi, playerCardUi, virtualLevel } from '../src/lib/pluginUi/playerCardUi';
-import { casUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from '../src/lib/pluginUi/playerMoreUi';
+import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from '../src/lib/pluginUi/playerMoreUi';
 
 const input: PlayerCardInput = {
   rsn: 'Drenvox mdps',
@@ -141,15 +141,38 @@ test('hero card: banner or tint, badge ringed over it, name beside the badge', (
   assert.ok(withBanner.src?.includes('kind=banner') && !withBanner.grad);
 });
 
-test('a boss cell opens its log page; a never-killed boss shows only while searching', () => {
-  const ui = playerCardUi(card, { sectionKey: 'lookup', cas: false });
-  const filter = walk(ui).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
-  const cells = (filter.c[0] as Extract<Node, { t: 'grid' }>).c;
-  const vork = cells.find((c) => c.k === 'Vorkath')!;
+test('the Bosses tab is a list: kill count in full, most first or A–Z, a row opens its log page', () => {
+  const big = shapePlayerCard({ ...input, bosses: [...input.bosses, { key: 'brutus', kc: 900 }] });
+  const ui = playerCardUi(big, { sectionKey: 'lookup', cas: false });
+  const sort = walk(ui).find((x) => x.t === 'toggle' && x.key === 'boss-sort:lookup') as Extract<Node, { t: 'toggle' }>;
+  assert.ok(sort, 'the two orders are a toggle');
+  const listOf = (face: Node) => {
+    const filter = walk(face).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
+    return (filter.c[0] as Extract<Node, { t: 'grid' }>).c;
+  };
+  const killedNames = (face: Node) => listOf(face).filter((r) => !r.q).map((r) => r.k!.split(' ')[0]);
+  assert.deepEqual(killedNames(sort.off), ['Vorkath', 'Brutus', 'Zulrah'], 'most kills first');
+  assert.deepEqual(killedNames(sort.lit), ['Brutus', 'Vorkath', 'Zulrah'], 'A–Z on the lit face');
+  assert.ok(texts(sort.off).includes('1,240'), 'the count in full, never cut to 1,2…');
+  assert.ok(walk(sort.off).some((x) => x.on?.a === 'flip' && x.on.key === 'boss-sort:lookup'), 'a chip flips the order');
+  const vork = listOf(sort.off).find((r) => r.k?.startsWith('Vorkath'))!;
+  assert.equal(vork.t, 'row');
   assert.deepEqual(vork.on, { a: 'load', v: 'clog-page', args: { rsn: 'Drenvox mdps', page: 'Vorkath', back: 'main', kc: '1240' }, into: 'prof' });
-  const zero = cells.find((c) => c.k?.startsWith('Kraken'));
-  assert.equal(zero?.q, true);
-  assert.equal(filter.box, false, 'two bosses need no search box');
+  const zero = listOf(sort.off).find((c) => c.k?.startsWith('Kraken'));
+  assert.equal(zero?.q, true, 'a never-killed boss shows only while searching');
+  const filter = walk(sort.off).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
+  assert.equal(filter.box, false, 'three bosses need no search box');
+});
+
+test('a log category pane searches only its own pages, by page name or an item on them', () => {
+  const ui = playerCardUi(card, { sectionKey: 'lookup', cas: false });
+  const pane = (ui as Extract<Node, { t: 'slot' }>).panes!['cat:Bosses'];
+  const filter = walk(pane).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
+  assert.ok(filter, 'the pane has its own search');
+  const rows = (filter.c[0] as Extract<Node, { t: 'grid' }>).c;
+  assert.equal(rows.length, 2, 'only this category’s pages');
+  const zul = rows.find((r) => r.k?.startsWith('Zulrah'))!;
+  assert.match(zul.k!, /Tanzanite fang/, 'an item on the page finds it');
 });
 
 test('virtual levels are the lit face of a toggle', () => {
@@ -641,4 +664,34 @@ test('tracking lines: a combo lists its parts with the team’s count on each', 
   const progress = new Map([[21, { current: 37, goal: 100 }], [22, { current: 1, goal: 1 }]]);
   assert.deepEqual(trackingLines(t, progress), ['Any one of:', '  Vorkath kills (37/100)', '  ✓ Draconic visage', '  Any Brutus unique', '    Mooleta, Cow slippers']);
   assert.equal(isManual(t), false, 'a combo is not a manual tile');
+});
+
+test('a log page: each mode’s best time and kills, the items, then luck only where it is known', () => {
+  const ui = clogPageUi('Drenvox', {
+    page: 'Brutus', obtained: 2, total: 4,
+    items: [
+      { id: 1, name: 'Mooleta', owned: true, quantity: 35, luck: { text: '35 in 1,378 kc · expected 27 · lucky', tone: 'green' } },
+      { id: 2, name: 'Moo-ve over boots', owned: true, quantity: 8, luck: { text: '8 in 1,378 kc · expected 11 · a bit dry', tone: 'dry' } },
+      { id: 3, name: 'Beef', owned: true, quantity: 1, luck: null },
+      { id: 4, name: 'Bucket', owned: false, quantity: 0 },
+    ],
+    bests: [{ name: 'Brutus', time: '0:41.20', kc: 1166 }, { name: 'Demonic Brutus', time: '1:12.80', kc: 212 }],
+  }, 'cat:Bosses', 1378);
+  const t = texts(ui);
+  for (const want of ['Personal bests', 'Brutus', '0:41.20', '1,166 kc', 'Demonic Brutus', '1:12.80', '212 kc', 'Luck']) assert.ok(t.includes(want), want);
+  const chips = walk(ui).filter((n): n is Extract<Node, { t: 'text' }> => n.t === 'text' && !!n.chip);
+  assert.deepEqual(chips.map((c) => c.s), ['35 in 1,378 kc · expected 27 · lucky', '8 in 1,378 kc · expected 11 · a bit dry']);
+  assert.ok(!t.includes('Beef'), 'no rate or kills: no luck row');
+  const bare = texts(clogPageUi('Drenvox', { page: 'Brutus', obtained: 0, total: 1, items: [{ id: 4, name: 'Bucket', owned: false, quantity: 0 }] }, 'main', null));
+  assert.ok(!bare.includes('Personal bests') && !bare.includes('Luck'), 'nothing known: neither block');
+});
+
+test('display case: a pin with a luck read says its name, then how it went', () => {
+  const ui = playerCardUi({
+    ...card,
+    displayCase: [{ id: 1, kind: 'clog', itemId: 27277, statKey: null, headline: null, name: "Tumeken's shadow", source: 'Tombs of Amascut', qty: 2, luck: { text: '2 in 200 kc · expected 0.5 · mega spooned', tone: 'green' } }],
+  }, { sectionKey: 'you', cas: false });
+  const t = texts(ui);
+  assert.ok(t.indexOf("Tumeken's shadow") < t.indexOf('2 in 200 kc · expected 0.5 · mega spooned'));
+  assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 27277 && n.qty === 2), 'copies held on the icon');
 });

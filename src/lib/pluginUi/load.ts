@@ -17,6 +17,7 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { luckCandidates } from '@/lib/clogLuckBoard';
 import { pinLuck } from '@/lib/pinLuck';
+import { itemLuck } from '@/lib/logPageFacts';
 import { supporterForPlayer } from '@/lib/supporter';
 import { canAnimateProfileMedia } from '@/lib/profileMediaRules';
 import { mediaRevision } from '@/lib/pluginUi/mediaRevision';
@@ -100,8 +101,14 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
   };
   const cands = luckCandidates();
   const kcOf = (key: string) => [...card.bosses, ...card.topBosses].find((b) => b.key === key)?.kc ?? 0;
+  const kills: Record<string, number> = {};
+  for (const b of [...card.bosses, ...card.topBosses]) kills[b.key] = Math.max(kills[b.key] ?? 0, b.kc);
   card.displayCase = displayCase.map((p) => {
-    const luck = (p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0 ? pinLuck({ itemId: p.itemId, source: p.source, kc: p.kc, qty: p.qty }, cands, kcOf) : null;
+    if ((p.kind !== 'drop' && p.kind !== 'clog') || p.itemId <= 0) return p;
+    // A log slot with its count: copies held against what the rate owed by today's kills (lib/logPageFacts).
+    // Else the drop's own KC against the rate (lib/pinLuck). Neither known: no line.
+    const held = p.kind === 'clog' && p.qty ? itemLuck({ quantity: p.qty, kcAtUnlock: p.kc }, cands.find((c) => c.itemId === p.itemId)?.sources ?? [], kills) : null;
+    const luck = held ? { text: held.text, tone: held.tone === 'green' ? ('green' as const) : ('muted' as const) } : pinLuck({ itemId: p.itemId, source: p.source, kc: p.kc, qty: p.qty }, cands, kcOf);
     return luck ? { ...p, luck } : p;
   });
   return card;
