@@ -231,13 +231,12 @@ export function hasLogSearch(request: Request): boolean {
 }
 
 /**
- * PHASE 2 (guides): the first plugin build that handles the guide panel's new pieces — the `copy`
- * action, the Lookup tab's Players | Guides switch (`tab: 'lookup'`), the quill glyphs, the
- * `region` arg on view 'guides', and the item push (POST /api/plugin/items). Until phase 2 sets the
- * real number this is out of reach, so every plugin gets the fallbacks (copy on the site, no switch,
- * a text rank). Phase 2 sets it to the release that ships them.
+ * The first plugin build that handles the guide panel's new pieces — the `copy` action, the Lookup
+ * tab's Players | Guides switch (`tab: 'lookup'`), the quill glyphs, the `region` arg on view
+ * 'guides', and the item push (POST /api/plugin/items). Older plugins get the fallbacks (copy on the
+ * site, no switch, a text rank).
  */
-export const GUIDES_PANEL_MIN_PLUGIN = '99.0.0';
+export const GUIDES_PANEL_MIN_PLUGIN = '1.17.3';
 
 /** Does this plugin take the guide panel's phase-2 pieces? Same version test as hasLogSearch. */
 export function hasGuidesPanel(request: Request): boolean {

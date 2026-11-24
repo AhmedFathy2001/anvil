@@ -106,6 +106,14 @@ test('guides search: the Players | Guides switch only past the gate; region card
   assert.ok(actions(p2).some((a) => a.a === 'load' && a.v === 'guide'));
 });
 
+test('guides search: the filters carry the region the plugin sent, so "You\'re at" survives a filter change', () => {
+  const base = { rows: [], recent: [], sections: [], filters: { level: '', account: '', build: 'any' }, here: null, phase2: true };
+  const posts = (ui: Node) => actions(ui).filter((a) => a.a === 'post' && a.act === 'guides-filter');
+  assert.ok(posts(guidesSearchUi({ ...base, region: '9023' })).every((a) => (a.args as Record<string, string> | undefined)?.region === '9023'));
+  assert.ok(posts(guidesSearchUi({ ...base, region: '9023' })).length >= 3);
+  assert.ok(posts(guidesSearchUi(base)).every((a) => !a.args));
+});
+
 test('next up card: progress, done step, next steps, route switch', () => {
   const ui = nextUpUi({ route: { id: 9, slug: 'ironman-first-100-hours', title: 'Ironman: the first 100 hours' }, done: 14, total: 42, lastDone: { title: "Ava's accumulator", icon: 10499, source: 'from the plugin' }, next: [{ title: '70 Agility', icon: null, line: 'Shortcuts', reqs: [{ text: 'Agility 64/70', met: false }] }], recent: [], followed: [{ id: 9, title: 'A' }, { id: 10, title: 'B' }] });
   walk(ui, (o) => assert.ok(KNOWN.has(o.t as string)));

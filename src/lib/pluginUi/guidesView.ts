@@ -87,7 +87,7 @@ export async function guidesSearchView(request: Request, args: Args): Promise<Vi
   const slug = Number.isInteger(region) ? GUIDE_REGIONS[region] : undefined;
   const at = slug ? await publicGuideBySlug(clanId, slug) : null;
   const here = at ? { id: at.guide.id, title: at.guide.title.split(' — ')[0], where: 'here', icon: firstGearBlock(at.guide.body)?.setups[0]?.gear.weapon ?? null } : null;
-  return { ui: guidesSearchUi({ rows: rows.map((r) => r.row), recent, sections, filters, here, phase2: hasGuidesPanel(request) }) };
+  return { ui: guidesSearchUi({ rows: rows.map((r) => r.row), recent, sections, filters, here, phase2: hasGuidesPanel(request), region: region > 0 && Number.isInteger(region) ? String(region) : undefined }) };
 }
 
 const SLOTS = ['head', 'cape', 'neck', 'ammo', 'quiver', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'];

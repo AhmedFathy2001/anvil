@@ -221,6 +221,10 @@ export const PLUGIN_CAPABILITIES = [
   // POST /api/plugin/chat-relay/report reports one. Event chat in the chatbox: {"t":"rows"} chat pushes
   // carry `cb`/`cb1`, and GET /api/plugin/chat-chans lists where the chatbox input may post.
   'chat-relay',
+  // Guides (lib/pluginUi/guidesView): view 'guides' for the Lookup tab's Guides mode, the `copy` and
+  // `tab: 'lookup'` actions, and POST/DELETE /api/plugin/items (what the player holds, owner-only).
+  // The plugin offers Guides and pushes items only against a site that lists this.
+  'guides-panel',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

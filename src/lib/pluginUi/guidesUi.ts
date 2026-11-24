@@ -35,6 +35,8 @@ export interface GuidesSearchData {
   filters: { level: string; account: string; build: string };
   here: { id: number; title: string; where: string; icon: number | null } | null;
   phase2: boolean;
+  /** The map region the plugin said it stands in, carried on the filter post so "You're at" stays. */
+  region?: string;
 }
 
 const LEVELS = [
@@ -77,7 +79,7 @@ function guideRow(r: GuideRowData): Node {
 
 /** The Guides search (the Lookup tab's Guides half): filters, "You're at", recent, by category. */
 export function guidesSearchUi(d: GuidesSearchData): Node {
-  const filterAct: Action = { a: 'post', act: 'guides-filter' };
+  const filterAct: Action = { a: 'post', act: 'guides-filter', ...(d.region ? { args: { region: d.region } } : {}) };
   const parts: Node[] = [];
   if (d.phase2) {
     parts.push({ t: 'tabs', key: 'lookup-mode', tabs: [{ label: 'Players', on: { a: 'tab', tab: 'lookup', args: { mode: 'players' } } }, { label: 'Guides', on: { a: 'load', v: 'guides' }, sel: true }] });
