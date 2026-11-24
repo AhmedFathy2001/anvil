@@ -404,6 +404,8 @@ export default function GuideEditor({
           botConnected={data.botConnected === true}
           posts={data.posts ?? []}
           onChange={load}
+          body={g.body}
+          title={g.title}
         />
       )}
 

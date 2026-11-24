@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import Switch from '@/components/Switch';
+import type { PostFilter } from '@/lib/guideSelection';
+import { GUIDE_ACCOUNTS, GUIDE_BUILDS } from '@/lib/guideSetups';
+import { TIERS } from '@/lib/guideTiers';
+
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
@@ -73,6 +78,9 @@ export default function BulkPostPanel({
   const [channelId, setChannelId] = useState('');
   const [readOnly, setReadOnly] = useState(true);
   const [autoUpdate, setAutoUpdate] = useState(true);
+  // Which parts of each guide go out (lib/guideSelection PostFilter). Off = everything.
+  const [filterOn, setFilterOn] = useState(false);
+  const [filter, setFilter] = useState<PostFilter>({ tiers: ['beginner', 'intermediate', 'advanced'], accounts: [], builds: [], includeNew: false });
 
   const [bot, setBot] = useState<Bot | null>(null);
   const [enabled, setEnabled] = useState(true);
@@ -149,6 +157,7 @@ export default function BulkPostPanel({
           channelId,
           readOnly: creating && readOnly,
           autoUpdate,
+          ...(filterOn ? { filter } : {}),
         }),
       });
       const j = (await res.json().catch(() => ({ ok: false, error: 'Bad response', results: [] }))) as Result;
@@ -283,6 +292,42 @@ export default function BulkPostPanel({
             )}
 
             <Checkbox checked={autoUpdate} onChange={setAutoUpdate} label="Keep them updated" description="Guide edits are mirrored into Discord." />
+
+            <div className="space-y-2 rounded-lg border border-card-border p-3 text-xs">
+              <Checkbox checked={filterOn} onChange={setFilterOn} label="Only some levels and setups" description="Each post keeps this choice for every later edit and resync." />
+              {filterOn && (
+                <div className="space-y-2">
+                  {([
+                    ['Levels', TIERS.map((t) => ({ key: t.key as string, label: t.label })), 'tiers'],
+                    ['Account types', GUIDE_ACCOUNTS.map((a) => ({ key: a.key as string, label: a.label })), 'accounts'],
+                    ['Builds', GUIDE_BUILDS.filter((b) => b.key !== 'any').map((b) => ({ key: b.key as string, label: b.label })), 'builds'],
+                  ] as const).map(([label, opts, field]) => (
+                    <div key={field} className="flex flex-wrap items-center gap-1.5">
+                      <span className="w-24 text-text-muted">{label}</span>
+                      {opts.map((o) => {
+                        const list = filter[field] as string[];
+                        const on = list.includes(o.key);
+                        return (
+                          <button
+                            key={o.key}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => setFilter({ ...filter, [field]: on ? list.filter((x) => x !== o.key) : [...list, o.key] })}
+                            className={`rounded-full border px-2.5 py-0.5 ${on ? 'border-gold bg-gold/15 text-gold' : 'border-card-border text-text-muted'}`}
+                          >
+                            {o.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  <p className="text-text-muted">No account type or build picked = setups for all of them.</p>
+                  <Switch checked={filter.includeNew} onChange={(v) => setFilter({ ...filter, includeNew: v })}>
+                    Also post setups added later
+                  </Switch>
+                </div>
+              )}
+            </div>
 
             <ul className="space-y-1 rounded-lg bg-black/20 p-3 text-xs">
               {!bot && !loadError && <li className="text-text-muted">Checking the bot…</li>}

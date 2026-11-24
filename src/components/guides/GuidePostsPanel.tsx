@@ -7,6 +7,9 @@ import Select from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
+import { selectAll, type PostSelection } from '@/lib/guideSelection';
+import { firstGearBlock } from '@/lib/guideTiers';
+import PostSelectionPicker from './PostSelectionPicker';
 
 export interface PostRow {
   id: number;
@@ -21,6 +24,8 @@ export interface PostRow {
   updatedAt: string;
   jumpUrl: string | null;
   ownsChannel?: boolean;
+  /** The parts this post carries (lib/guideSelection); null = everything, the original format. */
+  selection?: PostSelection | null;
 }
 
 interface Channel {
@@ -44,7 +49,11 @@ export default function GuidePostsPanel({
   botConnected,
   posts,
   onChange,
+  body = '',
+  title = '',
 }: {
+  body?: string;
+  title?: string;
   guideId: number;
   guideVersion: number;
   published: boolean;
@@ -62,6 +71,10 @@ export default function GuidePostsPanel({
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const hasSetups = !!firstGearBlock(body)?.setups.length;
+  const [selection, setSelection] = useState<PostSelection | null>(null);
+  const [picking, setPicking] = useState<number | null>(null);
+  const [pickValue, setPickValue] = useState<PostSelection | null>(null);
 
   async function loadChannels() {
     setOpen(true);
@@ -83,7 +96,8 @@ export default function GuidePostsPanel({
       const res = await clanFetch(`/api/admin/guides/${guideId}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId, tagIds, autoUpdate }),
+        // With setups, a post carries a selection (all by default); without, the original format.
+        body: JSON.stringify({ channelId, tagIds, autoUpdate, ...(hasSetups ? { selection: selection ?? selectAll(firstGearBlock(body)) } : {}) }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) return notify(j.error ?? 'Posting failed', 'error');
@@ -233,6 +247,12 @@ export default function GuidePostsPanel({
                   </div>
                 </div>
               )}
+              {hasSetups && (
+                <div className="rounded-lg border border-card-border p-2">
+                  <p className="mb-2 text-xs text-text-muted">What goes out: pick levels and setups. Later edits and resyncs post the same parts.</p>
+                  <PostSelectionPicker body={body} title={title} value={selection} onChange={setSelection} />
+                </div>
+              )}
               <Checkbox
                 checked={autoUpdate}
                 onChange={setAutoUpdate}
@@ -278,6 +298,22 @@ export default function GuidePostsPanel({
                     {p.messageIds.length} message{p.messageIds.length === 1 ? '' : 's'} · {p.autoUpdate ? 'auto-updates' : 'frozen snapshot'}
                   </p>
                   {p.lastError && <p className="mt-1 text-[11px] text-red-300">{p.lastError}</p>}
+                  {picking === p.id && (
+                    <div className="mt-2 space-y-2 rounded-lg border border-card-border bg-black/20 p-2">
+                      <PostSelectionPicker body={body} title={title} value={pickValue} onChange={setPickValue} />
+                      <button
+                        type="button"
+                        disabled={busy != null}
+                        onClick={async () => {
+                          await patch(p, { selection: pickValue ?? selectAll(firstGearBlock(body)) }, 'sync');
+                          setPicking(null);
+                        }}
+                        className="rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-brown-dark disabled:opacity-40"
+                      >
+                        Save and update Discord
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   {p.jumpUrl && (
@@ -294,6 +330,18 @@ export default function GuidePostsPanel({
                         label="Auto-update"
                         labelClassName="text-xs"
                       />
+                      {hasSetups && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPicking(picking === p.id ? null : p.id);
+                            setPickValue(p.selection ?? null);
+                          }}
+                          className="rounded border border-card-border px-2 py-1 hover:text-gold"
+                        >
+                          Choose parts
+                        </button>
+                      )}
                       <button
                         onClick={() => patch(p, { resync: true }, 'sync')}
                         disabled={busy != null || dirty}
