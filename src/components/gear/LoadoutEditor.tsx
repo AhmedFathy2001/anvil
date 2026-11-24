@@ -210,7 +210,7 @@ export default function LoadoutEditor({
                 disabled={readOnly}
                 onChange={(v) => onChange({ ...value, boost: v || null })}
                 ariaLabel="Boost"
-                options={[{ value: '', label: 'None' }, ...BOOSTS.filter((b) => b.style === kind).map((b) => ({ value: b.key, label: b.label }))]}
+                options={[{ value: '', label: 'None' }, ...BOOSTS.filter((b) => b.style === kind).map((b) => ({ value: b.key, label: b.label, ...(b.icon ? { icon: wiki(b.icon) } : {}) }))]}
               />
             </label>
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-text-muted">

@@ -202,13 +202,15 @@ export interface Boost {
   label: string;
   style: CombatKind;
   stats: Partial<Record<BoostStat, (lvl: number) => number>>;
+  /** The wiki's icon file (set from BOOST_ICONS below). */
+  icon?: string;
 }
 
 const pct = (flat: number, frac: number) => (lvl: number) => lvl + flat + Math.floor(lvl * frac);
 const melee = (key: string, label: string, att: (l: number) => number, str: (l: number) => number): Boost => ({ key, label, style: 'melee', stats: { attack: att, strength: str } });
 const one = (key: string, label: string, style: CombatKind, stat: BoostStat, f: (l: number) => number): Boost => ({ key, label, style, stats: { [stat]: f } });
 
-export const BOOSTS: Boost[] = [
+const BOOST_LIST: Boost[] = [
   melee('super_combat', 'Super combat / divine super combat', pct(5, 0.15), pct(5, 0.15)),
   melee('super_att_str', 'Super attack + super strength', pct(5, 0.15), pct(5, 0.15)),
   one('super_strength', 'Super strength only', 'melee', 'strength', pct(5, 0.15)),
@@ -233,6 +235,35 @@ export const BOOSTS: Boost[] = [
   one('overload_magic', 'Overload (raids)', 'magic', 'magic', pct(6, 0.16)),
   one('salts_magic', 'Smelling salts (ToA)', 'magic', 'magic', pct(11, 0.16)),
 ];
+
+/** Each boost's potion or item picture on the wiki (all checked to exist). */
+const BOOST_ICONS: Record<string, string> = {
+  super_combat: 'Super combat potion(4).png',
+  super_att_str: 'Super strength(4).png',
+  super_strength: 'Super strength(4).png',
+  combat: 'Combat potion(4).png',
+  att_str: 'Strength potion(4).png',
+  zamorak_brew: 'Zamorak brew(4).png',
+  overload_nmz: 'Overload (4).png',
+  overload: 'Overload (+)(4).png',
+  salts_melee: 'Smelling salts (2).png',
+  ranging: 'Ranging potion(4).png',
+  bastion: 'Bastion potion(4).png',
+  super_ranging: 'Super ranging (4).png',
+  overload_ranged: 'Overload (+)(4).png',
+  salts_ranged: 'Smelling salts (2).png',
+  magic: 'Magic potion(4).png',
+  battlemage: 'Battlemage potion(4).png',
+  imbued_heart: 'Imbued heart.png',
+  saturated_heart: 'Saturated heart.png',
+  forgotten_brew: 'Forgotten brew(4).png',
+  ancient_brew: 'Ancient brew(4).png',
+  super_magic: 'Super magic potion (4).png',
+  overload_magic: 'Overload (+)(4).png',
+  salts_magic: 'Smelling salts (2).png'
+};
+
+export const BOOSTS: Boost[] = BOOST_LIST.map((b) => ({ ...b, icon: BOOST_ICONS[b.key] }));
 
 /** A level after the loadout's boost, for one stat. */
 export function boostedLevel(level: number, boostKey: string | null | undefined, stat: BoostStat): number {
