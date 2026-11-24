@@ -13,7 +13,8 @@ import { voteUsed } from '@/lib/guideCommunity';
 import { matchWornSetup, type WornSetup } from '@/lib/guideSetupMatch';
 import { setupKey } from '@/lib/guideSetups';
 import { firstGearBlock } from '@/lib/guideTiers';
-import { equivalentsFor, kcKeyOf } from '@/lib/guideViewer';
+import { equivalentsFor } from '@/lib/itemFamilies';
+import { kcKeyOf } from '@/lib/guideViewer';
 import { listLibrary } from '@/lib/guides';
 import { ttlMemo } from '@/lib/ttlMemo';
 

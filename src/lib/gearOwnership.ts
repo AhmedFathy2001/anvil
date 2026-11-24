@@ -10,9 +10,10 @@
 // anything over the player's budget cap count as not owned — unless they own it already, which a
 // budget can't take away.
 //
-// EQUIVALENT FORMS count as the same item: charged/uncharged and (i) versions (lib/itemVariants
-// groups), plus the cosmetic kits whose names differ (COSMETIC below, ids checked against
-// src/data/gearItems.json): a Masori assembler IS an Ava's assembler for this purpose.
+// EQUIVALENT FORMS count as the same item: the variant families of lib/itemFamilies (ornament kits,
+// recolours, imbued and fortified forms, charged/uncharged ids), plus the cosmetic kits whose names
+// differ (COSMETIC below, ids checked against src/data/gearItems.json): a Masori assembler IS an
+// Ava's assembler for this purpose.
 
 import { SLOTS, type Slot } from './dps/tables';
 import type { GearSetup, InvItem } from './guideTiers';
