@@ -44,7 +44,7 @@ export function firstDropWord(share: number): LuckLine {
 }
 
 /**
- * How an owned drop went, or null when the rate or the kills behind it aren't known.
+ * How a drop went (or a missing one is going), or null when the rate or the kills behind it aren't known.
  * - one drop with the kill it came at, from one source: "1st at 22 kc · rate 1/50 · lucky"
  * - otherwise drops held against what the rate owed by now: "8 in 1,378 kc · expected 11 · a bit dry"
  * A stack collapses to the number of drops behind it (dropsFromQuantity), so 750 axes are one drop.
@@ -54,9 +54,11 @@ export function itemLuck(
   sources: LuckRateSource[],
   kills: Record<string, number>,
 ): LuckLine | null {
-  if (!(item.quantity > 0) || !sources.length) return null;
+  if (!sources.length) return null;
   const { expected, expectedLow, bundle, kills: kc } = expectationFor(sources, kills);
-  const drops = dropsFromQuantity(item.quantity, bundle);
+  // Not had yet: worth a line only once the rate owed two drops by now ("0 in 5,832 kc · expected 5.8 · very dry").
+  if (!(item.quantity > 0) && !(expectedLow >= 2)) return null;
+  const drops = item.quantity > 0 ? dropsFromQuantity(item.quantity, bundle) : 0;
   const at = item.kcAtUnlock ?? 0;
   if (drops === 1 && at > 0 && sources.length === 1) {
     const s = sources[0];

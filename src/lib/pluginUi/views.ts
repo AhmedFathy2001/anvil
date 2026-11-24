@@ -264,8 +264,8 @@ async function clogPageView(request: Request, a: Args): Promise<View> {
   const rates = new Map(luckCandidates().map((c) => [c.itemId, c.sources]));
   const items = clogPageItems(page).map((i) => {
     const o = have.get(i.id);
-    // How the drop went against its rate; only where both the rate and the kills behind it are known.
-    const luck = o ? itemLuck({ quantity: o.quantity, kcAtUnlock: o.kcAtUnlock }, rates.get(i.id) ?? [], bossKills) : null;
+    // How the drop went against its rate (a missing one once it's owed); only where both the rate and the kills behind it are known.
+    const luck = itemLuck({ quantity: o?.quantity ?? 0, kcAtUnlock: o?.kcAtUnlock }, rates.get(i.id) ?? [], bossKills);
     return { id: i.id, name: i.name, owned: !!o, quantity: o?.quantity ?? 0, ...(luck ? { luck } : {}) };
   });
   // Matched to this page the way the profile matches them (lib/clogRead), then labelled as the card labels them (lib/playerCard).
