@@ -245,7 +245,13 @@ export async function POST(request: Request) {
   // targets whatever the feed's floors below would keep. From the main game, or from the mode a hunt
   // counts (lib/competitionGame); a character in a hunt is the only one it does anything for. Never
   // fails the push.
-  await recordHuntReports(member, clan.id, observations, new Date(now), mode?.key ?? null).catch((err) => log.warn('hunt.record-failed', { clanId: clan.id }, err));
+  const hunted = await recordHuntReports(member, clan.id, observations, new Date(now), mode?.key ?? null).catch((err) => {
+    log.warn('hunt.record-failed', { clanId: clan.id }, err);
+    return null;
+  });
+  // Each new hunt drop's screenshot key, by item: a current plugin uploads the shot it took of the drop
+  // under it (POST /api/plugin/facts/proof). An older one ignores it; the drop counts either way.
+  const huntProofs = hunted?.proofs.length ? { huntProofs: hunted.proofs } : {};
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
   const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false, practice: false }));
@@ -267,5 +273,5 @@ export async function POST(request: Request) {
   // Stream highlights (lib/highlights): a big drop or pet on a STREAMED board is clipped on a live
   // channel that wants it. Queued, never awaited: Twitch is nobody's reason to hold this reply.
   if (!mode && inserted.length) queueMomentHighlights(member.clanMemberId, inserted);
-  return NextResponse.json({ ok: true, ...result, scoped: !idle });
+  return NextResponse.json({ ok: true, ...result, scoped: !idle, ...huntProofs });
 }

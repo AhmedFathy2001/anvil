@@ -298,10 +298,10 @@ export default function DiscordSettings({
           id="discord-competition-posts"
           sprite="casket"
           title="Competition posts"
-          summary="SOTW, BOTW and item hunts: the daily update and the halfway standings."
+          summary="SOTW, BOTW and item hunts: the daily update, the halfway standings and each hunt drop."
         >
           <p className="mb-3 text-sm text-text-muted">
-            A competition always posts when it starts and when it ends. These two are the posts in between. They go to your SOTW / BOTW channel, or the main
+            A competition always posts when it starts and when it ends. These are the posts in between. They go to your SOTW / BOTW channel, or the main
             one when you have not set that.
           </p>
           <div className="space-y-3">
@@ -312,6 +312,12 @@ export default function DiscordSettings({
               defaultOn
             />
             <ToggleSetting settingKey="weekly_post_halfway" label="Halfway standings" helpText="One post at the halfway point with the standings so far." defaultOn />
+            <ToggleSetting
+              settingKey="weekly_post_hunt_drops"
+              label="Each item hunt drop"
+              helpText="A post the moment a drop counts in an item hunt: who got what, from where, at what kill count, and where it puts them. A drop from the plugin gets its screenshot added a few seconds later. Held and turned-down drops never post."
+              defaultOn
+            />
           </div>
         </FoldSection>
       )}

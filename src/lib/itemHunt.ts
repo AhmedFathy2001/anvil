@@ -866,9 +866,11 @@ export function rowProgressWords(p: Pick<HuntRowProgress, 'label' | 'unit' | 'ga
  */
 export function huntPanelLine(
   config: HuntConfig,
-  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'>,
+  row: Pick<HuntRow, 'count' | 'held' | 'due' | 'drops'> & { rank?: number },
   progress: HuntRowProgress[] | null,
 ): { figure: string | null; sub: string | null } {
+  // "First to get it": one drop and they are finished, in their place. Progress no longer matters.
+  if (config.rule === 'first' && row.count > 0 && row.rank != null) return { figure: firstDoneWords(row.rank), sub: null };
   const total = huntRows(config).length;
   const unit = config.rule === 'points' ? 'pts' : row.count === 1 ? 'drop' : 'drops';
   const figure = row.count > 0 ? `${row.count.toLocaleString('en-US')} ${config.rule === 'first' ? (row.count === 1 ? 'drop' : 'drops') : unit}${total > 1 ? ` · ${row.held}/${total}` : ''}` : row.due != null ? (row.due > 0 ? `${dueWords(row.due)} due` : 'no kc yet') : null;
@@ -1140,6 +1142,32 @@ export function rankHunt(
   });
   rows.forEach((r, i) => (r.rank = i + 1));
   return rows;
+}
+
+/** "1st", "2nd", "11th". */
+export function placeWords(place: number): string {
+  const mod100 = place % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${place}th`;
+  return `${place}${['th', 'st', 'nd', 'rd'][place % 10] ?? 'th'}`;
+}
+
+/**
+ * A "first to get it" player with a drop: finished, in the place their first counting drop gave them
+ * (rankHunt orders them by firstAt). "Done · 1st".
+ */
+export function firstDoneWords(rank: number): string {
+  return `Done · ${placeWords(rank)}`;
+}
+
+/**
+ * What "first to get it" means with several targets. A drop is never used up for everyone: any one
+ * target finishes a player, places go by when each got their first, and whoever has none yet can
+ * still take the next place.
+ */
+export function firstRuleWords(targets: number): string {
+  return targets > 1
+    ? `Any one of the ${targets} targets counts. A player is done once they get one, placed by when they got it. Everyone else can still place: the next to get any of them takes the next place.`
+    : 'A player is done once they get it, placed by when they got it. Everyone else can still place: the next to get one takes the next place.';
 }
 
 /** "got it at 1,204 kc" / "at 13,034,431 Woodcutting XP", or null when the drop carries neither. */

@@ -1,5 +1,6 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import type { HuntRule } from '@/lib/itemHunt';
+import { huntDropEmbed, type HuntDropPost } from '@/lib/huntDropPost';
 import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
 import { racePostVeil, type RacePostVeil } from '@/lib/raceHideAheadDb';
@@ -811,6 +812,28 @@ export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookP
   const webhookUrl = await resolveWebhookTarget(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
+}
+
+/**
+ * An item hunt drop (lib/huntDropPosts), to the same channel as the hunt's other posts and under the
+ * same "weekly" feed switch. Posted with its message id back; given that id, the post is edited in
+ * place (the screenshot that came after it), or posted fresh when the old message has gone.
+ */
+export async function notifyWeeklyHuntDrop(post: HuntDropPost, existingMessageId?: string): Promise<EditableWebhookResult> {
+  if (await feedOff(post.clanId, 'weekly')) return { status: 'skipped' };
+  const destination = await resolveWebhookDestination(post.clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!destination) return { status: 'skipped' };
+  return upsertWebhookMessage(destination, { embeds: [await withClanCrest(post.clanId, huntDropEmbed(post))] }, post.clanId, existingMessageId);
+}
+
+/** Take an item hunt drop's post down (the drop was turned down after it went out). */
+export async function deleteWeeklyHuntDrop(clanId: number, messageId: string): Promise<void> {
+  const destination = await resolveWebhookDestination(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  for (const webhookUrl of destination?.urls ?? []) {
+    // A 404 is "not this webhook's message": the next configured one may own it.
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'DELETE').catch(() => null);
+    if (!res || res.ok || res.status !== 404) return;
+  }
 }
 
 /** A person's own webhook (lib/emissionRouting personalWebhookTargets): no clan identity, no fallback. */

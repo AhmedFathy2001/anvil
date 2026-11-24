@@ -7,6 +7,7 @@ import { readBody, storeImage } from '@/lib/pluginFacts/request';
 import { attachedKeyMark, claimsWithSplit, decodePendingProof, parseProofKey, proofOverdue, PROOF_TOO_LATE } from '@/lib/proofAfter';
 import { afterReply, participantName, stampAndPost, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
+import { huntProofUpload } from '@/lib/huntDropPosts';
 import { emitTeamProgress, TEAM_PROGRESS_TILE_TYPES } from '@/lib/chatFeed';
 import { announceHeldCompletion, countTileProgress } from '@/lib/submissions';
 import { claimUploads } from '@/lib/uploadClaims';
@@ -27,6 +28,9 @@ export const dynamic = 'force-dynamic';
 //   400 / 401 / 404                          a bad key, no token, or not this caller's credits — for good
 //   503                                      a passing failure (storage): send it again
 //
+// The same door takes an item hunt drop's screenshot, under the key the moments reply named for it
+// (lib/huntDropPosts huntProofUpload): stored on the drop and added to its Discord post. Never a reversal.
+//
 // The key is the client's, so it only finds rows; the caller must be the very character (same token,
 // seat and team) that filed every one of them, checked per event the way the filing was.
 
@@ -43,6 +47,9 @@ export async function POST(request: Request) {
   // clan-scope: global -- found by an unguessable key, then every row is checked against the caller below.
   const rows = await db.select().from(submissions).where(eq(submissions.proofKey, key));
   if (rows.length === 0) {
+    // An item hunt drop's key (lib/huntDropPosts): its screenshot is a bonus and never reverses it.
+    const hunt = await huntProofUpload(request, key, file);
+    if (hunt) return hunt;
     // Already attached (a retry whose first answer was lost): the key was swapped for its tombstone, so
     // this is answered ok and nothing is stored twice. No row either way: reversed, too late.
     const done = await db.select({ id: submissions.id }).from(submissions).where(eq(submissions.proofKey, attachedKeyMark(key))).limit(1);

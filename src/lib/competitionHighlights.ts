@@ -7,7 +7,7 @@
 
 import type { DropMoment } from '@/lib/bestDrops';
 import { type HuntStandings } from '@/lib/itemHuntDb';
-import { dropIsPet, huntPanelLine, huntStat } from '@/lib/itemHunt';
+import { dropIsPet, firstDoneWords, huntPanelLine, huntStat } from '@/lib/itemHunt';
 import { bestDropMoments, momentsForCompetition } from '@/lib/momentsStore';
 import { type PanelHighlights, panelHighlights } from '@/lib/pluginUi/highlightsUi';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
@@ -57,7 +57,9 @@ export function huntPanelSubs(hunt: HuntStandings): { rsn: string; sub: string |
   }
   const stat = huntStat(hunt.config);
   if (!stat) return [];
-  return hunt.rows.flatMap((r) => {
+  return hunt.rows.flatMap((r): { rsn: string; sub: string | null; figure?: string | null }[] => {
+    // "First to get it": a player with a drop is done, in their place.
+    if (hunt.config.rule === 'first' && r.count > 0) return [{ rsn: r.rsn, sub: null, figure: firstDoneWords(r.rank) }];
     if (r.statGain == null) return [];
     const n = r.statGain.toLocaleString('en-US');
     const sub = stat.type === 'boss' ? `${n} ${r.statGain === 1 ? 'kill' : 'kills'}${r.count === 0 && r.statGain > 0 ? ', no drop' : ''}` : `${n} xp gained`;

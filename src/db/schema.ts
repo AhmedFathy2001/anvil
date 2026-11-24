@@ -1944,9 +1944,16 @@ export const huntDrops = pgTable('hunt_drops', {
   decidedByName: text('decided_by_name'),
   decidedAt: text('decided_at'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /** When this drop's Discord post was claimed (lib/huntDropPosts): set once, so it is never posted twice. */
+  postedAt: text('posted_at'),
+  /** That post, so a screenshot that lands later is added to it. */
+  discordMessageId: text('discord_message_id'),
+  /** Plugin drops: the key its screenshot is uploaded under (POST /api/plugin/facts/proof); a tombstone once used. */
+  proofKey: text('proof_key'),
 }, (table) => [
   uniqueIndex('hunt_drops_dedup_unique').on(table.competitionId, table.rsnNormalized, table.dedupKey),
   index('hunt_drops_comp_idx').on(table.competitionId, table.status),
+  uniqueIndex('hunt_drops_proof_key_unique').on(table.proofKey).where(sql`proof_key is not null`),
 ]);
 export type HuntDropRow = typeof huntDrops.$inferSelect;
 
