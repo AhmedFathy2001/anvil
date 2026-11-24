@@ -264,6 +264,8 @@ export interface PanelGearNow {
   ttk: { you: string; guide: string } | null;
   /** The guide's item for the slot that raises the worn DPS most, and what is worn there now. */
   gap: { slot: string; guide: string; worn: string | null } | null;
+  /** "You" used the character's own combat levels (else the setup's). */
+  ownLevels?: boolean;
 }
 export interface PanelAlternatives {
   slot: string;
@@ -387,8 +389,8 @@ function deltaMark(you: number, guide: number): Node {
 const gearLine = (name: Node, you: Node, guide: Node, change: Node): Node => row(name, undefined, row(you, guide, change, { gap: 4 }), { gap: 4 });
 
 /**
- * "Your gear now vs this setup": per target, the DPS of what the character wears now beside the
- * setup's, the change, and the one slot from the setup that helps most. ↻ loads the guide again.
+ * "Your gear now vs this setup": per target, the DPS of what the character wears now (at their own
+ * levels when known) beside the setup's, the change, and the one slot from the setup that helps most. ↻ loads the guide again.
  */
 function gearNowCard(d: GuidePanelData): Node | null {
   const g = d.gearNow;
@@ -406,7 +408,7 @@ function gearNowCard(d: GuidePanelData): Node | null {
     g.gap
       ? text('', 'white', { font: 'small', runs: [{ s: 'Biggest gap: ', color: FAINT }, { s: `${g.gap.slot} (${g.gap.guide} vs ${g.gap.worn ? `your ${g.gap.worn}` : 'an empty slot'})` }], wrap: W_CARD })
       : null,
-    small("Assumes the guide's prayers, boosts and levels.", FAINT, { wrap: W_CARD }),
+    small(g.ownLevels ? "Your levels; the guide's prayers and boosts." : "Assumes the guide's prayers, boosts and levels.", FAINT, { wrap: W_CARD }),
   ]);
 }
 

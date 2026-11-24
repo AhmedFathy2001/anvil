@@ -170,7 +170,7 @@ async function gearNowPanel(setup: GearSetup, block: GearBlock, viewer: GuideVie
   if (!items.length) return null;
   const idx = await effectiveGearIndex();
   const eq = equivalentsFor(items.map((i) => i.id), 'holds');
-  const now = gearNow(setup, block, wornGear(items, idx, eq), idx, eq);
+  const now = gearNow(setup, block, wornGear(items, idx, eq), idx, eq, viewer.levels);
   if (!now) return null;
   const single = now.rows.length === 1 ? now.rows[0] : null;
   const name = (id: number | null) => (id == null ? null : idx.item(id)?.n ?? baseItem(id)?.name ?? `Item ${id}`);
@@ -178,6 +178,7 @@ async function gearNowPanel(setup: GearSetup, block: GearBlock, viewer: GuideVie
     rows: now.rows.map((r) => ({ name: shortTarget(r.monster.n), you: r.you, guide: r.guide })),
     ttk: single ? { you: killTime(single.youTtk), guide: killTime(single.guideTtk) } : null,
     gap: now.gap ? { slot: now.gap.slot, guide: name(now.gap.guide)!, worn: name(now.gap.worn) } : null,
+    ownLevels: now.ownLevels,
   };
 }
 

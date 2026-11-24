@@ -3,9 +3,10 @@
 // the item equivalences come in, so the panel view and the tests share it.
 //
 // ONE DPS PATH. Every number is bestStyle over setupLoadout (lib/dps), and a slot swap is withSlot,
-// the same step the Upgrades ladder (lib/guideView ladderFor) takes. Worn gear says nothing about
-// spellbook, prayers, boosts or levels, so the worn loadout borrows the setup's, as the guide's own
-// DPS does: the comparison is the gear and nothing else.
+// the same step the Upgrades ladder (lib/guideView ladderFor) takes. "You" is the character: its own
+// Attack, Strength, Ranged and Magic where known (hiscores / the plugin), the setup's for any unknown.
+// Worn gear says nothing about spellbook, prayers or boosts, so those are the setup's, as the guide's
+// own DPS has them. "Guide" stays on the setup's own levels.
 
 import type { DpsResult, Monster } from './dps/engine';
 import { bestStyle } from './dps/engine';
@@ -53,6 +54,25 @@ export interface GearNow {
   rows: GearNowRow[];
   /** The guide's item for one slot that raises the worn DPS most (mean over the targets), or null. */
   gap: { slot: string; guide: number; worn: number | null; gainPct: number } | null;
+  /** "You" used at least one of the character's own levels. */
+  ownLevels: boolean;
+}
+
+/** The combat levels "You" takes from the character (Hitpoints stays the setup's: only Dharok's trick reads it). */
+const OWN_STATS = ['attack', 'strength', 'ranged', 'magic'] as const;
+
+/** The setup's stats with the character's own levels in place where they are known. */
+export function ownStats(stats: GearSetup['stats'], levels: Record<string, number> | null | undefined): { stats: GearSetup['stats']; own: boolean } {
+  const out = { ...stats };
+  let own = false;
+  for (const k of OWN_STATS) {
+    const v = levels?.[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 1) {
+      out[k] = v;
+      own = true;
+    }
+  }
+  return { stats: out, own };
 }
 
 const ttkOf = (r: DpsResult | null) => (r && Number.isFinite(r.ttk) ? r.ttk : null);
@@ -62,13 +82,14 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.l
  * The worn gear against the setup over the setup's targets. Null when there is nothing to compare:
  * no worn items, or no target the gear data knows.
  */
-export function gearNow(setup: GearSetup, block: GearBlock, worn: Record<string, number>, idx: GearIndex, eq?: Equivalents): GearNow | null {
+export function gearNow(setup: GearSetup, block: GearBlock, worn: Record<string, number>, idx: GearIndex, eq?: Equivalents, levels?: Record<string, number> | null): GearNow | null {
   if (!Object.keys(worn).length) return null;
   const monsters = setupTargets(setup, block)
     .map((k) => idx.monster(k))
     .filter((m): m is Monster => !!m);
   if (!monsters.length) return null;
-  const mine: GearSetup = { ...setup, gear: worn, quiver: null };
+  const me = ownStats(setup.stats, levels);
+  const mine: GearSetup = { ...setup, gear: worn, quiver: null, stats: me.stats };
   const rows = monsters.map((m) => {
     const y = setupResult(mine, m, idx);
     const g = setupResult(setup, m, idx);
@@ -92,5 +113,5 @@ export function gearNow(setup: GearSetup, block: GearBlock, worn: Record<string,
       gap = { slot, guide: want, worn: have, gainPct: base > 0 ? Math.round((gain / base) * 1000) / 10 : 0 };
     }
   }
-  return { rows, gap };
+  return { rows, gap, ownLevels: me.own };
 }

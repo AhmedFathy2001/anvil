@@ -73,6 +73,23 @@ test('the biggest gap is the one slot from the setup that raises the worn DPS mo
   assert.equal(formed!.gap, null);
 });
 
+test("'You' is the character: its own combat levels where known, the setup's elsewhere; 'Guide' keeps the setup's", () => {
+  const guide = melee({ weapon: id('Abyssal whip'), body: id('Bandos chestplate') });
+  const worn = { ...guide.gear };
+  const plain = gearNow(guide, barrows(guide), worn, idx)!;
+  assert.equal(plain.ownLevels, false);
+  // Lower real Attack and Strength: lower "You", the same "Guide".
+  const low = gearNow(guide, barrows(guide), worn, idx, undefined, { attack: 40, strength: 40, hitpoints: 50 })!;
+  assert.equal(low.ownLevels, true);
+  for (const [i, r] of low.rows.entries()) {
+    assert.ok(r.you < plain.rows[i].you, r.monster.n);
+    assert.equal(r.guide, plain.rows[i].guide);
+  }
+  // Only Ranged known: melee "You" is unchanged (Attack and Strength fall back to the setup's).
+  const rangedOnly = gearNow(guide, barrows(guide), worn, idx, undefined, { ranged: 1 })!;
+  assert.deepEqual(rangedOnly.rows.map((r) => r.you), plain.rows.map((r) => r.you));
+});
+
 test('the swap step drops the shield for a two-handed weapon (the Upgrades ladder takes the same step)', () => {
   const s = melee({ weapon: id('Abyssal whip'), shield: id('Dragon defender') });
   assert.equal(withSlot(s, 'weapon', id('Toxic blowpipe'), idx).gear.shield, undefined);
@@ -133,7 +150,8 @@ test('the card: hidden without a worn reading, one row per target, the change â–
   assert.ok(t.includes('26%') && t.includes('10%') && t.includes('even'));
   assert.deepEqual(glyphs(ui), ['down', 'up']);
   assert.ok(t.includes('Biggest gap: weapon (Toxic blowpipe vs your Trident of the Swamp)'));
-  assert.ok(t.some((s) => s.startsWith("Assumes the guide's prayers, boosts")));
+  assert.ok(t.includes("Assumes the guide's prayers, boosts and levels."), 'no levels known');
+  assert.ok(texts(guidePanelUi({ ...PANEL, gearNow: { rows, ttk: null, gap: null, ownLevels: true } })).includes("Your levels; the guide's prayers and boosts."));
   assert.ok(!t.includes('Per kill'), 'kill times only for one target');
   // â†» loads this guide again, on this setup.
   let again: Record<string, unknown> | null = null;
