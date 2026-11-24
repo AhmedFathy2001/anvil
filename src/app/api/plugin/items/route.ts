@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { CONTAINER_KINDS, type Snapshot } from '@/lib/gearOwnership';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
-import { cleanContainer, deleteSnapshot, saveSnapshot } from '@/lib/playerItems';
+import { cleanContainer, deleteSnapshotsForUser, saveSnapshot } from '@/lib/playerItems';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 
@@ -17,7 +17,7 @@ import { worldModeIgnored } from '@/lib/worldModeRequest';
 //   Only the containers sent are replaced; each keeps its own readAt.
 //
 //   DELETE /api/plugin/items  — the "Share my bank with Anvil for guides" setting was turned off:
-//   every stored container for this character goes, and the plugin sends nothing more.
+//   every stored container for every character of this person goes, and the plugin sends nothing more.
 //
 // Only a character that is the token owner's own (accountStanding 'yours') is stored. What is
 // stored is read back only by that person (lib/playerItems snapshotForViewer) — never clan staff.
@@ -54,8 +54,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const own = await ownAccount(request);
-  if (own instanceof NextResponse) return own;
-  await deleteSnapshot(own.accountId);
+  // Every character of the token's person, not only the one logged in: sharing is off for them all.
+  const viewer = await verifyPluginTokenUser(request);
+  if (!viewer) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  await deleteSnapshotsForUser(viewer.userId);
   return NextResponse.json({ ok: true });
 }

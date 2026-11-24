@@ -112,8 +112,10 @@ test('item snapshots are owner-only and deleted on opt-out; skips and the budget
   const mine = await items.snapshotForViewer(me.userId, me.accountId);
   assert.equal(mine?.bank?.items[0].id, 21012);
   assert.equal(await items.snapshotForViewer(other.userId, me.accountId), null, 'nobody else reads it');
-  await items.deleteSnapshot(me.accountId);
+  await items.saveSnapshot(other.accountId, { bank: { items: [{ id: 4151 }], readAt: now() } });
+  await items.deleteSnapshotsForUser(me.userId);
   assert.equal(await items.snapshotForViewer(me.userId, me.accountId), null);
+  assert.equal((await items.snapshotForViewer(other.userId, other.accountId))?.bank?.items[0].id, 4151, "another person's stays");
 
   await items.setSkip(me.accountId, 21012, 'cant_afford');
   await items.setBudgetCap(me.accountId, 50_000_000);

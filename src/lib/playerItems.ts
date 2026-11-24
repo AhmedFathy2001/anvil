@@ -6,7 +6,7 @@
 // platform staff and everyone else get nothing. The plugin sends (POST /api/plugin/items); the site
 // never pulls. Turning sharing off sends a DELETE and the rows go.
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, guideItemSkips, guideViewerPrefs, playerItemSnapshots, users } from '@/db/schema';
@@ -49,8 +49,14 @@ export async function saveSnapshot(accountId: number, snap: Snapshot): Promise<n
   return n;
 }
 
-export async function deleteSnapshot(accountId: number): Promise<void> {
-  await db.delete(playerItemSnapshots).where(eq(playerItemSnapshots.accountId, accountId));
+/** Sharing turned off: every character this login's person holds loses its stored items at once. */
+export async function deleteSnapshotsForUser(userId: number): Promise<void> {
+  const mine = db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(eq(users.id, userId));
+  await db.delete(playerItemSnapshots).where(inArray(playerItemSnapshots.accountId, mine));
 }
 
 /** Does this account belong to this login's person? */
