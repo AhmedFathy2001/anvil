@@ -69,7 +69,7 @@ import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { boardChatOn } from '@/lib/eventChat';
-import { guideAct, guideNextView, guidePanelView, guidesSearchView } from './guidesView';
+import { guideAct, guideNextView, guidePanelView, guidesSearchView, guideYouCard } from './guidesView';
 import { hasGuidesPanel, hasFeedTab, hasLogSearch, hasPanelImages, hasTabArgs, hasTabLinks, hasTenureGlyphs, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -194,8 +194,8 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         afterTop: challenges.length ? [h2hUi(challenges)] : [],
         tint: (await supporterInksForRsns([me.rsn]).catch(() => null))?.get(me.rsn)?.color ?? null,
         above: ownership ? [ownership] : [],
-        // The followed route's Next up card (pluginUi/guidesView), once the plugin takes the guide panel.
-        below: [goalsNode, ...(owner && hasGuidesPanel(request) ? [(await guideNextView(request, {}).catch(() => null))?.ui].filter((n): n is Node => !!n) : [])],
+        // The guides card (pluginUi/guidesView): the route followed, else recent guides; none when empty.
+        below: [goalsNode, ...(owner && hasGuidesPanel(request) ? [await guideYouCard(request).catch(() => null)].filter((n): n is Node => !!n) : [])],
       })
     : notFoundUi(me.rsn);
   return { ui: character ? cardUi : col([...(ownership ? [ownership] : []), cardUi, goalsNode], { gap: 8 }) };

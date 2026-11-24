@@ -13,7 +13,8 @@ import { voteUsed } from '@/lib/guideCommunity';
 import { matchWornSetup, type WornSetup } from '@/lib/guideSetupMatch';
 import { setupKey } from '@/lib/guideSetups';
 import { firstGearBlock } from '@/lib/guideTiers';
-import { equivalentsFor, kcKeyOf } from '@/lib/guideViewer';
+import { equivalentsFor } from '@/lib/itemFamilies';
+import { kcKeyOf } from '@/lib/guideViewer';
 import { listLibrary } from '@/lib/guides';
 import { ttlMemo } from '@/lib/ttlMemo';
 
@@ -53,7 +54,7 @@ export async function autoUsedFromKills(accountId: number, bossKeys: string[]): 
   ]);
   const worn = (equipment?.items ?? []).map((i) => i.id);
   if (!user || !worn.length) return 0;
-  const same = equivalentsFor(worn);
+  const same = equivalentsFor(worn, 'holds');
   const since = new Date(Date.now() - DAY_MS).toISOString();
   let cast = 0;
   for (const g of hit) {

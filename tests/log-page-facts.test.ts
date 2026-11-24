@@ -24,6 +24,16 @@ test('item luck: a first drop with its kill reads against the rate; nothing when
   assert.equal(itemLuck({ quantity: 0 }, [src(100)], { brutus: 100 }), null, 'not owned, and not owed two drops yet');
 });
 
+test('item luck: under a tenth of a drop owed it says the rate, never "expected 0.0"', () => {
+  // Spectral sigil: 1/1,365 from the Corporeal Beast, shared by up to five.
+  const sigil = { source: 'Corporeal Beast', bossKey: 'corporealBeast', denominator: 1365, rolls: 1, bundle: 1, partyMax: 5 };
+  const line = itemLuck({ quantity: 1 }, [sigil], { corporealBeast: 135 })!;
+  assert.match(line.text, /^1 in 135 kc · rate 1\/1,365 · /);
+  assert.doesNotMatch(line.text, /0\.0/);
+  // Owed a little more, still under 0.1 at the low end: the rate again.
+  assert.doesNotMatch(itemLuck({ quantity: 1 }, [{ ...sigil, partyMax: 1 }], { corporealBeast: 120 })!.text, /0\.0/);
+});
+
 test('luck words: the tails, then the lean of the middle', () => {
   assert.equal(luckWord(assessLuckAt(10, 1000, 30)).text, 'mega spooned');
   assert.equal(luckWord(assessLuckAt(10, 1000, 0)).text, 'very dry');

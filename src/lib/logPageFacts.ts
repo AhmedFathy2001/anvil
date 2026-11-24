@@ -19,8 +19,8 @@ export interface LuckLine {
 }
 
 const n = (v: number) => Math.round(v).toLocaleString('en-US');
-/** "11", "0.5": a whole number from ten up, one place under it. */
-const say = (v: number) => (v >= 10 ? n(v) : v.toFixed(1));
+/** "11", "0.5", "0.074": a whole number from ten up, one place under it, two figures under 0.1 (never "0.0"). */
+const say = (v: number) => (v >= 10 ? n(v) : v >= 0.1 ? v.toFixed(1) : v > 0 ? Number(v.toPrecision(2)).toString() : '0');
 const rate = (d: number) => `1/${d >= 100 ? n(d) : Number(d.toFixed(1)).toString()}`;
 
 /** The word for a held-vs-expected result: the two tails, then the lean of the neutral band. */
@@ -47,6 +47,7 @@ export function firstDropWord(share: number): LuckLine {
  * How a drop went (or a missing one is going), or null when the rate or the kills behind it aren't known.
  * - one drop with the kill it came at, from one source: "1st at 22 kc · rate 1/50 · lucky"
  * - otherwise drops held against what the rate owed by now: "8 in 1,378 kc · expected 11 · a bit dry"
+ * - owed under 0.1 so far, the rate says it better: "1 in 135 kc · rate 1/1,365 · lucky"
  * A stack collapses to the number of drops behind it (dropsFromQuantity), so 750 axes are one drop.
  */
 export function itemLuck(
@@ -67,6 +68,8 @@ export function itemLuck(
   }
   if (!(kc > 0) || !(expected > 0)) return null;
   const word = luckWord(assessLuckAt(expected, kc, drops, expectedLow));
+  // Under a tenth of a drop owed, "expected 0.0–0.1" says nothing: the rate per kill does.
+  if (expectedLow < 0.1) return { text: `${n(drops)} in ${n(kc)} kc · rate ${rate(kc / expected)} · ${word.text}`, tone: word.tone };
   const owed = say(expectedLow) === say(expected) ? say(expected) : `${say(expectedLow)}–${say(expected)}`;
   return { text: `${n(drops)} in ${n(kc)} kc · expected ${owed} · ${word.text}`, tone: word.tone };
 }

@@ -444,14 +444,18 @@ function pageRow(rsn: string, p: PlayerCardPage, kc: number | undefined, back: s
   );
 }
 
-/** "‹ Name" over "12/30  ↗": back on the left, the count, and — for a page — the page on the site. */
-export function backHeader(name: string, countText: string, complete: boolean, back: Action, sitePath?: string): Node {
+/**
+ * "‹ Name" over "12/30  ↗": back on the left, the count, and — for a page — the page on the site.
+ * `wrap`: a long name wraps at that width instead of being cut.
+ */
+export function backHeader(name: string, countText: string, complete: boolean, back: Action, sitePath?: string, wrap?: number): Node {
   return col([
     text(name, complete ? 'done' : 'white', {
       font: 'bold',
       icon: icon({ glyph: 'chevron-left', w: 10, h: 10, color: 'white' }),
       tip: 'Back',
       on: back,
+      ...(wrap ? { wrap } : {}),
     }),
     row(
       undefined,

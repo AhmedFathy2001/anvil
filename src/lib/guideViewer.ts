@@ -10,12 +10,12 @@ import { accounts, accountStatSnapshots, memberClogItems, memberProgress, member
 import { BOSSES } from '@/lib/constants';
 import { DIARY_EASY, DIARY_ELITE, DIARY_HARD, DIARY_MEDIUM, DIARY_REGIONS } from '@/lib/memberProgress';
 import { parseItems } from '@/lib/memberProgressItems';
-import { equivalentsFrom, ownedCounts, type Equivalents, type Snapshot } from '@/lib/gearOwnership';
+import { ownedCounts, type Equivalents, type Snapshot } from '@/lib/gearOwnership';
 import { guideAccountOf, guideBuildOf, type GuideAccount, type GuideBuild } from '@/lib/guideSetups';
 import type { RouteFacts } from '@/lib/guideRoutes';
 import type { GearBlock } from '@/lib/guideTiers';
 import { prefsForAccount, snapshotForViewer, type AccountPrefs } from '@/lib/playerItems';
-import { withItemVariants } from '@/lib/itemVariants';
+import { equivalentsFor } from '@/lib/itemFamilies';
 
 export interface GuideViewer {
   userId: number | null;
@@ -116,11 +116,8 @@ export function routeFacts(v: GuideViewer, manual: string[] = [], eq?: Equivalen
   return { levels: v.levels, quests: v.quests, diaries: v.diaries, cas: v.cas, clog: v.clog, items, kc: v.kc, manual: new Set(manual) };
 }
 
-/** Item equivalences for a set of ids: itemVariants groups (server-only data) + the cosmetic list. */
-export function equivalentsFor(ids: number[]): Equivalents {
-  const groups = [...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0).map((id) => withItemVariants([id]));
-  return equivalentsFrom(groups);
-}
+/** Item equivalences for a set of ids (lib/itemFamilies: variant families, game ids, cosmetic kits). */
+export { equivalentsFor };
 
 /** Every item id a gear block mentions (gear, fallbacks, quiver, inventory, pouch). */
 export function blockItemIds(block: GearBlock | null): number[] {

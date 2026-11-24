@@ -16,8 +16,9 @@ export const AUTO_USED_SHARE = 0.75;
 /**
  * The key of the setup `worn` matches best, or null when none matches well enough: the weapon worn
  * (when the setup names one) and at least AUTO_USED_SHARE of its named slots. A tie goes to the setup
- * with more slots worn, then the first. `same` gives an item's equivalents (charged and uncharged,
- * cosmetic variants); without it only the exact id counts.
+ * with more slots worn, then the first. `same` gives an item's equivalents — lib/itemFamilies
+ * equivalentsFor(worn, 'holds'), the same families ownership uses (kits, recolours and charged forms count as
+ * their base); without it only the exact id counts.
  */
 export function matchWornSetup(worn: Iterable<number>, setups: WornSetup[], same: (id: number) => number[] = (id) => [id]): string | null {
   const have = new Set<number>();
