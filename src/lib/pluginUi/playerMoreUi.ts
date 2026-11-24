@@ -32,11 +32,11 @@ const LUCK_WRAP = 140;
 
 /**
  * The page's slots in the game's order: owned in full colour, the rest faint — as the log draws them.
- * Above them each mode's best time and kills; under them how each owned drop went against its rate.
+ * Above them each mode's best time and kills; under them how each drop went against its rate, and each missing one once the rate owed it.
  */
 export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: number | null): Node {
   const bests = p.bests ?? [];
-  const lucky = p.items.filter((i) => i.owned && i.luck);
+  const lucky = p.items.filter((i) => i.luck);
   return col([
     backHeader(
       p.page,
@@ -87,7 +87,7 @@ export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: numbe
           text('Luck', 'brand', { font: 'bold' }),
           ...lucky.map((i) =>
             row(
-              icon({ item: i.id, w: 36, h: 32 }),
+              icon({ item: i.id, w: 36, h: 32, dim: !i.owned }),
               col([text(i.name, 'white', { wrap: LUCK_WRAP }), chip(i.luck!.text, LUCK_CHIP[i.luck!.tone], { wrap: LUCK_WRAP })], { gap: 3 }),
               undefined,
               { gap: 6 },

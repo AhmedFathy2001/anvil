@@ -9,6 +9,9 @@ const src = (denominator: number, bossKey = 'brutus') => ({ source: 'Brutus', bo
 test('item luck: drops held against what the rate owed, with a word for the lean', () => {
   assert.deepEqual(itemLuck({ quantity: 8 }, [src(125)], { brutus: 1378 }), { text: '8 in 1,378 kc · expected 11 · a bit dry', tone: 'dry' });
   assert.deepEqual(itemLuck({ quantity: 11 }, [src(125)], { brutus: 1378 }), { text: '11 in 1,378 kc · expected 11 · on rate', tone: 'muted' });
+  // Not had yet: a line once the rate owed two drops, none before.
+  assert.deepEqual(itemLuck({ quantity: 0 }, [src(1000)], { brutus: 5832 }), { text: '0 in 5,832 kc · expected 5.8 · very dry', tone: 'dry' });
+  assert.equal(itemLuck({ quantity: 0 }, [src(1000)], { brutus: 600 }), null);
   assert.equal(itemLuck({ quantity: 30 }, [src(125)], { brutus: 1378 })?.tone, 'green');
   assert.match(itemLuck({ quantity: 2 }, [src(400)], { brutus: 200 })!.text, /^2 in 200 kc · expected 0\.5 · /);
 });
@@ -18,7 +21,7 @@ test('item luck: a first drop with its kill reads against the rate; nothing when
   assert.equal(itemLuck({ quantity: 1, kcAtUnlock: 1104 }, [src(1000)], {})!.text, '1st at 1,104 kc · rate 1/1,000 · a bit dry');
   assert.equal(itemLuck({ quantity: 3 }, [], { brutus: 100 }), null, 'no rate');
   assert.equal(itemLuck({ quantity: 3 }, [src(100)], {}), null, 'no kills');
-  assert.equal(itemLuck({ quantity: 0 }, [src(100)], { brutus: 100 }), null, 'not owned');
+  assert.equal(itemLuck({ quantity: 0 }, [src(100)], { brutus: 100 }), null, 'not owned, and not owed two drops yet');
 });
 
 test('luck words: the tails, then the lean of the middle', () => {
