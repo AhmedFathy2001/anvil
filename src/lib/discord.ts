@@ -2489,6 +2489,8 @@ interface WeeklyResultsParams {
   /** What each winner takes, by the name as it appears in `standings`; set only for HCW gp prizes. */
   prizes?: { rsn: string; gp: number }[] | null;
   prizeCurrency?: PrizeCurrency;
+  /** An item hunt's claimed bounties, one line per item with every claimed place. */
+  bounties?: string[] | null;
 }
 
 // Fired when a weekly competition ends — announces the winner and the final standings (top 10).
@@ -2550,6 +2552,7 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
   // switch for weekly posts covers it; there is no separate one.
   const best = bestDropsField(params.bestDrops);
   if (best) embed.fields = [...(embed.fields ?? []), best];
+  if (params.bounties?.length) embed.fields = [...(embed.fields ?? []), field('Bounties', params.bounties.slice(0, 12).map((l) => `💰 ${clamp(l, 200)}`).join('\n'), false)];
   embed.fields = [...(embed.fields ?? []), ...countsOnField(params.countsOn)];
 
   return sendWeeklyWebhook(params.clanId, { ...rolePing(params.pingRoleId), embeds: [await withClanCrest(params.clanId, embed)] });

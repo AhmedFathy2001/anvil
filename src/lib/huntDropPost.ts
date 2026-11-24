@@ -6,6 +6,7 @@
  * is added to the same post; the post never waits for it, and a drop never needs it to count.
  */
 import { EMBED_COLOR, clamp, field, LIMIT, type DiscordEmbed } from '@/lib/discordEmbeds';
+import { formatGp } from '@/lib/adminEventsFormat';
 import { placeWords, type HuntRule } from '@/lib/itemHunt';
 import { discordAssetUrl } from '@/lib/seo';
 import { itemIconUrl } from '@/lib/tileIcons';
@@ -51,6 +52,14 @@ export interface HuntDropPost {
   place: number | null;
   endDate: string;
   imageUrl: string | null;
+  /** The bounty place this drop claimed (lib/itemHunt huntBountyClaims); absent when it claimed none. */
+  bounty?: { place: number; itemName: string; amount: number; hcw: boolean } | null;
+}
+
+/** "+ claims the Baron bounty: 20m" / "+ claims 2nd Baron bounty: 10m". */
+export function bountyClaimLine(b: NonNullable<HuntDropPost['bounty']>): string {
+  const amount = `${formatGp(b.amount)}${b.hcw ? ' HCW gp' : ''}`;
+  return b.place === 1 ? `+ claims the ${b.itemName} bounty: ${amount}` : `+ claims ${placeWords(b.place)} ${b.itemName} bounty: ${amount}`;
 }
 
 const medal = (place: number) => (place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : '');
@@ -76,7 +85,7 @@ export function huntDropEmbed(p: HuntDropPost): DiscordEmbed {
     author: { name: `${p.kind} · new drop` },
     ...(icon ? { thumbnail: { url: discordAssetUrl(icon) } } : {}),
     title: clamp(`🎁 ${p.title}`, LIMIT.title),
-    description: clamp(`**${p.rsn}** got **${item}**${where ? ` ${where}` : ''}.`, LIMIT.description),
+    description: clamp(`**${p.rsn}** got **${item}**${where ? ` ${where}` : ''}.${p.bounty ? `\n💰 **${bountyClaimLine(p.bounty)}**` : ''}`, LIMIT.description),
     color: EMBED_COLOR.green,
     fields: [
       field('Standing', standing),

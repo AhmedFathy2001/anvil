@@ -20,8 +20,10 @@ import {
   manualStatKind,
   huntPets,
   huntRows,
+  huntBountyBoard,
   type HuntRowProgress,
 } from '@/lib/itemHunt';
+import { parsePrizeCurrency, type PrizeCurrency } from '@/lib/competitionGame';
 import { huntStandings, type HuntStandings } from '@/lib/itemHuntDb';
 import { weeklyStatus } from '@/lib/weeklyStage';
 import { isHardcoreEntrant, MAIN } from '@/lib/competitionGame';
@@ -128,6 +130,10 @@ export interface HuntView {
   rated: boolean;
   /** "When a player has all of them". */
   endsAll: boolean;
+  /** The rows with a bounty, each with its amounts by place and who has claimed it, in order. Empty: none. */
+  bounties: { itemId: number; name: string; amounts: number[]; claimedBy: string[] }[];
+  /** What the bounties (and prizes) are paid in. */
+  currency: PrizeCurrency;
 }
 
 export function proofTargets(config: HuntConfig): HuntProofTarget[] {
@@ -143,7 +149,7 @@ export function proofTargets(config: HuntConfig): HuntProofTarget[] {
 }
 
 export function buildHuntView(
-  comp: { metric: string; startDate: string; endDate: string; status: string; countsOn?: string | null },
+  comp: { metric: string; startDate: string; endDate: string; status: string; countsOn?: string | null; prizeCurrency?: string | null },
   standings: HuntStandings,
   viewerMemberIds: number[] = [],
 ): HuntView {
@@ -215,6 +221,9 @@ export function buildHuntView(
     hunters: rows.filter((r) => r.count > 0).length,
     awaiting: standings.awaiting.map((d) => ({ rsn: rsnOf.get(d.rsnKey) ?? d.rsnKey, itemName: d.itemName, occurredAt: d.occurredAt })),
     proof: { targets: proofTargets(config), statKind: manualStatKind(config), xpSkill: config.v === 2 ? null : config.xpSkill, pets: config.target === 'pets' },
+    // standings.drops is already the counted drops inside the window.
+    bounties: huntBountyBoard(config, standings.drops, { startMs: 0, endMs: null }, (k) => rsnOf.get(k) ?? k),
+    currency: parsePrizeCurrency(comp.prizeCurrency),
   };
 }
 

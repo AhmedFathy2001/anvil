@@ -22,6 +22,7 @@ import { clanAuditLog, clanRoster, huntDrops, users, weeklyCompetitions, weeklyP
 import { parseStamp } from '@/lib/dbTime';
 import { dropCounts } from '@/lib/h2hRules';
 import {
+  type BountyClaim,
   type DropSighting,
   type HuntConfig,
   type HuntDrop,
@@ -29,6 +30,8 @@ import {
   type HuntRates,
   type HuntRowProgress,
   huntReportItemIdsOf,
+  huntBountyClaims,
+  unconfirmedBountyDrops,
   huntPets,
   huntRsnKey,
   defaultHuntTitle,
@@ -131,7 +134,7 @@ function postHuntDrops(ids: number[], what: 'post' | 'retract' = 'post'): void {
 export async function huntDropStanding(
   comp: CompetitionLike,
   dropId: number,
-): Promise<{ config: HuntConfig; drop: HuntDrop; row: HuntRow | null } | null> {
+): Promise<{ config: HuntConfig; drop: HuntDrop; row: HuntRow | null; bounty: BountyClaim | null } | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
   const [participants, all] = await Promise.all([getEffectiveParticipants(comp.id), huntDropRows(comp.id)]);
@@ -142,7 +145,9 @@ export async function huntDropStanding(
   const upTo = drops.filter((d) => d.id === dropId || (parseStamp(d.occurredAt) ?? 0) <= at);
   const rates = config.v === 2 ? huntRates(config) : {};
   const rows = rankHunt(config, huntEntrants(config, participants, rates, huntStat(config) != null), upTo, windowOf(comp));
-  return { config, drop, row: rows.find((r) => huntRsnKey(r.rsn) === drop.rsnKey) ?? null };
+  // The bounty place this drop claimed, if any: decided over the same drops, so it is the place it took.
+  const bounty = huntBountyClaims(config, upTo, windowOf(comp)).find((c) => c.dropId === dropId) ?? null;
+  return { config, drop, row: rows.find((r) => huntRsnKey(r.rsn) === drop.rsnKey) ?? null, bounty };
 }
 
 export interface HuntStandings {
@@ -511,11 +516,23 @@ export async function huntPrizeBoard(
   comp: Competition,
   entrants: EntrantSource[],
   prizePlaces: number,
-): Promise<{ rows: HuntRow[]; holds: HuntDrop[] } | null> {
+): Promise<{ rows: HuntRow[]; holds: HuntDrop[]; bounties: BountyClaim[] } | null> {
   const config = parseHunt(comp.hunt);
   if (comp.type !== 'hunt' || !config) return null;
-  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}), (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp));
-  return { rows, holds: unconfirmedPrizeDrops(config, rows, prizePlaces) };
+  const drops = (await huntDropRows(comp.id)).map(toHuntDrop);
+  const rows = rankHunt(config, huntEntrants(config, entrants, config.v === 2 ? huntRates(config) : {}), drops, windowOf(comp));
+  // Bounties over the same list: only these entrants' drops claim one, and the drops behind a claim
+  // wait for staff exactly as a paying place's do.
+  const bounties = huntBountyClaims(config, drops, windowOf(comp), new Set(entrants.map((e) => huntRsnKey(e.rsn))));
+  const holds = [...unconfirmedPrizeDrops(config, rows, prizePlaces), ...unconfirmedBountyDrops(config, bounties, drops)];
+  return { rows, holds: holds.filter((d, i) => holds.findIndex((x) => x.id === d.id) === i), bounties };
+}
+
+/** Every bounty claimed so far on a hunt, over its whole board (the page, the posts). */
+export async function huntBounties(comp: CompetitionLike): Promise<{ config: HuntConfig; claims: BountyClaim[] } | null> {
+  const config = parseHunt(comp.hunt);
+  if (comp.type !== 'hunt' || !config) return null;
+  return { config, claims: huntBountyClaims(config, (await huntDropRows(comp.id)).map(toHuntDrop), windowOf(comp)) };
 }
 
 // ── Manual proofs ─────────────────────────────────────────────────────────────────────────────

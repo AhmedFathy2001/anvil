@@ -82,6 +82,8 @@ export interface HuntPanelItem {
   got?: { rsn: string; at: string };
   /** How many counted drops of it in all, when more than one. */
   n?: number;
+  /** Its bounty, when it has one: the amounts by place and who has claimed them, in order (lib/itemHunt). */
+  bounty?: { amounts: number[]; claimedBy: string[] };
 }
 
 /** A hunt's targets, in the order it lists them, with the first counted drop of each. */
@@ -89,8 +91,8 @@ async function huntPanelItems(w: { id: number; type: string; hunt?: string | nul
   if (w.type !== 'hunt') return {};
   const config = parseHunt(w.hunt);
   if (!config) return {};
-  const rows: { id: number; name: string; points?: number }[] =
-    config.target === 'pets' && config.v !== 2 ? huntPets(config) : config.items.map((it) => ({ id: it.id, name: it.name, points: it.points }));
+  const rows: { id: number; name: string; points?: number; bounty?: number[] }[] =
+    config.target === 'pets' && config.v !== 2 ? huntPets(config) : config.items.map((it) => ({ id: it.id, name: it.name, points: it.points, bounty: it.bounty }));
   if (!rows.length) return {};
   // clan-scope: this competition only -- its id came from the clan's own schedule above.
   const drops = await db
@@ -107,6 +109,8 @@ async function huntPanelItems(w: { id: number; type: string; hunt?: string | nul
         ...(config.rule === 'points' && r.points ? { pts: r.points } : {}),
         ...(mine[0] ? { got: { rsn: mine[0].rsn, at: mine[0].at } } : {}),
         ...(mine.length > 1 ? { n: mine.length } : {}),
+        // The first players to get it, once each, as many as the bounty pays (lib/itemHunt huntBountyClaims).
+        ...(r.bounty?.length ? { bounty: { amounts: r.bounty, claimedBy: [...new Set(mine.map((d) => d.rsn))].slice(0, r.bounty.length) } } : {}),
       };
     }),
   };

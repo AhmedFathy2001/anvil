@@ -1208,7 +1208,12 @@ function huntTargetsCard(w: ScheduleWeekly): Node | null {
         const right = it.got
           ? small(`✓ ${clip(it.got.rsn, 11)}${it.n ? ` +${it.n - 1}` : ''}`, GREEN, { tip: `First: ${it.got.rsn}${it.n ? ` (${it.n} in all)` : ''}` })
           : small(it.pts ? `${it.pts} pts` : 'not yet', FAINT);
-        return row(name, undefined, right, { gap: 6 });
+        const line = row(name, undefined, right, { gap: 6 });
+        if (!it.bounty) return line;
+        // "Bounty 20m / 10m · 1 of 2 claimed (Minyol)", under the row it pays for.
+        const b = it.bounty;
+        const words = `Bounty ${b.amounts.map(formatGp).join(' / ')} · ${b.claimedBy.length === 0 ? 'open' : `${b.claimedBy.length} of ${b.amounts.length} claimed`}`;
+        return col([line, small(clip(words, 34), b.claimedBy.length < b.amounts.length ? GOLD : FAINT, { tip: b.claimedBy.length ? `Claimed by ${b.claimedBy.join(', ')}` : 'Nobody has claimed it yet' })], { gap: 1 });
       }),
     ],
     { gap: 4 },

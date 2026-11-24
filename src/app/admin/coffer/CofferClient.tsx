@@ -631,7 +631,7 @@ function Stamp({ value }: { value: string }) {
 function kindLabel(e: CofferLedgerRow): string {
   if (e.kind === 'donation') return 'donation';
   if (e.kind === 'withdrawal') return 'coffer → bank transfer';
-  if (e.kind === 'award') return e.place ? `prize (place ${e.place})` : 'prize';
+  if (e.kind === 'award') return e.itemId ? 'bounty' : e.place ? `prize (place ${e.place})` : 'prize';
   if (e.kind === 'pool') return 'prize pool';
   if (e.kind === 'refund') return 'refund';
   return 'adjustment';

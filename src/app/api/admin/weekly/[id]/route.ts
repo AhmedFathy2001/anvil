@@ -71,7 +71,7 @@ export async function PUT(
   // What it counts (the skills or bosses, or what a hunt hunts): only before it starts, and on its
   // own, so a refusal changes nothing else (lib/weeklyRetarget).
   if (body.target !== undefined) {
-    const result = await retargetCompetition(scoped, (body.target ?? {}) as Record<string, unknown>, { userId: user.userId });
+    const result = await retargetCompetition(scoped, (body.target ?? {}) as Record<string, unknown>, { userId: user.userId, canSetPrizes: !!(await verifyFeeCollector()) });
     return result.ok ? NextResponse.json(result.competition) : NextResponse.json({ error: result.error }, { status: 400 });
   }
   const { title, startDate, endDate, status, includeGuests, repeat } = body;

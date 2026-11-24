@@ -12,7 +12,7 @@ import { db } from '@/db';
 import { clanAuditLog, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { EFFICIENCY_METRICS, weeklyMetricLabel } from '@/lib/constants';
 import { competitionNotStarted } from '@/lib/competitionTeamsDb';
-import { defaultHuntTitle, huntFromInput, huntTargetsLabel, killsOfForItems, parseHunt, serializeHunt } from '@/lib/itemHunt';
+import { defaultHuntTitle, huntBountyKey, huntFromInput, huntTargetsLabel, killsOfForItems, parseHunt, serializeHunt } from '@/lib/itemHunt';
 import { checkWeeklyMetric } from '@/lib/weeklyMetricInput';
 import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
 
@@ -21,7 +21,7 @@ export type RetargetResult = { ok: true; competition: Competition } | { ok: fals
 
 const HUNT_AUTO_TITLE = /^(item|pet) hunt: /i;
 
-export async function retargetCompetition(comp: Competition, input: Record<string, unknown>, by: { userId: number }): Promise<RetargetResult> {
+export async function retargetCompetition(comp: Competition, input: Record<string, unknown>, by: { userId: number; canSetPrizes?: boolean }): Promise<RetargetResult> {
   if (!competitionNotStarted(comp)) {
     return { ok: false, error: 'This competition has started, so what it counts is fixed. End it and create a new one to change that.' };
   }
@@ -33,6 +33,10 @@ export async function retargetCompetition(comp: Competition, input: Record<strin
     const checked = huntFromInput(input.hunt);
     if (!checked.ok) return { ok: false, error: checked.error };
     const config = checked.config;
+    // A bounty spends the clan's money, like the prize ladder: only staff who may set prizes change one.
+    if (by.canSetPrizes === false && huntBountyKey(config) !== huntBountyKey(parseHunt(comp.hunt))) {
+      return { ok: false, error: 'Only a treasurer or admin can set or change a bounty. Save it without the change, or ask one of them.' };
+    }
     // The same two rules as at creation (api/admin/weekly POST).
     if (config.v === 1 && config.target === 'items') config.killsOf = killsOfForItems(config.items) ?? config.killsOf;
     if (config.killsOf) config.xpSkill = null;

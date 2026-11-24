@@ -7,6 +7,7 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { competitionBoard, huntPrizeBoard } from '@/lib/itemHuntDb';
+import { huntBountyRows, huntRsnKey, parseHunt } from '@/lib/itemHunt';
 import { parseWeeklyPrizes, winnersFor, feePlaces } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
@@ -49,7 +50,9 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   // Entry fees that went into the coffer are paid out on top of the ladder (lib/weeklyPrizes feePlaces).
   const ladder = parseWeeklyPrizes(comp.prizes);
   const prizes = { ...ladder, places: feePlaces(ladder.places, comp.feesToPrizes ? await weeklyFeePotGp(competitionId) : 0) };
-  if (prizes.places.length === 0) {
+  // An item hunt's bounties (lib/itemHunt huntBountyClaims) pay alongside the ladder, or without one.
+  const bountied = comp.type === 'hunt' && huntBountyRows(parseHunt(comp.hunt)).length > 0;
+  if (prizes.places.length === 0 && !bountied) {
     // Nothing to pay. Release anything a ladder held before it was emptied, then stamp it so the
     // pass stops looking at this one every tick forever.
     await releaseWeeklyPool(competitionId);
@@ -97,6 +100,12 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   const board = hunt
     ? hunt.rows.map((r) => ({ rsn: r.rsn, gained: r.count }))
     : (await competitionBoard(comp, eligible)).map((e) => ({ rsn: e.rsn, gained: e.gained }));
+  // Who each bounty claim belongs to: a claim names the player by their rsn key.
+  const byKey = new Map(eligible.map((r) => [huntRsnKey(r.rsn), r]));
+  const bounties = (hunt?.bounties ?? []).flatMap((b) => {
+    const who = byKey.get(b.rsnKey);
+    return who ? [{ ...b, rsn: who.rsn, clanMemberId: who.clanMemberId }] : [];
+  });
   const standings = board.map((e, i) => ({
     rsn: e.rsn,
     // A hunt's order is its rule's (first drop, or count then time), which the count alone cannot
@@ -111,7 +120,8 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   // once staff have marked that fee paid, waived it, or taken the person out. Collecting is staff's
   // job; this only stops the coffer paying someone before they have done it. The ladder's hold on
   // the coffer stays in place meanwhile.
-  if (comp.feeGatesPrize && winnersFor(prizes, standings).some((w) => byRsn.get(w.rsn)?.feeStatus === 'pending')) {
+  const owing = (rsn: string) => byRsn.get(rsn)?.feeStatus === 'pending';
+  if (comp.feeGatesPrize && (winnersFor(prizes, standings).some((w) => owing(w.rsn)) || bounties.some((b) => owing(b.rsn)))) {
     return { settled: false, reserved: 0, unfunded: 0 };
   }
 
@@ -146,6 +156,24 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
       currency: parsePrizeCurrency(comp.prizeCurrency),
     });
     // A null row means the place was already taken by a concurrent pass — not a failure to pay.
+    if (!row) continue;
+    if (row.status === 'unfunded') unfunded++;
+    else reserved++;
+  }
+
+  // One award per claimed bounty place, keyed (competition, item, item place): a second pass finds it.
+  for (const b of bounties) {
+    const row = await reserveWeeklyAward({
+      clanId: comp.clanId,
+      amount: b.amount,
+      weeklyCompetitionId: competitionId,
+      place: null,
+      bounty: { itemId: b.itemId, itemPlace: b.place },
+      clanMemberId: b.clanMemberId,
+      rsn: b.rsn,
+      note: `${comp.title} — ${b.place === 1 ? '' : `${ordinal(b.place)} `}${b.itemName} bounty`,
+      currency: parsePrizeCurrency(comp.prizeCurrency),
+    });
     if (!row) continue;
     if (row.status === 'unfunded') unfunded++;
     else reserved++;

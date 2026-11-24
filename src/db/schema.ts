@@ -3969,6 +3969,13 @@ export const cofferEntries = pgTable('coffer_entries', {
    */
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'set null' }),
   place: integer('place'),
+  /**
+   * An item hunt BOUNTY award (lib/itemHunt huntBountyClaims): the row's item and which player to get
+   * it this pays (1 = the first). `place` is null on these, so they never meet the place prizes'
+   * index; (competition, item, item place) is their own.
+   */
+  itemId: integer('item_id'),
+  itemPlace: integer('item_place'),
   // Storage URL of a proof screenshot (donation evidence, or the treasurer's payment shot).
   proofBlobUrl: text('proof_blob_url'),
   /** Which pot: 'gp' (the main game coffer) or 'hcw' (a Hardcore Worlds coffer staff keep by hand). */
@@ -3987,6 +3994,10 @@ export const cofferEntries = pgTable('coffer_entries', {
   uniqueIndex('coffer_entries_weekly_place_unique')
     .on(t.weeklyCompetitionId, t.place)
     .where(sql`${t.weeklyCompetitionId} IS NOT NULL`),
+  // One award per (competition, bounty item, item place): a second settle pass is a no-op here too.
+  uniqueIndex('coffer_entries_weekly_bounty_unique')
+    .on(t.weeklyCompetitionId, t.itemId, t.itemPlace)
+    .where(sql`${t.weeklyCompetitionId} IS NOT NULL AND ${t.itemId} IS NOT NULL`),
 ]);
 export type CofferEntry = typeof cofferEntries.$inferSelect;
 

@@ -13,7 +13,8 @@ import Textarea from '@/components/Textarea';
 import ThingIcon from '@/components/ThingIcon';
 import { clanFetch } from '@/lib/clanFetch';
 import { SKILLS, SKILL_LABELS } from '@/lib/constants';
-import { dueWords, firstDoneWords, firstRuleWords, placeWords, rowProgressWords, type HuntRowProgress } from '@/lib/itemHunt';
+import { bountyClaimWords, bountyLadderWords, dueWords, firstDoneWords, firstRuleWords, placeWords, rowProgressWords, type HuntRowProgress } from '@/lib/itemHunt';
+import { formatGp } from '@/lib/adminEventsFormat';
 import type { HuntView, HuntViewDrop, HuntViewRow } from '@/lib/itemHuntView';
 import { itemIconUrl } from '@/lib/tileIcons';
 import { EntrantTags } from './GameTags';
@@ -99,6 +100,30 @@ function ProgressChips({ row }: { row: HuntViewRow }) {
         );
       })}
     </span>
+  );
+}
+
+/** "Baron · 20m / 10m / 5m · 1 of 3 claimed (Minyol)": each bounty, and how far it has gone. */
+function BountyList({ view }: { view: HuntView }) {
+  const unit = view.currency === 'hcw' ? ' HCW gp' : '';
+  return (
+    <div className="mt-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">Bounties{unit && ` · paid in${unit}`}</p>
+      <ul className="mt-1 flex flex-wrap gap-1.5 text-xs">
+        {view.bounties.map((b) => {
+          const open = b.claimedBy.length < b.amounts.length;
+          return (
+            <li key={b.itemId} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 ${open ? 'border-gold/40 text-foreground/90' : 'border-card-border text-text-muted'}`}>
+              <ThingIcon src={itemIconUrl(b.itemId)} alt="" size={16} />
+              <span>
+                {b.name} · <b className="tabular-nums text-gold-light">{bountyLadderWords(b.amounts, formatGp)}</b> · {bountyClaimWords(b.amounts, b.claimedBy)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-1 text-[11px] text-text-muted">Each is paid to the first players whose drop of it counts, in that order, once each. Paid with the prizes when the hunt ends.</p>
+    </div>
   );
 }
 
@@ -491,6 +516,7 @@ export function HuntHero({ title, view, startDate, endDate, countsOn }: { title:
                 {view.firstOfEach && <span className="px-1 py-0.5 text-text-muted">only each player&rsquo;s first of each item scores</span>}
               </div>
             )}
+            {view.bounties.length > 0 && <BountyList view={view} />}
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full border border-card-border bg-brown-dark/60 px-2.5 py-0.5 text-text-muted">
                 <LocalTime date={startDate} format="short" /> – <LocalTime date={endDate} format="short" />

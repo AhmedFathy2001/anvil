@@ -72,6 +72,9 @@ async function postFor(comp: Competition, row: HuntDropRow): Promise<HuntDropPos
     place: standing.row && standing.row.count > 0 ? standing.row.rank : null,
     endDate: comp.endDate,
     imageUrl: row.screenshotUrl,
+    bounty: standing.bounty
+      ? { place: standing.bounty.place, itemName: standing.bounty.itemName, amount: standing.bounty.amount, hcw: comp.prizeCurrency === 'hcw' }
+      : null,
   };
 }
 

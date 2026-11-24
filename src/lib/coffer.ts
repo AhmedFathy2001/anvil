@@ -297,7 +297,10 @@ export async function reserveWeeklyAward(args: {
   clanId: number;
   amount: number;
   weeklyCompetitionId: number;
-  place: number;
+  /** The finishing place it pays; null for an item hunt bounty, which `bounty` keys instead. */
+  place: number | null;
+  /** An item hunt bounty (lib/itemHunt huntBountyClaims): the item, and which player to get it this pays. */
+  bounty?: { itemId: number; itemPlace: number };
   clanMemberId: number | null;
   rsn: string | null;
   note?: string | null;
@@ -306,13 +309,18 @@ export async function reserveWeeklyAward(args: {
 }): Promise<CofferEntry | null> {
   const amount = Math.max(0, Math.floor(args.amount));
   if (amount <= 0) return null;
+  if (!args.bounty && args.place == null) return null;
   const currency = args.currency ?? 'gp';
-  const existing = await db.query.cofferEntries.findFirst({
-    where: and(
-      eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId),
-      eq(cofferEntries.place, args.place),
-    ),
-  });
+  // The slot this award fills: (competition, place), or a bounty's (competition, item, item place).
+  // Each has its own unique index, so a second settle pass finds the row instead of paying twice.
+  const slot = args.bounty
+    ? and(
+        eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId),
+        eq(cofferEntries.itemId, args.bounty.itemId),
+        eq(cofferEntries.itemPlace, args.bounty.itemPlace),
+      )
+    : and(eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId), eq(cofferEntries.place, args.place!));
+  const existing = await db.query.cofferEntries.findFirst({ where: slot });
   if (existing) return existing.status === 'cancelled' ? null : existing;
   // Short pot: the row is still written, as `unfunded`. A clan that promised gp and could not pay
   // should carry that on its ledger — dropping the row instead would leave the winner with nothing
@@ -328,7 +336,9 @@ export async function reserveWeeklyAward(args: {
         amount: -amount,
         status: funded ? 'reserved' : 'unfunded',
         weeklyCompetitionId: args.weeklyCompetitionId,
-        place: args.place,
+        place: args.bounty ? null : args.place,
+        itemId: args.bounty?.itemId ?? null,
+        itemPlace: args.bounty?.itemPlace ?? null,
         clanMemberId: args.clanMemberId,
         rsn: args.rsn,
         note: args.note ?? null,
@@ -339,14 +349,7 @@ export async function reserveWeeklyAward(args: {
     return row;
   } catch {
     // Lost the unique-index race with a concurrent settle pass. Theirs stands.
-    return (
-      (await db.query.cofferEntries.findFirst({
-        where: and(
-          eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId),
-          eq(cofferEntries.place, args.place),
-        ),
-      })) ?? null
-    );
+    return (await db.query.cofferEntries.findFirst({ where: slot })) ?? null;
   }
 }
 

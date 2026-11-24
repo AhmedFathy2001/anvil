@@ -8,9 +8,11 @@
 // it on the ledger would leave Anvil and the coffer disagreeing. Then it stays the ledger's job.
 //
 // The old prize rows are cancelled, not deleted, so the ledger keeps the history, and their place is
-// cleared so the (competition, place) unique index lets the redo write the new ones.
+// cleared so the (competition, place) unique index lets the redo write the new ones. An item hunt's
+// bounty awards are redone the same way: their item place is cleared for the
+// (competition, item, item place) index.
 
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { cofferEntries, weeklyCompetitions } from '@/db/schema';
@@ -23,13 +25,13 @@ export type RedoResult =
   | { ok: true; settle: SettleResult; reposted: boolean }
   | { ok: false; reason: 'not-finished' | 'paid'; paid?: string[] };
 
-/** The prize rows a redo replaces: this competition's awards that still hold a place. */
+/** The prize rows a redo replaces: this competition's awards that still hold a place, or a bounty's place. */
 async function placedAwards(competitionId: number) {
   // clan-scope: global -- one competition by id; the caller has already scoped it to its clan.
   return db
     .select({ id: cofferEntries.id, status: cofferEntries.status, rsn: cofferEntries.rsn, note: cofferEntries.note })
     .from(cofferEntries)
-    .where(and(eq(cofferEntries.weeklyCompetitionId, competitionId), eq(cofferEntries.kind, 'award'), isNotNull(cofferEntries.place)));
+    .where(and(eq(cofferEntries.weeklyCompetitionId, competitionId), eq(cofferEntries.kind, 'award'), or(isNotNull(cofferEntries.place), isNotNull(cofferEntries.itemPlace))));
 }
 
 /** Can this competition's prizes be redone right now? Shown on the Results page before the button. */
@@ -60,7 +62,8 @@ export async function redoWeeklyPrizes(
     // clan-scope: global -- ids read off this competition just above.
     await db
       .update(cofferEntries)
-      .set({ status: 'cancelled', place: null, settledByUserId: userId, settledAt: nowIso })
+      // Both slots cleared, so the redo can write a place prize or a bounty (lib/itemHunt) afresh.
+      .set({ status: 'cancelled', place: null, itemPlace: null, settledByUserId: userId, settledAt: nowIso })
       .where(and(inArray(cofferEntries.id, ids), inArray(cofferEntries.status, ['planned', 'reserved', 'unfunded'])));
   }
   // clan-scope: global -- the competition read above.
